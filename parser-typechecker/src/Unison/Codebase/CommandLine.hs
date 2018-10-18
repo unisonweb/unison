@@ -9,11 +9,12 @@ import           Control.Exception       (finally)
 import           Control.Monad           (forM_, forever, void, when)
 import           Control.Monad.STM       (STM, atomically)
 import           Data.Foldable           (toList, traverse_)
-import           Data.List               (find, isSuffixOf, sort)
+import           Data.List               (find, isPrefixOf, isSuffixOf, sort)
 import           Data.Set                (Set)
 import qualified Data.Set                as Set
 import           Data.Strings            (strPadLeft)
 import           Data.Text               (Text, pack, unpack)
+import           Safe                    (atMay)
 import qualified System.Console.ANSI     as Console
 import           System.FilePath         (FilePath)
 import qualified System.FilePath         as FilePath
@@ -50,6 +51,7 @@ main dir currentBranchName startRuntime codebase = do
   lineQueue <- TQueue.newIO
   branchFileChanges <- TQueue.newIO
   runtime <- startRuntime
+  let takeActualLine = atomically (takeLine lineQueue)
 
   -- enqueue stdin into lineQueue
   void . forkIO . forever $ getChar >>= atomically . TQueue.enqueue lineQueue
@@ -77,11 +79,91 @@ main dir currentBranchName startRuntime codebase = do
 
   -- load current branch from disk
   branch <- Codebase.getBranch codebase currentBranchName
-  case branch of
-    Nothing -> error "force user to pick or create a valid branch"
-    Just b  -> (`finally` RT.terminate runtime) $
-                  go0 b currentBranchName queue lineQueue runtime
+  (`finally` RT.terminate runtime) $ case branch of
+    Nothing -> do
+      selectBranch currentBranchName takeActualLine >>= \case
+        Just (name, branch) -> go0 branch name queue lineQueue runtime
+        Nothing -> putStrLn "Exiting."
+    Just b  -> go0 b currentBranchName queue lineQueue runtime
   where
+  renderChoice :: Int -> Maybe String -> String -> Int -> String
+  renderChoice width deefault choice index =
+    (if Just choice == deefault then "* " else "  ") ++
+    (strPadLeft ' ' width $ show index) ++ ". " ++ choice
+
+  renderChoices :: forall a. Maybe String -> [((String, a), Int)] -> String
+  renderChoices deefault entries =
+    intercalateMap "\n" go entries
+    where go ((s, _a), index) = renderChoice pad deefault s index
+          pad = ceiling $ logBase (10::Double)
+                                  (fromIntegral . snd . last $ entries)
+
+  mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
+  mergeBranchAndShowDiff name branch = do
+    branch' <- Codebase.mergeBranch codebase name branch
+    -- when (branch' /= branch) $
+    --   putStrLn $ "Some extra stuff appeared right when you forked, "
+    --           ++ "and I went ahead and smashed it all together for you!"
+    pure branch'
+
+  selectBranch :: Name -> IO String -> IO (Maybe (Name, Branch))
+  selectBranch name takeLine = do
+    -- todo: refactor to single-choice function
+    branch <- Codebase.getBranch codebase name
+    case branch of
+      -- if branch named `name` exists, load it,
+      Just branch -> pure . Just $ (name, branch)
+      -- otherwise,
+        -- list branches that do exist, plus option to create, plus option to cancel
+      Nothing -> do
+        putStrLn $
+          "The branch " ++ show name ++ " doesn't exist. " ++
+           "Do you want to create it, or pick a different one?"
+        branches <- Codebase.branches codebase
+        choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
+                      [("create it", Left True)
+                      ,("cancel", Left False)]) (Just $ "create it") takeLine
+        case choice of
+          Just (Left False) -> pure Nothing
+          Just (Left True) -> do
+            branch <- mergeBranchAndShowDiff name mempty
+            pure $ Just (name, branch)
+          Just (Right name) -> selectBranch name takeLine
+          Nothing -> error "unpossible"
+
+  singleChoice :: forall a. [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
+  singleChoice entries deefault takeLine = do
+    let restart = singleChoice entries deefault takeLine
+        numberedEntries = entries `zip` [1..]
+        resume = do
+          putStr $ "Enter a number, or prefix, or a blank line " ++
+                    if null deefault
+                      then "to cancel: "
+                      else "to accept the default (*): "
+          input <- takeLine
+          case words input of
+            [] -> case deefault of
+              Nothing -> pure Nothing
+              Just deefault ->
+                pure (snd <$> find (\(s,_) -> s == deefault) entries)
+            input : _ -> case Read.readMaybe input of
+              Nothing -> -- maybe it's a prefix
+                case filter ((input `isPrefixOf`) . fst . fst) numberedEntries of
+                  [] ->
+                    putStrLn "Sorry, I couldn't understand your selection."
+                       *> restart
+                  [((_s, a), _i)] -> pure (Just a)
+                  matches -> do
+                    putStrLn "I'm not sure which one of these you meant:"
+                    putStrLn $ renderChoices deefault matches
+                    resume
+              Just i -> case atMay entries (i-1) of
+                Just (_s, a) -> pure (Just a)
+                Nothing ->
+                  putStrLn ("Please pick a number from 1 to "
+                                      ++ show (length entries) ++ ".") *> restart
+    putStrLn $ renderChoices deefault numberedEntries
+    resume
   go0 branch branchName queue lineQueue runtime = go branch branchName
     where
 
@@ -90,24 +172,6 @@ main dir currentBranchName startRuntime codebase = do
     printPrompt branchName = do
       incompleteLine <- atomically . peekIncompleteLine $ lineQueue
       putStr $ unpack branchName ++ "> " ++ incompleteLine
-
-    -- singleChoice :: [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
-    -- singleChoice entries deefault =
-    --
-    -- switchBranch :: Name -> IO (Maybe (Name, Branch))
-    -- switchBranch name = do
-    --   -- todo: refactor to single-choice function
-    --   branch <- Codebase.getBranch codebase name
-    --   case branch of
-    --     -- if branch named `name` exists, load it,
-    --     Just branch -> pure . Just $ (name, branch)
-    --     -- otherwise,
-    --       -- list branches that do exist, plus option to create, plus option to cancel
-    --     Nothing -> do
-    --       branches <- Codebase.branches codebase
-    --       singleChoice (branches `zip` branches)
-
-
 
     handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
     handleUnisonFile runtime codebase penv filePath src = do
@@ -165,13 +229,6 @@ main dir currentBranchName startRuntime codebase = do
                   branch' <- mergeBranchAndShowDiff name branch
                   go branch' name
 
-    mergeBranchAndShowDiff :: Name -> Branch -> IO Branch
-    mergeBranchAndShowDiff name branch = do
-      branch' <- Codebase.mergeBranch codebase name branch
-      -- when (branch' /= branch) $
-      --   putStrLn $ "Some extra stuff appeared right when you forked, "
-      --           ++ "and I went ahead and smashed it all together for you!"
-      pure branch'
 
     -- newBranch :: Name -> IO Branch
     -- newBranch name = mergeBranchAndShowDiff newName mempty
