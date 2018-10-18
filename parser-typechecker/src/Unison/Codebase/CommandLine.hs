@@ -142,7 +142,8 @@ main dir currentBranchName startRuntime codebase = do
 
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do
-      line <- atomically $ takeLine lineQueue
+      let takeActualLine = atomically $ takeLine lineQueue
+      line <- takeActualLine
       case words line of
         "add" : args -> error $ show args
 
@@ -155,12 +156,10 @@ main dir currentBranchName startRuntime codebase = do
           go branch name
 
         ["branch", name'] -> do
-          branch' <- Codebase.getBranch codebase $ pack name'
+          branch' <- selectBranch codebase (pack name') takeActualLine
           case branch' of
-            Nothing -> do
-              putStrLn $ "I couldn't find a branch named \"" ++ name' ++ "\"."
-              go branch name
-            Just branch' -> go branch' (pack name')
+            Just (name, branch) -> go branch name
+            Nothing -> putStrLn "Ok, nevermind." *> go branch name
 
         ["fork", newName0] -> do
           let newName = pack newName0
