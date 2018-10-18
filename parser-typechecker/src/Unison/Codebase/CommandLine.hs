@@ -6,7 +6,7 @@ module Unison.Codebase.CommandLine where
 
 import           Control.Concurrent           (forkIO)
 import           Control.Exception            (finally)
-import           Control.Monad                (forM_, forever, void)
+import           Control.Monad                (forM_, forever, void, when)
 import           Control.Monad.STM            (STM, atomically)
 import           Data.Foldable                (toList, traverse_)
 import           Data.List                    (find, isPrefixOf, isSuffixOf,
@@ -83,7 +83,7 @@ main dir currentBranchName startRuntime codebase = do
     printPrompt :: Name -> IO ()
     printPrompt branchName = do
       incompleteLine <- atomically . peekIncompleteLine $ lineQueue
-      putStr $ unpack branchName ++ "> " ++ incompleteLine
+      putStr $ "\r" ++ unpack branchName ++ "> " ++ incompleteLine
 
     handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
     handleUnisonFile runtime codebase penv filePath src = do
@@ -125,24 +125,19 @@ main dir currentBranchName startRuntime codebase = do
             go branch name
           UnisonBranchChanged branches ->
             if Set.member name branches then do
-              putStr $ "I've detected external changes to the branch; reloading..."
               b' <- Codebase.getBranch codebase name
               case b' of
                 Just b' -> do
-                  putStrLn $ " done!"
-                  putStrLn $ "TODO: tell the user what changed as a result of the merge"
+                  when (branch /= b') $ do
+                    putStrLn "I've merged some external changes to the branch."
+                    putStrLn $ "TODO: tell the user what changed as a result of the merge"
                   go b' name
                 Nothing -> do
-                  putStrLn $ "\n...that didn't work.  I'm going to save what I have in memory."
-                  -- note: this will be a combination of what's in memory plus
-                  -- whatever has appeared on disk since the time there was nothing
-                  -- on disk :|
+                  putStrLn $ "The current branch was deleted by some external process, "
+                              ++ "so I'm going to re-save what I have in memory."
                   branch' <- mergeBranchAndShowDiff codebase name branch
                   go branch' name
             else go branch name
-
-    -- newBranch :: Name -> IO Branch
-    -- newBranch name = mergeBranchAndShowDiff newName mempty
 
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do
