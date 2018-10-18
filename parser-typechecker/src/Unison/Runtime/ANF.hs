@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.Runtime.ANF where
 
@@ -18,17 +19,16 @@ import Data.Vector (Vector)
 import qualified Data.Set as Set
 import qualified Unison.Var as Var
 import Unison.Var (Var)
--- import qualified Data.Vector as Vector
 
 data Leaf0 v a r
-  = Int Int64 | Float Double | Nat Word64 | Text Text
-  | Ref Reference
+  = I Int64 | F Double | N Word64 | T Text | B Bool
   | Data Reference Int [r]
-  | ClosedLambda (Term.AnnotatedTerm v a) deriving (Foldable, Traversable, Functor, Eq, Show)
+  | ClosedLam (Term.AnnotatedTerm v a)
+  deriving (Foldable, Traversable, Functor, Eq)
 
-data Leaf1 v a = Var v | Leaf0 (Leaf0 v a (Leaf v a)) deriving (Eq, Show)
+data Leaf1 v a = Var v | Leaf0 (Leaf0 v a (Leaf v a)) deriving Eq
 
-data Leaf v a = Leaf1 { leafVars :: Set v, unLeaf :: Leaf1 v a } deriving Show
+data Leaf v a = Leaf1 { leafVars :: Set v, unLeaf :: Leaf1 v a }
 
 instance (Eq a, Var v) => Eq (Leaf v a) where
   a == b = unLeaf a == unLeaf b
@@ -54,6 +54,12 @@ data ANF v a r
 
 data Term v a = Term { freeVars :: Set v, out :: ANF v a (Term v a) }
 
+pattern Term' t <- Term _ t
+pattern Leaf' l <- Term' (Leaf l)
+pattern ANF0' a <- Term' (ANF0 a)
+pattern Abs' v r <- Term' (Abs v r)
+pattern Lam' v body <- Leaf1 _ (Leaf0 (ClosedLam (fromTerm -> Term' (Abs v body))))
+
 tm0 :: Var v => ANF0 v a (Term v a) -> Term v a
 tm0 f = tm (ANF0 f)
 
@@ -77,6 +83,14 @@ abs v body = Term (Set.delete v (freeVars body)) (Abs v body)
 
 fromTerm :: Term.AnnotatedTerm v a -> Term v a
 fromTerm = error "todo"
+
+simplify :: Var v => Term v a -> Term v a
+simplify t = case out t of
+  Abs v body -> abs v $ simplify body
+  Leaf _     -> t
+  ANF0 t     -> case simplify <$> t of
+    App (Lam' v body) arg -> simplify $ subst v arg body
+    t -> tm0 t
 
 -- Alpha equivalence
 instance (Eq a, Var v, Eq v) => Eq (Term v a) where

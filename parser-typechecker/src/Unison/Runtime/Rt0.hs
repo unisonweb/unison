@@ -14,47 +14,11 @@ import Data.Word (Word64)
 import Data.List
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Runtime.IR
 import qualified Unison.Builtin as B
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
-
-type Arity = Int
-type ConstructorId = Int
-type Pos = Int
-type ArgCount = Int
-
-type Term v = AnnotatedTerm v ()
-
-data V
-  = I Int64 | F Double | U Word64 | B Bool | T Text
-  | Lam Arity (Either R.Reference (Term Symbol)) IR
-  | Data R.Reference ConstructorId [V]
-  | Requested Req
-  deriving (Eq,Show)
---
--- Contains the effect ref and ctor id, the args, and the continuation
--- which expects the result at the top of the stack
-data Req = Req R.Reference ConstructorId [V] IR
-  deriving (Eq,Show)
-
-data IR
-  = Var Pos
-  | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
-  | AddU Pos Pos | SubU Pos Pos | MultU Pos Pos | DivU Pos Pos
-  | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
-  | Let IR IR
-  | LetRec [IR] IR
-  | V V
-  -- | Apply IR [Pos] -- fully saturated function call
-  | DynamicApply Pos [Pos] -- call to unknown function
-  | Construct R.Reference Int [Pos]
-  | Request R.Reference Int [Pos]
-  | Handle Pos IR
-  | If Pos IR IR
-  | And Pos IR
-  | Or Pos IR
-  deriving (Eq,Show)
 
 type Machine = [V] -- a stack of values
 

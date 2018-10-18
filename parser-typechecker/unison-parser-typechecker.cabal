@@ -65,6 +65,7 @@ library
     Unison.PrettyPrint
     Unison.PrintError
     Unison.Reference
+    Unison.Runtime.IR
     Unison.Runtime.Rt0
     Unison.Runtime.ANF
     Unison.Result
