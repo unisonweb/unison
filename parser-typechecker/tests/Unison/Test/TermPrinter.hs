@@ -23,7 +23,7 @@ tc_diff_rtt rtt s expected width =
                          Derived _ -> Text.empty
        actual = if width == 0
                 then PP.renderUnbroken $ pretty get_names (-1) input_term
-                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term
+                else PP.render width  $ pretty get_names (-1) input_term
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
        if actual == expected then ok
@@ -49,11 +49,11 @@ tc :: String -> Test ()
 tc s = tc_diff s s
 
 -- Use renderBroken to render the output to some maximum width.
-tc_breaks_diff :: String -> Int -> String -> Test ()
-tc_breaks_diff s width expected = tc_diff_rtt True s expected width
+tc_breaks_diff :: Int -> String -> String -> Test ()
+tc_breaks_diff width s expected = tc_diff_rtt True s expected width
 
-tc_breaks :: String -> Int -> Test ()
-tc_breaks s width = tc_diff_rtt True s s width
+tc_breaks :: Int -> String -> Test ()
+tc_breaks width s = tc_diff_rtt True s s width
 
 test :: Test ()
 test = scope "termprinter" . tests $
@@ -114,6 +114,10 @@ test = scope "termprinter" . tests $
   , pending $ tc "if a then (if b then c else d) else e"
   , pending $ tc "(if b then c else d)"   -- TODO raise issue - parser doesn't like bracketed ifs (`unexpected )`)
   , pending $ tc "handle foo in (handle bar in baz)"  -- similarly
+  , pending $ tc_breaks 16 "case (if a \n\
+                           \      then b\n\
+                           \      else c) of\n\
+                           \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
   , tc "let\n\
@@ -125,24 +129,27 @@ test = scope "termprinter" . tests $
   , tc "case x of 12 -> x -> f x"
   , tc_diff "case x of (12) -> x" $ "case x of 12 -> x"
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
-  , tc_diff_rtt False "case x of \n\
-                      \  12 -> x\n\
-                      \  13 -> y\n\
-                      \  14 -> z"
-                      "  case\n  x\n  of\n  \
-                      \12\n  ->\n  x\n  \
-                      \13\n  ->\n  y\n  \
-                      \14\n  ->\n  z"   -- TODO possible slightly over-zealous with the newlines
-                      15
-  , tc_diff_rtt False "case x of\n\
-                      \  12 | p x -> x\n\
-                      \  13 | q x -> y\n\
-                      \  14 | r x y -> z"  -- TODO ditto
-                      "  case\n  x\n  of\n  \
-                      \12\n  |\n  p\n  x\n  ->\n  x\n  \
-                      \13\n  |\n  q\n  x\n  ->\n  y\n  \
-                      \14\n  |\n  r\n  x\n  y\n  ->\n  z"
-                      21
+  , tc_breaks 15 "case x of\n\
+                 \  12 -> x\n\
+                 \  13 -> y\n\
+                 \  14 -> z"
+  , tc_breaks 21 "case x of\n\
+                 \  12 | p x -> x\n\
+                 \  13 | q x -> y\n\
+                 \  14 | r x y -> z"                 
+  , tc_breaks 9 "case x of\n\
+                \  112 ->\n\
+                \    x\n\
+                \  113 ->\n\
+                \    y\n\
+                \  114 ->\n\
+                \    z"
+  , pending $ tc_breaks 19 "case\n\
+                           \  myFunction\n\
+                           \    argument1\n\
+                           \    argument2\n\
+                           \of\n\
+                           \  112 -> x"          -- TODO, 'unexpected semi' before 'of' - should the parser accept this?
   , tc "if c then x -> f x else x -> g x"
   , tc "(f x) : Int"
   , tc "(f x) : Pair Int Int"
@@ -157,7 +164,7 @@ test = scope "termprinter" . tests $
   , tc "0.0"
   , tc "-0.0"
   , pending $ tc_diff "+0.0" $ "0.0"  -- TODO parser throws "Prelude.read: no parse" - should it?  Note +0 works for UInt.
-  , pending $ tc_breaks_diff "case x of 12 -> if a then b else c" 21 $  -- TODO
+  , pending $ tc_breaks_diff 21 "case x of 12 -> if a then b else c" $  -- TODO
               "case x of 12 -> \n\
               \  if a then b else c"
   , tc_diff_rtt False "if foo \n\

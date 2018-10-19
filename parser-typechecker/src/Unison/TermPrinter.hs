@@ -115,8 +115,8 @@ pretty n p term = case term of
   LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet' bs e
   Match' scrutinee branches -> parenNest (p >= 2) $
-                               l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of" <>
-                               (PP.Nest "  " $ PP.Group $ b" " <> fold (intersperse (b"; ") (map printCase branches)))
+                               PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
+                               (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
   where sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
@@ -139,8 +139,8 @@ pretty n p term = case term of
                                         pretty n 1 binding <> b"\n  " <> lets' rest
         lets' [] = Empty
 
-        printCase (MatchCase pat guard (AbsN' vs body)) =
-          (fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->" <> b" " <>
+        printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
+          PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
           (PP.Nest "  " $ PP.Group $ pretty n 0 body)
         printCase _ = l"error"
 
@@ -170,7 +170,7 @@ prettyPattern n p vs patt = case patt of
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
                                                (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-                                           in (l"{" <> (PP.Nest "  " $ PP.Group $ b" " <>
+                                           in (l"{" <> b"" <> (PP.Nest "  " $ PP.Group $ b" " <>
                                                l (Text.unpack (n ref (Just i))) <> pats_printed <> b" " <> l"->" <> b" " <>
                                                k_pat_printed <> b" ") <> l"}", eventual_tail)
   t                   -> (l"error: " <> l (show t), vs)

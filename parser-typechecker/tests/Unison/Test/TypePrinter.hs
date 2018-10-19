@@ -23,7 +23,7 @@ tc_diff_rtt rtt s expected width =
                        Derived _ -> Text.empty
        actual = if width == 0
                 then PP.renderUnbroken $ pretty get_names (-1) input_type
-                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_type
+                else PP.render width $ pretty get_names (-1) input_type
        actual_reparsed = Unison.Builtin.t actual
    in scope s $ tests [(
        if actual == expected then ok
