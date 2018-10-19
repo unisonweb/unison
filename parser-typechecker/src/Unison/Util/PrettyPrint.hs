@@ -8,9 +8,6 @@ module Unison.Util.PrettyPrint where
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
 import           Unison.Util.Monoid (intercalateMap)
-import Debug.Trace
-
--- !! TODO Have temporarily mangled this file during debugging.
 
 -- A tree of `a` tokens, to be rendered to a character window by traversing the
 -- leaves depth-first left-to-right, marked up with specifiers about where to
@@ -51,11 +48,9 @@ renderUnbroken = \case
 -- Render a `PrettyPrint a` into a rectangular window of width `width` characters.
 -- `leading` characters of the first line have already been used (can be > width).
 -- `start` is True if this is at the start of the outer-most term being printed.
-renderBroken :: forall a b. (LL.ListLike a b, Eq b, Show a)  -- !! Show a
+renderBroken :: forall a b. (LL.ListLike a b, Eq b) 
              => Bool -> Int -> Int -> b -> PrettyPrint a -> a
-renderBroken start width leading lineSeparator p = let r = f p in 
-                                                   trace ((show start) ++ ", " ++ (show width) ++ ", " ++ (show leading) ++ ", " ++ (show p) ++ ", " ++ (show $ unbrokenWidth p) ++ "\n" ++ (show r) ++ "\n\n\n") r where
- f = \case
+renderBroken start width leading lineSeparator = \case
   Empty -> LL.empty
   Literal a -> a
   Append a b ->
@@ -73,27 +68,27 @@ renderBroken start width leading lineSeparator p = let r = f p in
   -- Going inside a Group can allow us to revert to unbroken rendering.
   Group a -> render' False width leading lineSeparator a
 
-  --where  !!
- replaceOneWithMany :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> a
- replaceOneWithMany target replacement list =
-    LL.foldr (go target replacement) LL.empty list
-      where go :: (LL.FoldableLL a b, Eq b) => b -> a -> b -> a -> a
-            go target replacement b a =
-              if b == target then LL.append replacement a else LL.cons b a
+  where  
+    replaceOneWithMany :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> a
+    replaceOneWithMany target replacement list =
+      LL.foldr (go target replacement) LL.empty list
+        where go :: (LL.FoldableLL a b, Eq b) => b -> a -> b -> a -> a
+              go target replacement b a =
+                if b == target then LL.append replacement a else LL.cons b a
 
-lengthOfLastLine :: (LL.ListLike a b, Eq b) => b -> a -> Int
-lengthOfLastLine lineSeparator ra = 
-  let ixs = LL.findIndices (==lineSeparator) ra in 
-  (LL.length ra) - case ixs of 
-                     [] -> 0
-                     _  -> (LL.last ixs) + 1
+    lengthOfLastLine :: (LL.ListLike a b, Eq b) => b -> a -> Int
+    lengthOfLastLine lineSeparator ra = 
+      let ixs = LL.findIndices (==lineSeparator) ra in 
+      (LL.length ra) - case ixs of 
+                         [] -> 0
+                         _  -> (LL.last ixs) + 1
 
 
-render :: (LL.ListLike a Char, Show a) => Int -> PrettyPrint a -> a  -- !! show a
+render :: (LL.ListLike a Char) => Int -> PrettyPrint a -> a
 render width doc = render' True width 0 '\n' doc
 
 -- Render broken only if necessary.
-render' :: (LL.ListLike a b, Eq b, Show a) => Bool -> Int -> Int -> b -> PrettyPrint a -> a
+render' :: (LL.ListLike a b, Eq b) => Bool -> Int -> Int -> b -> PrettyPrint a -> a
 render' start width leading lineSeparator doc =
   if unbrokenWidth doc <= width - leading
   then renderUnbroken doc
