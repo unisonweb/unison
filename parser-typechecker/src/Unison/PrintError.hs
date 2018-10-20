@@ -820,7 +820,8 @@ printNoteWithSource
   -> String
   -> Note v a
   -> AT.AnnotatedDocument Color.Style
-printNoteWithSource _env s (Parsing      e) = prettyParseError s e
+printNoteWithSource _env _s (TypeInfo _) = undefined
+printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env  s (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
   (fromString $ "Invalid Path: " ++ show path ++ "\n")

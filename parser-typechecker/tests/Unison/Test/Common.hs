@@ -26,7 +26,7 @@ tm = B.tm
 file
   :: String
   -> Result
-       (Note Symbol Ann)
+       (Seq (Note Symbol Ann))
        (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 file = parseAndSynthesizeAsFile ""
 
@@ -46,7 +46,7 @@ parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Note v Ann) (PrintError.Env, Maybe (Term v, Type v))
+  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
 parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
     $ Parsers.parseFile filename s Parser.penv0
