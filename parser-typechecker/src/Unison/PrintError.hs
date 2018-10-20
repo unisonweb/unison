@@ -38,7 +38,6 @@ import           Data.Void                      ( Void )
 import           Debug.Trace
 import qualified Text.Megaparsec               as P
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Blank                  as B
 import           Unison.Kind                    ( Kind )
 import qualified Unison.Kind                   as Kind
 import qualified Unison.Lexer                  as L
@@ -510,10 +509,10 @@ renderTypeError e env src = case e of
     '3' -> "rd"
     _   -> "th"
   debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
-  debugSummary :: C.Note v loc -> AT.AnnotatedDocument Color.Style
+  debugSummary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color.Style
   debugSummary note =
     if Settings.debugNoteSummary then summary note else mempty
-  summary :: C.Note v loc -> AT.AnnotatedDocument Color.Style
+  summary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color.Style
   summary note = mconcat
     [ "\n"
     , "  simple cause:\n"
@@ -617,18 +616,6 @@ renderTypeError e env src = case e of
       , "  effects="
       , fromString (show es)
       ]
-    C.SolvedBlank recorded v t -> mconcat
-      [ "SolvedBlank: "
-      , case recorded of
-        B.Placeholder loc s ->
-          fromString ("Placeholder " ++ show s ++ " " ++ annotatedToEnglish loc)
-        B.Resolve loc s ->
-          fromString ("Resolve " ++ show s ++ " " ++ annotatedToEnglish loc)
-      , " v="
-      , (fromString . show) v
-      , " t="
-      , renderType' env t
-      ]
     C.PatternArityMismatch loc typ args -> mconcat
       [ "PatternArityMismatch:\n"
       , "  loc="
@@ -649,16 +636,6 @@ renderTypeError e env src = case e of
               <> mconcat (intersperse " : " $ annotatedToEnglish <$> locs)
               <> "]"
       in  "DuplicateDefinitions:" <> mconcat (go <$> Nel.toList vs)
-    C.TopLevelComponent ntt ->
-      let go (name, term, typ) =
-            "  "
-              <> renderVar name
-              <> " : "
-              <> renderType' env typ
-              <> " = "
-              <> renderTerm term
-              <> "\n"
-      in  mconcat ["TopLevelComponent:\n", foldMap go ntt]
 
 renderContext
   :: (Var v, Ord loc) => Env -> C.Context v loc -> AT.AnnotatedDocument a
@@ -842,7 +819,7 @@ printNoteWithSource
   -> Note v a
   -> AT.AnnotatedDocument Color.Style
 printNoteWithSource _env s (Parsing      e) = prettyParseError s e
-printNoteWithSource env  s (Typechecking e) = prettyTypecheckNote e env s
+printNoteWithSource env  s (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
   (fromString $ "Invalid Path: " ++ show path ++ "\n")
     <> annotatedAsErrorSite s term
@@ -976,13 +953,13 @@ findTerm = go
   go (_                       :<| t) = go t
   go Empty                           = Nothing
 
-prettyTypecheckNote
+prettyTypecheckError
   :: (Var v, Ord loc, Show loc, Parser.Annotated loc)
-  => C.Note v loc
+  => C.ErrorNote v loc
   -> Env
   -> String
   -> AT.AnnotatedDocument Color.Style
-prettyTypecheckNote = either renderTypeError renderTypeInfo . typeNoteFromNote
+prettyTypecheckError = renderTypeError . typeErrorFromNote
 
 parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
 parseErrorToAnsiString src =

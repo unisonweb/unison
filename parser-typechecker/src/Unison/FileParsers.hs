@@ -14,6 +14,7 @@ import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
+import           Data.Sequence (Seq)
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
@@ -22,7 +23,7 @@ import qualified Unison.Parser as Parser
 import qualified Unison.Parsers as Parsers
 import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference(..))
-import           Unison.Result (Result(..), Note)
+import           Unison.Result (Result(..), Note(..))
 import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
@@ -37,11 +38,15 @@ type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 
+convertNotes :: Typechecker.Notes v ann -> Seq (Note v ann)
+convertNotes (Typechecker.Notes es is) =
+  (TypeError <$> es) <> (TypeInfo <$> is)
+
 parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Note v Ann) (PrintError.Env, Maybe (Term v, Type v))
+  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
 parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
     $ Parsers.parseFile filename s Parser.penv0
@@ -49,7 +54,10 @@ parseAndSynthesizeAsFile filename s = do
   Result notes' $ Just (errorEnv, r)
 
 synthesizeFile
-  :: forall v . Var v => UnisonFile v -> Result (Note v Ann) (Term v, Type v)
+  :: forall v
+   . Var v
+  => UnisonFile v
+  -> Result (Seq (Note v Ann)) (Term v, Type v)
 synthesizeFile unisonFile
   = let
       (UnisonFile dds0 eds0 term) =
@@ -68,12 +76,13 @@ synthesizeFile unisonFile
       n = Typechecker.synthesizeAndResolve env0
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r =
-        pure . fromMaybe (error $ "unknown reference " ++ show r)
-          $ Map.lookup r typeSigs
+        pure . fromMaybe (error $ "unknown reference " ++ show r) $ Map.lookup
+          r
+          typeSigs
       dataDeclaration r = pure $ fromMaybe (die "data" r) $ Map.lookup r datas
       effectDeclaration r =
         pure $ fromMaybe (die "effect" r) $ Map.lookup r effects
-      typeSigs    = Map.fromList $ fmap
+      typeSigs = Map.fromList $ fmap
         (\(v, (_tm, typ)) -> (Builtin (Var.name v), typ))
         B.builtinTypedTerms
       unqualifiedLookup = Map.fromListWith mappend $ fmap
@@ -85,17 +94,17 @@ synthesizeFile unisonFile
         B.builtinTypedTerms
       (Result notes mayType, newTerm) = runIdentity $ runStateT n term
     in
-      Result notes ((newTerm,) <$> mayType)
+      Result (convertNotes notes) ((newTerm, ) <$> mayType)
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v
-                     -> Result (Note v Ann) (UnisonFile v, Type v)
+                     -> Result (Seq (Note v Ann)) (UnisonFile v, Type v)
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
   (t', typ) <- synthesizeFile unisonFile
   pure $ (UnisonFile d e t', typ)
 
 serializeUnisonFile :: Var v => UnisonFile v
-                             -> Result (Note v Ann)
+                             -> Result (Seq (Note v Ann))
                                        (UnisonFile v, Type v, ByteString)
 serializeUnisonFile unisonFile =
   let r = synthesizeUnisonFile unisonFile

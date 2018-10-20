@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -10,16 +11,14 @@ import           Control.Monad.Fail (MonadFail(..))
 import           Control.Monad.Trans ( lift )
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer (Writer, runWriter, MonadWriter(..))
-import qualified Data.Foldable as Foldable
 import           Data.Maybe
 import           Data.Sequence ( Seq )
-import qualified Data.Sequence as Seq
 import qualified Unison.Parser as Parser
 import           Unison.Paths ( Path )
 import           Unison.Term ( AnnotatedTerm )
 import qualified Unison.Typechecker.Context as Context
 
-data Result note a = Result { notes :: Seq note, result :: Maybe a }
+data Result notes a = Result { notes :: notes, result :: Maybe a }
   deriving Show
 
 type Term v loc = AnnotatedTerm v loc
@@ -28,9 +27,8 @@ data Note v loc
   = Parsing (Parser.Err v)
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
---  | UnknownReference Reference
-  | Typechecking (Context.Note v loc)
-  -- WithinLocals (Note v loc)
+  | TypeError (Context.ErrorNote v loc)
+  | TypeInfo (Context.InfoNote v loc)
   deriving Show
 
 isSuccess :: Result note a -> Bool
@@ -42,45 +40,41 @@ isFailure r = isNothing $ result r
 toMaybe :: Result note a -> Maybe a
 toMaybe = result
 
-toEither :: Result note a -> Either [note] a
+toEither :: Result notes a -> Either notes a
 toEither r = case result r of
-  Nothing -> Left (Foldable.toList $ notes r)
+  Nothing -> Left $ notes r
   Just a  -> Right a
 
-fromParsing :: Either (Parser.Err v) a -> Result (Note v loc) a
+fromParsing :: Either (Parser.Err v) a -> Result (Seq (Note v loc)) a
 fromParsing (Left  e) = Result (pure $ Parsing e) Nothing
 fromParsing (Right a) = pure a
 
-failNote :: (MonadWriter (Seq note) m, MonadFail m) => note -> m ()
-failNote note = do
-  tell $ Seq.singleton note
-  Control.Monad.Fail.fail ""
-
-fromTrans :: MaybeT (Writer (Seq note)) a -> Result note a
+fromTrans :: MaybeT (Writer notes) a -> Result notes a
 fromTrans (runWriter . runMaybeT -> (r, n)) = Result n r
 
-toTrans :: Result note a -> MaybeT (Writer (Seq note)) a
+toTrans :: Monoid notes => Result notes a -> MaybeT (Writer notes) a
 toTrans (Result notes may) = do
   lift $ tell notes
   MaybeT (pure may)
 
-instance Functor (Result note) where
-  fmap = liftM
+instance Functor (Result notes) where
+  fmap f (Result notes res) = Result notes (f <$> res)
 
-instance Applicative (Result note) where
+instance Monoid notes => Applicative (Result notes) where
   pure = return
   (<*>) = ap
 
-instance Monad (Result note) where
+instance Monoid notes => Monad (Result notes) where
   return a = Result mempty (Just a)
   Result notes Nothing >>= _f = Result notes Nothing
   Result notes (Just a) >>= f = case f a of
     Result notes2 b -> Result (notes `mappend` notes2) b
 
-instance (MonadWriter (Seq note)) (Result note) where
+instance Monoid notes => MonadWriter notes (Result notes) where
   tell note = fromTrans $ tell note
   listen (Result notes may) = Result notes ((,notes) <$> may)
   pass = fromTrans . pass . toTrans
 
-instance MonadFail (Result note) where
-  fail _ = Result Seq.empty Nothing
+instance Monoid notes => MonadFail (Result notes) where
+  fail _ = Result mempty Nothing
+

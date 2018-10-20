@@ -6,6 +6,7 @@ module Unison.Test.Typechecker where
 
 import           Control.Monad          (join, void)
 import           Control.Monad.IO.Class (liftIO)
+import           Data.Sequence (Seq)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           EasyTest
@@ -21,7 +22,7 @@ import           Unison.Util.Monoid     (intercalateMap)
 
 type Note = Result.Note Symbol Parser.Ann
 
-type SynthResult = Result Note (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+type SynthResult = Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 type EitherResult = Either String (Term Symbol, Type Symbol)
 
 expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
@@ -67,13 +68,14 @@ showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env notes =
   intercalateMap "\n\n" (PrintError.printNoteWithSourceAsAnsi env source) notes
 
-decodeResult :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
+decodeResult
+  :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source PrintError.env0 notes
 decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
 decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
-  Right (t,typ)
+  Right (t, typ)
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
 makePassingTest how filepath = join . liftIO $ do
