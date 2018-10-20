@@ -8,6 +8,7 @@ module Unison.Runtime.ANF where
 
 import Prelude hiding (abs)
 import Data.Foldable
+import Data.List
 import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -19,11 +20,14 @@ import Data.Vector (Vector)
 import qualified Data.Set as Set
 import qualified Unison.Var as Var
 import Unison.Var (Var)
+import Unison.Runtime.IR (IR)
+import qualified Unison.Runtime.IR as IR
 
 data Leaf0 v a r
   = I Int64 | F Double | N Word64 | T Text | B Bool
   | Data Reference Int [r]
   | ClosedLam (Term.AnnotatedTerm v a)
+  | BuiltinLam IR.Arity Reference IR
   deriving (Foldable, Traversable, Functor, Eq)
 
 data Leaf1 v a = Var v | Leaf0 (Leaf0 v a (Leaf v a)) deriving Eq
@@ -54,8 +58,10 @@ data ANF v a r
 
 data Term v a = Term { freeVars :: Set v, out :: ANF v a (Term v a) }
 
+pattern Var' v <- Leaf1 _ (Var v)
 pattern Term' t <- Term _ t
 pattern Leaf' l <- Term' (Leaf l)
+pattern Leaf0' l <- Leaf1 _ (Leaf0 l)
 pattern ANF0' a <- Term' (ANF0 a)
 pattern Abs' v r <- Term' (Abs v r)
 pattern Lam' v body <- Leaf1 _ (Leaf0 (ClosedLam (fromTerm -> Term' (Abs v body))))
@@ -84,12 +90,46 @@ abs v body = Term (Set.delete v (freeVars body)) (Abs v body)
 fromTerm :: Term.AnnotatedTerm v a -> Term v a
 fromTerm = error "todo"
 
+toIR :: Var v => Term v a -> IR
+toIR t = go [] (0::Word) t where
+  ind v env = maybe (error $ show v ++ " var not found in: " ++ show env) id (elemIndex v env)
+  go env n t = case out t of
+    Leaf l -> leafToIR env n l
+    ANF0 t -> case t of
+      Handle h body -> case h of
+        (Var' v) -> IR.Handle (ind v env) (go env n body)
+        _ -> let
+          v = Var.freshenId n (Var.nameds ":anf:")
+          in IR.Handle 0 (go (v:env) (n+1) body)
+    Abs _v _body -> error "unpossible"
+
+  leafToIR _env _n e | Set.null (leafVars e) = IR.V (leafToV e)
+  leafToIR env n e = case e of
+    Var' v -> IR.Var (ind v env)
+    Leaf0' l -> case l of
+      I n -> IR.V (IR.I n)
+      F n -> IR.V (IR.F n)
+      N n -> IR.V (IR.N n)
+      B b -> IR.V (IR.B b)
+      T txt -> IR.V (IR.T txt)
+      Data r cid vs -> error "todo"
+      ClosedLam lam -> error "todo"
+      BuiltinLam arity ref ir -> error "todo"
+
+  leafToV (Leaf0' l) = case l of
+    I n -> IR.I n
+    F n -> IR.F n
+    N n -> IR.N n
+    B b -> IR.B b
+    T txt -> IR.T txt
+
 simplify :: Var v => Term v a -> Term v a
 simplify t = case out t of
   Abs v body -> abs v $ simplify body
   Leaf _     -> t
   ANF0 t     -> case simplify <$> t of
     App (Lam' v body) arg -> simplify $ subst v arg body
+    -- todo - add more rules here
     t -> tm0 t
 
 -- Alpha equivalence

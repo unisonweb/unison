@@ -36,9 +36,9 @@ ati i m = case at i m of
   I i -> i
   _ -> error "type error"
 
-atu :: Int -> Machine -> Word64
-atu i m = case at i m of
-  U i -> i
+atn :: Int -> Machine -> Word64
+atn i m = case at i m of
+  N i -> i
   _ -> error "type error"
 
 atf :: Int -> Machine -> Double
@@ -102,10 +102,10 @@ run env = go where
       SubF i j -> F (atf i m - atf j m)
       MultF i j -> F (atf i m * atf j m)
       DivF i j -> F (atf i m / atf j m)
-      AddU i j -> U (atu i m + atu j m)
-      SubU i j -> U (atu i m - atu j m)
-      MultU i j -> U (atu i m * atu j m)
-      DivU i j -> U (atu i m `div` atu j m)
+      AddN i j -> N (atn i m + atn j m)
+      SubN i j -> N (atn i m - atn j m)
+      MultN i j -> N (atn i m * atn j m)
+      DivN i j -> N (atn i m `div` atn j m)
       _ -> error "should be caught by above cases"
 
   call :: V -> [Pos] -> Machine -> Result
@@ -130,7 +130,7 @@ run env = go where
 decompile :: V -> Term Symbol
 decompile v = case v of
   I n -> Term.int () n
-  U n -> Term.nat () n
+  N n -> Term.nat () n
   F n -> Term.float () n
   B b -> Term.boolean () b
   T t -> Term.text () t
@@ -156,7 +156,7 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.Or' x y -> Or (ind t x) (go y)
     Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
     Term.Int' n -> V (I n)
-    Term.Nat' n -> V (U n)
+    Term.Nat' n -> V (N n)
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)

@@ -14,7 +14,7 @@ type Term v = AnnotatedTerm v ()
 
 -- Values, in normal form
 data V
-  = I Int64 | F Double | U Word64 | B Bool | T Text
+  = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity (Either R.Reference (Term Symbol)) IR
   | Data R.Reference ConstructorId [V]
   | Requested Req
@@ -24,7 +24,7 @@ data V
 data IR
   = Var Pos
   | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
-  | AddU Pos Pos | SubU Pos Pos | MultU Pos Pos | DivU Pos Pos
+  | AddN Pos Pos | SubN Pos Pos | MultN Pos Pos | DivN Pos Pos
   | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
   | Let IR IR
   | LetRec [IR] IR
