@@ -291,7 +291,7 @@ serializeConstructorArities r constructorArities = do
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
 serializeFile
-  :: (MonadPut m, MonadState Pos m, Var v, Show a) => UnisonFile v a -> m ()
+  :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' =
@@ -306,7 +306,7 @@ serializeFile (UnisonFile dataDecls effectDecls body) = do
           (\e ->
             error
               (  "The Unison file is malformed. It has duplicate bindings "
-              ++ show e
+              ++ show (const () <$> e)
               )
           )
           id

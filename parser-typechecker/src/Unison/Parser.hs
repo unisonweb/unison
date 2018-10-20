@@ -76,6 +76,7 @@ data Error v
 
 data Ann
   = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
+  | External
   | Ann { start :: L.Pos, end :: L.Pos }
   deriving (Eq, Ord, Show)
 

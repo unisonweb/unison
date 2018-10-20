@@ -15,11 +15,11 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Sequence (Seq)
+import           Data.Text (Text, unpack)
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.Parser (Ann(..))
-import qualified Unison.Parser as Parser
+import           Unison.Parser (Ann(Intrinsic), PEnv)
 import qualified Unison.Parsers as Parsers
 import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference(..))
@@ -42,16 +42,14 @@ convertNotes :: Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
   (TypeError <$> es) <> (TypeInfo <$> is)
 
-parseAndSynthesizeAsFile
-  :: Var v
-  => FilePath
-  -> String
-  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
-parseAndSynthesizeAsFile filename s = do
-  (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s Parser.penv0
-  let (Result notes' r) = synthesizeFile file
-  Result notes' $ Just (errorEnv, r)
+parseAndSynthesizeFile :: Var v
+  => PEnv v -> FilePath -> Text
+  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (UnisonFile v))
+parseAndSynthesizeFile penv filePath src = do
+  (errorEnv, parsedUnisonFile) <-
+      Result.fromParsing $ Parsers.parseFile filePath (unpack src) penv
+  let (Result notes' r) = synthesizeUnisonFile parsedUnisonFile
+  Result notes' $ Just (errorEnv, fst <$> r)
 
 synthesizeFile
   :: forall v

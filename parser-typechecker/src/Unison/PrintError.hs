@@ -796,12 +796,14 @@ rangeToEnglish (Range (L.Pos l c) (L.Pos l' c')) =
 annotatedToEnglish :: (Annotated a, IsString s) => a -> s
 annotatedToEnglish a = case ann a of
   Intrinsic     -> "an intrinsic"
+  External      -> "an external"
   Ann start end -> rangeToEnglish $ Range start end
 
 
 rangeForAnnotated :: Annotated a => a -> Maybe Range
 rangeForAnnotated a = case ann a of
   Intrinsic     -> Nothing
+  External      -> Nothing
   Ann start end -> Just $ Range start end
 
 showLexerOutput :: Bool

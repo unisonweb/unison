@@ -12,12 +12,13 @@ import           Data.Text.IO           (readFile)
 import           EasyTest
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
-import           Unison.FileParsers     (Type, Term, parseAndSynthesizeAsFile)
+import           Unison.FileParsers     (Type, Term)
 import           Unison.Parser          as Parser
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (Result(..))
 import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
+import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import           Unison.Util.Monoid     (intercalateMap)
 
 type Note = Result.Note Symbol Parser.Ann
