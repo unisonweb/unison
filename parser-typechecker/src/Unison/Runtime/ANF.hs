@@ -101,7 +101,7 @@ toIR t = go [] (0::Word) t where
         _ -> let
           v = Var.freshenId n (Var.nameds ":anf:")
           in IR.Handle 0 (go (v:env) (n+1) body)
-    Abs _v _body -> error "unpossible"
+    Abs v body -> go (v:env) n body
 
   leafToIR _env _n e | Set.null (leafVars e) = IR.V (leafToV e)
   leafToIR env n e = case e of
