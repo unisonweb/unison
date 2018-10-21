@@ -26,6 +26,24 @@ data PrettyPrint a
   -- from the enclosing tree.
   -- Example: (UInt64\b_-> UInt64\b_-> UInt64)
   | Group (PrettyPrint a)
+  -- Same as Group, except it will always be rendered broken by renderBroken.  Used for let bindings.
+  | BrokenGroup (PrettyPrint a)
+
+-- What mode is this call to renderBroken using?
+data BreakMode  
+  = Normal
+  -- Line breaking is has been forced on by a BrokenGroup. (Another Group can return it to normal.)
+  | Forced deriving (Eq)
+
+containsForcedBreaks :: LL.ListLike a b => PrettyPrint a -> Bool
+containsForcedBreaks = \case
+  Empty -> False
+  Literal _ -> False
+  Append a b -> (containsForcedBreaks a) || (containsForcedBreaks b)
+  Nest _prefix a -> containsForcedBreaks a
+  Breakable _ -> False
+  Group a -> containsForcedBreaks a
+  BrokenGroup _ -> True
 
 unbrokenWidth :: LL.ListLike a b => PrettyPrint a -> Int
 unbrokenWidth = \case
@@ -35,7 +53,10 @@ unbrokenWidth = \case
   Nest _prefix a -> unbrokenWidth a
   Breakable a -> LL.length a
   Group a -> unbrokenWidth a
+  BrokenGroup a -> unbrokenWidth a
 
+-- renderUnbroken produces output that fails the parser, in the following case.
+-- * Let and Let Rec - these are rendered with "; " between bindings, which the parser does not accept.
 renderUnbroken :: Monoid a => PrettyPrint a -> a
 renderUnbroken = \case
   Empty -> mempty
@@ -44,29 +65,31 @@ renderUnbroken = \case
   Nest _prefix a -> renderUnbroken a
   Breakable delim -> delim
   Group a -> renderUnbroken a
+  BrokenGroup a -> renderUnbroken a
 
 -- Render a `PrettyPrint a` into a rectangular window of width `width` characters.
 -- `leading` characters of the first line have already been used (can be > width).
 -- `start` is True if this is at the start of the outer-most term being printed.
 renderBroken :: forall a b. (LL.ListLike a b, Eq b) 
-             => Bool -> Int -> Int -> b -> PrettyPrint a -> a
-renderBroken start width leading lineSeparator = \case
+             => BreakMode -> Bool -> Int -> Int -> b -> PrettyPrint a -> a
+renderBroken breakMode start width leading lineSeparator = \case
   Empty -> LL.empty
   Literal a -> a
   Append a b ->
-    let ra = renderBroken False width leading lineSeparator a
+    let ra = renderBroken breakMode False width leading lineSeparator a
         trailing = lengthOfLastLine lineSeparator ra
-    in ra <> renderBroken False width trailing lineSeparator b
+    in ra <> renderBroken breakMode False width trailing lineSeparator b
   Nest prefix a ->
     if ((leading == 0) && (not start))
     then
       -- Indent the subtree.
-      let ra = renderBroken False (width - LL.length prefix) 0 lineSeparator a
+      let ra = renderBroken breakMode False (width - LL.length prefix) 0 lineSeparator a
       in prefix <> replaceOneWithMany lineSeparator (LL.cons lineSeparator prefix) ra
-    else renderBroken False width leading lineSeparator a
+    else renderBroken breakMode False width leading lineSeparator a
   Breakable _delim -> LL.singleton lineSeparator
   -- Going inside a Group can allow us to revert to unbroken rendering.
-  Group a -> render' False width leading lineSeparator a
+  Group a       -> render' Normal False width leading lineSeparator a
+  BrokenGroup a -> render' Forced False width leading lineSeparator a
 
   where  
     replaceOneWithMany :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> a
@@ -85,14 +108,14 @@ renderBroken start width leading lineSeparator = \case
 
 
 render :: (LL.ListLike a Char) => Int -> PrettyPrint a -> a
-render width doc = render' True width 0 '\n' doc
+render width doc = render' Normal True width 0 '\n' doc
 
 -- Render broken only if necessary.
-render' :: (LL.ListLike a b, Eq b) => Bool -> Int -> Int -> b -> PrettyPrint a -> a
-render' start width leading lineSeparator doc =
-  if unbrokenWidth doc <= width - leading
+render' :: (LL.ListLike a b, Eq b) => BreakMode -> Bool -> Int -> Int -> b -> PrettyPrint a -> a
+render' breakMode start width leading lineSeparator doc =
+  if (breakMode /= Forced) && (not $ containsForcedBreaks doc) && (unbrokenWidth doc <= width - leading)
   then renderUnbroken doc
-  else renderBroken start width leading lineSeparator doc
+  else renderBroken breakMode start width leading lineSeparator doc
 
 softbreak :: IsString a => PrettyPrint a
 softbreak = Breakable " "
@@ -130,3 +153,4 @@ instance Show a => Show (PrettyPrint a) where
     Nest prefix a -> "Nest (prefix = " ++ (show prefix) ++ ") (" ++ (show a) ++ ")"
     Breakable a -> "Breakable (" ++ (show a) ++ ")"
     Group a -> "Group (" ++ (show a) ++ ")"
+    BrokenGroup a -> "BrokenGroup (" ++ (show a) ++ ")"

@@ -21,21 +21,24 @@ tc_diff_rtt rtt s expected width =
        get_names x _ = case x of
                          Builtin t -> t
                          Derived _ -> Text.empty
+       prettied = pretty get_names (-1) input_term
        actual = if width == 0
-                then PP.renderUnbroken $ pretty get_names (-1) input_term
-                else PP.render width  $ pretty get_names (-1) input_term
+                then PP.renderUnbroken $ prettied
+                else PP.render width   $ prettied
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
                note $ "actual  : "   ++ show actual
                note $ "show(input)  : "   ++ show input_term
+               note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
        ), (
        if (not rtt) || (input_term == actual_reparsed) then ok
        else do note $ "round trip test..."
                note $ "single parse: " ++ show input_term
                note $ "double parse: " ++ show actual_reparsed
+               note $ "prettyprint  : "   ++ show prettied
                crash "single parse != double parse"
        )]
 
@@ -83,17 +86,25 @@ test = scope "termprinter" . tests $
   , pending $ tc_diff "Optional.None" $ "Optional#0"  -- TODO
   , tc "handle foo in bar"
   , tc "Pair 1 1"
-  , tc "let\n\
-       \  x = 1\n\
-       \  x\n"
-  , tc "let\n\
-      \  x = 1\n\
-      \  y = 2\n\
-      \  f x y\n"
-  , tc "let\n\
-      \  x = 1\n\
-      \  x = 2\n\
-      \  f x x\n"
+  -- let bindings have no unbroken form accepted by the parser.
+  -- We could choose to render them broken anyway, but that would complicate
+  -- PrettyPrint.renderUnbroken a great deal.  
+  , tc_diff_rtt False "let\n\
+                      \  x = 1\n\
+                      \  x\n"
+                      "let; x = 1; x"
+                      0  
+  , tc_breaks 50 "let\n\
+                 \  x = 1\n\
+                 \  x"
+  , tc_breaks 50 "let\n\
+                 \  x = 1\n\
+                 \  y = 2\n\
+                 \  f x y"
+  , tc_breaks 50 "let\n\
+                 \  x = 1\n\
+                 \  x = 2\n\
+                 \  f x x"
   , pending $ tc "case x of Pair t 0 -> foo t" -- TODO hitting UnknownDataConstructor when parsing pattern
   , pending $ tc "case x of Pair t 0 | pred t -> foo t" -- ditto
   , pending $ tc "case x of Pair t 0 | pred t -> foo t; Pair t 0 -> foo' t; Pair t u -> bar;" -- ditto
@@ -120,9 +131,9 @@ test = scope "termprinter" . tests $
                            \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
-  , tc "let\n\
-       \  x = (1 : Int)\n\
-       \  (x : Int)\n"
+  , tc_breaks 50 "let\n\
+                 \  x = (1 : Int)\n\
+                 \  (x : Int)"
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
@@ -153,9 +164,9 @@ test = scope "termprinter" . tests $
   , tc "if c then x -> f x else x -> g x"
   , tc "(f x) : Int"
   , tc "(f x) : Pair Int Int"
-  , tc "let\n\
-       \  x = if a then b else c\n\
-       \  if x then y else z\n"
+  , tc_breaks 50 "let\n\
+                 \  x = if a then b else c\n\
+                 \  if x then y else z"
   , tc "f x y"
   , tc "f (g x) y"
   , tc_diff "(f x) y" $ "f x y"
@@ -175,14 +186,18 @@ test = scope "termprinter" . tests $
             \  else\n\
             \    namespace baz where\n\
             \      x = 1\n\
-            \    13"                        -- TODO suppress lets within block'
-            "if foo then (let\n\
-            \  _1 = and true true\n\
-            \  12\n) else (let\n\
-            \  baz.x = 1\n\
-            \  13\n)" 0                    -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
-                                           -- TODO add a test with a type annotation above the binding
-  , pending $ tc "x + y"                   -- TODO printing infix; but also this is throwing 'unexpected +'
+            \    13"               -- TODO suppress lets within block'
+            "if foo\n\
+            \then\n\
+            \  (let\n\
+            \    _1 = and true true\n\
+            \    12)\n\
+            \else\n\
+            \  (let\n\
+            \    baz.x = 1\n\
+            \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
+                                   -- TODO add a test with a type annotation above the binding
+  , pending $ tc "x + y"           -- TODO printing infix; but also this is throwing 'unexpected +'
   , pending $ tc "x + (y + z)"
   , pending $ tc "x + y + z"
   , pending $ tc "x + y * z" -- i.e. (x + y) * z !

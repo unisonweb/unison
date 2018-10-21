@@ -123,16 +123,16 @@ pretty n p term = case term of
         varList vs = sepList' (\v -> l $ Text.unpack (Var.name v)) (b" ") vs
         commaList = sepList (l"," <> b" ")
 
-        -- TODO let requires layout.  Here we are manually controlling
-        --      line breaking instead of leaving it to PrettyPrint rendering.
-        --      It would be better for PrettyPrint to expose a non-optional line breaking
-        --      primitive.  The Nest needs to become non-optional, and maybe without the Group.
+        -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
+        -- These will replace the occurrences of b"; ".
         printLet bs e = parenNest (p >= 2) $
-                        l"let" <> l"\n  " <> (PP.Nest "  " $ PP.Group $ mconcat (map printBinding bs) <> PP.Group (pretty n 0 e) <> l"\n")
+                        PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $ 
+                          (mconcat (map printBinding bs)) <> 
+                          PP.Group (pretty n 0 e))
                         where
-                          printBinding (v, binding) = PP.Group $
-                            (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                              PP.Nest "  " (PP.Group (pretty n 1 binding <> b"\n  "))
+                          printBinding (v, binding) = PP.Group (
+                            (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <> PP.Nest "  "  
+                              (PP.Group (pretty n 1 binding))) <> b"; "
         
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
