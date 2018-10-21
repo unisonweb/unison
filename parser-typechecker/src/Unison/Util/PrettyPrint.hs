@@ -58,7 +58,7 @@ renderBroken start width leading lineSeparator = \case
         trailing = lengthOfLastLine lineSeparator ra
     in ra <> renderBroken False width trailing lineSeparator b
   Nest prefix a ->
-    if ((leading == 0) && (not start) && (width > LL.length prefix))
+    if ((leading == 0) && (not start))
     then
       -- Indent the subtree.
       let ra = renderBroken False (width - LL.length prefix) 0 lineSeparator a
@@ -122,11 +122,11 @@ instance Monoid (PrettyPrint a) where
 instance IsString a => IsString (PrettyPrint a) where
   fromString = Literal . fromString
 
-instance Show (PrettyPrint a) where  -- !!
-  show p = case p of
+instance Show a => Show (PrettyPrint a) where 
+  show = \case
     Empty -> "Empty"
-    Literal _ -> "Literal"
-    Append _ _ -> "Append"
-    Nest _ _ -> "Nest"
-    Breakable _ -> "Breakable"
-    Group _ -> "Group"
+    Literal a -> "Literal " ++ (show a)
+    Append a b -> "Append (" ++ (show a) ++ ") (" ++ (show b) ++ ")"
+    Nest prefix a -> "Nest (prefix = " ++ (show prefix) ++ ") (" ++ (show a) ++ ")"
+    Breakable a -> "Breakable (" ++ (show a) ++ ")"
+    Group a -> "Group (" ++ (show a) ++ ")"

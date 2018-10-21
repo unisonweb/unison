@@ -21,9 +21,9 @@ import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
+--TODO let suppression, infix, missing features
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
---TODO more testing of line-breaking behaviour
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
@@ -113,7 +113,7 @@ pretty n p term = case term of
                           varList vs <> l" ->" <> b" " <>
                           (PP.Nest "  " $ PP.Group $ pretty n 2 body)
   LetRecNamed' bs e -> printLet bs e
-  Lets' bs e ->   printLet' bs e
+  Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> parenNest (p >= 2) $
                                PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
@@ -126,26 +126,21 @@ pretty n p term = case term of
         -- TODO let requires layout.  Here we are manually controlling
         --      line breaking instead of leaving it to PrettyPrint rendering.
         --      It would be better for PrettyPrint to expose a non-optional line breaking
-        --      primitive.
+        --      primitive.  The Nest needs to become non-optional, and maybe without the Group.
         printLet bs e = parenNest (p >= 2) $
-                        l"let" <> l"\n  " <> lets bs <> pretty n 0 e <> l"\n"
-        printLet' bs e = parenNest (p >= 2) $
-                        l"let" <> l"\n  " <> lets' bs <> pretty n 0 e <> l"\n"
-        --TODO clean up this duplication, and use intercalateMap
-        lets ((v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                     pretty n 1 binding <> b"\n  " <> lets rest
-        lets [] = Empty
-        lets' ((_, v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                        pretty n 1 binding <> b"\n  " <> lets' rest
-        lets' [] = Empty
-
+                        l"let" <> l"\n  " <> (PP.Nest "  " $ PP.Group $ mconcat (map printBinding bs) <> PP.Group (pretty n 0 e) <> l"\n")
+                        where
+                          printBinding (v, binding) = PP.Group $
+                            (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
+                              PP.Nest "  " (PP.Group (pretty n 1 binding <> b"\n  "))
+        
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
-          (PP.Nest "  " $ PP.Group $ pretty n 0 body)
+          (PP.Nest "  " $ PP.Group $ pretty n 0 body) where
+            printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
+            printGuard Nothing = Empty
         printCase _ = l"error"
 
-        printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
-        printGuard Nothing = Empty
 
 pretty' :: Var v => (Reference -> Maybe Int -> Text) -> AnnotatedTerm v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n (-1) t
