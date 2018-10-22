@@ -113,9 +113,8 @@ renderTypeInfo
    . (Var v, Annotated loc, Ord loc, Show loc)
   => TypeInfo v loc
   -> Env
-  -> String
   -> AT.AnnotatedDocument Color.Style
-renderTypeInfo i env _ = case i of
+renderTypeInfo i env = case i of
   TopLevelComponent {..} ->
     let defs =
           filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_") definitions
@@ -820,7 +819,7 @@ printNoteWithSource
   -> String
   -> Note v a
   -> AT.AnnotatedDocument Color.Style
-printNoteWithSource _env _s (TypeInfo _) = undefined
+printNoteWithSource env _s (TypeInfo n) = prettyTypeInfo n env
 printNoteWithSource _env s (Parsing e) = prettyParseError s e
 printNoteWithSource env  s (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
@@ -963,6 +962,14 @@ prettyTypecheckError
   -> String
   -> AT.AnnotatedDocument Color.Style
 prettyTypecheckError = renderTypeError . typeErrorFromNote
+
+prettyTypeInfo
+  :: (Var v, Ord loc, Show loc, Parser.Annotated loc)
+  => C.InfoNote v loc
+  -> Env
+  -> AT.AnnotatedDocument Color.Style
+prettyTypeInfo n e =
+  fromMaybe "" $ flip renderTypeInfo e <$> typeInfoFromNote n
 
 parseErrorToAnsiString :: Var v => String -> Parser.Err v -> String
 parseErrorToAnsiString src =

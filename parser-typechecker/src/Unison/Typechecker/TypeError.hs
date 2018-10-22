@@ -87,6 +87,12 @@ typeErrorFromNote n = case Ex.extract allErrors n of
   Just msg -> msg
   Nothing  -> Other n
 
+typeInfoFromNote
+  :: (Ord loc, Show loc, Var v) => C.InfoNote v loc -> Maybe (TypeInfo v loc)
+typeInfoFromNote n = case n of
+  C.TopLevelComponent defs -> Just $ TopLevelComponent defs n
+  _ -> Nothing
+
 allErrors :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 allErrors = asum
   [ and
