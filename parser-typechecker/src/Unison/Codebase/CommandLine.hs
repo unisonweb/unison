@@ -31,9 +31,13 @@ import           Unison.FileParsers           (parseAndSynthesizeFile)
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import           Unison.PrintError            (parseErrorToAnsiString,
-                                               printNoteWithSourceAsAnsi)
+                                               printNoteWithSourceAsAnsi,
+                                               prettyTopLevelComponents)
 import           Unison.Result                (Result (Result))
 import qualified Unison.Result                as Result
+import qualified Unison.Typechecker.Context   as C
+import qualified Unison.Typechecker.TypeError as E
+import qualified Unison.Util.ColorText        as Color
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
@@ -106,7 +110,10 @@ main dir currentBranchName startRuntime codebase = do
           Just typecheckedUnisonFile -> do
             Console.setTitle "Unison ✅"
             putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-            -- todo: print out top-level bindings
+            let components = E.TopLevelComponent <$>
+                  [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
+            putStrLn . show . Color.renderDocANSI 6 $
+              prettyTopLevelComponents components errorEnv
             RT.evaluate runtime typecheckedUnisonFile codebase
 
     go :: Branch -> Name -> IO ()
