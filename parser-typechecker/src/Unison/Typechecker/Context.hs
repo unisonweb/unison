@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
@@ -10,7 +12,8 @@
 
 module Unison.Typechecker.Context
   ( synthesizeClosed
-  , Note(..)
+  , ErrorNote(..)
+  , InfoNote(..)
   , Cause(..)
   , Context(..)
   , ActualArgCount
@@ -21,6 +24,7 @@ module Unison.Typechecker.Context
   , Term
   , Type
   , TypeVar
+  , Result(..)
   , errorTerms
   , innermostErrorTerm
   , lookupAnn
@@ -32,10 +36,12 @@ module Unison.Typechecker.Context
   )
 where
 
+import           Control.Applicative (Alternative (..))
 import           Control.Monad
 import           Control.Monad.Reader.Class
 import           Control.Monad.State (get, put, StateT, runStateT)
 import           Control.Monad.Trans (lift)
+import           Control.Monad.Writer (MonadWriter(..))
 import           Data.Bifunctor (first, second)
 import           Data.Foldable (for_)
 import qualified Data.Foldable as Foldable
@@ -98,12 +104,63 @@ data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
 type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
 
-type Result v loc a = (Seq (Note v loc), Maybe a)
+data Result v loc a = Result { errors :: Seq (ErrorNote v loc)
+                             , infos :: Seq (InfoNote v loc)
+                             , resultValue :: Maybe a
+                             } deriving (Functor)
+
+instance Applicative (Result v loc) where
+  pure = Result mempty mempty . Just
+  Result es is a <*> Result es' is' a' =
+    Result (es <> es') (is <> is') (a <*> a')
+
+instance Alternative (Result v loc) where
+  empty = Result mempty mempty Nothing
+  a <|> b = if isJust $ resultValue a then a else b
+
+instance Monad (Result v loc) where
+  Result es is a >>= f =
+    let Result es' is' b = traverse f a
+     in joinMaybe $ Result (es <> es') (is <> is') b
+
+instance MonadWriter
+           (Seq (ErrorNote v loc), Seq (InfoNote v loc))
+           (Result v loc)
+  where
+    tell (es, is) = Result es is (Just ())
+    listen (Result es is ma) = Result es is ((, (es, is)) <$> ma)
+    pass (Result es is maf) =
+      joinMaybe $ traverse (\(a, f) -> tell (f (es, is)) *> pure a) maf
+
+joinMaybe :: Result v loc (Maybe a) -> Result v loc a
+joinMaybe (Result v loc ma) = Result v loc (join ma)
+
+-- Emit an errorNote without failing
+-- errorNote' :: Cause v loc -> Result v loc ()
+-- errorNote' cause = tell (pure (ErrorNote cause mempty), mempty)
+
+btw' :: InfoNote v loc -> Result v loc ()
+btw' note = tell (mempty, pure note)
 
 -- | Typechecking monad
 newtype M v loc a = M {
   runM :: MEnv v loc -> Result v loc (a, Env v loc)
 }
+
+liftResult :: Result v loc a -> M v loc a
+liftResult r = M (\m -> (, env m) <$> r)
+
+-- errorNote :: Cause v loc -> M v loc ()
+-- errorNote = liftResult . errorNote
+
+btw :: InfoNote v loc -> M v loc ()
+btw = liftResult . btw'
+
+modEnv :: (Env v loc -> Env v loc) -> M v loc ()
+modEnv f = modEnv' $ ((), ) . f
+
+modEnv' :: (Env v loc -> (a, Env v loc)) -> M v loc a
+modEnv' f = M (\menv -> pure . f $ env menv)
 
 data Unknown = Data | Effect deriving Show
 
@@ -159,6 +216,16 @@ isExact :: Suggestion v loc -> Bool
 isExact (Suggestion _ _ _) = True
 isExact _ = False
 
+data ErrorNote v loc = ErrorNote {
+  cause :: Cause v loc,
+  path :: Seq (PathElement v loc)
+} deriving Show
+
+data InfoNote v loc
+  = SolvedBlank (B.Recorded loc) v (Type v loc)
+  | TopLevelComponent [(v, Term v loc, Type v loc)]
+  deriving (Show)
+
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
@@ -168,44 +235,36 @@ data Cause v loc
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
   | EffectConstructorWrongArgCount ExpectedArgCount ActualArgCount Reference ConstructorId
   | MalformedEffectBind (Type v loc) (Type v loc) [Type v loc] -- type of ctor, type of ctor result
-  | SolvedBlank (B.Recorded loc) v (Type v loc)
   -- Type of ctor, number of arguments we got
   | PatternArityMismatch loc (Type v loc) Int
   -- A variable is defined twice in the same block
   | DuplicateDefinitions (NonEmpty (v, [loc]))
-  -- `TypeSignaturesNeeded` indicates that the component wouldn't compile
-  -- without the explicit signature OR that the synthesized type isn't equal to
-  -- the user-provided signature. Useful so we can have redundant type signatures
-  -- not affect hashing.
-  | TopLevelComponent [(v, Term v loc, Type v loc)]
   deriving Show
 
-errorTerms :: Note v loc -> [Term v loc]
+errorTerms :: ErrorNote v loc -> [Term v loc]
 errorTerms n = Foldable.toList (path n) >>= \e -> case e of
   InCheck e _           -> [e]
   InSynthesizeApp _ e _ -> [e]
   InSynthesize e        -> [e]
   _                     -> [ ]
 
-innermostErrorTerm :: Note v loc -> Maybe (Term v loc)
+innermostErrorTerm :: ErrorNote v loc -> Maybe (Term v loc)
 innermostErrorTerm n = listToMaybe $ errorTerms n
 
-data Note v loc = Note { cause :: Cause v loc, path :: Seq (PathElement v loc) } deriving Show
-
 solveBlank :: B.Recorded loc -> v -> Type v loc -> M v loc ()
-solveBlank blank v typ =
-  M (\menv -> (pure $ Note (SolvedBlank blank v typ) mempty, Just ((), env menv)))
+solveBlank blank v typ = btw $ SolvedBlank blank v typ
 
--- Add `p` onto the end of the `path` of this `Note`
-scope' :: PathElement v loc -> Note v loc -> Note v loc
-scope' p (Note cause path) = Note cause (path `mappend` pure p)
+-- Add `p` onto the end of the `path` of this `ErrorNote`
+scope' :: PathElement v loc -> ErrorNote v loc -> ErrorNote v loc
+scope' p (ErrorNote cause path) = ErrorNote cause (path `mappend` pure p)
 
--- Add `p` onto the end of the `path` of any `Note`s emitted by the action
+-- Add `p` onto the end of the `path` of any `ErrorNote`s emitted by the action
 scope :: PathElement v loc -> M v loc a -> M v loc a
-scope p (M m) = M go where
+scope p (M m) = M go
+ where
   go menv =
-    let (notes, r) = m menv
-    in (scope' p <$> notes, r)
+    let (Result errors infos r) = m menv
+    in  Result (scope' p <$> errors) infos r
 
 -- | The typechecking environment
 data MEnv v loc = MEnv {
@@ -305,9 +364,11 @@ breakAt m (Context xs) =
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: (Var v, Ord loc) => Context v loc -> v -> v -> Bool
 ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
-  where
-  -- | Like `retract`, but returns the empty context if retracting would remove all elements.
-  retract' :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc
+ where
+  -- Like `retract`, but returns the empty context if retracting would remove
+  -- all elements.
+  retract'
+    :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc
   retract' e ctx = maybe mempty fst $ retract0 e ctx
 
 -- env0 :: Env v loc
@@ -325,25 +386,26 @@ _logContext msg = when debugEnabled $ do
 usedVars :: Context v loc -> Set v
 usedVars = allVars . info
 
-fromMEnv :: (MEnv v loc -> a)
-         -> MEnv v loc
-         -> (Seq (Note v loc), Maybe (a, Env v loc))
-fromMEnv f m = (mempty, pure (f m, env m))
+fromMEnv :: (MEnv v loc -> a) -> M v loc a
+fromMEnv f = f <$> ask
 
 getBuiltinLocation :: M v loc loc
-getBuiltinLocation = M . fromMEnv $ builtinLocation
+getBuiltinLocation = fromMEnv builtinLocation
 
 getAbilityCheckMask :: M v loc (Type v loc -> M v loc Bool)
-getAbilityCheckMask = M . fromMEnv $ abilityCheckMask
+getAbilityCheckMask = fromMEnv abilityCheckMask
 
 getContext :: M v loc (Context v loc)
-getContext = M . fromMEnv $ ctx . env
+getContext = fromMEnv $ ctx . env
 
 setContext :: Context v loc -> M v loc ()
-setContext ctx = M (\menv -> let e = env menv in (mempty, pure ((), e {ctx = ctx})))
+setContext ctx = modEnv (\e -> e { ctx = ctx })
 
 modifyContext :: (Context v loc -> M v loc (Context v loc)) -> M v loc ()
-modifyContext f = do c <- getContext; c <- f c; setContext c
+modifyContext f = do
+  c <- getContext
+  c <- f c
+  setContext c
 
 modifyContext' :: (Context v loc -> Context v loc) -> M v loc ()
 modifyContext' f = modifyContext (pure . f)
@@ -358,18 +420,17 @@ existentials :: Context v loc -> Set v
 existentials = existentialVars . info
 
 freshenVar :: Var v => v -> M v loc v
-freshenVar v =
-  M (\menv ->
-       let e = env menv
-           id = freshId e
-       in (mempty, pure (Var.freshenId id v, e {freshId = id+1})))
+freshenVar v = modEnv'
+  (\e ->
+    let id = freshId e in (Var.freshenId id v, e { freshId = freshId e + 1 })
+  )
 
 freshenTypeVar :: Var v => TypeVar v loc -> M v loc v
-freshenTypeVar v =
-  M (\menv ->
-       let e = env menv
-           id = freshId e
-       in (mempty, pure (Var.freshenId id (TypeVar.underlying v), e {freshId = id+1})))
+freshenTypeVar v = modEnv'
+  (\e ->
+    let id = freshId e
+    in  (Var.freshenId id (TypeVar.underlying v), e { freshId = id + 1 })
+  )
 
 freshNamed :: (Var v, Ord loc) => Text -> M v loc v
 freshNamed = freshenVar . Var.named
@@ -435,26 +496,30 @@ extend e c@(Context ctx) = Context ((e,i'):ctx) where
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
 orElse m1 m2 = M go where
-  go menv = case runM m1 menv of
-    r @ (_, Just (_, _)) -> r
-    _ -> runM m2 menv
+  go menv = runM m1 menv <|> runM m2 menv
 
 -- If the action fails, preserve all the notes it emitted and then return the
 -- provided `a`; if the action succeeds, we're good, just use its result
 recover :: a -> M v loc a -> M v loc a
 recover ifFail (M action) = M go where
   go menv = case action menv of
-    (notes, Nothing) -> (notes, Just (ifFail, env menv))
+    Result es is Nothing -> Result es is $ Just (ifFail, env menv)
     r -> r
 
+-- getMaybe :: Result v loc a -> Result v loc (Maybe a)
+-- getMaybe = hoistMaybe Just
+
+-- hoistMaybe :: (Maybe a -> Maybe b) -> Result v loc a -> Result v loc b
+-- hoistMaybe f (Result es is a) = Result es is (f a)
+
 getDataDeclarations :: M v loc (DataDeclarations v loc)
-getDataDeclarations = M $ fromMEnv dataDecls
+getDataDeclarations = fromMEnv dataDecls
 
 getEffectDeclarations :: M v loc (EffectDeclarations v loc)
-getEffectDeclarations = M $ fromMEnv effectDecls
+getEffectDeclarations = fromMEnv effectDecls
 
 getAbilities :: M v loc [Type v loc]
-getAbilities = M $ fromMEnv abilities
+getAbilities = fromMEnv abilities
 
 -- run `m` without doing ability checks on requests which match `ambient0`
 -- are a subtype of `ambient0`.
@@ -476,15 +541,11 @@ compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
 
 failWith :: Cause v loc -> M v loc a
-failWith cause = M (const (pure (Note cause mempty), Nothing))
-
--- Emit a note without failing
-btw :: Cause v loc -> M v loc ()
-btw cause =
-  M (\menv -> (pure $ Note cause mempty, Just ((), env menv)))
+failWith cause =
+  M (const $ Result (pure $ ErrorNote cause mempty) mempty Nothing)
 
 failSecretlyAndDangerously :: M v loc a
-failSecretlyAndDangerously = M (const (mempty, Nothing))
+failSecretlyAndDangerously = empty
 
 getDataDeclaration :: Reference -> M v loc (DataDeclaration' v loc)
 getDataDeclaration r = do
@@ -630,9 +691,8 @@ noteTopLevelType
 noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding typ1 -> do
     typ2 <- synthesize strippedBinding `orElse` pure typ
-    btw $ TopLevelComponent [(ABT.variable e
-                             ,if typ2 == typ then strippedBinding else binding
-                             ,typ1)]
+    btw $ TopLevelComponent
+      [(ABT.variable e, if typ2 == typ then strippedBinding else binding, typ1)]
   _ -> btw $ TopLevelComponent [(ABT.variable e, binding, typ)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
@@ -1375,16 +1435,20 @@ annotateRefs synth = ABT.visit f where
           ge t = ABT.vmap TypeVar.Universal $ Type.generalizeEffects (Type.arity t) t
   f _ = Nothing
 
-run :: (Var v, Ord loc)
-    => loc
-    -> [Type v loc]
-    -> DataDeclarations v loc
-    -> EffectDeclarations v loc
-    -> M v loc a
-    -> Result v loc a
+run
+  :: (Var v, Ord loc)
+  => loc
+  -> [Type v loc]
+  -> DataDeclarations v loc
+  -> EffectDeclarations v loc
+  -> M v loc a
+  -> Result v loc a
 run builtinLoc ambient datas effects m =
-  let (notes, o) = runM m (MEnv (Env 0 mempty) ambient builtinLoc datas effects (const $ pure True))
-  in (notes, fst <$> o)
+  fmap fst
+    . runM m
+    . MEnv (Env 0 mempty) ambient builtinLoc datas effects
+    . const
+    $ pure True
 
 generalizeEffectSignatures :: Var v => Term v loc -> Term v loc
 generalizeEffectSignatures t = ABT.rebuildUp go t
@@ -1418,19 +1482,14 @@ isSubtype' type1 type2 = do
     succeeds :: M v loc a -> M v loc Bool
     succeeds m = do
       e <- ask
-      let (_, r) = runM m e
+      let Result _ _ r = runM m e
       pure $ isJust r
 
 -- Public interface to `isSubtype`
 isSubtype
-  :: (Var v, Ord loc)
-  => loc
-  -> Type v loc
-  -> Type v loc
-  -> Result v loc Bool
-isSubtype builtinLoc t1 t2 = fmap fst <$> runM
-  (isSubtype' t1 t2)
-  (MEnv (Env 0 mempty) [] builtinLoc Map.empty Map.empty (const $ pure True))
+  :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
+isSubtype builtinLoc t1 t2 =
+  run builtinLoc [] Map.empty Map.empty (isSubtype' t1 t2)
 
 instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
@@ -1450,17 +1509,13 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem ctx (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
--- MEnv v loc -> (Seq (Note v loc), (a, Env v loc))
+-- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad (M v loc) where
-  return a = M (\menv -> (mempty, pure (a, env menv)))
+  return a = M (\menv -> pure (a, env menv))
   m >>= f = M go where
-    go menv = let
-      (notes1, aenv1) = runM m menv
-      in case aenv1 of
-        Nothing -> (notes1, Nothing)
-        Just (a, env1) ->
-          let (notes2, x) = runM (f a) (menv { env = env1 })
-          in (notes1 `mappend` notes2, x)
+    go menv = do
+      (a, env1) <- runM m menv
+      runM (f a) (menv { env = env1 })
 
 instance Applicative (M v loc) where
   pure = return
@@ -1480,5 +1535,10 @@ instance (Var v, Ord loc) => Semigroup (Context v loc) where
   (<>) = mappend
 
 instance MonadReader (MEnv v loc) (M v loc) where
-  ask = M (\e -> (mempty, Just (e, env e)))
+  ask = M (\e -> pure (e, env e))
   local f m = M $ runM m . f
+
+instance Alternative (M v loc) where
+  empty = liftResult empty
+  a <|> b = a `orElse` b
+

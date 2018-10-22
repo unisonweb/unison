@@ -4,7 +4,7 @@
 
 module Unison.Typechecker.TypeError where
 
-import           Control.Monad                 (mzero)
+import           Control.Applicative           (empty)
 import           Data.Foldable                 (asum)
 import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
@@ -28,19 +28,19 @@ data TypeError v loc
              , foundLeaf    :: C.Type v loc -- leaf1
              , expectedLeaf :: C.Type v loc -- leaf2
              , mismatchSite :: loc
-             , note         :: C.Note v loc
+             , note         :: C.ErrorNote v loc
              }
   | BooleanMismatch { getBooleanMismatch :: BooleanMismatch
                     , mismatchSite       :: loc
                     , foundType          :: C.Type v loc
-                    , note               :: C.Note v loc
+                    , note               :: C.ErrorNote v loc
                     }
   | ExistentialMismatch { getExistentialMismatch :: ExistentialMismatch
                         , expectedType           :: C.Type v loc
                         , expectedLoc            :: loc
                         , foundType              :: C.Type v loc
                         , mismatchSite           :: loc
-                        , note                   :: C.Note v loc
+                        , note                   :: C.ErrorNote v loc
                         }
   | FunctionApplication { f            :: C.Term v loc
                         , ft           :: C.Type v loc
@@ -50,78 +50,107 @@ data TypeError v loc
                         , expectedType :: C.Type v loc
                         , leafs        :: Maybe (C.Type v loc, C.Type v loc) -- found, expected
                         , solvedVars   :: [(v, C.Type v loc)]
-                        , note         :: C.Note v loc
+                        , note         :: C.ErrorNote v loc
                         }
   | NotFunctionApplication { f    :: C.Term v loc
                            , ft   :: C.Type v loc
-                           , note :: C.Note v loc
+                           , note :: C.ErrorNote v loc
                            }
   | AbilityCheckFailure { ambient                 :: [C.Type v loc]
                         , requested               :: [C.Type v loc]
                         , abilityCheckFailureSite :: loc
-                        , note                    :: C.Note v loc
+                        , note                    :: C.ErrorNote v loc
                         }
   | UnknownType { unknownTypeV :: v
                 , typeSite     :: loc
-                , note         :: C.Note v loc
+                , note         :: C.ErrorNote v loc
                 }
   | UnknownTerm { unknownTermV :: v
                 , termSite     :: loc
                 , suggestions  :: [C.Suggestion v loc]
                 , expectedType :: C.Type v loc
-                , note         :: C.Note v loc
+                , note         :: C.ErrorNote v loc
                 }
-  | Other (C.Note v loc)
+  | Other (C.ErrorNote v loc)
   deriving (Show)
 
-typeErrorFromNote :: forall loc v. (Ord loc, Show loc, Var v) => C.Note v loc -> TypeError v loc
-typeErrorFromNote n = case Ex.runNote all n of
+data TypeInfo v loc =
+  TopLevelComponent { definitions :: [(v, C.Term v loc, C.Type v loc)]
+                    , infoNote :: C.InfoNote v loc
+                    } deriving (Show)
+
+type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
+
+typeErrorFromNote
+  :: (Ord loc, Show loc, Var v) => C.ErrorNote v loc -> TypeError v loc
+typeErrorFromNote n = case Ex.extract allErrors n of
   Just msg -> msg
   Nothing  -> Other n
 
-all :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
-all = asum [and, or, cond, matchGuard,
-            ifBody, vectorBody, matchBody,
-            applyingFunction, applyingNonFunction,
-            generalMismatch,
-            abilityCheckFailure, unknownType, unknownTerm
-            ]
+typeInfoFromNote
+  :: (Ord loc, Show loc, Var v) => C.InfoNote v loc -> Maybe (TypeInfo v loc)
+typeInfoFromNote n = case n of
+  C.TopLevelComponent defs -> Just $ TopLevelComponent defs n
+  _ -> Nothing
 
-abilityCheckFailure :: Ex.NoteExtractor v a (TypeError v a)
+allErrors :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+allErrors = asum
+  [ and
+  , or
+  , cond
+  , matchGuard
+  , ifBody
+  , vectorBody
+  , matchBody
+  , applyingFunction
+  , applyingNonFunction
+  , generalMismatch
+  , abilityCheckFailure
+  , unknownType
+  , unknownTerm
+  ]
+
+topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
+topLevelComponent = do
+  defs <- Ex.topLevelComponent
+  n <- Ex.infoNote
+  pure $ TopLevelComponent defs n
+
+abilityCheckFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityCheckFailure = do
   (ambient, requested, _ctx) <- Ex.abilityCheckFailure
   e <- Ex.innermostTerm
-  n <- Ex.note
+  n <- Ex.errorNote
   pure $ AbilityCheckFailure ambient requested (ABT.annotation e) n
 
-unknownType :: Ex.NoteExtractor v loc (TypeError v loc)
+unknownType :: Ex.ErrorExtractor v loc (TypeError v loc)
 unknownType = do
   (loc, v) <- Ex.unknownSymbol
-  n <- Ex.note
+  n <- Ex.errorNote
   pure $ UnknownType v loc n
 
-unknownTerm :: Ex.NoteExtractor v loc (TypeError v loc)
+unknownTerm :: Ex.ErrorExtractor v loc (TypeError v loc)
 unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
-  n <- Ex.note
+  n <- Ex.errorNote
   pure $ UnknownTerm v loc suggs typ n
 
-generalMismatch :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+generalMismatch :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 generalMismatch = do
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
 
-      subtypes :: Ex.NoteExtractor v loc [(C.Type v loc, C.Type v loc)]
+      subtypes :: Ex.ErrorExtractor v loc [(C.Type v loc, C.Type v loc)]
       subtypes = do
         path <- Ex.path
         pure [ (t1, t2) | C.InSubtype t1 t2 <- path ]
 
-      firstLastSubtype :: Ex.NoteExtractor v loc ( (C.Type v loc, C.Type v loc)
+      firstLastSubtype :: Ex.ErrorExtractor v loc ( (C.Type v loc, C.Type v loc)
                                                  , (C.Type v loc, C.Type v loc) )
       firstLastSubtype = subtypes >>= \case
-        [] -> mzero
+        [] -> empty
         l -> pure (head l, last l)
-  n <- Ex.note
+  n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
   pure $ Mismatch (sub foundType) (sub expectedType)
@@ -132,7 +161,7 @@ generalMismatch = do
 
 and,or,cond,matchGuard
   :: (Var v, Ord loc)
-  => Ex.NoteExtractor v loc (TypeError v loc)
+  => Ex.ErrorExtractor v loc (TypeError v loc)
 and = booleanMismatch0 AndMismatch (Ex.inSynthesizeApp >> Ex.inAndApp)
 or = booleanMismatch0 OrMismatch (Ex.inSynthesizeApp >> Ex.inOrApp)
 cond = booleanMismatch0 CondMismatch Ex.inIfCond
@@ -142,9 +171,9 @@ matchGuard = booleanMismatch0 GuardMismatch Ex.inMatchGuard
 booleanMismatch0 :: (Var v, Ord loc)
                      => BooleanMismatch
                      -> Ex.SubseqExtractor v loc ()
-                     -> Ex.NoteExtractor v loc (TypeError v loc)
+                     -> Ex.ErrorExtractor v loc (TypeError v loc)
 booleanMismatch0 b ex = do
-  n <- Ex.note
+  n <- Ex.errorNote
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
@@ -161,9 +190,9 @@ existentialMismatch0
   :: (Var v, Ord loc)
   => ExistentialMismatch
   -> Ex.SubseqExtractor v loc loc
-  -> Ex.NoteExtractor v loc (TypeError v loc)
+  -> Ex.ErrorExtractor v loc (TypeError v loc)
 existentialMismatch0 em getExpectedLoc = do
-  n <- Ex.note
+  n <- Ex.errorNote
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
@@ -181,15 +210,15 @@ existentialMismatch0 em getExpectedLoc = do
                                 n
 
 ifBody, vectorBody, matchBody
-  :: (Var v, Ord loc) => Ex.NoteExtractor v loc (TypeError v loc)
+  :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
 vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
-applyingNonFunction :: Ex.NoteExtractor v loc (TypeError v loc)
+applyingNonFunction :: Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
-  n <- Ex.note
+  n <- Ex.errorNote
   (f, ft) <- Ex.unique $ do
     Ex.pathStart
     (arity0Type, _arg, _argNum) <- Ex.inSynthesizeApp
@@ -211,9 +240,9 @@ applyingNonFunction = do
   --    `b` was chosen as `B`
   --    `c` was chosen as `C`
   -- (many colors / groups)
-applyingFunction :: forall v loc. Eq v => Ex.NoteExtractor v loc (TypeError v loc)
+applyingFunction :: forall v loc. Eq v => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingFunction = do
-  n <- Ex.note
+  n <- Ex.errorNote
   ctx <- Ex.typeMismatch
   Ex.unique $ do
     Ex.pathStart

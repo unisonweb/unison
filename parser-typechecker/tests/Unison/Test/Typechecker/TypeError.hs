@@ -9,7 +9,7 @@ import           Unison.Result                (Result (..))
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)
 import qualified Unison.Typechecker.Context   as C
-import           Unison.Typechecker.Extractor (NoteExtractor)
+import           Unison.Typechecker.Extractor (ErrorExtractor)
 import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
 import           Unison.Var                   (Var)
@@ -41,16 +41,17 @@ test = scope "extractor" . tests $
         "    handle xyz default in k 100\n"
       ) Err.matchBody
   ]
-  where y, n :: String -> NoteExtractor Symbol Ann a -> Test ()
+  where y, n :: String -> ErrorExtractor Symbol Ann a -> Test ()
         y s ex = scope s $ expect $ yieldsError s ex
         n s ex = scope s $ expect $ noYieldsError s ex
 
-noYieldsError :: Var v => String -> NoteExtractor v Ann a -> Bool
+noYieldsError :: Var v => String -> ErrorExtractor v Ann a -> Bool
 noYieldsError s ex = not $ yieldsError s ex
 
-yieldsError :: forall v a. Var v => String -> NoteExtractor v Ann a -> Bool
+yieldsError :: forall v a. Var v => String -> ErrorExtractor v Ann a -> Bool
 yieldsError s ex = let
   Result notes (Just _) = Common.parseAndSynthesizeAsFile "test" s
-  notes' :: [C.Note v Ann]
-  notes' = [ n | Result.Typechecking n <- toList notes ]
-  in any (isJust . Ex.runNote ex) notes'
+  notes' :: [C.ErrorNote v Ann]
+  notes' = [ n | Result.TypeError n <- toList notes ]
+  in any (isJust . Ex.extract ex) notes'
+
