@@ -107,6 +107,32 @@ style sty str = AT.pairToDoc' (str, sty)
 describeStyle :: a -> AT.AnnotatedDocument a
 describeStyle = AT.describeToDoc
 
+prettyTopLevelComponents
+  :: forall v loc
+   . (Var v, Annotated loc, Ord loc, Show loc)
+  => [TypeInfo v loc]
+  -> Env
+  -> AT.AnnotatedDocument Color.Style
+prettyTopLevelComponents cycles' env =
+  "🌟 Top-level components:\n\n" <> intercalateMap "\n" renderCycle cycles
+ where
+  renderCycle (TopLevelComponent cs) = case Seq.fromList cs of
+    l :<| (m :|> r) ->
+      "╓"
+        <> renderOne l
+        <> (foldMap (("\n╟" <>) . renderOne) m)
+        <> "\n╙"
+        <> renderOne r
+    c -> foldMap ((" " <>) . renderOne) c
+  cycles = filterDefs <$> cycles'
+  filterDefs =
+    TopLevelComponent
+      . filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+      . definitions
+  renderOne :: (IsString s, Monoid s) => (v, C.Term v loc, C.Type v loc) -> s
+  renderOne (v, _, typ) = mconcat
+    [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
+
 -- Render an informational typechecking note
 renderTypeInfo
   :: forall v loc
@@ -130,6 +156,7 @@ renderTypeInfo i env = case i of
   renderOne :: IsString s => (v, C.Term v loc, C.Type v loc) -> [s]
   renderOne (v, _, typ) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
+
 
 -- Render a type error
 renderTypeError
@@ -662,7 +689,7 @@ renderTerm (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
 renderTerm e =
   let s = show e
-  in   -- todo: pretty print
+  in      -- todo: pretty print
       if length s > Settings.renderTermMaxLength
         then fromString (take Settings.renderTermMaxLength s <> "...")
         else fromString s
@@ -819,9 +846,9 @@ printNoteWithSource
   -> String
   -> Note v a
   -> AT.AnnotatedDocument Color.Style
-printNoteWithSource env _s (TypeInfo n) = prettyTypeInfo n env
-printNoteWithSource _env s (Parsing e) = prettyParseError s e
-printNoteWithSource env  s (TypeError e) = prettyTypecheckError e env s
+printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
+printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
+printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
   (fromString $ "Invalid Path: " ++ show path ++ "\n")
     <> annotatedAsErrorSite s term

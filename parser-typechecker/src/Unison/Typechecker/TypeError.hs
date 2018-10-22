@@ -75,9 +75,9 @@ data TypeError v loc
   deriving (Show)
 
 data TypeInfo v loc =
-  TopLevelComponent { definitions :: [(v, C.Term v loc, C.Type v loc)]
-                    , infoNote :: C.InfoNote v loc
-                    } deriving (Show)
+  TopLevelComponent
+    { definitions :: [(v, C.Term v loc, C.Type v loc)] }
+    deriving (Show)
 
 type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
 
@@ -90,7 +90,7 @@ typeErrorFromNote n = case Ex.extract allErrors n of
 typeInfoFromNote
   :: (Ord loc, Show loc, Var v) => C.InfoNote v loc -> Maybe (TypeInfo v loc)
 typeInfoFromNote n = case n of
-  C.TopLevelComponent defs -> Just $ TopLevelComponent defs n
+  C.TopLevelComponent defs -> Just $ TopLevelComponent defs
   _ -> Nothing
 
 allErrors :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
@@ -113,8 +113,7 @@ allErrors = asum
 topLevelComponent :: Ex.InfoExtractor v a (TypeInfo v a)
 topLevelComponent = do
   defs <- Ex.topLevelComponent
-  n <- Ex.infoNote
-  pure $ TopLevelComponent defs n
+  pure $ TopLevelComponent defs
 
 abilityCheckFailure :: Ex.ErrorExtractor v a (TypeError v a)
 abilityCheckFailure = do
