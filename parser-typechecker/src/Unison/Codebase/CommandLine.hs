@@ -42,7 +42,7 @@ import           Unison.Util.Monoid
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
-
+import Data.IORef
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -53,6 +53,7 @@ main dir currentBranchName startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
+  lastTypechecked <- newIORef []
   let takeActualLine = atomically (takeLine lineQueue)
 
   -- enqueue stdin into lineQueue
@@ -76,11 +77,11 @@ main dir currentBranchName startRuntime codebase = do
   (`finally` (RT.terminate runtime *> cancelExternalBranchUpdates)) $ case branch of
     Nothing -> do
       selectBranch codebase currentBranchName takeActualLine >>= \case
-        Just (name, branch) -> go0 branch name queue lineQueue runtime
+        Just (name, branch) -> go0 branch name queue lineQueue lastTypechecked runtime
         Nothing -> putStrLn "Exiting."
-    Just b  -> go0 b currentBranchName queue lineQueue runtime
+    Just b  -> go0 b currentBranchName queue lineQueue lastTypechecked runtime
   where
-  go0 branch branchName queue lineQueue runtime = go branch branchName
+  go0 branch branchName queue lineQueue lastTypechecked runtime = go branch branchName
     where
 
     -- print prompt and whatever input was on it / at it
@@ -114,6 +115,7 @@ main dir currentBranchName startRuntime codebase = do
             putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
             let components = E.TopLevelComponent <$>
                   [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
+            writeIORef lastTypechecked components
             putStrLn . show . Color.renderDocANSI 6 $
               prettyTopLevelComponents components errorEnv
             RT.evaluate runtime typecheckedUnisonFile codebase
@@ -148,12 +150,23 @@ main dir currentBranchName startRuntime codebase = do
                   go branch' name
             else go branch name
 
+    -- Looks at `lastTypechecked` for matching definitions and lets the user
+    -- add them to the codebase. Present the user with a menu if args doesn't
+    -- match what's in lastTypechecked.
+    addDefinitions :: Branch -> Name -> [String] -> IO ()
+    addDefinitions _branch _name args = case args of
+      [] -> error "todo"
+      _ -> error "todo"
+
+    -- addMenu :: _ -> IO _
+    -- addMenu topLevels =
+
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do
       let takeActualLine = atomically $ takeLine lineQueue
       line <- takeActualLine
       case words line of
-        "add" : args -> error $ show args
+        "add" : args -> addDefinitions branch name args
 
         ["branch"] -> do
           branches <- sort <$> Codebase.branches codebase

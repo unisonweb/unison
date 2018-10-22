@@ -12,6 +12,7 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
+import Control.Monad (join)
 import           Control.Lens                   ( (%~) )
 import           Control.Lens.Tuple             ( _1
                                                 , _2
@@ -107,6 +108,31 @@ style sty str = AT.pairToDoc' (str, sty)
 describeStyle :: a -> AT.AnnotatedDocument a
 describeStyle = AT.describeToDoc
 
+prettyTopLevelComponents'
+  :: forall v loc
+   . (Var v, Annotated loc, Ord loc, Show loc)
+  => [TypeInfo v loc]
+  -> Env
+  -> [[(v, AT.AnnotatedDocument Color.Style)]]
+prettyTopLevelComponents' cycles' env =
+  renderCycle <$> cycles
+  where
+  renderCycle :: TypeInfo v loc -> [(v, AT.AnnotatedDocument Color.Style)]
+  renderCycle (TopLevelComponent cs) = case Seq.fromList cs of
+    l :<| (m :|> r) ->
+      [renderOne "╓ " l] <> foldMap (pure . renderOne "╟ ") m <> [renderOne "╙ " r]
+    c :<| Empty -> [renderOne "· " c]
+    Empty -> []
+  cycles = filter (not . null . definitions) $ filterDefs <$> cycles'
+  filterDefs =
+    TopLevelComponent
+      . filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+      . definitions
+  renderOne :: (IsString s, Monoid s) => s -> (v, C.Term v loc, C.Type v loc) -> (v, s)
+  renderOne s (v, _, typ) = (v, mconcat
+    [s, fromString . Text.unpack $ Var.name v, " : ",
+     renderType' env (Type.ungeneralizeEffects typ)])
+
 prettyTopLevelComponents
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
@@ -114,25 +140,8 @@ prettyTopLevelComponents
   -> Env
   -> AT.AnnotatedDocument Color.Style
 prettyTopLevelComponents cycles' env =
-  "🌟 Top-level components:\n\n" <> intercalateMap "\n" renderCycle cycles <> "\n"
- where
-  renderCycle (TopLevelComponent cs) = case Seq.fromList cs of
-    l :<| (m :|> r) ->
-      "╓ "
-        <> renderOne l
-        <> (foldMap (("\n╟ " <>) . renderOne) m)
-        <> "\n╙ "
-        <> renderOne r
-    c -> foldMap (("· " <>) . renderOne) c
-  cycles = filter (not . null . definitions) $ filterDefs <$> cycles'
-  filterDefs =
-    TopLevelComponent
-      . filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
-      . definitions
-  renderOne :: (IsString s, Monoid s) => (v, C.Term v loc, C.Type v loc) -> s
-  renderOne (v, _, typ) = mconcat
-    [fromString . Text.unpack $ Var.name v, " : ",
-     renderType' env (Type.ungeneralizeEffects typ)]
+  "🌟 Top-level components:\n\n" <>
+    intercalateMap "\n" snd (join $ prettyTopLevelComponents' cycles' env) <> "\n"
 
 -- Render an informational typechecking note
 renderTypeInfo
