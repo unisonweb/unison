@@ -114,24 +114,25 @@ prettyTopLevelComponents
   -> Env
   -> AT.AnnotatedDocument Color.Style
 prettyTopLevelComponents cycles' env =
-  "🌟 Top-level components:\n\n" <> intercalateMap "\n" renderCycle cycles
+  "🌟 Top-level components:\n\n" <> intercalateMap "\n" renderCycle cycles <> "\n"
  where
   renderCycle (TopLevelComponent cs) = case Seq.fromList cs of
     l :<| (m :|> r) ->
-      "╓"
+      "╓ "
         <> renderOne l
-        <> (foldMap (("\n╟" <>) . renderOne) m)
-        <> "\n╙"
+        <> (foldMap (("\n╟ " <>) . renderOne) m)
+        <> "\n╙ "
         <> renderOne r
-    c -> foldMap ((" " <>) . renderOne) c
-  cycles = filterDefs <$> cycles'
+    c -> foldMap (("· " <>) . renderOne) c
+  cycles = filter (not . null . definitions) $ filterDefs <$> cycles'
   filterDefs =
     TopLevelComponent
       . filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
       . definitions
   renderOne :: (IsString s, Monoid s) => (v, C.Term v loc, C.Type v loc) -> s
   renderOne (v, _, typ) = mconcat
-    [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
+    [fromString . Text.unpack $ Var.name v, " : ",
+     renderType' env (Type.ungeneralizeEffects typ)]
 
 -- Render an informational typechecking note
 renderTypeInfo
