@@ -105,7 +105,9 @@ main dir currentBranchName startRuntime codebase = do
           Nothing -> do -- typechecking failed
             Console.setTitle "Unison \128721"
             let showNote notes = intercalateMap
-                  "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) notes
+                  "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) (filter notInfo notes)
+                notInfo (Result.TypeInfo _) = False
+                notInfo _ = True
             putStrLn . showNote . toList $ notes
           Just typecheckedUnisonFile -> do
             Console.setTitle "Unison ✅"
