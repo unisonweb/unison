@@ -207,8 +207,9 @@ typeDirectedNameResolution
 typeDirectedNameResolution resultSoFar env = do
   let (Result oldNotes may) = resultSoFar
       tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
-      (Result newNotes resolutions) =
+      (Result newNotes' resolutions) =
         traverse (resolveNote tdnrEnv) $ toList (infos oldNotes)
+      newNotes = (Notes (errors oldNotes) mempty) <> newNotes'
   case resolutions of
     Nothing -> lift $ pure $ Result newNotes may
     Just rs ->
