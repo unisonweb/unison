@@ -180,6 +180,7 @@ lexer0 scope rem =
     -- skip whitespace and comments
     goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
+      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         goWhitespace l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
