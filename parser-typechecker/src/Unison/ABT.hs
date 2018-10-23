@@ -32,6 +32,7 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Var as Var
+import qualified Unison.Util.Components as Components
 
 data ABT f v r
   = Var v
@@ -451,6 +452,9 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
            in rename v1 v3 body1 == rename v2 v3 body2
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
+
+components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components = Components.components freeVars
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
