@@ -53,7 +53,7 @@ menuN :: Console
       -> Caption
       -> (a -> Stylized)
       -> (MetaChoice -> Stylized)
-      -> [[(Keyword, a)]]
+      -> [([Keyword], [a])]
       -> [([Keyword], MetaChoice)]
       -> Maybe [Keyword]
       -> IO (Either MetaChoice [[a]])
