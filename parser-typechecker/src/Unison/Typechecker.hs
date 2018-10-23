@@ -35,6 +35,7 @@ import           Unison.Reference (Reference(..))
 import           Unison.Result (Result(..))
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
@@ -62,7 +63,7 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Text, fqnType :: Context.Type v loc, builtin :: Bool }
+  NamedReference { fqn :: Text, fqnType :: AnnotatedType v loc, builtin :: Bool }
 
 data Env f v loc = Env
   { _builtinLoc :: loc
@@ -281,15 +282,15 @@ typeDirectedNameResolution resultSoFar env = do
   resolve env inferredType (NamedReference fqn foundType builtin) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = convertResult
-          $ Context.isSubtype (view builtinLoc env) foundType inferredType
+          $ Context.isSubtype (view builtinLoc env) (Type.toTypeVar foundType) inferredType
     in  case subResult of
           -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ typeError (errors subNotes)
           -- Suggest the import if the type matches.
           Just b  -> pure [ if b then
-                              Context.Suggestion fqn foundType builtin
+                              Context.Suggestion fqn (Type.toTypeVar foundType) builtin
                             else
-                              Context.WrongType fqn foundType
+                              Context.WrongType fqn (Type.toTypeVar foundType)
                           ]
 
 -- | Check whether a term matches a type, using a

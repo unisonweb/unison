@@ -223,7 +223,7 @@ data ErrorNote v loc = ErrorNote {
 
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
-  | TopLevelComponent [(v, Term v loc, Type v loc)]
+  | TopLevelComponent [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]
   deriving (Show)
 
 data Cause v loc
@@ -692,8 +692,14 @@ noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding typ1 -> do
     typ2 <- synthesize strippedBinding `orElse` pure typ
     btw $ TopLevelComponent
-      [(ABT.variable e, if typ2 == typ then strippedBinding else binding, typ1)]
-  _ -> btw $ TopLevelComponent [(ABT.variable e, binding, typ)]
+      [(ABT.variable e,
+        Term.typeMap Type.generalizeAndUnTypeVar $
+          if typ2 == typ then strippedBinding
+          else binding,
+        Type.generalizeAndUnTypeVar typ1)]
+  _ -> btw $ TopLevelComponent [
+        (ABT.variable e, Term.typeMap Type.generalizeAndUnTypeVar binding, Type.generalizeAndUnTypeVar typ)
+       ]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -977,13 +983,15 @@ annotateLetRecBindings isTop letrec =
       resetContextAfter Nothing $ (Just <$> annotateLetRecBindings' False)
 
     let vbt bindings vts = [ (v, b, t) | (b, (v,t)) <- bindings `zip` vts ]
+        -- convert from typechecker TypeVar back to regular `v` vars
+        unTypeVar (v, b, t) = (v, Term.unTypeVar b, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
       -- If the types (snd vts) are the same, then we know that the annotations
       -- were redundant, and we discard them.
       Just (_, _, _, _, vts') | fmap snd vts == fmap snd vts' ->
-        btw $ TopLevelComponent (vbt strippedBindings vts)
+        btw $ TopLevelComponent (unTypeVar <$> vbt strippedBindings vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
-      _otherwise -> btw $ TopLevelComponent (vbt bindings vts)
+      _otherwise -> btw $ TopLevelComponent (unTypeVar <$> vbt bindings vts)
     pure (marker, body)
   -- If this isn't a top-level letrec, then we don't have to do anything special
   else do

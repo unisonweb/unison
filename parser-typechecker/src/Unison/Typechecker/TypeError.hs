@@ -10,6 +10,7 @@ import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
 import qualified Unison.ABT                    as ABT
+import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor  as Ex
@@ -76,7 +77,7 @@ data TypeError v loc
 
 data TypeInfo v loc =
   TopLevelComponent
-    { definitions :: [(v, C.Term v loc, C.Type v loc)] }
+    { definitions :: [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)] }
     deriving (Show)
 
 type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)

@@ -51,6 +51,7 @@ import qualified Unison.Reference              as R
 import           Unison.Result                  ( Note(..) )
 import qualified Unison.Settings               as Settings
 import qualified Unison.Type                   as Type
+import qualified Unison.Term                   as Term
 import qualified Unison.TypeVar                as TypeVar
 import qualified Unison.Typechecker.Context    as C
 import           Unison.Typechecker.TypeError
@@ -111,32 +112,28 @@ describeStyle = AT.describeToDoc
 prettyTopLevelComponents'
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
-  => [TypeInfo v loc]
+  => [[(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]]
   -> Env
   -> [[(v, AT.AnnotatedDocument Color.Style)]]
 prettyTopLevelComponents' cycles' env =
   renderCycle <$> cycles
   where
-  renderCycle :: TypeInfo v loc -> [(v, AT.AnnotatedDocument Color.Style)]
-  renderCycle (TopLevelComponent cs) = case Seq.fromList cs of
+  renderCycle cs = case Seq.fromList cs of
     l :<| (m :|> r) ->
       [renderOne "╓ " l] <> foldMap (pure . renderOne "╟ ") m <> [renderOne "╙ " r]
     c :<| Empty -> [renderOne "· " c]
     Empty -> []
-  cycles = filter (not . null . definitions) $ filterDefs <$> cycles'
-  filterDefs =
-    TopLevelComponent
-      . filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
-      . definitions
-  renderOne :: (IsString s, Monoid s) => s -> (v, C.Term v loc, C.Type v loc) -> (v, s)
+  cycles = filter (not . null) $ filterDefs <$> cycles'
+  filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+  renderOne :: (IsString s, Monoid s) => s -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, s)
   renderOne s (v, _, typ) = (v, mconcat
     [s, fromString . Text.unpack $ Var.name v, " : ",
-     renderType' env (Type.ungeneralizeEffects typ)])
+     renderType' env typ])
 
 prettyTopLevelComponents
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
-  => [TypeInfo v loc]
+  => [[(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]]
   -> Env
   -> AT.AnnotatedDocument Color.Style
 prettyTopLevelComponents cycles' env =
@@ -163,7 +160,7 @@ renderTypeInfo i env = case i of
             "🎁 These mutually dependent definitions typechecked:\n"
               <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) defs
  where
-  renderOne :: IsString s => (v, C.Term v loc, C.Type v loc) -> [s]
+  renderOne :: IsString s => (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> [s]
   renderOne (v, _, typ) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
 
@@ -718,7 +715,7 @@ renderType
   -> (loc -> AT.AnnotatedText (Maybe a) -> AT.AnnotatedText (Maybe a))
   -> Type.AnnotatedType v loc
   -> AT.AnnotatedText (Maybe a)
-renderType env f = renderType0 env f (0 :: Int)
+renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
  where
   paren :: (IsString a, Semigroup a) => Bool -> a -> a
   paren test s = if test then "(" <> s <> ")" else s

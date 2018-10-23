@@ -24,6 +24,7 @@ import qualified Data.Set                      as Set
 import           Debug.Trace
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
+import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context    as C
 import           Unison.Util.Monoid             ( whenM )
 import qualified Unison.Blank                  as B
@@ -294,7 +295,7 @@ path :: ErrorExtractor v loc [C.PathElement v loc]
 path = extractor $ pure . toList . C.path
 
 -- Informational notes --
-topLevelComponent :: InfoExtractor v loc [(v, C.Term v loc, C.Type v loc)]
+topLevelComponent :: InfoExtractor v loc [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]
 topLevelComponent = extractor go
  where
   go (C.TopLevelComponent c) = Just c

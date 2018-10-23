@@ -42,6 +42,8 @@ import           Unison.Reference (Reference(..))
 import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
+import qualified Unison.TypeVar as TypeVar
+import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
@@ -143,6 +145,9 @@ typeMap f t = go t where
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
+unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
+unTypeVar = typeMap (ABT.vmap TypeVar.underlying)
 
 unannotate :: ∀ vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
 unannotate t = go t where
