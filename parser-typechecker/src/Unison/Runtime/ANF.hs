@@ -101,10 +101,11 @@ toIR t = go [] (0::Word) t where
         _ -> let
           v = Var.freshenId n (Var.nameds ":anf:")
           in IR.Handle 0 (go (v:env) (n+1) body)
+      _ -> error "todo"
     Abs v body -> go (v:env) n body
 
   leafToIR _env _n e | Set.null (leafVars e) = IR.V (leafToV e)
-  leafToIR env n e = case e of
+  leafToIR env _n e = case e of
     Var' v -> IR.Var (ind v env)
     Leaf0' l -> case l of
       I n -> IR.V (IR.I n)
@@ -112,9 +113,10 @@ toIR t = go [] (0::Word) t where
       N n -> IR.V (IR.N n)
       B b -> IR.V (IR.B b)
       T txt -> IR.V (IR.T txt)
-      Data r cid vs -> error "todo"
-      ClosedLam lam -> error "todo"
-      BuiltinLam arity ref ir -> error "todo"
+      Data _r _cid _vs -> error "todo"
+      ClosedLam _lam -> error "todo"
+      BuiltinLam _arity _ref _ir -> error "todo"
+    _ -> error "unpossible"
 
   leafToV (Leaf0' l) = case l of
     I n -> IR.I n
@@ -122,6 +124,9 @@ toIR t = go [] (0::Word) t where
     N n -> IR.N n
     B b -> IR.B b
     T txt -> IR.T txt
+    _ -> error "todo"
+  leafToV (Var' _) = error "unpossible"
+  leafToV _        = error "unpossible"
 
 simplify :: Var v => Term v a -> Term v a
 simplify t = case out t of

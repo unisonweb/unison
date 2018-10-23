@@ -19,6 +19,7 @@ import qualified Unison.Builtin as B
 import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
+import qualified Data.Vector as Vector
 
 type Machine = [V] -- a stack of values
 
@@ -84,6 +85,7 @@ run env = go where
           g e = error ("bindings in a let rec must not have effects " ++ show e)
           bs' = map (\ir -> g $ go ir m') bs
       in go body m'
+    MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     -- Apply body args -> go body (map (`at` m) args `pushes` m)
     DynamicApply fnPos args -> call (at fnPos m) args m
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
@@ -136,6 +138,7 @@ decompile v = case v of
   T t -> Term.text () t
   Lam _ f _ -> case f of Left r -> Term.ref() r; Right f -> f
   Data r cid args -> Term.apps' (Term.constructor() r cid) (toList $ fmap decompile args)
+  Sequence vs -> Term.vector' () (decompile <$> vs)
   Requested (Req r cid args _) ->
     let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
     in req

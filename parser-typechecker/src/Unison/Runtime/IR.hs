@@ -6,6 +6,7 @@ import Data.Word (Word64)
 import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Data.Vector (Vector)
 
 type Pos = Int
 type Arity = Int
@@ -17,6 +18,7 @@ data V
   = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity (Either R.Reference (Term Symbol)) IR
   | Data R.Reference ConstructorId [V]
+  | Sequence (Vector V)
   | Requested Req
   deriving (Eq,Show)
 
@@ -28,6 +30,7 @@ data IR
   | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
   | Let IR IR
   | LetRec [IR] IR
+  | MakeSequence [Pos]
   | V V
   | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference ConstructorId [Pos]
@@ -40,6 +43,7 @@ data IR
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
-data Req = Req R.Reference ConstructorId [V] IR
+data Req
+  = Req R.Reference ConstructorId [V] IR
   deriving (Eq,Show)
 
