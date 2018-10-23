@@ -5,16 +5,13 @@
 module Unison.Codebase where
 
 import           Data.Set               (Set)
-import           Data.Text              (Text)
 import           Unison.Codebase.Branch (Branch)
 import           Unison.Codebase.Name   (Name)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Hash            (Hash)
 import           Unison.Reference       (Reference)
-import           Unison.Result          (Note, Result)
 import qualified Unison.Term            as Term
 import qualified Unison.Type            as Type
-import           Unison.UnisonFile      (UnisonFile')
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -37,16 +34,6 @@ data Codebase m v a =
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
            }
-
-data Session m v a
-  = Session { branch :: m Name
-            , switchBranch :: Name -> m ()
-            -- Await new .ubf files
-            , watchBranches :: FilePath -> m (FilePath, Branch)
-            -- Await the next .u file change in the given directory,
-            -- and return the path of the thing that changed, its contents,
-            -- and the results of parsing / typechecking.
-            , watch :: FilePath -> m (FilePath, Text, Result (Note v a) (UnisonFile' v a)) }
 
 data Err = InvalidBranchFile FilePath String deriving Show
 

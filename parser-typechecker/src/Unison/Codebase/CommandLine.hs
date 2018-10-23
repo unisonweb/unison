@@ -11,7 +11,7 @@ import           Control.Monad                (forM_, forever, liftM2,
 import           Control.Monad.STM            (STM, atomically)
 import qualified Data.Char                    as Char
 import           Data.Foldable                (toList, traverse_)
-import           Data.IORef
+import           Data.IORef                   (newIORef, writeIORef)
 import           Data.List                    (find, isSuffixOf,
                                                sort)
 import           Data.Set                     (Set)
@@ -40,13 +40,14 @@ import           Unison.PrintError            (parseErrorToAnsiString,
 import           Unison.Result                (Result (Result))
 import qualified Unison.Result                as Result
 import qualified Unison.Typechecker.Context   as C
-import qualified Unison.Typechecker.TypeError as E
+import qualified Unison.UnisonFile            as UF
 import qualified Unison.Util.ColorText        as Color
 import qualified Unison.Util.Menu             as Menu
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
+import qualified Data.Map as Map
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -62,7 +63,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
-  lastTypechecked <- newIORef []
+  lastTypechecked <- newIORef (UF.TypecheckedUnisonFile Map.empty Map.empty [])
   let takeActualLine = atomically (takeLine lineQueue)
 
   -- load initial unison file if specified
@@ -126,15 +127,17 @@ main dir currentBranchName initialFile startRuntime codebase = do
                 notInfo (Result.TypeInfo _) = False
                 notInfo _                   = True
             putStrLn . showNote . toList $ notes
-          Just typecheckedUnisonFile -> do
+          Just unisonFile -> do
             Console.setTitle "Unison ✅"
             putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-            let components = E.TopLevelComponent <$>
-                  [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
-            writeIORef lastTypechecked components
+            let components = [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
+            writeIORef lastTypechecked (
+              UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
+                                       (UF.effectDeclarations unisonFile)
+                                       components)
             putStrLn . show . Color.renderDocANSI 6 $
               prettyTopLevelComponents components errorEnv
-            RT.evaluate runtime typecheckedUnisonFile codebase
+            RT.evaluate runtime unisonFile codebase
 
     go :: Branch -> Name -> IO ()
     go branch name = do

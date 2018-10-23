@@ -91,46 +91,47 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   describe Type1     = "in " <> type1 "blue"
   describe Type2     = "in " <> type2 "green"
   describe ForceShow = mempty
-  renderExcerpt :: StyledBlockquote -> Rendered ANSI
-  renderExcerpt e =
-    track (Pos line1 1) [] (Map.toList $ annotations e)
-      (Rendered . pure $ renderLineNumber line1) (text e)
-    where
-      line1 :: Int
-      line1 = lineOffset e
 
-      renderLineNumber n =
-        " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | "
-        where sn = show n
-              lineNumberWidth = 4
+renderExcerpt :: StyledBlockquote -> Rendered ANSI
+renderExcerpt e =
+  track (Pos line1 1) [] (Map.toList $ annotations e)
+    (Rendered . pure $ renderLineNumber line1) (text e)
+  where
+    line1 :: Int
+    line1 = lineOffset e
 
-      setupNewLine :: Rendered ANSI -> Pos -> Char -> (Rendered ANSI, Pos)
-      setupNewLine openColor (Pos line col) c = case c of
-        '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
-                in (r <> openColor, Pos (line + 1) 1)
-        _ -> (mempty, Pos line (col + 1))
+    renderLineNumber n =
+      " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | "
+      where sn = show n
+            lineNumberWidth = 4
 
-      track :: Pos -> [(Style, Pos)] -> [(Range, Style)] -> Rendered ANSI -> String -> Rendered ANSI
-      track _pos stack _annotations rendered _input@"" =
-        rendered <> if null stack then mempty else resetANSI
-      track pos stack annotations rendered _input@(c:rest) =
-        let -- get whichever annotations may now be open
-            (poppedAnnotations, remainingAnnotations) = span (inRange pos . fst) annotations
-            -- drop any stack entries that will be closed after this char
-            stack0 = dropWhile ((<=pos) . snd) stack
-            -- and add new stack entries
-            stack' = foldl' pushColor stack0 poppedAnnotations
-              where pushColor s (Range _ end, style) = (style, end) : s
-            resetColor = -- stack is newly null, and there are no newly opened annotations
-              if null poppedAnnotations && null stack' && not (null stack)
-              then resetANSI else mempty
-            maybeColor = fst <$> headMay stack'
-            openColor = maybe mempty toANSI maybeColor
-            (lineHeader, pos') = setupNewLine openColor pos c
-            lineHeader' = if null rest then mempty else lineHeader
-            newChar =
-              if c == '\n'
-                then (Rendered . pure) [c] <> resetANSI <> lineHeader'
-                else openColor <> (Rendered . pure) [c]
-        in track pos' stack' remainingAnnotations
-          (rendered <> resetColor <> newChar ) rest
+    setupNewLine :: Rendered ANSI -> Pos -> Char -> (Rendered ANSI, Pos)
+    setupNewLine openColor (Pos line col) c = case c of
+      '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
+              in (r <> openColor, Pos (line + 1) 1)
+      _ -> (mempty, Pos line (col + 1))
+
+    track :: Pos -> [(Style, Pos)] -> [(Range, Style)] -> Rendered ANSI -> String -> Rendered ANSI
+    track _pos stack _annotations rendered _input@"" =
+      rendered <> if null stack then mempty else resetANSI
+    track pos stack annotations rendered _input@(c:rest) =
+      let -- get whichever annotations may now be open
+          (poppedAnnotations, remainingAnnotations) = span (inRange pos . fst) annotations
+          -- drop any stack entries that will be closed after this char
+          stack0 = dropWhile ((<=pos) . snd) stack
+          -- and add new stack entries
+          stack' = foldl' pushColor stack0 poppedAnnotations
+            where pushColor s (Range _ end, style) = (style, end) : s
+          resetColor = -- stack is newly null, and there are no newly opened annotations
+            if null poppedAnnotations && null stack' && not (null stack)
+            then resetANSI else mempty
+          maybeColor = fst <$> headMay stack'
+          openColor = maybe mempty toANSI maybeColor
+          (lineHeader, pos') = setupNewLine openColor pos c
+          lineHeader' = if null rest then mempty else lineHeader
+          newChar =
+            if c == '\n'
+              then (Rendered . pure) [c] <> resetANSI <> lineHeader'
+              else openColor <> (Rendered . pure) [c]
+      in track pos' stack' remainingAnnotations
+        (rendered <> resetColor <> newChar ) rest

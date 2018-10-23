@@ -26,11 +26,17 @@ data UnisonFile v a = UnisonFile {
   term :: AnnotatedTerm v a
 } deriving (Show)
 
-data UnisonFile' v a = UnisonFile' {
+-- A UnisonFile after typechecking. Terms are split into groups by
+-- cycle and the type of each term is known.
+data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   dataDeclarations' :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-  terms :: [(v, AnnotatedTerm v a, AnnotatedType v a)]
+  terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
+
+hashTermCycles ::
+  [[(v, AnnotatedTerm v a, AnnotatedType v a)]] -> Map v Reference
+hashTermCycles _components = error "todo"
 
 type CtorLookup = Map String (Reference, Int)
 

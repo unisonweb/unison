@@ -23,7 +23,7 @@ import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..))
-import Unison.Hashable (Accumulate,Hashable1)
+import Unison.Hashable (Accumulate,Hashable1,hash1)
 import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
@@ -199,6 +199,9 @@ absr' a v body = wrap' v body $ \v body -> abs' a v body
 
 absChain :: Ord v => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
+
+absCycle :: Ord v => [v] -> Term f v () -> Term f v ()
+absCycle vs t = cycle $ absChain vs t
 
 absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
 absChain' vs t = foldr (\(a,v) t -> abs' a v t) t vs
@@ -448,6 +451,31 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
            in rename v1 v3 body1 == rename v2 v3 body2
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
+
+-- Hash a strongly connected component and sort its definitions into a canonical order.
+hashComponent ::
+  (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
+hashComponent byName = let
+  ts = Map.toList byName
+  embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
+  vs = fst <$> ts
+  tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
+  hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
+  sortedHashed = sortBy (comparing snd) hashed
+  overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
+  in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
+
+-- Implementation detail of hashComponent
+data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
+
+instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
+  hash1 hashCycle hash c = case c of
+    Component as a -> let
+      (hs, hash) = hashCycle as
+      toks = Hashable.Hashed <$> hs
+      in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
+    Embed fa -> Hashable.hash1 hashCycle hash fa
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.

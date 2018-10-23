@@ -350,6 +350,12 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 
+generalizeAndUnTypeVar :: Ord v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
+generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
+
+toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
+toTypeVar = ABT.vmap TypeVar.Universal
+
 -- Adds effect polymorphism to a type signature. That is, converts a signature like:
 --
 -- map : (a -> b) -> List a -> List b

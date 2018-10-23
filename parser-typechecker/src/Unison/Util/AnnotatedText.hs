@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Unison.Util.AnnotatedText where
 
@@ -18,6 +19,7 @@ import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range (Range (..))
 
 newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
+  deriving (Functor, Semigroup, Monoid)
 
 -- Prose with subsequences that may have an annotation.
 -- A textual reference to an annotation style.
@@ -37,7 +39,7 @@ data Section a
   deriving (Functor)
 
 newtype AnnotatedText a = AnnotatedText (Seq (String, a))
-  deriving (Functor)
+  deriving (Functor, Semigroup, Monoid)
 
 data AnnotatedExcerpt a = AnnotatedExcerpt
   { lineOffset  :: Line
@@ -45,7 +47,8 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Map Range a
   } deriving (Functor)
 
-newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
+newtype Rendered a = Rendered { rawRender :: Seq String }
+  deriving (Semigroup, Monoid)
 
 sectionToDoc :: Section a -> AnnotatedDocument a
 sectionToDoc = AnnotatedDocument . pure
@@ -138,31 +141,8 @@ instance IsString (AnnotatedText (Maybe a)) where
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
 
-instance Semigroup (AnnotatedDocument a) where
-  (<>) = mappend
-
-instance Monoid (AnnotatedDocument a) where
-  mempty = AnnotatedDocument mempty
-  mappend (AnnotatedDocument chunks) (AnnotatedDocument chunks') =
-    AnnotatedDocument (chunks <> chunks')
-
-instance Semigroup (AnnotatedText a) where
-  (<>) = mappend
-
-instance Monoid (AnnotatedText a) where
-  mempty = AnnotatedText mempty
-  mappend (AnnotatedText chunks) (AnnotatedText chunks') =
-    AnnotatedText (chunks <> chunks')
-
 instance Show (Rendered a) where
   show (Rendered chunks) = asum chunks
-
-instance Semigroup (Rendered a) where
-  (<>) = mappend
-
-instance Monoid (Rendered a) where
-  mempty = Rendered mempty
-  mappend (Rendered chunks) (Rendered chunks') = Rendered (chunks <> chunks')
 
 instance IsString (Rendered a) where
   fromString s = Rendered (pure s)

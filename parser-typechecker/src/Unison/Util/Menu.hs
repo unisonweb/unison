@@ -12,7 +12,6 @@ import           Safe                  (atMay)
 import qualified Text.Read             as Read
 import           Unison.Util.ColorText (StyledText, renderText)
 import           Unison.Util.Monoid    (intercalateMap)
-
 -- utility - command line menus
 
 type Caption = StyledText
