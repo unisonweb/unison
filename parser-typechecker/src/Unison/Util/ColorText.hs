@@ -2,7 +2,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-module Unison.Util.ColorText where
+
+module Unison.Util.ColorText
+  (ANSI, StyledText, Style(..),
+  style, type1, type2, errorSite,
+  renderDocANSI)
+where
 
 import           Data.Foldable (foldl', toList)
 import qualified Data.Map as Map
@@ -26,13 +31,12 @@ import           Unison.Util.AnnotatedText (AnnotatedDocument (..),
 import           Unison.Util.Range (Range (..), inRange)
 
 data ANSI
-data ASCII
 data Style = ForceShow | Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
 type StyledText = AnnotatedText (Maybe Style)
 type StyledBlockquote = AnnotatedExcerpt Style
 
-unhighlighted :: StyledText -> StyledText
-unhighlighted s = const Nothing <$> s
+_unhighlighted :: StyledText -> StyledText
+_unhighlighted s = const Nothing <$> s
 
 style :: a -> AnnotatedText (Maybe a) -> AnnotatedText (Maybe a)
 style c s = const (Just c) <$> s
@@ -65,67 +69,68 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   describe Type1     = "in " <> type1 "blue"
   describe Type2     = "in " <> type2 "green"
   describe ForceShow = mempty
-  toANSI :: Style -> Rendered ANSI
-  toANSI c = Rendered . pure . setSGRCode $ case c of
-    ErrorSite -> [red]
-    Type1     -> [blue]
-    Type2     -> [green]
-    ForceShow -> []
-    where red = SetColor Foreground Vivid Red
-          blue = SetColor Foreground Vivid Blue
-          green = SetColor Foreground Dull Green
-          _bold = SetConsoleIntensity BoldIntensity
-          _underline = SetUnderlining SingleUnderline
 
-  resetANSI :: Rendered ANSI
-  resetANSI = Rendered . pure . setSGRCode $ [Reset]
+toANSI :: Style -> Rendered ANSI
+toANSI c = Rendered . pure . setSGRCode $ case c of
+  ErrorSite -> [red]
+  Type1     -> [blue]
+  Type2     -> [green]
+  ForceShow -> []
+  where red = SetColor Foreground Vivid Red
+        blue = SetColor Foreground Vivid Blue
+        green = SetColor Foreground Dull Green
+        _bold = SetConsoleIntensity BoldIntensity
+        _underline = SetUnderlining SingleUnderline
 
-  renderText :: StyledText -> Rendered ANSI
-  renderText (AnnotatedText chunks) = foldl' go mempty chunks
-    where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
-          go r (text, Nothing)    = r <> resetANSI <> fromString text
-          go r (text, Just style) = r <> toANSI style <> fromString text
+resetANSI :: Rendered ANSI
+resetANSI = Rendered . pure . setSGRCode $ [Reset]
 
-  renderExcerpt :: StyledBlockquote -> Rendered ANSI
-  renderExcerpt e =
-    track (Pos line1 1) [] (Map.toList $ annotations e)
-      (Rendered . pure $ renderLineNumber line1) (text e)
-    where
-      line1 :: Int
-      line1 = lineOffset e
+renderText :: StyledText -> Rendered ANSI
+renderText (AnnotatedText chunks) = foldl' go mempty chunks
+  where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
+        go r (text, Nothing)    = r <> resetANSI <> fromString text
+        go r (text, Just style) = r <> toANSI style <> fromString text
 
-      renderLineNumber n =
-        " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | "
-        where sn = show n
-              lineNumberWidth = 4
+renderExcerpt :: StyledBlockquote -> Rendered ANSI
+renderExcerpt e =
+  track (Pos line1 1) [] (Map.toList $ annotations e)
+    (Rendered . pure $ renderLineNumber line1) (text e)
+  where
+    line1 :: Int
+    line1 = lineOffset e
 
-      setupNewLine :: Rendered ANSI -> Pos -> Char -> (Rendered ANSI, Pos)
-      setupNewLine openColor (Pos line col) c = case c of
-        '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
-                in (r <> openColor, Pos (line + 1) 1)
-        _ -> (mempty, Pos line (col + 1))
+    renderLineNumber n =
+      " " ++ replicate (lineNumberWidth - length sn) ' ' ++ sn ++ " | "
+      where sn = show n
+            lineNumberWidth = 4
 
-      track :: Pos -> [(Style, Pos)] -> [(Range, Style)] -> Rendered ANSI -> String -> Rendered ANSI
-      track _pos stack _annotations rendered _input@"" =
-        rendered <> if null stack then mempty else resetANSI
-      track pos stack annotations rendered _input@(c:rest) =
-        let -- get whichever annotations may now be open
-            (poppedAnnotations, remainingAnnotations) = span (inRange pos . fst) annotations
-            -- drop any stack entries that will be closed after this char
-            stack0 = dropWhile ((<=pos) . snd) stack
-            -- and add new stack entries
-            stack' = foldl' pushColor stack0 poppedAnnotations
-              where pushColor s (Range _ end, style) = (style, end) : s
-            resetColor = -- stack is newly null, and there are no newly opened annotations
-              if null poppedAnnotations && null stack' && not (null stack)
-              then resetANSI else mempty
-            maybeColor = fst <$> headMay stack'
-            openColor = maybe mempty toANSI maybeColor
-            (lineHeader, pos') = setupNewLine openColor pos c
-            lineHeader' = if null rest then mempty else lineHeader
-            newChar =
-              if c == '\n'
-                then (Rendered . pure) [c] <> resetANSI <> lineHeader'
-                else openColor <> (Rendered . pure) [c]
-        in track pos' stack' remainingAnnotations
-          (rendered <> resetColor <> newChar ) rest
+    setupNewLine :: Rendered ANSI -> Pos -> Char -> (Rendered ANSI, Pos)
+    setupNewLine openColor (Pos line col) c = case c of
+      '\n' -> let r = Rendered . pure $ renderLineNumber (line + 1)
+              in (r <> openColor, Pos (line + 1) 1)
+      _ -> (mempty, Pos line (col + 1))
+
+    track :: Pos -> [(Style, Pos)] -> [(Range, Style)] -> Rendered ANSI -> String -> Rendered ANSI
+    track _pos stack _annotations rendered _input@"" =
+      rendered <> if null stack then mempty else resetANSI
+    track pos stack annotations rendered _input@(c:rest) =
+      let -- get whichever annotations may now be open
+          (poppedAnnotations, remainingAnnotations) = span (inRange pos . fst) annotations
+          -- drop any stack entries that will be closed after this char
+          stack0 = dropWhile ((<=pos) . snd) stack
+          -- and add new stack entries
+          stack' = foldl' pushColor stack0 poppedAnnotations
+            where pushColor s (Range _ end, style) = (style, end) : s
+          resetColor = -- stack is newly null, and there are no newly opened annotations
+            if null poppedAnnotations && null stack' && not (null stack)
+            then resetANSI else mempty
+          maybeColor = fst <$> headMay stack'
+          openColor = maybe mempty toANSI maybeColor
+          (lineHeader, pos') = setupNewLine openColor pos c
+          lineHeader' = if null rest then mempty else lineHeader
+          newChar =
+            if c == '\n'
+              then (Rendered . pure) [c] <> resetANSI <> lineHeader'
+              else openColor <> (Rendered . pure) [c]
+      in track pos' stack' remainingAnnotations
+        (rendered <> resetColor <> newChar ) rest

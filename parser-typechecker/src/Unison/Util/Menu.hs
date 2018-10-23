@@ -1,12 +1,13 @@
 module Unison.Util.Menu where
 
+import Unison.Util.ColorText (StyledText)
 -- utility - command line menus
 
 type Caption = String
-type Stylized = String -- todo upgrade this to a doc
+type Stylized = StyledText -- todo upgrade this to a doc
 type Keyword = String
 type MetaChoice = String
-type Console = IO Char
+type Console = IO String
 
 {-
    <caption>
@@ -28,8 +29,9 @@ menu1 :: Console
       -> (MetaChoice -> Stylized)
       -> [[(Keyword, a)]]
       -> [([Keyword], MetaChoice)]
+      -> Maybe Keyword
       -> IO (Either MetaChoice [a])
-menu1 _console _caption _render _renderMeta _groups _metas = pure (Right [])
+menu1 _console _caption _render _renderMeta _groups _metas _initial = pure $ Right []
 
 {-
    <caption>
@@ -53,5 +55,6 @@ menuN :: Console
       -> (MetaChoice -> Stylized)
       -> [[(Keyword, a)]]
       -> [([Keyword], MetaChoice)]
+      -> Maybe [Keyword]
       -> IO (Either MetaChoice [[a]])
-menuN _console _caption _render _renderMeta _groups _metas = pure (Right [])
+menuN _console _caption _render _renderMeta _groups _metas _initials = pure (Right [])
