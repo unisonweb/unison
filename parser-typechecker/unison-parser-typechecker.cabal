@@ -47,10 +47,10 @@ library
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
     Unison.Codebase.Runtime.JVM
-    Unison.Codebase.TermEdit
-    Unison.Codebase.TypeEdit
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.V0
+    Unison.Codebase.TermEdit
+    Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
     Unison.DataDeclaration
     Unison.FileParser
@@ -68,8 +68,8 @@ library
     Unison.PrettyPrint
     Unison.PrintError
     Unison.Reference
-    Unison.Runtime.Rt0
     Unison.Result
+    Unison.Runtime.Rt0
     Unison.Settings
     Unison.Symbol
     Unison.Term
@@ -80,14 +80,15 @@ library
     Unison.TypePrinter
     Unison.TypeVar
     Unison.Typechecker
-    Unison.Typechecker.Context
     Unison.Typechecker.Components
+    Unison.Typechecker.Context
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
     Unison.Util.Logger
+    Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.PrettyPrint
     Unison.Util.Range
