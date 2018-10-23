@@ -2,20 +2,24 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Codebase.CommandLine where
+module Unison.Codebase.CommandLine (main) where
 
 import           Control.Concurrent           (forkIO)
 import           Control.Exception            (finally)
-import           Control.Monad                (forM_, forever, void, when)
+import           Control.Monad                (forM_, forever, liftM2,
+                                               void, when)
 import           Control.Monad.STM            (STM, atomically)
+import qualified Data.Char                    as Char
 import           Data.Foldable                (toList, traverse_)
-import           Data.List                    (find, isPrefixOf, isSuffixOf,
+import           Data.IORef
+import           Data.List                    (find, isSuffixOf,
                                                sort)
 import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
+import           Data.String                  (fromString)
 import           Data.Strings                 (strPadLeft)
 import           Data.Text                    (Text, pack, unpack)
-import           Safe                         (atMay)
+import qualified Data.Text.IO
 import qualified System.Console.ANSI          as Console
 import           System.FilePath              (FilePath)
 import qualified Text.Read                    as Read
@@ -31,37 +35,49 @@ import           Unison.FileParsers           (parseAndSynthesizeFile)
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import           Unison.PrintError            (parseErrorToAnsiString,
-                                               printNoteWithSourceAsAnsi,
-                                               prettyTopLevelComponents)
+                                               prettyTopLevelComponents,
+                                               printNoteWithSourceAsAnsi)
 import           Unison.Result                (Result (Result))
 import qualified Unison.Result                as Result
 import qualified Unison.Typechecker.Context   as C
 import qualified Unison.Typechecker.TypeError as E
 import qualified Unison.Util.ColorText        as Color
+import qualified Unison.Util.Menu             as Menu
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
-import Data.IORef
 
 data Event
   = UnisonFileChanged FilePath Text
   | UnisonBranchChanged (Set Name)
 
-main :: forall v a. Var v => FilePath -> Name -> IO (Runtime v) -> Codebase IO v a -> IO ()
-main dir currentBranchName startRuntime codebase = do
+allow :: FilePath -> Bool
+allow = liftM2 (||) (".u" `isSuffixOf`) (".uu" `isSuffixOf`)
+
+data CreateCancel = Create | Cancel deriving Show
+
+main :: forall v a. Var v => FilePath -> Name -> Maybe FilePath -> IO (Runtime v) -> Codebase IO v a -> IO ()
+main dir currentBranchName initialFile startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
   lastTypechecked <- newIORef []
   let takeActualLine = atomically (takeLine lineQueue)
 
+  -- load initial unison file if specified
+  case initialFile of
+    Just file | allow file -> do
+      text <- Data.Text.IO.readFile file
+      atomically . TQueue.enqueue queue $ UnisonFileChanged file text
+    _ -> pure ()
+
   -- enqueue stdin into lineQueue
   void . forkIO . forever $ getChar >>= atomically . TQueue.enqueue lineQueue
 
   -- watch for .u file changes
   void . forkIO $ do
-    watcher <- Watch.watchDirectory dir (".u" `isSuffixOf`)
+    watcher <- Watch.watchDirectory dir allow
     forever $ do
       (filePath, text) <- watcher
       atomically . TQueue.enqueue queue $ UnisonFileChanged filePath text
@@ -108,7 +124,7 @@ main dir currentBranchName startRuntime codebase = do
             let showNote notes = intercalateMap
                   "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) (filter notInfo notes)
                 notInfo (Result.TypeInfo _) = False
-                notInfo _ = True
+                notInfo _                   = True
             putStrLn . showNote . toList $ notes
           Just typecheckedUnisonFile -> do
             Console.setTitle "Unison ✅"
@@ -156,7 +172,7 @@ main dir currentBranchName startRuntime codebase = do
     addDefinitions :: Branch -> Name -> [String] -> IO ()
     addDefinitions _branch _name args = case args of
       [] -> error "todo"
-      _ -> error "todo"
+      _  -> error "todo"
 
     -- addMenu :: _ -> IO _
     -- addMenu topLevels =
@@ -233,18 +249,6 @@ main dir currentBranchName startRuntime codebase = do
               go' branch
         _ -> error $ "todo" ++ "help:"
 
-renderChoice :: Int -> Maybe String -> String -> Int -> String
-renderChoice width deefault choice index =
-  (if Just choice == deefault then "* " else "  ") ++
-  (strPadLeft ' ' width $ show index) ++ ". " ++ choice
-
-renderChoices :: forall a. Maybe String -> [((String, a), Int)] -> String
-renderChoices deefault entries =
-  intercalateMap "\n" go entries
-  where go ((s, _a), index) = renderChoice pad deefault s index
-        pad = ceiling $ logBase (10::Double)
-                                (fromIntegral . snd . last $ entries)
-
 -- should never block
 peekIncompleteLine :: TQueue Char -> STM String
 peekIncompleteLine q = TQueue.tryPeekWhile (/= '\n') q
@@ -262,8 +266,8 @@ awaitCompleteLine ch = void $ TQueue.peekWhile (/= '\n') ch
 
 -- let the user pick from a list of labeled `a`s
 -- todo: rewrite this to let them toggle stuff
-multipleChoice :: [(String, a)] -> TQueue Char -> IO [a]
-multipleChoice as lineQueue = do
+_multipleChoice :: [(String, a)] -> TQueue Char -> IO [a]
+_multipleChoice as lineQueue = do
   let render ((s, _), index) = putStrLn $ strPadLeft ' ' 5 ("[" ++ show index ++ "] ") ++ s
   traverse_ render (as `zip` [(1::Int)..])
   putStrLn "Please enter your selection as a space separated list of numbers."
@@ -272,11 +276,11 @@ multipleChoice as lineQueue = do
   case traverse Read.readMaybe numbers of
     Nothing ->
       putStrLn "Sorry, I couldn't understand at least one of those numbers."
-      >> multipleChoice as lineQueue
+      >> _multipleChoice as lineQueue
     Just numbers -> case find (\i -> i < 1 || i > length as) numbers of
       Just i ->
         (putStrLn $ "You entered the number " ++ show i ++ " which wasn't one of the choices.")
-          >> multipleChoice as lineQueue
+          >> _multipleChoice as lineQueue
       Nothing -> pure $ snd . (as !!) . (+ (-1)) <$> numbers
 
 -- Merges `branch` into any the branch `name`, creating it if necessary.
@@ -288,9 +292,21 @@ mergeBranchAndShowDiff codebase targetName sourceBranch = do
   --           ++ "and I went ahead and smashed it all together for you!"
   pure branch'
 
+foo :: Text -> (String, Text)
+foo name = (unpack name, name)
+
 selectBranch :: Codebase IO v a -> Name -> IO String -> IO (Maybe (Name, Branch))
 selectBranch codebase name takeLine = do
-  -- todo: refactor to single-choice function
+  let branchMenu caption branches =
+        Menu.menu1
+          takeLine -- console
+          caption -- caption
+          (fromString . unpack) -- render
+          (fromString . fmap Char.toLower . show) -- renderMeta
+          (foo <$> branches) -- groups
+          [("create", Create), ("cancel", Cancel)] -- metas
+          Nothing -- initial
+
   branch <- Codebase.getBranch codebase name
   case branch of
     -- if branch named `name` exists, load it,
@@ -298,51 +314,18 @@ selectBranch codebase name takeLine = do
     -- otherwise,
       -- list branches that do exist, plus option to create, plus option to cancel
     Nothing -> do
-      putStrLn $
-        "The branch " ++ show name ++ " doesn't exist. " ++
-         "Do you want to create it, or pick a different one?"
+      let caption = fromString $
+            "The branch " ++ show name ++ " doesn't exist. " ++
+             "Do you want to create it, or pick a different one?"
       branches <- Codebase.branches codebase
-      choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
-                    [("create it", Left True)
-                    ,("cancel", Left False)]) (Just $ "create it") takeLine
+      -- choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
+      --               [("create it", Left True)
+      --               ,("cancel", Left False)]) (Just $ "create it") takeLine
+      choice <- branchMenu caption branches
       case choice of
-        Just (Left False) -> pure Nothing
-        Just (Left True) -> do
+        Just (Left Cancel) -> pure Nothing
+        Just (Left Create) -> do
           branch <- mergeBranchAndShowDiff codebase name mempty
           pure $ Just (name, branch)
         Just (Right name) -> selectBranch codebase name takeLine
-        Nothing -> error "unpossible"
-
-singleChoice :: [(String, a)] -> Maybe String -> IO String -> IO (Maybe a)
-singleChoice entries deefault takeLine = do
-  let restart = singleChoice entries deefault takeLine
-      numberedEntries = entries `zip` [1..]
-      resume = do
-        putStr $ "Enter a number, or prefix, or a blank line " ++
-                  if null deefault
-                    then "to cancel: "
-                    else "to accept the default (*): "
-        input <- takeLine
-        case words input of
-          [] -> case deefault of
-            Nothing -> pure Nothing
-            Just deefault ->
-              pure (snd <$> find (\(s,_) -> s == deefault) entries)
-          input : _ -> case Read.readMaybe input of
-            Nothing -> -- maybe it's a prefix
-              case filter ((input `isPrefixOf`) . fst . fst) numberedEntries of
-                [] ->
-                  putStrLn "Sorry, I couldn't understand your selection."
-                     *> restart
-                [((_s, a), _i)] -> pure (Just a)
-                matches -> do
-                  putStrLn "I'm not sure which one of these you meant:"
-                  putStrLn $ renderChoices deefault matches
-                  resume
-            Just i -> case atMay entries (i-1) of
-              Just (_s, a) -> pure (Just a)
-              Nothing ->
-                putStrLn ("Please pick a number from 1 to "
-                                    ++ show (length entries) ++ ".") *> restart
-  putStrLn $ renderChoices deefault numberedEntries
-  resume
+        Nothing -> pure Nothing

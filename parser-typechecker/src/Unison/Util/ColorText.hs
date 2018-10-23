@@ -2,7 +2,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-module Unison.Util.ColorText where
+
+module Unison.Util.ColorText
+  (ANSI, StyledText, Style(..),
+  style, type1, type2, errorSite,
+  renderDocANSI, renderText)
+where
 
 import           Data.Foldable (foldl', toList)
 import qualified Data.Map as Map
@@ -26,13 +31,12 @@ import           Unison.Util.AnnotatedText (AnnotatedDocument (..),
 import           Unison.Util.Range (Range (..), inRange)
 
 data ANSI
-data ASCII
 data Style = ForceShow | Type1 | Type2 | ErrorSite deriving (Eq, Ord, Show)
 type StyledText = AnnotatedText (Maybe Style)
 type StyledBlockquote = AnnotatedExcerpt Style
 
-unhighlighted :: StyledText -> StyledText
-unhighlighted s = const Nothing <$> s
+_unhighlighted :: StyledText -> StyledText
+_unhighlighted s = const Nothing <$> s
 
 style :: a -> AnnotatedText (Maybe a) -> AnnotatedText (Maybe a)
 style c s = const (Just c) <$> s
@@ -45,6 +49,28 @@ type2 s = const (Just Type2) <$> s
 
 errorSite :: StyledText -> StyledText
 errorSite s = const (Just ErrorSite) <$> s
+
+toANSI :: Style -> Rendered ANSI
+toANSI c = Rendered . pure . setSGRCode $ case c of
+  ErrorSite -> [red]
+  Type1     -> [blue]
+  Type2     -> [green]
+  ForceShow -> []
+  where red = SetColor Foreground Vivid Red
+        blue = SetColor Foreground Vivid Blue
+        green = SetColor Foreground Dull Green
+        _bold = SetConsoleIntensity BoldIntensity
+        _underline = SetUnderlining SingleUnderline
+
+resetANSI :: Rendered ANSI
+resetANSI = Rendered . pure . setSGRCode $ [Reset]
+
+renderText :: StyledText -> Rendered ANSI
+renderText (AnnotatedText chunks) = foldl' go mempty chunks
+  where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
+        go r (text, Nothing)    = r <> resetANSI <> fromString text
+        go r (text, Just style) = r <> toANSI style <> fromString text
+
 
 renderDocANSI :: Int -> AnnotatedDocument Style -> Rendered ANSI
 renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
@@ -65,27 +91,6 @@ renderDocANSI excerptCollapseWidth (AnnotatedDocument chunks) =
   describe Type1     = "in " <> type1 "blue"
   describe Type2     = "in " <> type2 "green"
   describe ForceShow = mempty
-  toANSI :: Style -> Rendered ANSI
-  toANSI c = Rendered . pure . setSGRCode $ case c of
-    ErrorSite -> [red]
-    Type1     -> [blue]
-    Type2     -> [green]
-    ForceShow -> []
-    where red = SetColor Foreground Vivid Red
-          blue = SetColor Foreground Vivid Blue
-          green = SetColor Foreground Dull Green
-          _bold = SetConsoleIntensity BoldIntensity
-          _underline = SetUnderlining SingleUnderline
-
-  resetANSI :: Rendered ANSI
-  resetANSI = Rendered . pure . setSGRCode $ [Reset]
-
-  renderText :: StyledText -> Rendered ANSI
-  renderText (AnnotatedText chunks) = foldl' go mempty chunks
-    where go :: Rendered ANSI -> (String, Maybe Style) -> Rendered ANSI
-          go r (text, Nothing)    = r <> resetANSI <> fromString text
-          go r (text, Just style) = r <> toANSI style <> fromString text
-
   renderExcerpt :: StyledBlockquote -> Rendered ANSI
   renderExcerpt e =
     track (Pos line1 1) [] (Map.toList $ annotations e)

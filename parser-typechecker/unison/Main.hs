@@ -4,6 +4,8 @@
 module Main where
 
 import           Data.Char                        (toLower)
+import           Safe                             (headMay)
+import           System.Environment               (getArgs)
 import           System.IO                        (BufferMode (NoBuffering),
                                                    hSetBuffering, stdout)
 import qualified Unison.Codebase.CommandLine      as CommandLine
@@ -16,11 +18,14 @@ import           Unison.Symbol                    (Symbol)
 
 main :: IO ()
 main = do
+  args <- getArgs
+
   hSetBuffering stdout NoBuffering -- cool
   let codebasePath = ".unison"
       initialBranchName = "master"
       scratchFilePath = "."
       launch = CommandLine.main scratchFilePath initialBranchName
+        (headMay args)
         (javaRuntime @Symbol 42441)
         (FileCodebase.codebase1 External formatSymbol formatAnn codebasePath)
 
