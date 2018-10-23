@@ -49,6 +49,8 @@ import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 
 -- ABOUT THIS FORMAT:
 --
+-- A serialization format for uncompiled Unison syntax trees.
+--
 -- Finalized: No
 --
 -- If Finalized: Yes, don't modify this file in a way that affects serialized form.
