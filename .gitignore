@@ -14,7 +14,7 @@ cabal-dev
 **/build/**
 tags
 unison-src/.loaded
-**cabal.sandbox.config
+**/cabal.sandbox.config
 .cabal-sandbox/**
 blockstore
 blockstore.leveldb
