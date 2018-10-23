@@ -198,6 +198,8 @@ pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
+pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
+pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
@@ -478,6 +480,23 @@ unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
+unBinaryApp :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, 
+                                                     AnnotatedTerm2 vt at ap v a, 
+                                                     AnnotatedTerm2 vt at ap v a)  
+unBinaryApp t = case unApps t of
+  Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
+  _                      -> Nothing
+
+-- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
+unBinaryApps :: AnnotatedTerm2 vt at ap v a -> Maybe ([(AnnotatedTerm2 vt at ap v a, 
+                                                        AnnotatedTerm2 vt at ap v a)],
+                                                      AnnotatedTerm2 vt at ap v a)  
+unBinaryApps t = case unBinaryApp t of
+  Just (f, x, y) -> case unBinaryApps x of
+                      Just (as, xLast) -> Just ((xLast, f) : as, y)
+                      Nothing          -> Just ([(x, f)], y)
+  Nothing        -> Nothing
+  
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)

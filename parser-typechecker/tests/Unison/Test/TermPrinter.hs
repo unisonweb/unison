@@ -168,6 +168,7 @@ test = scope "termprinter" . tests $
                  \  x = if a then b else c\n\
                  \  if x then y else z"
   , tc "f x y"
+  , tc "f x y z"
   , tc "f (g x) y"
   , tc_diff "(f x) y" $ "f x y"
   , pending $ tc "1.0e-19"         -- TODO, raise issue, parser throws UnknownLexeme
@@ -197,11 +198,33 @@ test = scope "termprinter" . tests $
             \    baz.x = 1\n\
             \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
                                    -- TODO add a test with a type annotation above the binding
-  , pending $ tc "x + y"           -- TODO printing infix; but also this is throwing 'unexpected +'
-  , pending $ tc "x + (y + z)"
-  , pending $ tc "x + y + z"
-  , pending $ tc "x + y * z" -- i.e. (x + y) * z !
-  , pending $ tc "x \\ y = z ~ a | b"
+  , tc "x + y"           
+  , tc "x ~ y"                     -- TODO what about using a binary data constructor as infix?
+  -- We don't store anything that would allow us to know whether the user originally wrote
+  -- "x `foo` y" or "foo x y".  Since it's not symbolic, go with the latter.
+  , tc_diff "x `foo` y" $ "foo x y"                 
+  , tc "x + (y + z)"
+  , tc "x + y + z"
+  , tc "x + y * z" -- i.e. (x + y) * z !
+  , tc "x \\ y == z ~ a"
+  , tc "foo x (y + z)"
+  , tc "foo (x + y) z"
+  , tc "(foo x y) + z"
+  , tc "(foo p q) + r + s"
+  , tc "(foo (p + q) r) + s"
+  , tc "foo (p + q + r) s"
+  , tc "p + q + r + s"
+  , tc_diff_rtt False "(foo.+) x y" "foo.+ x y" 0  -- TODO parser doesn't like foo.+ without the brackets - problem?  
+                                                   --      Or change pretty-printer to match?
+  , tc "x + y + (f a b c)"
+  , tc "x + y + (foo a b)"
+  , tc "(foo x y p) + z"
+  , tc "(foo p q a) + r + s"
+  , tc "(foo (p + q) r a) + s"  
+  , tc "foo (x + y) (p - q)"
+  , tc "x -> x + y"
+  , tc "if p then x + y else a - b"
+  , tc "(x + y) : Int"
   , pending $ tc "!foo"
   , pending $ tc "!(foo a b)"
   , pending $ tc "!!foo"  -- probably !(!foo)
