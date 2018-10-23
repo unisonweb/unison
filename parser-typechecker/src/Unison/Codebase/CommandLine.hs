@@ -321,7 +321,7 @@ singleChoice entries deefault takeLine = do
         putStr $ "Enter a number, or prefix, or a blank line " ++
                   if null deefault
                     then "to cancel: "
-                    else "to accept the default (*): "
+                    else "to accept the current selection (*): "
         input <- takeLine
         case words input of
           [] -> case deefault of
