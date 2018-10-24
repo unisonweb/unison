@@ -25,20 +25,6 @@ import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
 --TODO let suppression, missing features
-
-{-  TODO
-
-  !a        a ()
-  'a        x -> a
-
-  x -> 'a
-  !a foo    a () foo
-
-  a b c d
-
-
--}
-
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
@@ -59,7 +45,8 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
    The pretty-printer uses the following rules for printing terms.
 
      >=11
-       ! 11f
+       ! 11x
+       ' 11x
 
      >=10
        10f 10x 10y ...
@@ -121,7 +108,8 @@ pretty n p term = specialCases term $ \case
   Handle' h body -> parenNest (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  App' f (Constructor' (Builtin "()") 0) -> paren (p >= 11) $ l"!" <> pretty n 11 f
+  App' x (Constructor' (Builtin "()") 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
+  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
   Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
                     (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
@@ -129,9 +117,6 @@ pretty n p term = specialCases term $ \case
                      PP.Group (l"else" <> b" " <> pretty n 2 f))
   And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
   Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  LamsNamed' vs body -> parenNest (p >= 3) $
-                          varList vs <> l" ->" <> b" " <>
-                          (PP.Nest "  " $ PP.Group $ pretty n 2 body)
   LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> parenNest (p >= 2) $
@@ -144,7 +129,11 @@ pretty n p term = specialCases term $ \case
             _ -> case (term, nonForcePred) of 
               AppsPred' f args -> parenNest (p >= 10) $ 
                 pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
-              _ -> go term
+              _ -> case (term, nonUnitArgPred) of
+                LamsNamedPred' vs body -> parenNest (p >= 3) $
+                                            varList vs <> l" ->" <> b" " <>
+                                            (PP.Nest "  " $ PP.Group $ pretty n 2 body)
+                _ -> go term
 
         sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
@@ -182,6 +171,9 @@ pretty n p term = specialCases term $ \case
         nonForcePred = \case
           Constructor' (Builtin "()") 0 -> False
           _                             -> True
+
+        nonUnitArgPred :: Var v => v -> Bool  
+        nonUnitArgPred v = (Var.name v) /= "()"
 
         -- When we use imports in rendering, this will need revisiting, so that we can render 
         -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.

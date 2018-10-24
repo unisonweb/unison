@@ -207,6 +207,7 @@ pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
+pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -512,10 +513,15 @@ unBinaryAppsPred (t, pred) = case unBinaryApp t of
   _                       -> Nothing
 
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
-unLams' (LamNamed' v body) = case unLams' body of
+unLams' t = unLamsPred' (t, (\_ -> True))
+
+-- Same as unLams but taking a predicate controlling whether we match on a given binary function.
+unLamsPred' :: (AnnotatedTerm2 vt at ap v a, v -> Bool) -> 
+                 Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
-unLams' _ = Nothing
+unLamsPred' _ = Nothing
 
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
