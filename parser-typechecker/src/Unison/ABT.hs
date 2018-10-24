@@ -13,6 +13,7 @@ module Unison.ABT where
 
 import Control.Applicative
 import Control.Monad
+import Data.Word (Word64)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Maybe
@@ -32,6 +33,7 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Var as Var
+import qualified Unison.Util.Components as Components
 
 data ABT f v r
   = Var v
@@ -452,6 +454,9 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
+components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components = Components.components freeVars
+
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
   (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
@@ -465,6 +470,27 @@ hashComponent byName = let
   sortedHashed = sortBy (comparing snd) hashed
   overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
   in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
+
+-- Group the definitions into strongly connected components and hash
+-- each component. Substitute the hash of each component into subsequent
+-- components (using the `termFromHash` function).
+hashComponents
+  :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  => (h -> Word64 -> Term f v ())
+  -> Map.Map v (Term f v a)
+  -> [(h, [(v, Term f v a)])]
+hashComponents termFromHash termsByName = let
+  sccs = components (Map.toList termsByName)
+  go _ [] = []
+  go prevHashes (component : rest) = let
+    sub = substsInheritAnnotation (Map.toList prevHashes)
+    (h, sortedComponent) = hashComponent $ Map.fromList [ (v, sub t) | (v, t) <- component ]
+    curHashes = Map.fromList [ (v, termFromHash h i) | ((v, _),i) <- sortedComponent `zip` [1..]]
+    newHashes = prevHashes `Map.union` curHashes
+    newHashesL = Map.toList newHashes
+    sortedComponent' = [ (v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent ]
+    in (h, sortedComponent') : go newHashes rest
+  in go Map.empty sccs
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)

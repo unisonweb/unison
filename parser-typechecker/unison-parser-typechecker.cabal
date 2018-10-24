@@ -87,6 +87,7 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
+    Unison.Util.Components
     Unison.Util.Logger
     Unison.Util.Menu
     Unison.Util.Monoid
