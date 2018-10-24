@@ -471,6 +471,9 @@ hashComponent byName = let
   overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
   in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
 
+-- Group the definitions into strongly connected components and hash
+-- each component. Substitute the hash of each component into subsequent
+-- components (using the `termFromHash` function).
 hashComponents
   :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
   => (h -> Word64 -> Term f v ())
