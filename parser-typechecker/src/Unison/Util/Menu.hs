@@ -125,7 +125,13 @@ groupMenu1 :: forall a mc
       -> Maybe Keyword
       -> IO (Maybe (Either mc [a]))
 groupMenu1 console caption render renderMeta groups metas initial = do
-  let restart = groupMenu1 console caption render renderMeta groups metas initial
+  when ((not . textEmpty) caption) $ do
+    print . renderText $ caption
+    putStrLn ""
+  print . renderText $ renderChoices render renderMeta groups metas (`elem` initial)
+  resume
+  where
+      restart = groupMenu1 console caption render renderMeta groups metas initial
       -- restart with an updated caption
       restart' caption groups metas initial =
                   groupMenu1 console caption render renderMeta groups metas initial
@@ -177,11 +183,7 @@ groupMenu1 console caption render renderMeta groups metas initial = do
           findMatchingGroup :: forall a. [Keyword] -> [([Keyword], [a])] -> Maybe [a]
           findMatchingGroup initials groups =
             snd <$> find (\(keywords, _as) -> any (`elem` keywords) initials) groups
-  when ((not . textEmpty) caption) $ do
-    print . renderText $ caption
-    putStrLn ""
-  print . renderText $ renderChoices render renderMeta groups metas (`elem` initial)
-  resume
+
 
 {-
    <caption>
