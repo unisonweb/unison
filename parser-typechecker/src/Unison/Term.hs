@@ -200,6 +200,7 @@ pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
+pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
@@ -491,12 +492,19 @@ unBinaryApp t = case unApps t of
 unBinaryApps :: AnnotatedTerm2 vt at ap v a -> Maybe ([(AnnotatedTerm2 vt at ap v a, 
                                                         AnnotatedTerm2 vt at ap v a)],
                                                       AnnotatedTerm2 vt at ap v a)  
-unBinaryApps t = case unBinaryApp t of
-  Just (f, x, y) -> case unBinaryApps x of
-                      Just (as, xLast) -> Just ((xLast, f) : as, y)
-                      Nothing          -> Just ([(x, f)], y)
-  Nothing        -> Nothing
-  
+unBinaryApps t = unBinaryAppsPred (t, \_ -> True)
+
+-- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
+unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) -> 
+                      Maybe ([(AnnotatedTerm2 vt at ap v a, 
+                               AnnotatedTerm2 vt at ap v a)],
+                              AnnotatedTerm2 vt at ap v a)  
+unBinaryAppsPred (t, pred) = case unBinaryApp t of
+  Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
+                               Just (as, xLast) -> Just ((xLast, f) : as, y)
+                               Nothing          -> Just ([(x, f)], y)
+  _                       -> Nothing
+
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' (LamNamed' v body) = case unLams' body of
   Nothing -> Just ([v], body)
