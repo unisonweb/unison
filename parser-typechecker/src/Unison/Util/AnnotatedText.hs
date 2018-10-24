@@ -1,22 +1,23 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Unison.Util.AnnotatedText where
 
-import           Data.Foldable (asum, foldl')
-import           Data.Sequence (Seq ((:|>)))
-import qualified Data.Sequence as Seq
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.String (IsString (..))
-import           Data.Void (Void)
-import           Safe (lastMay)
-import           Unison.Lexer (Line, Pos (..))
+import           Data.Foldable      (asum, foldl')
+import           Data.Map           (Map)
+import qualified Data.Map           as Map
+import           Data.Sequence      (Seq ((:|>)))
+import qualified Data.Sequence      as Seq
+import           Data.String        (IsString (..))
+import           Data.Void          (Void)
+import           Safe               (lastMay)
+import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
-import           Unison.Util.Range (Range (..))
+import           Unison.Util.Range  (Range (..))
 
 newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
   deriving (Functor, Semigroup, Monoid)
@@ -39,7 +40,7 @@ data Section a
   deriving (Functor)
 
 newtype AnnotatedText a = AnnotatedText (Seq (String, a))
-  deriving (Functor, Semigroup, Monoid)
+  deriving (Functor, Foldable, Semigroup, Monoid)
 
 data AnnotatedExcerpt a = AnnotatedExcerpt
   { lineOffset  :: Line
@@ -82,6 +83,12 @@ markup a r = a { annotations = r `Map.union` annotations a }
 renderTextUnstyled :: AnnotatedText a -> Rendered Void
 renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
   where go r (text, _) = r <> fromString text
+
+textLength :: AnnotatedText a -> Int
+textLength = length . show . renderTextUnstyled
+
+textEmpty :: AnnotatedText a -> Bool
+textEmpty = (==0) . textLength
 
 splitAndRender :: Int
                -> (AnnotatedExcerpt a -> Rendered b)

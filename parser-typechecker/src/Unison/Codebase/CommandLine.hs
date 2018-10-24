@@ -250,7 +250,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
               putStrLn $ "There's more than one thing called " ++ from ++ "."
               putStrLn $ "Use `> <command to resolve conflicts> unname " ++ from ++ "` to resolve conflicts, then try again."
               go' branch
-        _ -> error $ "todo" ++ "help:"
+        [] -> go branch name
+        x -> putStrLn ("I don't know how to " ++ unwords x ++ ".") *> go branch name
 
 -- should never block
 peekIncompleteLine :: TQueue Char -> STM String
@@ -321,9 +322,6 @@ selectBranch codebase name takeLine = do
             "The branch " ++ show name ++ " doesn't exist. " ++
              "Do you want to create it, or pick a different one?"
       branches <- Codebase.branches codebase
-      -- choice <- singleChoice (((unpack <$> branches) `zip` (Right <$> branches)) ++
-      --               [("create it", Left True)
-      --               ,("cancel", Left False)]) (Just $ "create it") takeLine
       choice <- branchMenu caption branches
       case choice of
         Just (Left Cancel) -> pure Nothing
