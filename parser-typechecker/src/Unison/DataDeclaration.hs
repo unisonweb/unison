@@ -19,7 +19,6 @@ import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
-import           Unison.Typechecker.Components (components)
 import           Unison.Var (Var)
 
 type DataDeclaration v = DataDeclaration' v ()
@@ -138,7 +137,7 @@ hashDecls0
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v ())
   -> [(v, Reference, DataDeclaration' v ())]
-hashDecls0 decls = reverse . snd . foldl f ([], []) $ components abts
+hashDecls0 decls = reverse . snd . foldl f ([], []) $ ABT.components abts
  where
   f (m, newDecls) cycle =
     let

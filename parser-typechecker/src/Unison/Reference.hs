@@ -7,6 +7,8 @@ import Unison.Hashable as Hashable
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
 
+-- could add a `Word` parameter to `Derived`
+-- associated with each hash would actually be a list of terms / type decls
 data Reference = Builtin Text.Text | Derived H.Hash deriving (Eq,Ord,Generic)
 
 instance Show Reference where
