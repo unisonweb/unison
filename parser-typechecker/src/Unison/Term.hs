@@ -198,6 +198,7 @@ pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
+pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
@@ -475,9 +476,14 @@ unLetRec (unLetRecNamed -> Just (isTop, bs, e)) =
 unLetRec _ = Nothing
 
 unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
-unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+unApps t = unAppsPred (t, \_ -> True)
+
+-- Same as unApps but taking a predicate controlling whether we match on a given function argument.
+unAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) -> 
+                Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
+unAppsPred (t, pred) = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
-  go (App' i o) acc = go i (o:acc)
+  go (App' i o) acc | pred o = go i (o:acc)
   go _ [] = []
   go fn args = fn:args
 

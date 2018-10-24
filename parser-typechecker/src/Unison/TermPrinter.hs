@@ -1,4 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.TermPrinter where
 
@@ -23,6 +25,20 @@ import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
 --TODO let suppression, missing features
+
+{-  TODO
+
+  !a        a ()
+  'a        x -> a
+
+  x -> 'a
+  !a foo    a () foo
+
+  a b c d
+
+
+-}
+
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
@@ -41,6 +57,9 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
    two components, an ambient precedence of 10 is used in both places.
 
    The pretty-printer uses the following rules for printing terms.
+
+     >=11
+       ! 11f
 
      >=10
        10f 10x 10y ...
@@ -80,48 +99,54 @@ pretty :: Var v => (Reference -> Maybe Int -> Text) -> Int -> AnnotatedTerm v a 
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
-pretty n p term = case (term, binaryOpsPred) of 
-  BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
-  _ -> case term of
-    Var' v       -> l $ Text.unpack (Var.name v)
-    Ref' r       -> l $ Text.unpack (n r Nothing)
-    Ann' tm t    -> let n' r = n r Nothing in
-                      parenNest (p >= 0) $
-                        pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n' 0 t))
-    Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
-    Nat' u       -> l $ show u
-    Float' f     -> l $ show f
-    -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse them.  Haskell
-    --      doesn't have literals for them either.  Is this function only required to
-    --      operate on terms produced by the parser?  In which case the code is fine as
-    --      it stands.  If it can somehow run on values produced by execution (or, one day, on
-    --      terms produced by metaprograms), then it needs to be able to print them (and
-    --      then the parser ought to be able to parse them, to maintain symmetry.)
-    Boolean' b   -> if b then l"true" else l"false"
-    Text' s      -> l $ show s
-    Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
-    RequestOrCtor' ref i -> l (Text.unpack (n ref (Just i)))
-    Handle' h body -> parenNest (p >= 2) $
-                        l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
-                        <> PP.Nest "  " (PP.Group (pretty n 2 body))
-    Apps' f args -> renderApps p f args
-    Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
-    If' cond t f -> parenNest (p >= 2) $
-                      (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
-                       PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
-                       PP.Group (l"else" <> b" " <> pretty n 2 f))
-    And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-    Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-    LamsNamed' vs body -> parenNest (p >= 3) $
-                            varList vs <> l" ->" <> b" " <>
-                            (PP.Nest "  " $ PP.Group $ pretty n 2 body)
-    LetRecNamed' bs e -> printLet bs e
-    Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
-    Match' scrutinee branches -> parenNest (p >= 2) $
-                                 PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
-                                 (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
-    t -> l"error: " <> l (show t)
-  where sepList sep xs = sepList' (pretty n 0) sep xs
+pretty n p term = specialCases term $ \case
+  Var' v       -> l $ Text.unpack (Var.name v)
+  Ref' r       -> l $ Text.unpack (n r Nothing)
+  Ann' tm t    -> let n' r = n r Nothing in
+                    parenNest (p >= 0) $
+                      pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n' 0 t))
+  Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
+  Nat' u       -> l $ show u
+  Float' f     -> l $ show f
+  -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse them.  Haskell
+  --      doesn't have literals for them either.  Is this function only required to
+  --      operate on terms produced by the parser?  In which case the code is fine as
+  --      it stands.  If it can somehow run on values produced by execution (or, one day, on
+  --      terms produced by metaprograms), then it needs to be able to print them (and
+  --      then the parser ought to be able to parse them, to maintain symmetry.)
+  Boolean' b   -> if b then l"true" else l"false"
+  Text' s      -> l $ show s
+  Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
+  RequestOrCtor' ref i -> l (Text.unpack (n ref (Just i)))
+  Handle' h body -> parenNest (p >= 2) $
+                      l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
+                      <> PP.Nest "  " (PP.Group (pretty n 2 body))
+  App' f (Constructor' (Builtin "()") 0) -> paren (p >= 11) $ l"!" <> pretty n 11 f
+  Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
+  If' cond t f -> parenNest (p >= 2) $
+                    (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
+                     PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
+                     PP.Group (l"else" <> b" " <> pretty n 2 f))
+  And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  LamsNamed' vs body -> parenNest (p >= 3) $
+                          varList vs <> l" ->" <> b" " <>
+                          (PP.Nest "  " $ PP.Group $ pretty n 2 body)
+  LetRecNamed' bs e -> printLet bs e
+  Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
+  Match' scrutinee branches -> parenNest (p >= 2) $
+                               PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
+                               (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
+  t -> l"error: " <> l (show t)
+  where specialCases term go = 
+          case (term, binaryOpsPred) of 
+            BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
+            _ -> case (term, nonForcePred) of 
+              AppsPred' f args -> parenNest (p >= 10) $ 
+                pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
+              _ -> go term
+
+        sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
         varList vs = sepList' (\v -> l $ Text.unpack (Var.name v)) (b" ") vs
         commaList = sepList (l"," <> b" ")
@@ -144,18 +169,19 @@ pretty n p term = case (term, binaryOpsPred) of
             printGuard Nothing = Empty
         printCase _ = l"error"
 
-        renderApps :: Var v => Int -> AnnotatedTerm v a -> [AnnotatedTerm v a] -> PrettyPrint String
-        renderApps p f args = parenNest (p >= 10) $ 
-          pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
-
         -- This predicate controls which binary functions we render as infix operators.
         -- At the moment the policy is just to render symbolic operators as infix - not 'wordy'
         -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".        
         binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
-        binaryOpsPred t = case t of 
+        binaryOpsPred = \case
           Ref' r | isSymbolic (n r Nothing) -> True
           Var' v | isSymbolic (Var.name v)  -> True
           _                                 -> False
+
+        nonForcePred :: AnnotatedTerm v a -> Bool
+        nonForcePred = \case
+          Constructor' (Builtin "()") 0 -> False
+          _                             -> True
 
         -- When we use imports in rendering, this will need revisiting, so that we can render 
         -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
