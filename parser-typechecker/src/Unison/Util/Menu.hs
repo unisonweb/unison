@@ -1,16 +1,19 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Unison.Util.Menu (menu1, menuN) where
+module Unison.Util.Menu (menu1, menuN, groupMenu1) where
 
+import           Control.Monad         (when)
 import           Data.List             (find, isPrefixOf)
 import           Data.String           (IsString, fromString)
 import           Data.Strings          (strPadLeft)
 import           Safe                  (atMay)
 import qualified Text.Read             as Read
 import           Unison.Util.ColorText (StyledText, renderText)
+import           Unison.Util.AnnotatedText (textEmpty)
 import           Unison.Util.Monoid    (intercalateMap)
 -- utility - command line menus
 
@@ -27,9 +30,11 @@ renderChoices :: forall a mc
               -> (Keyword -> Bool)
               -> Stylized
 renderChoices render renderMeta groups metas isSelected =
-  intercalateMap "\n" format numberedGroups <> "\n\n" <>
-  intercalateMap " " (("["<>) . (<>"]") . renderMeta . snd) metas
+  showGroups <> showMetas
   where
+    showGroups = intercalateMap "\n" format numberedGroups <>
+      if (not.null) groups && (not.null) metas then "\n\n" else ""
+    showMetas = intercalateMap "\n" (("["<>) . (<>"]") . renderMeta . snd) metas
     numberedGroups :: [(([Keyword], [a]), Int)]
     numberedGroups = zip groups [1..]
     numberWidth = ceiling @Double . logBase 10 . fromIntegral $ length groups
@@ -38,7 +43,7 @@ renderChoices render renderMeta groups metas isSelected =
       intercalateMap
         "\n"
         (format1 number (length as) (any isSelected keywords))
-        (zip as [1..])
+        (zip as [0..])
     format1 :: Int -> Int -> Bool -> (a, Int) -> Stylized
     format1 groupNumber groupSize isSelected (a, index) =
       header <> bracket <> render a
@@ -48,15 +53,20 @@ renderChoices render renderMeta groups metas isSelected =
           (if representativeRow
             then (if isSelected then "*" else " ")
                   <> fromString (strPadLeft ' ' numberWidth (show groupNumber))
-            else fromString $ replicate (numberWidth + 1) ' ') <> ". "
+                  <> ". "
+            else fromString $ replicate (numberWidth + 3) ' ')
         representativeRow :: Bool
         representativeRow = index == 0 -- alternatively: index == groupSize - 1 `div` 2
         bracket :: IsString s => s
         bracket =
-          if groupSize == 1         then "·"
-          else if index == 1        then "┌"
-          else if index < groupSize then "│"
-          else                           "└"
+          if maxGroupSize > 1 then
+            if groupSize == 1             then "╶"
+            else if index == 0            then "┌"
+            else if index < groupSize - 1 then "│"
+            else                               "└"
+          else ""
+        maxGroupSize = maximum (length . snd <$> groups)
+
 
 {-
    <caption>
@@ -120,8 +130,7 @@ groupMenu1 console caption render renderMeta groups metas initial = do
       restart' caption groups metas initial =
                   groupMenu1 console caption render renderMeta groups metas initial
       resume = do
-        putStr $ if null initial then "Choose by number or prefix: "
-          else "Choose by number or prefix, or press Enter to use the current selection (*): "
+        putStr "\n>> "
         input <- console
         case words input of
           [] -> useExistingSelections groups initial
@@ -144,8 +153,10 @@ groupMenu1 console caption render renderMeta groups metas initial = do
             ([(_, as)],[]) -> pure (Just (Right as))
             ([], [(_, mc)]) -> pure (Just (Left mc))
             (groups, metas) ->
-              restart' "Please clarify your selection:" groups metas Nothing >>= \case
-                Nothing -> resume
+              restart'
+                "Please clarify your selection, or press Enter to back up:"
+                groups metas Nothing >>= \case
+                Nothing -> restart
                 x -> pure x
           matchingItems ::
             forall a mc. [([Keyword], [a])] -> [([Keyword], mc)] -> String
@@ -166,8 +177,9 @@ groupMenu1 console caption render renderMeta groups metas initial = do
           findMatchingGroup :: forall a. [Keyword] -> [([Keyword], [a])] -> Maybe [a]
           findMatchingGroup initials groups =
             snd <$> find (\(keywords, _as) -> any (`elem` keywords) initials) groups
-  print . renderText $ caption
-  putStrLn ""
+  when ((not . textEmpty) caption) $ do
+    print . renderText $ caption
+    putStrLn ""
   print . renderText $ renderChoices render renderMeta groups metas (`elem` initial)
   resume
 
