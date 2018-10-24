@@ -7,6 +7,10 @@ import Unison.Hashable as Hashable
 import qualified Data.Text as Text
 import qualified Unison.Hash as H
 import Data.Word (Word64)
+import Control.Monad (join)
+import qualified Data.Map as Map
+import Data.List
+import Data.Foldable (toList)
 
 -- could add a `Word` parameter to `Derived`
 -- associated with each hash would actually be a list of terms / type decls
@@ -23,8 +27,17 @@ component h ks = let
   size = fromIntegral (length ks)
   in [ (k, derived h i size) | (k, i) <- ks `zip` [0..]]
 
-components :: [(H.Hash, [k])] -> [[(k, Reference)]]
-components sccs = uncurry component <$> sccs
+components :: [(H.Hash, [k])] -> [(k, Reference)]
+components sccs = join $ uncurry component <$> sccs
+
+groupComponents :: [(k, Reference)] -> [[(k, Reference)]]
+groupComponents refs = done $ foldl' insert Map.empty refs
+  where
+    insert m (k, r@(Derived h)) =
+      Map.unionWith (<>) m (Map.fromList [(Right h, [(k,r)])])
+    insert m (k, r) =
+      Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
+    done m = sortOn snd <$> toList m
 
 instance Show Reference where
   show (Builtin t) = Text.unpack t

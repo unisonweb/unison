@@ -6,9 +6,8 @@
 
 module Unison.DataDeclaration where
 
-import           Data.Bifunctor (second)
 import           Data.Functor
-import           Data.Map (Map, intersectionWith)
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
 import           Prelude.Extras (Show1)
@@ -20,13 +19,12 @@ import qualified Unison.Reference as Reference
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
-import Unison.Hash (Hash)
 
 type DataDeclaration v = DataDeclaration' v ()
 
 data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
-  bound :: [v], -- todo: do we actually use the names? or just the length
+  bound :: [v],
   constructors' :: [(a, v, AnnotatedType v a)]
 } deriving (Show, Functor)
 
@@ -133,34 +131,16 @@ fromABT (ABT.AbsN' bound (
     [((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
-hashDecls2
-  :: (Eq v, Var v)
-  => Map v (DataDeclaration' v a)
-  -> [(Hash, [v])]
-hashDecls2 decls = fixup <$> ABT.hashComponents mkRef (toABT . void <$> decls)
-  where mkRef h i = ABT.tm (Type (Type.Ref (Reference.Derived h)))
-        fixup (h, scc) = (h, fst <$> scc)
--- use this to impl hashDecls
-
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v ())
-  -> [(v, Reference, DataDeclaration' v ())]
-hashDecls0 decls = reverse . snd . foldl f ([], []) $ ABT.components abts
- where
-  f (m, newDecls) cycle =
-    let
-      substed = second (ABT.substs m) <$> cycle
-      hs      = second Reference.Derived <$> hash substed
-      newM    = second toRef <$> hs
-      joined  = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
-    in
-      ( newM ++ m
-      , [ (v, r, fromABT d) | (v, (r, d)) <- Map.toList joined ] ++ newDecls
-      )
-  abts  = second toABT <$> Map.toList decls
-  toRef = ABT.tm . Type . Type.Ref
+  -> [(v, Reference)]
+hashDecls0 decls = let
+  abts  = toABT <$> decls
+  ref h i n = ABT.tm (Type (Type.Ref (Reference.derived h i n)))
+  cs = ABT.hashComponents ref abts
+  in [(v,r) | ((v,_),r) <- Reference.components cs ]
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
@@ -173,10 +153,9 @@ hashDecls
   => Map v (DataDeclaration' v a)
   -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls =
-  let hs       = hashDecls0 (void <$> decls)
+  let varToRef = hashDecls0 (void <$> decls)
       decls'   = bindDecls decls varToRef
-      varToRef = [ (v, r) | (v, r, _) <- hs ]
-  in  [ (v, r, dd) | (v, r, _) <- hs, Just dd <- [Map.lookup v decls'] ]
+  in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
 bindDecls decls refs = bindBuiltins refs <$> decls
