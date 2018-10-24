@@ -130,16 +130,19 @@ putReference r = case r of
   Reference.Builtin name -> do
     putWord8 0
     putText name
-  Reference.Derived hash -> do
+  Reference.Derived hash i n -> do
     putWord8 1
     putHash hash
+    putLength i
+    putLength n
+  _ -> error "unpossible"
 
 getReference :: MonadGet m => m Reference
 getReference = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.Derived <$> getHash
+    1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()

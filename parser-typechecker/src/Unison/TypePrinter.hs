@@ -10,7 +10,7 @@ import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Foldable (fold)
 import           Data.Maybe (isJust)
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference, pattern Builtin)
 import           Unison.Type
 import           Unison.Var (Var)
 import qualified Unison.Var as Var

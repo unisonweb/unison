@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.FileCodebase where
 
@@ -19,6 +20,7 @@ import           Data.Set                         (Set)
 import qualified Data.Set                         as Set
 import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
+import Data.Word (Word64)
 import           System.Directory                 (createDirectoryIfMissing,
                                                    doesDirectoryExist,
                                                    listDirectory, removeFile)
@@ -34,9 +36,8 @@ import           Unison.Codebase.Name             (Name)
 import qualified Unison.Codebase.Serialization    as S
 import qualified Unison.Codebase.Serialization.V0 as V0
 import qualified Unison.Codebase.Watch            as Watch
-import           Unison.Hash                      (Hash)
 import qualified Unison.Hash                      as Hash
-import           Unison.Reference                 (Reference (Builtin, Derived))
+import qualified Unison.Reference as Reference
 import qualified Unison.Util.TQueue               as TQueue
 import           Unison.Var                       (Var)
 -- import Debug.Trace
@@ -97,10 +98,15 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingSuffix path ".ubf"
 
-termPath, typePath, declPath :: FilePath -> Hash -> FilePath
-termPath path h = path </> "terms" </> Hash.base58s h </> "compiled.ub"
-typePath path h = path </> "terms" </> Hash.base58s h </> "type.ub"
-declPath path h = path </> "types" </> Hash.base58s h </> "compiled.ub"
+termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
+termPath path (Reference.Id h i n) = path </> "terms" </> (addComponentId i n (Hash.base58s h)) </> "compiled.ub"
+typePath path (Reference.Id h i n) = path </> "terms" </> (addComponentId i n (Hash.base58s h)) </> "type.ub"
+declPath path (Reference.Id h i n) = path </> "types" </> (addComponentId i n (Hash.base58s h)) </> "compiled.ub"
+
+addComponentId :: Word64 -> Word64 -> String -> String
+addComponentId 0 1 s = s
+addComponentId i n s = show i <> "-" <> show n <> "-" <> s
+
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
 branchPath :: FilePath -> Text -> FilePath
@@ -117,11 +123,12 @@ codebase1 builtinTypeAnnotation
     S.putWithParentDirs (V0.putTerm putV putA) (termPath path h) e
     S.putWithParentDirs (V0.putType putV putA) (typePath path h) typ
   getTypeOfTerm r = case r of
-    (Builtin _) -> pure $
+    (Reference.Builtin _) -> pure $
       fmap (const builtinTypeAnnotation) <$>
       Map.lookup r Builtin.builtins0
-    Derived h ->
+    Reference.DerivedId h ->
       S.getFromFile (V0.getType getV getA) (typePath path h)
+    _ -> error "impossible"
   getDecl h =
     S.getFromFile (V0.getEither (V0.getEffectDeclaration getV getA)
                                 (V0.getDataDeclaration getV getA))

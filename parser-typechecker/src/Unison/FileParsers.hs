@@ -22,7 +22,7 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(Intrinsic), PEnv)
 import qualified Unison.Parsers as Parsers
 import qualified Unison.PrintError as PrintError
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference, pattern Builtin)
 import           Unison.Result (Result(..), Note(..))
 import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)

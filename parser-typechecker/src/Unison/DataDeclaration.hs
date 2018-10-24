@@ -138,9 +138,9 @@ hashDecls0
   -> [(v, Reference)]
 hashDecls0 decls = let
   abts  = toABT <$> decls
-  ref h i n = ABT.tm (Type (Type.Ref (Reference.derived h i n)))
-  cs = ABT.hashComponents ref abts
-  in [(v,r) | ((v,_),r) <- Reference.components cs ]
+  ref r = ABT.tm (Type (Type.Ref r))
+  cs = Reference.hashComponents ref abts
+  in [(v,r) | (v, (r,_)) <- Map.toList cs ]
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes

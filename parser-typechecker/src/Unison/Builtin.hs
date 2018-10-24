@@ -81,9 +81,10 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
 builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
   where f (r@(R.Builtin s), _) = (Var.named s, r)
-        f (R.Derived h, _) =
+        f (R.Derived h _ _, _) =
           error $ "expected builtin to be all R.Builtins; " ++
                   "don't know what name to assign to " ++ show h
+        f r = error $ "what is this " ++ show r
 
 builtinTypes' :: Var v => [(v, R.Reference)]
 builtinTypes' = (Var.named &&& R.Builtin) <$>
