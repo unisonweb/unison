@@ -20,6 +20,7 @@ import qualified Unison.Reference as Reference
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import Unison.Hash (Hash)
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -131,6 +132,15 @@ fromABT (ABT.AbsN' bound (
     bound
     [((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
+
+hashDecls2
+  :: (Eq v, Var v)
+  => Map v (DataDeclaration' v a)
+  -> [(Hash, [v])]
+hashDecls2 decls = fixup <$> ABT.hashComponents mkRef (toABT . void <$> decls)
+  where mkRef h i = ABT.tm (Type (Type.Ref (Reference.Derived h)))
+        fixup (h, scc) = (h, fst <$> scc)
+-- use this to impl hashDecls
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0

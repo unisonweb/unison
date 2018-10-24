@@ -21,7 +21,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import           Unison.Reference
+import           Unison.Reference (Reference(..))
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
