@@ -37,7 +37,7 @@ renderChoices render renderMeta groups metas isSelected =
     showMetas = intercalateMap "\n" (("["<>) . (<>"]") . renderMeta . snd) metas
     numberedGroups :: [(([Keyword], [a]), Int)]
     numberedGroups = zip groups [1..]
-    numberWidth = ceiling @Double . logBase 10 . fromIntegral $ length groups
+    numberWidth = (1+) . floor @Double . logBase 10 . fromIntegral $ length groups
     format :: (([Keyword], [a]), Int) -> Stylized
     format ((keywords, as), number) =
       intercalateMap
@@ -56,7 +56,7 @@ renderChoices render renderMeta groups metas isSelected =
                   <> ". "
             else fromString $ replicate (numberWidth + 3) ' ')
         representativeRow :: Bool
-        representativeRow = index == 0 -- alternatively: index == groupSize - 1 `div` 2
+        representativeRow = index == (groupSize - 1) `div` 2
         bracket :: IsString s => s
         bracket =
           if maxGroupSize > 1 then
