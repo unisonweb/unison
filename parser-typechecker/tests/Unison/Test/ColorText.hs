@@ -9,7 +9,7 @@ import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
 import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), Rendered,
                                             excerptToDoc, markup, textToDoc)
-import           Unison.Util.ColorText (ANSI, Style (..), renderDocANSI)
+import           Unison.Util.ColorText (ANSI, Color (..), renderDocANSI)
 import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
 
@@ -21,34 +21,34 @@ test = scope "colortext" . tests $ [
 
 ex4e :: Rendered ANSI
 ex4e = renderDocANSI 1 . excerptToDoc $ markup "abc" m
-        where m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) ErrorSite
+        where m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
 
 ex4t :: Rendered ANSI
 ex4t = renderDocANSI 1 . textToDoc $
-          "    1 | " <> "a" <> ColorText.errorSite "b" <> "c" <> "\n"
+          "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
 
 
-ex2 :: AnnotatedExcerpt Style
+ex2 :: AnnotatedExcerpt Color
 ex2 = markup ex (Map.fromList
-      [ (Range (Pos 3 1) (Pos 3 5), ErrorSite) -- SCENE
-      , (Range (Pos 5 9) (Pos 5 14), Type1) -- Master
-      , (Range (Pos 5 22) (Pos 5 30), Type1) -- Boatswain
-      , (Range (Pos 25 1) (Pos 25 6), ErrorSite) -- ALONSO
-      , (Range (Pos 12 30) (Pos 13 27), Type2) -- fall ... aground.
+      [ (Range (Pos 3 1) (Pos 3 5), Red) -- SCENE
+      , (Range (Pos 5 9) (Pos 5 14), Blue) -- Master
+      , (Range (Pos 5 22) (Pos 5 30), Blue) -- Boatswain
+      , (Range (Pos 25 1) (Pos 25 6), Red) -- ALONSO
+      , (Range (Pos 12 30) (Pos 13 27), Green) -- fall ... aground.
       ])
 
 renderEx2 :: Rendered ANSI
 renderEx2 = renderDocANSI 3 . excerptToDoc $ ex2
 
-ex3 :: AnnotatedExcerpt Style
+ex3 :: AnnotatedExcerpt Color
 ex3 = markup "Hello, world!" $ Map.fromList
-        [ (Range (Pos 1 8) (Pos 1 12), Type1)
-        , (Range (Pos 1 1) (Pos 1 5), Type2) ]
+        [ (Range (Pos 1 8) (Pos 1 12), Blue)
+        , (Range (Pos 1 1) (Pos 1 5), Green) ]
 
-ex4 :: AnnotatedExcerpt Style
+ex4 :: AnnotatedExcerpt Color
 ex4 = markup "Hello,\nworld!" $ Map.fromList
-        [ (Range (Pos 2 1) (Pos 2 5), Type1)
-        , (Range (Pos 1 1) (Pos 1 5), Type2) ]
+        [ (Range (Pos 2 1) (Pos 2 5), Blue)
+        , (Range (Pos 1 1) (Pos 1 5), Green) ]
 
 ex :: Ord a => AnnotatedExcerpt a
 ex = [r|The Tempest | Act 1, Scene 1

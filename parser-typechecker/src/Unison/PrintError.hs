@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
@@ -56,7 +57,7 @@ import qualified Unison.TypeVar                as TypeVar
 import qualified Unison.Typechecker.Context    as C
 import           Unison.Typechecker.TypeError
 import qualified Unison.Util.AnnotatedText     as AT
-import           Unison.Util.ColorText          ( StyledText )
+import           Unison.Util.ColorText          ( Color, StyledText )
 import qualified Unison.Util.ColorText         as Color
 import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Util.Range              ( Range(..) )
@@ -77,6 +78,10 @@ instance Semigroup Env where (<>) = mappend
 
 env0 :: Env
 env0 = Env mempty mempty
+
+pattern Type1 = Color.HiBlue
+pattern Type2 = Color.Green
+pattern ErrorSite = Color.HiRed
 
 fromOverHere'
   :: Ord a
@@ -114,41 +119,44 @@ styleAnnotated sty a = (, sty) <$> rangeForAnnotated a
 style :: s -> String -> AT.AnnotatedDocument s
 style sty str = AT.pairToDoc' (str, sty)
 
-describeStyle :: a -> AT.AnnotatedDocument a
-describeStyle = AT.describeToDoc
+describeStyle :: Color -> AT.AnnotatedDocument Color
+describeStyle ErrorSite = "in " <> style ErrorSite "red"
+describeStyle Type1 = "in " <> style Type1 "blue"
+describeStyle Type2 = "in " <> style Type2 "green"
+describeStyle _ = ""
 
 prettyTypecheckedFile'
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
   => UF.TypecheckedUnisonFile v loc
   -> Env
-  -> ([(v, AT.AnnotatedDocument Color.Style)], -- types
-      [(v, AT.AnnotatedDocument Color.Style)]) -- terms
+  -> ([(v, AT.AnnotatedDocument Color)], -- types
+      [(v, AT.AnnotatedDocument Color)]) -- terms
 prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
-  dot = "· "
+  dot = "  "
   terms = renderTerm dot <$> filterDefs (join (UF.terms file))
   -- todo: can we color the 'type' and 'ability' keywords
-  types = (renderDecl (dot <> "type ") <$> Map.toList (UF.dataDeclarations' file))
+  types = (renderDecl (dot <> style Color.Yellow "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
   filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
 
-  renderVar :: (Var v, IsString s) => v -> s
-  renderVar v = fromString . Text.unpack $ Var.name v
+  renderVar :: Var v => v -> AT.AnnotatedDocument Color
+  renderVar v = style Color.Bold . fromString . Text.unpack $ Var.name v
 
-  renderTerm :: (IsString s, Monoid s) => s -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, s)
+  renderTerm :: AT.AnnotatedDocument Color -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, AT.AnnotatedDocument Color)
   renderTerm s (v, _, typ) =
     (v, mconcat [s, renderVar v, " : ", renderType' env typ])
-  renderDecl :: (IsString s, Monoid s) => s -> (v, (r, DD.DataDeclaration' v loc)) -> (v, s)
+  renderDecl :: AT.AnnotatedDocument Color -> (v, (r, DD.DataDeclaration' v loc)) -> (v, AT.AnnotatedDocument Color)
   renderDecl s (v, (_, decl)) = (v, mconcat
     [s, renderVar v, intercalateMap " " renderVar $ DD.bound decl])
-  renderEffect :: (IsString s, Monoid s) => s -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, s)
-  renderEffect s (v, (r, decl)) = renderDecl (s <> "ability ") (v, (r, DD.toDataDecl decl))
+  renderEffect :: AT.AnnotatedDocument Color -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, AT.AnnotatedDocument Color)
+  renderEffect s (v, (r, decl)) = renderDecl (s <> style Color.Green "ability ") (v, (r, DD.toDataDecl decl))
 
 prettyTypecheckedFile
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
-  => UF.TypecheckedUnisonFile v loc -> Env -> AT.AnnotatedDocument Color.Style
+  => UF.TypecheckedUnisonFile v loc -> Env -> AT.AnnotatedDocument Color
 prettyTypecheckedFile file env = let
   (types, terms) = prettyTypecheckedFile' file env
   in intercalateMap "\n" snd types <> "\n\n" <>
@@ -156,11 +164,11 @@ prettyTypecheckedFile file env = let
 
 -- Render an informational typechecking note
 renderTypeInfo
-  :: forall v loc
+  :: forall v loc sty
    . (Var v, Annotated loc, Ord loc, Show loc)
   => TypeInfo v loc
   -> Env
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument sty
 renderTypeInfo i env = case i of
   TopLevelComponent {..} ->
     let defs =
@@ -186,14 +194,14 @@ renderTypeError
   => TypeError v loc
   -> Env
   -> String
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument Color
 renderTypeError e env src = case e of
   BooleanMismatch {..} -> mconcat
     [ preamble
     , " "
-    , style Color.Type1 "Boolean"
+    , style Type1 "Boolean"
     , ", but this one is "
-    , style Color.Type2 (renderType' env foundType)
+    , style Type2 (renderType' env foundType)
     , ":\n\n"
     , showSourceMaybes src [siteS]
     , fromOverHere' src [typeS] [siteS]
@@ -208,29 +216,29 @@ renderTypeError e env src = case e of
     , debugSummary note
     ]
    where
-    siteS    = styleAnnotated Color.Type2 mismatchSite
-    typeS    = styleAnnotated Color.Type2 foundType
+    siteS    = styleAnnotated Type2 mismatchSite
+    typeS    = styleAnnotated Type2 foundType
     preamble = case getBooleanMismatch of
       CondMismatch ->
         "The condition for an "
-          <> style Color.ErrorSite "if"
+          <> style ErrorSite "if"
           <> "-expression has to be"
       AndMismatch ->
-        "The arguments to " <> style Color.ErrorSite "and" <> " have to be"
+        "The arguments to " <> style ErrorSite "and" <> " have to be"
       OrMismatch ->
-        "The arguments to " <> style Color.ErrorSite "or" <> " have to be"
+        "The arguments to " <> style ErrorSite "or" <> " have to be"
       GuardMismatch ->
         "The guard expression for a "
-          <> style Color.ErrorSite "case"
+          <> style ErrorSite "case"
           <> " has to be"
 
   ExistentialMismatch {..} -> mconcat
     [ preamble
     , " "
     , "Here, one is "
-    , style Color.Type1 (renderType' env expectedType)
+    , style Type1 (renderType' env expectedType)
     , " and another is "
-    , style Color.Type2 (renderType' env foundType)
+    , style Type2 (renderType' env foundType)
     , ":\n\n"
     , showSourceMaybes src [mismatchSiteS, expectedLocS]
     , fromOverHere' src
@@ -251,34 +259,34 @@ renderTypeError e env src = case e of
     , debugSummary note
     ]
    where
-    mismatchedTypeS = styleAnnotated Color.Type2 foundType
-    mismatchSiteS   = styleAnnotated Color.Type2 mismatchSite
-    expectedTypeS   = styleAnnotated Color.Type1 expectedType
-    expectedLocS    = styleAnnotated Color.Type1 expectedLoc
+    mismatchedTypeS = styleAnnotated Type2 foundType
+    mismatchSiteS   = styleAnnotated Type2 mismatchSite
+    expectedTypeS   = styleAnnotated Type1 expectedType
+    expectedLocS    = styleAnnotated Type1 expectedLoc
     preamble        = case getExistentialMismatch of
       IfBody -> mconcat
         [ "The "
-        , style Color.ErrorSite "else"
+        , style ErrorSite "else"
         , " clause of an "
-        , style Color.ErrorSite "if"
+        , style ErrorSite "if"
         , " expression needs to have the same type as the "
-        , style Color.ErrorSite "then"
+        , style ErrorSite "then"
         , " clause."
         ]
       VectorBody -> "The elements of a vector all need to have the same type."
       CaseBody   -> mconcat
         [ "Each case of a "
-        , style Color.ErrorSite "case"
+        , style ErrorSite "case"
         , "/"
-        , style Color.ErrorSite "of"
+        , style ErrorSite "of"
         , " expression "
         , "need to have the same type."
         ]
   NotFunctionApplication {..} -> mconcat
     [ "This looks like a function call, but with a "
-    , style Color.Type1 (renderType' env ft)
+    , style Type1 (renderType' env ft)
     , " where the function should be.  Are you missing an operator?\n\n"
-    , annotatedAsStyle Color.Type1 src f
+    , annotatedAsStyle Type1 src f
     , debugSummary note
     ]
   FunctionApplication {..}
@@ -292,18 +300,18 @@ renderTypeError e env src = case e of
            [ "The "
            , ordinal argNum
            , " argument to the function "
-           , style Color.ErrorSite (renderTerm f)
+           , style ErrorSite (renderTerm f)
            , " is "
-           , style Color.Type2 (renderType' env foundType)
+           , style Type2 (renderType' env foundType)
            , ", but I was expecting "
-           , style Color.Type1 (renderType' env expectedType)
+           , style Type1 (renderType' env expectedType)
            , ":\n\n"
            , showSourceMaybes
              src
-             [ (, Color.Type1) <$> rangeForAnnotated expectedType
-             , (, Color.Type2) <$> rangeForAnnotated foundType
-             , (, Color.Type2) <$> rangeForAnnotated arg
-             , (, Color.ErrorSite) <$> rangeForAnnotated f
+             [ (, Type1) <$> rangeForAnnotated expectedType
+             , (, Type2) <$> rangeForAnnotated foundType
+             , (, Type2) <$> rangeForAnnotated arg
+             , (, ErrorSite) <$> rangeForAnnotated f
              ]
          -- todo: factor this out and use in ExistentialMismatch and any other
          --       "recursive subtypes" situations
@@ -312,29 +320,29 @@ renderTypeError e env src = case e of
              Just (foundLeaf, expectedLeaf) -> mconcat
                [ "\n"
                , "More specifically, I found "
-               , style Color.Type2 (renderType' env foundLeaf)
+               , style Type2 (renderType' env foundLeaf)
                , " where I was expecting "
-               , style Color.Type1 (renderType' env expectedLeaf)
+               , style Type1 (renderType' env expectedLeaf)
                , ":\n\n"
                , showSourceMaybes
                  src
-                 [ (, Color.Type1) <$> rangeForAnnotated expectedLeaf
-                 , (, Color.Type2) <$> rangeForAnnotated foundLeaf
+                 [ (, Type1) <$> rangeForAnnotated expectedLeaf
+                 , (, Type2) <$> rangeForAnnotated foundLeaf
                  ]
                ]
            , case solvedVars' of
              _ : _ ->
                let
-                 go :: (v, C.Type v loc) -> AT.AnnotatedDocument Color.Style
+                 go :: (v, C.Type v loc) -> AT.AnnotatedDocument Color
                  go (v, t) = mconcat
                    [ " "
                    , renderVar v
                    , " = "
-                   , style Color.ErrorSite (renderType' env t)
+                   , style ErrorSite (renderType' env t)
                    , ", from here:\n\n"
                    , showSourceMaybes
                      src
-                     [(, Color.ErrorSite) <$> rangeForAnnotated t]
+                     [(, ErrorSite) <$> rangeForAnnotated t]
                    , "\n"
                    ]
                in
@@ -353,11 +361,11 @@ renderTypeError e env src = case e of
            , debugNoteLoc
            . mconcat
            $ [ "\nloc debug:"
-             , style Color.ErrorSite "\n             f: "
+             , style ErrorSite "\n             f: "
              , annotatedToEnglish f
-             , style Color.Type2 "\n     foundType: "
+             , style Type2 "\n     foundType: "
              , annotatedToEnglish foundType
-             , style Color.Type1 "\n  expectedType: "
+             , style Type1 "\n  expectedType: "
              , annotatedToEnglish expectedType
              -- , "\n   expectedLoc: ", annotatedToEnglish expectedLoc
              ]
@@ -365,9 +373,9 @@ renderTypeError e env src = case e of
            ]
   Mismatch {..} -> mconcat
     [ "I found a value of type "
-    , style Color.Type1 (renderType' env foundLeaf)
+    , style Type1 (renderType' env foundLeaf)
     , " where I expected to find one of type "
-    , style Color.Type2 (renderType' env expectedLeaf)
+    , style Type2 (renderType' env expectedLeaf)
     , ":\n\n"
     , showSourceMaybes
       src
@@ -376,12 +384,12 @@ renderTypeError e env src = case e of
         -- , (,Color.ForceShow) <$> rangeForType foundType
         -- , (,Color.ForceShow) <$> rangeForType expectedType
         -- ,
-        (, Color.Type1) <$> rangeForAnnotated mismatchSite
-      , (, Color.Type2) <$> rangeForAnnotated expectedLeaf
+        (, Type1) <$> rangeForAnnotated mismatchSite
+      , (, Type2) <$> rangeForAnnotated expectedLeaf
       ]
     , fromOverHere' src
-                    [styleAnnotated Color.Type1 foundLeaf]
-                    [styleAnnotated Color.Type1 mismatchSite]
+                    [styleAnnotated Type1 foundLeaf]
+                    [styleAnnotated Type1 mismatchSite]
     , debugNoteLoc
     . mconcat
     $ [ "\nloc debug:"
@@ -401,7 +409,7 @@ renderTypeError e env src = case e of
     ]
   AbilityCheckFailure {..} -> mconcat
     [ "The expression "
-    , describeStyle Color.ErrorSite
+    , describeStyle ErrorSite
     , " "
     , case toList requested of
       []  -> error "unpossible"
@@ -428,7 +436,7 @@ renderTypeError e env src = case e of
     ]
   UnknownType {..} -> mconcat
     [ "I don't know about the type "
-    , style Color.ErrorSite (renderVar unknownTypeV)
+    , style ErrorSite (renderVar unknownTypeV)
     , ".  Make sure it's imported and spelled correctly:\n\n"
     , annotatedAsErrorSite src typeSite
     ]
@@ -445,16 +453,14 @@ renderTypeError e env src = case e of
            , annotatedAsErrorSite src termSite
            , "\n"
            , "Its type is: "
-           , style Color.ErrorSite
-                   (renderType' env (Type.ungeneralizeEffects i))
+           , style ErrorSite (renderType' env (Type.ungeneralizeEffects i))
            , ".\n\n"
            , case o of
              Type.Existential' _ _ ->
                "It can be replaced with a value of any type.\n"
              _ ->
                "A well-typed replacement must conform to: "
-                 <> style Color.Type2
-                          (renderType' env (Type.ungeneralizeEffects o))
+                 <> style Type2 (renderType' env (Type.ungeneralizeEffects o))
                  <> ".\n"
            ]
   UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV -> mconcat
@@ -468,7 +474,7 @@ renderTypeError e env src = case e of
         "To complete the block, add an expression after this binding.\n\n"
       _ ->
         "Based on the context, I'm expecting an expression of type "
-          <> style Color.Type1 (renderType' env expectedType)
+          <> style Type1 (renderType' env expectedType)
           <> " after this binding. \n\n"
     ]
   UnknownTerm {..} ->
@@ -479,7 +485,7 @@ renderTypeError e env src = case e of
         sep (C.WrongName name typ   ) r = (_3 %~ ((name, typ) :)) . r
     in  mconcat
           [ "I'm not sure what "
-          , style Color.ErrorSite (show unknownTermV)
+          , style ErrorSite (show unknownTermV)
           , " means at "
           , annotatedToEnglish termSite
           , "\n\n"
@@ -488,9 +494,9 @@ renderTypeError e env src = case e of
             Type.Existential' _ _ -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
-                <> style Color.Type1 (renderType' env $ expectedType)
+                <> style Type1 (renderType' env $ expectedType)
                 <> ".\n"
-                 -- ++ showTypeWithProvenance env src Color.Type1 expectedType
+                 -- ++ showTypeWithProvenance env src Type1 expectedType
           , case correct of
             [] -> case wrongTypes of
               [] -> case wrongNames of
@@ -542,7 +548,7 @@ renderTypeError e env src = case e of
     , pl "this" "one of these"
     , ":\n\n"
     ]
-  formatSuggestion :: (Text, C.Type v loc) -> AT.AnnotatedDocument Color.Style
+  formatSuggestion :: (Text, C.Type v loc) -> AT.AnnotatedDocument Color
   formatSuggestion (name, typ) =
     "  - " <> fromString (Text.unpack name) <> " : " <> renderType' env typ
   formatWrongs txt wrongs =
@@ -556,10 +562,10 @@ renderTypeError e env src = case e of
     '3' -> "rd"
     _   -> "th"
   debugNoteLoc a = if Settings.debugNoteLoc then a else mempty
-  debugSummary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color.Style
+  debugSummary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color
   debugSummary note =
     if Settings.debugNoteSummary then summary note else mempty
-  summary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color.Style
+  summary :: C.ErrorNote v loc -> AT.AnnotatedDocument Color
   summary note = mconcat
     [ "\n"
     , "  simple cause:\n"
@@ -570,9 +576,9 @@ renderTypeError e env src = case e of
       [] -> "  path: (empty)\n"
       l  -> "  path:\n" <> mconcat (simplePath <$> l)
     ]
-  simplePath :: C.PathElement v loc -> AT.AnnotatedDocument Color.Style
+  simplePath :: C.PathElement v loc -> AT.AnnotatedDocument Color
   simplePath e = "    " <> simplePath' e <> "\n"
-  simplePath' :: C.PathElement v loc -> AT.AnnotatedDocument Color.Style
+  simplePath' :: C.PathElement v loc -> AT.AnnotatedDocument Color
   simplePath' = \case
     C.InSynthesize e -> "InSynthesize e=" <> renderTerm e
     C.InSubtype t1 t2 ->
@@ -609,7 +615,7 @@ renderTypeError e env src = case e of
     C.InMatch     loc -> "InMatch firstBody=" <> annotatedToEnglish loc
     C.InMatchGuard    -> "InMatchGuard"
     C.InMatchBody     -> "InMatchBody"
-  simpleCause :: C.Cause v loc -> AT.AnnotatedDocument Color.Style
+  simpleCause :: C.Cause v loc -> AT.AnnotatedDocument Color
   simpleCause = \case
     C.TypeMismatch c ->
       mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
@@ -804,7 +810,7 @@ styleInOverallType
   => Env
   -> C.Type v a
   -> C.Type v a
-  -> Color.Style
+  -> Color
   -> StyledText
 styleInOverallType e overallType leafType c = renderType e f overallType
   where f loc s = if loc == ABT.annotation leafType then Color.style c s else s
@@ -866,7 +872,7 @@ printNoteWithSource
   => Env
   -> String
   -> Note v a
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument Color
 printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
@@ -895,7 +901,7 @@ prettyParseError
    . Var v
   => String
   -> Parser.Err v
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument Color
 prettyParseError s = \case
   P.TrivialError sp unexpected expected
     -> fromString
@@ -903,7 +909,7 @@ prettyParseError s = \case
       <> (case unexpected of
            Just (P.Tokens ts) -> traceShow ts $ showSource
              s
-             ((\t -> (rangeForToken t, Color.ErrorSite)) <$> toList ts)
+             ((\t -> (rangeForToken t, ErrorSite)) <$> toList ts)
            _ -> mempty
          )
       <> lexerOutput
@@ -917,7 +923,7 @@ prettyParseError s = \case
       . Seq.fromList
       . Nel.toList
       $ (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
-  go' :: P.ErrorFancy (Parser.Error v) -> AT.AnnotatedDocument Color.Style
+  go' :: P.ErrorFancy (Parser.Error v) -> AT.AnnotatedDocument Color
   go' (P.ErrorFail s) =
     "The parser failed with this message:\n" <> fromString s
   go' (P.ErrorIndentation ordering indent1 indent2) = mconcat
@@ -931,7 +937,7 @@ prettyParseError s = \case
     , ").\n"
     ]
   go' (P.ErrorCustom e) = go e
-  go :: Parser.Error v -> AT.AnnotatedDocument Color.Style
+  go :: Parser.Error v -> AT.AnnotatedDocument Color
   go (Parser.SignatureNeedsAccompanyingBody tok) = mconcat
     [ "You provided a type signature, but I didn't find an accompanying\n"
     , "binding after it.  Could it be a spelling mismatch?\n"
@@ -948,7 +954,7 @@ prettyParseError s = \case
     ]
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
-    , describeStyle Color.ErrorSite
+    , describeStyle ErrorSite
     , "),"
     , ", but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
@@ -956,12 +962,12 @@ prettyParseError s = \case
   go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
   go (Parser.UnknownDataConstructor   tok) = unknownConstructor "data" tok
   unknownConstructor
-    :: String -> L.Token String -> AT.AnnotatedDocument Color.Style
+    :: String -> L.Token String -> AT.AnnotatedDocument Color
   unknownConstructor ctorType tok = mconcat
     [ "I don't know about any "
     , fromString ctorType
     , " constructor named "
-    , style Color.ErrorSite (show (L.payload tok))
+    , style ErrorSite (show (L.payload tok))
     , ".\n"
     , "Maybe make sure it's correctly spelled and that you've imported it:\n"
     , tokenAsErrorSite s tok
@@ -972,16 +978,16 @@ prettyParseError s = \case
     else mempty
 
 annotatedAsErrorSite
-  :: Annotated a => String -> a -> AT.AnnotatedDocument Color.Style
-annotatedAsErrorSite = annotatedAsStyle Color.ErrorSite
+  :: Annotated a => String -> a -> AT.AnnotatedDocument Color
+annotatedAsErrorSite = annotatedAsStyle ErrorSite
 
 annotatedAsStyle
   :: (Ord s, Annotated a) => s -> String -> a -> AT.AnnotatedDocument s
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
 
-tokenAsErrorSite :: String -> L.Token a -> AT.AnnotatedDocument Color.Style
-tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, Color.ErrorSite)
+tokenAsErrorSite :: String -> L.Token a -> AT.AnnotatedDocument Color
+tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, ErrorSite)
 
 showSourceMaybes
   :: Ord a => String -> [Maybe (Range, a)] -> AT.AnnotatedDocument a
@@ -1008,14 +1014,14 @@ prettyTypecheckError
   => C.ErrorNote v loc
   -> Env
   -> String
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument Color
 prettyTypecheckError = renderTypeError . typeErrorFromNote
 
 prettyTypeInfo
   :: (Var v, Ord loc, Show loc, Parser.Annotated loc)
   => C.InfoNote v loc
   -> Env
-  -> AT.AnnotatedDocument Color.Style
+  -> AT.AnnotatedDocument Color
 prettyTypeInfo n e =
   fromMaybe "" $ flip renderTypeInfo e <$> typeInfoFromNote n
 
