@@ -2,6 +2,7 @@
 
 module Unison.UnisonFile where
 
+import Control.Monad (join)
 import           Data.Bifunctor (second)
 import qualified Data.Foldable as Foldable
 import           Data.Map (Map)
@@ -19,6 +20,7 @@ import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Reference as Reference
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration' v a),
@@ -34,9 +36,29 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
 
-hashTermCycles ::
-  [[(v, AnnotatedTerm v a, AnnotatedType v a)]] -> Map v Reference
-hashTermCycles _components = error "todo"
+-- Convenience function for extracting the term and type decl components
+-- of a Unison file. This would be presented to the user for adding to
+-- the codebase.
+components :: Var v => TypecheckedUnisonFile v a ->
+  ([[((v, AnnotatedTerm v a, AnnotatedType v a), Reference)]],
+   [[((v, Either (EffectDeclaration' v a) (DataDeclaration' v a)), Reference)]])
+components uf = let
+  tms = [ ((v,e,t), r) | (v, (r,e,t)) <- Map.toList $ hashTerms (terms uf) ]
+  ds = [ ((v, Right d), r) | (v, (r, d)) <- Map.toList $ dataDeclarations' uf ] ++
+       [ ((v, Left eff), r) | (v, (r, eff)) <- Map.toList $ effectDeclarations' uf ]
+  in (Reference.groupByComponent tms, Reference.groupByComponent ds)
+
+hashTerms ::
+     Var v
+  => [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
+hashTerms components = let
+  types = Map.fromList [(v,t) | (v,_,t) <- join components ]
+  terms = Map.fromList [(v,e) | (v,e,_) <- join components ]
+  ref r = Term.ref() r
+  hcs = Reference.hashComponents ref terms
+  in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
+                                     Just t <- [Map.lookup v types] ]
 
 type CtorLookup = Map String (Reference, Int)
 

@@ -32,13 +32,12 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -230,12 +229,6 @@ var = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
 var' = var() . ABT.v'
-
-derived :: Ord v => a -> Hash -> AnnotatedTerm2 vt at ap v a
-derived a = ref a . Reference.Derived
-
-derived' :: Ord v => Text -> Maybe (Term' vt v)
-derived' base58 = derived () <$> Hash.fromBase58 base58
 
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
@@ -499,9 +492,6 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
-dependencies :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Hash
-dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
-
 referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Constructor r _) = Writer.tell [r] *> pure t
@@ -607,7 +597,9 @@ instance Var v => Hashable1 (F v a p) where
       -- function as is used here, this case ensures that references are 'transparent'
       -- wrt hash and hashing is unaffected by whether expressions are linked.
       -- So for example `x = 1 + 1` and `y = x` hash the same.
-      Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
+      Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
+      Ref (Reference.Derived h i n) ->
+        Hashable.accumulate [tag 1, hashed $ Hashable.fromBytes (Hash.toBytes h), Hashable.Nat i, Hashable.Nat n]
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
@@ -622,7 +614,7 @@ instance Var v => Hashable1 (F v a p) where
             B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
             B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
-        Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
+        Ref (Reference.Derived _ _ _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
         Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
         Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
@@ -644,6 +636,7 @@ instance Var v => Hashable1 (F v a p) where
         Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
         And x y -> [tag 16, hashed $ hash x, hashed $ hash y]
         Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+        _ -> error $ "unhandled case in show: " <> show (const () <$> e)
 
 -- mostly boring serialization code below ...
 

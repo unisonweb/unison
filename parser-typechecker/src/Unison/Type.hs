@@ -12,8 +12,6 @@
 module Unison.Type where
 
 -- import Debug.Trace
-import qualified Unison.Hash as Hash
-import Data.Maybe (fromJust)
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
@@ -195,9 +193,7 @@ ref :: Ord v => a -> Reference -> AnnotatedType v a
 ref a = ABT.tm' a . Ref
 
 derivedBase58 :: Ord v => Text -> a -> AnnotatedType v a
-derivedBase58 base58 a = ref a $ Reference.Derived (fromJust h)
-  where
-  h = Hash.fromBase58 base58
+derivedBase58 base58 a = ref a $ Reference.derivedBase58 base58 0 1
 
 unit :: Ord v => a -> AnnotatedType v a
 unit = derivedBase58    "2cJAAHeh81dVaZFVfJQRvWo58QYnUNbErbFQtjVM5kKKMEDa3RpfDbiMJuxwXyaQKyv69qDptkkkM6y7X51tCDit"

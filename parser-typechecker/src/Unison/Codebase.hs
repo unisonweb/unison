@@ -8,8 +8,8 @@ import           Data.Set               (Set)
 import           Unison.Codebase.Branch (Branch)
 import           Unison.Codebase.Name   (Name)
 import qualified Unison.DataDeclaration as DD
-import           Unison.Hash            (Hash)
 import           Unison.Reference       (Reference)
+import qualified Unison.Reference as Reference
 import qualified Unison.Term            as Term
 import qualified Unison.Type            as Type
 
@@ -20,12 +20,12 @@ type Type v a = Type.AnnotatedType v a
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Codebase m v a =
-  Codebase { getTerm            :: Hash -> m (Maybe (Term v a))
+  Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
-           , putTerm            :: Hash -> Term v a -> Type v a -> m ()
+           , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
 
-           , getTypeDeclaration :: Hash -> m (Maybe (Decl v a))
-           , putTypeDeclaration :: Hash -> Decl v a -> m ()
+           , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
+           , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
 
            , branches           :: m [Name]
            , getBranch          :: Name -> m (Maybe Branch)

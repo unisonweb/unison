@@ -20,7 +20,8 @@ tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
        get_names x _ = case x of
                          Builtin t -> t
-                         Derived _ -> Text.empty
+                         Derived _ _ _ -> Text.empty
+                         _ -> error "impossible"
        actual = if width == 0
                 then PP.renderUnbroken $ pretty get_names (-1) input_term
                 else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term

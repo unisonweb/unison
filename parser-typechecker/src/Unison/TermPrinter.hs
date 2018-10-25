@@ -12,7 +12,7 @@ import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference)
 import           Unison.Term
 import qualified Unison.TypePrinter as TypePrinter
 import           Unison.Var (Var)

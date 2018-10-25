@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
 
 module Unison.Codecs where
 
@@ -21,7 +21,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import           Unison.Reference
+import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
@@ -279,11 +279,14 @@ serializeReference ref = case ref of
   Builtin text -> do
     putWord8 0
     lengthEncode text
-  Derived hash -> do
+  Derived hash i n -> do
     putWord8 1
     let bs = Hash.toBytes hash
     putLength $ B.length bs
     putByteString bs
+    putLength i
+    putLength n
+  _ -> error "impossible"
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
 serializeConstructorArities r constructorArities = do

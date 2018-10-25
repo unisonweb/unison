@@ -31,7 +31,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference, pattern Builtin)
 import           Unison.Result (Result(..))
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
