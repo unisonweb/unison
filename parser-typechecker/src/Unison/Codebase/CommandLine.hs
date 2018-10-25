@@ -173,9 +173,21 @@ main dir currentBranchName initialFile startRuntime codebase = do
     -- add them to the codebase. Present the user with a menu if args doesn't
     -- match what's in lastTypechecked.
     addDefinitions :: Branch -> Name -> [String] -> IO ()
-    addDefinitions _branch _name args = case args of
-      [] -> error "todo"
-      _  -> error "todo"
+    addDefinitions branch name args = case args of
+      -- [] -> error "todo"
+      _  -> do
+        selections <- Menu.groupMenuN
+          (atomically (takeLine lineQueue)) -- console
+          (fromString "Welcome, try my fine selections.  A blank line will accept.") -- caption
+          (fromString . reverse . drop 4 . reverse) -- render
+          (fromString . fmap Char.toLower) -- renderMeta
+          [(["ping", "pong"], ["pingTerm", "pongTerm"])
+          ,(["foo"], ["fooTerm"])
+          ,(["Bar"], ["BarDecl"])] -- groups
+          [] -- metas
+          [] -- initial
+        putStrLn $ "added " ++ show selections
+        go branch name
 
     -- addMenu :: _ -> IO _
     -- addMenu topLevels =

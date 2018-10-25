@@ -1,20 +1,22 @@
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Unison.Util.Menu (menu1, menuN, groupMenu1) where
+module Unison.Util.Menu (menu1, menuN, groupMenuN) where
 
-import           Control.Monad         (when)
-import           Data.List             (find, isPrefixOf)
-import           Data.String           (IsString, fromString)
-import           Data.Strings          (strPadLeft)
-import           Safe                  (atMay)
-import qualified Text.Read             as Read
-import           Unison.Util.ColorText (StyledText, renderText)
+import           Control.Monad             (when)
+import           Data.List                 (find, isPrefixOf)
+import           Data.Set                  (Set)
+import qualified Data.Set                  as Set
+import           Data.String               (IsString, fromString)
+import           Data.Strings              (strPadLeft)
+import           Safe                      (atMay)
+import qualified Text.Read                 as Read
 import           Unison.Util.AnnotatedText (textEmpty)
-import           Unison.Util.Monoid    (intercalateMap)
+import           Unison.Util.ColorText     (StyledText, renderText)
+import           Unison.Util.Monoid        (intercalateMap)
 -- utility - command line menus
 
 type Caption = StyledText
@@ -210,3 +212,80 @@ menuN :: Console
       -> [Keyword]
       -> IO (Either mc [[a]])
 menuN _console _caption _render _renderMeta _groups _metas _initials = pure (Right [])
+
+groupMenuN :: forall a mc. Ord a
+            => Console
+            -> Caption
+            -> (a -> Stylized)
+            -> (mc -> Stylized)
+            -> [([Keyword], [a])]
+            -> [([Keyword], mc)]
+            -> [[Keyword]]
+            -> IO (Either mc [[a]])
+groupMenuN console caption render renderMeta groups metas initials =
+  groupMenuN' console caption render renderMeta groups metas (Set.fromList initials)
+
+groupMenuN' :: forall a mc. Ord a
+            => Console
+            -> Caption
+            -> (a -> Stylized)
+            -> (mc -> Stylized)
+            -> [([Keyword], [a])]
+            -> [([Keyword], mc)]
+            -> Set [Keyword]
+            -> IO (Either mc [[a]])
+groupMenuN' console caption render renderMeta groups metas initials = do
+  when ((not . textEmpty) caption) $ do
+    print . renderText $ caption
+    putStrLn ""
+  print . renderText $ renderChoices render renderMeta groups metas ((`any` initials) . elem)
+  resume initials
+  where
+    restart initials = groupMenuN' console caption render renderMeta groups metas initials
+    -- restart with an updated caption
+    restart' caption groups metas initials =
+                groupMenuN' console caption render renderMeta groups metas initials
+    resume :: Set [Keyword] -> IO (Either mc [[a]])
+    resume initials = do
+      putStr "\n>> "
+      input <- console
+      case words input of
+        [] -> useExistingSelections groups initials
+        input : _ -> case Read.readMaybe input of
+          Just i  -> pickGroupByNumber i
+          Nothing -> pickGroupByPrefix input
+      where
+        pickGroupByNumber :: Int -> IO (Either mc [[a]])
+        pickGroupByNumber i = case atMay groups (i-1) of
+          Nothing -> do
+            putStrLn $ "Please pick a number from 1 to " ++
+                        show (length groups) ++ "."
+            restart initials
+          Just (kw, _) -> restart (Set.insert kw initials)
+        pickGroupByPrefix :: String -> IO (Either mc [[a]])
+        pickGroupByPrefix s = case matchingItems groups metas s of
+          ([],[]) -> do
+            putStrLn $ "Sorry, '" ++ s ++ "' didn't match anything."
+            resume initials
+          ([], [(_, mc)]) -> pure (Left mc)
+          ([(kw, _)],[]) -> restart (Set.insert kw initials)
+          (_, _) ->
+            restart'
+              "Your prefix matched both groups and commands; please choose by number or use a longer prefix:"
+              groups metas initials
+        matchingItems ::
+          forall a mc. [([Keyword], [a])] -> [([Keyword], mc)] -> String
+                 -> ([([Keyword], [a])], [([Keyword], mc)])
+        matchingItems groups metas s =
+          (filter (any (s `isPrefixOf`) . fst) groups
+          ,filter (any (s `isPrefixOf`) . fst) metas)
+        useExistingSelections ::
+          [([Keyword], [a])] -> Set [Keyword] -> IO (Either mc [[a]])
+        useExistingSelections groups initials = pure . pure $
+          foldr go [] initials where
+            go kws selections = case findMatchingGroup kws groups of
+              Just as -> as : selections
+              Nothing -> selections
+        findMatchingGroup :: forall a. [Keyword] -> [([Keyword], [a])] -> Maybe [a]
+        findMatchingGroup initials groups =
+          snd <$> find (\(keywords, _as) -> any (`elem` keywords) initials) groups
