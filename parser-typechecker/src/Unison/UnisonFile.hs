@@ -36,6 +36,18 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
 
+-- Convenience function for extracting the term and type decl components
+-- of a Unison file. This would be presented to the user for adding to
+-- the codebase.
+components :: Var v => TypecheckedUnisonFile v a ->
+  ([[((v, AnnotatedTerm v a, AnnotatedType v a), Reference)]],
+   [[((v, Either (EffectDeclaration' v a) (DataDeclaration' v a)), Reference)]])
+components uf = let
+  tms = [ ((v,e,t), r) | (v, (r,e,t)) <- Map.toList $ hashTerms (terms uf) ]
+  ds = [ ((v, Right d), r) | (v, (r, d)) <- Map.toList $ dataDeclarations' uf ] ++
+       [ ((v, Left eff), r) | (v, (r, eff)) <- Map.toList $ effectDeclarations' uf ]
+  in (Reference.groupByComponent tms, Reference.groupByComponent ds)
+
 hashTerms ::
      Var v
   => [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
