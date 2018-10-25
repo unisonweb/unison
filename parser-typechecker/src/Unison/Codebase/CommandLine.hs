@@ -4,6 +4,7 @@
 
 module Unison.Codebase.CommandLine (main) where
 
+import System.Random (randomRIO)
 import           Control.Concurrent           (forkIO)
 import           Control.Exception            (finally)
 import           Control.Monad                (forM_, forever, liftM2,
@@ -11,7 +12,7 @@ import           Control.Monad                (forM_, forever, liftM2,
 import           Control.Monad.STM            (STM, atomically)
 import qualified Data.Char                    as Char
 import           Data.Foldable                (toList, traverse_)
-import           Data.IORef                   (newIORef, writeIORef)
+import           Data.IORef                   (newIORef, writeIORef, readIORef)
 import           Data.List                    (find, isSuffixOf,
                                                sort)
 import           Data.Set                     (Set)
@@ -35,7 +36,7 @@ import           Unison.FileParsers           (parseAndSynthesizeFile)
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import           Unison.PrintError            (parseErrorToAnsiString,
-                                               prettyTopLevelComponents,
+                                               prettyTypecheckedFile,
                                                printNoteWithSourceAsAnsi)
 import           Unison.Result                (Result (Result))
 import qualified Unison.Result                as Result
@@ -63,7 +64,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
-  lastTypechecked <- newIORef (UF.TypecheckedUnisonFile Map.empty Map.empty [])
+  lastTypechecked <- newIORef (UF.TypecheckedUnisonFile Map.empty Map.empty [], mempty)
   let takeActualLine = atomically (takeLine lineQueue)
 
   -- load initial unison file if specified
@@ -129,15 +130,21 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn . showNote . toList $ notes
           Just unisonFile -> do
             Console.setTitle "Unison ✅"
-            putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
+            putStrLn "✅  Found and typechecked the following definitions:\n"
             let components = [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
-            writeIORef lastTypechecked (
-              UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
-                                       (UF.effectDeclarations unisonFile)
-                                       components)
+                uf = UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
+                                              (UF.effectDeclarations unisonFile)
+                                              components
+            writeIORef lastTypechecked (uf, errorEnv)
             putStrLn . show . Color.renderDocANSI 6 $
-              prettyTopLevelComponents components errorEnv
+              prettyTypecheckedFile uf errorEnv
+            let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
+            n <- randomRIO (0, length emoticons - 1)
+            putStrLn $ [emoticons !! n]
+            putStrLn ""
+            putStrLn "👀  Now evaluating any watch expressions (line starting with `>`) ..."
             RT.evaluate runtime unisonFile codebase
+            -- todo: actually wait until evaluation completes
 
     go :: Branch -> Name -> IO ()
     go branch name = do
@@ -174,23 +181,16 @@ main dir currentBranchName initialFile startRuntime codebase = do
     -- match what's in lastTypechecked.
     addDefinitions :: Branch -> Name -> [String] -> IO ()
     addDefinitions branch name args = case args of
-      -- [] -> error "todo"
       _  -> do
-        selections <- Menu.groupMenuN
-          (atomically (takeLine lineQueue)) -- console
-          (fromString "Welcome, try my fine selections.  A blank line will accept.") -- caption
-          (fromString . reverse . drop 4 . reverse) -- render
-          (fromString . fmap Char.toLower) -- renderMeta
-          [(["ping", "pong"], ["pingTerm", "pongTerm"])
-          ,(["foo"], ["fooTerm"])
-          ,(["Bar"], ["BarDecl"])] -- groups
-          [] -- metas
-          [] -- initial
-        putStrLn $ "added " ++ show selections
+        (typecheckedFile, env) <- readIORef lastTypechecked
+        let _hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
+        -- todo: actually write typecheckedFile and hashedTerms to the codebase...
+        let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
+        n <- randomRIO (0, length emoticons - 1)
+        putStrLn $ (emoticons !! n) : "  Added the following definitions:"
+        putStrLn ""
+        putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
         go branch name
-
-    -- addMenu :: _ -> IO _
-    -- addMenu topLevels =
 
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do

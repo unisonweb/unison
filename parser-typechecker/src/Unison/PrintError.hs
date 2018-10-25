@@ -20,7 +20,7 @@ import           Control.Lens.Tuple             ( _1
                                                 )
 import qualified Data.Char                     as Char
 import           Data.Foldable
-import           Data.List                      ( intersperse )
+import           Data.List                      ( intersperse, sortOn )
 import qualified Data.List.NonEmpty            as Nel
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
@@ -62,13 +62,21 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Util.Range              ( Range(..) )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Unison.UnisonFile             as UF
+import qualified Unison.DataDeclaration as DD
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
 
+instance Monoid Env where
+  mempty = env0
+  mappend (Env r1 c1) (Env r2 c2) =
+    Env (Map.unionWith const r2 r1) (Map.unionWith const c2 c1)
+
+instance Semigroup Env where (<>) = mappend
+
 env0 :: Env
 env0 = Env mempty mempty
-
 
 fromOverHere'
   :: Ord a
@@ -109,36 +117,40 @@ style sty str = AT.pairToDoc' (str, sty)
 describeStyle :: a -> AT.AnnotatedDocument a
 describeStyle = AT.describeToDoc
 
-prettyTopLevelComponents'
+prettyTypecheckedFile'
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
-  => [[(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]]
+  => UF.TypecheckedUnisonFile v loc
   -> Env
-  -> [[(v, AT.AnnotatedDocument Color.Style)]]
-prettyTopLevelComponents' cycles' env =
-  renderCycle <$> cycles
+  -> ([(v, AT.AnnotatedDocument Color.Style)], -- types
+      [(v, AT.AnnotatedDocument Color.Style)]) -- terms
+prettyTypecheckedFile' file env = (sortOn fst terms, sortOn fst types)
   where
-  renderCycle cs = case Seq.fromList cs of
-    l :<| (m :|> r) ->
-      [renderOne "╓ " l] <> foldMap (pure . renderOne "╟ ") m <> [renderOne "╙ " r]
-    c :<| Empty -> [renderOne "· " c]
-    Empty -> []
-  cycles = filter (not . null) $ filterDefs <$> cycles'
+  dot = "· "
+  terms = renderTerm dot <$> filterDefs (join (UF.terms file))
+  types = (renderDecl (dot <> " type ") <$> Map.toList (UF.dataDeclarations' file))
+       <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
   filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
-  renderOne :: (IsString s, Monoid s) => s -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, s)
-  renderOne s (v, _, typ) = (v, mconcat
-    [s, fromString . Text.unpack $ Var.name v, " : ",
-     renderType' env typ])
 
-prettyTopLevelComponents
+  renderVar :: (Var v, IsString s) => v -> s
+  renderVar v = fromString . Text.unpack $ Var.name v
+
+  renderTerm :: (IsString s, Monoid s) => s -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, s)
+  renderTerm s (v, _, typ) =
+    (v, mconcat [s, renderVar v, " : ", renderType' env typ])
+  renderDecl :: (IsString s, Monoid s) => s -> (v, (r, DD.DataDeclaration' v loc)) -> (v, s)
+  renderDecl s (v, (_, decl)) = (v, mconcat
+    [s, renderVar v, intercalateMap " " renderVar $ DD.bound decl])
+  renderEffect :: (IsString s, Monoid s) => s -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, s)
+  renderEffect s (v, (r, decl)) = renderDecl (s <> "ability ") (v, (r, DD.toDataDecl decl))
+
+prettyTypecheckedFile
   :: forall v loc
    . (Var v, Annotated loc, Ord loc, Show loc)
-  => [[(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]]
-  -> Env
-  -> AT.AnnotatedDocument Color.Style
-prettyTopLevelComponents cycles' env =
-  "🌟 Top-level components:\n\n" <>
-    intercalateMap "\n" snd (join $ prettyTopLevelComponents' cycles' env) <> "\n"
+  => UF.TypecheckedUnisonFile v loc -> Env -> AT.AnnotatedDocument Color.Style
+prettyTypecheckedFile file env = let
+  (types, terms) = prettyTypecheckedFile' file env
+  in intercalateMap "\n" snd (types <> terms) <> "\n"
 
 -- Render an informational typechecking note
 renderTypeInfo
