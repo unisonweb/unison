@@ -7,13 +7,13 @@ module Unison.Codebase.CommandLine (main) where
 import Data.Bifunctor (second)
 import System.Random (randomRIO)
 import           Control.Concurrent           (forkIO)
-import           Control.Exception            (finally)
+import           Control.Exception            (catch, finally)
 import           Control.Monad                (forM_, forever, liftM2,
                                                void, when)
 import           Control.Monad.STM            (STM, atomically)
 import qualified Data.Char                    as Char
 import           Data.Foldable                (toList, traverse_)
-import           Data.IORef                   (newIORef, writeIORef, readIORef)
+import           Data.IORef                   (IORef, newIORef, writeIORef, readIORef)
 import           Data.List                    (find, isSuffixOf,
                                                sort)
 import           Data.Set                     (Set)
@@ -27,6 +27,7 @@ import           System.FilePath              (FilePath)
 import qualified Text.Read                    as Read
 import qualified Unison.Reference             as Reference
 import qualified Unison.Term                  as Term
+import           System.IO.Error              (isEOFError)
 import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
 import           Unison.Codebase.Branch       (Branch)
@@ -38,6 +39,7 @@ import qualified Unison.Codebase.Watch        as Watch
 import           Unison.FileParsers           (parseAndSynthesizeFile)
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
+import qualified Unison.PrintError            as PrintError
 import           Unison.PrintError            (parseErrorToAnsiString,
                                                prettyTypecheckedFile,
                                                printNoteWithSourceAsAnsi)
@@ -58,6 +60,7 @@ import Unison.Parser (Ann)
 data Event
   = UnisonFileChanged FilePath Text
   | UnisonBranchChanged (Set Name)
+  | EOF
 
 allow :: FilePath -> Bool
 allow = liftM2 (||) (".u" `isSuffixOf`) (".uu" `isSuffixOf`)
@@ -80,7 +83,8 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
     _ -> pure ()
 
   -- enqueue stdin into lineQueue
-  void . forkIO . forever $ getChar >>= atomically . TQueue.enqueue lineQueue
+  void . forkIO . (`catch` eofHandler queue) . forever $
+    getChar >>= atomically . TQueue.enqueue lineQueue
 
   -- watch for .u file changes
   void . forkIO $ do
@@ -104,6 +108,11 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
         Nothing -> putStrLn "Exiting."
     Just b  -> go0 b currentBranchName queue lineQueue lastTypechecked runtime
   where
+  eofHandler queue e =
+    if isEOFError e then (atomically . TQueue.enqueue queue) EOF else ioError e
+  go0 :: Branch -> Name -> TQueue Event -> TQueue Char
+      -> IORef (Maybe FilePath, UF.TypecheckedUnisonFile v Parser.Ann, PrintError.Env)
+      -> Runtime v -> IO ()
   go0 branch branchName queue lineQueue lastTypechecked runtime = go branch branchName
     where
 
@@ -162,6 +171,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
       TQueue.raceIO (TQueue.peek queue) (awaitCompleteLine lineQueue) >>= \case
         Right _ -> processLine branch name
         Left _ -> atomically (TQueue.dequeue queue) >>= \case
+          EOF -> putStrLn "^D"
           UnisonFileChanged filePath text -> do
             Console.setTitle "Unison"
             Console.clearScreen
