@@ -44,7 +44,7 @@ type EffectDeclaration v = EffectDeclaration' v ()
 
 newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
-} deriving (Show)
+} deriving (Show,Functor)
 
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)

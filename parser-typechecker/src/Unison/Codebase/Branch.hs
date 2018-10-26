@@ -127,6 +127,10 @@ termsNamed name = lookupDom name . termNamespace . Causal.head . unbranch
 typesNamed :: Name -> Branch -> Set Reference
 typesNamed name = lookupDom name . typeNamespace . Causal.head . unbranch
 
+namesForTerm :: Reference -> Branch -> Set Name
+namesForTerm ref = lookupRan ref . termNamespace . Causal.head . unbranch
+
+
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
 

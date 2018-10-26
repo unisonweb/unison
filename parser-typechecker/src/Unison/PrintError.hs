@@ -127,11 +127,10 @@ prettyTypecheckedFile'
 prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
   dot = "  "
-  terms = renderTerm dot <$> filterDefs (join (UF.terms file))
+  terms = renderTerm dot <$> join (UF.terms file)
   -- todo: can we color the 'type' and 'ability' keywords
   types = (renderDecl (dot <> "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
-  filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
 
   renderVar :: (Var v, IsString s) => v -> s
   renderVar v = fromString . Text.unpack $ Var.name v
@@ -151,8 +150,9 @@ prettyTypecheckedFile
   => UF.TypecheckedUnisonFile v loc -> Env -> AT.AnnotatedDocument Color.Style
 prettyTypecheckedFile file env = let
   (types, terms) = prettyTypecheckedFile' file env
-  in intercalateMap "\n" snd types <> "\n\n" <>
-     intercalateMap "\n" snd terms <> "\n"
+  sep n = if not (null n) then "\n" else ""
+  in intercalateMap "\n" snd types <> (sep types <> sep terms) <>
+     intercalateMap "\n" snd terms <> sep terms
 
 -- Render an informational typechecking note
 renderTypeInfo

@@ -40,6 +40,10 @@ data Reference
 
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
+instance Show Id where
+  show (Id h 0 1) = show h
+  show (Id h i _) = show h <> "-" <> show i
+
 pattern Builtin t = Builtin_ t
 pattern Derived h n i <- DerivedPrivate_ (Id h n i)
 pattern DerivedId id <- DerivedPrivate_ id
@@ -88,7 +92,7 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 
 instance Show Reference where
   show (Builtin_ t) = Text.unpack t
-  show (DerivedPrivate_ (Id h i n)) = "#" <> show i <> "Q" <> show n <> "Q" <> show h
+  show (DerivedPrivate_ id) = "#" <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin_ txt) = [Hashable.Tag 0, Hashable.Text txt]

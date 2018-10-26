@@ -4,6 +4,7 @@
 
 module Unison.Codebase.CommandLine (main) where
 
+import Data.Bifunctor (second)
 import System.Random (randomRIO)
 import           Control.Concurrent           (forkIO)
 import           Control.Exception            (finally)
@@ -50,6 +51,7 @@ import           Unison.Util.Monoid
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
+import qualified Unison.Var as Var
 import qualified Data.Map as Map
 import Unison.Parser (Ann)
 
@@ -67,7 +69,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
-  lastTypechecked <- newIORef (UF.TypecheckedUnisonFile Map.empty Map.empty [], mempty)
+  lastTypechecked <- newIORef (Nothing, UF.TypecheckedUnisonFile Map.empty Map.empty [], mempty)
   let takeActualLine = atomically (takeLine lineQueue)
 
   -- load initial unison file if specified
@@ -105,6 +107,8 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
   go0 branch branchName queue lineQueue lastTypechecked runtime = go branch branchName
     where
 
+    clearLastTypechecked = writeIORef lastTypechecked (Nothing, UF.typecheckedUnisonFile0, mempty)
+
     -- print prompt and whatever input was on it / at it
     printPrompt :: Name -> IO ()
     printPrompt branchName = do
@@ -118,8 +122,9 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
         Nothing -> do -- parsing failed
           Console.setTitle "Unison \128721"
           forM_ notes $ \case
-            Result.Parsing err ->
+            Result.Parsing err -> do
               putStrLn $ parseErrorToAnsiString (unpack src) err
+              clearLastTypechecked
             err ->
               error $"I was expecting a parsing error here but got:\n" ++ show err
 
@@ -131,16 +136,17 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
                 notInfo (Result.TypeInfo _) = False
                 notInfo _                   = True
             putStrLn . showNote . toList $ notes
+            clearLastTypechecked
           Just unisonFile -> do
             Console.setTitle "Unison ✅"
             let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
             n <- randomRIO (0, length emoticons - 1)
             putStrLn $ "✅ " ++ [emoticons !! n] ++ "  Found and typechecked the following definitions:\n"
             let components = [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
-                uf = UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
+                uf = UF.typecheckedUnisonFile (UF.dataDeclarations unisonFile)
                                               (UF.effectDeclarations unisonFile)
                                               components
-            writeIORef lastTypechecked (uf, errorEnv)
+            writeIORef lastTypechecked (Just filePath, uf, errorEnv)
             putStrLn . show . Color.renderDocANSI 6 $
               prettyTypecheckedFile uf errorEnv
             putStrLn ""
@@ -183,20 +189,41 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
     -- match what's in lastTypechecked.
     addDefinitions :: Branch -> Name -> [String] -> IO ()
     addDefinitions branch name args = case args of
-      _  -> do
-        (typecheckedFile, env) <- readIORef lastTypechecked
-        let hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
-        forM_ (Map.toList hashedTerms) $ \(_v, (Reference.DerivedId id, tm, typ)) -> do
-          Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
-          -- todo: set the name of this term in the current branch
+      _  -> readIORef lastTypechecked >>= \(filePath, typecheckedFile, env) -> case filePath of
+        Nothing -> do
+          putStrLn $ "Nothing to do. Editing a .u file in " <> dir <> " will tell me about new definitions."
+          go branch name
+        Just _ -> do
+          let hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
+          putStrLn $ "Adding the following definitions:"
+          putStrLn ""
+          putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
+          putStrLn ""
+          let allTypeDecls = (second (Left . fmap toA) <$> UF.effectDeclarations' typecheckedFile) `Map.union`
+                             (second (Right . fmap toA) <$> UF.dataDeclarations' typecheckedFile)
+          forM_ (Map.toList allTypeDecls) $ \(v, (r@(Reference.DerivedId id), dd)) -> do
+            decl <- Codebase.getTypeDeclaration codebase id
+            case decl of
+              Nothing -> do
+                Codebase.putTypeDeclaration codebase id dd
+              Just _ ->
+                -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
+          forM_ (Map.toList hashedTerms) $ \(v, (r@(Reference.DerivedId id), tm, typ)) -> do
+            o <- Codebase.getTerm codebase id
+            case o of
+              Just _ ->
+                -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
+              Nothing -> do
+                Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
 
-        -- todo: actually write typecheckedFile and hashedTerms to the codebase...
-        let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
-        n <- randomRIO (0, length emoticons - 1)
-        putStrLn $ (emoticons !! n) : "  Added the following definitions:"
-        putStrLn ""
-        putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
-        go branch name
+            -- todo: set the name of this term in the current branch
+          let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
+          n <- randomRIO (0, length emoticons - 1)
+          putStrLn $ (emoticons !! n) : "  All done. You can view or edit any definition via `> view <name>`."
+          putStrLn ""
+          go branch name
 
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do

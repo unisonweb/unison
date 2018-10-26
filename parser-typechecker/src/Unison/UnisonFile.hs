@@ -36,6 +36,22 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
 
+typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
+typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty
+
+typecheckedUnisonFile ::
+     Var v
+  => Map v (Reference, DataDeclaration' v a)
+  -> Map v (Reference, EffectDeclaration' v a)
+  -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  -> TypecheckedUnisonFile v a
+typecheckedUnisonFile ds es cs =
+  TypecheckedUnisonFile ds es (removeWatches cs)
+  where
+  -- todo: more robust way of doing this once we have different kinds of variables
+  removeWatches = filter (not . null) . fmap filterDefs
+  filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+
 -- Convenience function for extracting the term and type decl components
 -- of a Unison file. This would be presented to the user for adding to
 -- the codebase.
