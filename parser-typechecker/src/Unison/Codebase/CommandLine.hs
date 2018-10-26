@@ -130,7 +130,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn . showNote . toList $ notes
           Just unisonFile -> do
             Console.setTitle "Unison ✅"
-            putStrLn "✅  Found and typechecked the following definitions:\n"
+            let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
+            n <- randomRIO (0, length emoticons - 1)
+            putStrLn $ "✅ " ++ [emoticons !! n] ++ "  Found and typechecked the following definitions:\n"
             let components = [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
                 uf = UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
                                               (UF.effectDeclarations unisonFile)
@@ -138,11 +140,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
             writeIORef lastTypechecked (uf, errorEnv)
             putStrLn . show . Color.renderDocANSI 6 $
               prettyTypecheckedFile uf errorEnv
-            let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
-            n <- randomRIO (0, length emoticons - 1)
-            putStrLn $ [emoticons !! n]
             putStrLn ""
-            putStrLn "👀  Now evaluating any watch expressions (line starting with `>`) ..."
+            putStrLn "👀  Now evaluating any watch expressions (lines starting with `>`) ..."
             RT.evaluate runtime unisonFile codebase
             -- todo: actually wait until evaluation completes
 

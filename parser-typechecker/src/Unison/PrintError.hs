@@ -126,7 +126,7 @@ prettyTypecheckedFile'
       [(v, AT.AnnotatedDocument Color.Style)]) -- terms
 prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
-  dot = "· "
+  dot = "  "
   terms = renderTerm dot <$> filterDefs (join (UF.terms file))
   -- todo: can we color the 'type' and 'ability' keywords
   types = (renderDecl (dot <> "type ") <$> Map.toList (UF.dataDeclarations' file))
