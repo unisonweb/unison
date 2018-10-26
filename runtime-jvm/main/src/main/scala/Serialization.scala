@@ -15,6 +15,7 @@ object Serialization {
      */
     def putTerm(sink: Sink, term: Term): Unit = {
       import sink._
+      val freeVars = term.annotation.toList
 
       def go(t: AnnotatedTerm[Term.F,(Set[Name], Vector[Name])]): Unit = {
         t match {
@@ -124,7 +125,7 @@ object Serialization {
             putFramedSeq1(cases)(putMatchCase _)
         }
 
-      def putMatchCase[F[_]](c: MatchCase[Term]): Unit = {
+      def putMatchCase(c: MatchCase[Term]): Unit = {
         val MatchCase(pattern, guard, body) = c
         putPattern(pattern)
         putOption1(guard)(putTerm(sink,_))
@@ -153,11 +154,23 @@ object Serialization {
           putReference(id)
           putVarLong(cid.toInt)
           putFramedSeq1(patterns)(putPattern)
+        case Pattern.As(p) =>
+          putByte(7)
+          putPattern(p)
+        case Pattern.EffectPure(p) =>
+          putByte(8)
+          putPattern(p)
+        case Pattern.EffectBind(id, cid, args, k) =>
+          putByte(9)
+          putReference(id)
+          putVarLong(cid.toInt)
+          putFramedSeq1(args)(putPattern)
+          putPattern(k)
       }
 
-      def putLet[F[_]](b: Byte,
-                       bindings: List[(Name, AnnotatedTerm[F,Set[Name]])],
-                       body: AnnotatedTerm[F,Set[Name]]): Unit = {
+      def putLet(b: Byte,
+                 bindings: List[(Name, AnnotatedTerm[F,Set[Name]])],
+                 body: AnnotatedTerm[F,Set[Name]]): Unit = {
         bindings.foreach {
           // Abs all the bound variables
           case (name, binding) =>
@@ -174,14 +187,13 @@ object Serialization {
       }
 
       def putReference(id: Id): Unit = id match {
-        case Builtin(Name(name)) =>
+        case Id.Builtin(Name(name)) =>
           putByte(0)
           putString(name)
-        case HashRef(Hash(bytes)) =>
+        case Id.HashRef(Hash(bytes)) =>
           putByte(1)
           put(bytes)
       }
-      val freeVars = term.annotation.toList
       putFramedSeq1(freeVars)(putVar _)
       go(ABT.annotateBound(term))
     }
