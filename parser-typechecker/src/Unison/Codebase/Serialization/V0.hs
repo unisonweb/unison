@@ -446,6 +446,7 @@ getTypeEdit = getWord8 >>= \case
 putBranch :: MonadPut m => Branch -> m ()
 putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
   putRelation termNamespace putText putReference
+  putRelation patternNamespace putText (putPair' putReference putLength)
   putRelation typeNamespace putText putReference
   putRelation editedTerms putReference putTermEdit
   putRelation editedTypes putReference putTypeEdit
@@ -453,6 +454,7 @@ putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal
   (Branch0 <$> getRelation getText getReference
+           <*> getRelation getText (getPair getReference getLength)
            <*> getRelation getText getReference
            <*> getRelation getReference getTermEdit
            <*> getRelation getReference getTypeEdit)

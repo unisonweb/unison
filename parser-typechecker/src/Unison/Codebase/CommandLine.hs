@@ -24,6 +24,8 @@ import qualified Data.Text.IO
 import qualified System.Console.ANSI          as Console
 import           System.FilePath              (FilePath)
 import qualified Text.Read                    as Read
+import qualified Unison.Reference             as Reference
+import qualified Unison.Term                  as Term
 import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
 import           Unison.Codebase.Branch       (Branch)
@@ -49,6 +51,7 @@ import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
 import qualified Data.Map as Map
+import Unison.Parser (Ann)
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -59,8 +62,8 @@ allow = liftM2 (||) (".u" `isSuffixOf`) (".uu" `isSuffixOf`)
 
 data CreateCancel = Create | Cancel deriving Show
 
-main :: forall v a. Var v => FilePath -> Name -> Maybe FilePath -> IO (Runtime v) -> Codebase IO v a -> IO ()
-main dir currentBranchName initialFile startRuntime codebase = do
+main :: forall v a. Var v => FilePath -> Name -> Maybe FilePath -> IO (Runtime v) -> (Ann -> a) -> Codebase IO v a -> IO ()
+main dir currentBranchName initialFile startRuntime toA codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
@@ -130,7 +133,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn . showNote . toList $ notes
           Just unisonFile -> do
             Console.setTitle "Unison ✅"
-            putStrLn "✅  Found and typechecked the following definitions:\n"
+            let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
+            n <- randomRIO (0, length emoticons - 1)
+            putStrLn $ "✅ " ++ [emoticons !! n] ++ "  Found and typechecked the following definitions:\n"
             let components = [c | (Result.TypeInfo (C.TopLevelComponent c)) <- toList notes ]
                 uf = UF.TypecheckedUnisonFile (UF.dataDeclarations unisonFile)
                                               (UF.effectDeclarations unisonFile)
@@ -138,11 +143,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
             writeIORef lastTypechecked (uf, errorEnv)
             putStrLn . show . Color.renderDocANSI 6 $
               prettyTypecheckedFile uf errorEnv
-            let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
-            n <- randomRIO (0, length emoticons - 1)
-            putStrLn $ [emoticons !! n]
             putStrLn ""
-            putStrLn "👀  Now evaluating any watch expressions (line starting with `>`) ..."
+            putStrLn "👀  Now evaluating any watch expressions (lines starting with `>`) ..."
             RT.evaluate runtime unisonFile codebase
             -- todo: actually wait until evaluation completes
 
@@ -183,7 +185,11 @@ main dir currentBranchName initialFile startRuntime codebase = do
     addDefinitions branch name args = case args of
       _  -> do
         (typecheckedFile, env) <- readIORef lastTypechecked
-        let _hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
+        let hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
+        forM_ (Map.toList hashedTerms) $ \(_v, (Reference.DerivedId id, tm, typ)) -> do
+          Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
+          -- todo: set the name of this term in the current branch
+
         -- todo: actually write typecheckedFile and hashedTerms to the codebase...
         let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
         n <- randomRIO (0, length emoticons - 1)
