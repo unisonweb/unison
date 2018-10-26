@@ -548,6 +548,9 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
+hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
+hashComponents m = Reference.hashComponents (\r -> ref() r) m
+
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
 anf t = go t where

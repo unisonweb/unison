@@ -21,6 +21,8 @@ import qualified Unison.Reference as Reference
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import Data.Text (Text)
+import qualified Unison.Var as Var
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -32,6 +34,12 @@ data DataDeclaration' v a = DataDeclaration {
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
+
+constructorVars :: DataDeclaration' v a -> [v]
+constructorVars dd = fst <$> constructors dd
+
+constructorNames :: Var v => DataDeclaration' v a -> [Text]
+constructorNames dd = Var.name <$> constructorVars dd
 
 bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins typeEnv (DataDeclaration a bound constructors) =

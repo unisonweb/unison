@@ -14,7 +14,7 @@ import           Control.Monad.STM            (STM, atomically)
 import qualified Data.Char                    as Char
 import           Data.Foldable                (toList, traverse_)
 import           Data.IORef                   (newIORef, writeIORef, readIORef)
-import           Data.List                    (find, isSuffixOf,
+import           Data.List                    (find, isSuffixOf, isPrefixOf,
                                                sort)
 import           Data.Set                     (Set)
 import qualified Data.Set                     as Set
@@ -54,6 +54,7 @@ import           Unison.Var                   (Var)
 import qualified Unison.Var as Var
 import qualified Data.Map as Map
 import Unison.Parser (Ann)
+import qualified Data.Text as Text
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -194,36 +195,51 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
           putStrLn $ "Nothing to do. Editing a .u file in " <> dir <> " will tell me about new definitions."
           go branch name
         Just _ -> do
-          let hashedTerms = UF.hashTerms (UF.terms typecheckedFile)
-          putStrLn $ "Adding the following definitions:"
-          putStrLn ""
-          putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
-          putStrLn ""
-          let allTypeDecls = (second (Left . fmap toA) <$> UF.effectDeclarations' typecheckedFile) `Map.union`
-                             (second (Right . fmap toA) <$> UF.dataDeclarations' typecheckedFile)
-          forM_ (Map.toList allTypeDecls) $ \(v, (r@(Reference.DerivedId id), dd)) -> do
-            decl <- Codebase.getTypeDeclaration codebase id
-            case decl of
-              Nothing -> do
-                Codebase.putTypeDeclaration codebase id dd
-              Just _ ->
-                -- todo - can treat this as adding an alias (same hash, but different name in this branch)
-                putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
-          forM_ (Map.toList hashedTerms) $ \(v, (r@(Reference.DerivedId id), tm, typ)) -> do
-            o <- Codebase.getTerm codebase id
-            case o of
-              Just _ ->
-                -- todo - can treat this as adding an alias (same hash, but different name in this branch)
-                putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
-              Nothing -> do
-                Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
+          let branchUpdate = Branch.typecheckedFile typecheckedFile
+              collisions = Branch.nameCollisions branchUpdate branch
+              -- todo: collisions should really be collisions `Branch.subtract` branch,
+              -- since if the names have a matching hash that's fine
+          if collisions /= mempty then do
+            putStrLn $ "The following names collided with existing definitions:\n"
+            putStrLn $ intercalateMap " " Text.unpack (toList $ Branch.allNames collisions)
+            putStrLn "\nUse the `> edit` command to have these definitions replace the existing ones."
+            go branch name
+          else do
+            -- todo: this should probably just be a function in Codebase, something like
+            --       addFile :: Codebase -> TypecheckedUnisonFile -> m ()
+            let hashedTerms = UF.hashTerms typecheckedFile
+            putStrLn $ "Adding the following definitions:"
+            putStrLn ""
+            putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
+            putStrLn ""
+            let allTypeDecls = (second (Left . fmap toA) <$> UF.effectDeclarations' typecheckedFile) `Map.union`
+                               (second (Right . fmap toA) <$> UF.dataDeclarations' typecheckedFile)
 
-            -- todo: set the name of this term in the current branch
-          let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
-          n <- randomRIO (0, length emoticons - 1)
-          putStrLn $ (emoticons !! n) : "  All done. You can view or edit any definition via `> view <name>`."
-          putStrLn ""
-          go branch name
+            forM_ (Map.toList allTypeDecls) $ \(v, (r@(Reference.DerivedId id), dd)) -> do
+              decl <- Codebase.getTypeDeclaration codebase id
+              case decl of
+                Nothing -> do
+                  Codebase.putTypeDeclaration codebase id dd
+                Just _ ->
+                  -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                  putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
+            forM_ (Map.toList hashedTerms) $ \(v, (r@(Reference.DerivedId id), tm, typ)) -> do
+              o <- Codebase.getTerm codebase id
+              case o of
+                Just _ ->
+                  -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                  putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
+                Nothing -> do
+                  Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
+
+            branch <- mergeBranchAndShowDiff codebase name (Branch.append branchUpdate branch)
+
+            let emoticons = "🌉🏙🌃🌁🌅🎆🌄🌠🌇"
+            n <- randomRIO (0, length emoticons - 1)
+            putStrLn $ (emoticons !! n) : "  All done. You can view or edit any definition via `> view <name>`."
+            putStrLn ""
+            clearLastTypechecked
+            go branch name
 
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do
@@ -231,6 +247,16 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
       line <- takeActualLine
       case words line of
         "add" : args -> addDefinitions branch name args
+        ls : args | ls == "list" || -- todo: more comprehensive way of allowing command abbreviations
+                    ls == "ls"   ||
+                    ls == "l" -> let
+          query = intercalateMap " " id args
+          allNames = Branch.allNames (Branch.head branch)
+          filtered = filter (query `isPrefixOf`) (Text.unpack <$> Set.toList allNames)
+          -- todo: show types of each
+          in do
+            putStrLn $ intercalateMap "\n" id filtered
+            go branch name
 
         ["branch"] -> do
           branches <- sort <$> Codebase.branches codebase
