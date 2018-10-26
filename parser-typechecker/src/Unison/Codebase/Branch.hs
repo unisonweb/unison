@@ -71,6 +71,7 @@ newtype Branch = Branch { unbranch :: Causal Branch0 } deriving Eq
 
 data Branch0 =
   Branch0 { termNamespace :: Relation Name Reference
+          , patternNamespace :: Relation Name (Reference,Int)
           , typeNamespace :: Relation Name Reference
           , editedTerms   :: Relation Reference TermEdit
           , editedTypes   :: Relation Reference TypeEdit
@@ -90,11 +91,12 @@ diff ours theirs =
         , to (fro (f theirs') `Set.difference` fro (f ours'))
         )
       (ourTerms    , theirTerms    ) = diffSet termNamespace
+      (ourPats     , theirPats     ) = diffSet patternNamespace
       (ourTypes    , theirTypes    ) = diffSet typeNamespace
       (ourTermEdits, theirTermEdits) = diffSet editedTerms
       (ourTypeEdits, theirTypeEdits) = diffSet editedTypes
-  in  Diff (Branch0 ourTerms ourTypes ourTermEdits ourTypeEdits)
-           (Branch0 theirTerms theirTypes theirTermEdits theirTypeEdits)
+  in  Diff (Branch0 ourTerms ourPats ourTypes ourTermEdits ourTypeEdits)
+           (Branch0 theirTerms theirPats theirTypes theirTermEdits theirTypeEdits)
 
 -- When adding a Reference `r` to a namespace as `n`:
 --   * add names for all of its transitive dependencies to `backupNames`.
@@ -108,14 +110,15 @@ diff ours theirs =
 --   * (q2) When renaming, do we need to update `backupNames`? no
 
 instance Semigroup Branch0 where
-  Branch0 n1 nt1 e1 et1 <> Branch0 n2 nt2 e2 et2 = Branch0
+  Branch0 n1 p1 nt1 e1 et1 <> Branch0 n2 p2 nt2 e2 et2 = Branch0
     (R.union n1 n2)
+    (R.union p1 p2)
     (R.union nt1 nt2)
     (R.union e1 e2)
     (R.union et1 et2)
 
 instance Monoid Branch0 where
-  mempty = Branch0 R.empty R.empty R.empty R.empty
+  mempty = Branch0 R.empty R.empty R.empty R.empty R.empty
   mappend = (<>)
 
 termsNamed :: Name -> Branch -> Set Reference
