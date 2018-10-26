@@ -35,7 +35,7 @@ newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
 --              in the context of multiple rendering options.
 data Section a
   = Text (AnnotatedText (Maybe a))
-  | Describe a
+  -- | NoBreak (AnnotatedText (Maybe a))
   | Blockquote (AnnotatedExcerpt a)
   deriving (Functor)
 
@@ -65,9 +65,6 @@ textToDoc = AnnotatedDocument . pure . Text
 
 excerptToDoc :: AnnotatedExcerpt a -> AnnotatedDocument a
 excerptToDoc = AnnotatedDocument . pure . Blockquote
-
-describeToDoc :: a -> AnnotatedDocument a
-describeToDoc = sectionToDoc . Describe
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (s,_))) =
