@@ -6,6 +6,8 @@
 
 module Unison.DataDeclaration where
 
+import Data.List (sortOn)
+import Unison.Hash (Hash)
 import           Data.Functor
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -158,4 +160,7 @@ hashDecls decls =
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
-bindDecls decls refs = bindBuiltins refs <$> decls
+bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls where
+  -- normalize the order of the constructors based on a hash of their types
+  sortCtors dd = DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
+  hash3 (_,_,typ) = ABT.hash typ :: Hash
