@@ -127,6 +127,20 @@ typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
         f _ = Nothing
 
+amap :: Ord v => (a -> a2) -> AnnotatedTerm v a -> AnnotatedTerm v a2
+amap f = fmap f . patternMap (fmap f) . typeMap (fmap f)
+
+patternMap :: (Pattern ap -> Pattern ap2) -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap2 v a
+patternMap f e = go e where
+  go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
+    ABT.Abs v t -> ABT.Abs v (go t)
+    ABT.Var v -> ABT.Var v
+    ABT.Cycle t -> ABT.Cycle (go t)
+    ABT.Tm (Match e cases) -> ABT.Tm (Match (go e) [
+      MatchCase (f p) (go <$> g) (go a) | MatchCase p g a <- cases ])
+    -- Safe since `Match` is only ctor that has embedded `Pattern ap` arg
+    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 

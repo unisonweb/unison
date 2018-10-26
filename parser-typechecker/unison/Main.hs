@@ -27,6 +27,7 @@ main = do
       launch = CommandLine.main scratchFilePath initialBranchName
         (headMay args)
         (javaRuntime @Symbol 42441)
+        (const External) -- discard all annotations when going into codebase
         (FileCodebase.codebase1 External formatSymbol formatAnn codebasePath)
 
   exists <- FileCodebase.exists codebasePath
