@@ -25,7 +25,12 @@ import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
---TODO let suppression, missing features
+{-TODO 
+we will need a prettyBinding function, takes a v and a Term
+and if the term has a signature it should print on the line above
+also if the term is a lambda, the lambda parameters should be shown before the =
+-}
+--TODO let suppression, missing features, delay blocks
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
