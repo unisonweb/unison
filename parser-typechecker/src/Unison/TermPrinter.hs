@@ -25,6 +25,7 @@ import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
+--TODO support infix operator definitions in prettyBinding (isSymbolic v; parens in decl; infix in defn if binary)
 --TODO let suppression, missing features, delay blocks
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches

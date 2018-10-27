@@ -288,7 +288,7 @@ test = scope "termprinter" . tests $
                                          \foo = 3"
   , tc_binding 50 "foo" Nothing "3" "foo = 3"                               
   , tc_binding 50 "foo" (Just "Int -> Int") "n -> 3" "foo : Int -> Int\n\
-                                                      \foo n = 3"
+                                                     \foo n = 3"
   , tc_binding 50 "foo" Nothing "n -> 3" "foo n = 3"          
   , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"          
   , tc_binding 9 "foo" Nothing "n m -> 3" "foo n m =\n\
