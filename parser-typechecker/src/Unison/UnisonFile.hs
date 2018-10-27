@@ -20,7 +20,6 @@ import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Reference as Reference
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration' v a),
@@ -52,27 +51,23 @@ typecheckedUnisonFile ds es cs =
   removeWatches = filter (not . null) . fmap filterDefs
   filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
 
--- Convenience function for extracting the term and type decl components
--- of a Unison file. This would be presented to the user for adding to
--- the codebase.
-components :: Var v => TypecheckedUnisonFile v a ->
-  ([[((v, AnnotatedTerm v a, AnnotatedType v a), Reference)]],
-   [[((v, Either (EffectDeclaration' v a) (DataDeclaration' v a)), Reference)]])
-components uf = let
-  tms = [ ((v,e,t), r) | (v, (r,e,t)) <- Map.toList $ hashTerms (terms uf) ]
-  ds = [ ((v, Right d), r) | (v, (r, d)) <- Map.toList $ dataDeclarations' uf ] ++
-       [ ((v, Left eff), r) | (v, (r, eff)) <- Map.toList $ effectDeclarations' uf ]
-  in (Reference.groupByComponent tms, Reference.groupByComponent ds)
+hashConstructors :: Var v => TypecheckedUnisonFile v a -> Map v (Reference, AnnotatedTerm v ())
+hashConstructors file = let
+  ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
+              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars dd `zip` [0..] ]
+  ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
+              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0..] ]
+  in Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
 
 hashTerms ::
      Var v
-  => [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  => TypecheckedUnisonFile v a
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
-hashTerms components = let
+hashTerms file = let
+  components = terms file
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
-  terms = Map.fromList [(v,e) | (v,e,_) <- join components ]
-  ref r = Term.ref() r
-  hcs = Reference.hashComponents ref terms
+  terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
+  hcs = Term.hashComponents terms0
   in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
                                      Just t <- [Map.lookup v types] ]
 

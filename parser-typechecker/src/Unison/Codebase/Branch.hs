@@ -10,6 +10,7 @@ module Unison.Codebase.Branch where
 
 -- import Unison.Codebase.NameEdit (NameEdit)
 
+import Prelude hiding (head)
 import           Control.Monad              (foldM, join)
 import           Data.Bifunctor             (bimap)
 import           Data.Foldable
@@ -33,6 +34,10 @@ import           Unison.Hash                (Hash)
 import           Unison.Hashable            (Hashable)
 import qualified Unison.Hashable            as H
 import           Unison.Reference           (Reference)
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Term as Term
+import qualified Unison.Var as Var
+import Unison.Var (Var)
 --import Data.Semigroup (sconcat)
 --import Data.List.NonEmpty (nonEmpty)
 
@@ -75,7 +80,7 @@ data Branch0 =
           , typeNamespace :: Relation Name Reference
           , editedTerms   :: Relation Reference TermEdit
           , editedTypes   :: Relation Reference TypeEdit
-          }
+          } deriving (Eq)
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
@@ -121,11 +126,29 @@ instance Monoid Branch0 where
   mempty = Branch0 R.empty R.empty R.empty R.empty R.empty
   mappend = (<>)
 
+allNames :: Branch0 -> Set Name
+allNames b0 =
+  R.dom (termNamespace b0) `Set.union`
+  R.dom (typeNamespace b0) `Set.union`
+  R.dom (patternNamespace b0)
+
+hasTermNamed :: Name -> Branch -> Bool
+hasTermNamed n b = not . null $ termsNamed n b
+
+hasTypeNamed :: Name -> Branch -> Bool
+hasTypeNamed n b = not . null $ typesNamed n b
+
+hasPatternNamed :: Name -> Branch -> Bool
+hasPatternNamed n b = not . null $ patternsNamed n b
+
 termsNamed :: Name -> Branch -> Set Reference
 termsNamed name = lookupDom name . termNamespace . Causal.head . unbranch
 
 typesNamed :: Name -> Branch -> Set Reference
 typesNamed name = lookupDom name . typeNamespace . Causal.head . unbranch
+
+patternsNamed :: Name -> Branch -> Set (Reference,Int)
+patternsNamed name = lookupDom name . patternNamespace . Causal.head . unbranch
 
 namesForTerm :: Reference -> Branch -> Set Name
 namesForTerm ref = lookupRan ref . termNamespace . Causal.head . unbranch
@@ -176,6 +199,7 @@ data RemainingWork
   | ObsoleteTerm Reference (Set (Reference, Either TermEdit TypeEdit))
   | ObsoleteType Reference (Set (Reference, TypeEdit))
   deriving (Eq, Ord, Show)
+
 remaining :: forall m. Monad m => ReferenceOps m -> Branch -> m (Set RemainingWork)
 remaining ops b@(Branch (Causal.head -> b0)) = do
 -- If any of r's dependencies have been updated, r should be updated.
@@ -265,6 +289,47 @@ empty = Branch (Causal.one mempty)
 
 merge :: Branch -> Branch -> Branch
 merge (Branch b) (Branch b2) = Branch (Causal.merge b b2)
+
+
+head :: Branch -> Branch0
+head (Branch b) = Causal.head b
+
+-- Returns the subset of `b0` whose names collide with elements of `b`
+nameCollisions :: Branch0 -> Branch -> Branch0
+nameCollisions b0 b = go b0 (head b) where
+  -- `set R.<| rel` filters `rel` to contain tuples whose first elem is in `set`
+  go b1 b2 = Branch0
+    (Set.intersection (R.dom $ termNamespace b1) (R.dom $ termNamespace b2) R.<| termNamespace b1)
+    (Set.intersection (R.dom $ patternNamespace b1) (R.dom $ patternNamespace b2) R.<| patternNamespace b1)
+    (Set.intersection (R.dom $ typeNamespace b1) (R.dom $ typeNamespace b2) R.<| typeNamespace b1)
+    R.empty
+    R.empty
+
+-- todo: treat name collisions as edits to a branch
+-- editsFromNameCollisions :: Codebase -> Branch0 -> Branch -> Branch
+
+-- Promote a typechecked file to a `Branch0` which can be added to a `Branch`
+typecheckedFile :: Var v => UF.TypecheckedUnisonFile v a -> Branch0
+typecheckedFile file = let
+  toName = Var.name
+  hashedTerms = UF.hashTerms file
+  ctors = Map.toList $ UF.hashConstructors file
+  ctorNamespace = R.fromList [ (toName v, r) | (v, (r,_)) <- ctors ]
+  patternNamespace = R.fromList [ (toName v, (r,i)) | (v,(_,Term.Constructor' r i)) <- ctors ]
+  termNamespace1 = R.fromList [ (toName v, r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
+  typeNamespace1 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.dataDeclarations' file) ]
+  typeNamespace2 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.effectDeclarations' file) ]
+  in Branch0 (termNamespace1 `R.union` ctorNamespace)
+             patternNamespace
+             (typeNamespace1 `R.union` typeNamespace2)
+             R.empty
+             R.empty
+
+modify :: (Branch0 -> Branch0) -> Branch -> Branch
+modify f (Branch b) = Branch $ Causal.step f b
+
+append :: Branch0 -> Branch -> Branch
+append b0 = modify (<> b0)
 
 instance Semigroup Branch where
   (<>) = mappend
