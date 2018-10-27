@@ -25,11 +25,6 @@ import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
-{-TODO 
-we will need a prettyBinding function, takes a v and a Term
-and if the term has a signature it should print on the line above
-also if the term is a lambda, the lambda parameters should be shown before the =
--}
 --TODO let suppression, missing features, delay blocks
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
@@ -93,7 +88,7 @@ pretty :: Var v => (Reference -> Maybe Int -> Text) -> Int -> AnnotatedTerm v a 
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
 pretty n p term = specialCases term $ \case
-  Var' v       -> l $ Text.unpack (Var.name v)
+  Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (n r Nothing)
   Ann' tm t    -> let n' r = n r Nothing in
                     parenNest (p >= 0) $
@@ -143,7 +138,7 @@ pretty n p term = specialCases term $ \case
 
         sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
-        varList vs = sepList' (\v -> l $ Text.unpack (Var.name v)) (b" ") vs
+        varList vs = sepList' (\v -> l $ varName v) (b" ") vs
         commaList = sepList (l"," <> b" ")
 
         -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
@@ -154,7 +149,7 @@ pretty n p term = specialCases term $ \case
                           PP.Group (pretty n 0 e))
                         where
                           printBinding (v, binding) = PP.Group (
-                            (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <> PP.Nest "  "
+                            (l $ varName v) <> b" " <> l"=" <> b" " <> PP.Nest "  "
                               (PP.Group (pretty n 1 binding))) <> b"; "
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
@@ -193,8 +188,9 @@ pretty n p term = specialCases term $ \case
         binaryApps xs = foldr (flip (<>)) mempty (map r xs)
                         where r (a, f) = pretty n 10 a <> b" " <> pretty n 10 f <> b" "
 
-pretty' :: Var v => (Reference -> Maybe Int -> Text) -> AnnotatedTerm v a -> String
-pretty' n t = PP.renderUnbroken $ pretty n (-1) t
+pretty' :: Var v => Maybe Int -> (Reference -> Maybe Int -> Text) -> AnnotatedTerm v a -> String
+pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
 
 prettyPattern :: Var v => (Reference -> Maybe Int -> Text) -> Int -> [v] -> Pattern loc -> (PrettyPrint String, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a tail of variables it doesn't use.
@@ -202,7 +198,7 @@ prettyPattern :: Var v => (Reference -> Maybe Int -> Text) -> Int -> [v] -> Patt
 prettyPattern n p vs patt = case patt of
   Pattern.Unbound _  -> (l"_", vs)
   Pattern.Var _      -> let (v : tail_vs) = vs
-                        in (l $ Text.unpack (Var.name v), tail_vs)
+                        in (l $ varName v, tail_vs)
   Pattern.Boolean _ b -> (if b then l"true" else l"false", vs)
   Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
   Pattern.Nat _ u     -> (l $ show u, vs)
@@ -211,7 +207,7 @@ prettyPattern n p vs patt = case patt of
                                       in (parenNest (p >= 10) $ l (Text.unpack (n ref (Just i))) <> pats_printed, tail_vs)
   Pattern.As _ pat    -> let (v : tail_vs) = vs
                              (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
-                         in (parenNest (p >= 11) $ ((l $ Text.unpack (Var.name v)) <> l"@" <> printed), eventual_tail)
+                         in (parenNest (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
@@ -226,12 +222,36 @@ prettyPattern n p vs patt = case patt of
                                    in (b" " <> printed <> rest_printed, eventual_tail)
         patterns vs [] = (Empty, vs)
 
+{- Render a binding, producing output of the form
+
+foo : t -> u
+foo a = ...
+
+The first line is only output if the term has a type annotation as the outermost constructor.
+-}
+prettyBinding :: Var v => (Reference -> Maybe Int -> Text) -> v -> AnnotatedTerm v a -> PrettyPrint String
+prettyBinding n v = \case 
+  Ann' tm tp -> let n' r = n r Nothing in PP.BrokenGroup $
+    PP.Group (l (varName v) <> l" : " <> TypePrinter.pretty n' (-1) tp) <> b";" <>
+    PP.Group (prettyBinding n v tm)
+  LamsNamedOpt' vs body -> 
+    PP.Group (l (varName v) <> args <> b" " <> l"=") <> b" " <>
+              (PP.Nest "  " $ PP.Group (pretty n (-1) body))
+    where args = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
+  t -> l"error: " <> l (show t)
+
+prettyBinding' :: Var v => Int -> (Reference -> Maybe Int -> Text) -> v -> AnnotatedTerm v a -> String
+prettyBinding' width n v t = PP.render width $ prettyBinding n v t
+
 paren :: Bool -> PrettyPrint String -> PrettyPrint String
 paren True s = PP.Group $ l"(" <> s <> l")"
 paren False s = PP.Group s
 
 parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
 parenNest useParen contents = PP.Nest "  " $ paren useParen contents
+
+varName :: Var v => v -> String
+varName v = (Text.unpack (Var.name v))
 
 l :: String -> PrettyPrint String
 l = Literal

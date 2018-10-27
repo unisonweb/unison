@@ -225,6 +225,7 @@ pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
+pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
 pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
@@ -527,7 +528,14 @@ unBinaryAppsPred (t, pred) = case unBinaryApp t of
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' t = unLamsPred' (t, (\_ -> True))
 
--- Same as unLams but taking a predicate controlling whether we match on a given binary function.
+-- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a 
+-- lambda extraction.  
+unLamsOpt' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLamsOpt' t = case unLams' t of
+  r@(Just _) -> r
+  Nothing    -> Just ([], t)
+
+-- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' :: (AnnotatedTerm2 vt at ap v a, v -> Bool) ->
                  Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) of

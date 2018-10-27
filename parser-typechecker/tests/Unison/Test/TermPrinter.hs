@@ -2,9 +2,11 @@ module Unison.Test.TermPrinter where
 
 import EasyTest
 import qualified Data.Text as Text
+import Unison.ABT (annotation)
 import Unison.Term
 import Unison.TermPrinter
-import Unison.Symbol (Symbol)
+import qualified Unison.Type as Type
+import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
 import Unison.Reference
@@ -58,6 +60,39 @@ tc_breaks_diff width s expected = tc_diff_rtt True s expected width
 
 tc_breaks :: Int -> String -> Test ()
 tc_breaks width s = tc_diff_rtt True s s width
+
+-- TODO dedup these test functions (and the one in TypePrinter.hs) (abstract over prettied)
+tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
+tc_binding width v mtp tm expected =
+   let base_term = Unison.Builtin.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
+       input_type = (fmap Unison.Builtin.t mtp) :: Maybe (Type.AnnotatedType Symbol Ann)
+       input_term (Just (tp)) = ann (annotation tp) base_term tp
+       input_term Nothing     = base_term
+       var_v = symbol $ Text.pack v
+       get_names x _ = case x of
+                         Builtin t -> t
+                         Derived _ _ _ -> Text.empty
+                         _ -> error "impossible"
+       prettied = prettyBinding get_names var_v (input_term input_type)
+       actual = if width == 0
+                then PP.renderUnbroken $ prettied
+                else PP.render width   $ prettied
+       --actual_reparsed = Unison.Builtin.tm actual
+   in scope expected $ tests [(
+       if actual == expected then ok
+       else do note $ "expected: " ++ show expected
+               note $ "actual  : "   ++ show actual
+               note $ "show(input)  : "   ++ show (input_term input_type)
+               note $ "prettyprint  : "   ++ show prettied
+               crash "actual != expected"
+       ){-, (   --TODO add reparse
+       if (not rtt) || (input_term == actual_reparsed) then ok
+       else do note $ "round trip test..."
+               note $ "single parse: " ++ show input_term
+               note $ "double parse: " ++ show actual_reparsed
+               note $ "prettyprint  : "   ++ show prettied
+               crash "single parse != double parse"
+       )-}]
 
 test :: Test ()
 test = scope "termprinter" . tests $
@@ -249,4 +284,13 @@ test = scope "termprinter" . tests $
   , pending $ tc "case x of [a, b] -> a"
   , pending $ tc "case x of [a] -> a"
   , pending $ tc "case x of [] -> a"
+  , tc_binding 50 "foo" (Just "Int") "3" "foo : Int\n\
+                                         \foo = 3"
+  , tc_binding 50 "foo" Nothing "3" "foo = 3"                               
+  , tc_binding 50 "foo" (Just "Int -> Int") "n -> 3" "foo : Int -> Int\n\
+                                                      \foo n = 3"
+  , tc_binding 50 "foo" Nothing "n -> 3" "foo n = 3"          
+  , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"          
+  , tc_binding 9 "foo" Nothing "n m -> 3" "foo n m =\n\
+                                          \  3"          
   ]

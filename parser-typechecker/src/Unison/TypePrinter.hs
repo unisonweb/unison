@@ -74,5 +74,6 @@ pretty n p tp = case tp of
 
         b = Breakable
 
-pretty' :: Var v => (Reference -> Text) -> AnnotatedType v a -> String
-pretty' n t = PP.renderUnbroken $ pretty n (-1) t
+pretty' :: Var v => Maybe Int -> (Reference -> Text) -> AnnotatedType v a -> String
+pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
