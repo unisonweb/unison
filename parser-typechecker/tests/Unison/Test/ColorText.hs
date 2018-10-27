@@ -8,8 +8,8 @@ import           EasyTest
 import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
 import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), Rendered,
-                                            excerptToDoc, markup, textToDoc)
-import           Unison.Util.ColorText (ANSI, Color (..), renderDocANSI)
+                                            condensedExcerptToText, markup)
+import           Unison.Util.ColorText (ANSI, Color (..), renderText)
 import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
 
@@ -20,12 +20,11 @@ test = scope "colortext" . tests $ [
   ]
 
 ex4e :: Rendered ANSI
-ex4e = renderDocANSI 1 . excerptToDoc $ markup "abc" m
+ex4e = renderText . condensedExcerptToText 1 $ markup "abc" m
         where m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
 
 ex4t :: Rendered ANSI
-ex4t = renderDocANSI 1 . textToDoc $
-          "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
+ex4t = renderText $ "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
 
 
 ex2 :: AnnotatedExcerpt Color
@@ -38,7 +37,7 @@ ex2 = markup ex (Map.fromList
       ])
 
 renderEx2 :: Rendered ANSI
-renderEx2 = renderDocANSI 3 . excerptToDoc $ ex2
+renderEx2 = renderText . condensedExcerptToText 3 $ ex2
 
 ex3 :: AnnotatedExcerpt Color
 ex3 = markup "Hello, world!" $ Map.fromList
