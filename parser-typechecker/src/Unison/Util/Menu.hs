@@ -14,13 +14,13 @@ import           Data.String               (IsString, fromString)
 import           Data.Strings              (strPadLeft)
 import           Safe                      (atMay)
 import qualified Text.Read                 as Read
-import           Unison.Util.AnnotatedText (AnnotatedText, textEmpty)
-import           Unison.Util.ColorText     (Color, renderText)
+import           Unison.Util.AnnotatedText (textEmpty)
+import           Unison.Util.ColorText     (ColorText, renderText)
 import           Unison.Util.Monoid        (intercalateMap)
 -- utility - command line menus
 
-type Caption = AnnotatedText Color
-type Stylized = AnnotatedText Color
+type Caption = ColorText
+type Stylized = ColorText
 type Keyword = String
 type Console = IO String
 

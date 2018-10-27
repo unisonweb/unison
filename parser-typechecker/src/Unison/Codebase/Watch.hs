@@ -23,7 +23,6 @@ import           System.FSNotify         (Event (Added, Modified), watchTree,
 import qualified Unison.FileParsers      as FileParsers
 import qualified Unison.Parser           as Parser
 import qualified Unison.Parsers          as Parsers
--- import           Unison.Util.AnnotatedText (renderTextUnstyled)
 import           Control.Exception       (finally)
 import           System.Random           (randomIO)
 import           Unison.Codebase         (Codebase)

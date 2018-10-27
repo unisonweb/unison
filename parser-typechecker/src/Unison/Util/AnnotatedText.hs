@@ -8,19 +8,19 @@
 
 module Unison.Util.AnnotatedText where
 
-import           Data.Foldable      (asum, foldl')
+import           Data.Foldable      (foldl')
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>)))
 import qualified Data.Sequence      as Seq
 import           Data.String        (IsString (..))
-import           Data.Void          (Void)
 import           Safe               (headMay, lastMay)
 import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range  (Range (..), inRange)
 
 type AnnotatedText a = AnnotatedText' (Maybe a)
+
 newtype AnnotatedText' a = AnnotatedText' (Seq (String, a))
   deriving (Functor, Foldable, Semigroup, Monoid)
 
@@ -31,14 +31,20 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Map Range a
   } deriving (Functor)
 
-newtype Rendered a = Rendered { rawRender :: Seq String }
-  deriving (Semigroup, Monoid)
+annotate :: a -> String -> AnnotatedText a
+annotate a str = AnnotatedText' . Seq.singleton $ (str, Just a)
 
-pairToText :: (String, a) -> AnnotatedText' a
-pairToText (str, a) = AnnotatedText' . Seq.singleton $ (str, a)
+annotate' :: a -> String -> AnnotatedText' a
+annotate' a str = AnnotatedText' . Seq.singleton $ (str, a)
 
-pairToText' :: (String, a) -> AnnotatedText a
-pairToText' (str, a) = pairToText (str, Just a)
+deannotate :: AnnotatedText a -> AnnotatedText b
+deannotate t = const Nothing <$> t
+
+reannotate :: a -> AnnotatedText a -> AnnotatedText a
+reannotate a t = fmap (const a) <$> t
+
+reannotate' :: a -> AnnotatedText' a -> AnnotatedText' a
+reannotate' a t = const a <$> t
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText' (init :|> (s,_))) =
@@ -51,12 +57,13 @@ trailingNewLine _ = False
 markup :: AnnotatedExcerpt a -> Map Range a -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Map.union` annotations a }
 
-renderTextUnstyled :: AnnotatedText' a -> Rendered Void
-renderTextUnstyled (AnnotatedText' chunks) = foldl' go mempty chunks
-  where go r (text, _) = r <> fromString text
+-- renderTextUnstyled :: AnnotatedText' a -> Rendered Void
+-- renderTextUnstyled (AnnotatedText' chunks) = foldl' go mempty chunks
+--   where go r (text, _) = r <> fromString text
 
 textLength :: AnnotatedText' a -> Int
-textLength = length . show . renderTextUnstyled
+textLength (AnnotatedText' chunks) = foldl' go 0 chunks
+  where go len (text, _a) = len + length text
 
 textEmpty :: AnnotatedText' a -> Bool
 textEmpty = (==0) . textLength
@@ -95,7 +102,7 @@ excerptToText e =
         (additions, pos') =
           if c == '\n'
           then ("\n" <> renderLineNumber (line + 1), Pos (line + 1) 1)
-          else (pairToText ([c], maybeColor), Pos line (col + 1))
+          else (annotate' maybeColor [c], Pos line (col + 1))
       in track pos' stack' remainingAnnotations (rendered <> additions) rest
 
 snipWithContext :: Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
@@ -142,9 +149,3 @@ instance IsString (AnnotatedText a) where
 
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
-
-instance Show (Rendered a) where
-  show (Rendered chunks) = asum chunks
-
-instance IsString (Rendered a) where
-  fromString s = Rendered (pure s)

@@ -7,9 +7,9 @@ import qualified Data.Map as Map
 import           EasyTest
 import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
-import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..), Rendered,
+import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..),
                                             condensedExcerptToText, markup)
-import           Unison.Util.ColorText (ANSI, Color (..), renderText)
+import           Unison.Util.ColorText (ANSI, Color (..), Rendered, renderText)
 import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
 

@@ -13,58 +13,48 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
-import Control.Monad (join)
-import           Control.Lens                   ( (%~) )
-import           Control.Lens.Tuple             ( _1
-                                                , _2
-                                                , _3
-                                                )
-import qualified Data.Char                     as Char
+import           Control.Lens                 ((%~))
+import           Control.Lens.Tuple           (_1, _2, _3)
+import           Control.Monad                (join)
+import qualified Data.Char                    as Char
 import           Data.Foldable
-import           Data.List                      ( intersperse, sortOn )
-import qualified Data.List.NonEmpty            as Nel
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes
-                                                , fromMaybe
-                                                )
-import           Data.Sequence                  ( Seq(..) )
-import qualified Data.Set                      as Set
-import           Data.String                    ( IsString
-                                                , fromString
-                                                )
-import qualified Data.Text                     as Text
-import           Data.Text                      ( Text )
-import           Data.Void                      ( Void )
+import           Data.List                    (intersperse, sortOn)
+import qualified Data.List.NonEmpty           as Nel
+import           Data.Map                     (Map)
+import qualified Data.Map                     as Map
+import           Data.Maybe                   (catMaybes, fromMaybe)
+import           Data.Sequence                (Seq (..))
+import qualified Data.Set                     as Set
+import           Data.String                  (IsString, fromString)
+import           Data.Text                    (Text)
+import qualified Data.Text                    as Text
+import           Data.Void                    (Void)
 import           Debug.Trace
-import qualified Text.Megaparsec               as P
-import qualified Unison.ABT                    as ABT
-import           Unison.Kind                    ( Kind )
-import qualified Unison.Kind                   as Kind
-import qualified Unison.Lexer                  as L
-import           Unison.Parser                  ( Ann(..)
-                                                , Annotated
-                                                , ann
-                                                )
-import qualified Unison.Parser                 as Parser
-import qualified Unison.Reference              as R
-import           Unison.Result                  ( Note(..) )
-import qualified Unison.Settings               as Settings
-import qualified Unison.Type                   as Type
-import qualified Unison.Term                   as Term
-import qualified Unison.TypeVar                as TypeVar
-import qualified Unison.Typechecker.Context    as C
+import qualified Text.Megaparsec              as P
+import qualified Unison.ABT                   as ABT
+import qualified Unison.DataDeclaration       as DD
+import           Unison.Kind                  (Kind)
+import qualified Unison.Kind                  as Kind
+import qualified Unison.Lexer                 as L
+import           Unison.Parser                (Ann (..), Annotated, ann)
+import qualified Unison.Parser                as Parser
+import qualified Unison.Reference             as R
+import           Unison.Result                (Note (..))
+import qualified Unison.Settings              as Settings
+import qualified Unison.Term                  as Term
+import qualified Unison.Type                  as Type
+import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
-import qualified Unison.Util.AnnotatedText     as AT
-import           Unison.Util.AnnotatedText     (AnnotatedText, Rendered)
-import           Unison.Util.ColorText          ( Color, ANSI )
-import qualified Unison.Util.ColorText         as Color
-import           Unison.Util.Monoid             ( intercalateMap )
-import           Unison.Util.Range              ( Range(..) )
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.DataDeclaration as DD
+import qualified Unison.TypeVar               as TypeVar
+import qualified Unison.UnisonFile            as UF
+import           Unison.Util.AnnotatedText    (AnnotatedText)
+import qualified Unison.Util.AnnotatedText    as AT
+import           Unison.Util.ColorText        (ANSI, Color, Rendered)
+import qualified Unison.Util.ColorText        as Color
+import           Unison.Util.Monoid           (intercalateMap)
+import           Unison.Util.Range            (Range (..))
+import           Unison.Var                   (Var)
+import qualified Unison.Var                   as Var
 
 data Env = Env { referenceNames   :: Map R.Reference String
                , constructorNames :: Map (R.Reference, Int) String }
@@ -120,13 +110,13 @@ styleAnnotated :: Annotated a => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (, sty) <$> rangeForAnnotated a
 
 style :: s -> String -> AnnotatedText s
-style sty str = AT.pairToText' (str, sty)
+style sty str = AT.annotate sty str
 
 describeStyle :: Color -> AnnotatedText Color
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
-describeStyle Type1 = "in " <> style Type1 "blue"
-describeStyle Type2 = "in " <> style Type2 "green"
-describeStyle _ = ""
+describeStyle Type1     = "in " <> style Type1 "blue"
+describeStyle Type2     = "in " <> style Type2 "green"
+describeStyle _         = ""
 
 prettyTypecheckedFile'
   :: forall v loc
