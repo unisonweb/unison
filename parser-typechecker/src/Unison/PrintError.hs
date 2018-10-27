@@ -82,6 +82,9 @@ env0 = Env mempty mempty
 pattern Type1 = Color.HiBlue
 pattern Type2 = Color.Green
 pattern ErrorSite = Color.HiRed
+pattern TypeKeyword = Color.Yellow
+pattern AbilityKeyword = Color.Green
+pattern Identifier = Color.Bold
 
 fromOverHere'
   :: Ord a
@@ -137,11 +140,11 @@ prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   dot = "  "
   terms = renderTerm dot <$> join (UF.terms file)
   -- todo: can we color the 'type' and 'ability' keywords
-  types = (renderDecl (dot <> style Color.Yellow "type ") <$> Map.toList (UF.dataDeclarations' file))
+  types = (renderDecl (dot <> style TypeKeyword "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
 
   renderVar :: Var v => v -> AT.AnnotatedDocument Color
-  renderVar v = style Color.Bold . fromString . Text.unpack $ Var.name v
+  renderVar v = style Identifier . fromString . Text.unpack $ Var.name v
 
   renderTerm :: AT.AnnotatedDocument Color -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, AT.AnnotatedDocument Color)
   renderTerm s (v, _, typ) =
@@ -150,7 +153,7 @@ prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   renderDecl s (v, (_, decl)) = (v, mconcat
     [s, renderVar v, intercalateMap " " renderVar $ DD.bound decl])
   renderEffect :: AT.AnnotatedDocument Color -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, AT.AnnotatedDocument Color)
-  renderEffect s (v, (r, decl)) = renderDecl (s <> style Color.Green "ability ") (v, (r, DD.toDataDecl decl))
+  renderEffect s (v, (r, decl)) = renderDecl (s <> style AbilityKeyword "ability ") (v, (r, DD.toDataDecl decl))
 
 prettyTypecheckedFile
   :: forall v loc
