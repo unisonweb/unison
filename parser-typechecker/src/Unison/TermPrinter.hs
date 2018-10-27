@@ -1,4 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.TermPrinter where
 
@@ -10,19 +12,22 @@ import           Data.Maybe (fromMaybe)
 import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
+import           Unison.Lexer (symbolyId0)
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
 import           Unison.Term
 import qualified Unison.TypePrinter as TypePrinter
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
+--TODO let suppression, missing features
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
---TODO more testing of line-breaking behaviour
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
@@ -40,11 +45,16 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 
    The pretty-printer uses the following rules for printing terms.
 
+     >=11
+       ! 11x
+       ' 11x
+
      >=10
        10f 10x 10y ...
 
      >=3
        x -> 2y
+       10x + 10y + ... 10z
 
      >=2
        if 2a then 2b else 2c
@@ -77,7 +87,7 @@ pretty :: Var v => (Reference -> Maybe Int -> Text) -> Int -> AnnotatedTerm v a 
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
-pretty n p term = case term of
+pretty n p term = specialCases term $ \case
   Var' v       -> l $ Text.unpack (Var.name v)
   Ref' r       -> l $ Text.unpack (n r Nothing)
   Ann' tm t    -> let n' r = n r Nothing in
@@ -99,7 +109,8 @@ pretty n p term = case term of
   Handle' h body -> parenNest (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  Apps' f args -> parenNest (p >= 10) $ pretty n 10 f <> appArgs args
+  App' x (Constructor' (Reference.Builtin "()") 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
+  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
   Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
                     (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
@@ -107,49 +118,75 @@ pretty n p term = case term of
                      PP.Group (l"else" <> b" " <> pretty n 2 f))
   And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
   Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  LamsNamed' vs body -> parenNest (p >= 3) $
-                          varList vs <> l" ->" <> b" " <>
-                          (PP.Nest "  " $ PP.Group $ pretty n 2 body)
   LetRecNamed' bs e -> printLet bs e
-  Lets' bs e ->   printLet' bs e
+  Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> parenNest (p >= 2) $
-                               l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of" <>
-                               (PP.Nest "  " $ PP.Group $ b" " <> fold (intersperse (b"; ") (map printCase branches)))
+                               PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
+                               (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
-  where sepList sep xs = sepList' (pretty n 0) sep xs
+  where specialCases term go =
+          case (term, binaryOpsPred) of
+            BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
+            _ -> case (term, nonForcePred) of
+              AppsPred' f args -> parenNest (p >= 10) $
+                pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
+              _ -> case (term, nonUnitArgPred) of
+                LamsNamedPred' vs body -> parenNest (p >= 3) $
+                                            varList vs <> l" ->" <> b" " <>
+                                            (PP.Nest "  " $ PP.Group $ pretty n 2 body)
+                _ -> go term
+
+        sepList sep xs = sepList' (pretty n 0) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
         varList vs = sepList' (\v -> l $ Text.unpack (Var.name v)) (b" ") vs
         commaList = sepList (l"," <> b" ")
 
-        appArgs (x : xs) = b" " <> pretty n 10 x <> appArgs xs
-        appArgs [] = Empty
-
-        -- TODO let requires layout.  Here we are manually controlling
-        --      line breaking instead of leaving it to PrettyPrint rendering.
-        --      Would it be better for PrettyPrint to expose a non-optional line breaking
-        --      primitive?
-        --      Or maybe the parser should accept let {a = foo; bar} so that there's always
-        --      a layout-free option for any term.  (But then we'd want to suppress the
-        --      { } when breaking lines, so would still need a PrettyPrint API change.)
+        -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
+        -- These will replace the occurrences of b"; ".
         printLet bs e = parenNest (p >= 2) $
-                        l"let" <> l"\n  " <> lets bs <> pretty n 0 e <> l"\n"
-        printLet' bs e = parenNest (p >= 2) $
-                        l"let" <> l"\n  " <> lets' bs <> pretty n 0 e <> l"\n"
-        --TODO clean up this duplication
-        lets ((v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                     pretty n 1 binding <> b"\n  " <> lets rest
-        lets [] = Empty
-        lets' ((_, v, binding) : rest) = (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <>
-                                        pretty n 1 binding <> b"\n  " <> lets' rest
-        lets' [] = Empty
+                        PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $
+                          (mconcat (map printBinding bs)) <>
+                          PP.Group (pretty n 0 e))
+                        where
+                          printBinding (v, binding) = PP.Group (
+                            (l $ Text.unpack (Var.name v)) <> b" " <> l"=" <> b" " <> PP.Nest "  "
+                              (PP.Group (pretty n 1 binding))) <> b"; "
 
-        printCase (MatchCase pat guard (AbsN' vs body)) =
-          (fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->" <> b" " <>
-          (PP.Nest "  " $ PP.Group $ pretty n 0 body)
+        printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
+          PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
+          (PP.Nest "  " $ PP.Group $ pretty n 0 body) where
+            printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
+            printGuard Nothing = Empty
         printCase _ = l"error"
 
-        printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
-        printGuard Nothing = Empty
+        -- This predicate controls which binary functions we render as infix operators.
+        -- At the moment the policy is just to render symbolic operators as infix - not 'wordy'
+        -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".
+        binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
+        binaryOpsPred = \case
+          Ref' r | isSymbolic (n r Nothing) -> True
+          Var' v | isSymbolic (Var.name v)  -> True
+          _                                 -> False
+
+        nonForcePred :: AnnotatedTerm v a -> Bool
+        nonForcePred = \case
+          Constructor' (Reference.Builtin "()") 0 -> False
+          _                                       -> True
+
+        nonUnitArgPred :: Var v => v -> Bool
+        nonUnitArgPred v = (Var.name v) /= "()"
+
+        -- When we use imports in rendering, this will need revisiting, so that we can render
+        -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
+        isSymbolic name = case symbolyId0 $ Text.unpack $ name of Right _ -> True; _ -> False
+
+        -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
+        -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing "a1 `f1` a2 `f2`".  Except
+        -- the operators are all symbolic, so we won't produce any backticks.
+        -- We build the result out from the right, starting at `f2`.
+        binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
+        binaryApps xs = foldr (flip (<>)) mempty (map r xs)
+                        where r (a, f) = pretty n 10 a <> b" " <> pretty n 10 f <> b" "
 
 pretty' :: Var v => (Reference -> Maybe Int -> Text) -> AnnotatedTerm v a -> String
 pretty' n t = PP.renderUnbroken $ pretty n (-1) t
@@ -174,7 +211,7 @@ prettyPattern n p vs patt = case patt of
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let (pats_printed, tail_vs) = patterns vs pats
                                                (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-                                           in (l"{" <> (PP.Nest "  " $ PP.Group $ b" " <>
+                                           in (l"{" <> b"" <> (PP.Nest "  " $ PP.Group $ b" " <>
                                                l (Text.unpack (n ref (Just i))) <> pats_printed <> b" " <> l"->" <> b" " <>
                                                k_pat_printed <> b" ") <> l"}", eventual_tail)
   t                   -> (l"error: " <> l (show t), vs)
@@ -189,8 +226,7 @@ paren True s = PP.Group $ l"(" <> s <> l")"
 paren False s = PP.Group s
 
 parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
--- TODO fix line breaking tests
-parenNest useParen contents = {-PP.Nest "  " $ -} paren useParen contents
+parenNest useParen contents = PP.Nest "  " $ paren useParen contents
 
 l :: String -> PrettyPrint String
 l = Literal
