@@ -35,6 +35,14 @@ instance Monoid PrettyPrintEnv where
       (\r i -> Map.unionWith (+) (patterns e1 r i) (patterns e2 r i))
       (\r -> Map.unionWith (+) (types e1 r) (types e2 r))
 
+withConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
+withConstructorNames ctors = let
+  m = Map.fromList ctors
+  toH Nothing = mempty
+  toH (Just t) = Map.fromList [(t, 1)]
+  in mempty { constructors = \r i -> toH $ Map.lookup (r,i) m
+            , patterns = \r i -> toH $ Map.lookup (r,i) m }
+
 -- These functions pick out the most common name and fall back
 -- to showing the `Reference` if no names are available
 

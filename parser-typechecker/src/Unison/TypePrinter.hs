@@ -5,30 +5,31 @@
 
 module Unison.TypePrinter where
 
-import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Maybe (isJust)
-import           Unison.Reference (Reference, pattern Builtin)
+import           Unison.Reference (pattern Builtin)
 import           Unison.Type
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Util.PrettyPrint as PP
 import           Unison.Util.PrettyPrint (PrettyPrint(..))
+import           Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
-pretty :: Var v => (Reference -> Text) -> Int -> AnnotatedType v a -> PrettyPrint String
+pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> PrettyPrint String
 -- p is the operator precedence of the enclosing context (a number from 0 to 11, or
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
 pretty n p tp = case tp of
   Var' v       -> l $ Text.unpack (Var.name v)
-  Ref' r       -> l $ Text.unpack (n r)
+  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.typeName n r)
   Cycle' _ _   -> l $ "error" -- TypeParser does not currently emit Cycle
   Abs' _       -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _     -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x -> PP.Group $ l"[" <> pretty n 0 x <> l"]"
   Tuple' [x]   -> parenNest (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
   Tuple' xs    -> parenNest True $ commaList xs
-  Apps' f xs   -> parenNoGroup (p >= 10) $ pretty n 9 f <> 
+  Apps' f xs   -> parenNoGroup (p >= 10) $ pretty n 9 f <>
                     (PP.Nest "  " $ PP.Group (mconcat $ map (\x -> b" " <> pretty n 10 x) xs))
   Effect1' e t -> parenNest (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
   Effects' es  -> effects (Just es)
@@ -40,7 +41,7 @@ pretty n p tp = case tp of
   EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
   EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error"
-  where commaList xs = intercalateMap (l"," <> b" ") (pretty n 0) xs  
+  where commaList xs = intercalateMap (l"," <> b" ") (pretty n 0) xs
         effects Nothing = Empty
         effects (Just es) = PP.Group $ l"{" <> commaList es <> l"}"
         arrow delay first mes = (if first then Empty else b" " <> l"->" ) <>
@@ -74,6 +75,6 @@ pretty n p tp = case tp of
 
         b = Breakable
 
-pretty' :: Var v => Maybe Int -> (Reference -> Text) -> AnnotatedType v a -> String
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
 pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
