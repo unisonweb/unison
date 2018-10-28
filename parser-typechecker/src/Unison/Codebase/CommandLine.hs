@@ -40,9 +40,9 @@ import           Unison.FileParsers           (parseAndSynthesizeFile)
 import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import qualified Unison.PrintError            as PrintError
-import           Unison.PrintError            (parseErrorToAnsiString,
+import           Unison.PrintError            (prettyParseError,
                                                prettyTypecheckedFile,
-                                               printNoteWithSourceAsAnsi)
+                                               renderNoteAsANSI)
 import           Unison.Result                (Result (Result))
 import qualified Unison.Result                as Result
 import qualified Unison.Typechecker.Context   as C
@@ -131,7 +131,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
           Console.setTitle "Unison \128721"
           forM_ notes $ \case
             Result.Parsing err -> do
-              putStrLn $ parseErrorToAnsiString (unpack src) err
+              print . Color.renderText $ prettyParseError (unpack src) err
               clearLastTypechecked
             err ->
               error $"I was expecting a parsing error here but got:\n" ++ show err
@@ -140,7 +140,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
           Nothing -> do -- typechecking failed
             Console.setTitle "Unison \128721"
             let showNote notes = intercalateMap
-                  "\n\n" (printNoteWithSourceAsAnsi errorEnv (unpack src)) (filter notInfo notes)
+                  "\n\n" (show . renderNoteAsANSI errorEnv (unpack src)) (filter notInfo notes)
                 notInfo (Result.TypeInfo _) = False
                 notInfo _                   = True
             putStrLn . showNote . toList $ notes
@@ -155,7 +155,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
                                               (UF.effectDeclarations unisonFile)
                                               components
             writeIORef lastTypechecked (Just filePath, uf, errorEnv)
-            putStrLn . show . Color.renderDocANSI 6 $
+            putStrLn . show . Color.renderText $
               prettyTypecheckedFile uf errorEnv
             putStrLn ""
             putStrLn "👀  Now evaluating any watch expressions (lines starting with `>`) ..."
@@ -218,7 +218,7 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
             let hashedTerms = UF.hashTerms typecheckedFile
             putStrLn $ "Adding the following definitions:"
             putStrLn ""
-            putStrLn . show $ Color.renderDocANSI 5 (prettyTypecheckedFile typecheckedFile env)
+            putStrLn . show $ Color.renderText (prettyTypecheckedFile typecheckedFile env)
             putStrLn ""
             let allTypeDecls = (second (Left . fmap toA) <$> UF.effectDeclarations' typecheckedFile) `Map.union`
                                (second (Right . fmap toA) <$> UF.dataDeclarations' typecheckedFile)

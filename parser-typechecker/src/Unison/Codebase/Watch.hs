@@ -23,14 +23,13 @@ import           System.FSNotify         (Event (Added, Modified), watchTree,
 import qualified Unison.FileParsers      as FileParsers
 import qualified Unison.Parser           as Parser
 import qualified Unison.Parsers          as Parsers
--- import           Unison.Util.AnnotatedText (renderTextUnstyled)
 import           Control.Exception       (finally)
 import           System.Random           (randomIO)
 import           Unison.Codebase         (Codebase)
 import           Unison.Codebase.Runtime (Runtime (..))
 import qualified Unison.Codebase.Runtime as RT
-import           Unison.PrintError       (parseErrorToAnsiString,
-                                          printNoteWithSourceAsAnsi)
+import           Unison.PrintError       (renderParseErrorAsANSI,
+                                          renderNoteAsANSI)
 import           Unison.Result           (Result (Result))
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue      (TQueue)
@@ -112,12 +111,12 @@ watcher initialFile dir runtime codebase = do
         case parseResult of
           Left parseError -> do
             Console.setTitle "Unison \128721"
-            putStrLn $ parseErrorToAnsiString source parseError
+            print $ renderParseErrorAsANSI source parseError
           Right (env0, parsedUnisonFile) -> do
             let (Result notes' r) =
                               FileParsers.synthesizeUnisonFile parsedUnisonFile
                 showNote notes =
-                  intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
+                  intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
             putStrLn . showNote . toList $ notes'
             case r of
               Nothing -> do

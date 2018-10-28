@@ -11,7 +11,7 @@ import           System.Exit        (exitFailure)
 import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser      as Parser
 import qualified Unison.Parsers     as Parsers
-import           Unison.PrintError  (printNoteWithSourceAsAnsi, renderType')
+import           Unison.PrintError  (renderNoteAsANSI, renderType')
 import           Unison.Result      (Result (Result))
 import qualified Unison.Result      as Result
 import           Unison.Symbol      (Symbol)
@@ -38,6 +38,6 @@ main = do
             traverse_ (flip BS.writeFile bs) outputFile
           showNote :: [Result.Note Symbol Parser.Ann] -> String
           showNote notes =
-            intercalateMap "\n\n" (printNoteWithSourceAsAnsi env0 source) notes
+            intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
       putStrLn . showNote . toList $ notes'
       maybe exitFailure f r
