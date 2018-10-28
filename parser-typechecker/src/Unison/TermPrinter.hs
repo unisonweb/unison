@@ -127,6 +127,8 @@ pretty n p term = specialCases term $ \case
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
+            (Tuple' [x], _) -> parenNest (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
+            (Tuple' xs, _)  -> parenNest True $ commaList xs
             BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
             _ -> case (term, nonForcePred) of
               AppsPred' f args -> parenNest (p >= 10) $

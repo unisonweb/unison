@@ -149,15 +149,10 @@ unForalls t = go t []
         go body vs = Just(reverse vs, body)
 
 unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-unTuple t = (case t of
-    (Apps' (Ref' (Reference.Builtin "Pair")) [_,_]) -> id
-    (Ref' (Reference.Builtin "()")) -> id
-    _ -> const Nothing) $
-    go t
-    where go :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-          go (Apps' (Ref' (Reference.Builtin "Pair")) (t:t':[])) = (t:) <$> go t'
-          go (Ref' (Reference.Builtin "()")) = Just []
-          go _ = Nothing
+unTuple t = case t of 
+  Apps' (Ref' (Reference.Builtin "Pair")) [fst, snd] -> (fst :) <$> unTuple snd
+  Ref' (Reference.Builtin "()") -> Just []
+  _ -> Nothing
 
 unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)

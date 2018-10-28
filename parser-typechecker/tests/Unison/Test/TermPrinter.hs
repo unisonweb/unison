@@ -275,10 +275,17 @@ test = scope "termprinter" . tests $
   , tc "'(!foo)"
   , tc "x -> '(y -> 'z)"
   , tc "'(x -> '(y -> z))"
-  , pending $ tc "(\"a\", 2)"
-  , pending $ tc "(\"a\", 2, 2.0)"
-  , pending $ tc_diff "(2)" $ "2"
-  , pending $ tc "Pair 2 ()"  -- unary tuple
+  , tc "(\"a\", 2)"
+  , tc "(\"a\", 2, 2.0)"
+  , tc_diff "(2)" $ "2"
+  , pending $ tc_diff "Pair \"2\" (Pair 2 ())" $ "(\"2\", 2)"  -- TODO parser produced
+                                                     --  Pair "2" (Pair 2 ()#0)
+                                                     -- instead of
+                                                     --  Pair#0 "2" (Pair#0 2 ()#0)
+                                                     -- Maybe because in this context the 
+                                                     -- parser can't distinguish between a constructor
+                                                     -- called 'Pair' and a function called 'Pair'.
+  , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
   , pending $ tc "case x of a + b -> foo"
   , pending $ tc "case x of (a, b) -> a"
   , pending $ tc "case x of [a, b] -> a"
