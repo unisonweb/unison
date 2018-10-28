@@ -46,6 +46,7 @@ import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
+import Unison.Symbol (Symbol)
 
 -- todo: add loc to MatchCase
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
@@ -604,6 +605,16 @@ betaReduce e = e
 
 hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
 hashComponents m = Reference.hashComponents (\r -> ref() r) m
+
+-- The hash for a constructor
+hashConstructor :: Reference -> Int -> Reference
+hashConstructor r cid = let
+  -- this is a bit circuitous, but defining everything in terms of hashComponents
+  -- ensure the hashing is always done in the same way
+  m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, constructor() r cid)])
+  in case toList m of
+    [(r,_)] -> r
+    _ -> error "unpossible"
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

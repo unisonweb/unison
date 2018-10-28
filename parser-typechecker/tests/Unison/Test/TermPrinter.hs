@@ -1,3 +1,5 @@
+{-# Language OverloadedStrings #-}
+
 module Unison.Test.TermPrinter where
 
 import EasyTest
@@ -9,8 +11,15 @@ import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import Unison.Reference
 import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import qualified Unison.Reference as R
+
+get_names :: PrettyPrintEnv.PrettyPrintEnv
+get_names = PrettyPrintEnv.withConstructorNames [
+  ((R.Builtin "()", 0), "()"),
+  ((R.Builtin "Pair", 0), "Pair")
+ ]
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -20,10 +29,6 @@ import qualified Unison.Util.PrettyPrint as PP
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       get_names x _ = case x of
-                         Builtin t -> t
-                         Derived _ _ _ -> Text.empty
-                         _ -> error "impossible"
        prettied = pretty get_names (-1) input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
@@ -69,10 +74,6 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       get_names x _ = case x of
-                         Builtin t -> t
-                         Derived _ _ _ -> Text.empty
-                         _ -> error "impossible"
        prettied = prettyBinding get_names var_v (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
@@ -293,11 +294,11 @@ test = scope "termprinter" . tests $
   , pending $ tc "case x of [] -> a"
   , tc_binding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
-  , tc_binding 50 "foo" Nothing "3" "foo = 3"                               
+  , tc_binding 50 "foo" Nothing "3" "foo = 3"
   , tc_binding 50 "foo" (Just "Int -> Int") "n -> 3" "foo : Int -> Int\n\
                                                      \foo n = 3"
-  , tc_binding 50 "foo" Nothing "n -> 3" "foo n = 3"          
-  , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"          
+  , tc_binding 50 "foo" Nothing "n -> 3" "foo n = 3"
+  , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"
   , tc_binding 9 "foo" Nothing "n m -> 3" "foo n m =\n\
-                                          \  3"          
+                                          \  3"
   ]

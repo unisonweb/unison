@@ -39,3 +39,4 @@ data Err = InvalidBranchFile FilePath String deriving Show
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
+

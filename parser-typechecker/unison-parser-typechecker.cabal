@@ -66,6 +66,7 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.PrettyPrint
+    Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
     Unison.Result

@@ -12,7 +12,7 @@ import qualified Text.Megaparsec as P
 import           Text.RawString.QQ
 import           Unison.Parser
 import qualified Unison.Parsers as Ps
-import           Unison.PrintError (parseErrorToAnsiString)
+import           Unison.PrintError (renderParseErrorAsANSI)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
@@ -189,6 +189,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
-      note $ parseErrorToAnsiString s e
-      crash $ parseErrorToAnsiString s e
+      note . show $ renderParseErrorAsANSI s e
+      crash . show $ renderParseErrorAsANSI s e
     Right _ -> ok
