@@ -12,11 +12,6 @@ import           Unison.Reference       (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Term            as Term
 import qualified Unison.Type            as Type
-import qualified Data.Set as Set
-import qualified Data.Map as Map
-import qualified Unison.Codebase.Branch as Branch
-import Data.Map (Map)
-import Data.Text (Text)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -41,28 +36,6 @@ data Codebase m v a =
            }
 
 data Err = InvalidBranchFile FilePath String deriving Show
-
-data PrettyPrintEnv = PrettyPrintEnv (Reference -> Maybe Int -> Map Text Int)
-
-instance Semigroup PrettyPrintEnv where (<>) = mappend
-
-instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (\_ _ -> mempty)
-  mappend (PrettyPrintEnv e1) (PrettyPrintEnv e2) =
-    PrettyPrintEnv (\r i -> e1 r i <> e2 r i)
-
-prettyPrintEnv1 :: Branch -> PrettyPrintEnv
-prettyPrintEnv1 b = PrettyPrintEnv go where
-  go r (Just cid) = multiset $
-    Branch.namesForPattern r cid b `Set.union`
-    Branch.namesForTerm (Term.hashConstructor r cid) b
-  go r Nothing = multiset $
-    Branch.namesForTerm r b `Set.union`
-    Branch.namesForType r b
-  multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
-
-prettyPrintEnv :: [Branch] -> PrettyPrintEnv
-prettyPrintEnv = foldMap prettyPrintEnv1
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase

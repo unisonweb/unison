@@ -38,6 +38,7 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 import Unison.Var (Var)
+import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
 --import Data.Semigroup (sconcat)
 --import Data.List.NonEmpty (nonEmpty)
 
@@ -158,6 +159,17 @@ namesForType ref = lookupRan ref . typeNamespace . Causal.head . unbranch
 
 namesForPattern :: Reference -> Int -> Branch -> Set Name
 namesForPattern ref cid = lookupRan (ref,cid) . patternNamespace . Causal.head . unbranch
+
+prettyPrintEnv1 :: Branch -> PrettyPrintEnv
+prettyPrintEnv1 b = PrettyPrintEnv terms ctors patterns types where
+  terms r = multiset $ namesForTerm r b
+  ctors r cid = multiset $ namesForTerm (Term.hashConstructor r cid) b
+  patterns r cid = multiset $ namesForPattern r cid b
+  types r = multiset $ namesForType r b
+  multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
+
+prettyPrintEnv :: [Branch] -> PrettyPrintEnv
+prettyPrintEnv = foldMap prettyPrintEnv1
 
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
