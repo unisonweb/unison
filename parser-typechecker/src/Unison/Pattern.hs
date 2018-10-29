@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms #-}
+{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms, ViewPatterns, OverloadedStrings #-}
 
 module Unison.Pattern where
 
@@ -8,6 +8,7 @@ import Data.Word (Word64)
 import Data.Foldable as Foldable
 import GHC.Generics
 import Unison.Reference (Reference)
+import qualified Unison.Reference as Reference
 import qualified Unison.Hashable as H
 
 type Pattern = PatternP ()
@@ -76,6 +77,13 @@ pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
 pattern EffectBind r cid ps k = EffectBindP () r cid ps k
+pattern Tuple ps <- (unTuple -> Just ps)
+
+unTuple :: PatternP loc -> Maybe [PatternP loc]
+unTuple p = case p of 
+  ConstructorP _ (Reference.Builtin "Pair") 0 [fst, snd] -> (fst : ) <$> unTuple snd
+  ConstructorP _ (Reference.Builtin "()") 0 [] -> Just []
+  _ -> Nothing
 
 instance H.Hashable (PatternP p) where
   tokens (UnboundP _) = [H.Tag 0]

@@ -154,8 +154,8 @@ test = scope "termprinter" . tests $
   , tc "case x of 3.14159 -> foo"
   , tc "case x of true -> foo"
   , tc "case x of false -> foo"
-  , tc "case x of y@(()) -> y"           -- TODO lose the brackets for `As (unary constructor)`
-  , tc "case x of a@(b@(c@(()))) -> c"
+  , tc "case x of y@() -> y"
+  , tc "case x of a@(b@(c@())) -> c"
   , tc "case e of { a } -> z"
   --, tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                       -- need an actual effect constructor to test this with
@@ -287,8 +287,8 @@ test = scope "termprinter" . tests $
                                                      -- parser can't distinguish between a constructor
                                                      -- called 'Pair' and a function called 'Pair'.
   , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
-  , pending $ tc "case x of a + b -> foo"
-  , pending $ tc "case x of (a, b) -> a"
+  , tc "case x of (a, b) -> a"
+  , tc "case x of () -> foo"
   , pending $ tc "case x of [a, b] -> a"
   , pending $ tc "case x of [a] -> a"
   , pending $ tc "case x of [] -> a"

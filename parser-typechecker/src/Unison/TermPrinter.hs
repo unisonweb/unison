@@ -205,8 +205,14 @@ prettyPattern n p vs patt = case patt of
   Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
   Pattern.Nat _ u     -> (l $ show u, vs)
   Pattern.Float _ f   -> (l $ show f, vs)
-  Pattern.Constructor _ ref i pats -> let
+  Pattern.Tuple [pp]   -> let 
+    (printed, tail_vs) = prettyPattern n 10 vs pp
+    in (parenNest (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
+  Pattern.Tuple pats  -> let 
     (pats_printed, tail_vs) = patterns vs pats
+    in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
+  Pattern.Constructor _ ref i pats -> let
+    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
     in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.constructorName n ref i)) <> pats_printed, tail_vs)
   Pattern.As _ pat    -> let (v : tail_vs) = vs
                              (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
@@ -214,7 +220,7 @@ prettyPattern n p vs patt = case patt of
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let
-    (pats_printed, tail_vs) = patterns vs pats
+    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
     (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
     in (l"{" <> b"" <> (PP.Nest "  " $ PP.Group $ b" " <>
        l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed <> b" " <> l"->" <> b" " <>
@@ -223,8 +229,10 @@ prettyPattern n p vs patt = case patt of
   where l = Literal
         patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 10 vs pat
                                        (rest_printed, eventual_tail) = patterns tail_vs pats
-                                   in (b" " <> printed <> rest_printed, eventual_tail)
-        patterns vs [] = (Empty, vs)
+                                   in (printed : rest_printed, eventual_tail)
+        patterns vs [] = ([], vs)
+        patternsSep sep vs pats = case patterns vs pats of
+          (printed, tail_vs) -> (foldMap (\x -> sep <> x) printed, tail_vs)
 
 {- Render a binding, producing output of the form
 
