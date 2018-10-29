@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase where
@@ -9,12 +10,13 @@ import Control.Monad (forM)
 import Data.Foldable (toList)
 import Data.Maybe (catMaybes)
 import Data.List
+import qualified Data.Map as Map
+import qualified Data.Relation as R
 import           Data.Set               (Set)
 import qualified Data.Text as Text
 import Text.EditDistance (defaultEditCosts, levenshteinDistance)
-import           Unison.Codebase.Branch (Branch)
+import           Unison.Codebase.Branch (Branch,Branch0(..))
 import qualified Unison.Codebase.Branch as Branch
-import           Unison.Codebase.Name   (Name)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.PrettyPrintEnv  as PPE
 import           Unison.Reference       (Reference)
@@ -28,6 +30,7 @@ import           Unison.Util.AnnotatedText (AnnotatedText)
 import           Unison.Util.ColorText     (Color)
 import qualified Unison.Var             as Var
 import qualified Unison.ABT             as ABT
+import Unison.Names (Names(..), Name)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -115,9 +118,13 @@ sortedApproximateMatches q possible = sortOn score matches where
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
 
-branchToNames :: Codebase m v a -> Branch -> m (Names v a)
-branchToNames b = case head b of
-    Branch0 {..} ->
-      let terms = Map.fromList $ toList termNamespace
-      Names terms patterns types
-
+branchToNames :: (Ord v, Monad m) => Codebase m v a -> Branch -> m (Names v a)
+branchToNames code b = case Branch.head b of
+  Branch0 {..} -> do
+    let termRefs = Map.fromList $ R.toList termNamespace
+        patterns = Map.fromList $ R.toList patternNamespace
+        types = Map.fromList $ R.toList typeNamespace
+    terms <- fmap Map.fromList . forM (Map.toList termRefs) $ \(name, ref) -> do
+      Just typ <- getTypeOfTerm code ref
+      pure (name, (Term.ref (ABT.annotation typ) ref, typ))
+    pure $ Names terms patterns types

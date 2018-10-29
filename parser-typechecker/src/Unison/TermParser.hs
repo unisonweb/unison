@@ -36,6 +36,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Names as Names
 
 import Debug.Trace
 
@@ -132,7 +133,7 @@ parsePattern = constructor <|> leaf
     (name, leaves) <- P.try effectBind0
     (cont, vsp) <- parsePattern
     env <- ask
-    (ref,cid) <- case Map.lookup (L.payload name) (constructorLookup env) of
+    (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownEffectConstructor name
     pure $ case unzip leaves of
@@ -154,7 +155,7 @@ parsePattern = constructor <|> leaf
     t <- ctorName
     let name = L.payload t
     env <- ask
-    case Map.lookup name (constructorLookup env) of
+    case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
           go pairs = case unzip pairs of
@@ -365,14 +366,14 @@ block' isTop s openBlock closeBlock = do
     let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
-    env <- importing imports <$> ask
+    env <- Names.importing imports <$> ask
     statements <- local (const env) $ sepBy semi statement
     _ <- closeBlock
     let
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
       substImports tm =
         ABT.substsInheritAnnotation importTerms .
-        Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
+        Term.typeMap (Names.bindBuiltinTypes env) $ tm
     substImports <$> go open statements
   where
     statement = namespaceBlock <|> do

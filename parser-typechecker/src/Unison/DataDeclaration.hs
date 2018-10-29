@@ -23,6 +23,8 @@ import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import Data.Text (Text)
 import qualified Unison.Var as Var
+import Unison.Names (Names)
+import Unison.Names as Names
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -41,9 +43,13 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
-bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
-bindBuiltins typeEnv (DataDeclaration a bound constructors) =
-  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
+bindBuiltins :: Var v => Names v x -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins names (DataDeclaration a bound constructors) =
+  DataDeclaration a bound (third (Names.bindBuiltinTypes names) <$> constructors)
+
+--bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
+--bindBuiltins typeEnv (DataDeclaration a bound constructors) =
+--  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
 
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
@@ -164,10 +170,10 @@ hashDecls
   -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls =
   let varToRef = hashDecls0 (void <$> decls)
-      decls'   = bindDecls decls varToRef
+      decls'   = bindDecls decls (Names.fromTypeNamesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
-bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
+bindDecls :: Var v => Map v (DataDeclaration' v a) -> Names v x -> Map v (DataDeclaration' v a)
 bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls where
   -- normalize the order of the constructors based on a hash of their types
   sortCtors dd = DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)

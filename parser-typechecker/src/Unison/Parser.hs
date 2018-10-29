@@ -29,6 +29,7 @@ import           Unison.Term          (MatchCase (..))
 import qualified Unison.UnisonFile    as UnisonFile
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
+import Unison.Names (Names)
 
 debug :: Bool
 debug = False
@@ -36,21 +37,6 @@ debug = False
 data PEnv v =
   PEnv { constructorLookup :: UnisonFile.CtorLookup
        , typesByName       :: Map v Reference }
-
--- Given a mapping from name to qualified name, update a `PEnv`,
--- so for instance if the input has [(Some, Optional.Some)],
--- and `Optional.Some` is a constructor in the input `PEnv`,
--- the alias `Some` will map to that same constructor
-importing :: Var v => [(v,v)] -> PEnv v -> PEnv v
-importing shortToLongName (PEnv ctors types) = let
-  vs v = Text.unpack $ Var.name v
-  go :: Ord k => Map k v -> (k, k) -> Map k v
-  go m (qname, shortname) = case Map.lookup qname m of
-    Nothing -> m
-    Just v  -> Map.insert shortname v m
-  ctors' = foldl go ctors [ (vs qn, vs n) | (n, qn) <- shortToLongName ]
-  types' = foldl go types shortToLongName
-  in PEnv ctors' types'
 
 instance Ord v => Semigroup (PEnv v) where
   (<>) = mappend
@@ -61,7 +47,7 @@ instance Ord v => Monoid (PEnv v) where
   mappend (PEnv x y) (PEnv x2 y2) = PEnv (x2 `mappend` x) (y2 `mappend` y)
   mempty = penv0
 
-type P v = P.ParsecT (Error v) Input ((->) (PEnv v))
+type P v = P.ParsecT (Error v) Input ((->) (Names v Ann))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
@@ -188,7 +174,7 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> PEnv v -> Either (Err v) a
+run' :: Var v => P v a -> String -> String -> Names v Ann -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
@@ -196,7 +182,7 @@ run' p s name =
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex) -- todo: L.reorder
 
-run :: Var v => P v a -> String -> PEnv v -> Either (Err v) a
+run :: Var v => P v a -> String -> Names v Ann -> Either (Err v) a
 run p s = run' p s ""
 
 penv0 :: PEnv v

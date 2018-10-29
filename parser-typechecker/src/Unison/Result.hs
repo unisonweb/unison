@@ -13,7 +13,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer (Writer, runWriter, MonadWriter(..))
 import           Data.Maybe
 import           Data.Sequence ( Seq )
-import           Unison.Codebase.Name (Name)
+import           Unison.Names (Name)
 import qualified Unison.Parser as Parser
 import           Unison.Paths ( Path )
 import           Unison.Term ( AnnotatedTerm )

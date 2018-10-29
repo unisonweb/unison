@@ -9,7 +9,7 @@ import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
-import           Unison.Codebase.Name (Name)
+import           Unison.Names (Name)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser

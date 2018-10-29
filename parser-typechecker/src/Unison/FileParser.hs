@@ -30,13 +30,13 @@ import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Names (Names)
 -- import Debug.Trace
 
 file :: forall v . Var v
-     => [(v, AnnotatedTerm v Ann)]
-     -> [(v, Reference)]
+     => Names v Ann
      -> P v (PrintError.Env, UnisonFile v Ann)
-file builtinTerms builtinTypes = do
+file names = do
   _ <- openBlock
   (dataDecls, effectDecls) <- declarations
   let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls

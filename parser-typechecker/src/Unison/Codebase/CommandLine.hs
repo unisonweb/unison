@@ -32,7 +32,7 @@ import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
 import           Unison.Codebase.Branch       (Branch)
 import qualified Unison.Codebase.Branch       as Branch
-import           Unison.Codebase.Name         (Name)
+import           Unison.Names                 (Name)
 import           Unison.Codebase.Runtime      (Runtime)
 import qualified Unison.Codebase.Runtime      as RT
 import qualified Unison.Codebase.Watch        as Watch

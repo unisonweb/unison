@@ -20,6 +20,8 @@ import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Names (Names)
+import qualified Unison.Names as Names
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations :: Map v (Reference, DataDeclaration' v a),
@@ -74,31 +76,22 @@ hashTerms file = let
 type CtorLookup = Map String (Reference, Int)
 
 bindBuiltins :: Var v
-             => [(v, AnnotatedTerm v a)]
-             -> [(v, Reference)]
+             => Names v a
              -> UnisonFile v a
              -> UnisonFile v a
-bindBuiltins termBuiltins typeBuiltins (UnisonFile d e t) =
+bindBuiltins names (UnisonFile d e t) =
   UnisonFile
-    (second (DD.bindBuiltins typeBuiltins) <$> d)
-    (second (withEffectDecl (DD.bindBuiltins typeBuiltins)) <$> e)
-    (Term.bindBuiltins termBuiltins typeBuiltins t)
+    (second (DD.bindBuiltins names) <$> d)
+    (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
+    (Names.bindBuiltinTerms names t)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
   { datas   :: Map v (Reference, DataDeclaration' v a)
   -- Effect declaration name to hash and its fully resolved form
   , effects :: Map v (Reference, EffectDeclaration' v a)
-  -- Substitutes away any free variables bound by `datas` or `effects`
-  --   (for instance, free type variables or free term variables that
-  --    reference constructors of `datas` or `effects`)
-  , resolveTerm :: AnnotatedTerm v a -> AnnotatedTerm v a
-  -- All known types mapped to their hash, indexed by name
-  , typesByName :: Map v Reference
-  -- `String` to `(Reference, ConstructorId)`
-  , constructorLookup :: CtorLookup
-  -- All variables declarated in this environment
-  , locallyBound :: Set v
+  -- Naming environment
+  , names :: Names v a
 }
 
 -- This function computes hashes for data and effect declarations, and
@@ -110,31 +103,29 @@ data Env v a = Env
 environmentFor
   :: forall v a
    . Var v
-  => [(v, AnnotatedTerm v a)]
-  -> [(v, Reference)]
+  => Names v a
   -> Map v (DataDeclaration' v a)
   -> Map v (EffectDeclaration' v a)
   -> Env v a
-environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
+environmentFor names0 dataDecls0 effectDecls0 =
   let -- ignore builtin types that will be shadowed by user-defined data/effects
-    typeBuiltins =
-      [ (v, t)
-      | (v, t) <- typeBuiltins0
-      , Map.notMember v dataDecls0 && Map.notMember v effectDecls0
-      ]
+    unshadowed n = let
+      v = Var.named n
+      in Map.notMember v dataDecls0 && Map.notMember v effectDecls0
+    names = Names.filterTypes unshadowed names0
     dataDecls :: Map v (DataDeclaration' v a)
-    dataDecls = DD.bindBuiltins typeBuiltins <$> dataDecls0
+    dataDecls = DD.bindBuiltins names <$> dataDecls0
     effectDecls :: Map v (EffectDeclaration' v a)
     effectDecls =
-      withEffectDecl (DD.bindBuiltins typeBuiltins) <$> effectDecls0
+      withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
     hashDecls' :: [(v, Reference, DataDeclaration' v a)]
     hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
     dataDecls' = Map.difference allDecls effectDecls
     effectDecls' =
       second EffectDeclaration <$> Map.difference allDecls dataDecls
-    typeEnv :: [(v, Reference)]
-    typeEnv =
+    typeEnv :: forall x . Names v x
+    typeEnv = Names.fromTypeNamesV $
       Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
     dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
     effectDecls'' =
@@ -156,20 +147,22 @@ environmentFor termBuiltins typeBuiltins0 dataDecls0 effectDecls0 =
         $           (fst <$> dataDecls'')
         `Map.union` (fst <$> effectDecls'')
     ctorLookup = Map.fromList (constructors' =<< hashDecls')
+    -- todo: form names' from types, ctors, and terms
   in
     Env
       dataDecls''
       effectDecls''
-      ( Term.typeDirectedResolve
-      . Term.bindBuiltins termBuiltins []
-      . Term.bindBuiltins dataAndEffectCtors typesByName
-      )
-      (Map.fromList $ typeBuiltins ++ typesByName)
-      ctorLookup
-      (  Set.fromList
-      $  (fst <$> termBuiltins)
-      ++ (fst <$> dataAndEffectCtors)
-      )
+      names'
+      -- ( Term.typeDirectedResolve
+      -- . Term.bindBuiltins termBuiltins []
+      -- . Term.bindBuiltins dataAndEffectCtors typesByName
+      -- )
+      -- (Map.fromList $ typeBuiltins ++ typesByName)
+      -- ctorLookup
+      -- (  Set.fromList
+      -- $  (fst <$> termBuiltins)
+      -- ++ (fst <$> dataAndEffectCtors)
+      -- )
 
 constructors'
   :: Var v

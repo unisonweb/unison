@@ -17,6 +17,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile)
 import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
+import Unison.Names (Names(..))
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
@@ -31,7 +32,9 @@ parseTerm s env = parse TermParser.term s env
 parseType :: Var v => String -> PEnv v -> Either (Parser.Err v) (AnnotatedType v Ann)
 parseType s = Parser.run (Parser.root TypeParser.valueType) s
 
-parseFile :: Var v => FilePath -> String -> PEnv v -> Either (Parser.Err v) (PrintError.Env, UnisonFile v Ann)
+parseFile :: Var v
+  => FilePath -> String -> Names v Ann
+  -> Either (Parser.Err v) (PrintError.Env, UnisonFile v Ann)
 parseFile filename s =
   Parser.run'
     (Parser.rootFile $ FileParser.file

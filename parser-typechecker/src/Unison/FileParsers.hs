@@ -21,7 +21,7 @@ import           Data.Maybe
 import           Data.Sequence (Seq)
 import           Data.Text (Text, unpack)
 import qualified Unison.Builtin as B
-import           Unison.Codebase.Name (Name)
+import           Unison.Names (Name)
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(Intrinsic), PEnv)
@@ -38,6 +38,7 @@ import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Names (Name, Names(..))
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -50,26 +51,25 @@ convertNotes (Typechecker.Notes es is) =
 
 parseAndSynthesizeFile
   :: Var v
-  => PEnv v
-  -> (Name -> Maybe (Term v))
+  => Names v Ann
   -> FilePath
   -> Text
   -> Result
        (Seq (Note v Ann))
        (PrintError.Env, Maybe (UnisonFile v))
-parseAndSynthesizeFile penv fqnLookup filePath src = do
+parseAndSynthesizeFile names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
-    $ Parsers.parseFile filePath (unpack src) penv
-  let (Result notes' r) = synthesizeUnisonFile fqnLookup parsedUnisonFile
+    $ Parsers.parseFile filePath (unpack src) names
+  let (Result notes' r) = synthesizeUnisonFile names parsedUnisonFile
   Result notes' $ Just (errorEnv, fst <$> r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => (Name -> Maybe (Term v))
+  => Names v Ann
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (Term v, Type v)
-synthesizeFile fqnLookup unisonFile
+synthesizeFile names unisonFile
   = let
       (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile

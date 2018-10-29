@@ -60,7 +60,7 @@ import           Data.Word (Word64)
 import           Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Codebase.Name (Name)
+import           Unison.Names (Name)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.PatternP (Pattern)
