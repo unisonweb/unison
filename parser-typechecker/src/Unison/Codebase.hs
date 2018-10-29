@@ -4,14 +4,30 @@
 
 module Unison.Codebase where
 
+import Data.String (fromString)
+import Control.Monad (forM)
+import Data.Foldable (toList)
+import Data.Maybe (catMaybes)
+import Data.List
 import           Data.Set               (Set)
+import qualified Data.Text as Text
+import Text.EditDistance (defaultEditCosts, levenshteinDistance)
 import           Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import           Unison.Codebase.Name   (Name)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.PrettyPrintEnv  as PPE
 import           Unison.Reference       (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Term            as Term
+import qualified Unison.TermPrinter     as TermPrinter
 import qualified Unison.Type            as Type
+import Unison.Util.PrettyPrint (PrettyPrint)
+import qualified Unison.Util.PrettyPrint as PP
+import           Unison.Util.AnnotatedText (AnnotatedText)
+import           Unison.Util.ColorText     (Color)
+import qualified Unison.Var             as Var
+import qualified Unison.ABT             as ABT
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -37,6 +53,64 @@ data Codebase m v a =
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
+prettyBinding :: (Var.Var v, Monad m)
+  => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (PrettyPrint String))
+prettyBinding _ _ (Reference.Builtin _) _ = pure Nothing
+prettyBinding cb name r0@(Reference.DerivedId r) b = go =<< getTerm cb r where
+  go Nothing = pure Nothing
+  go (Just tm) = let
+    -- We boost the `(r0,name)` association since if this is a recursive
+    -- fn whose body also mentions `r`, want name to be the same as the binding.
+    ppEnv = Branch.prettyPrintEnv [b] `mappend`
+            PPE.scale 10 (PPE.withTermNames [(r0, name)])
+    in case tm of
+      Term.Ann' _ _ -> pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
+      _ -> do
+        Just typ <- getTypeOfTerm cb r0
+        pure . Just $ TermPrinter.prettyBinding ppEnv
+          (Var.named name)
+          (Term.ann (ABT.annotation tm) tm typ)
+prettyBinding _ _ r _ = error $ "unpossible " ++ show r
+
+prettyBindings :: (Var.Var v, Monad m)
+  => Codebase m v a -> [(Name,Reference)] -> Branch -> m (PrettyPrint String)
+prettyBindings cb tms b = do
+  ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
+  pure $ PP.linesSpaced ds
+
+-- Search for and display bindings matching the given query
+prettyBindingsQ :: (Var.Var v, Monad m)
+  => Codebase m v a -> String -> Branch -> m (PrettyPrint String)
+prettyBindingsQ cb query b = let
+  possible = Branch.allTermNames (Branch.head b)
+  matches = sortedApproximateMatches query (Text.unpack <$> toList possible)
+  str = fromString
+  bs = [ (name,r) | name <- Text.pack <$> matches,
+                    r <- take 1 (toList $ Branch.termsNamed name b) ]
+  go pp = if length matches > 5
+          then PP.linesSpaced [pp, "... " <> str (show (length matches - 5)) <>
+                               " more (use `> list " <> str query <> "` to see all matches)"]
+          else pp
+  in go <$> prettyBindings cb (take 5 bs) b
+
+prettyListingQ :: (Var.Var v, Monad m)
+  => Codebase m v a -> String -> Branch -> m (AnnotatedText Color)
+prettyListingQ _cb _query _b =
+  error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
+
+sortedApproximateMatches :: String -> [String] -> [String]
+sortedApproximateMatches q possible = sortOn score matches where
+  nq = length q
+  score s | s == q           = 0 :: Int -- exact match is top choice
+          | q `isSuffixOf` s = 1        -- matching suffix is pretty good
+          | q `isInfixOf`  s = 2        -- a match somewhere
+          | q `isPrefixOf` s = 3        -- ...
+          | otherwise        = 3 + editDistance q s
+  match s | q `isSubsequenceOf` s = True
+          | editDistance q s < ((length s `max` nq) `div` 3) = True -- "pretty close"
+          | otherwise = False
+  editDistance q s = levenshteinDistance defaultEditCosts q s
+  matches = filter match possible
+
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
-

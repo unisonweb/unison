@@ -133,6 +133,12 @@ allNames b0 =
   R.dom (typeNamespace b0) `Set.union`
   R.dom (patternNamespace b0)
 
+allTermNames :: Branch0 -> Set Name
+allTermNames b0 = R.dom (termNamespace b0)
+
+allTypeNames :: Branch0 -> Set Name
+allTypeNames b0 = R.dom (typeNamespace b0)
+
 hasTermNamed :: Name -> Branch -> Bool
 hasTermNamed n b = not . null $ termsNamed n b
 

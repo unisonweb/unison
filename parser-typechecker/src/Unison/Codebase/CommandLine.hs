@@ -50,6 +50,7 @@ import qualified Unison.UnisonFile            as UF
 import qualified Unison.Util.ColorText        as Color
 import qualified Unison.Util.Menu             as Menu
 import           Unison.Util.Monoid
+import qualified Unison.Util.PrettyPrint      as PP
 import           Unison.Util.TQueue           (TQueue)
 import qualified Unison.Util.TQueue           as TQueue
 import           Unison.Var                   (Var)
@@ -249,12 +250,19 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
             clearLastTypechecked
             go branch name
 
+    viewDefinitions :: Branch -> Name -> [String] -> IO ()
+    viewDefinitions branch name args = do
+      prettys <- traverse (\q -> Codebase.prettyBindingsQ codebase q branch) args
+      putStrLn . PP.render 80 $ PP.linesSpaced prettys
+      go branch name
+
     processLine :: Branch -> Name -> IO ()
     processLine branch name = do
       let takeActualLine = atomically $ takeLine lineQueue
       line <- takeActualLine
       case words line of
         "add" : args -> addDefinitions branch name args
+        "view" : args -> viewDefinitions branch name args
         ls : args | ls == "list" || -- todo: more comprehensive way of allowing command abbreviations
                     ls == "ls"   ||
                     ls == "l" -> let

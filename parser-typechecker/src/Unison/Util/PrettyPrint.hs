@@ -135,6 +135,18 @@ semicolons = intercalateMap semicolon id
 commas :: (Foldable f, IsString a) => f (PrettyPrint a) -> PrettyPrint a
 commas = intercalateMap comma id
 
+lines :: (Foldable f, IsString a) => f (PrettyPrint a) -> PrettyPrint a
+lines ps = brokenGroup $ softbreaks ps
+
+linesSpaced :: (Foldable f, IsString a) => f (PrettyPrint a) -> PrettyPrint a
+linesSpaced ps = brokenGroup $ intercalateMap (softbreak <> softbreak) id ps
+
+group :: PrettyPrint a -> PrettyPrint a
+group p = Group p
+
+brokenGroup :: PrettyPrint a -> PrettyPrint a
+brokenGroup p = BrokenGroup p
+
 instance Semigroup (PrettyPrint a) where
   (<>) = mappend
 

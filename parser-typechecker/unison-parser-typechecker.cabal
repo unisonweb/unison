@@ -110,6 +110,7 @@ library
     cryptonite,
     directory,
     errors,
+    edit-distance,
     filepath,
     free,
     fsnotify,

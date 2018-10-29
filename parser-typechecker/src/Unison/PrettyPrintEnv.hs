@@ -35,6 +35,29 @@ instance Monoid PrettyPrintEnv where
       (\r i -> Map.unionWith (+) (patterns e1 r i) (patterns e2 r i))
       (\r -> Map.unionWith (+) (types e1 r) (types e2 r))
 
+adjust :: (Word -> Word) -> PrettyPrintEnv -> PrettyPrintEnv
+adjust by e = PrettyPrintEnv
+  (\r -> by <$> terms e r)
+  (\r i -> by <$> constructors e r i)
+  (\r i -> by <$> patterns e r i)
+  (\r -> by <$> types e r)
+
+scale :: Word -> PrettyPrintEnv -> PrettyPrintEnv
+scale by = adjust (by *)
+
+incrementBy :: Word -> PrettyPrintEnv -> PrettyPrintEnv
+incrementBy by = adjust (by +)
+
+weightedSum :: [(Word,PrettyPrintEnv)] -> PrettyPrintEnv
+weightedSum envs = mconcat (uncurry scale <$> envs)
+
+withTermNames :: [(Reference,Text)] -> PrettyPrintEnv
+withTermNames ctors = let
+  m = Map.fromList ctors
+  toH Nothing = mempty
+  toH (Just t) = Map.fromList [(t, 1)]
+  in mempty { terms = \r -> toH $ Map.lookup r m }
+
 withConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
 withConstructorNames ctors = let
   m = Map.fromList ctors
