@@ -9,9 +9,11 @@ import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
+import           Unison.Codebase.Name (Name)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser
+import qualified Unison.Lexer as L
 import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
@@ -24,7 +26,6 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Lexer as L
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -75,6 +76,9 @@ builtinTerms =
   let fns = [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
               (r, typ) <- Map.toList builtins0 ]
   in (builtinDataAndEffectCtors ++ fns)
+
+lookupBuiltinTerm :: Var v => Name -> Maybe (Term v)
+lookupBuiltinTerm v = lookup (Var.named v) builtinTerms
 
 builtinDataAndEffectCtors :: forall v . Var v => [(v, Term v)]
 builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')

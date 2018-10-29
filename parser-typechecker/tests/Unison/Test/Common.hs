@@ -52,6 +52,6 @@ parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
     $ Parsers.parseFile filename s Parser.penv0
   let (Result notes' r) =
-        FP.synthesizeFile file (\v -> lookup (Var.named v) B.builtinTerms)
+        FP.synthesizeFile B.lookupBuiltinTerm file
   Result notes' $ Just (errorEnv, r)
 

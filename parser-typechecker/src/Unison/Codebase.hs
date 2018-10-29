@@ -114,3 +114,10 @@ sortedApproximateMatches q possible = sortOn score matches where
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
+
+branchToNames :: Codebase m v a -> Branch -> m (Names v a)
+branchToNames b = case head b of
+    Branch0 {..} ->
+      let terms = Map.fromList $ toList termNamespace
+      Names terms patterns types
+

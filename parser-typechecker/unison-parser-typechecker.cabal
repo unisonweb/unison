@@ -59,6 +59,7 @@ library
     Unison.Hashable
     Unison.Kind
     Unison.Lexer
+    Unison.Names
     Unison.Parser
     Unison.Parsers
     Unison.Path

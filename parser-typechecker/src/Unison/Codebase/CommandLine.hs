@@ -124,9 +124,9 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
       incompleteLine <- atomically . peekIncompleteLine $ lineQueue
       putStr $ "\r" ++ unpack branchName ++ "> " ++ incompleteLine
 
-    handleUnisonFile :: Runtime v -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
-    handleUnisonFile runtime codebase penv filePath src = do
-      let Result notes r = parseAndSynthesizeFile penv filePath src
+    handleUnisonFile :: Runtime v -> Branch -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
+    handleUnisonFile runtime branch codebase penv filePath src = do
+      let Result notes r = parseAndSynthesizeFile fqnLookup penv filePath src
       case r of
         Nothing -> do -- parsing failed
           Console.setTitle "Unison \128721"

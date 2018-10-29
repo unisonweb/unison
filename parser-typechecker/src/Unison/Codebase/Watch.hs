@@ -4,37 +4,47 @@
 
 module Unison.Codebase.Watch where
 
-import           Control.Concurrent      (forkIO, threadDelay)
+import qualified Unison.Builtin                 as B
+import           Control.Concurrent             ( forkIO
+                                                , threadDelay
+                                                )
 import           Control.Concurrent.MVar
-import           Control.Concurrent.STM  (atomically)
-import           Control.Monad           (forever, void)
-import           Data.Foldable           (toList)
+import           Control.Concurrent.STM         ( atomically )
+import           Control.Exception              ( finally )
+import           Control.Monad                  ( forever
+                                                , void
+                                                )
+import           Data.Foldable                  ( toList )
 import           Data.IORef
-import           Data.List               (isSuffixOf)
-import qualified Data.Map                as Map
-import           Data.Text               (Text)
-import qualified Data.Text               as Text
+import           Data.List                      ( isSuffixOf )
+import qualified Data.Map                      as Map
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 import qualified Data.Text.IO
-import           Data.Time.Clock         (UTCTime, diffUTCTime)
-import qualified System.Console.ANSI     as Console
-import           System.Directory        (canonicalizePath)
-import           System.FSNotify         (Event (Added, Modified), watchTree,
-                                          withManager)
-import qualified Unison.FileParsers      as FileParsers
-import qualified Unison.Parser           as Parser
-import qualified Unison.Parsers          as Parsers
-import           Control.Exception       (finally)
-import           System.Random           (randomIO)
-import           Unison.Codebase         (Codebase)
-import           Unison.Codebase.Runtime (Runtime (..))
-import qualified Unison.Codebase.Runtime as RT
-import           Unison.PrintError       (renderParseErrorAsANSI,
-                                          renderNoteAsANSI)
-import           Unison.Result           (Result (Result))
+import           Data.Time.Clock                ( UTCTime
+                                                , diffUTCTime
+                                                )
+import qualified System.Console.ANSI           as Console
+import           System.Directory               ( canonicalizePath )
+import           System.FSNotify                ( Event(Added, Modified)
+                                                , watchTree
+                                                , withManager
+                                                )
+import           System.Random                  ( randomIO )
+import           Unison.Codebase                ( Codebase )
+import           Unison.Codebase.Runtime        ( Runtime(..) )
+import qualified Unison.Codebase.Runtime       as RT
+import qualified Unison.FileParsers            as FileParsers
+import qualified Unison.Parser                 as Parser
+import qualified Unison.Parsers                as Parsers
+import           Unison.PrintError              ( renderParseErrorAsANSI
+                                                , renderNoteAsANSI
+                                                )
+import           Unison.Result                  ( Result(Result) )
 import           Unison.Util.Monoid
-import           Unison.Util.TQueue      (TQueue)
-import qualified Unison.Util.TQueue      as TQueue
-import           Unison.Var              (Var)
+import           Unison.Util.TQueue             ( TQueue )
+import qualified Unison.Util.TQueue            as TQueue
+import           Unison.Var                     ( Var )
 
 watchDirectory' :: FilePath -> IO (IO (FilePath, UTCTime))
 watchDirectory' d = do
@@ -114,7 +124,7 @@ watcher initialFile dir runtime codebase = do
             print $ renderParseErrorAsANSI source parseError
           Right (env0, parsedUnisonFile) -> do
             let (Result notes' r) =
-                              FileParsers.synthesizeUnisonFile parsedUnisonFile
+                  FileParsers.synthesizeUnisonFile B.lookupBuiltinTerm parsedUnisonFile
                 showNote notes =
                   intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
             putStrLn . showNote . toList $ notes'

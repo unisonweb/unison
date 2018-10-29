@@ -48,22 +48,28 @@ convertNotes :: Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
   (TypeError <$> es) <> (TypeInfo <$> is)
 
-parseAndSynthesizeFile :: Var v
-  => PEnv v -> FilePath -> Text
-  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (UnisonFile v))
-parseAndSynthesizeFile penv filePath src = do
-  (errorEnv, parsedUnisonFile) <-
-      Result.fromParsing $ Parsers.parseFile filePath (unpack src) penv
-  let (Result notes' r) = synthesizeUnisonFile parsedUnisonFile
+parseAndSynthesizeFile
+  :: Var v
+  => PEnv v
+  -> (Name -> Maybe (Term v))
+  -> FilePath
+  -> Text
+  -> Result
+       (Seq (Note v Ann))
+       (PrintError.Env, Maybe (UnisonFile v))
+parseAndSynthesizeFile penv fqnLookup filePath src = do
+  (errorEnv, parsedUnisonFile) <- Result.fromParsing
+    $ Parsers.parseFile filePath (unpack src) penv
+  let (Result notes' r) = synthesizeUnisonFile fqnLookup parsedUnisonFile
   Result notes' $ Just (errorEnv, fst <$> r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => UnisonFile v
-  -> (Name -> Maybe (Term v))
+  => (Name -> Maybe (Term v))
+  -> UnisonFile v
   -> Result (Seq (Note v Ann)) (Term v, Type v)
-synthesizeFile unisonFile fqnLookup
+synthesizeFile fqnLookup unisonFile
   = let
       (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
@@ -114,18 +120,22 @@ synthesizeFile unisonFile fqnLookup
      Result (convertNotes notes) ((t,) <$> mayType)
 
 synthesizeUnisonFile :: Var v
-                     => UnisonFile v
+                     => (Name -> Maybe (Term v))
+                     -> UnisonFile v
                      -> Result (Seq (Note v Ann)) (UnisonFile v, Type v)
-synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
-  (t', typ) <- synthesizeFile unisonFile undefined
+synthesizeUnisonFile fqnLookup unisonFile@(UnisonFile d e _t) = do
+  (t', typ) <- synthesizeFile fqnLookup unisonFile
   pure $ (UnisonFile d e t', typ)
 
-serializeUnisonFile :: Var v => UnisonFile v
-                             -> Result (Seq (Note v Ann))
-                                       (UnisonFile v, Type v, ByteString)
-serializeUnisonFile unisonFile =
-  let r = synthesizeUnisonFile unisonFile
+serializeUnisonFile
+  :: Var v
+  => (Name -> Maybe (Term v))
+  -> UnisonFile v
+  -> Result (Seq (Note v Ann)) (UnisonFile v, Type v, ByteString)
+serializeUnisonFile fqnLookup unisonFile =
+  let r = synthesizeUnisonFile fqnLookup unisonFile
       f (unisonFile', typ) =
         let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile'
-        in (unisonFile', typ, bs)
-  in f <$> r
+        in  (unisonFile', typ, bs)
+  in  f <$> r
+
