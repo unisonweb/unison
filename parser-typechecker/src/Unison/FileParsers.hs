@@ -6,9 +6,13 @@
 
 module Unison.FileParsers where
 
+import           Control.Monad.Writer (tell)
+import qualified Unison.Term as Term
+import qualified Unison.ABT as ABT
+import           Control.Monad (foldM)
 import           Control.Monad.State (runStateT, evalStateT)
-import           Data.ByteString (ByteString)
 import           Data.Bytes.Put (runPutS)
+import           Data.ByteString (ByteString)
 import qualified Data.Foldable as Foldable
 import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
@@ -17,6 +21,7 @@ import           Data.Maybe
 import           Data.Sequence (Seq)
 import           Data.Text (Text, unpack)
 import qualified Unison.Builtin as B
+import           Unison.Codebase.Name (Name)
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(Intrinsic), PEnv)
@@ -28,6 +33,7 @@ import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
@@ -55,8 +61,9 @@ synthesizeFile
   :: forall v
    . Var v
   => UnisonFile v
+  -> (Name -> Maybe (Term v))
   -> Result (Seq (Note v Ann)) (Term v, Type v)
-synthesizeFile unisonFile
+synthesizeFile unisonFile fqnLookup
   = let
       (UnisonFile dds0 eds0 term) =
         UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
@@ -90,15 +97,27 @@ synthesizeFile unisonFile
           )
         )
         B.builtinTypedTerms
-      (Result notes mayType, newTerm) = runIdentity $ runStateT n term
-    in
-      Result (convertNotes notes) ((newTerm, ) <$> mayType)
+      (Result notes mayType, _) = runIdentity $ runStateT n term
+      decisions =
+        [ (v, loc, fqn) |
+          Context.Decision v loc fqn <- Foldable.toList $ Typechecker.infos notes ]
+      substedTerm = foldM go term decisions
+      go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
+      resolve v loc fqn t@(Term.Var' v') | ABT.annotation t == loc && v == v' =
+        case fqnLookup fqn of
+          Nothing ->
+            Just $ (tell . pure $ ResolvedNameNotFound v loc fqn) *> pure t
+          Just ref -> Just $ pure (const loc <$> ref)
+      resolve _ _ _ _ = Nothing
+   in do
+     t <- substedTerm
+     Result (convertNotes notes) ((t,) <$> mayType)
 
 synthesizeUnisonFile :: Var v
                      => UnisonFile v
                      -> Result (Seq (Note v Ann)) (UnisonFile v, Type v)
 synthesizeUnisonFile unisonFile@(UnisonFile d e _t) = do
-  (t', typ) <- synthesizeFile unisonFile
+  (t', typ) <- synthesizeFile unisonFile undefined
   pure $ (UnisonFile d e t', typ)
 
 serializeUnisonFile :: Var v => UnisonFile v

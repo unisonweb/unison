@@ -60,6 +60,7 @@ import           Data.Word (Word64)
 import           Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
+import           Unison.Codebase.Name (Name)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import           Unison.PatternP (Pattern)
@@ -69,8 +70,8 @@ import           Unison.Term (AnnotatedTerm')
 import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
 import           Unison.Typechecker.Components (minimize')
+import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -221,8 +222,11 @@ data ErrorNote v loc = ErrorNote {
   path :: Seq (PathElement v loc)
 } deriving Show
 
+-- `Decision v loc fqn` is a decision to replace the name v at location loc
+-- with the fully qualified name fqn.
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
+  | Decision v loc Name
   | TopLevelComponent [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]
   deriving (Show)
 

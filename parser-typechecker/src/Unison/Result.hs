@@ -13,6 +13,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer (Writer, runWriter, MonadWriter(..))
 import           Data.Maybe
 import           Data.Sequence ( Seq )
+import           Unison.Codebase.Name (Name)
 import qualified Unison.Parser as Parser
 import           Unison.Paths ( Path )
 import           Unison.Term ( AnnotatedTerm )
@@ -29,6 +30,7 @@ data Note v loc
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
+  | ResolvedNameNotFound v loc Name
   deriving Show
 
 isSuccess :: Result note a -> Bool

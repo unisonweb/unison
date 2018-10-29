@@ -246,12 +246,14 @@ typeDirectedNameResolution resultSoFar env = do
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
   substSuggestion (Resolution name _ loc (filter Context.isExact ->
                                         [Context.Suggestion fqn _ builtin])) =
-    pure <$> modify (substBlank (Text.unpack name) loc solved)
-      where solved =
-              (if builtin
-                then Term.ref loc . Builtin
-                else Term.var loc . Var.named
-              ) fqn
+    do
+      modify (substBlank (Text.unpack name) loc solved)
+      pure . btw $ Context.Decision (Var.named name) loc fqn
+        where solved =
+                (if builtin
+                  then Term.ref loc . Builtin
+                  else Term.var loc . Var.named
+                ) fqn
   substSuggestion _ = pure $ pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
