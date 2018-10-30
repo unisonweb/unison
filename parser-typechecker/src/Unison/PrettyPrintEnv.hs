@@ -4,14 +4,13 @@ module Unison.PrettyPrintEnv where
 
 import Data.List (foldl')
 import Data.Map (Map)
-import Data.Text (Text)
 import Unison.Reference (Reference)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Unison.Names (Name,Names)
 import qualified Unison.Names as Names
 
-type Histogram = Map Text Word
+type Histogram = Map Name Word
 
 -- Maps terms, types, constructors and constructor patterns to a histogram of names.
 data PrettyPrintEnv = PrettyPrintEnv {
@@ -56,21 +55,21 @@ weightedSum envs = mconcat (uncurry scale <$> envs)
 fromNames :: Names v a -> PrettyPrintEnv
 fromNames ns = undefined
 
-fromTypeNames :: [(Reference,Text)] -> PrettyPrintEnv
+fromTypeNames :: [(Reference,Name)] -> PrettyPrintEnv
 fromTypeNames types = let
   m = Map.fromList types
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
   in mempty { types = \r -> toH $ Map.lookup r m }
 
-fromTermNames :: [(Reference,Text)] -> PrettyPrintEnv
+fromTermNames :: [(Reference,Name)] -> PrettyPrintEnv
 fromTermNames tms = let
   m = Map.fromList tms
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
   in mempty { terms = \r -> toH $ Map.lookup r m }
 
-fromConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
+fromConstructorNames :: [((Reference,Int), Name)] -> PrettyPrintEnv
 fromConstructorNames ctors = let
   m = Map.fromList ctors
   toH Nothing = mempty
@@ -81,24 +80,24 @@ fromConstructorNames ctors = let
 -- These functions pick out the most common name and fall back
 -- to showing the `Reference` if no names are available
 
-termName :: PrettyPrintEnv -> Reference -> Text
+termName :: PrettyPrintEnv -> Reference -> Name
 termName env r = pickName r (terms env r)
 
-typeName :: PrettyPrintEnv -> Reference -> Text
+typeName :: PrettyPrintEnv -> Reference -> Name
 typeName env r = pickName r (types env r)
 
-constructorName :: PrettyPrintEnv -> Reference -> Int -> Text
+constructorName :: PrettyPrintEnv -> Reference -> Int -> Name
 constructorName env r cid = pickNameCid r cid (constructors env r cid)
 
-patternName :: PrettyPrintEnv -> Reference -> Int -> Text
+patternName :: PrettyPrintEnv -> Reference -> Int -> Name
 patternName env r cid = pickNameCid r cid (constructors env r cid)
 
-pickName :: Reference -> Histogram -> Text
+pickName :: Reference -> Histogram -> Name
 pickName r h = case argmax snd (Map.toList h) of
   Nothing -> Text.pack (show r)
   Just (name,_) -> name
 
-pickNameCid :: Reference -> Int -> Histogram -> Text
+pickNameCid :: Reference -> Int -> Histogram -> Name
 pickNameCid r cid h = case argmax snd (Map.toList h) of
   Nothing -> Text.pack (show r) <> "#" <> Text.pack (show cid)
   Just (name,_) -> name

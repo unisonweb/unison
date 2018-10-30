@@ -21,12 +21,10 @@ import           Data.Maybe
 import           Data.Sequence (Seq)
 import           Data.Text (Text, unpack)
 import qualified Unison.Builtin as B
-import           Unison.Names (Name)
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(Intrinsic))
 import qualified Unison.Parsers as Parsers
-import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference, pattern Builtin)
 import           Unison.Result (Result(..), Note(..))
 import qualified Unison.Result as Result
@@ -38,7 +36,7 @@ import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.Names (Name, Names(..))
+import Unison.Names (Names(..))
 import qualified Unison.Names as Names
 import qualified Unison.PrettyPrintEnv as PPE
 

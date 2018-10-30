@@ -35,7 +35,6 @@ import           Unison.Codebase                ( Codebase )
 import           Unison.Codebase.Runtime        ( Runtime(..) )
 import qualified Unison.Codebase.Runtime       as RT
 import qualified Unison.FileParsers            as FileParsers
-import qualified Unison.Parser                 as Parser
 import qualified Unison.Parsers                as Parsers
 import           Unison.PrintError              ( renderParseErrorAsANSI
                                                 , renderNoteAsANSI

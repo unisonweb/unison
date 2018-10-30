@@ -20,11 +20,16 @@ import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import           Unison.Util.Monoid     (intercalateMap)
+import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Builtin as Builtin
 
 type Note = Result.Note Symbol Parser.Ann
 
 type SynthResult = Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 type EitherResult = Either String (Term Symbol, Type Symbol)
+
+ppEnv :: PPE.PrettyPrintEnv
+ppEnv = PPE.fromNames (Builtin.names @Symbol)
 
 expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
 expectRight' (Left e) = crash e
@@ -72,7 +77,7 @@ showNotes source env notes =
 decodeResult
   :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
 decodeResult source (Result notes Nothing) =
-  Left $ showNotes source PrintError.env0 notes
+  Left $ showNotes source ppEnv notes
 decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
 decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =

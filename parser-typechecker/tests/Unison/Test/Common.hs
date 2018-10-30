@@ -5,7 +5,6 @@ import           Data.Sequence (Seq)
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.PrintError as PrintError
 import           Unison.Result (Result)
 import qualified Unison.Result as Result
 import           Unison.Symbol (Symbol)
@@ -14,9 +13,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
 import qualified Unison.Parsers as Parsers
-import qualified Unison.Parser as Parser
 import           Unison.Result (Result(..), Note)
-import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
 
 type Term v = AnnotatedTerm v Ann

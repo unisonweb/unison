@@ -5,11 +5,10 @@
 {-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
-import           Control.Arrow ((&&&), second)
+import           Control.Arrow ((&&&))
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
-import           Unison.Names (Name)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser

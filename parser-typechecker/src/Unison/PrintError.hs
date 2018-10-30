@@ -20,7 +20,6 @@ import qualified Data.Char                    as Char
 import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
 import qualified Data.List.NonEmpty           as Nel
-import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (catMaybes, fromMaybe)
 import           Data.Sequence                (Seq (..))

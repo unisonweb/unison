@@ -11,15 +11,11 @@ import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
-import           Data.Tuple (swap)
 import           Prelude hiding (readFile)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
-import qualified Unison.PrintError as PrintError
-import           Unison.Reference (Reference)
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
@@ -29,8 +25,6 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import Unison.Names (Names)
 import qualified Unison.PrettyPrintEnv as PPE
 -- import Debug.Trace
 

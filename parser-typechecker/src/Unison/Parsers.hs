@@ -8,7 +8,6 @@ import qualified Unison.FileParser as FileParser
 import           Unison.Parser (Ann)
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
-import qualified Unison.PrintError as PrintError
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.TermParser as TermParser

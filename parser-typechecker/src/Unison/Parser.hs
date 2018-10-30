@@ -8,8 +8,6 @@ import           Control.Applicative
 import           Control.Monad        (join)
 import           Data.Bifunctor       (bimap)
 import           Data.List.NonEmpty   (NonEmpty (..))
-import           Data.Map             (Map)
-import qualified Data.Map             as Map
 import           Data.Maybe
 import qualified Data.Set             as Set
 import           Data.Text            (Text)
@@ -24,9 +22,7 @@ import           Unison.Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import           Unison.Reference     (Reference)
 import           Unison.Term          (MatchCase (..))
-import qualified Unison.UnisonFile    as UnisonFile
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import Unison.Names (Names)

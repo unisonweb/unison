@@ -4,11 +4,8 @@ module Unison.UnisonFile where
 
 import Control.Monad (join)
 import           Data.Bifunctor (second)
-import qualified Data.Foldable as Foldable
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration')
@@ -16,8 +13,8 @@ import           Unison.DataDeclaration (EffectDeclaration'(..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
 import           Unison.Reference (Reference)
-import           Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term as Term
+import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var

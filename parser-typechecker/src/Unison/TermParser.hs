@@ -18,7 +18,6 @@ import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
 import           Data.List (elem)
-import qualified Data.Map as Map
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or)

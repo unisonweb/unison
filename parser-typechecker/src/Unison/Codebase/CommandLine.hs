@@ -26,7 +26,6 @@ import qualified System.Console.ANSI          as Console
 import           System.FilePath              (FilePath)
 import qualified Text.Read                    as Read
 import qualified Unison.Reference             as Reference
-import qualified Unison.Term                  as Term
 import           System.IO.Error              (isEOFError)
 import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
@@ -58,7 +57,6 @@ import qualified Data.Map as Map
 import Unison.Parser (Ann)
 import qualified Data.Text as Text
 import Unison.Names (Names)
-import qualified Unison.Names as Names
 
 data Event
   = UnisonFileChanged FilePath Text

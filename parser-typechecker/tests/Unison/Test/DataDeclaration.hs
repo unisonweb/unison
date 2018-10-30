@@ -8,7 +8,7 @@ import Unison.UnisonFile (UnisonFile(..))
 import Unison.Symbol (Symbol)
 import qualified Unison.Var as Var
 import qualified Data.Map as Map
-import Unison.Parser (Ann, penv0)
+import Unison.Parser (Ann)
 import Unison.Parsers (unsafeParseFile)
 import Unison.DataDeclaration (hashDecls)
 
@@ -29,7 +29,7 @@ test = scope "datadeclaration" $
   ]
 
 file :: UnisonFile Symbol Ann
-file = snd . flip unsafeParseFile penv0 $ [r|
+file = snd . flip unsafeParseFile mempty $ [r|
 
 type Bool = True | False
 type Bool' = False | True
