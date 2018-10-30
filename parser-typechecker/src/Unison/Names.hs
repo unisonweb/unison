@@ -27,7 +27,7 @@ data Names v a = Names
 instance (Var v, Show a) => Show (Names v a) where
   -- really barebones, just to see what names are present
   show (Names es ps ts) =
-    "terms: " ++ show (es) ++ "\n" ++
+    "terms: " ++ show (Map.keys es) ++ "\n" ++
     "patterns: " ++ show (Map.keys ps) ++ "\n" ++
     "types: " ++ show (Map.keys ts)
 
@@ -83,7 +83,7 @@ bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
 importing :: Var v => [(v,v)] -> Names v a -> Names v a
 importing shortToLongName0 (Names {..}) = let
   go :: Ord k => Map k v -> (k, k) -> Map k v
-  go m (qname, shortname) = case Map.lookup qname m of
+  go m (shortname, qname) = case Map.lookup qname m of
     Nothing -> m
     Just v  -> Map.insert shortname v m
   shortToLongName = [
