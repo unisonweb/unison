@@ -35,3 +35,4 @@ haskell-tags
 .DS_Store
 .virthualenv
 .vagrant
+.bloop

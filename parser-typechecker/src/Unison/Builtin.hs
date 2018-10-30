@@ -88,7 +88,7 @@ builtinDataDecls = l
             (Type.unitRef,
              DD.mkDataDecl' Intrinsic [] [(Intrinsic,
                                            Var.named "()",
-                                           Type.builtin Intrinsic "()")]))
+                                           Type.unit Intrinsic)]))
     -- todo: figure out why `type () = ()` doesn't parse:
     -- l = [ parseDataDeclAsBuiltin "type () = ()"
         -- todo: These should get replaced by hashes,

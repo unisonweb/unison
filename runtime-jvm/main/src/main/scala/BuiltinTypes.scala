@@ -11,7 +11,7 @@ object BuiltinTypes {
   }
 
   object Unit extends Constructor(0) {
-    val Id = org.unisonweb.Id(Hash.fromBase58("3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"))
+    val Id = org.unisonweb.Id(Hash.fromBase58("3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"), 0, 1)
     val pattern: Pattern = Pattern.Data(Id, cid, Nil)
     val term: Term = Term.Constructor(Id, cid)
     val value: Value = Value.Data(Id, cid, Array())
@@ -19,7 +19,7 @@ object BuiltinTypes {
 
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
-    val Id = org.unisonweb.Id(Hash.fromBase58("5b7ahnhXN8ARuH85tX5kMEVpMttGsokCsXAsmUMFsoDNJPuU6MBtCAnPmBQwNbLcTp1sbFmWeSYhagQRPwnHhDHp"))
+    val Id = org.unisonweb.Id(Hash.fromBase58("5b7ahnhXN8ARuH85tX5kMEVpMttGsokCsXAsmUMFsoDNJPuU6MBtCAnPmBQwNbLcTp1sbFmWeSYhagQRPwnHhDHp"), 0, 1)
     def consPattern(hd: Pattern, tl: Pattern): Pattern =
       Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
@@ -33,7 +33,7 @@ object BuiltinTypes {
   }
 
   object Optional {
-    val Id = org.unisonweb.Id(Hash.fromBase58("5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"))
+    val Id = org.unisonweb.Id(Hash.fromBase58("5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"), 0, 1)
     object None extends Constructor(0) {
       val pattern: Pattern = Pattern.Data(Id, cid, Nil)
       val term: Term = Term.Constructor(Id, cid)
