@@ -23,6 +23,13 @@ data Names v a = Names
   , typeNames :: Map Name Reference
   }
 
+instance Show (Names v a) where
+  -- really barebones, just to see what names are present
+  show (Names es ps ts) =
+    "terms: " ++ show (Map.keys es) ++ "\n" ++
+    "patterns: " ++ show (Map.keys ps) ++ "\n" ++
+    "types: " ++ show (Map.keys ts)
+
 lookupTerm :: Names v a -> Name -> Maybe (AnnotatedTerm v a)
 lookupTerm ns n = fst <$> Map.lookup n (termNames ns)
 
