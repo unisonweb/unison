@@ -84,8 +84,9 @@ decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
   Right (t, typ)
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
-makePassingTest how filepath = join . liftIO $ do
+makePassingTest how filepath = join $ do
   let shortName = joinPath . drop 1 . splitPath $ filepath
-  source <- unpack <$> Data.Text.IO.readFile filepath
+  source <- io $ unpack <$> Data.Text.IO.readFile filepath
+  io $ putStrLn (show $ Builtin.names @Symbol)
   pure $ scope shortName . how . decodeResult source .
     parseAndSynthesizeAsFile shortName $ source
