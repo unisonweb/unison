@@ -71,13 +71,14 @@ synthesizeFile
   -> Result (Seq (Note v Ann)) (Term v, Type v)
 synthesizeFile names unisonFile
   = let
-      (UnisonFile dds0 eds0 term) = UF.bindBuiltins B.names unisonFile
+      (UnisonFile dds0 eds0 term) = UF.bindBuiltins names unisonFile
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
       eds     = Map.fromList $ Foldable.toList eds0
       -- note: `Map.union` is left-biased
       datas   = Map.union dds (Map.fromList $ snd <$> B.builtinDataDecls)
       effects = eds
+      -- todo: this isn't being built up correctly
       env0    = Typechecker.Env Intrinsic
                                 []
                                 typeOf
