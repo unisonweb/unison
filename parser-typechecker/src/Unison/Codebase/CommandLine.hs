@@ -57,6 +57,7 @@ import qualified Data.Map as Map
 import Unison.Parser (Ann)
 import qualified Data.Text as Text
 import Unison.Names (Names)
+import qualified Unison.Term as Term
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -239,7 +240,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
                   -- todo - can treat this as adding an alias (same hash, but different name in this branch)
                   putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
                 Nothing ->
-                  Codebase.putTerm codebase id tm typ
+                  -- Discard all line/column info when adding to the codebase
+                  Codebase.putTerm codebase id (Term.amap (const Parser.External) tm) typ
 
             branch <- mergeBranchAndShowDiff codebase name (Branch.append branchUpdate branch)
 

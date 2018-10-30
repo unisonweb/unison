@@ -16,6 +16,7 @@ import           Unison.Result      (Result (Result))
 import qualified Unison.Result      as Result
 import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid
+import qualified Unison.Builtin as B
 
 main :: IO ()
 main = do
@@ -31,8 +32,8 @@ main = do
     go :: String -> Maybe String -> IO ()
     go sourceFile outputFile = do
       source <- unpack <$> Data.Text.IO.readFile sourceFile
-      (env0, unisonFile) <- Parsers.unsafeReadAndParseFile Parser.penv0 sourceFile
-      let (Result notes' r) = FileParsers.serializeUnisonFile unisonFile
+      (env0, unisonFile) <- Parsers.unsafeReadAndParseFile B.names sourceFile
+      let (Result notes' r) = FileParsers.serializeUnisonFile B.names unisonFile
           f (_unisonFile', typ, bs) = do
             putStrLn $ "typechecked as " ++ renderType' env0 typ
             traverse_ (flip BS.writeFile bs) outputFile

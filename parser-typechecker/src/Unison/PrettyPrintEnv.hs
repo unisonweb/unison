@@ -9,6 +9,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Unison.Names (Name,Names)
 import qualified Unison.Names as Names
+import qualified Unison.Term as Term
 
 type Histogram = Map Name Word
 
@@ -22,6 +23,16 @@ data PrettyPrintEnv = PrettyPrintEnv {
   patterns :: Reference -> Int -> Histogram,
   -- names for types
   types :: Reference -> Histogram }
+
+fromNames :: Names v a -> PrettyPrintEnv
+fromNames ns = let
+  terms = Map.fromList [ (r, n) | (n, (Term.Ref' r,_)) <- Map.toList (Names.termNames ns) ]
+  patterns = Map.fromList [ ((r,i),n) | (n, (r,i)) <- Map.toList (Names.patternNames ns) ]
+  constructors = Map.fromList [ ((r,i),n) | (n, (Term.Constructor' r i,_)) <- Map.toList (Names.termNames ns) ]
+  types = Map.fromList [ (r,n) | (n, r) <- Map.toList (Names.typeNames ns) ]
+  hist :: Ord k => Map k Name -> k -> Histogram
+  hist m k = maybe mempty (\n -> Map.fromList [(n,1)]) $ Map.lookup k m
+  in PrettyPrintEnv (hist terms) (curry $ hist constructors) (curry $ hist patterns) (hist types)
 
 -- The monoid sums corresponding histograms
 
@@ -51,9 +62,6 @@ incrementBy by = adjust (by +)
 
 weightedSum :: [(Word,PrettyPrintEnv)] -> PrettyPrintEnv
 weightedSum envs = mconcat (uncurry scale <$> envs)
-
-fromNames :: Names v a -> PrettyPrintEnv
-fromNames ns = undefined
 
 fromTypeNames :: [(Reference,Name)] -> PrettyPrintEnv
 fromTypeNames types = let
