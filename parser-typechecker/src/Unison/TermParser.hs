@@ -104,9 +104,9 @@ parsePattern = constructor <|> leaf
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-  unit ann = (Pattern.Constructor ann (R.Builtin "()") 0 [], [])
+  unit ann = (Pattern.Constructor ann Type.unitRef 0 [], [])
   pair (p1, v1) (p2, v2) =
-    (Pattern.Constructor (ann p1 <> ann p2) (R.Builtin "Pair") 0 [p1, p2],
+    (Pattern.Constructor (ann p1 <> ann p2) Type.pairRef 0 [p1, p2],
      v1 ++ v2)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
@@ -447,6 +447,6 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit p
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) (R.Builtin "Pair") 0)
+                  (Term.constructor (ann t1 <> ann t2) Type.pairRef 0)
                   t1)
         t2

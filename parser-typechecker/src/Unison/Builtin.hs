@@ -56,9 +56,8 @@ parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v
 parseDataDeclAsBuiltin s =
   let (v, dd) = either (error . showParseError s) id $
         Parser.run (Parser.root FileParser.dataDeclaration) s mempty
-  in (v, (R.Builtin . Var.qualifiedName $ v,
-          const Intrinsic <$>
-          DD.bindBuiltins names0 dd))
+      [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
+  in (v, (r, const Intrinsic <$> dd'))
 
 names0 :: Var v => Names v Ann
 names0 = Names.fromTypesV builtinTypes
@@ -86,7 +85,7 @@ builtinDataDecls :: forall v. (Var v) => [(v, (R.Reference, DataDeclaration v))]
 builtinDataDecls = l
   where
     l = [ (Var.named "()",
-            (R.Builtin "()",
+            (Type.unitRef,
              DD.mkDataDecl' Intrinsic [] [(Intrinsic,
                                            Var.named "()",
                                            Type.builtin Intrinsic "()")]))

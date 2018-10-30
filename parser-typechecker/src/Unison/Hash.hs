@@ -21,7 +21,7 @@ import qualified Data.Text as Text
 newtype Hash = Hash { toBytes :: ByteString } deriving (Eq,Ord,Generic)
 
 instance Show Hash where
-  show h = take 8 $ Text.unpack (base58 h)
+  show h = take 999 $ Text.unpack (base58 h)
 
 instance H.Hashable Hash where
   tokens h = [H.Bytes (toBytes h)]

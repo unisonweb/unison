@@ -1,4 +1,5 @@
 {-# Language RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Names where
 
@@ -23,10 +24,10 @@ data Names v a = Names
   , typeNames :: Map Name Reference
   }
 
-instance Show (Names v a) where
+instance (Var v, Show a) => Show (Names v a) where
   -- really barebones, just to see what names are present
   show (Names es ps ts) =
-    "terms: " ++ show (Map.keys es) ++ "\n" ++
+    "terms: " ++ show (es) ++ "\n" ++
     "patterns: " ++ show (Map.keys ps) ++ "\n" ++
     "types: " ++ show (Map.keys ts)
 
@@ -66,10 +67,13 @@ bindType ns t = Type.bindBuiltins typeNames' t
   where
   typeNames' = [ (Var.named v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm :: Var v => Names v a -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindTerm :: forall v a. Var v
+         => Names v a -> AnnotatedTerm v a -> AnnotatedTerm v a
 bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
   where
+  termBuiltins :: [(v, AnnotatedTerm v a)]
   termBuiltins = [ (Var.named v, e) | (v, (e,_typ)) <- Map.toList (termNames ns) ]
+  typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Var.named v, t) | (v, t) <- Map.toList (typeNames ns) ]
 
 -- Given a mapping from name to qualified name, update a `PEnv`,
@@ -96,10 +100,9 @@ instance Monoid (Names v a) where
   Names e1 p1 t1 `mappend` Names e2 p2 t2 =
     Names (e1 `unionL` e2) (p1 `unionL` p2) (t1 `unionL` t2)
     where
-      unionL :: Ord k => Map k v -> Map k v -> Map k v
+      unionL :: forall k v. Ord k => Map k v -> Map k v -> Map k v
       unionL = Map.unionWith const
 
 instance Ord v => Functor (Names v) where
   fmap f (Names es ps ts) = Names (go <$> es) ps ts where
     go (tm, typ) = (Term.amap f tm, fmap f typ)
-
