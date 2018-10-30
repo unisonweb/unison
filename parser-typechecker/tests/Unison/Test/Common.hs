@@ -17,6 +17,7 @@ import qualified Unison.Parsers as Parsers
 import qualified Unison.Parser as Parser
 import           Unison.Result (Result(..), Note)
 import qualified Unison.Var as Var
+import qualified Unison.PrettyPrintEnv as PPE
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -28,7 +29,7 @@ file
   :: String
   -> Result
        (Seq (Note Symbol Ann))
-       (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+       (PPE.PrettyPrintEnv, Maybe (Term Symbol, Type Symbol))
 file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
@@ -47,11 +48,10 @@ parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
+  -> Result (Seq (Note v Ann)) (PPE.PrettyPrintEnv, Maybe (Term v, Type v))
 parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s Parser.penv0
-  let (Result notes' r) =
-        FP.synthesizeFile B.lookupBuiltinTerm file
+    $ Parsers.parseFile filename s B.names
+  let (Result notes' r) = FP.synthesizeFile B.names file
   Result notes' $ Just (errorEnv, r)
 

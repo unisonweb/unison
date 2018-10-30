@@ -3,6 +3,7 @@
 {-# Language DeriveFoldable #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveGeneric #-}
+{-# Language OverloadedStrings #-}
 
 module Unison.DataDeclaration where
 
@@ -18,6 +19,7 @@ import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
@@ -45,14 +47,22 @@ constructorNames dd = Var.name <$> constructorVars dd
 
 bindBuiltins :: Var v => Names v x -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins names (DataDeclaration a bound constructors) =
-  DataDeclaration a bound (third (Names.bindBuiltinTypes names) <$> constructors)
-
---bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
---bindBuiltins typeEnv (DataDeclaration a bound constructors) =
---  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
+  DataDeclaration a bound (third (Names.bindType names) <$> constructors)
 
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
+
+toNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names v a
+toNames' (v,(r,d)) = toNames v r d
+
+toNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names v a
+toNames typeSymbol r dd = let
+  names ((ctor, typ), i) = let
+    name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+    in Names.fromTerms [(name, (Term.constructor (ABT.annotation typ) r i, typ))] <>
+       Names.fromPatterns [(name, (r,i))]
+  in foldMap names (constructors dd `zip` [0 ..]) <>
+     Names.fromTypesV [(typeSymbol,r)]
 
 type EffectDeclaration v = EffectDeclaration' v ()
 
@@ -170,7 +180,7 @@ hashDecls
   -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls =
   let varToRef = hashDecls0 (void <$> decls)
-      decls'   = bindDecls decls (Names.fromTypeNamesV varToRef)
+      decls'   = bindDecls decls (Names.fromTypesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> Names v x -> Map v (DataDeclaration' v a)

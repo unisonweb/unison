@@ -26,6 +26,8 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import Unison.Names (Names)
+import qualified Unison.Names as Names
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -38,88 +40,52 @@ showParseError :: Var v
                -> String
 showParseError s = show . Color.renderText . prettyParseError s
 
--- todo: to update these, just inline definition of Parsers.{unsafeParseType, unsafeParseTerm}
--- then merge Parsers back into Parsers (and GC and unused functions)
--- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .
-          bindTypeBuiltins . either (error . showParseError s) tweak $
-          Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
+          Names.bindType names . either (error . showParseError s) tweak $
+          Parser.run (Parser.root TypeParser.valueType) s mempty
   -- lowercase vars become forall'd, and we assume the function is pure up
   -- until it returns its result.
   where tweak = Type.generalizeEffects 100000 . Type.generalizeLowercase
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins . either (error . showParseError s) id $
-          Parser.run (Parser.root TermParser.term) s Parser.penv0
+tm s = Names.bindTerm names . either (error . showParseError s) id $
+          Parser.run (Parser.root TermParser.term) s mempty
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
   let (v, dd) = either (error . showParseError s) id $
-        Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
+        Parser.run (Parser.root FileParser.dataDeclaration) s mempty
   in (v, (R.Builtin . Var.qualifiedName $ v,
           const Intrinsic <$>
-          DD.bindBuiltins builtinTypes dd))
+          DD.bindBuiltins names0 dd))
 
-bindBuiltins :: Var v => Term v -> Term v
-bindBuiltins = Term.bindBuiltins builtinTerms builtinTypes
+names0 :: Var v => Names v Ann
+names0 = Names.fromTypesV builtinTypes
 
-bindTypeBuiltins :: Var v => Type v -> Type v
-bindTypeBuiltins = Type.bindBuiltins builtinTypes
+names :: Var v => Names v Ann
+names = Names.fromTermsV builtinTypedTerms
+     <> Names.fromTypesV builtinTypes
+     <> foldMap DD.toNames' builtinDataDecls
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
 builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
 
 builtinTerms :: Var v => [(v, Term v)]
 builtinTerms =
-  let fns = [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
-              (r, typ) <- Map.toList builtins0 ]
-  in (builtinDataAndEffectCtors ++ fns)
+  [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
+    (r, typ) <- Map.toList builtins0 ]
 
-lookupBuiltinTerm :: Var v => Name -> Maybe (Term v)
-lookupBuiltinTerm v = lookup (Var.named v) builtinTerms
-
-builtinDataAndEffectCtors :: forall v . Var v => [(v, Term v)]
-builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
-  where
-    mkConstructors :: (v, (R.Reference, DataDeclaration v)) -> [(v, Term v)]
-    mkConstructors (vt, (r, dd)) =
-      mkConstructor vt r <$> DD.constructors dd `zip` [0..]
-    mkConstructor :: v -> R.Reference -> ((v, Type v), Int) -> (v, Term v)
-    mkConstructor vt r ((v, _t), i) =
-      (Var.named $ mconcat [Var.qualifiedName vt, ".", Var.qualifiedName v],
-        Term.constructor Intrinsic r i)
-
-builtinTypes :: forall v. Var v => [(v, R.Reference)]
-builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
-  where f (r@(R.Builtin s), _) = (Var.named s, r)
-        f (R.Derived h _ _, _) =
-          error $ "expected builtin to be all R.Builtins; " ++
-                  "don't know what name to assign to " ++ show h
-        f r = error $ "what is this " ++ show r
-
-builtinTypes' :: Var v => [(v, R.Reference)]
-builtinTypes' = (Var.named &&& R.Builtin) <$>
-  ["Int", "Nat", "Float", "Boolean",
-    "Sequence", "Text", "Stream", "Effect"]
-
-builtinEffectDecls :: forall v. Var v => Map.Map R.Reference (EffectDeclaration v)
-builtinEffectDecls = Map.empty
-
-builtinDataDecls :: forall v. (Var v) => Map.Map R.Reference (DataDeclaration v)
-builtinDataDecls = Map.fromList (snd <$> builtinDataDecls')
+builtinTypes :: Var v => [(v, R.Reference)]
+builtinTypes = (Var.named &&& R.Builtin) <$>
+  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls' :: forall v. (Var v) => [(v, (R.Reference, DataDeclaration v))]
-builtinDataDecls' = bindAllTheTypes <$> l
+builtinDataDecls :: forall v. (Var v) => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls = l
   where
-    bindAllTheTypes :: (v, (R.Reference, DataDeclaration v)) -> (v, (R.Reference, DataDeclaration v))
-    bindAllTheTypes =
-      second . second $ (DD.bindBuiltins $ builtinTypes' ++ (dd3ToType <$> l))
-    dd3ToType (v, (r, _)) = (v, r)
-    l :: [(v, (R.Reference, DataDeclaration v))]
     l = [ (Var.named "()",
             (R.Builtin "()",
              DD.mkDataDecl' Intrinsic [] [(Intrinsic,

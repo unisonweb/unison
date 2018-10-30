@@ -117,14 +117,14 @@ watcher initialFile dir runtime codebase = do
         Console.setTitle "Unison"
         putStrLn ""
         putStrLn $ marker ++ "  " ++ sourceFile ++ " has changed, reloading...\n"
-        parseResult <- Parsers.readAndParseFile Parser.penv0 sourceFile
+        parseResult <- Parsers.readAndParseFile B.names sourceFile
         case parseResult of
           Left parseError -> do
             Console.setTitle "Unison \128721"
             print $ renderParseErrorAsANSI source parseError
           Right (env0, parsedUnisonFile) -> do
             let (Result notes' r) =
-                  FileParsers.synthesizeUnisonFile B.lookupBuiltinTerm parsedUnisonFile
+                  FileParsers.synthesizeUnisonFile B.names parsedUnisonFile
                 showNote notes =
                   intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
             putStrLn . showNote . toList $ notes'

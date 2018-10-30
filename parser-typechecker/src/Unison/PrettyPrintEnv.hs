@@ -8,6 +8,8 @@ import Data.Text (Text)
 import Unison.Reference (Reference)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Unison.Names (Name,Names)
+import qualified Unison.Names as Names
 
 type Histogram = Map Text Word
 
@@ -51,15 +53,25 @@ incrementBy by = adjust (by +)
 weightedSum :: [(Word,PrettyPrintEnv)] -> PrettyPrintEnv
 weightedSum envs = mconcat (uncurry scale <$> envs)
 
-withTermNames :: [(Reference,Text)] -> PrettyPrintEnv
-withTermNames ctors = let
-  m = Map.fromList ctors
+fromNames :: Names v a -> PrettyPrintEnv
+fromNames ns = undefined
+
+fromTypeNames :: [(Reference,Text)] -> PrettyPrintEnv
+fromTypeNames types = let
+  m = Map.fromList types
+  toH Nothing = mempty
+  toH (Just t) = Map.fromList [(t, 1)]
+  in mempty { types = \r -> toH $ Map.lookup r m }
+
+fromTermNames :: [(Reference,Text)] -> PrettyPrintEnv
+fromTermNames tms = let
+  m = Map.fromList tms
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
   in mempty { terms = \r -> toH $ Map.lookup r m }
 
-withConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
-withConstructorNames ctors = let
+fromConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
+fromConstructorNames ctors = let
   m = Map.fromList ctors
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]

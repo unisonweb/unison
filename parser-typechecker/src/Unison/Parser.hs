@@ -34,19 +34,6 @@ import Unison.Names (Names)
 debug :: Bool
 debug = False
 
-data PEnv v =
-  PEnv { constructorLookup :: UnisonFile.CtorLookup
-       , typesByName       :: Map v Reference }
-
-instance Ord v => Semigroup (PEnv v) where
-  (<>) = mappend
-
-instance Ord v => Monoid (PEnv v) where
-  -- note : Map.mappend uses left value on collision, which isn't what
-  -- we want here, so we flip the order
-  mappend (PEnv x y) (PEnv x2 y2) = PEnv (x2 `mappend` x) (y2 `mappend` y)
-  mempty = penv0
-
 type P v = P.ParsecT (Error v) Input ((->) (Names v Ann))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
@@ -184,9 +171,6 @@ run' p s name =
 
 run :: Var v => P v a -> String -> Names v Ann -> Either (Err v) a
 run p s = run' p s ""
-
-penv0 :: PEnv v
-penv0 = PEnv Map.empty Map.empty
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)

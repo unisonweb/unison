@@ -373,7 +373,7 @@ block' isTop s openBlock closeBlock = do
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
       substImports tm =
         ABT.substsInheritAnnotation importTerms .
-        Term.typeMap (Names.bindBuiltinTypes env) $ tm
+        Term.typeMap (Names.bindType env) $ tm
     substImports <$> go open statements
   where
     statement = namespaceBlock <|> do

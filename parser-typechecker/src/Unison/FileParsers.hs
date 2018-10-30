@@ -24,7 +24,7 @@ import qualified Unison.Builtin as B
 import           Unison.Names (Name)
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.Parser (Ann(Intrinsic), PEnv)
+import           Unison.Parser (Ann(Intrinsic))
 import qualified Unison.Parsers as Parsers
 import qualified Unison.PrintError as PrintError
 import           Unison.Reference (Reference, pattern Builtin)
@@ -39,6 +39,8 @@ import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.Names (Name, Names(..))
+import qualified Unison.Names as Names
+import qualified Unison.PrettyPrintEnv as PPE
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -56,7 +58,7 @@ parseAndSynthesizeFile
   -> Text
   -> Result
        (Seq (Note v Ann))
-       (PrintError.Env, Maybe (UnisonFile v))
+       (PPE.PrettyPrintEnv, Maybe (UnisonFile v))
 parseAndSynthesizeFile names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
@@ -71,13 +73,13 @@ synthesizeFile
   -> Result (Seq (Note v Ann)) (Term v, Type v)
 synthesizeFile names unisonFile
   = let
-      (UnisonFile dds0 eds0 term) =
-        UF.bindBuiltins B.builtinTerms B.builtinTypes unisonFile
+      (UnisonFile dds0 eds0 term) = UF.bindBuiltins B.names unisonFile
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
       eds     = Map.fromList $ Foldable.toList eds0
-      datas   = Map.union dds B.builtinDataDecls -- `Map.union` is left-biased
-      effects = Map.union eds B.builtinEffectDecls
+      -- note: `Map.union` is left-biased
+      datas   = Map.union dds (Map.fromList $ snd <$> B.builtinDataDecls)
+      effects = eds
       env0    = Typechecker.Env Intrinsic
                                 []
                                 typeOf
@@ -110,7 +112,7 @@ synthesizeFile names unisonFile
       substedTerm = foldM go term decisions
       go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
       resolve v loc fqn t@(Term.Var' v') | ABT.annotation t == loc && v == v' =
-        case fqnLookup fqn of
+        case Names.lookupTerm names fqn of
           Nothing ->
             Just $ (tell . pure $ ResolvedNameNotFound v loc fqn) *> pure t
           Just ref -> Just $ pure (const loc <$> ref)
@@ -120,20 +122,20 @@ synthesizeFile names unisonFile
      Result (convertNotes notes) ((t,) <$> mayType)
 
 synthesizeUnisonFile :: Var v
-                     => (Name -> Maybe (Term v))
+                     => Names v Ann
                      -> UnisonFile v
                      -> Result (Seq (Note v Ann)) (UnisonFile v, Type v)
-synthesizeUnisonFile fqnLookup unisonFile@(UnisonFile d e _t) = do
-  (t', typ) <- synthesizeFile fqnLookup unisonFile
+synthesizeUnisonFile names unisonFile@(UnisonFile d e _t) = do
+  (t', typ) <- synthesizeFile names unisonFile
   pure $ (UnisonFile d e t', typ)
 
 serializeUnisonFile
   :: Var v
-  => (Name -> Maybe (Term v))
+  => Names v Ann
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UnisonFile v, Type v, ByteString)
-serializeUnisonFile fqnLookup unisonFile =
-  let r = synthesizeUnisonFile fqnLookup unisonFile
+serializeUnisonFile names unisonFile =
+  let r = synthesizeUnisonFile names unisonFile
       f (unisonFile', typ) =
         let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile'
         in  (unisonFile', typ, bs)

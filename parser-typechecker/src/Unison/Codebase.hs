@@ -65,7 +65,7 @@ prettyBinding cb name r0@(Reference.DerivedId r) b = go =<< getTerm cb r where
     -- We boost the `(r0,name)` association since if this is a recursive
     -- fn whose body also mentions `r`, want name to be the same as the binding.
     ppEnv = Branch.prettyPrintEnv [b] `mappend`
-            PPE.scale 10 (PPE.withTermNames [(r0, name)])
+            PPE.scale 10 (PPE.fromTermNames [(r0, name)])
     in case tm of
       Term.Ann' _ _ -> pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
       _ -> do

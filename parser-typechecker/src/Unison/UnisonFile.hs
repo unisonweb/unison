@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration'(..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
@@ -83,7 +84,7 @@ bindBuiltins names (UnisonFile d e t) =
   UnisonFile
     (second (DD.bindBuiltins names) <$> d)
     (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
-    (Names.bindBuiltinTerms names t)
+    (Names.bindTerm names t)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
@@ -94,6 +95,10 @@ data Env v a = Env
   , names :: Names v a
 }
 
+resolveTerm :: Var v => Env v a -> AnnotatedTerm v a -> AnnotatedTerm v a
+resolveTerm env e =
+  Term.prepareTDNR $ Names.bindTerm (names env) e
+
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
@@ -101,77 +106,37 @@ data Env v a = Env
 -- If there are duplicate declarations, the duplicated names are returned on the
 -- left.
 environmentFor
-  :: forall v a
-   . Var v
-  => Names v a
-  -> Map v (DataDeclaration' v a)
-  -> Map v (EffectDeclaration' v a)
+  :: forall v a . Var v => Names v a -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
   -> Env v a
 environmentFor names0 dataDecls0 effectDecls0 =
-  let -- ignore builtin types that will be shadowed by user-defined data/effects
-    unshadowed n = let
-      v = Var.named n
-      in Map.notMember v dataDecls0 && Map.notMember v effectDecls0
+  let
+    -- ignore builtin types that will be shadowed by user-defined data/effects
+    unshadowed n = Map.notMember (Var.named n) dataDecls0
+                && Map.notMember (Var.named n) effectDecls0
     names = Names.filterTypes unshadowed names0
     dataDecls :: Map v (DataDeclaration' v a)
     dataDecls = DD.bindBuiltins names <$> dataDecls0
     effectDecls :: Map v (EffectDeclaration' v a)
-    effectDecls =
-      withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
+    effectDecls = withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
     hashDecls' :: [(v, Reference, DataDeclaration' v a)]
     hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
     dataDecls' = Map.difference allDecls effectDecls
-    effectDecls' =
-      second EffectDeclaration <$> Map.difference allDecls dataDecls
+    effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
     typeEnv :: forall x . Names v x
-    typeEnv = Names.fromTypeNamesV $
+    typeEnv = Names.fromTypesV $
       Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
-    dataDecls'' = second (DD.bindBuiltins typeEnv) <$> dataDecls'
-    effectDecls'' =
-      second (DD.withEffectDecl (DD.bindBuiltins typeEnv))
-        <$> effectDecls'
-    dataRefs = Set.fromList $ (fst <$> Foldable.toList dataDecls'')
-    termFor :: Reference -> Int -> AnnotatedTerm2 v a a v ()
-    termFor r cid = if Set.member r dataRefs
-      then Term.constructor () r cid
-      else Term.request () r cid
-    -- Map `Optional.None` to `Term.constructor() ...` or `Term.request() ...`
-    dataAndEffectCtors :: [(v, AnnotatedTerm2 v a a v ())]
-    dataAndEffectCtors =
-      [ (Var.named (Text.pack s), termFor r cid)
-      | (s, (r, cid)) <- Map.toList ctorLookup
-      ]
-    typesByName =
-      Map.toList
-        $           (fst <$> dataDecls'')
-        `Map.union` (fst <$> effectDecls'')
-    ctorLookup = Map.fromList (constructors' =<< hashDecls')
-    -- todo: form names' from types, ctors, and terms
-  in
-    Env
-      dataDecls''
-      effectDecls''
-      names'
-      -- ( Term.typeDirectedResolve
-      -- . Term.bindBuiltins termBuiltins []
-      -- . Term.bindBuiltins dataAndEffectCtors typesByName
-      -- )
-      -- (Map.fromList $ typeBuiltins ++ typesByName)
-      -- ctorLookup
-      -- (  Set.fromList
-      -- $  (fst <$> termBuiltins)
-      -- ++ (fst <$> dataAndEffectCtors)
-      -- )
+    ctors = foldMap constructors' hashDecls'
+    names' = typeEnv <> ctors <> names
+  in Env dataDecls' effectDecls' names'
 
 constructors'
   :: Var v
   => (v, Reference, DataDeclaration' v a)
-  -> [(String, (Reference, Int))]
-constructors' (typeSymbol, r, dd) =
-  let qualCtorName ((ctor, _), i) =
-        ( Text.unpack $ mconcat
-          [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
-        , (r, i)
-        )
-  in  qualCtorName <$> DD.constructors dd `zip` [0 ..]
+  -> Names v a
+constructors' (typeSymbol, r, dd) = let
+  names ((ctor, typ), i) = let
+    name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+    in Names.fromTerms [(name, (Term.constructor (ABT.annotation typ) r i, typ))] <>
+       Names.fromPatterns [(name, (r,i))]
+  in foldMap names (DD.constructors dd `zip` [0 ..])

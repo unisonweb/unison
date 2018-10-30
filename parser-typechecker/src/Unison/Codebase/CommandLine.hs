@@ -37,7 +37,6 @@ import           Unison.Codebase.Runtime      (Runtime)
 import qualified Unison.Codebase.Runtime      as RT
 import qualified Unison.Codebase.Watch        as Watch
 import           Unison.FileParsers           (parseAndSynthesizeFile)
-import           Unison.Parser                (PEnv)
 import qualified Unison.Parser                as Parser
 import qualified Unison.PrintError            as PrintError
 import           Unison.PrintError            (prettyParseError,
@@ -58,6 +57,8 @@ import qualified Unison.Var as Var
 import qualified Data.Map as Map
 import Unison.Parser (Ann)
 import qualified Data.Text as Text
+import Unison.Names (Names)
+import qualified Unison.Names as Names
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -69,8 +70,8 @@ allow = liftM2 (||) (".u" `isSuffixOf`) (".uu" `isSuffixOf`)
 
 data CreateCancel = Create | Cancel deriving Show
 
-main :: forall v a. Var v => FilePath -> Name -> Maybe FilePath -> IO (Runtime v) -> (Ann -> a) -> Codebase IO v a -> IO ()
-main dir currentBranchName initialFile startRuntime toA codebase = do
+main :: forall v . Var v => FilePath -> Name -> Maybe FilePath -> IO (Runtime v) -> Codebase IO v Ann -> IO ()
+main dir currentBranchName initialFile startRuntime codebase = do
   queue <- TQueue.newIO
   lineQueue <- TQueue.newIO
   runtime <- startRuntime
@@ -124,9 +125,9 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
       incompleteLine <- atomically . peekIncompleteLine $ lineQueue
       putStr $ "\r" ++ unpack branchName ++ "> " ++ incompleteLine
 
-    handleUnisonFile :: Runtime v -> Branch -> Codebase IO v a -> PEnv v -> FilePath -> Text -> IO ()
-    handleUnisonFile runtime branch codebase penv filePath src = do
-      let Result notes r = parseAndSynthesizeFile fqnLookup penv filePath src
+    handleUnisonFile :: Runtime v -> Names v Ann -> FilePath -> Text -> IO ()
+    handleUnisonFile runtime names filePath src = do
+      let Result notes r = parseAndSynthesizeFile names filePath src
       case r of
         Nothing -> do -- parsing failed
           Console.setTitle "Unison \128721"
@@ -176,7 +177,8 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
             Console.setTitle "Unison"
             Console.clearScreen
             Console.setCursorPosition 0 0
-            handleUnisonFile runtime codebase Parser.penv0 filePath text -- todo: don't use penv0
+            names <- Codebase.branchToNames codebase branch
+            handleUnisonFile runtime names filePath text
             go branch name
           UnisonBranchChanged branches ->
             if Set.member name branches then do
@@ -221,8 +223,8 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
             putStrLn ""
             putStrLn . show $ Color.renderText (prettyTypecheckedFile typecheckedFile env)
             putStrLn ""
-            let allTypeDecls = (second (Left . fmap toA) <$> UF.effectDeclarations' typecheckedFile) `Map.union`
-                               (second (Right . fmap toA) <$> UF.dataDeclarations' typecheckedFile)
+            let allTypeDecls = (second Left <$> UF.effectDeclarations' typecheckedFile) `Map.union`
+                               (second Right <$> UF.dataDeclarations' typecheckedFile)
 
             forM_ (Map.toList allTypeDecls) $ \(v, (r@(Reference.DerivedId id), dd)) -> do
               decl <- Codebase.getTypeDeclaration codebase id
@@ -238,8 +240,8 @@ main dir currentBranchName initialFile startRuntime toA codebase = do
                 Just _ ->
                   -- todo - can treat this as adding an alias (same hash, but different name in this branch)
                   putStrLn $ Var.nameStr v ++ " already exists with hash " ++ show r ++ ", skipping."
-                Nothing -> do
-                  Codebase.putTerm codebase id (Term.amap toA tm) (toA <$> typ)
+                Nothing ->
+                  Codebase.putTerm codebase id tm typ
 
             branch <- mergeBranchAndShowDiff codebase name (Branch.append branchUpdate branch)
 

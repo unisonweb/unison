@@ -6,7 +6,7 @@ import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
 import           Control.Monad (void)
-import           Control.Monad.Reader (local)
+import           Control.Monad.Reader (local, ask)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
@@ -31,34 +31,23 @@ import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.Names (Names)
+import qualified Unison.PrettyPrintEnv as PPE
 -- import Debug.Trace
 
-file :: forall v . Var v
-     => Names v Ann
-     -> P v (PrintError.Env, UnisonFile v Ann)
-file names = do
+file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
+file = do
   _ <- openBlock
+  names <- ask
   (dataDecls, effectDecls) <- declarations
-  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
-      ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
-            [ (Text.unpack $ Var.name v, (r,cid)) |
-              (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
-  local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
+  let env = environmentFor names dataDecls effectDecls
+  -- push names onto the stack ahead of existing names
+  local (UF.names env `mappend`) $ do
+    names <- ask
     term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
               closeBlock
-    let unisonFile = UnisonFile
-                      (UF.datas env)
-                      (UF.effects env)
-                      (UF.resolveTerm env term)
-        newReferenceNames :: Map Reference String
-        newReferenceNames =
-          (Map.fromList . fmap getName . Map.toList) (UF.typesByName env)
-        newConstructorNames :: Map (Reference, Int) String
-        newConstructorNames =
-          (Map.fromList . fmap swap . Map.toList) ctorLookup0
-        getName (v,r) = (r, (Text.unpack . Var.shortName) v)
-    pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
+    let uf = UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
+    pure (PPE.fromNames names, uf)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))

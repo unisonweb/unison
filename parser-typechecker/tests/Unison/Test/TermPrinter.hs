@@ -16,7 +16,7 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import qualified Unison.Reference as R
 
 get_names :: PrettyPrintEnv.PrettyPrintEnv
-get_names = PrettyPrintEnv.withConstructorNames [
+get_names = PrettyPrintEnv.fromConstructorNames [
   ((R.Builtin "()", 0), "()"),
   ((R.Builtin "Pair", 0), "Pair")
  ]
