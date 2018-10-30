@@ -1,39 +1,48 @@
-{-# Language ScopedTypeVariables, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.UnisonFile where
 
-import Control.Monad (join)
-import           Data.Bifunctor (second)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
+import           Control.Exception      (assert)
+import           Control.Monad          (join)
+import           Data.Bifunctor         (second)
+import           Data.Map               (Map)
+import qualified Data.Map               as Map
+import qualified Data.Set               as Set
+import qualified Data.Text              as Text
 import           Unison.DataDeclaration (DataDeclaration')
-import           Unison.DataDeclaration (EffectDeclaration'(..))
+import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
-import           Unison.Reference (Reference)
-import qualified Unison.Term as Term
-import           Unison.Term (AnnotatedTerm)
-import           Unison.Type (AnnotatedType)
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import Unison.Names (Names)
-import qualified Unison.Names as Names
+import           Unison.Names           (Names)
+import qualified Unison.Names           as Names
+import           Unison.Reference       (Reference)
+import           Unison.Term            (AnnotatedTerm)
+import qualified Unison.Term            as Term
+import           Unison.Type            (AnnotatedType)
+import           Unison.Var             (Var)
+import qualified Unison.Var             as Var
 
 data UnisonFile v a = UnisonFile {
-  dataDeclarations :: Map v (Reference, DataDeclaration' v a),
+  dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
-  term :: AnnotatedTerm v a
+  term               :: AnnotatedTerm v a
 } deriving (Show)
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
-  dataDeclarations' :: Map v (Reference, DataDeclaration' v a),
+  dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-  terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  terms               :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
+
+toNames :: Var v => UnisonFile v a -> Names v a
+toNames (UnisonFile {..}) = datas <> effects
+  where
+    datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
+    effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty
@@ -89,12 +98,8 @@ data Env v a = Env
   -- Effect declaration name to hash and its fully resolved form
   , effects :: Map v (Reference, EffectDeclaration' v a)
   -- Naming environment
-  , names :: Names v a
+  , names   :: Names v a
 }
-
-resolveTerm :: Var v => Env v a -> AnnotatedTerm v a -> AnnotatedTerm v a
-resolveTerm env e =
-  Term.prepareTDNR $ Names.bindTerm (names env) e
 
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
@@ -111,29 +116,22 @@ environmentFor names0 dataDecls0 effectDecls0 =
     unshadowed n = Map.notMember (Var.named n) dataDecls0
                 && Map.notMember (Var.named n) effectDecls0
     names = Names.filterTypes unshadowed names0
+    -- data decls and hash decls may reference each other, and thus must be hashed together
     dataDecls :: Map v (DataDeclaration' v a)
     dataDecls = DD.bindBuiltins names <$> dataDecls0
     effectDecls :: Map v (EffectDeclaration' v a)
     effectDecls = withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
     hashDecls' :: [(v, Reference, DataDeclaration' v a)]
     hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
+    -- then we have to pick out the dataDecls from the effectDecls
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
     dataDecls' = Map.difference allDecls effectDecls
     effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
-    typeEnv :: forall x . Names v x
-    typeEnv = Names.fromTypesV $
-      Map.toList (fst <$> dataDecls') ++ Map.toList (fst <$> effectDecls')
-    ctors = foldMap constructors' hashDecls'
-    names' = typeEnv <> ctors <> names
-  in Env dataDecls' effectDecls' names'
-
-constructors'
-  :: Var v
-  => (v, Reference, DataDeclaration' v a)
-  -> Names v a
-constructors' (typeSymbol, r, dd) = let
-  names ((ctor, typ), i) = let
-    name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
-    in Names.fromTerms [(name, (Term.constructor (ABT.annotation typ) r i, typ))] <>
-       Names.fromPatterns [(name, (r,i))]
-  in foldMap names (DD.constructors dd `zip` [0 ..])
+    -- ctor and effect terms
+    ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
+    effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
+    names' = ctors <> effects <> names
+  in
+    -- make sure we don't have overlapping data and effect constructor names
+    assert (null (Set.intersection (Map.keysSet dataDecls) (Map.keysSet effectDecls))) $
+      Env dataDecls' effectDecls' names'

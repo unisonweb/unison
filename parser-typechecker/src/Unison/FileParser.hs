@@ -40,7 +40,7 @@ file = do
     term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
               closeBlock
-    let uf = UnisonFile (UF.datas env) (UF.effects env) (UF.resolveTerm env term)
+    let uf = UnisonFile (UF.datas env) (UF.effects env) term
     pure (PPE.fromNames names, uf)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann

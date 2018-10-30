@@ -20,6 +20,7 @@ import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
+import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
@@ -27,6 +28,7 @@ import Data.Text (Text)
 import qualified Unison.Var as Var
 import Unison.Names (Names)
 import Unison.Names as Names
+-- import Debug.Trace
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -52,17 +54,31 @@ bindBuiltins names (DataDeclaration a bound constructors) =
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
-toNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names v a
-toNames' (v,(r,d)) = toNames v r d
-
-toNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names v a
-toNames typeSymbol r dd = let
+-- implementation of dataDeclToNames and effectDeclToNames
+toNames0 :: Var v => v
+                  -> Reference
+                  -> (a -> Reference -> Int -> AnnotatedTerm v a)
+                  -> DataDeclaration' v a
+                  -> Names v a
+toNames0 typeSymbol r f dd = let
   names ((ctor, typ), i) = let
     name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
-    in Names.fromTerms [(name, (Term.constructor (ABT.annotation typ) r i, typ))] <>
+    in Names.fromTerms [(name, (f (ABT.annotation typ) r i, typ))] <>
        Names.fromPatterns [(name, (r,i))]
   in foldMap names (constructors dd `zip` [0 ..]) <>
      Names.fromTypesV [(typeSymbol,r)]
+
+dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names v a
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Term.constructor dd
+
+effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names v a
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Term.request $ toDataDecl ed
+
+dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names v a
+dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
+
+effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names v a
+effectDeclToNames' (v,(r,d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
 

@@ -69,15 +69,20 @@ synthesizeFile
   => Names v Ann
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (Term v, Type v)
-synthesizeFile names unisonFile
+synthesizeFile names0 unisonFile
   = let
-      (UnisonFile dds0 eds0 term) = UF.bindBuiltins names unisonFile
+      -- (UnisonFile _ _ term0) = unisonFile
+      uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins names0 unisonFile
+      names1 = UF.toNames uf
+      names = names1 <> names0
+      term = Term.prepareTDNR $ Names.bindTerm names term0
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
       eds     = Map.fromList $ Foldable.toList eds0
+      -- merge dds from unisonFile with dds from Unison.Builtin
       -- note: `Map.union` is left-biased
       datas   = Map.union dds (Map.fromList $ snd <$> B.builtinDataDecls)
-      effects = eds
+      effects = eds -- same, but there are no eds in Unison.Builtin yet.
       -- todo: this isn't being built up correctly
       env0    = Typechecker.Env Intrinsic
                                 []

@@ -65,7 +65,8 @@ names0 = Names.fromTypesV builtinTypes
 names :: Var v => Names v Ann
 names = Names.fromTermsV builtinTypedTerms
      <> Names.fromTypesV builtinTypes
-     <> foldMap DD.toNames' builtinDataDecls
+     <> foldMap DD.dataDeclToNames' builtinDataDecls
+     -- <> foldMap DD.effectDeclToNames' builtinEffectDecls
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
 builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
