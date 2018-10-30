@@ -35,9 +35,12 @@ function kill_watcher {
 }
 
 function start_watcher {
-  stack exec watcher "$last_unison_source" &
-  haskell_pid=$!
-  echo "Launched haskell watcher as pid $haskell_pid."
+  # if haskell isn't running, start it!
+  if ! kill -0 $haskell_pid > /dev/null 2>&1; then
+    stack exec watcher "$last_unison_source" &
+    haskell_pid=$!
+    echo "Launched haskell watcher as pid $haskell_pid."
+  fi
 }
 
 function go {
@@ -83,6 +86,7 @@ while IFS= read -r changed; do
       ;;
     *.u|*.uu)
       last_unison_source="$changed"
+      start_watcher
       ;;
     */scripts/execwatch.sh|*/scripts/watchwatch.sh)
       echo "Restarting ./scripts/watchwatch.sh..."

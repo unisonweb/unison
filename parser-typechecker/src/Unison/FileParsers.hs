@@ -113,8 +113,8 @@ synthesizeFile names0 unisonFile
       decisions =
         [ (v, loc, fqn) |
           Context.Decision v loc fqn <- Foldable.toList $ Typechecker.infos notes ]
-      substedTerm = foldM go term decisions
-      go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
+      substedTerm = foldM go term decisions where
+        go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
       resolve v loc fqn t@(Term.Var' v') | ABT.annotation t == loc && v == v' =
         case Names.lookupTerm names fqn of
           Nothing ->

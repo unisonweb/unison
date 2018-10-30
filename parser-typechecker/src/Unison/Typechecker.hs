@@ -1,13 +1,13 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DoAndIfThenElse     #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 -- | This module is the primary interface to the Unison typechecker
 -- module Unison.Typechecker (admissibleTypeAt, check, check', checkAdmissible', equals, locals, subtype, isSubtype, synthesize, synthesize', typeAt, wellTyped) where
@@ -15,42 +15,43 @@
 module Unison.Typechecker where
 
 import           Control.Lens
-import           Control.Monad (join)
-import           Control.Monad.Fail (fail)
-import           Control.Monad.State (StateT, State, modify, get, execState)
-import           Control.Monad.Trans (lift)
+import           Control.Monad              (join)
+import           Control.Monad.Fail         (fail)
+import           Control.Monad.State        (State, StateT, execState, get,
+                                             modify)
+import           Control.Monad.Trans        (lift)
 import           Control.Monad.Writer
-import           Data.Foldable (for_, traverse_, toList)
-import           Data.List (nub)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Maybe (isJust, maybeToList, catMaybes)
-import           Data.Sequence (Seq)
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import           Unison.Reference (Reference, pattern Builtin)
-import           Unison.Result (Result(..))
-import           Unison.Term (AnnotatedTerm)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import           Unison.Type (AnnotatedType)
-import qualified Unison.TypeVar as TypeVar
+import           Data.Foldable              (for_, toList, traverse_)
+import           Data.List                  (nub)
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Maybe                 (catMaybes, isJust, maybeToList)
+import           Data.Sequence              (Seq)
+import qualified Data.Sequence              as Seq
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import qualified Unison.ABT                 as ABT
+import qualified Unison.Blank               as B
+import           Unison.DataDeclaration     (DataDeclaration',
+                                             EffectDeclaration')
+import           Unison.Reference           (pattern Builtin, Reference)
+import           Unison.Result              (Result (..))
+import           Unison.Term                (AnnotatedTerm)
+import qualified Unison.Term                as Term
+import           Unison.Type                (AnnotatedType)
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-
--- import qualified Unison.Paths as Paths
--- import qualified Unison.Type as Type
+import qualified Unison.TypeVar             as TypeVar
+import           Unison.Var                 (Var)
+import qualified Unison.Var                 as Var
+-- import           Debug.Trace
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
 
 data Notes v loc = Notes {
   errors :: Seq (Context.ErrorNote v loc),
-  infos :: Seq (Context.InfoNote v loc)
+  infos  :: Seq (Context.InfoNote v loc)
 }
 
 instance Semigroup (Notes v loc) where
@@ -66,12 +67,12 @@ data NamedReference v loc =
   NamedReference { fqn :: Text, fqnType :: AnnotatedType v loc, builtin :: Bool }
 
 data Env f v loc = Env
-  { _builtinLoc :: loc
-  , _ambientAbilities :: [Type v loc]
-  , _typeOf :: Reference -> f (Type v loc)
-  , _dataDeclaration :: Reference -> f (DataDeclaration' v loc)
+  { _builtinLoc        :: loc
+  , _ambientAbilities  :: [Type v loc]
+  , _typeOf            :: Reference -> f (Type v loc)
+  , _dataDeclaration   :: Reference -> f (DataDeclaration' v loc)
   , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , _terms :: Map Text [NamedReference v loc]
+  , _terms             :: Map Text [NamedReference v loc]
   }
 
 makeLenses ''Env
@@ -165,8 +166,8 @@ type TDNR f v loc a =
 data Resolution v loc =
   Resolution { resolvedName :: Text
              , inferredType :: Context.Type v loc
-             , resolvedLoc :: loc
-             , suggestions :: [Context.Suggestion v loc]
+             , resolvedLoc  :: loc
+             , suggestions  :: [Context.Suggestion v loc]
              }
 
 lowerType :: Ord v => Context.Type v loc -> Type v loc
@@ -210,7 +211,9 @@ typeDirectedNameResolution resultSoFar env = do
       tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
       (Result newNotes' resolutions) =
         traverse (resolveNote tdnrEnv) $ toList (infos oldNotes)
-      newNotes = (Notes (errors oldNotes) mempty) <> newNotes'
+      ---- todo: working here ----
+      oldDecisions = [ s | s@(Context.Decision _ _ _) <- toList $ infos oldNotes]
+      newNotes = (Notes (errors oldNotes) (Seq.fromList oldDecisions)) <> newNotes'
   case resolutions of
     Nothing -> lift $ pure $ Result newNotes may
     Just rs ->
