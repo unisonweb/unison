@@ -22,7 +22,7 @@ import qualified Unison.Blank as Blank
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
-import Unison.Names (Names(..))
+import           Unison.Names (Names(..))
 import qualified Unison.Names as Names
 import           Unison.Parser (Ann(Intrinsic))
 import qualified Unison.Parsers as Parsers
@@ -71,11 +71,10 @@ synthesizeFile
   -> Result (Seq (Note v Ann)) (Term v, Type v)
 synthesizeFile names0 unisonFile
   = let
-      -- (UnisonFile _ _ term0) = unisonFile
       uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins names0 unisonFile
       names1                          = UF.toNames uf
-      names                           = names1 <> names0
-      term = Term.prepareTDNR $ Names.bindTerm names term0
+      names2                          = names1 <> names0
+      term = Term.prepareTDNR $ Names.bindTerm names2 term0
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
       eds     = Map.fromList $ Foldable.toList eds0
@@ -110,11 +109,14 @@ synthesizeFile names0 unisonFile
         B.builtinTypedTerms
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve env0) term
-      decisions =
-        [ (v, loc, fqn)
-        | Context.Decision v loc fqn <- Foldable.toList
-          $ Typechecker.infos notes
+      infos              = Foldable.toList $ Typechecker.infos notes
+      topLevelComponents = Names.fromTermsV
+        [ (v, (tm, typ))
+        | Context.TopLevelComponent t <- infos
+        , (v, tm, typ)                <- t
         ]
+      names       = names2 <> topLevelComponents
+      decisions   = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
       substedTerm = foldM go term decisions
         where go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
       resolve v loc fqn t@(Term.Blank' (Blank.Recorded (Blank.Resolve loc' v')))
