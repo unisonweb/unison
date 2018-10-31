@@ -20,6 +20,7 @@ import           Control.Monad.Fail         (fail)
 import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
 import           Control.Monad.Trans        (lift)
+import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Control.Monad.Writer
 import           Data.Foldable              (for_, toList, traverse_)
 import           Data.List                  (nub)
@@ -35,7 +36,7 @@ import qualified Unison.Blank               as B
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import           Unison.Reference           (pattern Builtin, Reference)
-import           Unison.Result              (pattern Result, Result, result)
+import           Unison.Result              (pattern Result, Result, result, ResultT)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (AnnotatedType)
@@ -148,20 +149,22 @@ synthesize
   :: (Monad f, Var v, Ord loc)
   => Env f v loc
   -> Term v loc
-  -> f (Result (Notes v loc) (Type v loc))
+  -> ResultT (Notes v loc) f (Type v loc)
 synthesize env t =
   let go (Context.Result es is ot) =
-        Result (Notes es is) $ fmap lowerType ot
-  in  go <$> Context.synthesizeClosed
-        (view builtinLoc env)
-        (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
-        (view typeOf env)
-        (view dataDeclaration env)
-        (view effectDeclaration env)
-        (Term.vtmap TypeVar.Universal t)
+        tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
+  in  go
+        =<< (lift . lift $ Context.synthesizeClosed
+              (view builtinLoc env)
+              (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
+              (view typeOf env)
+              (view dataDeclaration env)
+              (view effectDeclaration env)
+              (Term.vtmap TypeVar.Universal t)
+            )
 
 type TDNR f v loc a =
-  StateT (Term v loc) f (Result (Notes v loc) a)
+  StateT (Term v loc) (ResultT (Notes v loc) f) a
 
 data Resolution v loc =
   Resolution { resolvedName :: Text
@@ -178,17 +181,20 @@ lowerType = ABT.vmap TypeVar.underlying
 synthesizeAndResolve
   :: (Monad f, Var v, Ord loc) => Env f v loc -> TDNR f v loc (Type v loc)
 synthesizeAndResolve env = do
-  t  <- get
-  r1 <- lift $ synthesize env t
-  typeDirectedNameResolution r1 env
+  tm  <- get
+  (tp, notes) <- listen . lift $ synthesize env tm
+  typeDirectedNameResolution notes tp env
 
 typeError :: Context.ErrorNote v loc -> Result (Notes v loc) ()
 typeError note = do
   tell $ Notes [note] mempty
   Control.Monad.Fail.fail ""
 
-btw :: Context.InfoNote v loc -> Result (Notes v loc) ()
+btw :: Monad f => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
 btw note = tell $ Notes mempty [note]
+
+liftResult :: Monad f => Result (Notes v loc) a -> TDNR f v loc a
+liftResult (Result notes a) = lift $ tell notes *> MaybeT (pure a)
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -203,34 +209,30 @@ btw note = tell $ Notes mempty [note]
 typeDirectedNameResolution
   :: forall v loc f
    . (Monad f, Var v, Ord loc)
-  => Result (Notes v loc) (Type v loc)
+  => Notes v loc
+  -> Type v loc
   -> Env f v loc
   -> TDNR f v loc (Type v loc)
-typeDirectedNameResolution resultSoFar env = do
-  let (Result oldNotes may) = resultSoFar
-      tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
-      (Result newNotes' resolutions) =
-        traverse (resolveNote tdnrEnv) $ toList (infos oldNotes)
-      ---- todo: working here ----
-      oldDecisions = [ s | s@(Context.Decision _ _ _) <- toList $ infos oldNotes]
-      newNotes = (Notes (errors oldNotes) (Seq.fromList oldDecisions)) <> newNotes'
-  case resolutions of
-    Nothing -> lift $ pure $ Result newNotes may
-    Just rs ->
-      let res2 = catMaybes rs
-          goAgain =
-            any ((== 1) . length . filter Context.isExact . suggestions) res2
+typeDirectedNameResolution oldNotes oldType env = do
+      -- Add typed components (local definitions) to the TDNR environment.
+  let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
+      -- Resolve blanks in the notes and generate some resolutions
+  resolutions <- liftResult . traverse (resolveNote tdnrEnv) . toList $ infos oldNotes
+  case catMaybes resolutions of
+    [] -> pure oldType
+    rs ->
+      let goAgain =
+            any ((== 1) . length . filter Context.isExact . suggestions) rs
       in  if goAgain
             then do
-              traverse_ substSuggestion res2
+              traverse_ substSuggestion rs
               synthesizeAndResolve tdnrEnv
-            else
-                 -- The type hasn't changed
-                 lift . pure $ do
-              tp <- Result newNotes may
-              suggest res2
-              pure tp
+            else do
+              -- The type hasn't changed
+              liftResult $ suggest rs
+              pure oldType
  where
+  resultSoFar = runWriterT . runMaybeT
   addTypedComponent :: Context.InfoNote v loc -> State (Env f v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
     = for_ vtts $ \(v, _, typ) -> do
@@ -251,13 +253,13 @@ typeDirectedNameResolution resultSoFar env = do
                                         [Context.Suggestion fqn _ builtin])) =
     do
       modify (substBlank (Text.unpack name) loc solved)
-      pure . btw $ Context.Decision (Var.named name) loc fqn
+      lift . btw $ Context.Decision (Var.named name) loc fqn
         where solved =
                 (if builtin
                   then Term.ref loc . Builtin
                   else Term.var loc . Var.named
                 ) fqn
-  substSuggestion _ = pure $ pure ()
+  substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
   substBlank s a r = ABT.visitPure go
