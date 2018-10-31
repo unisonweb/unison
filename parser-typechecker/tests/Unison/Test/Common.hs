@@ -1,20 +1,23 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Test.Common where
 
+import           Data.Functor.Identity (runIdentity)
 import qualified Data.Map as Map
 import           Data.Sequence (Seq)
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
+import qualified Unison.Parsers as Parsers
+import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Result (Result)
 import qualified Unison.Result as Result
+import           Unison.Result (pattern Result, Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
-import qualified Unison.Parsers as Parsers
-import           Unison.Result (Result(..), Note)
-import qualified Unison.PrettyPrintEnv as PPE
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -33,7 +36,7 @@ t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks = Result.isSuccess . file
+typechecks = runIdentity . Result.isSuccess . file
 
 env :: Monad m => Typechecker.Env m Symbol Ann
 env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where

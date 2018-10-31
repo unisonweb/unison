@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -41,7 +42,7 @@ import qualified Unison.PrintError            as PrintError
 import           Unison.PrintError            (prettyParseError,
                                                prettyTypecheckedFile,
                                                renderNoteAsANSI)
-import           Unison.Result                (Result (Result))
+import           Unison.Result                (pattern Result)
 import qualified Unison.Result                as Result
 import qualified Unison.Typechecker.Context   as C
 import qualified Unison.UnisonFile            as UF

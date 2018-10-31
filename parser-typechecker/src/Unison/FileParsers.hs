@@ -26,7 +26,7 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.Parser (Ann(Intrinsic))
 import qualified Unison.Parsers as Parsers
 import           Unison.Reference (Reference, pattern Builtin)
-import           Unison.Result (Result(..), Note(..))
+import           Unison.Result (pattern Result, Result, Note(..))
 import qualified Unison.Result as Result
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)

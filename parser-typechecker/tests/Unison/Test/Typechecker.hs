@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE RankNTypes #-}
@@ -15,7 +16,7 @@ import           System.FilePath.Find   (always, extension, find, (==?))
 import           Unison.FileParsers     (Type, Term)
 import           Unison.Parser          as Parser
 import qualified Unison.PrintError      as PrintError
-import           Unison.Result          (Result(..))
+import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
@@ -82,6 +83,7 @@ decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
 decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
   Right (t, typ)
+decodeResult _ _ = error "Haskell is dumb."
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
 makePassingTest how filepath = join $ do

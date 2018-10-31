@@ -1,10 +1,11 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DoAndIfThenElse   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 
-import qualified Unison.Builtin                 as B
+import qualified Unison.Builtin                as B
 import           Control.Concurrent             ( forkIO
                                                 , threadDelay
                                                 )
@@ -39,7 +40,7 @@ import qualified Unison.Parsers                as Parsers
 import           Unison.PrintError              ( renderParseErrorAsANSI
                                                 , renderNoteAsANSI
                                                 )
-import           Unison.Result                  ( Result(Result) )
+import           Unison.Result                  ( pattern Result )
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
@@ -52,9 +53,9 @@ watchDirectory' d = do
         _ <- tryTakeMVar mvar
         putMVar mvar (fp, t)
       handler e = case e of
-                Added fp t False    -> doIt fp t
-                Modified fp t False -> doIt fp t
-                _                   -> pure ()
+        Added    fp t False -> doIt fp t
+        Modified fp t False -> doIt fp t
+        _                   -> pure ()
   _ <- forkIO $ withManager $ \mgr -> do
     _ <- watchTree mgr d (const True) handler
     forever $ threadDelay 1000000
@@ -71,30 +72,41 @@ collectUntilPause queue minPauseµsec = do
         threadDelay minPauseµsec
         after <- atomically $ TQueue.enqueueCount queue
         -- if nothing new is on the queue, then return the contents
-        if before == after then do
-          atomically $ TQueue.flush queue
-        else go
+        if before == after
+          then do
+            atomically $ TQueue.flush queue
+          else go
   go
 
 watchDirectory :: FilePath -> (FilePath -> Bool) -> IO (IO (FilePath, Text))
 watchDirectory dir allow = do
   previousFiles <- newIORef Map.empty
-  watcher <- watchDirectory' dir
-  let await = do
-        (file,t) <- watcher
-        if allow file then do
+  watcher       <- watchDirectory' dir
+  let
+    await = do
+      (file, t) <- watcher
+      if allow file
+        then do
           contents <- Data.Text.IO.readFile file
-          prevs <- readIORef previousFiles
+          prevs    <- readIORef previousFiles
           case Map.lookup file prevs of
             -- if the file's content's haven't changed and less than a second has passed,
             -- wait for the next update
-            Just (contents0, t0) | contents == contents0 && (t `diffUTCTime` t0) < 1 -> await
-            _ -> (file,contents) <$ writeIORef previousFiles (Map.insert file (contents,t) prevs)
-        else
-          await
+            Just (contents0, t0)
+              | contents == contents0 && (t `diffUTCTime` t0) < 1 -> await
+            _ -> (file, contents) <$ writeIORef
+              previousFiles
+              (Map.insert file (contents, t) prevs)
+        else await
   pure await
 
-watcher :: Var v => Maybe FilePath -> FilePath -> Runtime v -> Codebase IO v a -> IO ()
+watcher
+  :: Var v
+  => Maybe FilePath
+  -> FilePath
+  -> Runtime v
+  -> Codebase IO v a
+  -> IO ()
 watcher initialFile dir runtime codebase = do
   Console.setTitle "Unison"
   Console.clearScreen
@@ -104,37 +116,40 @@ watcher initialFile dir runtime codebase = do
   -- putStrLn $ "   Note: I'm using the Unison runtime at " ++ show address
   d <- watchDirectory dir (".u" `isSuffixOf`)
   n <- randomIO @Int >>= newIORef
-  let go sourceFile source0 = do
-        let source = Text.unpack source0
-        Console.clearScreen
-        Console.setCursorPosition 0 0
-        marker <- do
-          n0 <- readIORef n
-          writeIORef n (n0 + 1)
-          pure ["🌻🌸🌵🌺🌴" !! (n0 `mod` 5)]
-          -- pure ["🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛" !! (n0 `mod` 12)]
-        Console.setTitle "Unison"
-        putStrLn ""
-        putStrLn $ marker ++ "  " ++ sourceFile ++ " has changed, reloading...\n"
-        parseResult <- Parsers.readAndParseFile B.names sourceFile
-        case parseResult of
-          Left parseError -> do
-            Console.setTitle "Unison \128721"
-            print $ renderParseErrorAsANSI source parseError
-          Right (env0, parsedUnisonFile) -> do
-            let (Result notes' r) =
-                  FileParsers.synthesizeUnisonFile B.names parsedUnisonFile
-                showNote notes =
-                  intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
-            putStrLn . showNote . toList $ notes'
-            case r of
-              Nothing -> do
-                Console.setTitle "Unison \128721"
-                pure () -- just await next change
-              Just (typecheckedUnisonFile, _typ) -> do
-                Console.setTitle "Unison ✅"
-                putStrLn "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-                RT.evaluate runtime typecheckedUnisonFile codebase
+  let
+    go sourceFile source0 = do
+      let source = Text.unpack source0
+      Console.clearScreen
+      Console.setCursorPosition 0 0
+      marker <- do
+        n0 <- readIORef n
+        writeIORef n (n0 + 1)
+        pure ["🌻🌸🌵🌺🌴" !! (n0 `mod` 5)]
+        -- pure ["🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛" !! (n0 `mod` 12)]
+      Console.setTitle "Unison"
+      putStrLn ""
+      putStrLn $ marker ++ "  " ++ sourceFile ++ " has changed, reloading...\n"
+      parseResult <- Parsers.readAndParseFile B.names sourceFile
+      case parseResult of
+        Left parseError -> do
+          Console.setTitle "Unison \128721"
+          print $ renderParseErrorAsANSI source parseError
+        Right (env0, parsedUnisonFile) -> do
+          let
+            (Result notes' r) =
+              FileParsers.synthesizeUnisonFile B.names parsedUnisonFile
+            showNote notes =
+              intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
+          putStrLn . showNote . toList $ notes'
+          case r of
+            Nothing -> do
+              Console.setTitle "Unison \128721"
+              pure () -- just await next change
+            Just (typecheckedUnisonFile, _typ) -> do
+              Console.setTitle "Unison ✅"
+              putStrLn
+                "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
+              RT.evaluate runtime typecheckedUnisonFile codebase
   (`finally` RT.terminate runtime) $ do
     case initialFile of
       Just sourceFile -> do

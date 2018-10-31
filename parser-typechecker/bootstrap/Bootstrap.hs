@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -12,7 +13,7 @@ import qualified Unison.FileParsers as FileParsers
 import qualified Unison.Parser      as Parser
 import qualified Unison.Parsers     as Parsers
 import           Unison.PrintError  (renderNoteAsANSI, renderType')
-import           Unison.Result      (Result (Result))
+import           Unison.Result      (pattern Result)
 import qualified Unison.Result      as Result
 import           Unison.Symbol      (Symbol)
 import           Unison.Util.Monoid

@@ -35,7 +35,7 @@ import qualified Unison.Blank               as B
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import           Unison.Reference           (pattern Builtin, Reference)
-import           Unison.Result              (Result (..))
+import           Unison.Result              (pattern Result, Result, result)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (AnnotatedType)
