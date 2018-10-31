@@ -6,11 +6,9 @@
 
 module Unison.FileParsers where
 
-import           Control.Monad.Writer (tell)
-import qualified Unison.Term as Term
-import qualified Unison.ABT as ABT
 import           Control.Monad (foldM)
 import           Control.Monad.State (evalStateT)
+import           Control.Monad.Writer (tell)
 import           Data.Bytes.Put (runPutS)
 import           Data.ByteString (ByteString)
 import qualified Data.Foldable as Foldable
@@ -19,14 +17,20 @@ import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Sequence (Seq)
 import           Data.Text (Text, unpack)
+import qualified Unison.ABT as ABT
+import qualified Unison.Blank as Blank
 import qualified Unison.Builtin as B
 import qualified Unison.Codecs as Codecs
 import           Unison.DataDeclaration (DataDeclaration')
+import Unison.Names (Names(..))
+import qualified Unison.Names as Names
 import           Unison.Parser (Ann(Intrinsic))
 import qualified Unison.Parsers as Parsers
+import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Reference (Reference, pattern Builtin)
 import           Unison.Result (pattern Result, Result, Note(..))
 import qualified Unison.Result as Result
+import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
@@ -35,9 +39,6 @@ import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.Names (Names(..))
-import qualified Unison.Names as Names
-import qualified Unison.PrettyPrintEnv as PPE
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -72,8 +73,8 @@ synthesizeFile names0 unisonFile
   = let
       -- (UnisonFile _ _ term0) = unisonFile
       uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins names0 unisonFile
-      names1 = UF.toNames uf
-      names = names1 <> names0
+      names1                          = UF.toNames uf
+      names                           = names1 <> names0
       term = Term.prepareTDNR $ Names.bindTerm names term0
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
@@ -110,19 +111,24 @@ synthesizeFile names0 unisonFile
       Result notes mayType =
         evalStateT (Typechecker.synthesizeAndResolve env0) term
       decisions =
-        [ (v, loc, fqn) |
-          Context.Decision v loc fqn <- Foldable.toList $ Typechecker.infos notes ]
-      substedTerm = foldM go term decisions where
-        go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
-      resolve v loc fqn t@(Term.Var' v') | ABT.annotation t == loc && v == v' =
-        case Names.lookupTerm names fqn of
-          Nothing ->
-            Just $ (tell . pure $ ResolvedNameNotFound v loc fqn) *> pure t
-          Just ref -> Just $ pure (const loc <$> ref)
+        [ (v, loc, fqn)
+        | Context.Decision v loc fqn <- Foldable.toList
+          $ Typechecker.infos notes
+        ]
+      substedTerm = foldM go term decisions
+        where go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
+      resolve v loc fqn t@(Term.Blank' (Blank.Recorded (Blank.Resolve loc' v')))
+        | loc' == loc && Var.nameStr v == v' = case
+            Names.lookupTerm names fqn
+          of
+            Nothing ->
+              Just $ (tell . pure $ ResolvedNameNotFound v loc fqn) *> pure t
+            Just ref -> Just $ pure (const loc <$> ref)
       resolve _ _ _ _ = Nothing
-   in do
-     t <- substedTerm
-     Result (convertNotes notes) ((t,) <$> mayType)
+    in
+      do
+        t <- substedTerm
+        Result (convertNotes notes) ((t, ) <$> mayType)
 
 synthesizeUnisonFile :: Var v
                      => Names v Ann
