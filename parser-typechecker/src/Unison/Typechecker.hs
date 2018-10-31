@@ -28,7 +28,6 @@ import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, isJust, maybeToList)
 import           Data.Sequence              (Seq)
-import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
@@ -36,7 +35,8 @@ import qualified Unison.Blank               as B
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import           Unison.Reference           (pattern Builtin, Reference)
-import           Unison.Result              (pattern Result, Result, result, ResultT)
+import           Unison.Result              (pattern Result, Result,
+                                             ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (AnnotatedType)
@@ -194,7 +194,7 @@ btw :: Monad f => Context.InfoNote v loc -> ResultT (Notes v loc) f ()
 btw note = tell $ Notes mempty [note]
 
 liftResult :: Monad f => Result (Notes v loc) a -> TDNR f v loc a
-liftResult (Result notes a) = lift $ tell notes *> MaybeT (pure a)
+liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -217,7 +217,8 @@ typeDirectedNameResolution oldNotes oldType env = do
       -- Add typed components (local definitions) to the TDNR environment.
   let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
       -- Resolve blanks in the notes and generate some resolutions
-  resolutions <- liftResult . traverse (resolveNote tdnrEnv) . toList $ infos oldNotes
+  resolutions <- liftResult . traverse (resolveNote tdnrEnv) . toList $ infos
+    oldNotes
   case catMaybes resolutions of
     [] -> pure oldType
     rs ->
@@ -232,7 +233,6 @@ typeDirectedNameResolution oldNotes oldType env = do
               liftResult $ suggest rs
               pure oldType
  where
-  resultSoFar = runWriterT . runMaybeT
   addTypedComponent :: Context.InfoNote v loc -> State (Env f v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
     = for_ vtts $ \(v, _, typ) -> do
@@ -309,7 +309,7 @@ check
   => Env f v loc
   -> Term v loc
   -> Type v loc
-  -> f (Result (Notes v loc) (Type v loc))
+  -> ResultT (Notes v loc) f (Type v loc)
 check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
@@ -322,7 +322,8 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --     tweak t = Type.arrow() t t
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> f Bool
-wellTyped env term = isJust . result <$> synthesize env term
+wellTyped env term = go <$> runResultT (synthesize env term)
+  where go (may, _) = isJust may
 
 -- | @subtype a b@ is @Right b@ iff @f x@ is well-typed given
 -- @x : a@ and @f : b -> t@. That is, if a value of type `a`

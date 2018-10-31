@@ -10,11 +10,10 @@ import           Control.Monad.Writer (tell)
 import qualified Unison.Term as Term
 import qualified Unison.ABT as ABT
 import           Control.Monad (foldM)
-import           Control.Monad.State (runStateT, evalStateT)
+import           Control.Monad.State (evalStateT)
 import           Data.Bytes.Put (runPutS)
 import           Data.ByteString (ByteString)
 import qualified Data.Foldable as Foldable
-import           Data.Functor.Identity (runIdentity, Identity(..))
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -90,7 +89,6 @@ synthesizeFile names0 unisonFile
                                 dataDeclaration
                                 effectDeclaration
                                 unqualifiedLookup
-      n = Typechecker.synthesizeAndResolve env0
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       typeOf r =
         pure . fromMaybe (error $ "unknown reference " ++ show r) $ Map.lookup
@@ -109,7 +107,8 @@ synthesizeFile names0 unisonFile
           )
         )
         B.builtinTypedTerms
-      (Result notes mayType, _) = runIdentity $ runStateT n term
+      Result notes mayType =
+        evalStateT (Typechecker.synthesizeAndResolve env0) term
       decisions =
         [ (v, loc, fqn) |
           Context.Decision v loc fqn <- Foldable.toList $ Typechecker.infos notes ]
