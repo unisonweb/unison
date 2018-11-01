@@ -33,6 +33,6 @@ haskell-tags
 # Misc
 *~
 .DS_Store
-.virthualenv
+.virtualenv
 .vagrant
 .bloop
