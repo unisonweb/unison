@@ -175,7 +175,7 @@ object Bootstrap0 {
         }
       }
       val haskellResult =
-        Process(Seq("stack", "build"), stackDir) #&&
+        // Process(Seq("stack", "build"), stackDir) #&& // uncomment this to `stack build` every time
           Process(Seq("stack", "exec", "bootstrap", u.toString, ub.toString)) ! log
 
       { if (haskellResult > 0) Left(stderrBuffer.toString)
