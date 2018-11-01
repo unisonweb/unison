@@ -35,7 +35,7 @@ data UnisonFile v a = UnisonFile {
 data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-  terms               :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
 
 toNames :: Var v => UnisonFile v a -> Names v a
@@ -73,7 +73,7 @@ hashTerms ::
   => TypecheckedUnisonFile v a
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
 hashTerms file = let
-  components = terms file
+  components = topLevelComponents file
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
   terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
   hcs = Term.hashComponents terms0

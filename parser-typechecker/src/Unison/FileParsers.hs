@@ -74,7 +74,8 @@ synthesizeFile names0 unisonFile
       uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins names0 unisonFile
       names1                          = UF.toNames uf
       names2                          = names1 <> names0
-      term = Term.prepareTDNR $ Names.bindTerm names2 term0
+      term = Names.bindTerm names2 term0
+      tdnrTerm = Term.prepareTDNR $ term
       dds :: Map Reference (DataDeclaration v)
       dds     = Map.fromList $ Foldable.toList dds0
       eds     = Map.fromList $ Foldable.toList eds0
@@ -108,12 +109,19 @@ synthesizeFile names0 unisonFile
         )
         B.builtinTypedTerms
       Result notes mayType =
-        evalStateT (Typechecker.synthesizeAndResolve env0) term
+        evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
       infos              = Foldable.toList $ Typechecker.infos notes
-      topLevelComponents = Names.fromTermsV
-        [ (v, (tm, typ))
+
+      components = extractComponents term
+      tlcsFromTypechecker = [ (v, typ, redundant)
         | Context.TopLevelComponent t <- infos
-        , (v, tm, typ)                <- t
+        , (v, typ, redundant)         <- t
+        ]
+      topLevelComponents = Names.fromTermsV $
+        [ (v, (tm, typ))
+          | (v, typ, _) <- tlcsFromTypechecker
+          , (v', tm) <- components
+          , v == v'
         ]
       names       = names2 <> topLevelComponents
       decisions   = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
@@ -131,6 +139,10 @@ synthesizeFile names0 unisonFile
       do
         t <- substedTerm
         Result (convertNotes notes) ((t, ) <$> mayType)
+
+extractComponents :: Var v => Term v -> [(v, Term v)]
+extractComponents (Term.LetRecNamed' bs _) = bs
+extractComponents _ = []
 
 synthesizeUnisonFile :: Var v
                      => Names v Ann

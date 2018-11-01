@@ -235,7 +235,7 @@ typeDirectedNameResolution oldNotes oldType env = do
  where
   addTypedComponent :: Context.InfoNote v loc -> State (Env f v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
-    = for_ vtts $ \(v, _, typ) -> do
+    = for_ vtts $ \(v, typ, _) -> do
       terms %= Map.insertWith (<>)
                               (Var.unqualified v)
                               ([NamedReference (Var.name v) typ False])

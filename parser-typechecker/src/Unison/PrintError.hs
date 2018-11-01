@@ -117,7 +117,7 @@ prettyTypecheckedFile'
 prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
   dot = "  "
-  terms = renderTerm dot <$> join (UF.terms file)
+  terms = renderTerm dot <$> join (UF.topLevelComponents file)
   -- todo: can we color the 'type' and 'ability' keywords
   types = (renderDecl (dot <> style TypeKeyword "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
@@ -164,8 +164,11 @@ renderTypeInfo i env = case i of
             "🎁 These mutually dependent definitions typechecked:\n"
               <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) defs
  where
-  renderOne :: IsString s => (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> [s]
-  renderOne (v, _, typ) =
+  renderOne
+    :: IsString s
+    => (v, Type.AnnotatedType v loc, RedundantTypeAnnotation)
+    -> [s]
+  renderOne (v, typ, _) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
 
 

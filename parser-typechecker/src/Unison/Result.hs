@@ -41,9 +41,9 @@ data Note v loc
 
 result :: Result notes a -> Maybe a
 result (Result _ may) = may
-result _ = error "Haskell is dumb."
 
 pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
+{-# COMPLETE Result #-}
 
 isSuccess :: Functor f => ResultT note f a -> f Bool
 isSuccess = (isJust . fst <$>) . runResultT

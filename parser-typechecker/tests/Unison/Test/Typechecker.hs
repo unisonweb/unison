@@ -83,7 +83,6 @@ decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
 decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
   Right (t, typ)
-decodeResult _ _ = error "Haskell is dumb."
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
 makePassingTest how filepath = join $ do
