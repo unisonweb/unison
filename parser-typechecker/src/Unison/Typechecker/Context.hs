@@ -13,6 +13,7 @@
 module Unison.Typechecker.Context
   ( synthesizeClosed
   , ErrorNote(..)
+  , CompilerBug (..)
   , InfoNote(..)
   , Cause(..)
   , Context(..)

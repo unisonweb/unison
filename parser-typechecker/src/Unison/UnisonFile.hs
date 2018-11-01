@@ -38,6 +38,27 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 }
 
+-- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
+data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
+  dataDeclarations''   :: Map v (Reference, DataDeclaration' v a),
+  effectDeclarations'' :: Map v (Reference, EffectDeclaration' v a),
+  topLevelComponents'  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+  topLevelTerm :: AnnotatedTerm v a,
+  typ :: AnnotatedType v a
+}
+
+discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
+discardTypes tm (TypecheckedUnisonFile datas effects _) =
+  UnisonFile datas effects tm
+
+discardTypes' :: TypecheckedUnisonFile' v a -> UnisonFile v a
+discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
+  UnisonFile datas effects tm
+
+discardTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
+  TypecheckedUnisonFile datas effects tlcs
+
 toNames :: Var v => UnisonFile v a -> Names v a
 toNames (UnisonFile {..}) = datas <> effects
   where
@@ -47,26 +68,30 @@ toNames (UnisonFile {..}) = datas <> effects
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty
 
-typecheckedUnisonFile ::
-     Var v
+typecheckedUnisonFile
+  :: Var v
   => Map v (Reference, DataDeclaration' v a)
   -> Map v (Reference, EffectDeclaration' v a)
   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
   -> TypecheckedUnisonFile v a
-typecheckedUnisonFile ds es cs =
-  TypecheckedUnisonFile ds es (removeWatches cs)
-  where
+typecheckedUnisonFile ds es cs = TypecheckedUnisonFile ds es (removeWatches cs)
+ where
   -- todo: more robust way of doing this once we have different kinds of variables
   removeWatches = filter (not . null) . fmap filterDefs
-  filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+  filterDefs    = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
 
-hashConstructors :: Var v => TypecheckedUnisonFile v a -> Map v (Reference, AnnotatedTerm v ())
-hashConstructors file = let
-  ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars dd `zip` [0..] ]
-  ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0..] ]
-  in Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
+hashConstructors
+  :: Var v => TypecheckedUnisonFile v a -> Map v (Reference, AnnotatedTerm v ())
+hashConstructors file =
+  let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
+        [ (v, Term.constructor () ref i)
+        | (v, i) <- DD.constructorVars dd `zip` [0 ..]
+        ]
+      ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
+        [ (v, Term.constructor () ref i)
+        | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..]
+        ]
+  in  Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
 
 hashTerms ::
      Var v

@@ -18,6 +18,7 @@ import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
+import           Unison.UnisonFile (TypecheckedUnisonFile')
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -29,7 +30,7 @@ file
   :: String
   -> Result
        (Seq (Note Symbol Ann))
-       (PPE.PrettyPrintEnv, Maybe (Term Symbol, Type Symbol))
+       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' Symbol Ann))
 file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
@@ -48,7 +49,8 @@ parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Seq (Note v Ann)) (PPE.PrettyPrintEnv, Maybe (Term v, Type v))
+  -> Result (Seq (Note v Ann))
+            (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
 parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
     $ Parsers.parseFile filename s B.names

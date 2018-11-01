@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE DoAndIfThenElse   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
@@ -41,6 +41,7 @@ import           Unison.PrintError              ( renderParseErrorAsANSI
                                                 , renderNoteAsANSI
                                                 )
 import           Unison.Result                  ( pattern Result )
+import qualified Unison.UnisonFile              as UF
 import           Unison.Util.Monoid
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
@@ -137,7 +138,7 @@ watcher initialFile dir runtime codebase = do
         Right (env0, parsedUnisonFile) -> do
           let
             (Result notes' r) =
-              FileParsers.synthesizeUnisonFile B.names parsedUnisonFile
+              FileParsers.synthesizeFile B.names parsedUnisonFile
             showNote notes =
               intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
           putStrLn . showNote . toList $ notes'
@@ -145,11 +146,11 @@ watcher initialFile dir runtime codebase = do
             Nothing -> do
               Console.setTitle "Unison \128721"
               pure () -- just await next change
-            Just (typecheckedUnisonFile, _typ) -> do
+            Just typecheckedUnisonFile -> do
               Console.setTitle "Unison ✅"
               putStrLn
                 "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-              RT.evaluate runtime typecheckedUnisonFile codebase
+              RT.evaluate runtime (UF.discardTypes' typecheckedUnisonFile) codebase
   (`finally` RT.terminate runtime) $ do
     case initialFile of
       Just sourceFile -> do

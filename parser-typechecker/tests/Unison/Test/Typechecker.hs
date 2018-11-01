@@ -7,33 +7,36 @@ module Unison.Test.Typechecker where
 
 import           Control.Monad          (join, void)
 import           Control.Monad.IO.Class (liftIO)
-import           Data.Sequence (Seq)
+import           Data.Sequence          (Seq)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           EasyTest
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
+import qualified Unison.Builtin         as Builtin
 import           Unison.FileParsers     (Type, Term)
 import           Unison.Parser          as Parser
+import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
+import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
-import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Builtin as Builtin
+import           Control.Arrow          ((&&&))
 
 type Note = Result.Note Symbol Parser.Ann
 
-type SynthResult = Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+type SynthResult =
+  Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 type EitherResult = Either String (Term Symbol, Type Symbol)
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.fromNames (Builtin.names @Symbol)
 
 expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
-expectRight' (Left e) = crash e
+expectRight' (Left  e) = crash e
 expectRight' (Right a) = ok >> pure a
 
 good :: EitherResult -> Test ()
@@ -43,12 +46,14 @@ bad :: EitherResult -> Test ()
 bad = void <$> EasyTest.expectLeft
 
 test :: Test ()
-test = scope "typechecker" . tests $
-        [ go shouldPassNow good
-        , go shouldFailNow bad
-        , go shouldPassLater (pending . bad)
-        , go shouldFailLater (pending . good)
-        ]
+test =
+  scope "typechecker"
+    . tests
+    $ [ go shouldPassNow   good
+      , go shouldFailNow   bad
+      , go shouldPassLater (pending . bad)
+      , go shouldFailLater (pending . good)
+      ]
 
 shouldPassPath, shouldFailPath :: String
 shouldPassPath = "unison-src/tests"
@@ -89,5 +94,10 @@ makePassingTest how filepath = join $ do
   let shortName = joinPath . drop 1 . splitPath $ filepath
   source <- io $ unpack <$> Data.Text.IO.readFile filepath
   -- io $ putStrLn (show $ Builtin.names @Symbol)
-  pure $ scope shortName . how . decodeResult source .
-    parseAndSynthesizeAsFile shortName $ source
+  pure
+    $ scope shortName
+    . how
+    . decodeResult source
+    . fmap (fmap (fmap (UF.topLevelTerm &&& UF.typ)))
+    . parseAndSynthesizeAsFile shortName
+    $ source

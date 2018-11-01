@@ -869,8 +869,8 @@ printNoteWithSource _env s (InvalidPath path term) =
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
-printNoteWithSource _env _s r@(ResolvedNameNotFound _ _ _) =
-  fromString $ "Compiler bug: " <> show r
+printNoteWithSource _env _s (CompilerBug c) =
+  fromString $ "Compiler bug: " <> show c
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
 _printPosRange s (L.Pos startLine startCol) _end =

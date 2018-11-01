@@ -43,6 +43,9 @@ fromPatterns vs = mempty { patternNames = Map.fromList vs }
 fromTermsV :: Var v => [(v, (AnnotatedTerm v a, AnnotatedType v a))] -> Names v a
 fromTermsV ts = fromTerms [(Var.name v, (e,t)) | (v,(e,t)) <- ts ]
 
+fromTermsV' :: Var v => [(v, AnnotatedTerm v a, AnnotatedType v a)] -> Names v a
+fromTermsV' ts = fromTerms [(Var.name v, (e,t)) | (v,e,t) <- ts ]
+
 fromTerms :: [(Name, (AnnotatedTerm v a, AnnotatedType v a))] -> Names v a
 fromTerms ts = mempty { termNames = Map.fromList ts }
 

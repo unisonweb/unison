@@ -36,6 +36,11 @@ data Note v loc
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
+  | CompilerBug (CompilerBug v loc)
+  deriving Show
+
+data CompilerBug v loc
+  = TopLevelComponentNotFound v (Term v loc)
   | ResolvedNameNotFound v loc Name
   deriving Show
 
@@ -73,3 +78,7 @@ fromParsing' (Right a) = pure a
 
 fromParsing :: Either (Parser.Err v) a -> Result (Seq (Note v loc)) a
 fromParsing = fromParsing'
+
+tellAndFail :: Monad f => note -> ResultT (Seq note) f a
+tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
+
