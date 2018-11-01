@@ -46,7 +46,7 @@ javaRuntime suggestedPort = do
       Socket -> Int -> IO (IO (), InputStream ByteString, OutputStream ByteString)
     connectToRuntime listenSock port = do
       let cmd = "scala"
-          args = ["-cp", "runtime-jvm/main/target/scala-2.12/classes",
+          args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes",
                   "org.unisonweb.BootstrapStream", show port]
       (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
       (socket, _address) <- accept listenSock -- accept a connection and handle it
