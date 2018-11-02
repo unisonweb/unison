@@ -39,7 +39,7 @@ import           Unison.UnisonFile (pattern UnisonFile)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Debug.Trace
+-- import Debug.Trace
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -128,18 +128,16 @@ synthesizeFile names0 unisonFile = do
     decisions   = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
     substedTerm = foldM go term decisions
       where go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
-    resolve v loc fqn t@(Term.Blank' (Blank.Recorded (Blank.Resolve loc' v')))
-      | loc' == loc && Var.nameStr v == v' = case Names.lookupTerm names fqn of
-        Nothing ->
-          Just
-            $  (tell . pure . Result.CompilerBug $ Result.ResolvedNameNotFound
-                 v
-                 loc
-                 fqn
-               )
-            *> pure t
-        Just ref -> Just $ pure (const loc <$> ref)
-    resolve _ _ _ _ = Nothing
+    -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
+    resolve v loc fqn t =
+      case t of
+        Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
+          | loc' == loc && Var.nameStr v == name ->
+            case Names.lookupTerm names fqn of
+            Nothing -> Just $ (tell . pure . Result.CompilerBug $
+                                Result.ResolvedNameNotFound v loc fqn) *> pure t
+            Just ref -> Just $ pure (const loc <$> ref)
+        _ -> Nothing
   t <- substedTerm
   Result
     (convertNotes notes)
