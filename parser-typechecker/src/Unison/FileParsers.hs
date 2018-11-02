@@ -40,7 +40,6 @@ import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Debug.Trace
-import Unison.Util.Monoid
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -112,11 +111,10 @@ synthesizeFile names0 unisonFile = do
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
     infos               = Foldable.toList $ Typechecker.infos notes
-    components          = trace ("---components:---\n" ++ cs) extractComponents term
-      where cs = intercalateMap "\n" show ([(1::Int)..] `zip` (Map.toList $ extractComponents term))
+    components          = Map.mapKeys Var.name $ extractComponents term
     tlcsFromTypechecker = [ t | Context.TopLevelComponent t <- infos ]
     substTLC (v, typ, redundant) = do
-      tm <- case Map.lookup v components of
+      tm <- case Map.lookup (Var.name v) components of
         Nothing ->
           Result.tellAndFail
             . Result.CompilerBug
