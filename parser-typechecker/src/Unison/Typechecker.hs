@@ -34,6 +34,7 @@ import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
+import           Unison.Names               (Name)
 import           Unison.Reference           (pattern Builtin, Reference)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
@@ -65,7 +66,7 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Text, fqnType :: AnnotatedType v loc, builtin :: Bool }
+  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc, builtin :: Bool }
 
 data Env f v loc = Env
   { _builtinLoc        :: loc
@@ -73,7 +74,7 @@ data Env f v loc = Env
   , _typeOf            :: Reference -> f (Type v loc)
   , _dataDeclaration   :: Reference -> f (DataDeclaration' v loc)
   , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , _terms             :: Map Text [NamedReference v loc]
+  , _terms             :: Map Name [NamedReference v loc]
   }
 
 makeLenses ''Env

@@ -36,7 +36,7 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
   topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
-}
+} deriving Show
 
 -- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
 data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
@@ -45,7 +45,7 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   topLevelComponents'  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
   topLevelTerm :: AnnotatedTerm v a,
   typ :: AnnotatedType v a
-}
+} deriving Show
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes tm (TypecheckedUnisonFile datas effects _) =

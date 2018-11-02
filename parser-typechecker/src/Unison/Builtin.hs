@@ -82,7 +82,7 @@ builtinTypes = (Var.named &&& R.Builtin) <$>
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
-builtinDataDecls :: forall v. (Var v) => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
 builtinDataDecls = l
   where
     l = [ (Var.named "()",
@@ -92,13 +92,12 @@ builtinDataDecls = l
                                            Type.unit Intrinsic)]))
     -- todo: figure out why `type () = ()` doesn't parse:
     -- l = [ parseDataDeclAsBuiltin "type () = ()"
-        -- todo: These should get replaced by hashes,
-        --       same as the user-defined data types.
-        --       But we still will want a way to associate a name.
-        --
         , parseDataDeclAsBuiltin "type Pair a b = Pair a b"
         , parseDataDeclAsBuiltin "type Optional a = None | Some a"
         ]
+
+builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
+builtinEffectDecls = []
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
