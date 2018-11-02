@@ -162,10 +162,8 @@ synthesizeFile builtinNames unisonFile = do
       Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
         | loc' == loc && Var.nameStr shortv == name
         -> case Names.lookupTerm names fqn of
-          Nothing -> Just . Result.compilerBug $ Result.ResolvedNameNotFound
-            shortv
-            loc
-            fqn
+          Nothing -> Just . Result.compilerBug $
+            Result.ResolvedNameNotFound shortv loc fqn
           Just ref -> Just $ pure (const loc <$> ref)
       _ -> Nothing
 
