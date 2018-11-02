@@ -309,7 +309,8 @@ substInheritAnnotation v r t =
 substsInheritAnnotation
   :: (Foldable f, Functor f, Var v)
   => [(v, Term f v b)] -> Term f v a -> Term f v a
-substsInheritAnnotation replacements body = foldr f body (reverse replacements) where
+substsInheritAnnotation replacements body = foldr f body (reverse replacements)
+  where
   f (v, t) body = substInheritAnnotation v t body
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
@@ -557,4 +558,3 @@ instance (Show1 f, Var v) => Show (Term f v a) where
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
-

@@ -46,7 +46,7 @@ import           Unison.Util.Monoid
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
-import Debug.Trace
+-- import Debug.Trace
 
 watchDirectory' :: FilePath -> IO (IO (FilePath, UTCTime))
 watchDirectory' d = do
@@ -151,7 +151,7 @@ watcher initialFile dir runtime codebase = do
               Console.setTitle "Unison ✅"
               putStrLn
                 "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-              RT.evaluate runtime (trace "unisonFile" . traceShowId $ UF.discardTypes' typecheckedUnisonFile) codebase
+              RT.evaluate runtime (UF.discardTypes' typecheckedUnisonFile) codebase
   (`finally` RT.terminate runtime) $ do
     case initialFile of
       Just sourceFile -> do

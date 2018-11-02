@@ -1,27 +1,29 @@
-{-# Language RecordWildCards #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Names where
 
-import Data.List (foldl')
-import           Data.Map                       ( Map )
-import qualified Data.Map as Map
-import           Data.Text                      ( Text )
-import qualified Data.Text as Text
-import           Unison.Reference               ( Reference )
-import           Unison.Term                    ( AnnotatedTerm )
-import qualified Unison.Term as Term
-import           Unison.Type                    ( AnnotatedType )
-import qualified Unison.Type as Type
-import Unison.Var (Var)
-import qualified Unison.Var as Var
+import           Control.Monad    (join)
+import           Data.List        (foldl')
+import           Data.Map         (Map)
+import qualified Data.Map         as Map
+import           Data.Text        (Text)
+import qualified Data.Text        as Text
+import qualified Unison.ABT       as ABT
+import           Unison.Reference (Reference)
+import           Unison.Term      (AnnotatedTerm)
+import qualified Unison.Term      as Term
+import           Unison.Type      (AnnotatedType)
+import qualified Unison.Type      as Type
+import           Unison.Var       (Var)
+import qualified Unison.Var       as Var
 
 type Name = Text
 
 data Names v a = Names
-  { termNames :: Map Name (AnnotatedTerm v a, AnnotatedType v a)
+  { termNames    :: Map Name (AnnotatedTerm v a, AnnotatedType v a)
   , patternNames :: Map Name (Reference, Int)
-  , typeNames :: Map Name Reference
+  , typeNames    :: Map Name Reference
   }
 
 instance (Var v, Show a) => Show (Names v a) where
@@ -36,6 +38,11 @@ lookupTerm ns n = fst <$> Map.lookup n (termNames ns)
 
 lookupType :: Names v a -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
+
+varsFromComponents :: Var v => [[(v, AnnotatedTerm v a, AnnotatedType v a)]] -> Names v a
+varsFromComponents components = Names termVars mempty mempty
+  where termVars = Map.fromList $ fmap go (join components)
+        go (v, t, tp) = (Var.name v, (Term.var (ABT.annotation t) v, tp))
 
 fromPatterns :: [(Name,(Reference,Int))] -> Names v a
 fromPatterns vs = mempty { patternNames = Map.fromList vs }

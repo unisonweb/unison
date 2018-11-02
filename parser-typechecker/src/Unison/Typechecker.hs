@@ -74,7 +74,7 @@ data Env f v loc = Env
   , _typeOf            :: Reference -> f (Type v loc)
   , _dataDeclaration   :: Reference -> f (DataDeclaration' v loc)
   , _effectDeclaration :: Reference -> f (EffectDeclaration' v loc)
-  , _terms             :: Map Name [NamedReference v loc]
+  , _unqualifiedTerms  :: Map Name [NamedReference v loc]
   }
 
 makeLenses ''Env
@@ -237,7 +237,7 @@ typeDirectedNameResolution oldNotes oldType env = do
   addTypedComponent :: Context.InfoNote v loc -> State (Env f v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
     = for_ vtts $ \(v, typ, _) -> do
-      terms %= Map.insertWith (<>)
+      unqualifiedTerms %= Map.insertWith (<>)
                               (Var.unqualified v)
                               ([NamedReference (Var.name v) typ False])
   addTypedComponent _ = pure ()
@@ -280,7 +280,7 @@ typeDirectedNameResolution oldNotes oldType env = do
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
-      $ view terms env
+      $ view unqualifiedTerms env
   resolveNote _ n = btw n >> pure Nothing
   resolve
     :: Env f v loc
