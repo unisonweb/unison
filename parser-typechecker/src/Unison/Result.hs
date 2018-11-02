@@ -81,3 +81,6 @@ fromParsing = fromParsing'
 
 tellAndFail :: Monad f => note -> ResultT (Seq note) f a
 tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
+
+compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
+compilerBug = tellAndFail . CompilerBug

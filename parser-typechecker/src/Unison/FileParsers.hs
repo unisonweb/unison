@@ -8,7 +8,6 @@ module Unison.FileParsers where
 
 import           Control.Monad (foldM, join)
 import           Control.Monad.State (evalStateT)
-import           Control.Monad.Writer (tell)
 import           Data.Bytes.Put (runPutS)
 import           Data.ByteString (ByteString)
 import qualified Data.Foldable as Foldable
@@ -115,10 +114,7 @@ synthesizeFile names0 unisonFile = do
     tlcsFromTypechecker = [ t | Context.TopLevelComponent t <- infos ]
     substTLC (v, typ, redundant) = do
       tm <- case Map.lookup (Var.name v) components of
-        Nothing ->
-          Result.tellAndFail
-            . Result.CompilerBug
-            $ Result.TopLevelComponentNotFound v term
+        Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
         Just (Term.Ann' x _) | redundant -> pure x
         Just x                           -> pure x
       pure (v, tm, typ)
@@ -134,8 +130,8 @@ synthesizeFile names0 unisonFile = do
         Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
           | loc' == loc && Var.nameStr v == name ->
             case Names.lookupTerm names fqn of
-            Nothing -> Just $ (tell . pure . Result.CompilerBug $
-                                Result.ResolvedNameNotFound v loc fqn) *> pure t
+            Nothing ->
+              Just . Result.compilerBug $ Result.ResolvedNameNotFound v loc fqn
             Just ref -> Just $ pure (const loc <$> ref)
         _ -> Nothing
   t <- substedTerm
