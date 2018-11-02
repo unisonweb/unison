@@ -72,12 +72,12 @@ synthesizeFile
   => Names v Ann
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
-synthesizeFile names0 unisonFile = do
+synthesizeFile builtinNames unisonFile = do
   let
-    uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins names0 unisonFile
-    names1                          = UF.toNames uf -- data/effect decl names
-    names2                          = names1 <> names0 -- initial + data/effect
-    term                            = Names.bindTerm names2 term0
+    uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins builtinNames unisonFile
+    ufDeclNames                     = UF.toNames uf
+    allTheNames                     = ufDeclNames <> builtinNames
+    term                            = Names.bindTerm allTheNames term0
     tdnrTerm                        = Term.prepareTDNR $ term
     -- merge dds from unisonFile with dds from Unison.Builtin
     -- note: `Map.union` is left-biased
@@ -86,55 +86,62 @@ synthesizeFile names0 unisonFile = do
     -- same, but there are no eds in Unison.Builtin yet.
     effects = Map.union eds0 $ Map.fromList B.builtinEffectDecls
     env0 = Typechecker.Env Intrinsic [] typeOf lookupData lookupEffect builtins
-      where
-      lookupData   r = pure $ fromMaybe (die "data" r)   $ Map.lookup r datasr
-      lookupEffect r = pure $ fromMaybe (die "effect" r) $ Map.lookup r effectsr
-      die s h        = error $ "unknown " ++ s ++ " reference " ++ show h
+     where
+      lookupData r = pure $ fromMaybe (die "data" r) $ Map.lookup r datasr
+      lookupEffect r =
+        pure $ fromMaybe (die "effect" r) $ Map.lookup r effectsr
+      die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       builtins :: Map Name [Typechecker.NamedReference v Ann]
-      builtins       = Map.fromListWith mappend (fmap toNamedRef B.builtinTypedTerms)
+      builtins = Map.fromListWith mappend (fmap toNamedRef B.builtinTypedTerms)
       toNamedRef (v, (_tm, typ)) =
         (Var.unqualified v, [Typechecker.NamedReference (Var.name v) typ True])
-      datasr         :: Map Reference (DataDeclaration v)
-      datasr         = Map.fromList $ Foldable.toList datas
-      effectsr       :: Map Reference (EffectDeclaration v)
-      effectsr       = Map.fromList $ Foldable.toList effects
-      typeOf r       = pure (fromMaybe
-                                (error ("unknown reference " ++ show r))
-                                (Map.lookup r typeSigs))
+      datasr :: Map Reference (DataDeclaration v)
+      datasr = Map.fromList $ Foldable.toList datas
+      effectsr :: Map Reference (EffectDeclaration v)
+      effectsr = Map.fromList $ Foldable.toList effects
+      typeOf r =
+        pure . fromMaybe (error $ "unknown reference " ++ show r) $ Map.lookup
+          r
+          typeSigs
       typeSigs = Map.fromList $ fmap go B.builtinTypedTerms
-                  where go (v, (_tm, typ)) = (Builtin (Var.name v), typ)
+        where go (v, (_tm, typ)) = (Builtin (Var.name v), typ)
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
-    infos               = Foldable.toList $ Typechecker.infos notes
-  topLevelComponents <- let
-    components :: Map Name (Term v)
-    components = Map.mapKeys Var.name $ extractComponents term
-    tlcsFromTypechecker = [ t | Context.TopLevelComponent t <- infos ]
-    substTLC (v, typ, redundant) = do
-      tm <- case Map.lookup (Var.name v) components of
-        Nothing -> Result.compilerBug $ Result.TopLevelComponentNotFound v term
-        Just (Term.Ann' x _) | redundant -> pure x
-        Just x                           -> pure x
-      pure (v, tm, typ)
-    in traverse (traverse substTLC) tlcsFromTypechecker
+    infos = Foldable.toList $ Typechecker.infos notes
+  topLevelComponents <-
+    let
+      components :: Map Name (Term v)
+      components          = Map.mapKeys Var.name $ extractComponents term
+      tlcsFromTypechecker = [ t | Context.TopLevelComponent t <- infos ]
+      substTLC (v, typ, redundant) = do
+        tm <- case Map.lookup (Var.name v) components of
+          Nothing ->
+            Result.compilerBug $ Result.TopLevelComponentNotFound v term
+          Just (Term.Ann' x _) | redundant -> pure x
+          Just x                           -> pure x
+        pure (v, tm, typ)
+    in
+      traverse (traverse substTLC) tlcsFromTypechecker
   let
-    names       = names2 <> Names.fromTermsV' (join topLevelComponents)
-    substedTerm = (\x -> traceShow ("substedTerm"::String, x) x) $ foldM go tdnrTerm decisions
-      where
-      go term (v, loc, fqn) | traceShow ("go"::String, term, (v, loc, fqn)) False = undefined
+    names       = allTheNames <> Names.fromTermsV' (join topLevelComponents)
+    substedTerm = (\x -> traceShow ("substedTerm" :: String, x) x)
+      $ foldM go tdnrTerm decisions
+     where
+      go term (v, loc, fqn)
+        | traceShow ("go" :: String, term, (v, loc, fqn)) False = undefined
       go term (v, loc, fqn) = ABT.visit (resolve v loc fqn) term
       decisions = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
       -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
-      resolve v loc fqn t | traceShow ("resolve"::String, v, loc, fqn, t) False = undefined
-      resolve v loc fqn t =
-        case t of
-          Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
-            | loc' == loc && Var.nameStr v == name -> trace "BLANK" $
-              case Names.lookupTerm names fqn of
-              Nothing -> Just . Result.compilerBug $
-                traceShowId (Result.ResolvedNameNotFound v loc fqn)
-              Just ref -> Just $ pure (const loc <$> ref)
-          _ -> Nothing
+      resolve v loc fqn t
+        | traceShow ("resolve" :: String, v, loc, fqn, t) False = undefined
+      resolve v loc fqn t = case t of
+        Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
+          | loc' == loc && Var.nameStr v == name
+          -> trace "BLANK" $ case Names.lookupTerm names fqn of
+            Nothing -> Just . Result.compilerBug $ traceShowId
+              (Result.ResolvedNameNotFound v loc fqn)
+            Just ref -> Just $ pure (const loc <$> ref)
+        _ -> Nothing
   t <- substedTerm
   Result
     (convertNotes notes)
