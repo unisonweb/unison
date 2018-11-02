@@ -13,8 +13,10 @@ import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import qualified Data.Set                   as Set
 import           Data.Maybe
 import           Data.Sequence              (Seq)
+import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
@@ -48,9 +50,30 @@ type UnisonFile v = UF.UnisonFile v Ann
 type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
 
-convertNotes :: Typechecker.Notes v ann -> Seq (Note v ann)
+-- move to Unison.Util.List
+-- prefers earlier copies
+uniqueBy :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
+uniqueBy f as = wrangle' (Foldable.toList as) Set.empty where
+  wrangle' [] _ = []
+  wrangle' (a:as) seen =
+    if Set.member b seen
+    then wrangle' as seen
+    else a : wrangle' as (Set.insert b seen)
+    where b = f a
+
+-- prefers later copies
+uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
+uniqueBy' f = reverse . uniqueBy f . reverse . Foldable.toList
+
+convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
-  (TypeError <$> es) <> (TypeInfo <$> is)
+  (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
+  is' = snd <$> uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
+  f (_, (Context.TopLevelComponent cs)) = Right [ v | (v,_,_) <- cs ]
+  f (i, _) = Left i
+  -- each round of TDNR emits its own TopLevelComponent notes, so we remove
+  -- duplicates (based on var name and location), preferring the later note as
+  -- that will have the latest typechecking info
 
 parseAndSynthesizeFile
   :: Var v
