@@ -130,7 +130,7 @@ prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
     (v, mconcat [s, renderVar v, " : ", renderType' env typ])
   renderDecl :: AnnotatedText Color -> (v, (r, DD.DataDeclaration' v loc)) -> (v, AnnotatedText Color)
   renderDecl s (v, (_, decl)) = (v, mconcat
-    [s, renderVar v, intercalateMap " " renderVar $ DD.bound decl])
+    [s, renderVar v, " ", intercalateMap " " renderVar $ DD.bound decl])
   renderEffect :: AnnotatedText Color -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, AnnotatedText Color)
   renderEffect s (v, (r, decl)) = renderDecl (s <> style AbilityKeyword "ability ") (v, (r, DD.toDataDecl decl))
 

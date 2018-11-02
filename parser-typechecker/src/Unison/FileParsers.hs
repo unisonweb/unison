@@ -147,7 +147,7 @@ synthesizeFile builtinNames unisonFile = do
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
     t <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
-    pure (UF.TypecheckedUnisonFile' datas effects tdnredTlcs t typ)
+    pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann] -> Names v Ann -> Term v -> Result' v (Term v)

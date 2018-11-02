@@ -28,6 +28,7 @@ import           System.FilePath              (FilePath)
 import qualified Text.Read                    as Read
 import qualified Unison.Reference             as Reference
 import           System.IO.Error              (isEOFError)
+import qualified Unison.Builtin               as B
 import           Unison.Codebase              (Codebase)
 import qualified Unison.Codebase              as Codebase
 import           Unison.Codebase.Branch       (Branch)
@@ -187,7 +188,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn
               $  "✅ "
               ++ [emoticons !! n]
-              ++ "  Found and typechecked the following definitions:\n"
+              ++ "  Found and typechecked the following definitions in " ++ filePath ++ ":\n"
             let uf = UF.discardTerm unisonFile
             writeIORef lastTypechecked (Just filePath, uf, errorEnv)
             putStrLn . show . Color.renderText $ prettyTypecheckedFile
@@ -213,7 +214,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.clearScreen
             Console.setCursorPosition 0 0
             names <- Codebase.branchToNames codebase branch
-            handleUnisonFile runtime names filePath text
+            handleUnisonFile runtime (names <> B.names) filePath text
             go branch name
           UnisonBranchChanged branches -> if Set.member name branches
             then do
