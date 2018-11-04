@@ -175,7 +175,7 @@ builtins0 = Map.fromList $
       , ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
       , ("Stream.iterate", "a -> (a -> a) -> Stream a")
       , ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
-      , ("Stream.to-sequence", "Stream a -> Sequence a")
+      , ("Stream.toSequence", "Stream a -> Sequence a")
       , ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
       , ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
       , ("Stream.sum-int", "Stream Int -> Int")
