@@ -2,6 +2,7 @@
 
 module Unison.UnisonFile where
 
+import Control.Monad (join)
 import           Data.Bifunctor (second)
 import qualified Data.Foldable as Foldable
 import           Data.Map (Map)
@@ -16,6 +17,7 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Reference (Reference)
 import           Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term as Term
+import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 
@@ -24,6 +26,50 @@ data UnisonFile v a = UnisonFile {
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
   term :: AnnotatedTerm v a
 } deriving (Show)
+
+-- A UnisonFile after typechecking. Terms are split into groups by
+-- cycle and the type of each term is known.
+data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
+  dataDeclarations' :: Map v (Reference, DataDeclaration' v a),
+  effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
+  terms :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+}
+
+typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
+typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty
+
+typecheckedUnisonFile ::
+     Var v
+  => Map v (Reference, DataDeclaration' v a)
+  -> Map v (Reference, EffectDeclaration' v a)
+  -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  -> TypecheckedUnisonFile v a
+typecheckedUnisonFile ds es cs =
+  TypecheckedUnisonFile ds es (removeWatches cs)
+  where
+  -- todo: more robust way of doing this once we have different kinds of variables
+  removeWatches = filter (not . null) . fmap filterDefs
+  filterDefs = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+
+hashConstructors :: Var v => TypecheckedUnisonFile v a -> Map v (Reference, AnnotatedTerm v ())
+hashConstructors file = let
+  ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
+              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars dd `zip` [0..] ]
+  ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
+              [ (v, Term.constructor() ref i) | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0..] ]
+  in Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
+
+hashTerms ::
+     Var v
+  => TypecheckedUnisonFile v a
+  -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
+hashTerms file = let
+  components = terms file
+  types = Map.fromList [(v,t) | (v,_,t) <- join components ]
+  terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
+  hcs = Term.hashComponents terms0
+  in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
+                                     Just t <- [Map.lookup v types] ]
 
 type CtorLookup = Map String (Reference, Int)
 

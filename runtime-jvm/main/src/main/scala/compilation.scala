@@ -972,7 +972,7 @@ package object compilation {
 
   case class Environment2(
     builtins: Map[Name, Computation],
-    userDefined: Map[Hash, Computation],
+    userDefined: Map[Id.H, Computation],
     dataConstructors: Map[(Id,ConstructorId), Computation],
     effects: Map[(Id,ConstructorId), Computation],
     // callback invoked on watch expressions during execution

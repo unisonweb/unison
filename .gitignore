@@ -1,3 +1,6 @@
+# Unison
+.unison/
+
 # Haskell
 dist
 cabal-dev
@@ -11,7 +14,7 @@ cabal-dev
 **/build/**
 tags
 unison-src/.loaded
-**cabal.sandbox.config
+**/cabal.sandbox.config
 .cabal-sandbox/**
 blockstore
 blockstore.leveldb

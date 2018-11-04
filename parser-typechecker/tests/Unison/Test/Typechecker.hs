@@ -6,22 +6,24 @@ module Unison.Test.Typechecker where
 
 import           Control.Monad          (join, void)
 import           Control.Monad.IO.Class (liftIO)
+import           Data.Sequence (Seq)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           EasyTest
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
-import           Unison.FileParsers     (Type, Term, parseAndSynthesizeAsFile)
+import           Unison.FileParsers     (Type, Term)
 import           Unison.Parser          as Parser
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (Result(..))
 import qualified Unison.Result          as Result
 import           Unison.Symbol          (Symbol)
+import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import           Unison.Util.Monoid     (intercalateMap)
 
 type Note = Result.Note Symbol Parser.Ann
 
-type SynthResult = Result Note (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+type SynthResult = Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
 type EitherResult = Either String (Term Symbol, Type Symbol)
 
 expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
@@ -65,15 +67,16 @@ go files how = do
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env notes =
-  intercalateMap "\n\n" (PrintError.printNoteWithSourceAsAnsi env source) notes
+  intercalateMap "\n\n" (show . PrintError.renderNoteAsANSI env source) notes
 
-decodeResult :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
+decodeResult
+  :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source PrintError.env0 notes
 decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
 decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
-  Right (t,typ)
+  Right (t, typ)
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
 makePassingTest how filepath = join . liftIO $ do

@@ -7,33 +7,42 @@ module Unison.Builtin where
 
 import           Control.Arrow ((&&&), second)
 import qualified Data.Map as Map
+import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.FileParser as FileParser
 import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
-import           Unison.PrintError (parseErrorToAnsiString)
+import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
+import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Lexer as L
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
 
+showParseError :: Var v
+               => String
+               -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
+               -> String
+showParseError s = show . Color.renderText . prettyParseError s
+
 -- todo: to update these, just inline definition of Parsers.{unsafeParseType, unsafeParseTerm}
 -- then merge Parsers back into Parsers (and GC and unused functions)
 -- parse a type, hard-coding the builtins defined in this file
 t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .
-          bindTypeBuiltins . either (error . parseErrorToAnsiString s) tweak $
+          bindTypeBuiltins . either (error . showParseError s) tweak $
           Parser.run (Parser.root TypeParser.valueType) s Parser.penv0
   -- lowercase vars become forall'd, and we assume the function is pure up
   -- until it returns its result.
@@ -41,12 +50,12 @@ t s = ABT.amap (const Intrinsic) .
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = bindBuiltins . either (error . parseErrorToAnsiString s) id $
+tm s = bindBuiltins . either (error . showParseError s) id $
           Parser.run (Parser.root TermParser.term) s Parser.penv0
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
-  let (v, dd) = either (error . parseErrorToAnsiString s) id $
+  let (v, dd) = either (error . showParseError s) id $
         Parser.run (Parser.root FileParser.dataDeclaration) s Parser.penv0
   in (v, (R.Builtin . Var.qualifiedName $ v,
           const Intrinsic <$>
@@ -81,9 +90,10 @@ builtinDataAndEffectCtors = (mkConstructors =<< builtinDataDecls')
 builtinTypes :: forall v. Var v => [(v, R.Reference)]
 builtinTypes = builtinTypes' ++ (f <$> Map.toList (builtinDataDecls @v))
   where f (r@(R.Builtin s), _) = (Var.named s, r)
-        f (R.Derived h, _) =
+        f (R.Derived h _ _, _) =
           error $ "expected builtin to be all R.Builtins; " ++
                   "don't know what name to assign to " ++ show h
+        f r = error $ "what is this " ++ show r
 
 builtinTypes' :: Var v => [(v, R.Reference)]
 builtinTypes' = (Var.named &&& R.Builtin) <$>

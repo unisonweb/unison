@@ -6,9 +6,10 @@
 
 module Unison.DataDeclaration where
 
-import           Data.Bifunctor (second)
+import Data.List (sortOn)
+import Unison.Hash (Hash)
 import           Data.Functor
-import           Data.Map (Map, intersectionWith)
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (cycle)
 import           Prelude.Extras (Show1)
@@ -19,19 +20,26 @@ import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
-import           Unison.Typechecker.Components (components)
 import           Unison.Var (Var)
+import Data.Text (Text)
+import qualified Unison.Var as Var
 
 type DataDeclaration v = DataDeclaration' v ()
 
 data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
-  bound :: [v], -- todo: do we actually use the names? or just the length
+  bound :: [v],
   constructors' :: [(a, v, AnnotatedType v a)]
 } deriving (Show, Functor)
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
+
+constructorVars :: DataDeclaration' v a -> [v]
+constructorVars dd = fst <$> constructors dd
+
+constructorNames :: Var v => DataDeclaration' v a -> [Text]
+constructorNames dd = Var.name <$> constructorVars dd
 
 bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins typeEnv (DataDeclaration a bound constructors) =
@@ -44,7 +52,7 @@ type EffectDeclaration v = EffectDeclaration' v ()
 
 newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
-} deriving (Show)
+} deriving (Show,Functor)
 
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
@@ -137,21 +145,12 @@ fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++
 hashDecls0
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v ())
-  -> [(v, Reference, DataDeclaration' v ())]
-hashDecls0 decls = reverse . snd . foldl f ([], []) $ components abts
- where
-  f (m, newDecls) cycle =
-    let
-      substed = second (ABT.substs m) <$> cycle
-      hs      = second Reference.Derived <$> hash substed
-      newM    = second toRef <$> hs
-      joined  = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
-    in
-      ( newM ++ m
-      , [ (v, r, fromABT d) | (v, (r, d)) <- Map.toList joined ] ++ newDecls
-      )
-  abts  = second toABT <$> Map.toList decls
-  toRef = ABT.tm . Type . Type.Ref
+  -> [(v, Reference)]
+hashDecls0 decls = let
+  abts  = toABT <$> decls
+  ref r = ABT.tm (Type (Type.Ref r))
+  cs = Reference.hashComponents ref abts
+  in [(v,r) | (v, (r,_)) <- Map.toList cs ]
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
@@ -164,10 +163,12 @@ hashDecls
   => Map v (DataDeclaration' v a)
   -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls =
-  let hs       = hashDecls0 (void <$> decls)
+  let varToRef = hashDecls0 (void <$> decls)
       decls'   = bindDecls decls varToRef
-      varToRef = [ (v, r) | (v, r, _) <- hs ]
-  in  [ (v, r, dd) | (v, r, _) <- hs, Just dd <- [Map.lookup v decls'] ]
+  in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
-bindDecls decls refs = bindBuiltins refs <$> decls
+bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls where
+  -- normalize the order of the constructors based on a hash of their types
+  sortCtors dd = DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
+  hash3 (_,_,typ) = ABT.hash typ :: Hash

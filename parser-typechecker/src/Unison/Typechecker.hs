@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -15,22 +16,26 @@ module Unison.Typechecker where
 
 import           Control.Lens
 import           Control.Monad (join)
-import           Control.Monad.State (StateT, modify, get)
+import           Control.Monad.Fail (fail)
+import           Control.Monad.State (StateT, State, modify, get, execState)
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Writer
-import           Data.Foldable (traverse_, toList)
+import           Data.Foldable (for_, traverse_, toList)
+import           Data.List (nub)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (isJust, maybeToList, catMaybes)
+import           Data.Sequence (Seq)
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import           Unison.Reference (Reference(..))
-import           Unison.Result (Result(..), Note(..), failNote)
+import           Unison.Reference (Reference, pattern Builtin)
+import           Unison.Result (Result(..))
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Typechecker.Context as Context
@@ -43,8 +48,22 @@ import qualified Unison.Var as Var
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
 
+data Notes v loc = Notes {
+  errors :: Seq (Context.ErrorNote v loc),
+  infos :: Seq (Context.InfoNote v loc)
+}
+
+instance Semigroup (Notes v loc) where
+  Notes es is <> Notes es' is' = Notes (es <> es') (is <> is')
+
+instance Monoid (Notes v loc) where
+  mempty = Notes mempty mempty
+
+convertResult :: Context.Result v loc a -> Result (Notes v loc) a
+convertResult (Context.Result es is ma) = Result (Notes es is) ma
+
 data NamedReference v loc =
-  NamedReference { fqn :: Text, fqnType :: Context.Type v loc }
+  NamedReference { fqn :: Text, fqnType :: AnnotatedType v loc, builtin :: Bool }
 
 data Env f v loc = Env
   { _builtinLoc :: loc
@@ -128,10 +147,10 @@ synthesize
   :: (Monad f, Var v, Ord loc)
   => Env f v loc
   -> Term v loc
-  -> f (Result (Note v loc) (Type v loc))
+  -> f (Result (Notes v loc) (Type v loc))
 synthesize env t =
-  let go (notes, ot) =
-        Result (Typechecking <$> notes) (ABT.vmap TypeVar.underlying <$> ot)
+  let go (Context.Result es is ot) =
+        Result (Notes es is) $ fmap lowerType ot
   in  go <$> Context.synthesizeClosed
         (view builtinLoc env)
         (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
@@ -141,7 +160,7 @@ synthesize env t =
         (Term.vtmap TypeVar.Universal t)
 
 type TDNR f v loc a =
-  StateT (Term v loc) f (Result (Note v loc) a)
+  StateT (Term v loc) f (Result (Notes v loc) a)
 
 data Resolution v loc =
   Resolution { resolvedName :: Text
@@ -149,6 +168,9 @@ data Resolution v loc =
              , resolvedLoc :: loc
              , suggestions :: [Context.Suggestion v loc]
              }
+
+lowerType :: Ord v => Context.Type v loc -> Type v loc
+lowerType = ABT.vmap TypeVar.underlying
 
 -- | Infer the type of a 'Unison.Term', using type-directed name resolution
 -- to attempt to resolve unknown symbols.
@@ -158,6 +180,14 @@ synthesizeAndResolve env = do
   t  <- get
   r1 <- lift $ synthesize env t
   typeDirectedNameResolution r1 env
+
+typeError :: Context.ErrorNote v loc -> Result (Notes v loc) ()
+typeError note = do
+  tell $ Notes [note] mempty
+  Control.Monad.Fail.fail ""
+
+btw :: Context.InfoNote v loc -> Result (Notes v loc) ()
+btw note = tell $ Notes mempty [note]
 
 -- Resolve "solved blanks". If a solved blank's type and name matches the type
 -- and unqualified name of a symbol that isn't imported, provide a note
@@ -172,74 +202,108 @@ synthesizeAndResolve env = do
 typeDirectedNameResolution
   :: forall v loc f
    . (Monad f, Var v, Ord loc)
-  => Result (Note v loc) (Type v loc)
+  => Result (Notes v loc) (Type v loc)
   -> Env f v loc
   -> TDNR f v loc (Type v loc)
 typeDirectedNameResolution resultSoFar env = do
-  let (Result oldNotes may        ) = resultSoFar
-      (Result newNotes resolutions) = traverse resolveNote $ toList oldNotes
+  let (Result oldNotes may) = resultSoFar
+      tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
+      (Result newNotes' resolutions) =
+        traverse (resolveNote tdnrEnv) $ toList (infos oldNotes)
+      newNotes = (Notes (errors oldNotes) mempty) <> newNotes'
   case resolutions of
     Nothing -> lift $ pure $ Result newNotes may
     Just rs ->
-      let res2    = catMaybes rs
-          goAgain = any ((== 1) . length . suggestions) res2
+      let res2 = catMaybes rs
+          goAgain =
+            any ((== 1) . length . filter Context.isExact . suggestions) res2
       in  if goAgain
             then do
               traverse_ substSuggestion res2
-              synthesizeAndResolve env
+              synthesizeAndResolve tdnrEnv
             else
-              -- The type hasn't changed
-              lift . pure $ do
-                tp <- Result newNotes may
-                suggest res2
-                pure tp
+                 -- The type hasn't changed
+                 lift . pure $ do
+              tp <- Result newNotes may
+              suggest res2
+              pure tp
  where
-  suggest :: [Resolution v loc] -> Result (Note v loc) ()
+  addTypedComponent :: Context.InfoNote v loc -> State (Env f v loc) ()
+  addTypedComponent (Context.TopLevelComponent vtts)
+    = for_ vtts $ \(v, _, typ) -> do
+      terms %= Map.insertWith (<>)
+                              (Var.unqualified v)
+                              ([NamedReference (Var.name v) typ False])
+  addTypedComponent _ = pure ()
+  suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
-      failNote . Typechecking $ Context.Note
-        (Context.UnknownTerm loc (Var.named name) suggestions inferredType)
+      typeError $ Context.ErrorNote
+        (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
         []
     )
+  guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
-  substSuggestion (Resolution _ _ loc [Context.Suggestion fqn _]) =
-    let f t = if ABT.annotation t == loc
-          then Just . Term.ref loc $ Builtin fqn
-          else Nothing
-    in  pure <$> modify (ABT.visitPure f)
+  substSuggestion (Resolution name _ loc (filter Context.isExact ->
+                                        [Context.Suggestion fqn _ builtin])) =
+    pure <$> modify (substBlank (Text.unpack name) loc solved)
+      where solved =
+              (if builtin
+                then Term.ref loc . Builtin
+                else Term.var loc . Var.named
+              ) fqn
   substSuggestion _ = pure $ pure ()
---  Returns Nothing for irrelevant notes
-  resolveNote :: Note v loc -> Result (Note v loc) (Maybe (Resolution v loc))
-  resolveNote (Typechecking (Context.Note (Context.SolvedBlank (B.Resolve loc n) _ it) _))
+  -- Resolve a `Blank` to a term
+  substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
+  substBlank s a r = ABT.visitPure go
+    where
+      go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
+      resolve (Term.Blank' (B.Recorded (B.Resolve loc name))) | name == s =
+        Just (const loc <$> r)
+      resolve _ = Nothing
+  --  Returns Nothing for irrelevant notes
+  resolveNote
+    :: Env f v loc
+    -> Context.InfoNote v loc
+    -> Result (Notes v loc) (Maybe (Resolution v loc))
+  resolveNote env (Context.SolvedBlank (B.Resolve loc n) _ it)
     = fmap (Just . Resolution (Text.pack n) it loc . join)
-      . traverse (resolve it)
+      . traverse (resolve env it)
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
       $ view terms env
-  resolveNote n = tell [n] >> pure Nothing
+  resolveNote _ n = btw n >> pure Nothing
   resolve
-    :: Context.Type v loc
+    :: Env f v loc
+    -> Context.Type v loc
     -> NamedReference v loc
-    -> Result (Note v loc) [Context.Suggestion v loc]
-  resolve inferredType (NamedReference fqn foundType) =
+    -> Result (Notes v loc) [Context.Suggestion v loc]
+  resolve env inferredType (NamedReference fqn foundType builtin) =
     -- We found a name that matches. See if the type matches too.
-    let Result subNotes subResult = uncurry Result
-          $ Context.isSubtype (view builtinLoc env) foundType inferredType
+    let Result subNotes subResult = convertResult
+          $ Context.isSubtype (view builtinLoc env) (Type.toTypeVar foundType) inferredType
     in  case subResult of
-              -- Something unexpected went wrong with the subtype check
-          Nothing -> const [] <$> traverse_ (failNote . Typechecking) subNotes
+          -- Something unexpected went wrong with the subtype check
+          Nothing -> const [] <$> traverse_ typeError (errors subNotes)
           -- Suggest the import if the type matches.
-          Just b  -> pure [ Context.Suggestion fqn foundType | b ]
+          Just b  -> pure [ if b then
+                              Context.Suggestion fqn (Type.toTypeVar foundType) builtin
+                            else
+                              Context.WrongType fqn (Type.toTypeVar foundType)
+                          ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors
 -- contained in the term. Returns @typ@ if successful,
 -- and a note about typechecking failure otherwise.
-check :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> Type v loc
-      -> f (Result (Note v loc) (Type v loc))
+check
+  :: (Monad f, Var v, Ord loc)
+  => Env f v loc
+  -> Term v loc
+  -> Type v loc
+  -> f (Result (Notes v loc) (Type v loc))
 check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
-
 -- | `checkAdmissible' e t` tests that `(f : t -> r) e` is well-typed.
 -- If `t` has quantifiers, these are moved outside, so if `t : forall a . a`,
 -- this will check that `(f : forall a . a -> a) e` is well typed.
@@ -249,7 +313,6 @@ check env term typ = synthesize env (Term.ann (ABT.annotation term) term typ)
 --   where
 --     tweak (Type.ForallNamed' v body) = Type.forall() v (tweak body)
 --     tweak t = Type.arrow() t t
-
 -- | Returns `True` if the expression is well-typed, `False` otherwise
 wellTyped :: (Monad f, Var v, Ord loc) => Env f v loc -> Term v loc -> f Bool
 wellTyped env term = isJust . result <$> synthesize env term

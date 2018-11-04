@@ -316,7 +316,7 @@ object Term {
   object Id {
     def apply(id: org.unisonweb.Id): Term = Tm(Id_(id))
     def apply(n: Name): Term = Tm(Id_(org.unisonweb.Id(n)))
-    def apply(h: Hash): Term = Tm(Id_(org.unisonweb.Id(h)))
+    def apply(h: org.unisonweb.Id.H): Term = Tm(Id_(org.unisonweb.Id(h)))
     def unapply[A](t: AnnotatedTerm[F,A]): Option[Id] = t match {
       case Tm(Id_(id)) => Some(id)
       case _ => None

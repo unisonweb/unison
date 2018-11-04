@@ -180,6 +180,7 @@ lexer0 scope rem =
     -- skip whitespace and comments
     goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
+      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         goWhitespace l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
@@ -216,6 +217,7 @@ lexer0 scope rem =
     -- pushes its column onto the layout stack
     pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
     pushLayout b l pos rem = span' isSpace rem $ \case
+      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->

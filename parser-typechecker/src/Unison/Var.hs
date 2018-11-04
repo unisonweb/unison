@@ -6,6 +6,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import Data.Word (Word64)
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
@@ -34,9 +35,15 @@ class (Show v, Eq v, Ord v) => Var v where
   clear :: v -> v
   qualifiedName :: v -> Text
   freshIn :: Set v -> v -> v
-  freshenId :: Word -> v -> v
+  freshenId :: Word64 -> v -> v
+
+  unqualified :: v -> Text
+  unqualified = last . Text.splitOn "." . name
 
 type Kind = String
+
+nameStr :: Var v => v -> String
+nameStr = Text.unpack . name
 
 kind :: Var v => v -> Kind
 kind v = case Text.unpack (name v) of

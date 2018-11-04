@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, LambdaCase, RecordWildCards #-}
 
 module Unison.Codebase.Serialization.V0 where
 
@@ -6,10 +6,11 @@ module Unison.Codebase.Serialization.V0 where
 import qualified Data.Vector as Vector
 import qualified Unison.PatternP as Pattern
 import Unison.PatternP (Pattern)
+import Control.Applicative (liftA2,liftA3)
 import Control.Monad (replicateM)
 import Data.Bits (Bits)
-import Data.Bytes.Get as Get
-import Data.Bytes.Put as Put
+import Data.Bytes.Get
+import Data.Bytes.Put
 import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
 import Data.Bytes.Signed (Unsigned)
 import Data.Bytes.VarInt (VarInt(..))
@@ -18,20 +19,33 @@ import Data.Int (Int64)
 import Data.List (elemIndex, foldl')
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.Relation (Relation)
 import Data.Word (Word64)
+import Unison.Codebase.Branch (Branch(..), Branch0(..))
+import Unison.Codebase.Causal (Causal)
+import Unison.Codebase.TermEdit (TermEdit)
+import Unison.Codebase.TypeEdit (TypeEdit)
 import Unison.Hash (Hash)
 import Unison.Kind (Kind)
 import Unison.Reference (Reference)
 import Unison.Symbol (Symbol(..))
 import Unison.Term (AnnotatedTerm)
 import qualified Data.ByteString as B
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash as Hash
 import qualified Unison.Kind as Kind
 import qualified Unison.Reference as Reference
+import qualified Data.Relation as Relation
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.DataDeclaration as DataDeclaration
+import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 
 -- ABOUT THIS FORMAT:
 --
@@ -81,7 +95,7 @@ putNat :: MonadPut m => Word64 -> m ()
 putNat = putWord64be
 
 getNat :: MonadGet m => m Word64
-getNat = Get.getWord64be
+getNat = getWord64be
 
 putInt :: MonadPut m => Int64 -> m ()
 putInt n = serializeBE n
@@ -116,16 +130,19 @@ putReference r = case r of
   Reference.Builtin name -> do
     putWord8 0
     putText name
-  Reference.Derived hash -> do
+  Reference.Derived hash i n -> do
     putWord8 1
     putHash hash
+    putLength i
+    putLength n
+  _ -> error "unpossible"
 
 getReference :: MonadGet m => m Reference
 getReference = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.Derived <$> getHash
+    1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
@@ -145,10 +162,8 @@ putFoldable as putA = do
   traverse_ putA as
 
 getFolded :: MonadGet m => (b -> a -> b) -> b -> m a -> m b
-getFolded f z a = do
-  len <- getLength
-  as <- replicateM len a
-  pure $ foldl' f z as
+getFolded f z a =
+  foldl' f z <$> getList a
 
 getList :: MonadGet m => m a -> m [a]
 getList a = getLength >>= (`replicateM` a)
@@ -325,9 +340,9 @@ putTerm putVar putA typ = putABT putVar putA go typ where
       -> putWord8 14 *> putChild x *> putChild y
     Term.Lam body
       -> putWord8 15 *> putChild body
-    Term.LetRec bs body
+    Term.LetRec _ bs body
       -> putWord8 16 *> putFoldable bs putChild *> putChild body
-    Term.Let b body
+    Term.Let _ b body
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
       -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
@@ -356,8 +371,127 @@ getTerm getVar getA = getABT getVar getA go where
     13 -> Term.And <$> getChild <*> getChild
     14 -> Term.Or <$> getChild <*> getChild
     15 -> Term.Lam <$> getChild
-    16 -> Term.LetRec <$> getList getChild <*> getChild
-    17 -> Term.Let <$> getChild <*> getChild
+    16 -> Term.LetRec False <$> getList getChild <*> getChild
+    17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     _ -> unknownTag "getTerm" tag
+
+putPair' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
+putPair' putA putB (a,b) = putA a *> putB b
+
+getPair :: MonadGet m => m a -> m b -> m (a,b)
+getPair = liftA2 (,)
+
+putTuple3' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (c -> m ()) -> (a,b,c) -> m ()
+putTuple3' putA putB putC (a,b,c) = putA a *> putB b *> putC c
+
+getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
+getTuple3 = liftA3 (,,)
+
+putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
+putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
+
+getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
+getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
+
+putCausal :: MonadPut m => Causal a -> (a -> m ()) -> m ()
+putCausal (Causal.One hash a) putA =
+  putWord8 1 *> putHash hash *> putA a
+putCausal (Causal.ConsN conss tail) putA =
+  putWord8 2 *> putFoldable conss (putPair' putHash putA) *> putCausal tail putA
+putCausal (Causal.Merge hash a tails) putA =
+  putWord8 3 *> putHash hash *> putA a *>
+    putFoldable (Map.toList tails) (putPair' putHash (`putCausal` putA))
+putCausal (Causal.Cons _ _ _) _ =
+  error "deserializing 'Causal': the ConsN pattern should have matched here!"
+
+getCausal :: MonadGet m => m a -> m (Causal a)
+getCausal getA = getWord8 >>= \case
+  1 -> Causal.One <$> getHash <*> getA
+  2 -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
+  3 -> Causal.Merge <$> getHash <*> getA <*>
+          (Map.fromList <$> getList (getPair getHash $ getCausal getA))
+  x -> unknownTag "causal" x
+
+putTermEdit :: MonadPut m => TermEdit -> m ()
+putTermEdit (TermEdit.Replace r typing) =
+  putWord8 1 *> putReference r *> case typing of
+    TermEdit.Same -> putWord8 1
+    TermEdit.Subtype -> putWord8 2
+    TermEdit.Different -> putWord8 3
+putTermEdit TermEdit.Deprecate = putWord8 2
+
+getTermEdit :: MonadGet m => m TermEdit
+getTermEdit = getWord8 >>= \case
+  1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
+    1 -> pure TermEdit.Same
+    2 -> pure TermEdit.Subtype
+    3 -> pure TermEdit.Different
+    t -> unknownTag "TermEdit.Replace" t
+    )
+  2 -> pure TermEdit.Deprecate
+  t -> unknownTag "TermEdit" t
+
+putTypeEdit :: MonadPut m => TypeEdit -> m ()
+putTypeEdit (TypeEdit.Replace r) = putWord8 1 *> putReference r
+putTypeEdit TypeEdit.Deprecate = putWord8 2
+
+getTypeEdit :: MonadGet m => m TypeEdit
+getTypeEdit = getWord8 >>= \case
+  1 -> TypeEdit.Replace <$> getReference
+  2 -> pure TypeEdit.Deprecate
+  t -> unknownTag "TypeEdit" t
+
+putBranch :: MonadPut m => Branch -> m ()
+putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
+  putRelation termNamespace putText putReference
+  putRelation patternNamespace putText (putPair' putReference putLength)
+  putRelation typeNamespace putText putReference
+  putRelation editedTerms putReference putTermEdit
+  putRelation editedTypes putReference putTypeEdit
+
+getBranch :: MonadGet m => m Branch
+getBranch = Branch <$> getCausal
+  (Branch0 <$> getRelation getText getReference
+           <*> getRelation getText (getPair getReference getLength)
+           <*> getRelation getText getReference
+           <*> getRelation getReference getTermEdit
+           <*> getRelation getReference getTypeEdit)
+
+putDataDeclaration :: (MonadPut m, Ord v)
+                   => (v -> m ()) -> (a -> m ())
+                   -> DataDeclaration' v a
+                   -> m ()
+putDataDeclaration putV putA decl = do
+  putA $ DataDeclaration.annotation decl
+  putFoldable (DataDeclaration.bound decl) putV
+  putFoldable (DataDeclaration.constructors' decl) (putTuple3' putA putV (putType putV putA))
+
+getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
+getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+  getA <*>
+  getList getV <*>
+  getList (getTuple3 getA getV (getType getV getA))
+
+putEffectDeclaration ::
+  (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()
+putEffectDeclaration putV putA (DataDeclaration.EffectDeclaration d) =
+  putDataDeclaration putV putA d
+
+getEffectDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (EffectDeclaration' v a)
+getEffectDeclaration getV getA =
+  DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
+
+putEither :: (MonadPut m) => (a -> m ()) -> (b -> m ()) -> Either a b -> m ()
+putEither putL _ (Left a) = putWord8 0 *> putL a
+putEither _ putR (Right b) = putWord8 1 *> putR b
+
+getEither :: MonadGet m => m a -> m b -> m (Either a b)
+getEither getL getR = getWord8 >>= \case
+  0 -> Left <$> getL
+  1 -> Right <$> getR
+  tag -> unknownTag "Either" tag
+
+formatSymbol :: S.Format Symbol
+formatSymbol = S.Format getSymbol putSymbol

@@ -13,6 +13,7 @@ module Unison.ABT where
 
 import Control.Applicative
 import Control.Monad
+import Data.Word (Word64)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Maybe
@@ -23,7 +24,7 @@ import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..))
-import Unison.Hashable (Accumulate,Hashable1)
+import Unison.Hashable (Accumulate,Hashable1,hash1)
 import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
@@ -32,6 +33,7 @@ import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
 import qualified Unison.Var as Var
+import qualified Unison.Util.Components as Components
 
 data ABT f v r
   = Var v
@@ -199,6 +201,9 @@ absr' a v body = wrap' v body $ \v body -> abs' a v body
 
 absChain :: Ord v => [v] -> Term f v () -> Term f v ()
 absChain vs t = foldr abs t vs
+
+absCycle :: Ord v => [v] -> Term f v () -> Term f v ()
+absCycle vs t = cycle $ absChain vs t
 
 absChain' :: Ord v => [(a, v)] -> Term f v a -> Term f v a
 absChain' vs t = foldr (\(a,v) t -> abs' a v t) t vs
@@ -449,6 +454,56 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
+components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components = Components.components freeVars
+
+-- Hash a strongly connected component and sort its definitions into a canonical order.
+hashComponent ::
+  (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
+hashComponent byName = let
+  ts = Map.toList byName
+  embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
+  vs = fst <$> ts
+  tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
+  hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
+  sortedHashed = sortBy (comparing snd) hashed
+  overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
+  in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
+
+-- Group the definitions into strongly connected components and hash
+-- each component. Substitute the hash of each component into subsequent
+-- components (using the `termFromHash` function).
+hashComponents
+  :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  => (h -> Word64 -> Word64 -> Term f v ())
+  -> Map.Map v (Term f v a)
+  -> [(h, [(v, Term f v a)])]
+hashComponents termFromHash termsByName = let
+  sccs = components (Map.toList termsByName)
+  go _ [] = []
+  go prevHashes (component : rest) = let
+    sub = substsInheritAnnotation (Map.toList prevHashes)
+    (h, sortedComponent) = hashComponent $ Map.fromList [ (v, sub t) | (v, t) <- component ]
+    size = fromIntegral (length sortedComponent)
+    curHashes = Map.fromList [ (v, termFromHash h i size) | ((v, _),i) <- sortedComponent `zip` [0..]]
+    newHashes = prevHashes `Map.union` curHashes
+    newHashesL = Map.toList newHashes
+    sortedComponent' = [ (v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent ]
+    in (h, sortedComponent') : go newHashes rest
+  in go Map.empty sccs
+
+-- Implementation detail of hashComponent
+data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
+
+instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
+  hash1 hashCycle hash c = case c of
+    Component as a -> let
+      (hs, hash) = hashCycle as
+      toks = Hashable.Hashed <$> hs
+      in Hashable.accumulate $ (Hashable.Tag 1 : toks) ++ [Hashable.Hashed (hash a)]
+    Embed fa -> Hashable.hash1 hashCycle hash fa
+
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
 hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
@@ -502,3 +557,4 @@ instance (Show1 f, Var v) => Show (Term f v a) where
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
+

@@ -8,10 +8,11 @@ import GHC.Generics
 import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Word (Word64)
 
-data Symbol = Symbol !Word Text deriving (Generic)
+data Symbol = Symbol !Word64 Text deriving (Generic)
 
-freshId :: Symbol -> Word
+freshId :: Symbol -> Word64
 freshId (Symbol id _) = id
 
 instance Var Symbol where

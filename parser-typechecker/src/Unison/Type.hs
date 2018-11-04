@@ -192,6 +192,20 @@ vector a = builtin a "Sequence"
 ref :: Ord v => a -> Reference -> AnnotatedType v a
 ref a = ABT.tm' a . Ref
 
+derivedBase58 :: Ord v => Text -> a -> AnnotatedType v a
+derivedBase58 base58 a = ref a $ Reference.derivedBase58 base58 0 1
+
+-- todo: use correct hashes here and hook these up everywhere
+
+-- unit :: Ord v => a -> AnnotatedType v a
+-- unit = derivedBase58    "2cJAAHeh81dVaZFVfJQRvWo58QYnUNbErbFQtjVM5kKKMEDa3RpfDbiMJuxwXyaQKyv69qDptkkkM6y7X51tCDit"
+
+-- pair :: Ord v => a -> AnnotatedType v a
+-- pair = derivedBase58 "3Zp1pAFqyXEBh7moug2JzcWCuubWKe9fMSpBRy82oP49E9RXQM6JKwrMn5qpcTsfuJAeM436U3RK57vokXcmwV4L"
+
+-- optional :: Ord v => a -> AnnotatedType v a
+-- optional = derivedBase58 "5VJ8M9txoW9TQeQ93PsBEgHSynwSGw5ANewFRyuZK5RtgwcwJnwub7XWPdmXHDwHanQWN394ddyd8aYGB9vgUoDc"
+
 builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
 
@@ -333,6 +347,12 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 -- | Bind all free variables with an outer `forall`.
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
+
+generalizeAndUnTypeVar :: Ord v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
+generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
+
+toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
+toTypeVar = ABT.vmap TypeVar.Universal
 
 -- Adds effect polymorphism to a type signature. That is, converts a signature like:
 --

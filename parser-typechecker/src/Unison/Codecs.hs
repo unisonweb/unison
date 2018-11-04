@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
 
 module Unison.Codecs where
 
@@ -21,7 +21,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import           Unison.Reference
+import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
@@ -125,7 +125,7 @@ serializeTerm x = do
         putLength (1 :: Int)
         putBackref posarg
         incPosition
-      Let binding body -> do
+      Let _ binding body -> do
         posbind <- serializeTerm binding
         posbod <- serializeTerm body
         putTag
@@ -178,7 +178,7 @@ serializeTerm x = do
         putBackref hpos
         putBackref bpos
         incPosition
-      LetRec bs body -> do
+      LetRec _ bs body -> do
         positions <- traverse serializeTerm bs
         pbody <- serializeTerm body
         putTag
@@ -279,11 +279,14 @@ serializeReference ref = case ref of
   Builtin text -> do
     putWord8 0
     lengthEncode text
-  Derived hash -> do
+  Derived hash i n -> do
     putWord8 1
     let bs = Hash.toBytes hash
     putLength $ B.length bs
     putByteString bs
+    putLength i
+    putLength n
+  _ -> error "impossible"
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
 serializeConstructorArities r constructorArities = do
@@ -291,7 +294,7 @@ serializeConstructorArities r constructorArities = do
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
 serializeFile
-  :: (MonadPut m, MonadState Pos m, Var v, Show a) => UnisonFile v a -> m ()
+  :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' =
@@ -306,7 +309,7 @@ serializeFile (UnisonFile dataDecls effectDecls body) = do
           (\e ->
             error
               (  "The Unison file is malformed. It has duplicate bindings "
-              ++ show e
+              ++ show (const () <$> e)
               )
           )
           id

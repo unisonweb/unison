@@ -91,7 +91,7 @@ fromTerm :: Term.AnnotatedTerm v a -> Term v a
 fromTerm = error "todo"
 
 toIR :: Var v => Term v a -> IR
-toIR t = go [] (0::Word) t where
+toIR t = go [] (0::Word64) t where
   ind v env = maybe (error $ show v ++ " var not found in: " ++ show env) id (elemIndex v env)
   go env n t = case out t of
     Leaf l -> leafToIR env n l

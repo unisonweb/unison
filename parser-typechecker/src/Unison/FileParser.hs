@@ -44,7 +44,7 @@ file builtinTerms builtinTypes = do
             [ (Text.unpack $ Var.name v, (r,cid)) |
               (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
   local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
-    term <- terminateTerm <$> TermParser.block' "top-level block"
+    term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
               closeBlock
     let unisonFile = UnisonFile
@@ -61,8 +61,8 @@ file builtinTerms builtinTypes = do
     pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
-terminateTerm e@(Term.LetRecNamedAnnotated' a bs body@(Term.Var' v))
-  | Set.member v (ABT.freeVars e) = Term.letRec a bs (Term.unit (ABT.annotation body))
+terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
+  | Set.member v (ABT.freeVars e) = Term.letRec top a bs (Term.unit (ABT.annotation body))
   | otherwise = e
 terminateTerm e = e
 

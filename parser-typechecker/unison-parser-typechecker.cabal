@@ -41,13 +41,16 @@ library
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.Causal
-    Unison.Codebase.Code
+    Unison.Codebase.CommandLine
+    Unison.Codebase.FileCodebase
     Unison.Codebase.Name
     Unison.Codebase.NameEdit
-    Unison.Codebase.Release
+    Unison.Codebase.Runtime
+    Unison.Codebase.Runtime.JVM
+    Unison.Codebase.Serialization
+    Unison.Codebase.Serialization.V0
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
-    Unison.Codebase.Serialization.V0
     Unison.Codebase.Watch
     Unison.DataDeclaration
     Unison.FileParser
@@ -63,36 +66,42 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.PrettyPrint
+    Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
+    Unison.Result
+    Unison.Runtime.ANF
     Unison.Runtime.IR
     Unison.Runtime.Rt0
-    Unison.Runtime.ANF
-    Unison.Result
     Unison.Settings
     Unison.Symbol
     Unison.Term
     Unison.TermParser
+    Unison.TermPrinter
     Unison.Type
-    Unison.TypePrinter
     Unison.TypeParser
+    Unison.TypePrinter
     Unison.TypeVar
     Unison.Typechecker
-    Unison.Typechecker.Context
     Unison.Typechecker.Components
+    Unison.Typechecker.Context
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
+    Unison.Util.Components
     Unison.Util.Logger
+    Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.PrettyPrint
     Unison.Util.Range
+    Unison.Util.TQueue
     Unison.Var
 
   build-depends:
     ansi-terminal,
+    async,
     base,
     base58-bytestring,
     bifunctors,
@@ -103,6 +112,8 @@ library
     cryptonite,
     directory,
     errors,
+    edit-distance,
+    filepath,
     free,
     fsnotify,
     hashable,
@@ -164,6 +175,15 @@ executable watcher
     safe,
     unison-parser-typechecker
 
+executable unison
+  main-is: Main.hs
+  hs-source-dirs: unison
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    unison-parser-typechecker
+
 executable tests
   main-is:        Suite.hs
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
@@ -176,6 +196,7 @@ executable tests
     Unison.Test.Lexer
     Unison.Test.Range
     Unison.Test.TermParser
+    Unison.Test.TermPrinter
     Unison.Test.Type
     Unison.Test.TypePrinter
     Unison.Test.Typechecker
