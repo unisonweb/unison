@@ -77,7 +77,10 @@ object BootstrapStream {
           case None => ()
         }
       }
-      else () // println(PrettyPrint.prettyTerm(t).render(80))
+      else {
+        // sync byte
+        channel.write(ByteBuffer.wrap(Array[Byte](74)))
+      }
     }
 
   }

@@ -196,7 +196,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
               errorEnv
             putStrLn ""
             putStrLn
-              "👀  Now evaluating any watch expressions (lines starting with `>`) ..."
+              "👀  Now evaluating any watch expressions (lines starting with `>`) ...\n"
             RT.evaluate runtime (UF.discardTypes' unisonFile) codebase
             -- todo: actually wait until evaluation completes
 

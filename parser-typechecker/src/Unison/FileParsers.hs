@@ -154,7 +154,8 @@ synthesizeFile builtinNames unisonFile = do
         topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings term
         extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
         extractTopLevelBindings _                        = Map.empty
-        tlcsFromTypechecker = [ t | Context.TopLevelComponent t <- infos ]
+        tlcsFromTypechecker = uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
+        vars (v, _, _) = Var.name v
         strippedTopLevelBinding (v, typ, redundant) = do
           tm <- case Map.lookup (Var.name v) topLevelBindings of
             Nothing ->

@@ -4,9 +4,11 @@ import           Control.Applicative
 import           Control.Monad.State       (evalStateT)
 import           Data.Bytes.Put            (runPutS)
 import           Data.ByteString           (ByteString)
+import           Data.Functor
 import           Network.Socket
 import           System.IO.Streams         (InputStream, OutputStream)
 import qualified System.IO.Streams         as Streams
+import qualified System.IO.Streams.ByteString as BSS
 import qualified System.IO.Streams.Network as N
 import qualified System.Process            as P
 import           Unison.Codebase           (Codebase)
@@ -24,10 +26,12 @@ javaRuntime suggestedPort = do
     feedme :: Var v
            => InputStream ByteString -> OutputStream ByteString
            -> UnisonFile v a -> Codebase IO v b -> IO ()
-    feedme _input output unisonFile _codebase = do
+    feedme input output unisonFile _codebase = do
       -- todo: runtime should be able to request more terms/types/arities by hash
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
       Streams.write (Just bs) output
+      -- todo: read some actual results here, rather than just reading a sync byte
+      void $ BSS.readExactly 1 input
 
     -- open a listening socket for the runtime to connect to
     choosePortAndListen :: Int -> IO (Socket, Int)
