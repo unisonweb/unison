@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
@@ -6,20 +7,26 @@
 
 module Unison.Result where
 
-import           Control.Monad
-import           Control.Monad.Fail (MonadFail(..))
-import           Control.Monad.Trans ( lift )
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Writer (Writer, runWriter, MonadWriter(..))
+import           Control.Monad.Except           ( ExceptT(..) )
+import           Data.Functor.Identity
+import qualified Control.Monad.Fail            as Fail
+import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
+import           Control.Monad.Writer           ( WriterT(..)
+                                                , runWriterT
+                                                , MonadWriter(..)
+                                                )
 import           Data.Maybe
-import           Data.Sequence ( Seq )
-import qualified Unison.Parser as Parser
-import           Unison.Paths ( Path )
-import           Unison.Term ( AnnotatedTerm )
-import qualified Unison.Typechecker.Context as Context
+import           Data.Sequence                  ( Seq )
+import           Unison.Names                   ( Name )
+import qualified Unison.Parser                 as Parser
+import           Unison.Paths                   ( Path )
+import           Unison.Term                    ( AnnotatedTerm )
+import qualified Unison.Typechecker.Context    as Context
+import           Control.Error.Util             ( note)
 
-data Result notes a = Result { notes :: notes, result :: Maybe a }
-  deriving Show
+type Result notes = ResultT notes Identity
+
+type ResultT notes f = MaybeT (WriterT notes f)
 
 type Term v loc = AnnotatedTerm v loc
 
@@ -29,52 +36,51 @@ data Note v loc
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)
   | TypeInfo (Context.InfoNote v loc)
+  | CompilerBug (CompilerBug v loc)
   deriving Show
 
-isSuccess :: Result note a -> Bool
-isSuccess r = isJust $ result r
+data CompilerBug v loc
+  = TopLevelComponentNotFound v (Term v loc)
+  | ResolvedNameNotFound v loc Name
+  deriving Show
 
-isFailure :: Result note a -> Bool
-isFailure r = isNothing $ result r
+result :: Result notes a -> Maybe a
+result (Result _ may) = may
 
-toMaybe :: Result note a -> Maybe a
-toMaybe = result
+pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
+{-# COMPLETE Result #-}
 
-toEither :: Result notes a -> Either notes a
-toEither r = case result r of
-  Nothing -> Left $ notes r
-  Just a  -> Right a
+isSuccess :: Functor f => ResultT note f a -> f Bool
+isSuccess = (isJust . fst <$>) . runResultT
+
+isFailure :: Functor f => ResultT note f a -> f Bool
+isFailure = (isNothing . fst <$>) . runResultT
+
+toMaybe :: Functor f => ResultT note f a -> f (Maybe a)
+toMaybe = (fst <$>) . runResultT
+
+runResultT :: ResultT notes f a -> f (Maybe a, notes)
+runResultT = runWriterT . runMaybeT
+
+toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
+toEither r = ExceptT (fmap go $ runResultT r)
+  where go (may, notes) = note notes may
+
+tell1 :: Monad f => note -> ResultT (Seq note) f ()
+tell1 = tell . pure
+
+fromParsing'
+  :: Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+fromParsing' (Left e) = do
+  tell1 $ Parsing e
+  Fail.fail ""
+fromParsing' (Right a) = pure a
 
 fromParsing :: Either (Parser.Err v) a -> Result (Seq (Note v loc)) a
-fromParsing (Left  e) = Result (pure $ Parsing e) Nothing
-fromParsing (Right a) = pure a
+fromParsing = fromParsing'
 
-fromTrans :: MaybeT (Writer notes) a -> Result notes a
-fromTrans (runWriter . runMaybeT -> (r, n)) = Result n r
+tellAndFail :: Monad f => note -> ResultT (Seq note) f a
+tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 
-toTrans :: Monoid notes => Result notes a -> MaybeT (Writer notes) a
-toTrans (Result notes may) = do
-  lift $ tell notes
-  MaybeT (pure may)
-
-instance Functor (Result notes) where
-  fmap f (Result notes res) = Result notes (f <$> res)
-
-instance Monoid notes => Applicative (Result notes) where
-  pure = return
-  (<*>) = ap
-
-instance Monoid notes => Monad (Result notes) where
-  return a = Result mempty (Just a)
-  Result notes Nothing >>= _f = Result notes Nothing
-  Result notes (Just a) >>= f = case f a of
-    Result notes2 b -> Result (notes `mappend` notes2) b
-
-instance Monoid notes => MonadWriter notes (Result notes) where
-  tell note = fromTrans $ tell note
-  listen (Result notes may) = Result notes ((,notes) <$> may)
-  pass = fromTrans . pass . toTrans
-
-instance Monoid notes => MonadFail (Result notes) where
-  fail _ = Result mempty Nothing
-
+compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
+compilerBug = tellAndFail . CompilerBug

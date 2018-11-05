@@ -144,9 +144,10 @@ object PrettyPrint {
 
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
     case Id.Builtin(name) => prettyName(name) <> s"#${ctorId.toInt}"
-    case Id.HashRef(h) =>
+    case Id.HashRef(Id.H(h,i,n)) =>
       val hashString = Base58.encode(h.bytes).take(hashPrecision)
-      s"#$hashString#${ctorId.toInt}"
+      if (n == 1) s"#$hashString#${ctorId.toInt}"
+      else s"#${i}-$hashString#${ctorId.toInt}"
   }
 
   def distributeNames(patterns: Seq[Pattern], names: List[Name]): Seq[PrettyPrint] =

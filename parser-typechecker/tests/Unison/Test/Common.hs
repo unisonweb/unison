@@ -1,21 +1,24 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Test.Common where
 
+import           Data.Functor.Identity (runIdentity)
 import qualified Data.Map as Map
 import           Data.Sequence (Seq)
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.PrintError as PrintError
+import qualified Unison.Parsers as Parsers
+import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Result (Result)
 import qualified Unison.Result as Result
+import           Unison.Result (pattern Result, Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
-import qualified Unison.Parsers as Parsers
-import qualified Unison.Parser as Parser
-import           Unison.Result (Result(..), Note)
+import           Unison.UnisonFile (TypecheckedUnisonFile')
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -27,14 +30,14 @@ file
   :: String
   -> Result
        (Seq (Note Symbol Ann))
-       (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' Symbol Ann))
 file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks = Result.isSuccess . file
+typechecks = runIdentity . Result.isSuccess . file
 
 env :: Monad m => Typechecker.Env m Symbol Ann
 env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
@@ -46,9 +49,11 @@ parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
+  -> Result (Seq (Note v Ann))
+            (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
 parseAndSynthesizeAsFile filename s = do
   (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s Parser.penv0
-  let (Result notes' r) = FP.synthesizeFile file
+    $ Parsers.parseFile filename s B.names
+  let (Result notes' r) = FP.synthesizeFile B.names file
   Result notes' $ Just (errorEnv, r)
+

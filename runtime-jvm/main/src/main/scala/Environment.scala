@@ -5,7 +5,7 @@ import Term.Name
 
 case class Environment(
   builtins: Map[Name, Computation],
-  userDefined: Map[Hash, Computation],
+  userDefined: Map[Id.H, Computation],
   dataConstructors: Map[(Id,ConstructorId), Computation],
   effects: Map[(Id,ConstructorId), Computation]
 )

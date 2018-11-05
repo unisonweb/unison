@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 haskell_needs_rebuild=x
+bloop_needs_rebuild=x
 scala_needs_rebuild=x
 sources_changed=
 haskell_pid=
@@ -15,7 +16,14 @@ function maybe_build_haskell {
 function maybe_build_scala {
   if [ -n "$scala_needs_rebuild" ]; then
     echo "Building runtime..."
-    (cd runtime-jvm; yes q | sbt main/compile) && scala_needs_rebuild="" && echo "Runtime built!"
+    (cd runtime-jvm; bloop compile main) && scala_needs_rebuild="" && echo "Runtime built!"
+  fi
+}
+
+function maybe_build_bloop {
+  if [ -n "$bloop_needs_rebuild" ]; then
+    echo "Generating bloop definitions..."
+    (cd runtime-jvm; yes q | sbt bloopInstall) && bloop_needs_rebuild="" && echo "Bloop definitions generated."
   fi
 }
 
@@ -27,9 +35,12 @@ function kill_watcher {
 }
 
 function start_watcher {
-  stack exec watcher "$last_unison_source" &
-  haskell_pid=$!
-  echo "Launched haskell watcher as pid $haskell_pid."
+  # if haskell isn't running, start it!
+  if ! kill -0 $haskell_pid > /dev/null 2>&1; then
+    stack exec watcher "$last_unison_source" &
+    haskell_pid=$!
+    echo "Launched haskell watcher as pid $haskell_pid."
+  fi
 }
 
 function go {
@@ -37,7 +48,7 @@ function go {
   if [ -n "$haskell_needs_rebuild" ] || [ -n "$scala_needs_rebuild" ]; then
     kill_watcher
   fi
-  maybe_build_haskell && maybe_build_scala
+  maybe_build_haskell && maybe_build_bloop && maybe_build_scala
   # echo "debug: haskell_needs_rebuild=$haskell_needs_rebuild, scala_needs_rebuild=$scala_needs_rebuild, haskell_pid=$haskell_pid"
   if [ -z "$haskell_needs_rebuild" ] && [ -z "$scala_needs_rebuild" ] && [ -z "$haskell_pid" ]; then
     start_watcher
@@ -62,16 +73,20 @@ while IFS= read -r changed; do
       haskell_needs_rebuild=x
       sources_changed=x
       ;;
-    *.scala|*.sbt)
+    *.scala)
       echo "detected change in $changed"
+      scala_needs_rebuild=x
+      sources_changed=x
+      ;;
+    *.sbt)
+      echo "detected change in $changed"
+      bloop_needs_rebuild=x
       scala_needs_rebuild=x
       sources_changed=x
       ;;
     *.u|*.uu)
       last_unison_source="$changed"
-      if ! kill -0 $haskell_pid > /dev/null 2>&1; then
-        start_watcher
-      fi
+      start_watcher
       ;;
     */scripts/execwatch.sh|*/scripts/watchwatch.sh)
       echo "Restarting ./scripts/watchwatch.sh..."

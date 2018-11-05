@@ -42,6 +42,9 @@ class (Show v, Eq v, Ord v) => Var v where
 
 type Kind = String
 
+nameStr :: Var v => v -> String
+nameStr = Text.unpack . name
+
 kind :: Var v => v -> Kind
 kind v = case Text.unpack (name v) of
   ':' : tl -> takeWhile (/= ':') tl

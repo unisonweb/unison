@@ -166,7 +166,7 @@ object Builtins {
 
   // Stream.to-sequence : Stream a -> Sequence a
   val Stream_toSequence =
-    fp_s("Stream.to-sequence", "stream",
+    fp_s("Stream.toSequence", "stream",
          (s: StreamRepr) =>
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              s(stackU, stackB, top, r).toSequence[Value])

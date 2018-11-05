@@ -132,16 +132,19 @@ putReference r = case r of
   Reference.Builtin name -> do
     putWord8 0
     putText name
-  Reference.Derived hash -> do
+  Reference.Derived hash i n -> do
     putWord8 1
     putHash hash
+    putLength i
+    putLength n
+  _ -> error "unpossible"
 
 getReference :: MonadGet m => m Reference
 getReference = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.Derived <$> getHash
+    1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
@@ -445,6 +448,7 @@ getTypeEdit = getWord8 >>= \case
 putBranch :: MonadPut m => Branch -> m ()
 putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
   putRelation termNamespace putText putReference
+  putRelation patternNamespace putText (putPair' putReference putLength)
   putRelation typeNamespace putText putReference
   putRelation editedTerms putReference putTermEdit
   putRelation editedTypes putReference putTypeEdit
@@ -452,6 +456,7 @@ putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal
   (Branch0 <$> getRelation getText getReference
+           <*> getRelation getText (getPair getReference getLength)
            <*> getRelation getText getReference
            <*> getRelation getReference getTermEdit
            <*> getRelation getReference getTypeEdit)

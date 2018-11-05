@@ -43,7 +43,6 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
     Unison.Codebase.FileCodebase
-    Unison.Codebase.Name
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
     Unison.Codebase.Runtime.JVM
@@ -59,6 +58,7 @@ library
     Unison.Hashable
     Unison.Kind
     Unison.Lexer
+    Unison.Names
     Unison.Parser
     Unison.Parsers
     Unison.Path
@@ -66,6 +66,7 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.PrettyPrint
+    Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
     Unison.Result
@@ -87,6 +88,7 @@ library
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
+    Unison.Util.Components
     Unison.Util.Logger
     Unison.Util.Menu
     Unison.Util.Monoid
@@ -108,6 +110,7 @@ library
     cryptonite,
     directory,
     errors,
+    edit-distance,
     filepath,
     free,
     fsnotify,

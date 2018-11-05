@@ -286,16 +286,18 @@ object Codecs {
 
   final def decodeId(source: Source): Id = (source.getByte: @switch) match {
     case 0 => Id.Builtin(source.getString)
-    case 1 => Id.HashRef(Hash(source.getFramed))
+    case 1 => Id.HashRef(Id.H(Hash(source.getFramed), source.getVarLong, source.getVarLong))
   }
 
   final def encodeId(id: Id, sink: Sink): Unit = id match {
     case Id.Builtin(name) =>
       sink putByte 0
       sink putString name.toString
-    case Id.HashRef(h) =>
+    case Id.HashRef(Id.H(h, i, n)) =>
       sink putByte 1
       sink putFramed h.bytes
+      sink putVarLong i
+      sink putVarLong n
   }
 
   final def decodeConstructorArities(source: Source): List[(Id, List[Int])] =

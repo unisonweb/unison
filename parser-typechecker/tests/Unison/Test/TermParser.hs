@@ -6,16 +6,17 @@ module Unison.Test.TermParser where
 
 import           Control.Applicative
 import           Control.Monad (join)
-import qualified Data.Map as Map
 import           EasyTest
 import qualified Text.Megaparsec as P
 import           Text.RawString.QQ
 import           Unison.Parser
 import qualified Unison.Parsers as Ps
-import           Unison.PrintError (parseErrorToAnsiString)
+import           Unison.PrintError (renderParseErrorAsANSI)
 import qualified Unison.Reference as R
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
+import qualified Unison.Names as Names
+import Unison.Names (Names)
 
 test1 :: Test ()
 test1 = scope "termparser" . tests . map parses $
@@ -177,10 +178,10 @@ unitTests =
    w = wordyId
    s = symbolyId
 
-builtins :: PEnv Symbol
-builtins = PEnv (Map.fromList
+builtins :: Names Symbol x
+builtins = Names.fromPatterns
   [("Pair", (R.Builtin "Pair", 0)),
-   ("State.set", (R.Builtin "State", 0))]) mempty
+   ("State.set", (R.Builtin "State", 0))]
 
 parses :: String -> Test ()
 parses = parseWith TP.term
@@ -189,6 +190,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
-      note $ parseErrorToAnsiString s e
-      crash $ parseErrorToAnsiString s e
+      note . show $ renderParseErrorAsANSI s e
+      crash . show $ renderParseErrorAsANSI s e
     Right _ -> ok

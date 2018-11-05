@@ -32,13 +32,12 @@ import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
-import           Unison.Hash (Hash)
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import           Unison.Reference (Reference(..))
+import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
@@ -47,6 +46,7 @@ import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
+import Unison.Symbol (Symbol)
 
 -- todo: add loc to MatchCase
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
@@ -121,12 +121,27 @@ bindBuiltins termBuiltins typeBuiltins t =
    g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    g = ABT.substsInheritAnnotation termBuiltins
 
-typeDirectedResolve :: Var v
-                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
-typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+-- Prepare a term for type-directed name resolution by replacing
+-- any remaining free variables with blanks to be resolved by TDNR
+prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
         f _ = Nothing
+
+amap :: Ord v => (a -> a2) -> AnnotatedTerm v a -> AnnotatedTerm v a2
+amap f = fmap f . patternMap (fmap f) . typeMap (fmap f)
+
+patternMap :: (Pattern ap -> Pattern ap2) -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap2 v a
+patternMap f e = go e where
+  go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
+    ABT.Abs v t -> ABT.Abs v (go t)
+    ABT.Var v -> ABT.Var v
+    ABT.Cycle t -> ABT.Cycle (go t)
+    ABT.Tm (Match e cases) -> ABT.Tm (Match (go e) [
+      MatchCase (f p) (go <$> g) (go a) | MatchCase p g a <- cases ])
+    -- Safe since `Match` is only ctor that has embedded `Pattern ap` arg
+    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
 vmap :: Ord v2 => (v -> v2) -> AnnotatedTerm v a -> AnnotatedTerm v2 a
 vmap f = ABT.vmap f . typeMap (ABT.vmap f)
@@ -203,11 +218,17 @@ pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
+pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
+pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
+pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
+pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
+pattern LamsNamedOpt' vs body <- (unLamsOpt' -> Just (vs, body))
+pattern LamsNamedPred' vs body <- (unLamsPred' -> Just (vs, body))
 pattern Let1' b subst <- (unLet1 -> Just (_, b, subst))
 pattern Let1Top' top b subst <- (unLet1 -> Just (top, b, subst))
 pattern Let1Named' v b e <- (ABT.Tm' (Let _ b (ABT.out -> ABT.Abs v e)))
@@ -231,12 +252,6 @@ var = ABT.annotatedVar
 var' :: Var v => Text -> Term' vt v
 var' = var() . ABT.v'
 
-derived :: Ord v => a -> Hash -> AnnotatedTerm2 vt at ap v a
-derived a = ref a . Reference.Derived
-
-derived' :: Ord v => Text -> Maybe (Term' vt v)
-derived' base58 = derived () <$> Hash.fromBase58 base58
-
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
@@ -259,14 +274,14 @@ text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
 unit :: Var v => a -> AnnotatedTerm v a
-unit ann = constructor ann (Reference.Builtin "()") 0
+unit ann = constructor ann Type.unitRef 0
 
 tupleCons :: (Ord v, Semigroup a)
           => AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
 tupleCons hd tl =
-  apps' (constructor (ABT.annotation hd) (Reference.Builtin "Pair") 0) [hd, tl]
+  apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
@@ -477,17 +492,58 @@ unLetRec (unLetRecNamed -> Just (isTop, bs, e)) =
 unLetRec _ = Nothing
 
 unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
-unApps t = case go t [] of [] -> Nothing; f:args -> Just (f,args)
+unApps t = unAppsPred (t, \_ -> True)
+
+-- Same as unApps but taking a predicate controlling whether we match on a given function argument.
+unAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) ->
+                Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
+unAppsPred (t, pred) = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   where
-  go (App' i o) acc = go i (o:acc)
+  go (App' i o) acc | pred o = go i (o:acc)
   go _ [] = []
   go fn args = fn:args
 
+unBinaryApp :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a,
+                                                     AnnotatedTerm2 vt at ap v a,
+                                                     AnnotatedTerm2 vt at ap v a)
+unBinaryApp t = case unApps t of
+  Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
+  _                      -> Nothing
+
+-- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
+unBinaryApps :: AnnotatedTerm2 vt at ap v a -> Maybe ([(AnnotatedTerm2 vt at ap v a,
+                                                        AnnotatedTerm2 vt at ap v a)],
+                                                      AnnotatedTerm2 vt at ap v a)
+unBinaryApps t = unBinaryAppsPred (t, \_ -> True)
+
+-- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
+unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) ->
+                      Maybe ([(AnnotatedTerm2 vt at ap v a,
+                               AnnotatedTerm2 vt at ap v a)],
+                              AnnotatedTerm2 vt at ap v a)
+unBinaryAppsPred (t, pred) = case unBinaryApp t of
+  Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
+                               Just (as, xLast) -> Just ((xLast, f) : as, y)
+                               Nothing          -> Just ([(x, f)], y)
+  _                       -> Nothing
+
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
-unLams' (LamNamed' v body) = case unLams' body of
+unLams' t = unLamsPred' (t, (\_ -> True))
+
+-- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
+-- lambda extraction.
+unLamsOpt' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLamsOpt' t = case unLams' t of
+  r@(Just _) -> r
+  Nothing    -> Just ([], t)
+
+-- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
+unLamsPred' :: (AnnotatedTerm2 vt at ap v a, v -> Bool) ->
+                 Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
-unLams' _ = Nothing
+unLamsPred' _ = Nothing
 
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
@@ -498,9 +554,6 @@ dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
-
-dependencies :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Hash
-dependencies e = Set.fromList [ h | Reference.Derived h <- Set.toList (dependencies' e) ]
 
 referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
@@ -543,6 +596,19 @@ updateDependencies u tm = ABT.rebuildUp go tm where
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
+hashComponents m = Reference.hashComponents (\r -> ref() r) m
+
+-- The hash for a constructor
+hashConstructor :: Reference -> Int -> Reference
+hashConstructor r cid = let
+  -- this is a bit circuitous, but defining everything in terms of hashComponents
+  -- ensure the hashing is always done in the same way
+  m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, constructor() r cid)])
+  in case toList m of
+    [(r,_)] -> r
+    _ -> error "unpossible"
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
@@ -607,7 +673,9 @@ instance Var v => Hashable1 (F v a p) where
       -- function as is used here, this case ensures that references are 'transparent'
       -- wrt hash and hashing is unaffected by whether expressions are linked.
       -- So for example `x = 1 + 1` and `y = x` hash the same.
-      Ref (Reference.Derived h) -> Hashable.fromBytes (Hash.toBytes h)
+      Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
+      Ref (Reference.Derived h i n) ->
+        Hashable.accumulate [tag 1, hashed $ Hashable.fromBytes (Hash.toBytes h), Hashable.Nat i, Hashable.Nat n]
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
       _ -> Hashable.accumulate $ tag 1 : case e of
@@ -622,7 +690,7 @@ instance Var v => Hashable1 (F v a p) where
             B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
             B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
         Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
-        Ref (Reference.Derived _) -> error "handled above, but GHC can't figure this out"
+        Ref (Reference.Derived _ _ _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
         Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
         Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
@@ -644,6 +712,7 @@ instance Var v => Hashable1 (F v a p) where
         Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
         And x y -> [tag 16, hashed $ hash x, hashed $ hash y]
         Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+        _ -> error $ "unhandled case in show: " <> show (const () <$> e)
 
 -- mostly boring serialization code below ...
 

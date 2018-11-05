@@ -68,6 +68,20 @@ object BootstrapStream {
             println("Shutting down runtime.")
             return ()
         }
+      if (wrangle) {
+        // serialize term back to the channel
+        val serialized = Codecs.encodeTerm(t)
+        def go(s: Sequence[Array[Byte]]): Unit = s.headOption match {
+          case Some(array) =>
+            channel.write(ByteBuffer.wrap(array))
+            go(s.drop(1))
+          case None => ()
+        }
+      }
+      else {
+        // sync byte
+        channel.write(ByteBuffer.wrap(Array[Byte](74)))
+      }
     }
 
   }
@@ -183,7 +197,7 @@ object Bootstrap0 {
         }
       }
       val haskellResult =
-        Process(Seq("stack", "build"), stackDir) #&&
+        // Process(Seq("stack", "build"), stackDir) #&& // uncomment this to `stack build` every time
           Process(Seq("stack", "exec", "bootstrap", u.toString, ub.toString)) ! log
 
       {
