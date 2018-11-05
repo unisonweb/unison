@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -132,18 +133,18 @@ synthesizeFile builtinNames unisonFile = do
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-                                         (fmap toKV B.builtinTypedTerms)
+                          . fmap toKV . Map.toList $ termNames allTheNames
        where
-        toKV (v, (_, typ)) =
-          ( Var.unqualified v
-          , [Typechecker.NamedReference (Var.name v) typ True]
+        toKV (name, (_, typ)) =
+          ( Var.unqualified (Var.named @v name)
+          , [Typechecker.NamedReference name typ True]
           )
       typeOf :: Applicative f => Reference -> f (Type v)
       typeOf r = pure . fromMaybe (error $ "unknown reference " ++ show r) $
         Map.lookup r typeSigs
        where
-        typeSigs = Map.fromList $ fmap go B.builtinTypedTerms
-        go (v, (_tm, typ)) = (Builtin (Var.name v), typ)
+        typeSigs = Map.fromList . fmap go . Map.toList $ termNames allTheNames
+        go (name, (_tm, typ)) = (Builtin name, typ)
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   Result (convertNotes notes) mayType >>= \typ -> do
