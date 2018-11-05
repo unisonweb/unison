@@ -190,9 +190,11 @@ object Serialization {
         case Id.Builtin(Name(name)) =>
           putByte(0)
           putString(name)
-        case Id.HashRef(Hash(bytes)) =>
+        case Id.HashRef(Id.H(Hash(bytes), pos, sz)) =>
           putByte(1)
           put(bytes)
+          putVarLong(pos)
+          putVarLong(sz)
       }
       putFramedSeq1(freeVars)(putVar _)
       go(ABT.annotateBound(term))

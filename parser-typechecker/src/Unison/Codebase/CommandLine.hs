@@ -197,8 +197,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn ""
             putStrLn
               "👀  Now evaluating any watch expressions (lines starting with `>`) ...\n"
-            RT.evaluate runtime (UF.discardTypes' unisonFile) codebase
-            -- todo: actually wait until evaluation completes
+            (watchExpressions, _term) <-
+                    RT.evaluate runtime (UF.discardTypes' unisonFile) codebase
+            uncurry (Watch.watchPrinter names) `traverse_` watchExpressions
 
     go :: Branch -> Name -> IO ()
     go branch name = do

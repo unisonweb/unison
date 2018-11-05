@@ -1,37 +1,72 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Unison.Codebase.Runtime.JVM where
 
 import           Control.Applicative
-import           Control.Monad.State       (evalStateT)
-import           Data.Bytes.Put            (runPutS)
-import           Data.ByteString           (ByteString)
-import           Data.Functor
+import           Control.Monad.State            ( evalStateT )
+import           Data.Bytes.Get                 ( getWord8
+                                                , runGetS
+                                                , MonadGet
+                                                )
+import           Data.Bytes.Put                 ( runPutS )
+import           Data.ByteString                ( ByteString )
+import           Data.Text                      ( Text )
 import           Network.Socket
-import           System.IO.Streams         (InputStream, OutputStream)
-import qualified System.IO.Streams         as Streams
-import qualified System.IO.Streams.ByteString as BSS
-import qualified System.IO.Streams.Network as N
-import qualified System.Process            as P
-import           Unison.Codebase           (Codebase)
-import           Unison.Codebase.Runtime   (Runtime (..))
-import qualified Unison.Codecs             as Codecs
-import           Unison.UnisonFile         (UnisonFile)
-import           Unison.Var                (Var)
+import           System.IO.Streams              ( InputStream
+                                                , OutputStream
+                                                )
+import qualified System.IO.Streams             as Streams
+import qualified System.IO.Streams.ByteString  as BSS
+import qualified System.IO.Streams.Network     as N
+import qualified System.Process                as P
+import           Unison.Codebase                ( Codebase )
+import           Unison.Codebase.Runtime        ( Runtime(..) )
+import qualified Unison.Codebase.Serialization.V0
+                                               as Szn
+import qualified Unison.Codecs                 as Codecs
+import           Unison.Term                    ( Term )
+import           Unison.UnisonFile              ( UnisonFile )
+import           Unison.Var                     ( Var )
 
-javaRuntime :: Var v => Int -> IO (Runtime v)
-javaRuntime suggestedPort = do
+javaRuntime :: Var v => (forall g. MonadGet g => g v) -> Int -> IO (Runtime v)
+javaRuntime getv suggestedPort = do
   (listeningSocket, port) <- choosePortAndListen suggestedPort
   (killme, input, output) <- connectToRuntime listeningSocket port
-  pure $ Runtime killme (feedme input output)
-  where
-    feedme :: Var v
-           => InputStream ByteString -> OutputStream ByteString
-           -> UnisonFile v a -> Codebase IO v b -> IO ()
-    feedme input output unisonFile _codebase = do
+  pure $ Runtime killme (feedme getv input output)
+ where
+    processWatches getv acc = do
+      marker <- getWord8
+      case marker of
+        0 -> do
+          label <- Szn.getText
+          term  <- Szn.getTerm getv (pure ())
+          processWatches getv $ (label, term) : acc
+        1 -> do
+          term <- Szn.getTerm getv (pure ())
+          pure $ (reverse acc, term)
+        x -> fail $ "Unexpected byte in JVM output: " ++ show x
+    feedme
+      :: forall v a b. Var v
+      => (forall g. MonadGet g => g v)
+      -> InputStream ByteString
+      -> OutputStream ByteString
+      -> UnisonFile v a
+      -> Codebase IO v b
+      -> IO ([(Text, Term v)], Term v)
+    feedme getv input output unisonFile _codebase = do
       -- todo: runtime should be able to request more terms/types/arities by hash
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
       Streams.write (Just bs) output
-      -- todo: read some actual results here, rather than just reading a sync byte
-      void $ BSS.readExactly 1 input
+
+      bs <- BSS.readExactly 8 input
+      case runGetS Szn.getInt bs of
+        Left e -> fail e
+        Right size -> do
+          bs <- BSS.readExactly (fromIntegral size) input
+          case runGetS (processWatches getv []) bs of
+            Left e -> fail e
+            Right x -> pure x
 
     -- open a listening socket for the runtime to connect to
     choosePortAndListen :: Int -> IO (Socket, Int)

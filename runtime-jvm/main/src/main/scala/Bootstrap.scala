@@ -68,20 +68,17 @@ object BootstrapStream {
             println("Shutting down runtime.")
             return ()
         }
-      if (wrangle) {
-        // serialize term back to the channel
-        val serialized = Codecs.encodeTerm(t)
-        def go(s: Sequence[Array[Byte]]): Unit = s.headOption match {
-          case Some(array) =>
-            channel.write(ByteBuffer.wrap(array))
-            go(s.drop(1))
-          case None => ()
-        }
+      // serialize term back to the channel
+      def go(s: Sequence[Array[Byte]]): Unit = s.headOption match {
+        case Some(array) =>
+          channel.write(ByteBuffer.wrap(array))
+          go(s.drop(1))
+        case None => ()
       }
-      else {
-        // sync byte
-        channel.write(ByteBuffer.wrap(Array[Byte](74)))
-      }
+      // We're done with watch expressions.
+      // Send marker that we're about to send the final term.
+      go(Sequence(Array(1)))
+      go(Codecs.encodeTerm(t))
     }
 
   }
@@ -93,10 +90,17 @@ object Bootstrap0 {
   // to the channel, after sending the label.
   def watchChanneler(chan: SocketChannel)(label: String, v: Value): Unit = {
     val chunks = Sink.toChunks(64 * 1024) { sink =>
+      // Send marker that a watch expression follows.
+      sink.putByte(0)
+
       sink.putString(label)
       Serialization.V0.putTerm(sink, Term.fullyDecompile(v.decompile))
     }
-    chunks foreach { chunk =>
+    val size = chunks.map(_.size).foldLeft(0)(_ + _)
+    val sizeChunks = Sink.toChunks(256) { sink =>
+      sink.putLong(size)
+    }
+    (sizeChunks ++ chunks) foreach { chunk =>
       val _ = chan.write(ByteBuffer.wrap(chunk))
     }
   }

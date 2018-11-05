@@ -12,9 +12,8 @@ import qualified Unison.Codebase.CommandLine      as CommandLine
 import qualified Unison.Codebase.FileCodebase     as FileCodebase
 import           Unison.Codebase.Runtime.JVM      (javaRuntime)
 import qualified Unison.Codebase.Serialization    as S
-import           Unison.Codebase.Serialization.V0 (formatSymbol)
+import           Unison.Codebase.Serialization.V0 (formatSymbol, getSymbol)
 import           Unison.Parser                    (Ann (External))
-import           Unison.Symbol                    (Symbol)
 
 main :: IO ()
 main = do
@@ -26,7 +25,7 @@ main = do
       scratchFilePath = "."
       launch = CommandLine.main scratchFilePath initialBranchName
         (headMay args)
-        (javaRuntime @Symbol 42441)
+        (javaRuntime getSymbol 42441)
         (FileCodebase.codebase1 External formatSymbol formatAnn codebasePath)
 
   exists <- FileCodebase.exists codebasePath
