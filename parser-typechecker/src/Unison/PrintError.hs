@@ -139,9 +139,10 @@ prettyTypecheckedFile
    . (Var v, Annotated loc, Ord loc, Show loc)
   => UF.TypecheckedUnisonFile v loc -> Env -> AnnotatedText Color
 prettyTypecheckedFile file env = let
-  (types, terms) = prettyTypecheckedFile' file env
+  (types, terms') = prettyTypecheckedFile' file env
+  terms = filter (\x -> Text.take 1 (Var.name $ fst x) /= "_") terms'
   sep n = if not (null n) then "\n" else ""
-  in intercalateMap "\n" snd types <> (sep types <> sep terms) <>
+  in intercalateMap "\n" snd types <> sep types <>
      intercalateMap "\n" snd terms <> sep terms
 
 -- Render an informational typechecking note

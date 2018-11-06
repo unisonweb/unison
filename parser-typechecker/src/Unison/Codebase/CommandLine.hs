@@ -188,7 +188,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn
               $  "✅ "
               ++ [emoticons !! n]
-              ++ "  Found and typechecked the following definitions in " ++ filePath ++ ":\n"
+              ++ "  Found and typechecked the following definitions in "
+              ++ filePath
+              ++ ":\n"
             let uf = UF.discardTerm unisonFile
             writeIORef lastTypechecked (Just filePath, uf, errorEnv)
             putStrLn . show . Color.renderText $ prettyTypecheckedFile
@@ -287,7 +289,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
                         Nothing -> do
                           Codebase.putTypeDeclaration codebase id dd
                         Just _ ->
-                          -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                          -- todo - can treat this as adding an alias
+                          -- (same hash, but different name in this branch)
                           putStrLn
                             $  Var.nameStr v
                             ++ " already exists with hash "
@@ -298,7 +301,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
                       o <- Codebase.getTerm codebase id
                       case o of
                         Just _ ->
-                          -- todo - can treat this as adding an alias (same hash, but different name in this branch)
+                          -- todo - can treat this as adding an alias
+                          -- (same hash, but different name in this branch)
                           putStrLn
                             $  Var.nameStr v
                             ++ " already exists with hash "
@@ -306,11 +310,11 @@ main dir currentBranchName initialFile startRuntime codebase = do
                             ++ ", skipping."
                         Nothing ->
                           -- Discard all line/column info when adding to the codebase
-                                   Codebase.putTerm
-                          codebase
-                          id
-                          (Term.amap (const Parser.External) tm)
-                          typ
+                          Codebase.putTerm
+                            codebase
+                            id
+                            (Term.amap (const Parser.External) tm)
+                            typ
 
                 branch <- mergeBranchAndShowDiff
                   codebase
