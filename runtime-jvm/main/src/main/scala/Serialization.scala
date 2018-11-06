@@ -2,7 +2,6 @@ package org.unisonweb
 
 import util.Sink
 import org.unisonweb.Term._
-import ABT.{AnnotatedTerm}
 
 object Serialization {
 
@@ -17,14 +16,15 @@ object Serialization {
       import sink._
       val freeVars = term.annotation.toList
 
-      def go(t: AnnotatedTerm[Term.F,(Set[Name], Vector[Name])]): Unit = {
+      def go(t: Term): Unit = {
         t match {
           case ABT.Var(name) =>
             putByte(0)
-            putVarRef(t.annotation._2, name)
+            val t2 = ABT.annotateBound(t)
+            putVarRef(t2.annotation._2, name)
           case ABT.Tm(f) =>
             putByte(1)
-            putF(t.map(_._1))
+            putF(t)
           case ABT.Abs(name, body) =>
             putByte(2)
             putVar(name)
@@ -83,36 +83,36 @@ object Serialization {
             putVarLong(ctor)
           case Handle(h, a) =>
             putByte(8)
-            putTerm(sink, h)
-            putTerm(sink, a)
+            go(h)
+            go(a)
           case Apply(f, Nil) => ()
           case Apply(f, a::Nil) =>
             putByte(9)
-            putTerm(sink, f)
-            putTerm(sink, a)
+            go(f)
+            go(a)
           case Apply(f, args) =>
             // Expand out applications, as V0 expects them one at a time
             putF(args.foldLeft(f)((t,a) => Apply(t, a)))
           // Type annotations are byte 10, but we don't have any
           case Sequence(seq) =>
             putByte(11)
-            putFramedSeq(seq.toList)(putTerm)
+            putFramedSeq1(seq.toList)(go)
           case If(cond, t, f) =>
             putByte(12)
-            putTerm(sink, cond)
-            putTerm(sink, t)
-            putTerm(sink, f)
+            go(cond)
+            go(t)
+            go(f)
           case And(x,y) =>
             putByte(13)
-            putTerm(sink, x)
-            putTerm(sink, y)
+            go(x)
+            go(y)
           case Or(x,y) =>
             putByte(14)
-            putTerm(sink, x)
-            putTerm(sink, y)
+            go(x)
+            go(y)
           case Lam(_, body) =>
             putByte(15)
-            putTerm(sink, body)
+            go(body)
           case LetRec(bindings, body) =>
             // Put a Cycle
             putByte(3)
@@ -121,15 +121,15 @@ object Serialization {
             putLet(17, bindings, body)
           case Match(scrutinee, cases) =>
             putByte(18)
-            putTerm(sink, scrutinee)
+            go(scrutinee)
             putFramedSeq1(cases)(putMatchCase _)
         }
 
       def putMatchCase(c: MatchCase[Term]): Unit = {
         val MatchCase(pattern, guard, body) = c
         putPattern(pattern)
-        putOption1(guard)(putTerm(sink,_))
-        putTerm(sink, body)
+        putOption1(guard)(go _)
+        go(body)
       }
 
       def putPattern(pattern: Pattern): Unit = pattern match {
@@ -169,8 +169,8 @@ object Serialization {
       }
 
       def putLet(b: Byte,
-                 bindings: List[(Name, AnnotatedTerm[F,Set[Name]])],
-                 body: AnnotatedTerm[F,Set[Name]]): Unit = {
+                 bindings: List[(Name, Term)],
+                 body: Term): Unit = {
         bindings.foreach {
           // Abs all the bound variables
           case (name, binding) =>
@@ -181,9 +181,9 @@ object Serialization {
         putByte(1)
         putByte(b)
         putFramedSeq(bindings) {
-          case (s, (_, binding)) => putTerm(s, binding)
+          case (s, (_, binding)) => go(binding)
         }
-        putTerm(sink, body)
+        go(body)
       }
 
       def putReference(id: Id): Unit = id match {
@@ -197,7 +197,7 @@ object Serialization {
           putVarLong(sz)
       }
       putFramedSeq1(freeVars)(putVar _)
-      go(ABT.annotateBound(term))
+      go(term)
     }
 
 
