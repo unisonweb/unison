@@ -185,18 +185,17 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.setTitle "Unison ✅"
             let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
             n <- randomRIO (0, length emoticons - 1)
-            putStrLn
+            let uf = UF.discardTerm unisonFile
+                defs = prettyTypecheckedFile uf errorEnv
+                prettyDefs = show $ Color.renderText defs
+            when (not $ null defs) . putStrLn
               $  "✅ "
               ++ [emoticons !! n]
               ++ "  Found and typechecked the following definitions in "
               ++ filePath
               ++ ":\n"
-            let uf = UF.discardTerm unisonFile
             writeIORef lastTypechecked (Just filePath, uf, errorEnv)
-            putStrLn . show . Color.renderText $ prettyTypecheckedFile
-              uf
-              errorEnv
-            putStrLn ""
+            putStrLn prettyDefs
             putStrLn
               "👀  Now evaluating any watch expressions (lines starting with `>`) ...\n"
             (watchExpressions, _term) <-

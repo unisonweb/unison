@@ -11,7 +11,7 @@ module Unison.Util.AnnotatedText where
 import           Data.Foldable      (foldl')
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
-import           Data.Sequence      (Seq ((:|>)))
+import           Data.Sequence      (Seq ((:|>), (:<|)))
 import qualified Data.Sequence      as Seq
 import           Data.String        (IsString (..))
 import           Safe               (headMay, lastMay)
@@ -22,7 +22,15 @@ import           Unison.Util.Range  (Range (..), inRange)
 type AnnotatedText a = AnnotatedText' (Maybe a)
 
 newtype AnnotatedText' a = AnnotatedText' (Seq (String, a))
-  deriving (Functor, Foldable, Semigroup, Monoid)
+  deriving (Functor, Foldable, Show)
+
+instance Semigroup (AnnotatedText' a) where
+  AnnotatedText' (as :|> ("", _)) <> bs = AnnotatedText' as <> bs
+  as <> AnnotatedText' (("", _) :<| bs) = as <> AnnotatedText' bs
+  AnnotatedText' as <> AnnotatedText' bs = AnnotatedText' (as <> bs)
+
+instance Monoid (AnnotatedText' a) where
+  mempty = AnnotatedText' Seq.empty
 
   -- Quoted text (indented, with source line numbers) with annotated portions.
 data AnnotatedExcerpt a = AnnotatedExcerpt
