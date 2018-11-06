@@ -5,14 +5,15 @@ import org.unisonweb.Term._
 
 object Serialization {
 
-  type Term = org.unisonweb.ABT.Term[F]
+  type Tm = ABT.Term[F]
+  type Term = ABT.AnnotatedTerm[F, (Set[Name], Vector[Name])]
 
   object V0 {
     /**
      * Serializes a Unison term. Expects the term to be annotated with its
      * free variables.
      */
-    def putTerm(sink: Sink, term: Term): Unit = {
+    def putTerm(sink: Sink, term: Tm): Unit = {
       import sink._
       val freeVars = term.annotation.toList
 
@@ -20,8 +21,7 @@ object Serialization {
         t match {
           case ABT.Var(name) =>
             putByte(0)
-            val t2 = ABT.annotateBound(t)
-            putVarRef(t2.annotation._2, name)
+            putVarRef(t.annotation._2, name)
           case ABT.Tm(f) =>
             putByte(1)
             putF(t)
@@ -40,7 +40,8 @@ object Serialization {
       def putVarRef(env: Vector[Name], v: Name) =
         env indexOf v match {
           case -1 => freeVars indexOf v match {
-            case -1 => sys.error("impossible: var not free or bound")
+            case -1 =>
+              sys.error(s"impossible: var $v not free ($freeVars) or bound ($env).")
             case i =>
               putByte(1)
               putVarLong(i)
@@ -92,7 +93,7 @@ object Serialization {
             go(a)
           case Apply(f, args) =>
             // Expand out applications, as V0 expects them one at a time
-            putF(args.foldLeft(f)((t,a) => Apply(t, a)))
+            putF(args.foldLeft(f)((t,a) => Apply(t.map(_._1), a.map(_._1)).map(x => t.annotation)))
           // Type annotations are byte 10, but we don't have any
           case Sequence(seq) =>
             putByte(11)
@@ -110,7 +111,7 @@ object Serialization {
             putByte(14)
             go(x)
             go(y)
-          case Lam(_, body) =>
+          case ABT.Tm(Term.F.Lam_(body)) =>
             putByte(15)
             go(body)
           case LetRec(bindings, body) =>
@@ -192,12 +193,14 @@ object Serialization {
           putString(name)
         case Id.HashRef(Id.H(Hash(bytes), pos, sz)) =>
           putByte(1)
+          putVarLong(bytes.size)
           put(bytes)
           putVarLong(pos)
           putVarLong(sz)
       }
       putFramedSeq1(freeVars)(putVar _)
-      go(term)
+
+      go(ABT.annotateBound(term))
     }
 
 

@@ -87,6 +87,10 @@ object BootstrapStream {
       val size = chunks.map(_.size).foldLeft(0)(_ + _)
       val sizeChunks = Sink.toChunks(256) { sink => sink.putLong(size) }
 
+      def printChunks(chunks: Sequence[Array[Byte]]): Unit = {
+        println(s"debug: hex:\n" + chunks.toList.flatten.map("" + _.toInt.&(0xff).toHexString).mkString(" "))
+      }
+
       transmitChunks(sizeChunks ++ chunks)
     }
   }
