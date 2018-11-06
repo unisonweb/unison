@@ -60,49 +60,48 @@ object BootstrapStream {
         sys.exit(1)
       }
     while (true) {
-      val t =
-        try normalizedFromBinarySource(Source.fromSocketChannel(channel),
-                                       watchChanneler(channel))
-        catch {
-          case Source.Underflow() =>
-            println("Shutting down runtime.")
-            return ()
-        }
-      // serialize term back to the channel
-      def go(s: Sequence[Array[Byte]]): Unit = s.headOption match {
+      def transmitChunks(s: Sequence[Array[Byte]]): Unit = s.headOption match {
         case Some(array) =>
+          if (!channel.isConnected) println("jvm debug: the channel isn't connected!")
           channel.write(ByteBuffer.wrap(array))
-          go(s.drop(1))
+          transmitChunks(s.drop(1))
         case None => ()
       }
-      // We're done with watch expressions.
-      // Send marker that we're about to send the final term.
-      go(Sequence(Array(1)))
-      go(Codecs.encodeTerm(t))
-    }
 
+      val chunks = Sink.toChunks(64*1024) { sink =>
+        // Evaluate the term while writing any watch expressions.
+        val t =
+          try normalizedFromBinarySource(Source.fromSocketChannel(channel),
+                                         watchSinker(sink))
+          catch {
+            case Source.Underflow() =>
+              println("Shutting down runtime.")
+              return ()
+          }
+        // We're done with watch expressions.
+        // Send marker that we're about to write the final term.
+        sink.putByte(1)
+        Serialization.V0.putTerm(sink, t)
+      }
+
+      val size = chunks.map(_.size).foldLeft(0)(_ + _)
+      val sizeChunks = Sink.toChunks(256) { sink => sink.putLong(size) }
+
+      transmitChunks(sizeChunks ++ chunks)
+    }
   }
 }
 
 object Bootstrap0 {
 
   // Decompiles values it receives and sends the corresponding term
-  // to the channel, after sending the label.
-  def watchChanneler(chan: SocketChannel)(label: String, v: Value): Unit = {
-    val chunks = Sink.toChunks(64 * 1024) { sink =>
-      // Send marker that a watch expression follows.
-      sink.putByte(0)
+  // to the sink, after sending the label.
+  def watchSinker(sink: Sink)(label: String, v: Value): Unit = {
+    // Send marker that a watch expression follows.
+    sink.putByte(0)
 
-      sink.putString(label)
-      Serialization.V0.putTerm(sink, Term.fullyDecompile(v.decompile))
-    }
-    val size = chunks.map(_.size).foldLeft(0)(_ + _)
-    val sizeChunks = Sink.toChunks(256) { sink =>
-      sink.putLong(size)
-    }
-    (sizeChunks ++ chunks) foreach { chunk =>
-      val _ = chan.write(ByteBuffer.wrap(chunk))
-    }
+    sink.putString(label)
+    Serialization.V0.putTerm(sink, Term.fullyDecompile(v.decompile))
   }
 
   def watchPrinter(label: String, v: Value): Unit = {
