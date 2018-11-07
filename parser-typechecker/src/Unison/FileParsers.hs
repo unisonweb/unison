@@ -144,6 +144,7 @@ synthesizeFile builtinNames unisonFile = do
         Map.lookup r typeSigs
        where
         typeSigs = Map.fromList . fmap go . Map.toList $ termNames allTheNames
+        -- todo: this seems wrong
         go (name, (_tm, typ)) = (Builtin name, typ)
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
