@@ -3,6 +3,7 @@
 {-# Language DeriveFoldable #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveGeneric #-}
+{-# Language OverloadedStrings #-}
 
 module Unison.DataDeclaration where
 
@@ -18,11 +19,16 @@ import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
+import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import Data.Text (Text)
 import qualified Unison.Var as Var
+import Unison.Names (Names)
+import Unison.Names as Names
+-- import Debug.Trace
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -41,12 +47,38 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
-bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
-bindBuiltins typeEnv (DataDeclaration a bound constructors) =
-  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
+bindBuiltins :: Var v => Names v x -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins names (DataDeclaration a bound constructors) =
+  DataDeclaration a bound (third (Names.bindType names) <$> constructors)
 
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
+
+-- implementation of dataDeclToNames and effectDeclToNames
+toNames0 :: Var v => v
+                  -> Reference
+                  -> (a -> Reference -> Int -> AnnotatedTerm v a)
+                  -> DataDeclaration' v a
+                  -> Names v a
+toNames0 typeSymbol r f dd = let
+  names ((ctor, typ), i) = let
+    name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+    in Names.fromTerms [(name, (f (ABT.annotation typ) r i, typ))] <>
+       Names.fromPatterns [(name, (r,i))]
+  in foldMap names (constructors dd `zip` [0 ..]) <>
+     Names.fromTypesV [(typeSymbol,r)]
+
+dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names v a
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Term.constructor dd
+
+effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names v a
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Term.request $ toDataDecl ed
+
+dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names v a
+dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
+
+effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names v a
+effectDeclToNames' (v,(r,d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
 
@@ -164,10 +196,10 @@ hashDecls
   -> [(v, Reference, DataDeclaration' v a)]
 hashDecls decls =
   let varToRef = hashDecls0 (void <$> decls)
-      decls'   = bindDecls decls varToRef
+      decls'   = bindDecls decls (Names.fromTypesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
-bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
+bindDecls :: Var v => Map v (DataDeclaration' v a) -> Names v x -> Map v (DataDeclaration' v a)
 bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls where
   -- normalize the order of the constructors based on a hash of their types
   sortCtors dd = DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)

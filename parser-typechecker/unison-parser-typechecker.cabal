@@ -43,7 +43,6 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
     Unison.Codebase.FileCodebase
-    Unison.Codebase.Name
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
     Unison.Codebase.Runtime.JVM
@@ -59,6 +58,7 @@ library
     Unison.Hashable
     Unison.Kind
     Unison.Lexer
+    Unison.Names
     Unison.Parser
     Unison.Parsers
     Unison.Path

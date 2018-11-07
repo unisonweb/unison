@@ -20,7 +20,6 @@ import qualified Data.Char                    as Char
 import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
 import qualified Data.List.NonEmpty           as Nel
-import           Data.Map                     (Map)
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (catMaybes, fromMaybe)
 import           Data.Sequence                (Seq (..))
@@ -55,19 +54,9 @@ import           Unison.Util.Monoid           (intercalateMap)
 import           Unison.Util.Range            (Range (..))
 import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
+import qualified Unison.PrettyPrintEnv as PPE
 
-data Env = Env { referenceNames   :: Map R.Reference String
-               , constructorNames :: Map (R.Reference, Int) String }
-
-instance Monoid Env where
-  mempty = env0
-  mappend (Env r1 c1) (Env r2 c2) =
-    Env (Map.unionWith const r2 r1) (Map.unionWith const c2 c1)
-
-instance Semigroup Env where (<>) = mappend
-
-env0 :: Env
-env0 = Env mempty mempty
+type Env = PPE.PrettyPrintEnv
 
 pattern Type1 = Color.HiBlue
 pattern Type2 = Color.Green
@@ -128,7 +117,7 @@ prettyTypecheckedFile'
 prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
   dot = "  "
-  terms = renderTerm dot <$> join (UF.terms file)
+  terms = renderTerm dot <$> join (UF.topLevelComponents file)
   -- todo: can we color the 'type' and 'ability' keywords
   types = (renderDecl (dot <> style TypeKeyword "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
@@ -141,7 +130,7 @@ prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
     (v, mconcat [s, renderVar v, " : ", renderType' env typ])
   renderDecl :: AnnotatedText Color -> (v, (r, DD.DataDeclaration' v loc)) -> (v, AnnotatedText Color)
   renderDecl s (v, (_, decl)) = (v, mconcat
-    [s, renderVar v, intercalateMap " " renderVar $ DD.bound decl])
+    [s, renderVar v, " ", intercalateMap " " renderVar $ DD.bound decl])
   renderEffect :: AnnotatedText Color -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, AnnotatedText Color)
   renderEffect s (v, (r, decl)) = renderDecl (s <> style AbilityKeyword "ability ") (v, (r, DD.toDataDecl decl))
 
@@ -175,8 +164,11 @@ renderTypeInfo i env = case i of
             "🎁 These mutually dependent definitions typechecked:\n"
               <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) defs
  where
-  renderOne :: IsString s => (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> [s]
-  renderOne (v, _, typ) =
+  renderOne
+    :: IsString s
+    => (v, Type.AnnotatedType v loc, RedundantTypeAnnotation)
+    -> [s]
+  renderOne (v, typ, _) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
 
 
@@ -732,7 +724,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
   paren :: (IsString a, Semigroup a) => Bool -> a -> a
   paren test s = if test then "(" <> s <> ")" else s
   renderType0 env f p t = f (ABT.annotation t) $ case t of
-    Type.Ref' r -> showRef env r
+    Type.Ref' r -> showTypeRef env r
     Type.Arrow' i (Type.Effect1' e o) ->
       paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
     Type.Arrow' i o -> paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
@@ -787,15 +779,16 @@ renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showRef :: IsString s => Env -> R.Reference -> s
-showRef env r =
-  fromString $ fromMaybe (show r) (Map.lookup r (referenceNames env))
+showTermRef :: IsString s => Env -> R.Reference -> s
+showTermRef env r = fromString . Text.unpack $ PPE.termName env r
+
+showTypeRef :: IsString s => Env -> R.Reference -> s
+showTypeRef env r = fromString . Text.unpack $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
 showConstructor :: IsString s => Env -> R.Reference -> Int -> s
-showConstructor env r cid = fromString $ fromMaybe
-  (showRef env r ++ "/" ++ show cid)
-  (Map.lookup (r, cid) (constructorNames env))
+showConstructor env r cid = fromString . Text.unpack $
+  PPE.patternName env r cid
 
 styleInOverallType
   :: (Var v, Annotated a, Eq a)
@@ -876,6 +869,8 @@ printNoteWithSource _env s (InvalidPath path term) =
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
     <> annotatedAsErrorSite s a
+printNoteWithSource _env _s (CompilerBug c) =
+  fromString $ "Compiler bug: " <> show c
 
 _printPosRange :: String -> L.Pos -> L.Pos -> String
 _printPosRange s (L.Pos startLine startCol) _end =

@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Test.TermPrinter where
 
@@ -12,14 +13,10 @@ import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.PrettyPrint as PP
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
-import qualified Unison.Reference as R
+import qualified Unison.PrettyPrintEnv as PPE
 
-get_names :: PrettyPrintEnv.PrettyPrintEnv
-get_names = PrettyPrintEnv.withConstructorNames [
-  ((R.Builtin "()", 0), "()"),
-  ((R.Builtin "Pair", 0), "Pair")
- ]
+get_names :: PPE.PrettyPrintEnv
+get_names = PPE.fromNames @Symbol Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -154,8 +151,8 @@ test = scope "termprinter" . tests $
   , tc "case x of 3.14159 -> foo"
   , tc "case x of true -> foo"
   , tc "case x of false -> foo"
-  , tc "case x of y@(()) -> y"           -- TODO lose the brackets for `As (unary constructor)`
-  , tc "case x of a@(b@(c@(()))) -> c"
+  , tc_diff "case x of y@(()) -> y" $ "case x of y@() -> y" -- TODO lose the brackets for `As (unary constructor)`
+  , tc_diff "case x of a@(b@(c@(()))) -> c" $ "case x of a@(b@(c@())) -> c"
   , tc "case e of { a } -> z"
   --, tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                       -- need an actual effect constructor to test this with

@@ -25,7 +25,7 @@ import qualified Data.Set                   as Set
 --import Control.Monad (join)
 import           Unison.Codebase.Causal     (Causal)
 import qualified Unison.Codebase.Causal     as Causal
-import           Unison.Codebase.Name       (Name)
+import           Unison.Names               (Name)
 import           Unison.Codebase.TermEdit   (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit   as TermEdit
 import           Unison.Codebase.TypeEdit   (TypeEdit)

@@ -34,7 +34,7 @@ instance Ord Symbol where
   Symbol id1 name1 `compare` Symbol id2 name2 = (id1,name1) `compare` (id2,name2)
 instance Show Symbol where
   show (Symbol 0 n) = Text.unpack n
-  show (Symbol id n) = Text.unpack n ++ show id
+  show (Symbol id n) = Text.unpack n ++ "-" ++ show id
 
 symbol :: Text -> Symbol
 symbol n = Symbol 0 n

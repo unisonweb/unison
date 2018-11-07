@@ -121,9 +121,10 @@ bindBuiltins termBuiltins typeBuiltins t =
    g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    g = ABT.substsInheritAnnotation termBuiltins
 
-typeDirectedResolve :: Var v
-                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
-typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+-- Prepare a term for type-directed name resolution by replacing
+-- any remaining free variables with blanks to be resolved by TDNR
+prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
         f _ = Nothing
@@ -273,14 +274,14 @@ text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
 unit :: Var v => a -> AnnotatedTerm v a
-unit ann = constructor ann (Reference.Builtin "()") 0
+unit ann = constructor ann Type.unitRef 0
 
 tupleCons :: (Ord v, Semigroup a)
           => AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
 tupleCons hd tl =
-  apps' (constructor (ABT.annotation hd) (Reference.Builtin "Pair") 0) [hd, tl]
+  apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
@@ -529,8 +530,8 @@ unBinaryAppsPred (t, pred) = case unBinaryApp t of
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' t = unLamsPred' (t, (\_ -> True))
 
--- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a 
--- lambda extraction.  
+-- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
+-- lambda extraction.
 unLamsOpt' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLamsOpt' t = case unLams' t of
   r@(Just _) -> r

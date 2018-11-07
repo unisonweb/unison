@@ -1,4 +1,4 @@
-Stream.to-sequence
+Stream.toSequence
   (Stream.take 3
     (Stream.flat-map
       (n -> Stream.constant n)

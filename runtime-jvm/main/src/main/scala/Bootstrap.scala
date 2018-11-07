@@ -77,7 +77,10 @@ object BootstrapStream {
           case None => ()
         }
       }
-      else () // println(PrettyPrint.prettyTerm(t).render(80))
+      else {
+        // sync byte
+        channel.write(ByteBuffer.wrap(Array[Byte](74)))
+      }
     }
 
   }
@@ -175,7 +178,7 @@ object Bootstrap0 {
         }
       }
       val haskellResult =
-        Process(Seq("stack", "build"), stackDir) #&&
+        // Process(Seq("stack", "build"), stackDir) #&& // uncomment this to `stack build` every time
           Process(Seq("stack", "exec", "bootstrap", u.toString, ub.toString)) ! log
 
       { if (haskellResult > 0) Left(stderrBuffer.toString)

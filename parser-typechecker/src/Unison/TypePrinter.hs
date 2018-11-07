@@ -38,7 +38,7 @@ pretty n p tp = case tp of
     then pretty n p body
     else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> PP.Nest "  " (PP.Group $ pretty n 0 body)
   --TODO undo generalizeEffects before printing - see Type.ungeneralizeEffects
-  EffectfulArrows' (Ref' (Builtin "()")) rest -> arrows True True rest
+  EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
   EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
   _ -> l"error"
   where commaList xs = intercalateMap (l"," <> b" ") (pretty n 0) xs
@@ -51,9 +51,9 @@ pretty n p tp = case tp of
                                 effects mes <>
                                 if (isJust mes) || (not delay) && (not first) then l" " else Empty
 
-        arrows delay first [(mes, Ref' (Builtin "()"))] =
+        arrows delay first [(mes, Ref' UnitRef)] =
                                                  arrow delay first mes <> l"()"
-        arrows delay first ((mes, Ref' (Builtin "()")) : rest) =
+        arrows delay first ((mes, Ref' UnitRef) : rest) =
                                                  arrow delay first mes <>
                                                  (parenNoGroup delay $ arrows True True rest)
         arrows delay first ((mes, arg) : rest) = arrow delay first mes <>

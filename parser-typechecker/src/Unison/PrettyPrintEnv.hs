@@ -4,12 +4,14 @@ module Unison.PrettyPrintEnv where
 
 import Data.List (foldl')
 import Data.Map (Map)
-import Data.Text (Text)
 import Unison.Reference (Reference)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Unison.Names (Name,Names)
+import qualified Unison.Names as Names
+import qualified Unison.Term as Term
 
-type Histogram = Map Text Word
+type Histogram = Map Name Word
 
 -- Maps terms, types, constructors and constructor patterns to a histogram of names.
 data PrettyPrintEnv = PrettyPrintEnv {
@@ -21,6 +23,16 @@ data PrettyPrintEnv = PrettyPrintEnv {
   patterns :: Reference -> Int -> Histogram,
   -- names for types
   types :: Reference -> Histogram }
+
+fromNames :: Names v a -> PrettyPrintEnv
+fromNames ns = let
+  terms = Map.fromList [ (r, n) | (n, (Term.Ref' r,_)) <- Map.toList (Names.termNames ns) ]
+  patterns = Map.fromList [ ((r,i),n) | (n, (r,i)) <- Map.toList (Names.patternNames ns) ]
+  constructors = Map.fromList [ ((r,i),n) | (n, (Term.Constructor' r i,_)) <- Map.toList (Names.termNames ns) ]
+  types = Map.fromList [ (r,n) | (n, r) <- Map.toList (Names.typeNames ns) ]
+  hist :: Ord k => Map k Name -> k -> Histogram
+  hist m k = maybe mempty (\n -> Map.fromList [(n,1)]) $ Map.lookup k m
+  in PrettyPrintEnv (hist terms) (curry $ hist constructors) (curry $ hist patterns) (hist types)
 
 -- The monoid sums corresponding histograms
 
@@ -51,15 +63,22 @@ incrementBy by = adjust (by +)
 weightedSum :: [(Word,PrettyPrintEnv)] -> PrettyPrintEnv
 weightedSum envs = mconcat (uncurry scale <$> envs)
 
-withTermNames :: [(Reference,Text)] -> PrettyPrintEnv
-withTermNames ctors = let
-  m = Map.fromList ctors
+fromTypeNames :: [(Reference,Name)] -> PrettyPrintEnv
+fromTypeNames types = let
+  m = Map.fromList types
+  toH Nothing = mempty
+  toH (Just t) = Map.fromList [(t, 1)]
+  in mempty { types = \r -> toH $ Map.lookup r m }
+
+fromTermNames :: [(Reference,Name)] -> PrettyPrintEnv
+fromTermNames tms = let
+  m = Map.fromList tms
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
   in mempty { terms = \r -> toH $ Map.lookup r m }
 
-withConstructorNames :: [((Reference,Int), Text)] -> PrettyPrintEnv
-withConstructorNames ctors = let
+fromConstructorNames :: [((Reference,Int), Name)] -> PrettyPrintEnv
+fromConstructorNames ctors = let
   m = Map.fromList ctors
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
@@ -69,24 +88,24 @@ withConstructorNames ctors = let
 -- These functions pick out the most common name and fall back
 -- to showing the `Reference` if no names are available
 
-termName :: PrettyPrintEnv -> Reference -> Text
+termName :: PrettyPrintEnv -> Reference -> Name
 termName env r = pickName r (terms env r)
 
-typeName :: PrettyPrintEnv -> Reference -> Text
+typeName :: PrettyPrintEnv -> Reference -> Name
 typeName env r = pickName r (types env r)
 
-constructorName :: PrettyPrintEnv -> Reference -> Int -> Text
+constructorName :: PrettyPrintEnv -> Reference -> Int -> Name
 constructorName env r cid = pickNameCid r cid (constructors env r cid)
 
-patternName :: PrettyPrintEnv -> Reference -> Int -> Text
+patternName :: PrettyPrintEnv -> Reference -> Int -> Name
 patternName env r cid = pickNameCid r cid (constructors env r cid)
 
-pickName :: Reference -> Histogram -> Text
+pickName :: Reference -> Histogram -> Name
 pickName r h = case argmax snd (Map.toList h) of
   Nothing -> Text.pack (show r)
   Just (name,_) -> name
 
-pickNameCid :: Reference -> Int -> Histogram -> Text
+pickNameCid :: Reference -> Int -> Histogram -> Name
 pickNameCid r cid h = case argmax snd (Map.toList h) of
   Nothing -> Text.pack (show r) <> "#" <> Text.pack (show cid)
   Just (name,_) -> name

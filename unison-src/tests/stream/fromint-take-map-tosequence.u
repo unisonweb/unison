@@ -2,4 +2,4 @@ a |> f = f a
 Stream.from-int +0
   |> Stream.take 10
   |> Stream.map Int.increment
-  |> Stream.to-sequence
+  |> Stream.toSequence
