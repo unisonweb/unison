@@ -75,6 +75,7 @@ run env = go where
     Or i j -> case at i m of
       b@(B True) -> done b
       _ -> go j m
+    Match scrutinee cases -> match (at scrutinee m) cases m
     Let b body -> case go b m of
       RRequest req -> RRequest (req `appendCont` body)
       RDone v -> go body (v : m)
@@ -92,23 +93,28 @@ run env = go where
     Handle handler body -> case go body m of
       RRequest req -> call (at handler m) [0] (Requested req `push` m)
       r -> r
-    ir -> done $ case ir of
-      Var i -> at i m
-      V v -> v
-      Construct r cid args -> Data r cid ((`at` m) <$> args)
-      AddI i j -> I (ati i m + ati j m)
-      SubI i j -> I (ati i m - ati j m)
-      MultI i j -> I (ati i m * ati j m)
-      DivI i j -> I (ati i m `div` ati j m)
-      AddF i j -> F (atf i m + atf j m)
-      SubF i j -> F (atf i m - atf j m)
-      MultF i j -> F (atf i m * atf j m)
-      DivF i j -> F (atf i m / atf j m)
-      AddN i j -> N (atn i m + atn j m)
-      SubN i j -> N (atn i m - atn j m)
-      MultN i j -> N (atn i m * atn j m)
-      DivN i j -> N (atn i m `div` atn j m)
-      _ -> error "should be caught by above cases"
+    Var i -> done (at i m)
+    V v -> done v
+    Construct r cid args -> done $ Data r cid ((`at` m) <$> args)
+    AddI i j -> done $ I (ati i m + ati j m)
+    SubI i j -> done $ I (ati i m - ati j m)
+    MultI i j -> done $ I (ati i m * ati j m)
+    DivI i j -> done $ I (ati i m `div` ati j m)
+    AddF i j -> done $ F (atf i m + atf j m)
+    SubF i j -> done $ F (atf i m - atf j m)
+    MultF i j -> done $ F (atf i m * atf j m)
+    DivF i j -> done $ F (atf i m / atf j m)
+    AddN i j -> done $ N (atn i m + atn j m)
+    SubN i j -> done $ N (atn i m - atn j m)
+    MultN i j -> done $ N (atn i m * atn j m)
+    DivN i j -> done $ N (atn i m `div` atn j m)
+
+  match :: V -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
+  match _scrutinee [] _m = RMatchFail
+  match _scrutinee ((_pat,_guard,_rhs) : _cases) _m =
+    error "todo - walk pat and scrutinee together, pushing onto `m`"
+    -- prob should use local helper function so if the pattern fails,
+    -- can just revert machine to whatever was passed in
 
   call :: V -> [Pos] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in

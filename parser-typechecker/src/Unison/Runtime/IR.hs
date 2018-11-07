@@ -22,6 +22,14 @@ data V
   | Requested Req
   deriving (Eq,Show)
 
+data Pattern
+  = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
+  | PatternData R.Reference ConstructorId [Pattern]
+  | PatternSequence (Vector Pattern)
+  | PatternBind R.Reference ConstructorId [Pattern] Pattern
+  | PatternIgnore
+  | PatternVar deriving (Eq,Show)
+
 -- Computations, need to be reduced to values
 data IR
   = Var Pos
@@ -39,6 +47,7 @@ data IR
   | If Pos IR IR
   | And Pos IR
   | Or Pos IR
+  | Match Pos [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
   deriving (Eq,Show)
 
 -- Contains the effect ref and ctor id, the args, and the continuation
