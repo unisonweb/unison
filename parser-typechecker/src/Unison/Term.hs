@@ -601,14 +601,22 @@ hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, Annota
 hashComponents m = Reference.hashComponents (\r -> ref() r) m
 
 -- The hash for a constructor
+hashConstructor'
+  :: (Reference -> Int -> Term Symbol) -> Reference -> Int -> Reference
+hashConstructor' f r cid =
+  let
+-- this is a bit circuitous, but defining everything in terms of hashComponents
+-- ensure the hashing is always done in the same way
+      m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
+  in  case toList m of
+        [(r, _)] -> r
+        _        -> error "unpossible"
+
 hashConstructor :: Reference -> Int -> Reference
-hashConstructor r cid = let
-  -- this is a bit circuitous, but defining everything in terms of hashComponents
-  -- ensure the hashing is always done in the same way
-  m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, constructor() r cid)])
-  in case toList m of
-    [(r,_)] -> r
-    _ -> error "unpossible"
+hashConstructor = hashConstructor' $ constructor ()
+
+hashRequest :: Reference -> Int -> Reference
+hashRequest = hashConstructor' $ request ()
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

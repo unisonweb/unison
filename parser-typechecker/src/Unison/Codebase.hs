@@ -5,32 +5,40 @@
 
 module Unison.Codebase where
 
-import Data.String (fromString)
-import Control.Monad (forM)
-import Data.Foldable (toList)
-import Data.Maybe (catMaybes)
-import Data.List
-import qualified Data.Map as Map
-import qualified Data.Relation as R
-import           Data.Set               (Set)
-import qualified Data.Text as Text
-import Text.EditDistance (defaultEditCosts, levenshteinDistance)
-import           Unison.Codebase.Branch (Branch,Branch0(..))
-import qualified Unison.Codebase.Branch as Branch
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.PrettyPrintEnv  as PPE
-import           Unison.Reference       (Reference)
-import qualified Unison.Reference as Reference
-import qualified Unison.Term            as Term
-import qualified Unison.TermPrinter     as TermPrinter
-import qualified Unison.Type            as Type
-import Unison.Util.PrettyPrint (PrettyPrint)
-import qualified Unison.Util.PrettyPrint as PP
-import           Unison.Util.AnnotatedText (AnnotatedText)
-import           Unison.Util.ColorText     (Color)
-import qualified Unison.Var             as Var
-import qualified Unison.ABT             as ABT
-import Unison.Names (Names(..), Name)
+import           Data.String                    ( fromString )
+import           Control.Monad                  ( forM )
+import           Data.Foldable                  ( toList, traverse_ )
+import           Data.Maybe                     ( catMaybes )
+import           Data.List
+import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Text                     as Text
+import           Text.EditDistance              ( defaultEditCosts
+                                                , levenshteinDistance
+                                                )
+import qualified Unison.Builtin                as Builtin
+import           Unison.Codebase.Branch         ( Branch
+                                                , Branch0(..)
+                                                )
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.DataDeclaration        as DD
+import           Unison.Parser                  ( Ann )
+import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
+import qualified Unison.Term                   as Term
+import qualified Unison.TermPrinter            as TermPrinter
+import qualified Unison.Type                   as Type
+import           Unison.Util.PrettyPrint        ( PrettyPrint )
+import qualified Unison.Util.PrettyPrint       as PP
+import           Unison.Util.AnnotatedText      ( AnnotatedText )
+import           Unison.Util.ColorText          ( Color )
+import qualified Unison.Util.Relation          as R
+import qualified Unison.Var                    as Var
+import qualified Unison.ABT                    as ABT
+import           Unison.Names                   ( Names(..)
+                                                , Name
+                                                )
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -44,8 +52,7 @@ data Codebase m v a =
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
 
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
-           , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
-
+           , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
            , branches           :: m [Name]
            , getBranch          :: Name -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
@@ -55,6 +62,27 @@ data Codebase m v a =
            }
 
 data Err = InvalidBranchFile FilePath String deriving Show
+
+putTypeDeclaration
+  :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
+putTypeDeclaration c rid decl = do
+  putTypeDeclarationImpl c rid decl
+  traverse_ go $ case decl of
+    Left  ed -> DD.effectConstructorTerms rid ed
+    Right dd -> DD.dataConstructorTerms rid dd
+  where go (r, tm, typ) = putTerm c r tm typ
+
+-- | Put all the builtins into the codebase
+initialize :: (Var.Var v, Monad m) => Codebase m v Ann -> m ()
+initialize c = do
+  traverse_ goData   Builtin.builtinDataDecls
+  traverse_ goEffect Builtin.builtinEffectDecls
+ where
+  go f (_, (ref, decl)) = case ref of
+    Reference.DerivedId id -> putTypeDeclaration c id (f decl)
+    _                      -> pure ()
+  goEffect = go Left
+  goData   = go Right
 
 prettyBinding :: (Var.Var v, Monad m)
   => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (PrettyPrint String))
@@ -123,8 +151,17 @@ branchToNames code b = case Branch.head b of
   Branch0 {..} -> do
     let termRefs = Map.fromList $ R.toList termNamespace
         patterns = Map.fromList $ R.toList patternNamespace
-        types = Map.fromList $ R.toList typeNamespace
+        types    = Map.fromList $ R.toList typeNamespace
     terms <- fmap Map.fromList . forM (Map.toList termRefs) $ \(name, ref) -> do
-      Just typ <- getTypeOfTerm code ref
+      t   <- getTypeOfTerm code ref
+      typ <- case t of
+        Just t -> pure t
+        _ ->
+          fail
+            $  "Couldn't look up a type for the term named "
+            ++ show name
+            ++ " with reference "
+            ++ show ref
+            ++ " in the codebase."
       pure (name, (Term.ref (ABT.annotation typ) ref, typ))
     pure $ Names terms patterns types

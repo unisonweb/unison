@@ -38,6 +38,45 @@ data DataDeclaration' v a = DataDeclaration {
   constructors' :: [(a, v, AnnotatedType v a)]
 } deriving (Show, Functor)
 
+generateConstructorRefs
+  :: (Reference -> Int -> Reference)
+  -> Reference.Id
+  -> Int
+  -> [(Int, Reference)]
+generateConstructorRefs hashCtor rid n =
+  (\i -> (i, hashCtor (Reference.DerivedPrivate_ rid) i)) <$> [0 .. n]
+
+-- Returns references to the constructors,
+-- along with the terms for those references and their types.
+constructorTerms
+  :: (Reference -> Int -> Reference)
+  -> (a -> Reference -> Int -> AnnotatedTerm v a)
+  -> Reference.Id
+  -> DataDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+constructorTerms hashCtor f rid dd =
+  (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
+    (constructors' dd)
+    (generateConstructorRefs hashCtor rid (length $ constructors dd))
+
+dataConstructorTerms
+  :: Ord v
+  => Reference.Id
+  -> DataDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
+
+effectConstructorTerms
+  :: Ord v
+  => Reference.Id
+  -> EffectDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+effectConstructorTerms rid ed =
+  constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
+
+constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
+constructorTypes = (snd <$>) . constructors
+
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 

@@ -69,7 +69,7 @@ names = Names.fromTermsV builtinTypedTerms
      -- <> foldMap DD.effectDeclToNames' builtinEffectDecls
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
-builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
+builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
 
 builtinTerms :: Var v => [(v, Term v)]
 builtinTerms =

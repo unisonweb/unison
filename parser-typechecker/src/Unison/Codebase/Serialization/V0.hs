@@ -3,49 +3,63 @@
 module Unison.Codebase.Serialization.V0 where
 
 -- import qualified Data.Text as Text
-import qualified Data.Vector as Vector
-import qualified Unison.PatternP as Pattern
-import Unison.PatternP (Pattern)
-import Control.Applicative (liftA2,liftA3)
-import Control.Monad (replicateM)
-import Data.Bits (Bits)
-import Data.Bytes.Get
-import Data.Bytes.Put
-import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
-import Data.Bytes.Signed (Unsigned)
-import Data.Bytes.VarInt (VarInt(..))
-import Data.Foldable (traverse_)
-import Data.Int (Int64)
-import Data.List (elemIndex, foldl')
-import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Relation (Relation)
-import Data.Word (Word64)
-import Unison.Codebase.Branch (Branch(..), Branch0(..))
-import Unison.Codebase.Causal (Causal)
-import Unison.Codebase.TermEdit (TermEdit)
-import Unison.Codebase.TypeEdit (TypeEdit)
-import Unison.Hash (Hash)
-import Unison.Kind (Kind)
-import Unison.Reference (Reference)
-import Unison.Symbol (Symbol(..))
-import Unison.Term (AnnotatedTerm)
-import qualified Data.ByteString as B
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Data.Vector                   as Vector
+import qualified Unison.PatternP               as Pattern
+import           Unison.PatternP                ( Pattern )
+import           Control.Applicative            ( liftA2
+                                                , liftA3
+                                                )
+import           Control.Monad                  ( replicateM )
+import           Data.Bits                      ( Bits )
+import           Data.Bytes.Get
+import           Data.Bytes.Put
+import           Data.Bytes.Serial              ( serialize
+                                                , deserialize
+                                                , serializeBE
+                                                , deserializeBE
+                                                )
+import           Data.Bytes.Signed              ( Unsigned )
+import           Data.Bytes.VarInt              ( VarInt(..) )
+import           Data.Foldable                  ( traverse_ )
+import           Data.Int                       ( Int64 )
+import           Data.List                      ( elemIndex
+                                                , foldl'
+                                                )
+import           Data.Text                      ( Text )
+import           Data.Text.Encoding             ( encodeUtf8
+                                                , decodeUtf8
+                                                )
+import           Data.Word                      ( Word64 )
+import           Unison.Codebase.Branch         ( Branch(..)
+                                                , Branch0(..)
+                                                )
+import           Unison.Codebase.Causal         ( Causal )
+import           Unison.Codebase.TermEdit       ( TermEdit )
+import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Hash                    ( Hash )
+import           Unison.Kind                    ( Kind )
+import           Unison.Reference               ( Reference )
+import           Unison.Symbol                  ( Symbol(..) )
+import           Unison.Term                    ( AnnotatedTerm )
+import qualified Data.ByteString               as B
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Unison.ABT                    as ABT
+import qualified Unison.Codebase.Causal        as Causal
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Hash as Hash
-import qualified Unison.Kind as Kind
-import qualified Unison.Reference as Reference
-import qualified Data.Relation as Relation
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.DataDeclaration as DataDeclaration
-import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import qualified Unison.Hash                   as Hash
+import qualified Unison.Kind                   as Kind
+import qualified Unison.Reference              as Reference
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
+import           Unison.Util.Relation           ( Relation )
+import qualified Unison.Util.Relation          as Relation
+import qualified Unison.DataDeclaration        as DataDeclaration
+import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , EffectDeclaration'
+                                                )
 
 -- ABOUT THIS FORMAT:
 --

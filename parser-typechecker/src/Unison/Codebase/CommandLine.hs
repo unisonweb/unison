@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -5,60 +6,82 @@
 
 module Unison.Codebase.CommandLine (main) where
 
-import Data.Bifunctor (second)
-import System.Random (randomRIO)
-import           Control.Concurrent           (forkIO)
-import           Control.Exception            (catch, finally)
-import           Control.Monad                (forM_, forever, liftM2,
-                                               void, when)
-import           Control.Monad.STM            (STM, atomically)
-import qualified Data.Char                    as Char
-import           Data.Foldable                (toList, traverse_)
-import           Data.IORef                   (IORef, newIORef, writeIORef, readIORef)
-import           Data.List                    (find, isSuffixOf, isPrefixOf,
-                                               sort)
-import           Data.Set                     (Set)
-import qualified Data.Set                     as Set
-import           Data.String                  (fromString)
-import           Data.Strings                 (strPadLeft)
-import           Data.Text                    (Text, pack, unpack)
+import           Data.Bifunctor                 ( second )
+import           System.Random                  ( randomRIO )
+import           Control.Concurrent             ( forkIO )
+import           Control.Exception              ( catch
+                                                , finally
+                                                )
+import           Control.Monad                  ( forM_
+                                                , forever
+                                                , liftM2
+                                                , void
+                                                , when
+                                                )
+import           Control.Monad.STM              ( STM
+                                                , atomically
+                                                )
+import qualified Data.Char                     as Char
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
+import           Data.IORef                     ( IORef
+                                                , newIORef
+                                                , writeIORef
+                                                , readIORef
+                                                )
+import           Data.List                      ( find
+                                                , isSuffixOf
+                                                , isPrefixOf
+                                                , sort
+                                                )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.String                    ( fromString )
+import           Data.Strings                   ( strPadLeft )
+import           Data.Text                      ( Text
+                                                , pack
+                                                , unpack
+                                                )
 import qualified Data.Text.IO
-import qualified System.Console.ANSI          as Console
-import           System.FilePath              (FilePath)
-import qualified Text.Read                    as Read
-import qualified Unison.Reference             as Reference
-import           System.IO.Error              (isEOFError)
-import qualified Unison.Builtin               as B
-import           Unison.Codebase              (Codebase)
-import qualified Unison.Codebase              as Codebase
-import           Unison.Codebase.Branch       (Branch)
-import qualified Unison.Codebase.Branch       as Branch
-import           Unison.Names                 (Name)
-import           Unison.Codebase.Runtime      (Runtime)
-import qualified Unison.Codebase.Runtime      as RT
-import qualified Unison.Codebase.Watch        as Watch
-import           Unison.FileParsers           (parseAndSynthesizeFile)
-import qualified Unison.Parser                as Parser
-import qualified Unison.PrintError            as PrintError
-import           Unison.PrintError            (prettyParseError,
-                                               prettyTypecheckedFile,
-                                               renderNoteAsANSI)
-import           Unison.Result                (pattern Result)
-import qualified Unison.Result                as Result
-import qualified Unison.UnisonFile            as UF
-import qualified Unison.Util.ColorText        as Color
-import qualified Unison.Util.Menu             as Menu
+import qualified System.Console.ANSI           as Console
+import           System.FilePath                ( FilePath )
+import qualified Text.Read                     as Read
+import qualified Unison.Reference              as Reference
+import           System.IO.Error                ( isEOFError )
+import qualified Unison.Builtin                as B
+import           Unison.Codebase                ( Codebase )
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Names                   ( Name )
+import           Unison.Codebase.Runtime        ( Runtime )
+import qualified Unison.Codebase.Runtime       as RT
+import qualified Unison.Codebase.Watch         as Watch
+import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import qualified Unison.Parser                 as Parser
+import qualified Unison.PrintError             as PrintError
+import           Unison.PrintError              ( prettyParseError
+                                                , prettyTypecheckedFile
+                                                , renderNoteAsANSI
+                                                )
+import           Unison.Result                  ( pattern Result )
+import qualified Unison.Result                 as Result
+import           Unison.Symbol                  ( Symbol )
+import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.ColorText         as Color
+import qualified Unison.Util.Menu              as Menu
 import           Unison.Util.Monoid
-import qualified Unison.Util.PrettyPrint      as PP
-import           Unison.Util.TQueue           (TQueue)
-import qualified Unison.Util.TQueue           as TQueue
-import           Unison.Var                   (Var)
-import qualified Unison.Var as Var
-import qualified Data.Map as Map
-import Unison.Parser (Ann)
-import qualified Data.Text as Text
-import Unison.Names (Names)
-import qualified Unison.Term as Term
+import qualified Unison.Util.PrettyPrint       as PP
+import           Unison.Util.TQueue             ( TQueue )
+import qualified Unison.Util.TQueue            as TQueue
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
+import qualified Data.Map                      as Map
+import           Unison.Parser                  ( Ann )
+import qualified Data.Text                     as Text
+import           Unison.Names                   ( Names )
+import qualified Unison.Term                   as Term
 
 data Event
   = UnisonFileChanged FilePath Text
@@ -266,7 +289,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
                   "\nUse the `> edit` command to have these definitions replace the existing ones."
                 go branch name
               else do
-              -- todo: this should probably just be a function in Codebase, something like
+              -- todo: this should probably just be a function in Codebase,
+              -- something like
               --       addFile :: Codebase -> TypecheckedUnisonFile -> m ()
                 let hashedTerms = UF.hashTerms typecheckedFile
                 putStrLn $ "Adding the following definitions:"
@@ -486,34 +510,40 @@ mergeBranchAndShowDiff codebase targetName sourceBranch = do
 foo :: Text -> (String, Text)
 foo name = (unpack name, name)
 
-selectBranch :: Codebase IO v a -> Name -> IO String -> IO (Maybe (Name, Branch))
+selectBranch
+  :: Codebase IO v a -> Name -> IO String -> IO (Maybe (Name, Branch))
 selectBranch codebase name takeLine = do
-  let branchMenu caption branches =
-        Menu.menu1
-          takeLine -- console
-          caption -- caption
-          (fromString . unpack) -- render
-          (fromString . fmap Char.toLower . show) -- renderMeta
-          (foo <$> branches) -- groups
-          [("create", Create), ("cancel", Cancel)] -- metas
-          Nothing -- initial
-
+  let branchMenu caption branches = Menu.menu1
+        takeLine -- console
+        caption -- caption
+        (fromString . unpack) -- render
+        (fromString . fmap Char.toLower . show) -- renderMeta
+        (foo <$> branches) -- groups
+        [("create", Create), ("cancel", Cancel)] -- metas
+        Nothing -- initial
   branch <- Codebase.getBranch codebase name
   case branch of
     -- if branch named `name` exists, load it,
     Just branch -> pure . Just $ (name, branch)
     -- otherwise,
-      -- list branches that do exist, plus option to create, plus option to cancel
-    Nothing -> do
-      let caption = fromString $
-            "The branch " ++ show name ++ " doesn't exist. " ++
-             "Do you want to create it, or pick a different one?"
+    -- list branches that do exist, plus option to create, plus option to cancel
+    Nothing     -> do
+      let caption =
+            fromString
+              $  "The branch "
+              ++ show name
+              ++ " doesn't exist. "
+              ++ "Do you want to create it, or pick a different one?"
       branches <- Codebase.branches codebase
-      choice <- branchMenu caption branches
+      choice   <- branchMenu caption branches
       case choice of
         Just (Left Cancel) -> pure Nothing
         Just (Left Create) -> do
-          branch <- mergeBranchAndShowDiff codebase name mempty
+          branch <- mergeBranchAndShowDiff codebase name builtinBranch
           pure $ Just (name, branch)
         Just (Right name) -> selectBranch codebase name takeLine
-        Nothing -> pure Nothing
+        Nothing           -> pure Nothing
+
+builtinBranch :: Branch
+builtinBranch = Branch.append (Branch.fromNames $ B.names @Symbol) mempty
+

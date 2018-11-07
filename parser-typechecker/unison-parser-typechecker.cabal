@@ -94,6 +94,7 @@ library
     Unison.Util.Monoid
     Unison.Util.PrettyPrint
     Unison.Util.Range
+    Unison.Util.Relation
     Unison.Util.TQueue
     Unison.Var
 
@@ -127,7 +128,6 @@ library
     megaparsec,
     prelude-extras,
     random,
-    relation,
     safe,
     stm,
     strings,

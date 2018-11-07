@@ -17,15 +17,13 @@ import           Data.Foldable
 import           Data.Functor.Identity      (runIdentity)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (fromMaybe)
-import           Data.Relation              (Relation)
-import qualified Data.Relation              as R
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 --import Control.Monad (join)
 import           Unison.Codebase.Causal     (Causal)
 import qualified Unison.Codebase.Causal     as Causal
-import           Unison.Names               (Name)
+import           Unison.Names               (Name, Names)
+import qualified Unison.Names               as Names
 import           Unison.Codebase.TermEdit   (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit   as TermEdit
 import           Unison.Codebase.TypeEdit   (TypeEdit)
@@ -35,6 +33,8 @@ import           Unison.Hashable            (Hashable)
 import qualified Unison.Hashable            as H
 import           Unison.Reference           (Reference)
 import qualified Unison.UnisonFile as UF
+import           Unison.Util.Relation       (Relation)
+import qualified Unison.Util.Relation       as R
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 import Unison.Var (Var)
@@ -84,6 +84,22 @@ data Branch0 =
           } deriving (Eq)
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
+
+fromNames :: Names v a -> Branch0
+fromNames names = Branch0 terms pats types R.empty R.empty
+ where
+  terms = R.fromList
+    [ (name, ref)
+    | (name, (t, _)) <- Map.toList $ Names.termNames names
+    , ref            <- toList $ termToRef t
+    ]
+  pats  = R.fromList . Map.toList $ Names.patternNames names
+  types = R.fromList . Map.toList $ Names.typeNames names
+  termToRef r = case r of
+    Term.Ref' r            -> Just r
+    Term.Request'     r id -> Just $ Term.hashRequest r id
+    Term.Constructor' r id -> Just $ Term.hashConstructor r id
+    _                      -> Nothing
 
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
@@ -149,22 +165,24 @@ hasPatternNamed :: Name -> Branch -> Bool
 hasPatternNamed n b = not . null $ patternsNamed n b
 
 termsNamed :: Name -> Branch -> Set Reference
-termsNamed name = lookupDom name . termNamespace . Causal.head . unbranch
+termsNamed name = R.lookupDom name . termNamespace . Causal.head . unbranch
 
 typesNamed :: Name -> Branch -> Set Reference
-typesNamed name = lookupDom name . typeNamespace . Causal.head . unbranch
+typesNamed name = R.lookupDom name . typeNamespace . Causal.head . unbranch
 
-patternsNamed :: Name -> Branch -> Set (Reference,Int)
-patternsNamed name = lookupDom name . patternNamespace . Causal.head . unbranch
+patternsNamed :: Name -> Branch -> Set (Reference, Int)
+patternsNamed name =
+  R.lookupDom name . patternNamespace . Causal.head . unbranch
 
 namesForTerm :: Reference -> Branch -> Set Name
-namesForTerm ref = lookupRan ref . termNamespace . Causal.head . unbranch
+namesForTerm ref = R.lookupRan ref . termNamespace . Causal.head . unbranch
 
 namesForType :: Reference -> Branch -> Set Name
-namesForType ref = lookupRan ref . typeNamespace . Causal.head . unbranch
+namesForType ref = R.lookupRan ref . typeNamespace . Causal.head . unbranch
 
 namesForPattern :: Reference -> Int -> Branch -> Set Name
-namesForPattern ref cid = lookupRan (ref,cid) . patternNamespace . Causal.head . unbranch
+namesForPattern ref cid =
+  R.lookupRan (ref, cid) . patternNamespace . Causal.head . unbranch
 
 prettyPrintEnv1 :: Branch -> PrettyPrintEnv
 prettyPrintEnv1 b = PrettyPrintEnv terms ctors patterns types where
@@ -189,7 +207,7 @@ conflicts f = conflicts' . f . Causal.head . unbranch where
     -- build a map of those sets
     foldl' go Map.empty (R.dom r) where
       go m a =
-        let bs = lookupDom a r
+        let bs = R.lookupDom a r
         in if Set.size bs > 1 then Map.insert a bs m else m
 
 -- Use as `resolved editedTerms branch`
@@ -198,7 +216,7 @@ resolved f = resolved' . f . Causal.head . unbranch where
   resolved' :: Ord a => Relation a b -> Map a b
   resolved' r = foldl' go Map.empty (R.dom r) where
     go m a =
-      let bs = lookupDom a r
+      let bs = R.lookupDom a r
       in if Set.size bs == 1 then Map.insert a (Set.findMin bs) m else m
 
 
@@ -401,45 +419,18 @@ insertNames :: Monad m
             -> Reference -> m (Relation Reference Name)
 insertNames ops m r = foldl' (flip $ R.insert r) m <$> name ops r
 
-insertManyRan :: (Foldable f, Ord a, Ord b)
-              => a -> f b -> Relation a b -> Relation a b
-insertManyRan a bs r = foldl' (flip $ R.insert a) r bs
-
-insertManyDom :: (Foldable f, Ord a, Ord b)
-              => f a -> b -> Relation a b -> Relation a b
-insertManyDom as b r = foldl' (flip $ flip R.insert b) r as
-
-lookupRan :: Ord b => b -> Relation a b -> Set a
-lookupRan b r = fromMaybe Set.empty $ R.lookupRan b r
-
-lookupDom :: Ord a => a -> Relation a b -> Set b
-lookupDom a r = fromMaybe Set.empty $ R.lookupDom a r
-
-replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
-replaceDom a a' r =
-  foldl' (\r b -> R.insert a' b $ R.delete a b r) r (lookupDom a r)
-
--- Todo: fork the relation library
-replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
-replaceRan b b' r =
-  foldl' (\r a -> R.insert a b' $ R.delete a b r) r (lookupRan b r)
-
-deleteRan :: (Ord a, Ord b) => b -> Relation a b -> Relation a b
-deleteRan b r = foldl' (\r a -> R.delete a b r) r $ lookupRan b r
-
-deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
-deleteDom a r = foldl' (\r b -> R.delete a b r) r $ lookupDom a r
-
 replaceTerm :: Reference -> Reference -> Typing -> Branch -> Branch
 replaceTerm old new typ (Branch b) = Branch $ Causal.step go b where
   edit = TermEdit.Replace new typ
   go b = b { editedTerms = R.insert old edit (editedTerms b)
-           , termNamespace = replaceRan old new $ termNamespace b
+           , termNamespace = R.replaceRan old new $ termNamespace b
            }
 
 -- If any `as` aren't in `b`, then delete them from `c` as well.  Kind of sad.
-deleteOrphans :: (Ord a, Ord c) => Set a -> Relation a b -> Relation a c -> Relation a c
-deleteOrphans as b c = foldl' (\c a -> if R.memberDom a b then c else deleteDom a c) c as
+deleteOrphans
+  :: (Ord a, Ord c) => Set a -> Relation a b -> Relation a c -> Relation a c
+deleteOrphans as b c =
+  foldl' (\c a -> if R.memberDom a b then c else R.deleteDom a c) c as
 
 codebase :: Monad m => ReferenceOps m -> Branch -> m (Set Reference)
 codebase ops (Branch (Causal.head -> Branch0 {..})) =
@@ -475,14 +466,14 @@ transitiveClosure1' f a = runIdentity $ transitiveClosure1 (pure.f) a
 deprecateTerm :: Reference -> Branch -> Branch
 deprecateTerm old (Branch b) = Branch $ Causal.step go b where
   go b = b { editedTerms = R.insert old TermEdit.Deprecate (editedTerms b)
-           , termNamespace = deleteRan old (termNamespace b)
+           , termNamespace = R.deleteRan old (termNamespace b)
            }
 
 
 deprecateType :: Reference -> Branch -> Branch
 deprecateType old (Branch b) = Branch $ Causal.step go b where
   go b = b { editedTypes = R.insert old TypeEdit.Deprecate (editedTypes b)
-           , typeNamespace = deleteRan old (typeNamespace b)
+           , typeNamespace = R.deleteRan old (typeNamespace b)
            }
 
 instance (Hashable a, Hashable b) => Hashable (Relation a b) where
@@ -494,7 +485,7 @@ instance Hashable Branch0 where
     H.tokens editedTerms ++ H.tokens editedTypes
 
 resolveTerm :: Name -> Branch -> Set Reference
-resolveTerm n (Branch (Causal.head -> b)) = lookupDom n (termNamespace b)
+resolveTerm n (Branch (Causal.head -> b)) = R.lookupDom n (termNamespace b)
 
 resolveTermUniquely :: Name -> Branch -> Maybe Reference
 resolveTermUniquely n b =
@@ -526,12 +517,12 @@ termOrTypeOp ops r ifTerm ifType = do
 renameType :: Name -> Name -> Branch -> Branch
 renameType old new (Branch b) =
   Branch $ Causal.stepIf (R.memberDom old . typeNamespace) go b where
-    go b = b { typeNamespace = replaceDom old new (typeNamespace b)}
+    go b = b { typeNamespace = R.replaceDom old new (typeNamespace b)}
 
 renameTerm :: Name -> Name -> Branch -> Branch
 renameTerm old new (Branch b) =
   Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
-    go b = b { termNamespace = replaceDom old new (termNamespace b)}
+    go b = b { termNamespace = R.replaceDom old new (termNamespace b)}
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
