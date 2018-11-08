@@ -109,12 +109,37 @@ run env = go where
     MultN i j -> done $ N (atn i m * atn j m)
     DivN i j -> done $ N (atn i m `div` atn j m)
 
+  runPattern :: V -> Pattern -> Machine -> Maybe Machine
+  runPattern _ PatternIgnore m = Just m
+  runPattern v PatternVar m = Just (push v m)
+  runPattern (I n) (PatternI n') m | n == n' = Just m
+  runPattern (F n) (PatternF n') m | n == n' = Just m
+  runPattern (N n) (PatternN n') m | n == n' = Just m
+  runPattern (B b) (PatternB b') m | b == b' = Just m
+  runPattern (T t) (PatternT t') m | t == t' = Just m
+  runPattern (Data rid cid args) (PatternData rid' cid' args') m | rid == rid' && cid == cid' =
+    runPatterns args args' m
+  runPattern (Sequence args) (PatternSequence args') m =
+    runPatterns (toList args) (toList args') m
+  runPattern (Requested (Req rid cid args _k)) (PatternBind rid' cid' args' _k') m | rid == rid' && cid == cid' =
+    case runPatterns args args' m of
+      Nothing -> Nothing
+      -- Just m -> runPattern k k' m -- todo, need to make k a value
+
+  runPatterns [] [] m = Just m
+  runPatterns (h:t) (hp:tp) m = case runPattern h hp m of
+    Nothing -> Nothing
+    Just m  -> runPatterns t tp m
+
   match :: V -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
-  match _scrutinee [] _m = RMatchFail
-  match _scrutinee ((_pat,_guard,_rhs) : _cases) _m =
-    error "todo - walk pat and scrutinee together, pushing onto `m`"
-    -- prob should use local helper function so if the pattern fails,
-    -- can just revert machine to whatever was passed in
+  match _ [] _ = RMatchFail
+  match s ((pat,guard,rhs) : cases) m0 = case runPattern s pat m0 of
+    Nothing -> match s cases m0 -- try next case
+    Just m -> case guard of
+      Nothing -> go rhs m -- no guard, commit to this case
+      Just guard -> case go guard m of
+        RDone (B True) -> go rhs m -- guard passed, commit to this case
+        _ -> match s cases m0 -- guard failed, try next case
 
   call :: V -> [Pos] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in
