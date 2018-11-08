@@ -24,15 +24,29 @@ data PrettyPrintEnv = PrettyPrintEnv {
   -- names for types
   types :: Reference -> Histogram }
 
-fromNames :: Names v a -> PrettyPrintEnv
-fromNames ns = let
-  terms = Map.fromList [ (r, n) | (n, (Term.Ref' r,_)) <- Map.toList (Names.termNames ns) ]
-  patterns = Map.fromList [ ((r,i),n) | (n, (r,i)) <- Map.toList (Names.patternNames ns) ]
-  constructors = Map.fromList [ ((r,i),n) | (n, (Term.Constructor' r i,_)) <- Map.toList (Names.termNames ns) ]
-  types = Map.fromList [ (r,n) | (n, r) <- Map.toList (Names.typeNames ns) ]
-  hist :: Ord k => Map k Name -> k -> Histogram
-  hist m k = maybe mempty (\n -> Map.fromList [(n,1)]) $ Map.lookup k m
-  in PrettyPrintEnv (hist terms) (curry $ hist constructors) (curry $ hist patterns) (hist types)
+fromNames :: Names -> PrettyPrintEnv
+fromNames ns =
+  let
+    terms = Map.fromList
+      [ (r, n) | (n, Names.Ref r) <- Map.toList (Names.termNames ns) ]
+    patterns = Map.fromList
+      [ ((r, i), n) | (n, (r, i)) <- Map.toList (Names.patternNames ns) ]
+    constructors = Map.fromList
+      [ ((r, i), n)
+      | (n, Names.Con r i) <- Map.toList (Names.termNames ns)
+      ]
+    requests = Map.fromList
+      [ ((r, i), n)
+      | (n, Names.Req r i) <- Map.toList (Names.termNames ns)
+      ]
+    types = Map.fromList [ (r, n) | (n, r) <- Map.toList (Names.typeNames ns) ]
+    hist :: Ord k => Map k Name -> k -> Histogram
+    hist m k = maybe mempty (\n -> Map.fromList [(n, 1)]) $ Map.lookup k m
+  in
+    PrettyPrintEnv (hist terms)
+                   (curry . hist $ constructors `Map.union` requests)
+                   (curry $ hist patterns)
+                   (hist types)
 
 -- The monoid sums corresponding histograms
 

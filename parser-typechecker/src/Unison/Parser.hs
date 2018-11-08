@@ -30,7 +30,7 @@ import Unison.Names (Names)
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) (Names v Ann))
+type P v = P.ParsecT (Error v) Input ((->) (Names))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
@@ -157,7 +157,7 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> Names v Ann -> Either (Err v) a
+run' :: Var v => P v a -> String -> String -> Names -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
@@ -165,7 +165,7 @@ run' p s name =
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex) -- todo: L.reorder
 
-run :: Var v => P v a -> String -> Names v Ann -> Either (Err v) a
+run :: Var v => P v a -> String -> Names -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.

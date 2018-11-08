@@ -86,7 +86,7 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
-bindBuiltins :: Var v => Names v x -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins :: Var v => Names -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins names (DataDeclaration a bound constructors) =
   DataDeclaration a bound (third (Names.bindType names) <$> constructors)
 
@@ -94,29 +94,32 @@ third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames0 :: Var v => v
-                  -> Reference
-                  -> (a -> Reference -> Int -> AnnotatedTerm v a)
-                  -> DataDeclaration' v a
-                  -> Names v a
-toNames0 typeSymbol r f dd = let
-  names ((ctor, typ), i) = let
-    name = mconcat [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
-    in Names.fromTerms [(name, (f (ABT.annotation typ) r i, typ))] <>
-       Names.fromPatterns [(name, (r,i))]
-  in foldMap names (constructors dd `zip` [0 ..]) <>
-     Names.fromTypesV [(typeSymbol,r)]
+toNames0
+  :: Var v
+  => v
+  -> Reference
+  -> (Reference -> Int -> Names.Referent)
+  -> DataDeclaration' v a
+  -> Names
+toNames0 typeSymbol r f dd =
+  let
+    names (ctor, i) =
+      let name = mconcat
+            [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+      in  Names.fromTerms [(name, f r i)] <> Names.fromPatterns [(name, (r, i))]
+  in  foldMap names (constructorVars dd `zip` [0 ..])
+        <> Names.fromTypesV [(typeSymbol, r)]
 
-dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names v a
-dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Term.constructor dd
+dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Names.Con dd
 
-effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names v a
-effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Term.request $ toDataDecl ed
+effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Names.Req $ toDataDecl ed
 
-dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names v a
+dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
 
-effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names v a
+effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names
 effectDeclToNames' (v,(r,d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
@@ -238,8 +241,14 @@ hashDecls decls =
       decls'   = bindDecls decls (Names.fromTypesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
-bindDecls :: Var v => Map v (DataDeclaration' v a) -> Names v x -> Map v (DataDeclaration' v a)
-bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls where
+bindDecls
+  :: Var v
+  => Map v (DataDeclaration' v a)
+  -> Names
+  -> Map v (DataDeclaration' v a)
+bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
+ where
   -- normalize the order of the constructors based on a hash of their types
-  sortCtors dd = DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
-  hash3 (_,_,typ) = ABT.hash typ :: Hash
+  sortCtors dd =
+    DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
+  hash3 (_, _, typ) = ABT.hash typ :: Hash

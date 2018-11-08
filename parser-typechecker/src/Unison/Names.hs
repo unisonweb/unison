@@ -1,17 +1,17 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Names where
 
-import           Control.Monad    (join)
+import           Data.Bifunctor   ( first )
 import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
-import qualified Unison.ABT       as ABT
-import           Unison.Reference (Reference)
-import           Unison.Term      (AnnotatedTerm)
+import           Unison.Reference (Reference, pattern Builtin)
+import           Unison.Term      (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
@@ -20,69 +20,81 @@ import qualified Unison.Var       as Var
 
 type Name = Text
 
-data Names v a = Names
-  { termNames    :: Map Name (AnnotatedTerm v a, AnnotatedType v a)
+-- data Names v a = Names
+--   { termNames    :: Map Name (AnnotatedTerm v a, AnnotatedType v a)
+--   , patternNames :: Map Name (Reference, Int)
+--   , typeNames    :: Map Name Reference
+--   }
+
+data Names = Names
+  { termNames :: Map Name Referent
   , patternNames :: Map Name (Reference, Int)
-  , typeNames    :: Map Name Reference
+  , typeNames :: Map Name Reference
   }
 
-instance (Var v, Show a) => Show (Names v a) where
+-- | The referent of a name
+data Referent = Ref Reference | Req Reference Int | Con Reference Int
+  deriving (Show, Ord, Eq)
+
+referentToTerm :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+referentToTerm a r =
+  case r of
+    Ref r -> Term.ref a r
+    Req r i -> Term.request a r i
+    Con r i -> Term.constructor a r i
+
+instance Show Names where
   -- really barebones, just to see what names are present
   show (Names es ps ts) =
     "terms: " ++ show (es) ++ "\n" ++
     "patterns: " ++ show (ps) ++ "\n" ++
     "types: " ++ show (ts)
 
-lookupTerm :: Names v a -> Name -> Maybe (AnnotatedTerm v a)
-lookupTerm ns n = fst <$> Map.lookup n (termNames ns)
+lookupTerm :: Ord v => a -> Names -> Name -> Maybe (AnnotatedTerm v a)
+lookupTerm a ns n = referentToTerm a <$> Map.lookup n (termNames ns)
 
-lookupType :: Names v a -> Name -> Maybe Reference
+lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
 
-varsFromComponents :: Var v => [[(v, AnnotatedTerm v a, AnnotatedType v a)]] -> Names v a
-varsFromComponents components = Names termVars mempty mempty
-  where termVars = Map.fromList $ fmap go (join components)
-        go (v, t, tp) = (Var.name v, (Term.var (ABT.annotation t) v, tp))
-
-fromPatterns :: [(Name,(Reference,Int))] -> Names v a
+fromPatterns :: [(Name,(Reference,Int))] -> Names
 fromPatterns vs = mempty { patternNames = Map.fromList vs }
 
-fromTermsV :: Var v => [(v, (AnnotatedTerm v a, AnnotatedType v a))] -> Names v a
-fromTermsV ts = fromTerms [(Var.name v, (e,t)) | (v,(e,t)) <- ts ]
+fromBuiltins :: [Reference] -> Names
+fromBuiltins rs =
+  mempty { termNames = Map.fromList [ (name, Ref r) | r@(Builtin name) <- rs ] }
 
-fromTermsV' :: Var v => [(v, AnnotatedTerm v a, AnnotatedType v a)] -> Names v a
-fromTermsV' ts = fromTerms [(Var.name v, (e,t)) | (v,e,t) <- ts ]
-
-fromTerms :: [(Name, (AnnotatedTerm v a, AnnotatedType v a))] -> Names v a
+fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = mempty { termNames = Map.fromList ts }
 
-fromTypesV :: Var v => [(v, Reference)] -> Names v x
-fromTypesV env = Names mempty mempty (Map.fromList env')
-  where
-  env' = [(Var.name v, r) | (v, r) <- env ]
+fromTypesV :: Var v => [(v, Reference)] -> Names
+fromTypesV env =
+  Names mempty mempty . Map.fromList $ fmap (first $ Var.name) env
 
-filterTypes :: (Name -> Bool) -> Names v a -> Names v a
+fromTypes :: [(Name, Reference)] -> Names
+fromTypes env = Names mempty mempty $ Map.fromList env
+
+filterTypes :: (Name -> Bool) -> Names -> Names
 filterTypes f (Names {..}) = Names termNames patternNames m2
   where
   m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
 
-patternNameds :: Names v a -> String -> Maybe (Reference, Int)
+patternNameds :: Names -> String -> Maybe (Reference, Int)
 patternNameds ns s = patternNamed ns (Text.pack s)
 
-patternNamed :: Names v a -> Name -> Maybe (Reference, Int)
+patternNamed :: Names -> Name -> Maybe (Reference, Int)
 patternNamed ns n = Map.lookup n (patternNames ns)
 
-bindType :: Var v => Names v x -> AnnotatedType v a -> AnnotatedType v a
+bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
 bindType ns t = Type.bindBuiltins typeNames' t
   where
   typeNames' = [ (Var.named v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm :: forall v a. Var v
-         => Names v a -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindTerm
+  :: forall v a . Var v => Names -> AnnotatedTerm v a -> AnnotatedTerm v a
 bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
-  where
-  termBuiltins :: [(v, AnnotatedTerm v a)]
-  termBuiltins = [ (Var.named v, e) | (v, (e,_typ)) <- Map.toList (termNames ns) ]
+ where
+  termBuiltins =
+    [ (Var.named v, referentToTerm () e) | (v, e) <- Map.toList (termNames ns) ]
   typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Var.named v, t) | (v, t) <- Map.toList (typeNames ns) ]
 
@@ -90,7 +102,7 @@ bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
 -- so for instance if the input has [(Some, Optional.Some)],
 -- and `Optional.Some` is a constructor in the input `PEnv`,
 -- the alias `Some` will map to that same constructor
-importing :: Var v => [(v,v)] -> Names v a -> Names v a
+importing :: Var v => [(v,v)] -> Names -> Names
 importing shortToLongName0 (Names {..}) = let
   go :: Ord k => Map k v -> (k, k) -> Map k v
   go m (shortname, qname) = case Map.lookup qname m of
@@ -103,9 +115,9 @@ importing shortToLongName0 (Names {..}) = let
   patterns' = foldl' go patternNames shortToLongName
   in Names terms' patterns' types'
 
-instance Semigroup (Names v a) where (<>) = mappend
+instance Semigroup Names where (<>) = mappend
 
-instance Monoid (Names v a) where
+instance Monoid Names where
   mempty = Names mempty mempty mempty
   Names e1 p1 t1 `mappend` Names e2 p2 t2 =
     Names (e1 `unionL` e2) (p1 `unionL` p2) (t1 `unionL` t2)
@@ -113,6 +125,3 @@ instance Monoid (Names v a) where
       unionL :: forall k v. Ord k => Map k v -> Map k v -> Map k v
       unionL = Map.unionWith const
 
-instance Ord v => Functor (Names v) where
-  fmap f (Names es ps ts) = Names (go <$> es) ps ts where
-    go (tm, typ) = (Term.amap f tm, fmap f typ)

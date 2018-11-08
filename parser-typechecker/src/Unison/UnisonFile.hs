@@ -59,7 +59,7 @@ discardTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
   TypecheckedUnisonFile datas effects tlcs
 
-toNames :: Var v => UnisonFile v a -> Names v a
+toNames :: Var v => UnisonFile v a -> Names
 toNames (UnisonFile {..}) = datas <> effects
   where
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
@@ -108,7 +108,7 @@ hashTerms file = let
 type CtorLookup = Map String (Reference, Int)
 
 bindBuiltins :: Var v
-             => Names v a
+             => Names
              -> UnisonFile v a
              -> UnisonFile v a
 bindBuiltins names (UnisonFile d e t) =
@@ -123,7 +123,7 @@ data Env v a = Env
   -- Effect declaration name to hash and its fully resolved form
   , effects :: Map v (Reference, EffectDeclaration' v a)
   -- Naming environment
-  , names   :: Names v a
+  , names   :: Names
 }
 
 -- This function computes hashes for data and effect declarations, and
@@ -133,7 +133,7 @@ data Env v a = Env
 -- If there are duplicate declarations, the duplicated names are returned on the
 -- left.
 environmentFor
-  :: forall v a . Var v => Names v a -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
+  :: forall v a . Var v => Names -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
   -> Env v a
 environmentFor names0 dataDecls0 effectDecls0 =
   let

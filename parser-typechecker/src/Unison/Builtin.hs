@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
-import           Control.Arrow ((&&&))
+import           Control.Arrow (first, (&&&))
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
@@ -17,6 +17,7 @@ import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
+import           Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -25,7 +26,7 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.Names (Names)
+import Unison.Names (Names, Name)
 import qualified Unison.Names as Names
 
 type Term v = Term.AnnotatedTerm v Ann
@@ -59,13 +60,13 @@ parseDataDeclAsBuiltin s =
       [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
   in (v, (r, const Intrinsic <$> dd'))
 
-names0 :: Var v => Names v Ann
-names0 = Names.fromTypesV builtinTypes
+names0 :: Names
+names0 = Names.fromTypes builtinTypes
 
-names :: Var v => Names v Ann
-names = Names.fromTermsV builtinTypedTerms
-     <> Names.fromTypesV builtinTypes
-     <> foldMap DD.dataDeclToNames' builtinDataDecls
+names :: Names
+names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol)
+     <> Names.fromTypes builtinTypes
+     <> foldMap (DD.dataDeclToNames' @Symbol) builtinDataDecls
      -- <> foldMap DD.effectDeclToNames' builtinEffectDecls
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
@@ -76,8 +77,11 @@ builtinTerms =
   [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
     (r, typ) <- Map.toList builtins0 ]
 
-builtinTypes :: Var v => [(v, R.Reference)]
-builtinTypes = (Var.named &&& R.Builtin) <$>
+builtinTypesV :: Var v => [(v, R.Reference)]
+builtinTypesV = first (Var.named) <$> builtinTypes
+
+builtinTypes :: [(Name, R.Reference)]
+builtinTypes = (,) <*> R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
 
 -- | parse some builtin data types, and resolve their free variables using

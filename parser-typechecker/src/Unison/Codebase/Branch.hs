@@ -22,7 +22,7 @@ import qualified Data.Set                   as Set
 --import Control.Monad (join)
 import           Unison.Codebase.Causal     (Causal)
 import qualified Unison.Codebase.Causal     as Causal
-import           Unison.Names               (Name, Names)
+import           Unison.Names               (Name, Names (..))
 import qualified Unison.Names               as Names
 import           Unison.Codebase.TermEdit   (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit   as TermEdit
@@ -85,21 +85,19 @@ data Branch0 =
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
-fromNames :: Names v a -> Branch0
+fromNames :: Names -> Branch0
 fromNames names = Branch0 terms pats types R.empty R.empty
  where
   terms = R.fromList
-    [ (name, ref)
-    | (name, (t, _)) <- Map.toList $ Names.termNames names
-    , ref            <- toList $ termToRef t
+    [ (name, referentToRef t)
+    | (name, t) <- Map.toList $ Names.termNames names
     ]
   pats  = R.fromList . Map.toList $ Names.patternNames names
   types = R.fromList . Map.toList $ Names.typeNames names
-  termToRef r = case r of
-    Term.Ref' r            -> Just r
-    Term.Request'     r id -> Just $ Term.hashRequest r id
-    Term.Constructor' r id -> Just $ Term.hashConstructor r id
-    _                      -> Nothing
+  referentToRef r = case r of
+    Names.Ref r    -> r
+    Names.Req r id -> Term.hashRequest r id
+    Names.Con r id -> Term.hashConstructor r id
 
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
@@ -526,3 +524,13 @@ renameTerm old new (Branch b) =
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
+
+toNames :: Branch -> Names
+toNames b = case head b of
+  Branch0 {..} -> Names terms patterns types
+   where
+    termRefs = fmap Names.Ref . Map.fromList $ R.toList termNamespace
+    patterns = Map.fromList $ R.toList patternNamespace
+    types    = Map.fromList $ R.toList typeNamespace
+    terms    = termRefs
+

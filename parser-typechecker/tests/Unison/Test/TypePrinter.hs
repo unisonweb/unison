@@ -20,7 +20,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
-       get_names = PPE.fromNames @Symbol Unison.Builtin.names
+       get_names = PPE.fromNames Unison.Builtin.names
        prettied = pretty get_names (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied

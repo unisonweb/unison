@@ -27,7 +27,7 @@ import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import           Unison.Names               (Name, Names)
 import qualified Unison.Names               as Names
-import           Unison.Parser              (Ann (Intrinsic))
+import           Unison.Parser              (Ann (Intrinsic, External))
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
 import           Unison.Reference           (pattern Builtin, Reference)
@@ -80,7 +80,7 @@ convertNotes (Typechecker.Notes es is) =
 parseAndSynthesizeFile
   :: Var v
   => Codebase.ReadRefs v Ann
-  -> Names v Ann
+  -> Names
   -> FilePath
   -> Text
   -> Result
@@ -96,7 +96,7 @@ synthesizeFile
   :: forall v
    . Var v
   => Codebase.ReadRefs v Ann
-  -> Names v Ann
+  -> Names
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
 synthesizeFile readRefs builtinNames unisonFile = do
@@ -113,7 +113,7 @@ synthesizeFile readRefs builtinNames unisonFile = do
     -- merge dds from unisonFile with dds from Unison.Builtin
     -- note: `Map.union` is left-biased
     datas :: Map v (Reference, DataDeclaration v)
-    datas = Map.union dds0 $ Map.fromList B.builtinDataDecls
+    datas   = Map.union dds0 $ Map.fromList B.builtinDataDecls
     -- same, but there are no eds in Unison.Builtin yet.
     effects = Map.union eds0 $ Map.fromList B.builtinEffectDecls
     env0 =
@@ -130,20 +130,24 @@ synthesizeFile readRefs builtinNames unisonFile = do
       lookupData r = pure $ fromMaybe (die "data" r) $ Map.lookup r datasr
         where datasr = Map.fromList $ Foldable.toList datas
       lookupEffect :: Applicative f => Reference -> f (EffectDeclaration v)
-      lookupEffect r =
-        pure $ fromMaybe (die "effect" r) $ Map.lookup r effectsr
-          where effectsr = Map.fromList $ Foldable.toList effects
+      lookupEffect r = pure $ fromMaybe (die "effect" r) $ Map.lookup
+        r
+        effectsr
+        where effectsr = Map.fromList $ Foldable.toList effects
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
-      fqnsByShortName = Map.fromListWith mappend
-                          . fmap toKV . Map.toList $ Names.termNames allTheNames
+      fqnsByShortName =
+        Map.fromListWith mappend . fmap toKV . Map.toList $ Names.termNames
+          allTheNames
        where
         toKV (name, (_, typ)) =
           ( Var.unqualified (Var.named @v name)
           , [Typechecker.NamedReference name typ True]
           )
-      typeOf r = pure . fromMaybe (error $ "unknown reference " ++ show r) $
-        Map.lookup r typeOfRef
+      typeOf r =
+        pure . fromMaybe (error $ "unknown reference " ++ show r) $ Map.lookup
+          r
+          typeOfRef
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   Result (convertNotes notes) mayType >>= \typ -> do
@@ -154,7 +158,8 @@ synthesizeFile readRefs builtinNames unisonFile = do
         topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings term
         extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
         extractTopLevelBindings _                        = Map.empty
-        tlcsFromTypechecker = uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
+        tlcsFromTypechecker =
+          uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
         vars (v, _, _) = Var.name v
         strippedTopLevelBinding (v, typ, redundant) = do
           tm <- case Map.lookup (Var.name v) topLevelBindings of
@@ -166,16 +171,23 @@ synthesizeFile readRefs builtinNames unisonFile = do
       in
         -- use tlcsFromTypechecker to inform annotation-stripping decisions
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
-    let tlcNames = Names.varsFromComponents topLevelComponents
-        doTdnr   = applyTdnrDecisions infos (tlcNames <> allTheNames)
+    let lookupName =
+              (MaybeT $ flip Map.lookup tlcMap)
+          <|> (MaybeT $ Names.lookupTerm External allTheNames)
+          where go (v, t, tp) = (Var.name v, (Term.var (ABT.annotation t) v, tp))
+                tlcMap = Map.fromList . fmap go $ join topLevelComponents
+        doTdnr   = applyTdnrDecisions lookupName infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    t <- doTdnr tdnrTerm
+    t          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
  where
   applyTdnrDecisions
-    :: [Context.InfoNote v Ann] -> Names v Ann -> Term v -> Result' v (Term v)
-  applyTdnrDecisions infos names tdnrTerm = foldM go tdnrTerm decisions
+    :: (Name -> Maybe (Term v))
+    -> [Context.InfoNote v Ann]
+    -> Term v
+    -> Result' v (Term v)
+  applyTdnrDecisions names infos tdnrTerm = foldM go tdnrTerm decisions
    where
     -- UF data/effect ctors + builtins + TLC Term.vars
     go term _decision@(shortv, loc, fqn) =
@@ -184,16 +196,17 @@ synthesizeFile readRefs builtinNames unisonFile = do
     -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
     resolve shortv loc fqn t = case t of
       Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
-        | loc' == loc && Var.nameStr shortv == name
-        -> case Names.lookupTerm names fqn of
-          Nothing -> Just . Result.compilerBug $
-            Result.ResolvedNameNotFound shortv loc fqn
+        | loc' == loc && Var.nameStr shortv == name -> case names fqn of
+          Nothing -> Just . Result.compilerBug $ Result.ResolvedNameNotFound
+            shortv
+            loc
+            fqn
           Just ref -> Just $ pure (const loc <$> ref)
       _ -> Nothing
 
 synthesizeAndSerializeUnisonFile
   :: Var v
-  => Names v Ann
+  => Names
   -> UnisonFile v
   -> Result
        (Seq (Note v Ann))

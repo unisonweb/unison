@@ -16,7 +16,7 @@ import qualified Unison.Util.PrettyPrint as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 get_names :: PPE.PrettyPrintEnv
-get_names = PPE.fromNames @Symbol Unison.Builtin.names
+get_names = PPE.fromNames Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.

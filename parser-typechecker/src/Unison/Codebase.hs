@@ -164,22 +164,3 @@ sortedApproximateMatches q possible = sortOn score matches where
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
 
-branchToNames :: (Ord v, Monad m) => Codebase m v a -> Branch -> m (Names v a)
-branchToNames code b = case Branch.head b of
-  Branch0 {..} -> do
-    let termRefs = Map.fromList $ R.toList termNamespace
-        patterns = Map.fromList $ R.toList patternNamespace
-        types    = Map.fromList $ R.toList typeNamespace
-    terms <- fmap Map.fromList . forM (Map.toList termRefs) $ \(name, ref) -> do
-      t   <- getTypeOfTerm code ref
-      typ <- case t of
-        Just t -> pure t
-        _ ->
-          fail
-            $  "Couldn't look up a type for the term named "
-            ++ show name
-            ++ " with reference "
-            ++ show ref
-            ++ " in the codebase."
-      pure (name, (Term.ref (ABT.annotation typ) ref, typ))
-    pure $ Names terms patterns types
