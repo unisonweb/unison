@@ -25,7 +25,7 @@ import qualified Unison.Builtin             as B
 import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
-import           Unison.Names               (Name, Names (..))
+import           Unison.Names               (Name, Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
@@ -133,7 +133,7 @@ synthesizeFile builtinNames unisonFile = do
       die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-                          . fmap toKV . Map.toList $ termNames allTheNames
+                          . fmap toKV . Map.toList $ Names.termNames allTheNames
        where
         toKV (name, (_, typ)) =
           ( Var.unqualified (Var.named @v name)
@@ -143,7 +143,7 @@ synthesizeFile builtinNames unisonFile = do
       typeOf r = pure . fromMaybe (error $ "unknown reference " ++ show r) $
         Map.lookup r typeSigs
        where
-        typeSigs = Map.fromList . fmap go . Map.toList $ termNames allTheNames
+        typeSigs = Map.fromList . fmap go . Map.toList $ Names.termNames allTheNames
         -- todo: this seems wrong
         go (name, (_tm, typ)) = (Builtin name, typ)
     Result notes mayType =
