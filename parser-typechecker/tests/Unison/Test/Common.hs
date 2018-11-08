@@ -5,14 +5,14 @@ module Unison.Test.Common where
 import           Data.Functor.Identity (runIdentity)
 import qualified Data.Map as Map
 import           Data.Sequence (Seq)
+import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.Parsers as Parsers
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Result (Result)
 import qualified Unison.Result as Result
-import           Unison.Result (pattern Result, Note)
+import           Unison.Result (Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
@@ -51,9 +51,6 @@ parseAndSynthesizeAsFile
   -> String
   -> Result (Seq (Note v Ann))
             (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
-parseAndSynthesizeAsFile filename s = do
-  (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s B.names
-  let (Result notes' r) = FP.synthesizeFile B.names file
-  Result notes' $ Just (errorEnv, r)
+parseAndSynthesizeAsFile filename s =
+  FP.parseAndSynthesizeFile B.names filename (Text.pack s)
 
