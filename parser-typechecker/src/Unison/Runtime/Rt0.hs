@@ -89,6 +89,9 @@ run env = go where
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     -- Apply body args -> go body (map (`at` m) args `pushes` m)
     DynamicApply fnPos args -> call (at fnPos m) args m
+    Resume cont arg -> case at cont m of
+      Cont k -> go k (at arg m `push` m)
+      v -> error $ "type error : resume expects a `Cont` here, got: " ++ show v
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> case go body m of
       RRequest req -> call (at handler m) [0] (Requested req `push` m)
@@ -121,15 +124,17 @@ run env = go where
     runPatterns args args' m
   runPattern (Sequence args) (PatternSequence args') m =
     runPatterns (toList args) (toList args') m
-  runPattern (Requested (Req rid cid args _k)) (PatternBind rid' cid' args' _k') m | rid == rid' && cid == cid' =
+  runPattern (Requested (Req rid cid args k)) (PatternBind rid' cid' args' k') m | rid == rid' && cid == cid' =
     case runPatterns args args' m of
       Nothing -> Nothing
-      -- Just m -> runPattern k k' m -- todo, need to make k a value
+      Just m -> runPattern (Cont k) k' m
+  runPattern _ _ _ = Nothing
 
   runPatterns [] [] m = Just m
   runPatterns (h:t) (hp:tp) m = case runPattern h hp m of
     Nothing -> Nothing
     Just m  -> runPatterns t tp m
+  runPatterns _ _ _ = Nothing
 
   match :: V -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
   match _ [] _ = RMatchFail
@@ -154,25 +159,25 @@ run env = go where
       _ -> case term of
         Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) (compile env lam)
           where
+          Just argterms = traverse decompile (reverse . take nargs $ m)
           lam = Term.lam'() (drop nargs vs) $
-            ABT.substs (vs `zip` (map decompile . reverse . take nargs $ m)) body
+            ABT.substs (vs `zip` argterms) body
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call _ _ _ = error "type error"
 
-decompile :: V -> Term Symbol
+decompile :: V -> Maybe (Term Symbol)
 decompile v = case v of
-  I n -> Term.int () n
-  N n -> Term.nat () n
-  F n -> Term.float () n
-  B b -> Term.boolean () b
-  T t -> Term.text () t
-  Lam _ f _ -> case f of Left r -> Term.ref() r; Right f -> f
-  Data r cid args -> Term.apps' (Term.constructor() r cid) (toList $ fmap decompile args)
-  Sequence vs -> Term.vector' () (decompile <$> vs)
-  Requested (Req r cid args _) ->
-    let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
-    in req
+  I n -> pure $ Term.int () n
+  N n -> pure $ Term.nat () n
+  F n -> pure $ Term.float () n
+  B b -> pure $ Term.boolean () b
+  T t -> pure $ Term.text () t
+  Lam _ f _ -> pure $ case f of Left r -> Term.ref() r; Right f -> f
+  Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
+  Sequence vs -> Term.vector' () <$> (traverse decompile vs)
+  Requested _ -> Nothing
+  Cont _ -> Nothing
 
 compile :: (R.Reference -> V) -> Term Symbol -> IR
 compile env = compile0 env []
@@ -214,7 +219,7 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
 
-normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Term Symbol
+normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =
   let v = case run env (compile env $ Term.unannotate t) [] of
         RRequest e -> Requested e
@@ -222,7 +227,7 @@ normalize env t =
         e -> error $ show e
   in decompile v
 
-parseAndNormalize :: (R.Reference -> V) -> String -> Term Symbol
+parseAndNormalize :: (R.Reference -> V) -> String -> (Maybe (Term Symbol))
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol

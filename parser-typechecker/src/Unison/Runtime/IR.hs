@@ -20,6 +20,7 @@ data V
   | Data R.Reference ConstructorId [V]
   | Sequence (Vector V)
   | Requested Req
+  | Cont IR
   deriving (Eq,Show)
 
 data Pattern
@@ -41,6 +42,7 @@ data IR
   | MakeSequence [Pos]
   | V V
   | DynamicApply Pos [Pos] -- call to unknown function
+  | Resume Pos Pos -- Resume cont arg
   | Construct R.Reference ConstructorId [Pos]
   | Request R.Reference ConstructorId [Pos]
   | Handle Pos IR
