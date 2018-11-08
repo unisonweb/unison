@@ -2,16 +2,18 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 -- import Debug.Trace
+import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
@@ -364,6 +366,11 @@ generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
 
 toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
+
+dependencies :: Ord v => AnnotatedType v a -> Set Reference
+dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t = pure t
 
 -- Adds effect polymorphism to a type signature. That is, converts a signature like:
 --

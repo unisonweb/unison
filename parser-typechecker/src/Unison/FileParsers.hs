@@ -42,6 +42,7 @@ import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
+import qualified Unison.Codebase as Codebase
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -78,25 +79,27 @@ convertNotes (Typechecker.Notes es is) =
 
 parseAndSynthesizeFile
   :: Var v
-  => Names v Ann
+  => Codebase.ReadRefs v Ann
+  -> Names v Ann
   -> FilePath
   -> Text
   -> Result
        (Seq (Note v Ann))
        (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
-parseAndSynthesizeFile names filePath src = do
+parseAndSynthesizeFile readRefs names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let (Result notes' r) = synthesizeFile names parsedUnisonFile
+  let (Result notes' r) = synthesizeFile readRefs names parsedUnisonFile
   Result notes' $ Just (errorEnv, r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => Names v Ann
+  => Codebase.ReadRefs v Ann
+  -> Names v Ann
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
-synthesizeFile builtinNames unisonFile = do
+synthesizeFile readRefs builtinNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins builtinNames unisonFile
@@ -139,13 +142,8 @@ synthesizeFile builtinNames unisonFile = do
           ( Var.unqualified (Var.named @v name)
           , [Typechecker.NamedReference name typ True]
           )
-      typeOf :: Applicative f => Reference -> f (Type v)
       typeOf r = pure . fromMaybe (error $ "unknown reference " ++ show r) $
-        Map.lookup r typeSigs
-       where
-        typeSigs = Map.fromList . fmap go . Map.toList $ Names.termNames allTheNames
-        -- todo: this seems wrong
-        go (name, (_tm, typ)) = (Builtin name, typ)
+        Map.lookup r typeOfRef
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   Result (convertNotes notes) mayType >>= \typ -> do

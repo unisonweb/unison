@@ -550,9 +550,14 @@ unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
-dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies t =
+  dependencies' t <> referencedDataDeclarations t <> referencedEffectDeclarations t
+
+dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
         f t = pure t
 
 referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference

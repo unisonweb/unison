@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Codebase where
 
@@ -10,6 +11,7 @@ import           Control.Monad                  ( forM )
 import           Data.Foldable                  ( toList, traverse_ )
 import           Data.Maybe                     ( catMaybes )
 import           Data.List
+import Data.Map (Map)
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Text                     as Text
@@ -60,6 +62,22 @@ data Codebase m v a =
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
            }
+
+data ReadRefs v a =
+  ReadRefs { typeOfTerm :: Map Reference (Type v a)
+           , typeDeclaration :: Map Reference.Id (Decl v a) }
+
+-- Scan the term for all its dependencies and pull out the `ReadRefs` that
+-- gives info for all its dependencies, using the provided codebase.
+typecheckingEnvironment :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (ReadRefs v a)
+typecheckingEnvironment code t = do
+  let deps = Term.dependencies t
+  termTypes0 <- forM (toList deps) $ \r -> (r,) <$> getTypeOfTerm code r
+  let termTypes = Map.fromList [ (r, t) | (r, Just t) <- termTypes0 ]
+  let rids = [ r | Reference.DerivedId r <- toList deps ]
+  decls0 <- forM rids $ \r -> (r,) <$> getTypeDeclaration code r
+  let decls = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
+  pure $ ReadRefs termTypes decls
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
