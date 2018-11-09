@@ -16,7 +16,7 @@ data TypeLookup v a =
   TypeLookup { typeOfTerms :: Map Reference (Type v a)
              , dataDecls :: Map Reference (DataDeclaration v a)
              , effectDecls :: Map Reference (EffectDeclaration v a) }
-  deriving (Show)
+  deriving Show
 
 typeOfReferent :: TypeLookup v a -> Names.Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
@@ -46,3 +46,10 @@ instance Monoid (TypeLookup v a) where
   mempty = TypeLookup mempty mempty mempty
   mappend (TypeLookup a b c) (TypeLookup a2 b2 c2) =
     TypeLookup (a <> a2) (b <> b2) (c <> c2)
+
+instance Functor (TypeLookup v) where
+  fmap f tl =
+    TypeLookup
+      (fmap f <$> typeOfTerms tl)
+      (fmap f <$> dataDecls tl)
+      (fmap f <$> effectDecls tl)

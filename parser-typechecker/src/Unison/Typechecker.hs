@@ -207,6 +207,8 @@ typeDirectedNameResolution
   -> Type v loc
   -> Env v loc
   -> TDNR f v loc (Type v loc)
+typeDirectedNameResolution _oldNotes _oldType env
+  | traceShow (const () <$> _typeLookup env) False = undefined
 typeDirectedNameResolution oldNotes oldType env = do
       -- Add typed components (local definitions) to the TDNR environment.
   let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
@@ -237,6 +239,8 @@ typeDirectedNameResolution oldNotes oldType env = do
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
+      trace "Resolution: " $
+      traceShow (name, const () <$> inferredType) $
       trace "Suggestions: " $
       traceShow (const () <$> suggestions) $
       typeError $ Context.ErrorNote
