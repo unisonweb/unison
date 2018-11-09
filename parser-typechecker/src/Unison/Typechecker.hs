@@ -32,10 +32,8 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import           Unison.DataDeclaration     (DataDeclaration',
-                                             EffectDeclaration')
 import           Unison.Names               (Name)
-import           Unison.Reference           (pattern Builtin, Reference)
+import qualified Unison.Names as Names
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
@@ -67,7 +65,8 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc, builtin :: Bool }
+  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
+                 , replacement :: Either v Names.Referent }
 
 data Env v loc = Env
   { _builtinLoc        :: loc
@@ -233,7 +232,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     = for_ vtts $ \(v, typ, _) -> do
       unqualifiedTerms %= Map.insertWith (<>)
                               (Var.unqualified v)
-                              ([NamedReference (Var.name v) typ False])
+                              ([NamedReference (Var.name v) typ (Left v)])
   addTypedComponent _ = pure ()
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
@@ -245,15 +244,11 @@ typeDirectedNameResolution oldNotes oldType env = do
   guard x a = if x then Just a else Nothing
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
   substSuggestion (Resolution name _ loc (filter Context.isExact ->
-                                        [Context.Suggestion fqn _ builtin])) =
+                                        [Context.Suggestion _ _ replacement])) =
     do
       modify (substBlank (Text.unpack name) loc solved)
-      lift . btw $ Context.Decision (Var.named name) loc fqn
-        where solved =
-                (if builtin
-                  then Term.ref loc . Builtin
-                  else Term.var loc . Var.named
-                ) fqn
+      lift . btw $ Context.Decision (Var.named name) loc solved
+        where solved = either (Term.var loc) (Names.referentToTerm loc) replacement
   substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
@@ -281,7 +276,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Context.Type v loc
     -> NamedReference v loc
     -> Result (Notes v loc) [Context.Suggestion v loc]
-  resolve env inferredType (NamedReference fqn foundType builtin) =
+  resolve env inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = convertResult
           $ Context.isSubtype (view builtinLoc env) (Type.toTypeVar foundType) inferredType
@@ -290,7 +285,7 @@ typeDirectedNameResolution oldNotes oldType env = do
           Nothing -> const [] <$> traverse_ typeError (errors subNotes)
           -- Suggest the import if the type matches.
           Just b  -> pure [ if b then
-                              Context.Suggestion fqn (Type.toTypeVar foundType) builtin
+                              Context.Suggestion fqn (Type.toTypeVar foundType) replace
                             else
                               Context.WrongType fqn (Type.toTypeVar foundType)
                           ]

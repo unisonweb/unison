@@ -25,6 +25,7 @@ import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
 import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
+import qualified Unison.Typechecker.TypeLookup as TL
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
@@ -49,8 +50,10 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   typ :: AnnotatedType v a
 } deriving Show
 
+-- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: UnisonFile v a -> Names -> (Set Reference, Set Reference.Id)
-dependencies uf ns = error "todo"
+dependencies uf ns =
+  error "todo"
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes tm (TypecheckedUnisonFile datas effects _) =
@@ -63,6 +66,9 @@ discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
 discardTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
   TypecheckedUnisonFile datas effects tlcs
+
+toTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
+toTypeLookup uf = error "todo"
 
 toNames :: Var v => UnisonFile v a -> Names
 toNames (UnisonFile {..}) = datas <> effects

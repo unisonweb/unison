@@ -3,7 +3,6 @@
 module Unison.Test.Common where
 
 import           Data.Functor.Identity (runIdentity)
-import qualified Data.Map as Map
 import           Data.Sequence (Seq)
 import qualified Data.Text as Text
 import qualified Unison.Builtin as B
@@ -39,11 +38,8 @@ t = B.t
 typechecks :: String -> Bool
 typechecks = runIdentity . Result.isSuccess . file
 
-env :: Monad m => Typechecker.Env m Symbol Ann
-env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
-  typeOf r = error $ "no type for: " ++ show r
-  dd r = error $ "no data declaration for: " ++ show r
-  ed r = error $ "no effect declaration for: " ++ show r
+env :: Typechecker.Env Symbol Ann
+env = Typechecker.Env Intrinsic [] B.typeLookup mempty
 
 parseAndSynthesizeAsFile
   :: Var v
@@ -52,5 +48,9 @@ parseAndSynthesizeAsFile
   -> Result (Seq (Note v Ann))
             (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
 parseAndSynthesizeAsFile filename s =
-  FP.parseAndSynthesizeFile B.names filename (Text.pack s)
+  FP.parseAndSynthesizeFile
+    (\_termDeps _typeDeps -> pure B.typeLookup)
+    B.names
+    filename
+    (Text.pack s)
 

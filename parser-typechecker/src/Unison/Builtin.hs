@@ -28,6 +28,7 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.Names (Names, Name)
 import qualified Unison.Names as Names
+import qualified Unison.Typechecker.TypeLookup as TL
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -67,7 +68,13 @@ names :: Names
 names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol)
      <> Names.fromTypes builtinTypes
      <> foldMap (DD.dataDeclToNames' @Symbol) builtinDataDecls
-     -- <> foldMap DD.effectDeclToNames' builtinEffectDecls
+     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
+
+typeLookup :: Var v => TL.TypeLookup v Ann
+typeLookup =
+  TL.TypeLookup builtins0
+    (Map.fromList $ map snd builtinDataDecls)
+    (Map.fromList $ map snd builtinEffectDecls)
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
 builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]

@@ -7,6 +7,7 @@
 
 module Unison.DataDeclaration where
 
+import Safe (atMay)
 import Data.List (sortOn)
 import Unison.Hash (Hash)
 import           Data.Functor
@@ -76,6 +77,9 @@ effectConstructorTerms rid ed =
 
 constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
 constructorTypes = (snd <$>) . constructors
+
+typeOfConstructor :: DataDeclaration' v a -> Int -> Maybe (AnnotatedType v a)
+typeOfConstructor dd i = constructorTypes dd `atMay` i
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]

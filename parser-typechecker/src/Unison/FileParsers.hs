@@ -18,22 +18,20 @@ import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import Data.Set (Set)
 import qualified Data.Set                   as Set
-import           Data.Maybe
 import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import qualified Unison.Builtin             as B
 import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import           Unison.Names               (Name, Names)
 import qualified Unison.Names               as Names
-import           Unison.Parser              (Ann (Intrinsic, External))
+import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
-import           Unison.Reference           (pattern Builtin, Reference)
+import           Unison.Reference           (Reference)
 import qualified Unison.Reference as Reference
 import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
@@ -47,7 +45,6 @@ import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import qualified Unison.Codebase as Codebase
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -113,36 +110,19 @@ synthesizeFile lookupType preexistingNames unisonFile = do
     uf@(UnisonFile dds0 eds0 term0) = unisonFile
     localNames = UF.toNames uf
     localTypes = UF.toTypeLookup uf
-    term = Names.bindTerm (localNames <> preexistingNames) term0
+    -- this is the preexisting terms and decls plus the local decls
+    allTheNames = localNames <> preexistingNames
+    term = Names.bindTerm allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
-    tdnrTerm                        = Term.prepareTDNR $ term
+    tdnrTerm = Term.prepareTDNR $ term
     lookupTypes' = localTypes <> lookupType
-    -- merge dds from unisonFile with dds from Unison.Builtin
-    -- note: `Map.union` is left-biased
     env0 = (Typechecker.Env Intrinsic [] lookupTypes' fqnsByShortName)
      where
-      lookupData :: Applicative f => Reference -> f (DataDeclaration v)
-      lookupData r = pure $ fromMaybe (die "data" r) $ Map.lookup r datasr
-        where datasr = Map.fromList $ Foldable.toList datas
-      lookupEffect :: Applicative f => Reference -> f (EffectDeclaration v)
-      lookupEffect r = pure $ fromMaybe (die "effect" r) $ Map.lookup
-        r
-        effectsr
-        where effectsr = Map.fromList $ Foldable.toList effects
-      die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
-      fqnsByShortName =
-        Map.fromListWith mappend . fmap toKV . Map.toList $ Names.termNames
-          allTheNames
-       where
-        toKV (name, (_, typ)) =
-          ( Var.unqualified (Var.named @v name)
-          , [Typechecker.NamedReference name typ True]
-          )
-      typeOf r =
-        pure . fromMaybe (error $ "unknown reference " ++ show r) $ Map.lookup
-          r
-          typeOfRef
+      fqnsByShortName = Map.fromListWith mappend
+         [ (name, [Typechecker.NamedReference name typ (Right r)]) |
+           (name, r) <- Map.toList $ Names.termNames allTheNames,
+           typ <- Foldable.toList $ TL.typeOfReferent lookupTypes' r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   Result (convertNotes notes) mayType >>= \typ -> do
@@ -166,48 +146,40 @@ synthesizeFile lookupType preexistingNames unisonFile = do
       in
         -- use tlcsFromTypechecker to inform annotation-stripping decisions
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
-    let lookupName =
-              (MaybeT $ flip Map.lookup tlcMap)
-          <|> (MaybeT $ Names.lookupTerm External allTheNames)
-          where go (v, t, tp) = (Var.name v, (Term.var (ABT.annotation t) v, tp))
-                tlcMap = Map.fromList . fmap go $ join topLevelComponents
-        doTdnr   = applyTdnrDecisions lookupName infos
+    let doTdnr = applyTdnrDecisions infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
     t          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
  where
   applyTdnrDecisions
-    :: (Name -> Maybe (Term v))
-    -> [Context.InfoNote v Ann]
+    :: [Context.InfoNote v Ann]
     -> Term v
     -> Result' v (Term v)
-  applyTdnrDecisions names infos tdnrTerm = foldM go tdnrTerm decisions
+  applyTdnrDecisions infos tdnrTerm = foldM go tdnrTerm decisions
    where
     -- UF data/effect ctors + builtins + TLC Term.vars
-    go term _decision@(shortv, loc, fqn) =
-      ABT.visit (resolve shortv loc fqn) term
-    decisions = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
+    go term _decision@(shortv, loc, replacement) =
+      ABT.visit (resolve shortv loc replacement) term
+    decisions = [ (v, loc, replacement) | Context.Decision v loc replacement <- infos ]
     -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
-    resolve shortv loc fqn t = case t of
+    resolve shortv loc replacement t = case t of
       Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
-        | loc' == loc && Var.nameStr shortv == name -> case names fqn of
-          Nothing -> Just . Result.compilerBug $ Result.ResolvedNameNotFound
-            shortv
-            loc
-            fqn
-          Just ref -> Just $ pure (const loc <$> ref)
+        | loc' == loc && Var.nameStr shortv == name ->
+          -- loc of replacement already chosen correctly by whatever made the Decision
+          pure . pure $ replacement
       _ -> Nothing
 
 synthesizeAndSerializeUnisonFile
   :: Var v
-  => Names
+  => TL.TypeLookup v Ann
+  -> Names
   -> UnisonFile v
   -> Result
        (Seq (Note v Ann))
        (UF.TypecheckedUnisonFile' v Ann, ByteString)
-synthesizeAndSerializeUnisonFile names unisonFile =
-  let r = synthesizeFile names unisonFile
+synthesizeAndSerializeUnisonFile tl names unisonFile =
+  let r = synthesizeFile tl names unisonFile
       f unisonFile' =
         let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile
               (UF.discardTypes' unisonFile')

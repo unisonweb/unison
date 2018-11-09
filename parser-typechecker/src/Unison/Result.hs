@@ -62,6 +62,10 @@ toMaybe = (fst <$>) . runResultT
 runResultT :: ResultT notes f a -> f (Maybe a, notes)
 runResultT = runWriterT . runMaybeT
 
+-- Returns the `Result` in the `f` functor.
+getResult :: Functor f => ResultT notes f a -> f (Result notes a)
+getResult r = uncurry (flip Result) <$> runResultT r
+
 toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
 toEither r = ExceptT (fmap go $ runResultT r)
   where go (may, notes) = note notes may

@@ -107,7 +107,7 @@ watchDirectory dir allow = do
         else await
   pure await
 
-watchPrinter :: Var v => Names v a -> Text -> Term v -> IO ()
+watchPrinter :: Var v => Names -> Text -> Term v -> IO ()
 watchPrinter names label term = do
   -- I guess this string constant comes from somewhere, and we are using
   -- a bunch of spaces of the same total length.
@@ -162,7 +162,7 @@ watcher initialFile dir runtime codebase = do
         Right (env0, parsedUnisonFile) -> do
           let
             (Result notes' r) =
-              FileParsers.synthesizeFile B.names parsedUnisonFile
+              FileParsers.synthesizeFile B.typeLookup B.names parsedUnisonFile
             showNote notes =
               intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
           putStrLn . showNote . toList $ notes'

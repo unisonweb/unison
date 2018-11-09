@@ -67,7 +67,6 @@ import           Unison.PrintError              ( prettyParseError
                                                 )
 import           Unison.Result                  ( pattern Result )
 import qualified Unison.Result                 as Result
-import           Unison.Symbol                  ( Symbol )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.ColorText         as Color
 import qualified Unison.Util.Menu              as Menu
@@ -178,9 +177,13 @@ main dir currentBranchName initialFile startRuntime codebase = do
       incompleteLine <- atomically . peekIncompleteLine $ lineQueue
       putStr $ "\r" ++ unpack branchName ++ "> " ++ incompleteLine
 
-    handleUnisonFile :: Runtime v -> Names v Ann -> FilePath -> Text -> IO ()
+    handleUnisonFile :: Runtime v -> Names -> FilePath -> Text -> IO ()
     handleUnisonFile runtime names filePath src = do
-      let Result notes r = parseAndSynthesizeFile names filePath src
+      Result notes r <- Result.getResult $ parseAndSynthesizeFile
+        (Codebase.typeLookupForDependencies codebase)
+        names
+        filePath
+        src
       case r of
         Nothing -> do -- parsing failed
           Console.setTitle "Unison \128721"
@@ -238,8 +241,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.setTitle "Unison"
             Console.clearScreen
             Console.setCursorPosition 0 0
-            names <- Codebase.branchToNames codebase branch
-            handleUnisonFile runtime (names <> B.names) filePath text
+            let names = Branch.toNames branch
+            handleUnisonFile runtime names filePath text
             go branch name
           UnisonBranchChanged branches -> if Set.member name branches
             then do
@@ -545,5 +548,5 @@ selectBranch codebase name takeLine = do
         Nothing           -> pure Nothing
 
 builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames $ B.names @Symbol) mempty
+builtinBranch = Branch.append (Branch.fromNames B.names) mempty
 

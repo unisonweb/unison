@@ -67,7 +67,7 @@ import           Data.Word                      ( Word64 )
 import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
-import           Unison.Names                   ( Name )
+import qualified Unison.Names                  as Names
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
@@ -215,7 +215,7 @@ type ConstructorId = Int
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
-             , builtin :: Bool
+             , suggestionReplacement :: Either v Names.Referent
              } |
   WrongType { suggestionName :: Text
             , suggestionType :: Type v loc
@@ -238,7 +238,7 @@ data ErrorNote v loc = ErrorNote {
 -- with the fully qualified name fqn.
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
-  | Decision v loc Name
+  | Decision v loc (Term.AnnotatedTerm v loc)
   | TopLevelComponent [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)]
   deriving (Show)
 

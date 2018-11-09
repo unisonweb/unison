@@ -142,6 +142,9 @@ prettyListingQ :: (Var.Var v, Monad m)
 prettyListingQ _cb _query _b =
   error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
 
+typeLookupForDependencies :: Codebase m v a -> Set Reference -> Set Reference.Id -> m (TL.TypeLookup v a)
+typeLookupForDependencies code termRefs declRefs = error "todo"
+
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = sortOn score matches where
   nq = length q
