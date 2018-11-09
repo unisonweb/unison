@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Unison.Names (Name,Names)
 import qualified Unison.Names as Names
-import qualified Unison.Term as Term
 
 type Histogram = Map Name Word
 

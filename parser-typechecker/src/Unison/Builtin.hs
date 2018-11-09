@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
-import           Control.Arrow (first, (&&&))
+import           Control.Arrow (first)
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT

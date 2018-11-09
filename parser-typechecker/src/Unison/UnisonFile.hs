@@ -10,6 +10,7 @@ import           Data.Bifunctor         (second)
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
 import qualified Data.Set               as Set
+import Data.Set (Set)
 import qualified Data.Text              as Text
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
@@ -18,6 +19,7 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Names           (Names)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
+import qualified Unison.Reference as Reference
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
@@ -46,6 +48,9 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   topLevelTerm :: AnnotatedTerm v a,
   typ :: AnnotatedType v a
 } deriving Show
+
+dependencies :: UnisonFile v a -> Names -> (Set Reference, Set Reference.Id)
+dependencies uf ns = error "todo"
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes tm (TypecheckedUnisonFile datas effects _) =

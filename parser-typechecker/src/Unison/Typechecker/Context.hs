@@ -80,6 +80,7 @@ import qualified Unison.Term                   as Term
 import           Unison.Type                    ( AnnotatedType )
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.Components  ( minimize' )
+import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypeVar                as TypeVar
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -186,6 +187,7 @@ data CompilerBug v loc
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
   | UnannotatedReference Reference
   | MalformedPattern (Pattern loc)
+  | UnknownTermReference Reference
   deriving Show
 
 data PathElement v loc
@@ -557,6 +559,10 @@ compilerCrash bug = failWith $ CompilerBug bug
 failWith :: Cause v loc -> M v loc a
 failWith cause =
   M (const $ Result (pure $ ErrorNote cause mempty) mempty Nothing)
+
+compilerCrashResult :: CompilerBug v loc -> Result v loc a
+compilerCrashResult bug =
+  Result (pure $ ErrorNote (CompilerBug bug) mempty) mempty Nothing
 
 failSecretlyAndDangerously :: M v loc a
 failSecretlyAndDangerously = empty
@@ -1405,25 +1411,24 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed
-  :: (Monad f, Var v, Ord loc)
+  :: (Var v, Ord loc)
   => loc
   -> [Type v loc]
-  -> (Reference -> f (Type.AnnotatedType v loc))
-  -> (Reference -> f (DataDeclaration' v loc))
-  -> (Reference -> f (EffectDeclaration' v loc))
+  -> TL.TypeLookup v loc
   -> Term v loc
-  -> f (Result v loc (Type v loc))
-synthesizeClosed builtinLoc abilities synthRef lookupData lookupEffect term = do
-  let dataRefs = Set.toList $ Term.referencedDataDeclarations term
-      effectRefs = Set.toList $ Term.referencedEffectDeclarations term
-  term <- annotateRefs synthRef term
-  datas <- Map.fromList <$> traverse (\r -> (r,) <$> lookupData r) dataRefs
-  effects <- Map.fromList <$> traverse (\r -> (r,) <$> lookupEffect r) effectRefs
-  pure . run builtinLoc [] datas effects $ do
-    verifyDataDeclarations datas
-    verifyDataDeclarations (DD.toDataDecl <$> effects)
-    verifyClosedTerm term
-    synthesizeClosed' abilities term
+  -> Result v loc (Type v loc)
+synthesizeClosed builtinLoc abilities lookupType term0 = let
+  datas = TL.dataDecls lookupType
+  effects = TL.effectDecls lookupType
+  term = annotateRefs (TL.typeOfTerm' lookupType) term0
+  in case term of
+    Left missingRef ->
+      compilerCrashResult (UnknownTermReference missingRef)
+    Right term -> run builtinLoc [] datas effects $ do
+      verifyDataDeclarations datas
+      verifyDataDeclarations (DD.toDataDecl <$> effects)
+      verifyClosedTerm term
+      synthesizeClosed' abilities term
 
 verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
 verifyClosedTerm t = do

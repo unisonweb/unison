@@ -11,7 +11,6 @@ import           Control.Monad                  ( forM )
 import           Data.Foldable                  ( toList, traverse_ )
 import           Data.Maybe                     ( catMaybes )
 import           Data.List
-import Data.Map (Map)
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Text                     as Text
@@ -19,9 +18,7 @@ import           Text.EditDistance              ( defaultEditCosts
                                                 , levenshteinDistance
                                                 )
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch         ( Branch
-                                                , Branch0(..)
-                                                )
+import           Unison.Codebase.Branch         (Branch)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Parser                  ( Ann )
@@ -31,22 +28,20 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker.TypeLookup as TL
+import Unison.Typechecker.TypeLookup (Decl,TypeLookup)
 import           Unison.Util.PrettyPrint        ( PrettyPrint )
 import qualified Unison.Util.PrettyPrint       as PP
 import           Unison.Util.AnnotatedText      ( AnnotatedText )
 import           Unison.Util.ColorText          ( Color )
-import qualified Unison.Util.Relation          as R
 import qualified Unison.Var                    as Var
 import qualified Unison.ABT                    as ABT
-import           Unison.Names                   ( Names(..)
-                                                , Name
-                                                )
+import           Unison.Names                   (Name)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -63,21 +58,21 @@ data Codebase m v a =
            , branchUpdates      :: m (m (), m (Set Name))
            }
 
-data ReadRefs v a =
-  ReadRefs { typeOfTerm :: Map Reference (Type v a)
-           , typeDeclaration :: Map Reference.Id (Decl v a) }
-
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.
-typecheckingEnvironment :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (ReadRefs v a)
+typecheckingEnvironment :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (TypeLookup v a)
 typecheckingEnvironment code t = do
   let deps = Term.dependencies t
   termTypes0 <- forM (toList deps) $ \r -> (r,) <$> getTypeOfTerm code r
   let termTypes = Map.fromList [ (r, t) | (r, Just t) <- termTypes0 ]
-  let rids = [ r | Reference.DerivedId r <- toList deps ]
-  decls0 <- forM rids $ \r -> (r,) <$> getTypeDeclaration code r
-  let decls = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
-  pure $ ReadRefs termTypes decls
+  let rids = [ (r0,r) | r0@(Reference.DerivedId r) <- toList deps ]
+  decls0 <- forM rids $ \(r0,r) -> (r0,) <$> getTypeDeclaration code r
+  let allDecls = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
+      (datas, effects) = foldl' go (mempty, mempty) (Map.toList allDecls)
+      go (datas, effects) (r, d) = case d of
+        Left e -> (datas, Map.insert r e effects)
+        Right d -> (Map.insert r d datas, effects)
+  pure $ TL.TypeLookup termTypes datas effects
 
 data Err = InvalidBranchFile FilePath String deriving Show
 

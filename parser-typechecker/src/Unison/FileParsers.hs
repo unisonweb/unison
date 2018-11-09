@@ -8,12 +8,15 @@
 module Unison.FileParsers where
 
 import           Control.Monad              (foldM)
+import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
+import Control.Monad.Writer (tell)
 import           Data.Bytes.Put             (runPutS)
 import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import Data.Set (Set)
 import qualified Data.Set                   as Set
 import           Data.Maybe
 import           Data.Sequence              (Seq)
@@ -31,12 +34,14 @@ import           Unison.Parser              (Ann (Intrinsic, External))
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
 import           Unison.Reference           (pattern Builtin, Reference)
-import           Unison.Result              (Note (..), Result, pattern Result)
+import qualified Unison.Reference as Reference
+import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (AnnotatedType)
 import qualified Unison.Typechecker         as Typechecker
+import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
@@ -78,53 +83,43 @@ convertNotes (Typechecker.Notes es is) =
   -- that will have the latest typechecking info
 
 parseAndSynthesizeFile
-  :: Var v
-  => Codebase.ReadRefs v Ann
+  :: (Var v, Monad m)
+  => (Set Reference -> Set Reference.Id -> m (TL.TypeLookup v Ann))
   -> Names
   -> FilePath
   -> Text
-  -> Result
+  -> ResultT
        (Seq (Note v Ann))
+       m
        (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
-parseAndSynthesizeFile readRefs names filePath src = do
+parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let (Result notes' r) = synthesizeFile readRefs names parsedUnisonFile
-  Result notes' $ Just (errorEnv, r)
+  let (termRefs, typeRefs) = UF.dependencies parsedUnisonFile names
+  typeLookup <- lift . lift $ typeLookupf termRefs typeRefs
+  let (Result notes' r) = synthesizeFile typeLookup names parsedUnisonFile
+  tell notes' *> pure (errorEnv, r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => Codebase.ReadRefs v Ann
+  => TL.TypeLookup v Ann
   -> Names
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
-synthesizeFile readRefs builtinNames unisonFile = do
+synthesizeFile lookupType preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins builtinNames unisonFile
-    -- map Names to Term.constructor values for UF data/effect ctors
-    ufDeclNames                     = UF.toNames uf
-    allTheNames                     = ufDeclNames <> builtinNames
-    -- substitute locally defined constructors for Vars into the UF body
-    term                            = Names.bindTerm ufDeclNames term0
+    uf@(UnisonFile dds0 eds0 term0) = unisonFile
+    localNames = UF.toNames uf
+    localTypes = UF.toTypeLookup uf
+    term = Names.bindTerm (localNames <> preexistingNames) term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm                        = Term.prepareTDNR $ term
+    lookupTypes' = localTypes <> lookupType
     -- merge dds from unisonFile with dds from Unison.Builtin
     -- note: `Map.union` is left-biased
-    datas :: Map v (Reference, DataDeclaration v)
-    datas   = Map.union dds0 $ Map.fromList B.builtinDataDecls
-    -- same, but there are no eds in Unison.Builtin yet.
-    effects = Map.union eds0 $ Map.fromList B.builtinEffectDecls
-    env0 =
-      (Typechecker.Env
-        Intrinsic
-        []
-        typeOf
-        lookupData
-        lookupEffect
-        fqnsByShortName
-      )
+    env0 = (Typechecker.Env Intrinsic [] lookupTypes' fqnsByShortName)
      where
       lookupData :: Applicative f => Reference -> f (DataDeclaration v)
       lookupData r = pure $ fromMaybe (die "data" r) $ Map.lookup r datasr
