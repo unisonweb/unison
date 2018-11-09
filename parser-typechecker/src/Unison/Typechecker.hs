@@ -45,7 +45,7 @@ import qualified Unison.TypeVar             as TypeVar
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
--- import           Debug.Trace
+import           Debug.Trace
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
@@ -237,6 +237,8 @@ typeDirectedNameResolution oldNotes oldType env = do
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
+      trace "Suggestions: " $
+      traceShow (const () <$> suggestions) $
       typeError $ Context.ErrorNote
         (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
         []
