@@ -36,7 +36,8 @@ main = do
     source             <- unpack <$> Data.Text.IO.readFile sourceFile
     (env0, unisonFile) <- Parsers.unsafeReadAndParseFile B.names sourceFile
     let (Result notes' r) =
-          FileParsers.synthesizeAndSerializeUnisonFile B.names unisonFile
+          FileParsers.synthesizeAndSerializeUnisonFile
+                                                B.typeLookup B.names unisonFile
         f (unisonFile', bs) = do
           putStrLn $ "typechecked as " ++ renderType' env0 (UF.typ unisonFile')
           traverse_ (flip BS.writeFile bs) outputFile

@@ -32,7 +32,6 @@ import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
 import           Unison.Reference           (Reference)
-import qualified Unison.Reference as Reference
 import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
@@ -109,7 +108,7 @@ synthesizeFile lookupType preexistingNames unisonFile = do
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 term0) = unisonFile
     localNames = UF.toNames uf
-    localTypes = UF.toTypeLookup uf
+    localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
     allTheNames = localNames <> preexistingNames
     term = Names.bindTerm allTheNames term0

@@ -1,42 +1,42 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Codebase where
 
-import           Data.String                    ( fromString )
-import           Control.Monad                  ( forM )
-import           Data.Foldable                  ( toList, traverse_ )
-import           Data.Maybe                     ( catMaybes )
+import           Control.Monad                 (forM, foldM)
+import           Data.Foldable                 (toList, traverse_)
 import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
+import           Data.Maybe                    (catMaybes)
+import           Data.Set                      (Set)
+import           Data.String                   (fromString)
 import qualified Data.Text                     as Text
-import           Text.EditDistance              ( defaultEditCosts
-                                                , levenshteinDistance
-                                                )
+import           Text.EditDistance             (defaultEditCosts,
+                                                levenshteinDistance)
+import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch         (Branch)
+import           Unison.Codebase.Branch        (Branch)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Parser                  ( Ann )
+import           Unison.Names                  (Name)
+import           Unison.Parser                 (Ann)
 import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Reference               ( Reference )
+import           Unison.Reference              (Reference)
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
+import           Unison.Typechecker.TypeLookup (Decl, TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
-import Unison.Typechecker.TypeLookup (Decl,TypeLookup)
-import           Unison.Util.PrettyPrint        ( PrettyPrint )
+import           Unison.Util.AnnotatedText     (AnnotatedText)
+import           Unison.Util.ColorText         (Color)
+import           Unison.Util.PrettyPrint       (PrettyPrint)
 import qualified Unison.Util.PrettyPrint       as PP
-import           Unison.Util.AnnotatedText      ( AnnotatedText )
-import           Unison.Util.ColorText          ( Color )
 import qualified Unison.Var                    as Var
-import qualified Unison.ABT                    as ABT
-import           Unison.Names                   (Name)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -70,7 +70,7 @@ typecheckingEnvironment code t = do
   let allDecls = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
       (datas, effects) = foldl' go (mempty, mempty) (Map.toList allDecls)
       go (datas, effects) (r, d) = case d of
-        Left e -> (datas, Map.insert r e effects)
+        Left e  -> (datas, Map.insert r e effects)
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
@@ -142,8 +142,20 @@ prettyListingQ :: (Var.Var v, Monad m)
 prettyListingQ _cb _query _b =
   error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
 
-typeLookupForDependencies :: Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
-typeLookupForDependencies code refs = error "todo"
+typeLookupForDependencies :: Monad m => 
+  Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies codebase refs = foldM go mempty refs
+  where go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+          getTypeOfTerm codebase ref >>= \case
+            Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
+            Nothing -> getTypeDeclaration codebase id >>= \case
+              Just (Left ed) ->
+                pure $ TypeLookup mempty mempty (Map.singleton ref ed)
+              Just (Right dd) ->
+                pure $ TypeLookup mempty (Map.singleton ref dd) mempty
+              Nothing -> pure mempty
+        go tl _builtin = pure tl -- codebase isn't consulted for builtins
+
 
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = sortOn score matches where

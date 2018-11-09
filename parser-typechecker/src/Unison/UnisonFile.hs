@@ -20,7 +20,6 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Names           (Names)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
-import qualified Unison.Reference as Reference
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
@@ -84,8 +83,11 @@ discardTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
   TypecheckedUnisonFile datas effects tlcs
 
-toTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
-toTypeLookup uf = error "todo"
+declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
+declsToTypeLookup uf = TL.TypeLookup mempty
+                          (wrangle (dataDeclarations uf))
+                          (wrangle (effectDeclarations uf))
+  where wrangle = Map.fromList . Map.elems
 
 toNames :: Var v => UnisonFile v a -> Names
 toNames (UnisonFile {..}) = datas <> effects
