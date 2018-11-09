@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Names where
 
@@ -37,11 +38,16 @@ data Referent = Ref Reference | Req Reference Int | Con Reference Int
   deriving (Show, Ord, Eq)
 
 referentToTerm :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-referentToTerm a r =
-  case r of
-    Ref r -> Term.ref a r
-    Req r i -> Term.request a r i
-    Con r i -> Term.constructor a r i
+referentToTerm a = \case
+  Ref r -> Term.ref a r
+  Req r i -> Term.request a r i
+  Con r i -> Term.constructor a r i
+
+referentToReference :: Referent -> Reference
+referentToReference = \case
+  Ref r -> r
+  Req r _i -> r
+  Con r _i -> r
 
 instance Show Names where
   -- really barebones, just to see what names are present
@@ -124,4 +130,3 @@ instance Monoid Names where
     where
       unionL :: forall k v. Ord k => Map k v -> Map k v -> Map k v
       unionL = Map.unionWith const
-

@@ -142,8 +142,8 @@ prettyListingQ :: (Var.Var v, Monad m)
 prettyListingQ _cb _query _b =
   error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
 
-typeLookupForDependencies :: Codebase m v a -> Set Reference -> Set Reference.Id -> m (TL.TypeLookup v a)
-typeLookupForDependencies code termRefs declRefs = error "todo"
+typeLookupForDependencies :: Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies code refs = error "todo"
 
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = sortOn score matches where
@@ -161,4 +161,3 @@ sortedApproximateMatches q possible = sortOn score matches where
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
-

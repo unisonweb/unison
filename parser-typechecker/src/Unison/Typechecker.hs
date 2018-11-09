@@ -231,7 +231,7 @@ typeDirectedNameResolution oldNotes oldType env = do
   addTypedComponent (Context.TopLevelComponent vtts)
     = for_ vtts $ \(v, typ, _) -> do
       unqualifiedTerms %= Map.insertWith (<>)
-                              (Var.unqualified v)
+                              (Var.unqualifiedName v)
                               ([NamedReference (Var.name v) typ (Left v)])
   addTypedComponent _ = pure ()
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()

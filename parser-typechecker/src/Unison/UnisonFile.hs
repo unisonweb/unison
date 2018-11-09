@@ -9,6 +9,7 @@ import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
+import           Data.Maybe              (catMaybes)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Data.Text              as Text
@@ -51,9 +52,25 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
 } deriving Show
 
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
-dependencies :: UnisonFile v a -> Names -> (Set Reference, Set Reference.Id)
-dependencies uf ns =
-  error "todo"
+dependencies :: Var v => UnisonFile v a -> Names -> Set Reference
+dependencies uf ns = directReferences <>
+                      Set.fromList freeTypeVarRefs <>
+                      Set.fromList freeTermVarRefs
+  where
+    tm = term uf
+    directReferences = Term.dependencies tm
+    freeTypeVarRefs = -- we aren't doing any special resolution for types
+      catMaybes (flip Map.lookup (Names.typeNames ns) . Var.name <$>
+                  Set.toList (Term.freeTypeVars tm))
+    -- foreach name in Names.termNames,
+        -- if the name or unqualified name is in Term.freeVars,
+        -- include the reference
+    freeTermVarRefs =
+      [ Names.referentToReference referent
+      | (name, referent) <- Map.toList $ Names.termNames ns
+      , Var.named name `Set.member` Term.freeVars tm
+        || Var.unqualified (Var.named name) `Set.member` Term.freeVars tm
+      ]
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes tm (TypecheckedUnisonFile datas effects _) =

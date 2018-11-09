@@ -49,8 +49,7 @@ parseAndSynthesizeAsFile
             (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
 parseAndSynthesizeAsFile filename s =
   FP.parseAndSynthesizeFile
-    (\_termDeps _typeDeps -> pure B.typeLookup)
+    (\_deps -> pure B.typeLookup)
     B.names
     filename
     (Text.pack s)
-

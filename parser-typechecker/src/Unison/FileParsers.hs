@@ -81,7 +81,7 @@ convertNotes (Typechecker.Notes es is) =
 
 parseAndSynthesizeFile
   :: (Var v, Monad m)
-  => (Set Reference -> Set Reference.Id -> m (TL.TypeLookup v Ann))
+  => (Set Reference -> m (TL.TypeLookup v Ann))
   -> Names
   -> FilePath
   -> Text
@@ -92,8 +92,8 @@ parseAndSynthesizeFile
 parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let (termRefs, typeRefs) = UF.dependencies parsedUnisonFile names
-  typeLookup <- lift . lift $ typeLookupf termRefs typeRefs
+  let refs = UF.dependencies parsedUnisonFile names
+  typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) = synthesizeFile typeLookup names parsedUnisonFile
   tell notes' *> pure (errorEnv, r)
 
