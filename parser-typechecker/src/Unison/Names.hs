@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Names where
 
@@ -21,11 +22,8 @@ import qualified Unison.Var       as Var
 
 type Name = Text
 
--- data Names v a = Names
---   { termNames    :: Map Name (AnnotatedTerm v a, AnnotatedType v a)
---   , patternNames :: Map Name (Reference, Int)
---   , typeNames    :: Map Name Reference
---   }
+unqualified :: Name -> Name
+unqualified = last . Text.splitOn "."
 
 data Names = Names
   { termNames :: Map Name Referent

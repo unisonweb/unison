@@ -44,6 +44,7 @@ import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
+-- import Debug.Trace
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -119,7 +120,8 @@ synthesizeFile lookupType preexistingNames unisonFile = do
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-         [ (name, [Typechecker.NamedReference name typ (Right r)]) |
+         [ (Names.unqualified name,
+            [Typechecker.NamedReference name typ (Right r)]) |
            (name, r) <- Map.toList $ Names.termNames allTheNames,
            typ <- Foldable.toList $ TL.typeOfReferent lookupTypes' r ]
     Result notes mayType =
