@@ -67,6 +67,7 @@ convertResult (Context.Result es is ma) = Result (Notes es is) ma
 data NamedReference v loc =
   NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
                  , replacement :: Either v Names.Referent }
+  deriving Show
 
 data Env v loc = Env
   { _builtinLoc        :: loc

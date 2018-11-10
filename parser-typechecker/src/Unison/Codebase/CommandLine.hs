@@ -180,7 +180,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
     handleUnisonFile :: Runtime v -> Names -> FilePath -> Text -> IO ()
     handleUnisonFile runtime names filePath src = do
       Result notes r <- Result.getResult $ parseAndSynthesizeFile
-        (Codebase.typeLookupForDependencies codebase)
+        (pure . const B.typeLookup <> Codebase.typeLookupForDependencies codebase)
         names
         filePath
         src
