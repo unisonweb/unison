@@ -38,6 +38,8 @@ import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
+import           Unison.Names (Referent)
+import qualified Unison.Names as Names
 import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( AnnotatedTerm )
@@ -160,6 +162,29 @@ getReference = do
     0 -> Reference.Builtin <$> getText
     1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
+
+putReferent :: MonadPut m => Referent -> m ()
+putReferent r = case r of
+  Names.Ref r -> do
+    putWord8 0
+    putReference r
+  Names.Con r i -> do
+    putWord8 1
+    putReference r
+    putLength i
+  Names.Req r i -> do
+    putWord8 2
+    putReference r
+    putLength i
+
+getReferent :: MonadGet m => m Referent
+getReferent = do
+  tag <- getWord8
+  case tag of
+    0 -> Names.Ref <$> getReference
+    1 -> Names.Con <$> getReference <*> getLength
+    2 -> Names.Req <$> getReference <*> getLength
+    _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
 putMaybe Nothing _ = putWord8 0
