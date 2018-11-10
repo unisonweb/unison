@@ -132,7 +132,7 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
         topLevelBindings :: Map Name (Term v)
-        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings term
+        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings tdnrTerm
         extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
         extractTopLevelBindings _                        = Map.empty
         tlcsFromTypechecker =
