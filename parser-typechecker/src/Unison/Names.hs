@@ -1,18 +1,21 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Names where
 
-import           Data.Bifunctor   ( first )
+import           Data.Bifunctor   (first)
 import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
-import           Unison.Reference (Reference, pattern Builtin)
+import           Data.Word        (Word64)
+import           Unison.Hashable  (Hashable)
+import qualified Unison.Hashable  as H
+import           Unison.Reference (pattern Builtin, Reference)
 import           Unison.Term      (AnnotatedTerm, AnnotatedTerm2)
 import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
@@ -26,20 +29,32 @@ unqualified :: Name -> Name
 unqualified = last . Text.splitOn "."
 
 data Names = Names
-  { termNames :: Map Name Referent
+  { termNames    :: Map Name Referent
   , patternNames :: Map Name (Reference, Int)
-  , typeNames :: Map Name Reference
+  , typeNames    :: Map Name Reference
   }
 
 -- | The referent of a name
 data Referent = Ref Reference | Req Reference Int | Con Reference Int
   deriving (Show, Ord, Eq)
 
+instance Hashable Referent where
+  tokens (Ref r) = [H.Tag 0] ++ H.tokens r
+  tokens (Req r i) = [H.Tag 1] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
+  tokens (Con r i) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
+
 referentToTerm :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
 referentToTerm a = \case
   Ref r -> Term.ref a r
   Req r i -> Term.request a r i
   Con r i -> Term.constructor a r i
+
+termToReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
+termToReferent t = case t of
+  Term.Ref' r           -> Just $ Ref r
+  Term.Request' r i     -> Just $ Req r i
+  Term.Constructor' r i -> Just $ Con r i
+  _                     -> Nothing
 
 referentToReference :: Referent -> Reference
 referentToReference = \case

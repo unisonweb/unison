@@ -35,6 +35,7 @@ import qualified Unison.DataDeclaration       as DD
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import qualified Unison.Names                 as Names
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
@@ -780,7 +781,7 @@ renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> R.Reference -> s
+showTermRef :: IsString s => Env -> Names.Referent -> s
 showTermRef env r = fromString . Text.unpack $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s

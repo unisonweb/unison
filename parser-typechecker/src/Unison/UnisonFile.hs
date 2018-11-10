@@ -9,7 +9,7 @@ import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe              (catMaybes)
+import           Data.Maybe             (catMaybes, fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Data.Text              as Text
@@ -17,7 +17,7 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
-import           Unison.Names           (Names)
+import           Unison.Names           (Names, Referent)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
 import           Unison.Term            (AnnotatedTerm)
@@ -111,17 +111,23 @@ typecheckedUnisonFile ds es cs = TypecheckedUnisonFile ds es (removeWatches cs)
   filterDefs    = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
 
 hashConstructors
-  :: Var v => TypecheckedUnisonFile v a -> Map v (Reference, AnnotatedTerm v ())
+  :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
         [ (v, Term.constructor () ref i)
         | (v, i) <- DD.constructorVars dd `zip` [0 ..]
         ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Term.constructor () ref i)
+        [ (v, Term.request () ref i)
         | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..]
         ]
-  in  Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
+      hashedComponents :: Map v (Reference, AnnotatedTerm v ())
+      hashedComponents = Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
+  in
+    fromMaybe (error "Constructor wasn't a constructor")
+    . Names.termToReferent
+    . snd
+    <$> hashedComponents
 
 hashTerms ::
      Var v

@@ -1,14 +1,14 @@
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Codebase where
 
-import Data.Char (toLower)
-import           Control.Monad                 (forM, foldM)
+import           Control.Monad                 (foldM, forM)
+import           Data.Char                     (toLower)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List
 import qualified Data.Map                      as Map
@@ -23,7 +23,8 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch        (Branch)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Names                  (Name)
+import           Unison.Names                  (Name, Referent)
+import qualified Unison.Names                  as Names
 import           Unison.Parser                 (Ann)
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference              (Reference)
@@ -100,9 +101,9 @@ initialize c = do
   goData   = go Right
 
 prettyBinding :: (Var.Var v, Monad m)
-  => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (PrettyPrint String))
-prettyBinding _ _ (Reference.Builtin _) _ = pure Nothing
-prettyBinding cb name r0@(Reference.DerivedId r) b = go =<< getTerm cb r where
+  => Codebase m v a -> Name -> Referent -> Branch -> m (Maybe (PrettyPrint String))
+prettyBinding _ _ (Names.Ref (Reference.Builtin _)) _ = pure Nothing
+prettyBinding cb name r0@(Names.Ref r1@(Reference.DerivedId r)) b = go =<< getTerm cb r where
   go Nothing = pure Nothing
   go (Just tm) = let
     -- We boost the `(r0,name)` association since if this is a recursive
@@ -112,14 +113,14 @@ prettyBinding cb name r0@(Reference.DerivedId r) b = go =<< getTerm cb r where
     in case tm of
       Term.Ann' _ _ -> pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
       _ -> do
-        Just typ <- getTypeOfTerm cb r0
+        Just typ <- getTypeOfTerm cb r1
         pure . Just $ TermPrinter.prettyBinding ppEnv
           (Var.named name)
           (Term.ann (ABT.annotation tm) tm typ)
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(Name,Reference)] -> Branch -> m (PrettyPrint String)
+  => Codebase m v a -> [(Name,Referent)] -> Branch -> m (PrettyPrint String)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
@@ -176,7 +177,7 @@ sortedApproximateMatches q possible = trim (sortOn fst matches) where
   editDistance q s = levenshteinDistance defaultEditCosts q s
   matches = map (\s -> (score s, s)) possible
   trim ((_,h):_) | h == q = [h]
-  trim ms = map snd $ takeWhile (\(n,_) -> n - 7 < nq `div` 4) ms
+  trim ms        = map snd $ takeWhile (\(n,_) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
