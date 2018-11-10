@@ -104,7 +104,7 @@ synthesizeFile
   -> Names
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
-synthesizeFile lookupType preexistingNames unisonFile = do
+synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 term0) = unisonFile
@@ -115,20 +115,21 @@ synthesizeFile lookupType preexistingNames unisonFile = do
     term = Names.bindTerm allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
-    lookupTypes' = localTypes <> lookupType
-    env0 = (Typechecker.Env Intrinsic [] lookupTypes' fqnsByShortName)
+    lookupTypes = localTypes <> preexistingTypes
+    env0 = (Typechecker.Env Intrinsic [] lookupTypes fqnsByShortName)
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
          [ (Names.unqualified name,
             [Typechecker.NamedReference name typ (Right r)]) |
            (name, r) <- Map.toList $ Names.termNames allTheNames,
-           typ <- Foldable.toList $ TL.typeOfReferent lookupTypes' r ]
+           typ <- Foldable.toList $ TL.typeOfReferent lookupTypes  r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
+  -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    topLevelComponents <- -- :: [[(v, Term v, Type v)]]
+    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
         topLevelBindings :: Map Name (Term v)
         topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings term
