@@ -7,6 +7,7 @@
 
 module Unison.Codebase where
 
+import Data.Char (toLower)
 import           Control.Monad                 (forM, foldM)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List
@@ -32,6 +33,7 @@ import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup (Decl, TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText     (AnnotatedText)
 import           Unison.Util.ColorText         (Color)
 import           Unison.Util.PrettyPrint       (PrettyPrint)
@@ -142,7 +144,7 @@ prettyListingQ :: (Var.Var v, Monad m)
 prettyListingQ _cb _query _b =
   error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
 
-typeLookupForDependencies :: Monad m => 
+typeLookupForDependencies :: Monad m =>
   Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
 typeLookupForDependencies codebase refs = foldM go mempty refs
   where go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
@@ -156,20 +158,25 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
               Nothing -> pure mempty
         go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
+makeSelfContained :: Codebase m v a -> UF.UnisonFile v a -> m (UF.UnisonFile v a)
+makeSelfContained _code _uf = error "todo - expand all the dependencies"
 
 sortedApproximateMatches :: String -> [String] -> [String]
-sortedApproximateMatches q possible = sortOn score matches where
+sortedApproximateMatches q possible = trim (sortOn fst matches) where
   nq = length q
-  score s | s == q           = 0 :: Int -- exact match is top choice
-          | q `isSuffixOf` s = 1        -- matching suffix is pretty good
-          | q `isInfixOf`  s = 2        -- a match somewhere
-          | q `isPrefixOf` s = 3        -- ...
-          | otherwise        = 3 + editDistance q s
-  match s | q `isSubsequenceOf` s = True
-          | editDistance q s < ((length s `max` nq) `div` 3) = True -- "pretty close"
-          | otherwise = False
+  score s | s == q                         = 0 :: Int -- exact match is top choice
+          | map toLower q == map toLower s = 1        -- ignore case
+          | q `isSuffixOf` s               = 2        -- matching suffix is pretty good
+          | q `isInfixOf`  s               = 3        -- a match somewhere
+          | q `isPrefixOf` s               = 4        -- ...
+          | map toLower q `isInfixOf`
+            map toLower s                  = 5
+          | q `isSubsequenceOf` s          = 6
+          | otherwise                      = 7 + editDistance (map toLower q) (map toLower s)
   editDistance q s = levenshteinDistance defaultEditCosts q s
-  matches = filter match possible
+  matches = map (\s -> (score s, s)) possible
+  trim ((_,h):_) | h == q = [h]
+  trim ms = map snd $ takeWhile (\(n,_) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase

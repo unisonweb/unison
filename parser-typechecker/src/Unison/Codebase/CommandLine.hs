@@ -32,7 +32,6 @@ import           Data.IORef                     ( IORef
                                                 )
 import           Data.List                      ( find
                                                 , isSuffixOf
-                                                , isPrefixOf
                                                 , sort
                                                 )
 import           Data.Set                       ( Set )
@@ -381,8 +380,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
           -> let
                query    = intercalateMap " " id args
                allNames = Branch.allNames (Branch.head branch)
-               filtered = filter (query `isPrefixOf`)
-                                 (Text.unpack <$> Set.toList allNames)
+               filtered = Codebase.sortedApproximateMatches query
+                             (Text.unpack <$> Set.toList allNames)
 -- todo: show types of each
              in
                do
