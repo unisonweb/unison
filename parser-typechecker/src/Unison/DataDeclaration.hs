@@ -13,6 +13,8 @@ import Unison.Hash (Hash)
 import           Data.Functor
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Prelude hiding (cycle)
 import           Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
@@ -93,6 +95,10 @@ constructorNames dd = Var.name <$> constructorVars dd
 bindBuiltins :: Var v => Names -> DataDeclaration' v a -> DataDeclaration' v a
 bindBuiltins names (DataDeclaration a bound constructors) =
   DataDeclaration a bound (third (Names.bindType names) <$> constructors)
+
+dependencies :: Ord v => DataDeclaration' v a -> Set Reference
+dependencies dd =
+  Set.unions (Type.dependencies <$> constructorTypes dd)
 
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)

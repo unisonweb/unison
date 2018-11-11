@@ -14,6 +14,7 @@ import           Data.List
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (catMaybes)
 import           Data.Set                      (Set)
+import qualified Data.Set as Set
 import           Data.String                   (fromString)
 import qualified Data.Text                     as Text
 import           Text.EditDistance             (defaultEditCosts,
@@ -40,6 +41,7 @@ import           Unison.Util.ColorText         (Color)
 import           Unison.Util.PrettyPrint       (PrettyPrint)
 import qualified Unison.Util.PrettyPrint       as PP
 import qualified Unison.Var                    as Var
+import Unison.Var (Var)
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -159,8 +161,52 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
               Nothing -> pure mempty
         go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
-makeSelfContained :: Codebase m v a -> UF.UnisonFile v a -> m (UF.UnisonFile v a)
-makeSelfContained _code _uf = error "todo - expand all the dependencies"
+transitiveDependencies :: (Monad m, Var v) => Codebase m v a -> Set Reference -> Reference -> m (Set Reference)
+transitiveDependencies code seen0 r =
+  if Set.member r seen0 then pure seen0
+  else let seen = Set.insert r seen0 in case r of
+    Reference.DerivedId id -> do
+      t <- getTerm code id
+      case t of
+        Just t -> foldM (transitiveDependencies code) seen (Term.dependencies t)
+        Nothing -> do
+          t <- getTypeDeclaration code id
+          case t of
+            Nothing -> pure seen
+            Just (Left ed) ->
+              foldM (transitiveDependencies code) seen (DD.dependencies (DD.toDataDecl ed))
+            Just (Right dd) ->
+              foldM (transitiveDependencies code) seen (DD.dependencies dd)
+    _ -> pure seen
+
+-- Creates a self-contained `UnisonFile` which bakes in all transitive dependencies
+makeSelfContained :: (Monad m, Var v) => Codebase m v a -> Branch -> UF.UnisonFile v a -> m (UF.UnisonFile v a)
+makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
+  deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
+  let pp = Branch.prettyPrintEnv1 b
+  decls <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r,) <$> getTypeDeclaration code rid
+    _ -> pure Nothing
+  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r,Var.named (PPE.termName pp r),) <$> getTerm code rid
+    _ -> pure Nothing
+  let unref t = ABT.visitPure go t where
+        go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+          Just (Term.var (ABT.annotation t) (Var.named $ PPE.termName pp r))
+        go _ = Nothing
+      datas = Map.fromList [
+        (v, (r, dd)) | (r, Right dd) <- decls,
+        v <- [Var.named (PPE.typeName pp r)]]
+      effects = Map.fromList [
+        (v, (r, ed)) | (r, Left ed) <- decls,
+        v <- [Var.named (PPE.typeName pp r)]]
+      bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
+      tm' = case tm of
+        Term.LetRecNamedAnnotatedTop' top ann bs e ->
+          Term.letRec top ann (bindings ++ bs) (unref e)
+        tm ->
+          Term.letRec True (ABT.annotation tm) bindings (unref tm)
+  pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects) tm'
 
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = trim (sortOn fst matches) where

@@ -223,8 +223,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn prettyDefs
             putStrLn
               "👀  Now evaluating any watch expressions (lines starting with `>`) ...\n"
+            selfContainedFile <- Codebase.makeSelfContained codebase branch $ UF.discardTypes' unisonFile
             (watchExpressions, _term) <-
-                    RT.evaluate runtime (UF.discardTypes' unisonFile) codebase
+              RT.evaluate runtime selfContainedFile codebase
             uncurry (Watch.watchPrinter names) `traverse_` watchExpressions
 
     go :: Branch -> Name -> IO ()
