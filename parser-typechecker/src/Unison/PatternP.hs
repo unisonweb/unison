@@ -1,4 +1,4 @@
-{-# Language PatternSynonyms #-}
+{-# Language PatternSynonyms, ViewPatterns #-}
 
 module Unison.PatternP where
 
@@ -16,6 +16,7 @@ pattern Constructor loc r cid ps = P.ConstructorP loc r cid ps
 pattern As loc p = P.AsP loc p
 pattern EffectPure loc p = P.EffectPureP loc p
 pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
+pattern Tuple ps <- (P.unTuple -> Just ps)
 
 loc :: P.PatternP loc -> loc
 loc = P.loc
