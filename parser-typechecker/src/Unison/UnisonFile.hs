@@ -41,6 +41,15 @@ data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
   topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 } deriving Show
 
+-- Removes watch expressions from a typechecked file
+discardWatches :: Var v => TypecheckedUnisonFile v a -> TypecheckedUnisonFile v a
+discardWatches (TypecheckedUnisonFile ds es tlcs) =
+  TypecheckedUnisonFile ds es (filter notWatch tlcs)
+  where
+  -- todo: replace with something less janky once we have different
+  -- kinds of variables
+  notWatch tlc = any (\(v,_,_) -> Text.take 1 (Var.name v) /= "_") tlc
+
 -- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
 data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   dataDeclarations''   :: Map v (Reference, DataDeclaration' v a),

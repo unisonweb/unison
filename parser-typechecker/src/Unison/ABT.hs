@@ -519,6 +519,7 @@ hash t = hash' [] t where
             hashInt :: Int -> h
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
             die = error $ "unknown var in environment: " ++ show (Var.name v)
+                        ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
     Abs v t -> hash' (Right v : env) t

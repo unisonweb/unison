@@ -210,7 +210,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.setTitle "Unison ✅"
             let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
             n <- randomRIO (0, length emoticons - 1)
-            let uf = UF.discardTerm unisonFile
+            let uf = UF.discardWatches (UF.discardTerm unisonFile)
                 defs = prettyTypecheckedFile uf errorEnv
                 prettyDefs = show $ Color.renderText defs
             when (not $ null defs) . putStrLn
