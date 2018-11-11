@@ -440,7 +440,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
                go' b = go b name
              in
                case (toList terms, toList types) of
-                 ([], []) -> putStrLn "I couldn't find anything by that name."
+                 ([], []) -> putStrLn "I couldn't find anything by that name." >> go' branch
                  ([_term], []    ) -> renameTerm branch >>= go'
                  ([]     , [_typ]) -> renameType branch >>= go'
                  ([_term], [_typ]) -> do
