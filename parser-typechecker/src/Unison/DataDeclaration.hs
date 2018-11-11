@@ -114,8 +114,7 @@ toNames0
 toNames0 typeSymbol r f dd =
   let
     names (ctor, i) =
-      let name = mconcat
-            [Var.qualifiedName typeSymbol, ".", Var.qualifiedName ctor]
+      let name = Var.qualifiedName ctor
       in  Names.fromTerms [(name, f r i)] <> Names.fromPatterns [(name, (r, i))]
   in  foldMap names (constructorVars dd `zip` [0 ..])
         <> Names.fromTypesV [(typeSymbol, r)]

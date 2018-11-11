@@ -211,7 +211,7 @@ derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 -- todo: use correct hashes here and hook these up everywhere
 unitRef, pairRef, optionalRef :: Reference
 unitRef = derivedBase58' "3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"
-pairRef = derivedBase58' "5b7ahnhXN8ARuH85tX5kMEVpMttGsokCsXAsmUMFsoDNJPuU6MBtCAnPmBQwNbLcTp1sbFmWeSYhagQRPwnHhDHp"
+pairRef = derivedBase58' "2tWjVAuc7y9ycWkiC1x89DCxrnCAPSWhS4xBZJ3b7oQDFFczHtPgjCpnypU7t8Hx567nFmdX7Ga1m9P21DHr8Y1Y"
 optionalRef = derivedBase58' "5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"
 
 unit, pair, optional :: Ord v => a -> AnnotatedType v a

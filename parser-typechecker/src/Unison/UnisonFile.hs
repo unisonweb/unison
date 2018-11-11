@@ -9,7 +9,7 @@ import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe             (catMaybes, fromMaybe)
+import           Data.Maybe             (catMaybes)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Data.Text              as Text
@@ -114,20 +114,10 @@ hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Term.constructor () ref i)
-        | (v, i) <- DD.constructorVars dd `zip` [0 ..]
-        ]
+        [ (v, Names.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Term.request () ref i)
-        | (v, i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..]
-        ]
-      hashedComponents :: Map v (Reference, AnnotatedTerm v ())
-      hashedComponents = Term.hashComponents (Map.fromList $ ctors1 ++ ctors2)
-  in
-    fromMaybe (error "Constructor wasn't a constructor")
-    . Names.termToReferent
-    . snd
-    <$> hashedComponents
+        [ (v, Names.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+  in Map.fromList (ctors1 ++ ctors2)
 
 hashTerms ::
      Var v

@@ -7,6 +7,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Data.Word (Word64)
+import Unison.Util.Monoid (intercalateMap)
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
@@ -42,6 +43,9 @@ unqualified = named . unqualifiedName
 
 unqualifiedName :: Var v => v -> Text
 unqualifiedName = last . Text.splitOn "." . name
+
+namespaced :: Var v => [v] -> v
+namespaced vs = named $ intercalateMap "." qualifiedName vs
 
 type Kind = String
 
