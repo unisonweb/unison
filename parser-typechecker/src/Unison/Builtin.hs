@@ -52,7 +52,7 @@ t s = ABT.amap (const Intrinsic) .
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
 tm s = Names.bindTerm names . either (error . showParseError s) id $
-          Parser.run (Parser.root TermParser.term) s mempty
+          Parser.run (Parser.root TermParser.term) s names
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =

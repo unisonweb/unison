@@ -547,9 +547,9 @@ unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) 
 unLamsPred' _ = Nothing
 
 unTuple' :: AnnotatedTerm2 vt at ap v a -> Maybe [AnnotatedTerm2 vt at ap v a]
-unTuple' t = case t of 
-  Apps' (Constructor' (Reference.Builtin "Pair") 0) [fst, snd] -> (fst :) <$> unTuple' snd
-  Constructor' (Reference.Builtin "()") 0 -> Just []
+unTuple' t = case t of
+  Apps' (Constructor' Type.PairRef 0) [fst, snd] -> (fst :) <$> unTuple' snd
+  Constructor' Type.UnitRef 0 -> Just []
   _ -> Nothing
 
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
