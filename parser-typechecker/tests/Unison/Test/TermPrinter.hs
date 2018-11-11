@@ -289,9 +289,9 @@ test = scope "termprinter" . tests $
   , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
   , tc "case x of (a, b) -> a"
   , tc "case x of () -> foo"
-  , pending $ tc "case x of [a, b] -> a"
-  , pending $ tc "case x of [a] -> a"
-  , pending $ tc "case x of [] -> a"
+  , pending $ tc "case x of [a, b] -> a"  -- issue #266
+  , pending $ tc "case x of [a] -> a"     -- ditto
+  , pending $ tc "case x of [] -> a"      -- ditto
   , tc_binding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tc_binding 50 "foo" Nothing "3" "foo = 3"
@@ -301,4 +301,11 @@ test = scope "termprinter" . tests $
   , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"
   , tc_binding 9 "foo" Nothing "n m -> 3" "foo n m =\n\
                                           \  3"
+  , tc_binding 50 "+" (Just "Int -> Int -> Int") "a b -> foo a b" "(+) : Int -> Int -> Int\n\
+                                                                  \a + b = foo a b"
+  , tc_binding 50 "+" (Just "Int -> Int -> Int -> Int") "a b c -> foo a b c" "(+) : Int -> Int -> Int -> Int\n\
+                                                                             \(+) a b c = foo a b c"
+  , tc_binding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
+  , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
+
   ]

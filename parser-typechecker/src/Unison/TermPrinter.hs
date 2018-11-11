@@ -25,8 +25,7 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO support infix operator definitions in prettyBinding (isSymbolic v; parens in decl; infix in defn if binary)
---TODO let suppression, missing features, delay blocks
+--TODO let suppression, delay blocks
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
@@ -178,10 +177,6 @@ pretty n p term = specialCases term $ \case
         nonUnitArgPred :: Var v => v -> Bool
         nonUnitArgPred v = (Var.name v) /= "()"
 
-        -- When we use imports in rendering, this will need revisiting, so that we can render
-        -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
-        isSymbolic name = case symbolyId0 $ Text.unpack $ name of Right _ -> True; _ -> False
-
         -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
         -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing "a1 `f1` a2 `f2`".  Except
         -- the operators are all symbolic, so we won't produce any backticks.
@@ -240,17 +235,41 @@ foo : t -> u
 foo a = ...
 
 The first line is only output if the term has a type annotation as the outermost constructor.
+
+Binary functions with symbolic names are output infix, as follows:
+
+(+) : t -> t -> t
+a + b = ...
+
 -}
 prettyBinding :: Var v => PrettyPrintEnv -> v -> AnnotatedTerm v a -> PrettyPrint String
-prettyBinding n v = \case
-  Ann' tm tp -> PP.BrokenGroup $
-    PP.Group (l (varName v) <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
-    PP.Group (prettyBinding n v tm)
-  LamsNamedOpt' vs body ->
-    PP.Group (l (varName v) <> args <> b" " <> l"=") <> b" " <>
-              (PP.Nest "  " $ PP.Group (pretty n (-1) body))
-    where args = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
-  t -> l"error: " <> l (show t)
+prettyBinding n v term = go (symbolic && isBinary term) term where
+  go infix' = \case
+    Ann' tm tp -> PP.BrokenGroup $
+      PP.Group (renderName v <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
+      PP.Group (prettyBinding n v tm)
+    LamsNamedOpt' vs body ->
+      PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
+                (PP.Nest "  " $ PP.Group (pretty n (-1) body))
+      where 
+    t -> l"error: " <> l (show t)
+    where
+      renderName v = (if symbolic
+                      then paren True 
+                      else id) $ l (varName v) 
+      defnLhs v vs = if infix'
+                     then case vs of 
+                            x : y : _ -> l (Text.unpack (Var.name x)) <> b" " <>
+                                         l (varName v) <> b" " <>
+                                         l (Text.unpack (Var.name y))
+                            _ -> l"error"
+                     else renderName v <> (args vs)
+      args vs = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
+  isBinary = \case
+    Ann' tm _ -> isBinary tm
+    LamsNamedOpt' vs _ -> length vs == 2
+    _ -> False -- unhittable
+  symbolic = isSymbolic (Var.name v)
 
 prettyBinding' :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
@@ -270,3 +289,8 @@ l = Literal
 
 b :: String -> PrettyPrint String
 b = Breakable
+
+-- When we use imports in rendering, this will need revisiting, so that we can render
+-- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
+isSymbolic :: Text.Text -> Bool
+isSymbolic name = case symbolyId0 $ Text.unpack $ name of Right _ -> True; _ -> False
