@@ -248,7 +248,7 @@ test = scope "termprinter" . tests $
   , tc "(foo (p + q) r) + s"
   , tc "foo (p + q + r) s"
   , tc "p + q + r + s"
-  , tc_diff_rtt False "(foo.+) x y" "foo.+ x y" 0  -- TODO parser doesn't like foo.+ without the brackets - problem?
+  , tc_diff_rtt False "(foo.+) x y" "x foo.+ y" 0
                                                    --      Or change pretty-printer to match?
   , tc "x + y + (f a b c)"
   , tc "x + y + (foo a b)"
@@ -280,7 +280,7 @@ test = scope "termprinter" . tests $
                                                      --  Pair "2" (Pair 2 ()#0)
                                                      -- instead of
                                                      --  Pair#0 "2" (Pair#0 2 ()#0)
-                                                     -- Maybe because in this context the 
+                                                     -- Maybe because in this context the
                                                      -- parser can't distinguish between a constructor
                                                      -- called 'Pair' and a function called 'Pair'.
   , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above

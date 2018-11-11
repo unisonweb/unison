@@ -11,7 +11,7 @@ import           Data.Maybe (fromMaybe)
 import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
-import           Unison.Lexer (symbolyId0)
+import           Unison.Lexer (symbolyId)
 import qualified Unison.Names as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
@@ -202,10 +202,10 @@ prettyPattern n p vs patt = case patt of
   Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
   Pattern.Nat _ u     -> (l $ show u, vs)
   Pattern.Float _ f   -> (l $ show f, vs)
-  Pattern.Tuple [pp]   -> let 
+  Pattern.Tuple [pp]   -> let
     (printed, tail_vs) = prettyPattern n 10 vs pp
     in (parenNest (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
-  Pattern.Tuple pats  -> let 
+  Pattern.Tuple pats  -> let
     (pats_printed, tail_vs) = patterns vs pats
     in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
   Pattern.Constructor _ ref i pats -> let
@@ -253,14 +253,14 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
     LamsNamedOpt' vs body ->
       PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
                 (PP.Nest "  " $ PP.Group (pretty n (-1) body))
-      where 
+      where
     t -> l"error: " <> l (show t)
     where
       renderName v = (if symbolic
-                      then paren True 
-                      else id) $ l (varName v) 
+                      then paren True
+                      else id) $ l (varName v)
       defnLhs v vs = if infix'
-                     then case vs of 
+                     then case vs of
                             x : y : _ -> l (Text.unpack (Var.name x)) <> b" " <>
                                          l (varName v) <> b" " <>
                                          l (Text.unpack (Var.name y))
@@ -295,4 +295,4 @@ b = Breakable
 -- When we use imports in rendering, this will need revisiting, so that we can render
 -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
 isSymbolic :: Text.Text -> Bool
-isSymbolic name = case symbolyId0 $ Text.unpack $ name of Right _ -> True; _ -> False
+isSymbolic name = case symbolyId $ Text.unpack $ name of Right _ -> True; _ -> False
