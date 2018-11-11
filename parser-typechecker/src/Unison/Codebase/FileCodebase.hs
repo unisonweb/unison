@@ -32,7 +32,7 @@ import           Unison.Codebase                  (Codebase (Codebase),
                                                    Err (InvalidBranchFile))
 import           Unison.Codebase.Branch           (Branch)
 import qualified Unison.Codebase.Branch           as Branch
-import           Unison.Codebase.Name             (Name)
+import Unison.Names (Name)
 import qualified Unison.Codebase.Serialization    as S
 import qualified Unison.Codebase.Serialization.V0 as V0
 import qualified Unison.Codebase.Watch            as Watch
@@ -109,6 +109,7 @@ addComponentId i n s = show i <> "-" <> show n <> "-" <> s
 
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
+
 branchPath :: FilePath -> Text -> FilePath
 branchPath path name = branchesPath path </> Text.unpack name
 

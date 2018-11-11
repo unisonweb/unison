@@ -1,21 +1,23 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Test.Common where
 
-import qualified Data.Map as Map
+import           Data.Functor.Identity (runIdentity)
 import           Data.Sequence (Seq)
+import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.PrintError as PrintError
+import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Result (Result)
 import qualified Unison.Result as Result
+import           Unison.Result (Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
-import qualified Unison.Parsers as Parsers
-import qualified Unison.Parser as Parser
-import           Unison.Result (Result(..), Note)
+import           Unison.UnisonFile (TypecheckedUnisonFile')
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -27,28 +29,27 @@ file
   :: String
   -> Result
        (Seq (Note Symbol Ann))
-       (PrintError.Env, Maybe (Term Symbol, Type Symbol))
+       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' Symbol Ann))
 file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks = Result.isSuccess . file
+typechecks = runIdentity . Result.isSuccess . file
 
-env :: Monad m => Typechecker.Env m Symbol Ann
-env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
-  typeOf r = error $ "no type for: " ++ show r
-  dd r = error $ "no data declaration for: " ++ show r
-  ed r = error $ "no effect declaration for: " ++ show r
+env :: Typechecker.Env Symbol Ann
+env = Typechecker.Env Intrinsic [] B.typeLookup mempty
 
 parseAndSynthesizeAsFile
   :: Var v
   => FilePath
   -> String
-  -> Result (Seq (Note v Ann)) (PrintError.Env, Maybe (Term v, Type v))
-parseAndSynthesizeAsFile filename s = do
-  (errorEnv, file) <- Result.fromParsing
-    $ Parsers.parseFile filename s Parser.penv0
-  let (Result notes' r) = FP.synthesizeFile file
-  Result notes' $ Just (errorEnv, r)
+  -> Result (Seq (Note v Ann))
+            (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
+parseAndSynthesizeAsFile filename s =
+  FP.parseAndSynthesizeFile
+    (\_deps -> pure B.typeLookup)
+    B.names
+    filename
+    (Text.pack s)

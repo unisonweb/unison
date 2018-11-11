@@ -121,9 +121,10 @@ bindBuiltins termBuiltins typeBuiltins t =
    g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
    g = ABT.substsInheritAnnotation termBuiltins
 
-typeDirectedResolve :: Var v
-                    => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
-typeDirectedResolve t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
+-- Prepare a term for type-directed name resolution by replacing
+-- any remaining free variables with blanks to be resolved by TDNR
+prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
+prepareTDNR t = fmap fst . ABT.visitPure f $ ABT.annotateBound t
   where f (ABT.Term _ (a, bound) (ABT.Var v)) | Set.notMember v bound =
           Just $ resolve (a, bound) a (Text.unpack $ Var.name v)
         f _ = Nothing
@@ -274,14 +275,14 @@ text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
 unit :: Var v => a -> AnnotatedTerm v a
-unit ann = constructor ann (Reference.Builtin "()") 0
+unit ann = constructor ann Type.unitRef 0
 
 tupleCons :: (Ord v, Semigroup a)
           => AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
           -> AnnotatedTerm2 vt at ap v a
 tupleCons hd tl =
-  apps' (constructor (ABT.annotation hd) (Reference.Builtin "Pair") 0) [hd, tl]
+  apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
@@ -530,8 +531,8 @@ unBinaryAppsPred (t, pred) = case unBinaryApp t of
 unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' t = unLamsPred' (t, (\_ -> True))
 
--- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a 
--- lambda extraction.  
+-- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
+-- lambda extraction.
 unLamsOpt' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLamsOpt' t = case unLams' t of
   r@(Just _) -> r
@@ -556,9 +557,14 @@ unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
-dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies t =
+  dependencies' t <> referencedDataDeclarations t <> referencedEffectDeclarations t
+
+dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
         f t = pure t
 
 referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
@@ -607,14 +613,22 @@ hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, Annota
 hashComponents m = Reference.hashComponents (\r -> ref() r) m
 
 -- The hash for a constructor
+hashConstructor'
+  :: (Reference -> Int -> Term Symbol) -> Reference -> Int -> Reference
+hashConstructor' f r cid =
+  let
+-- this is a bit circuitous, but defining everything in terms of hashComponents
+-- ensure the hashing is always done in the same way
+      m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
+  in  case toList m of
+        [(r, _)] -> r
+        _        -> error "unpossible"
+
 hashConstructor :: Reference -> Int -> Reference
-hashConstructor r cid = let
-  -- this is a bit circuitous, but defining everything in terms of hashComponents
-  -- ensure the hashing is always done in the same way
-  m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, constructor() r cid)])
-  in case toList m of
-    [(r,_)] -> r
-    _ -> error "unpossible"
+hashConstructor = hashConstructor' $ constructor ()
+
+hashRequest :: Reference -> Int -> Reference
+hashRequest = hashConstructor' $ request ()
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

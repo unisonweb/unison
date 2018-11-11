@@ -48,7 +48,7 @@ delayed = do
   q <- reserved "'"
   t <- effect <|> type2
   pure $ Type.arrow (Ann (L.start q) (end $ ann t))
-                    (Type.builtin (ann q) "()")
+                    (Type.unit (ann q))
                     t
 
 type2 :: Var v => TypeP v
@@ -78,12 +78,11 @@ sequenceTyp = do
   pure $ Type.app a (Type.vector a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
-tupleOrParenthesizedType rec = tupleOrParenthesized rec unit pair
+tupleOrParenthesizedType rec = tupleOrParenthesized rec Type.unit pair
   where
     pair t1 t2 =
       let a = ann t1 <> ann t2
-      in Type.app a (Type.app (ann t1) (Type.builtin a "Pair") t1) t2
-    unit a = Type.builtin a "()"
+      in Type.app a (Type.app (ann t1) (Type.pair a) t1) t2
 
 -- "TypeA TypeB TypeC"
 app :: Ord v => TypeP v -> TypeP v

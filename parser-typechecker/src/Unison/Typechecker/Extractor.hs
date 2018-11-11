@@ -29,6 +29,8 @@ import qualified Unison.Typechecker.Context    as C
 import           Unison.Util.Monoid             ( whenM )
 import qualified Unison.Blank                  as B
 
+type RedundantTypeAnnotation = Bool
+
 type Extractor e a = MaybeT (Reader e) a
 
 type ErrorExtractor v loc a = Extractor (C.ErrorNote v loc) a
@@ -295,7 +297,11 @@ path :: ErrorExtractor v loc [C.PathElement v loc]
 path = extractor $ pure . toList . C.path
 
 -- Informational notes --
-topLevelComponent :: InfoExtractor v loc [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]
+topLevelComponent
+  :: InfoExtractor
+       v
+       loc
+       [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)]
 topLevelComponent = extractor go
  where
   go (C.TopLevelComponent c) = Just c

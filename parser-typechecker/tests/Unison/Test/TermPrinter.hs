@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Test.TermPrinter where
 
@@ -12,14 +13,10 @@ import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.PrettyPrint as PP
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
-import qualified Unison.Reference as R
+import qualified Unison.PrettyPrintEnv as PPE
 
-get_names :: PrettyPrintEnv.PrettyPrintEnv
-get_names = PrettyPrintEnv.withConstructorNames [
-  ((R.Builtin "()", 0), "()"),
-  ((R.Builtin "Pair", 0), "Pair")
- ]
+get_names :: PPE.PrettyPrintEnv
+get_names = PPE.fromNames Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.

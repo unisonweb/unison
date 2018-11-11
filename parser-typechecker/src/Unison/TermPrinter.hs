@@ -12,10 +12,11 @@ import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
 import           Unison.Lexer (symbolyId0)
+import qualified Unison.Names as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import qualified Unison.Reference as Reference
 import           Unison.Term
+import qualified Unison.Type as Type
 import qualified Unison.TypePrinter as TypePrinter
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -89,7 +90,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint Str
 -- `Maybe Int` identifies which constructor.
 pretty n p term = specialCases term $ \case
   Var' v       -> l $ varName v
-  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n r)
+  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> parenNest (p >= 0) $
                     pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
@@ -104,11 +105,12 @@ pretty n p term = specialCases term $ \case
   Boolean' b   -> if b then l"true" else l"false"
   Text' s      -> l $ show s
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
-  RequestOrCtor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
+  Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
+  Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
   Handle' h body -> parenNest (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  App' x (Constructor' (Reference.Builtin "()") 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
+  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
   LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
   Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
@@ -165,14 +167,14 @@ pretty n p term = specialCases term $ \case
         -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".
         binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
         binaryOpsPred = \case
-          Ref' r | isSymbolic (PrettyPrintEnv.termName n r) -> True
+          Ref' r | isSymbolic (PrettyPrintEnv.termName n (Names.Ref r)) -> True
           Var' v | isSymbolic (Var.name v)  -> True
           _                                 -> False
 
         nonForcePred :: AnnotatedTerm v a -> Bool
         nonForcePred = \case
-          Constructor' (Reference.Builtin "()") 0 -> False
-          _                                       -> True
+          Constructor' Type.UnitRef 0 -> False
+          _                           -> True
 
         nonUnitArgPred :: Var v => v -> Bool
         nonUnitArgPred v = (Var.name v) /= "()"
@@ -208,7 +210,7 @@ prettyPattern n p vs patt = case patt of
     in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
   Pattern.Constructor _ ref i pats -> let
     (pats_printed, tail_vs) = patternsSep (b" ") vs pats
-    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.constructorName n ref i)) <> pats_printed, tail_vs)
+    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed, tail_vs)
   Pattern.As _ pat    -> let (v : tail_vs) = vs
                              (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
                          in (parenNest (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)

@@ -13,6 +13,7 @@
 module Unison.Typechecker.Context
   ( synthesizeClosed
   , ErrorNote(..)
+  , CompilerBug (..)
   , InfoNote(..)
   , Cause(..)
   , Context(..)
@@ -36,48 +37,59 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative (Alternative (..))
+import           Control.Applicative            ( Alternative(..) )
 import           Control.Monad
 import           Control.Monad.Reader.Class
-import           Control.Monad.State (get, put, StateT, runStateT)
-import           Control.Monad.Trans (lift)
-import           Control.Monad.Writer (MonadWriter(..))
-import           Data.Bifunctor (first, second)
-import           Data.Foldable (for_)
-import qualified Data.Foldable as Foldable
+import           Control.Monad.State            ( get
+                                                , put
+                                                , StateT
+                                                , runStateT
+                                                )
+import           Control.Monad.Trans            ( lift )
+import           Control.Monad.Writer           ( MonadWriter(..) )
+import           Data.Bifunctor                 ( first
+                                                , second
+                                                )
+import           Data.Foldable                  ( for_ )
+import qualified Data.Foldable                 as Foldable
 import           Data.Functor
 import           Data.List
-import           Data.List.NonEmpty (NonEmpty)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.List.NonEmpty             ( NonEmpty )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
 import           Data.Maybe
-import           Data.Sequence (Seq)
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Word (Word64)
+import           Data.Sequence                  ( Seq )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import           Data.Word                      ( Word64 )
 import           Debug.Trace
-import qualified Unison.ABT as ABT
-import qualified Unison.Blank as B
-import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import qualified Unison.DataDeclaration as DD
-import           Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
-import           Unison.Reference (Reference)
-import           Unison.Term (AnnotatedTerm')
-import qualified Unison.Term as Term
-import           Unison.Type (AnnotatedType)
-import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
-import           Unison.Typechecker.Components (minimize')
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
+import qualified Unison.ABT                    as ABT
+import qualified Unison.Blank                  as B
+import qualified Unison.Names                  as Names
+import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , EffectDeclaration'
+                                                )
+import qualified Unison.DataDeclaration        as DD
+import           Unison.PatternP                ( Pattern )
+import qualified Unison.PatternP               as Pattern
+import           Unison.Reference               ( Reference )
+import           Unison.Term                    ( AnnotatedTerm' )
+import qualified Unison.Term                   as Term
+import           Unison.Type                    ( AnnotatedType )
+import qualified Unison.Type                   as Type
+import           Unison.Typechecker.Components  ( minimize' )
+import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.TypeVar                as TypeVar
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = AnnotatedType (TypeVar v loc) loc
 type Term v loc = AnnotatedTerm' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
+type RedundantTypeAnnotation = Bool
 
 pattern Universal v = Var (TypeVar.Universal v)
 pattern Existential b v = Var (TypeVar.Existential b v)
@@ -175,6 +187,7 @@ data CompilerBug v loc
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
   | UnannotatedReference Reference
   | MalformedPattern (Pattern loc)
+  | UnknownTermReference Reference
   deriving Show
 
 data PathElement v loc
@@ -202,7 +215,7 @@ type ConstructorId = Int
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
-             , builtin :: Bool
+             , suggestionReplacement :: Either v Names.Referent
              } |
   WrongType { suggestionName :: Text
             , suggestionType :: Type v loc
@@ -221,9 +234,12 @@ data ErrorNote v loc = ErrorNote {
   path :: Seq (PathElement v loc)
 } deriving Show
 
+-- `Decision v loc fqn` is a decision to replace the name v at location loc
+-- with the fully qualified name fqn.
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
-  | TopLevelComponent [(v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc)]
+  | Decision v loc (Term.AnnotatedTerm v loc)
+  | TopLevelComponent [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)]
   deriving (Show)
 
 data Cause v loc
@@ -544,6 +560,10 @@ failWith :: Cause v loc -> M v loc a
 failWith cause =
   M (const $ Result (pure $ ErrorNote cause mempty) mempty Nothing)
 
+compilerCrashResult :: CompilerBug v loc -> Result v loc a
+compilerCrashResult bug =
+  Result (pure $ ErrorNote (CompilerBug bug) mempty) mempty Nothing
+
 failSecretlyAndDangerously :: M v loc a
 failSecretlyAndDangerously = empty
 
@@ -689,17 +709,17 @@ noteTopLevelType
   -> Type v loc
   -> M v loc ()
 noteTopLevelType e binding typ = case binding of
-  Term.Ann' strippedBinding typ1 -> do
-    typ2 <- synthesize strippedBinding `orElse` pure typ
+  Term.Ann' strippedBinding annotatedType -> do
+    inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
+    -- TODO: We're kind of assuming that `annotatedType` is the same as `typ`.
+    -- Is that actually true?
+    let redundant = case inferred of
+          Nothing -> False
+          Just t  -> t == annotatedType
     btw $ TopLevelComponent
-      [(ABT.variable e,
-        Term.typeMap Type.generalizeAndUnTypeVar $
-          if typ2 == typ then strippedBinding
-          else binding,
-        Type.generalizeAndUnTypeVar typ1)]
-  _ -> btw $ TopLevelComponent [
-        (ABT.variable e, Term.typeMap Type.generalizeAndUnTypeVar binding, Type.generalizeAndUnTypeVar typ)
-       ]
+      [(ABT.variable e, Type.generalizeAndUnTypeVar annotatedType, redundant)]
+  _ -> btw $ TopLevelComponent
+    [(ABT.variable e, Type.generalizeAndUnTypeVar typ, False)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -972,62 +992,62 @@ annotateLetRecBindings
 annotateLetRecBindings isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
   -- which asks if the user-provided type annotations were needed.
-  if isTop then do
+  if isTop
+  then do
     -- First, typecheck (using annotateLetRecBindings') the bindings with any
     -- user-provided annotations.
-    (marker, bindings, strippedBindings, body, vts) <- annotateLetRecBindings' True
+    (marker, body, vts) <- annotateLetRecBindings' True
     -- Then, try typechecking again, but ignoring any user-provided annotations.
     -- This will infer whatever type.  If it altogether fails to typecheck here
     -- then, ...(1)
-    withoutAnnotations <-
+    withoutAnnotations  <-
       resetContextAfter Nothing $ (Just <$> annotateLetRecBindings' False)
-
-    let vbt bindings vts = [ (v, b, t) | (b, (v,t)) <- bindings `zip` vts ]
-        -- convert from typechecker TypeVar back to regular `v` vars
-        unTypeVar (v, b, t) = (v, Term.unTypeVar b, Type.generalizeAndUnTypeVar t)
+    -- convert from typechecker TypeVar back to regular `v` vars
+    let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
       -- If the types (snd vts) are the same, then we know that the annotations
       -- were redundant, and we discard them.
-      Just (_, _, _, _, vts') | fmap snd vts == fmap snd vts' ->
-        btw $ TopLevelComponent (unTypeVar <$> vbt strippedBindings vts)
+      Just (_, _, vts') | fmap snd vts == fmap snd vts' ->
+        btw $ TopLevelComponent ((\(a, b) -> (a, b, True)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
-      _otherwise -> btw $ TopLevelComponent (unTypeVar <$> vbt bindings vts)
+      _otherwise -> btw
+        $ TopLevelComponent ((\(a, b) -> (a, b, False)) . unTypeVar <$> vts)
     pure (marker, body)
   -- If this isn't a top-level letrec, then we don't have to do anything special
-  else do
-    (\(marker, _, _, body, _) -> (marker, body)) <$> annotateLetRecBindings' True
-  where
-    annotateLetRecBindings' useUserAnnotations = do
-      (bindings, body) <- letrec freshenVar
-      let vs = map fst bindings
-      -- generate a fresh existential variable `e1, e2 ...` for each binding
-      es <- traverse freshenVar vs
-      e1 <- freshNamed "bindings-start"
-      ctx <- getContext
-      -- Introduce these existentials into the context and
-      -- annotate each term variable w/ corresponding existential
-      -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-      let f e (_,binding) = case binding of
-            -- TODO: Think about whether `apply` here is always correct
-            --       Used to have a guard that would only do this if t had no free vars
-            Term.Ann' _ t | useUserAnnotations -> apply ctx t
-            _ -> Type.existential' (loc binding) B.Blank e
-      let bindingTypes = zipWith f es bindings
-          bindingArities = Term.arity . snd <$> bindings
-      appendContext $ context (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
-      -- check each `bi` against `ei`; sequencing resulting contexts
-      Foldable.for_ (zip bindings bindingTypes) $ \((_,b), t) -> check b t
-      -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
-      -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
-      (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
-      let gen bindingType arity = Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
-          bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
-          annotations = zipWith Ann vs bindingTypesGeneralized
-      marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
-      doRetract (Marker e1)
-      appendContext . context $ marker : annotations
-      let strippedBindings = (\case (_, Term.Ann' tm _) -> tm; (_,tm) -> tm) <$> bindings
-      pure (marker, snd <$> bindings, strippedBindings, body, vs `zip` bindingTypesGeneralized)
+  else (\(marker, body, _) -> (marker, body)) <$> annotateLetRecBindings' True
+ where
+  annotateLetRecBindings' useUserAnnotations = do
+    (bindings, body) <- letrec freshenVar
+    let vs = map fst bindings
+    -- generate a fresh existential variable `e1, e2 ...` for each binding
+    es  <- traverse freshenVar vs
+    e1  <- freshNamed "bindings-start"
+    ctx <- getContext
+    -- Introduce these existentials into the context and
+    -- annotate each term variable w/ corresponding existential
+    -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
+    let f e (_, binding) = case binding of
+          -- TODO: Think about whether `apply` here is always correct
+          -- Used to have a guard that would only do this if t had no free vars
+          Term.Ann' _ t | useUserAnnotations -> apply ctx t
+          _ -> Type.existential' (loc binding) B.Blank e
+    let bindingTypes   = zipWith f es bindings
+        bindingArities = Term.arity . snd <$> bindings
+    appendContext $ context
+      (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
+    -- check each `bi` against `ei`; sequencing resulting contexts
+    Foldable.for_ (zip bindings bindingTypes) $ \((_, b), t) -> check b t
+    -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
+    -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
+    (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
+    let gen bindingType arity =
+          Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
+        bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
+        annotations             = zipWith Ann vs bindingTypesGeneralized
+    marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+    doRetract (Marker e1)
+    appendContext . context $ marker : annotations
+    pure (marker, body, vs `zip` bindingTypesGeneralized)
 
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
@@ -1391,25 +1411,24 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 
 -- | public interface to the typechecker
 synthesizeClosed
-  :: (Monad f, Var v, Ord loc)
+  :: (Var v, Ord loc)
   => loc
   -> [Type v loc]
-  -> (Reference -> f (Type.AnnotatedType v loc))
-  -> (Reference -> f (DataDeclaration' v loc))
-  -> (Reference -> f (EffectDeclaration' v loc))
+  -> TL.TypeLookup v loc
   -> Term v loc
-  -> f (Result v loc (Type v loc))
-synthesizeClosed builtinLoc abilities synthRef lookupData lookupEffect term = do
-  let dataRefs = Set.toList $ Term.referencedDataDeclarations term
-      effectRefs = Set.toList $ Term.referencedEffectDeclarations term
-  term <- annotateRefs synthRef term
-  datas <- Map.fromList <$> traverse (\r -> (r,) <$> lookupData r) dataRefs
-  effects <- Map.fromList <$> traverse (\r -> (r,) <$> lookupEffect r) effectRefs
-  pure . run builtinLoc [] datas effects $ do
-    verifyDataDeclarations datas
-    verifyDataDeclarations (DD.toDataDecl <$> effects)
-    verifyClosedTerm term
-    synthesizeClosed' abilities term
+  -> Result v loc (Type v loc)
+synthesizeClosed builtinLoc abilities lookupType term0 = let
+  datas = TL.dataDecls lookupType
+  effects = TL.effectDecls lookupType
+  term = annotateRefs (TL.typeOfTerm' lookupType) term0
+  in case term of
+    Left missingRef ->
+      compilerCrashResult (UnknownTermReference missingRef)
+    Right term -> run builtinLoc [] datas effects $ do
+      verifyDataDeclarations datas
+      verifyDataDeclarations (DD.toDataDecl <$> effects)
+      verifyClosedTerm term
+      synthesizeClosed' abilities term
 
 verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
 verifyClosedTerm t = do
@@ -1480,18 +1499,19 @@ synthesizeClosed' abilities term = do
   setContext ctx0 -- restore the initial context
   pure $ generalizeExistentials ctx t
 
+-- Check if the given typechecking action succeeds
+succeeds :: M v loc a -> M v loc Bool
+succeeds m = do
+  e <- ask
+  let Result _ _ r = runM m e
+  pure $ isJust r
+
 -- Check if `t1` is a subtype of `t2`. Doesn't update the typechecking context.
 isSubtype' :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
 isSubtype' type1 type2 = do
   let vars = Set.union (ABT.freeVars type1) (ABT.freeVars type2)
   appendContext $ context (Var <$> Set.toList vars)
   succeeds $ subtype type1 type2
-  where
-    succeeds :: M v loc a -> M v loc Bool
-    succeeds m = do
-      e <- ask
-      let Result _ _ r = runM m e
-      pure $ isJust r
 
 -- Public interface to `isSubtype`
 isSubtype

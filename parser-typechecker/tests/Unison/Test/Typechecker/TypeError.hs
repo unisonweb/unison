@@ -1,11 +1,13 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Unison.Test.Typechecker.TypeError where
 
 import           Data.Foldable                (toList)
 import           Data.Maybe                   (isJust)
 import           EasyTest
 import           Unison.Parser                (Ann)
-import           Unison.Result                (Result (..))
+import           Unison.Result                (pattern Result)
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)
 import qualified Unison.Typechecker.Context   as C

@@ -43,7 +43,6 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
     Unison.Codebase.FileCodebase
-    Unison.Codebase.Name
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
     Unison.Codebase.Runtime.JVM
@@ -59,6 +58,7 @@ library
     Unison.Hashable
     Unison.Kind
     Unison.Lexer
+    Unison.Names
     Unison.Parser
     Unison.Parsers
     Unison.Path
@@ -85,6 +85,7 @@ library
     Unison.Typechecker.Context
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
+    Unison.Typechecker.TypeLookup
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
@@ -94,6 +95,7 @@ library
     Unison.Util.Monoid
     Unison.Util.PrettyPrint
     Unison.Util.Range
+    Unison.Util.Relation
     Unison.Util.TQueue
     Unison.Var
 
@@ -110,6 +112,7 @@ library
     cryptonite,
     directory,
     errors,
+    edit-distance,
     filepath,
     free,
     fsnotify,
@@ -126,7 +129,6 @@ library
     megaparsec,
     prelude-extras,
     random,
-    relation,
     safe,
     stm,
     strings,

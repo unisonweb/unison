@@ -37,8 +37,11 @@ class (Show v, Eq v, Ord v) => Var v where
   freshIn :: Set v -> v -> v
   freshenId :: Word64 -> v -> v
 
-  unqualified :: v -> Text
-  unqualified = last . Text.splitOn "." . name
+unqualified :: Var v => v -> v
+unqualified = named . unqualifiedName
+
+unqualifiedName :: Var v => v -> Text
+unqualifiedName = last . Text.splitOn "." . name
 
 type Kind = String
 

@@ -3,15 +3,15 @@
 module Unison.Test.FileParser where
 
   import EasyTest
-  import qualified Unison.Builtin as Builtin
   import Unison.FileParser (file)
   import Unison.Parser
   import qualified Unison.Parser as Parser
   import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
-  import qualified Data.Map as Map
   import qualified Unison.Reference as R
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
+  import qualified Unison.Names as Names
+  import Unison.Names (Names)
 
   test1 :: Test ()
   test1 = scope "fileparser.test1" . tests . map parses $
@@ -52,19 +52,15 @@ module Unison.Test.FileParser where
   test :: Test ()
   test = test1
 
-  builtins :: PEnv Symbol
-  builtins = PEnv (Map.fromList
-    [("Pair", (R.Builtin "Pair", 0)),
-     ("State.set", (R.Builtin "State", 0))]) mempty
+  builtins :: Names
+  builtins = Names.fromPatterns [
+    ("Pair", (R.Builtin "Pair", 0)),
+    ("State.set", (R.Builtin "State", 0))]
 
   parses :: String -> Test ()
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol Ann
       !p = snd . unsafeGetRightFrom s $
-             Unison.Parser.run
-               (Parser.rootFile $
-                 file Builtin.builtinTerms Builtin.builtinTypes)
-                 s
-                 builtins
+             Unison.Parser.run (Parser.rootFile file) s builtins
     pure p >> ok

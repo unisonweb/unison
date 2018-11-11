@@ -6,6 +6,9 @@ import Term.Term
 import Term.F._
 import annotation.switch
 
+/**
+ * A codec for runtime values.
+ */
 object Codecs {
 
   sealed trait Node {

@@ -18,7 +18,6 @@ import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
 import           Data.List (elem)
-import qualified Data.Map as Map
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or)
@@ -36,6 +35,7 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Names as Names
 
 import Debug.Trace
 
@@ -104,9 +104,9 @@ parsePattern = constructor <|> leaf
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-  unit ann = (Pattern.Constructor ann (R.Builtin "()") 0 [], [])
+  unit ann = (Pattern.Constructor ann Type.unitRef 0 [], [])
   pair (p1, v1) (p2, v2) =
-    (Pattern.Constructor (ann p1 <> ann p2) (R.Builtin "Pair") 0 [p1, p2],
+    (Pattern.Constructor (ann p1 <> ann p2) Type.pairRef 0 [p1, p2],
      v1 ++ v2)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
@@ -132,7 +132,7 @@ parsePattern = constructor <|> leaf
     (name, leaves) <- P.try effectBind0
     (cont, vsp) <- parsePattern
     env <- ask
-    (ref,cid) <- case Map.lookup (L.payload name) (constructorLookup env) of
+    (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownEffectConstructor name
     pure $ case unzip leaves of
@@ -154,7 +154,7 @@ parsePattern = constructor <|> leaf
     t <- ctorName
     let name = L.payload t
     env <- ask
-    case Map.lookup name (constructorLookup env) of
+    case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
           go pairs = case unzip pairs of
@@ -365,14 +365,14 @@ block' isTop s openBlock closeBlock = do
     let sem = P.try (semi <* P.lookAhead (reserved "use"))
     imports <- mconcat . reverse <$> sepBy sem importp
     _ <- optional semi
-    env <- importing imports <$> ask
+    env <- Names.importing imports <$> ask
     statements <- local (const env) $ sepBy semi statement
     _ <- closeBlock
     let
       importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
       substImports tm =
         ABT.substsInheritAnnotation importTerms .
-        Term.typeMap (Type.bindBuiltins . Map.toList $ typesByName env) $ tm
+        Term.typeMap (Names.bindType env) $ tm
     substImports <$> go open statements
   where
     statement = namespaceBlock <|> do
@@ -447,6 +447,6 @@ tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit p
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) (R.Builtin "Pair") 0)
+                  (Term.constructor (ann t1 <> ann t2) Type.pairRef 0)
                   t1)
         t2

@@ -3,51 +3,69 @@
 module Unison.Codebase.Serialization.V0 where
 
 -- import qualified Data.Text as Text
-import qualified Data.Vector as Vector
-import qualified Unison.PatternP as Pattern
-import Unison.PatternP (Pattern)
-import Control.Applicative (liftA2,liftA3)
-import Control.Monad (replicateM)
-import Data.Bits (Bits)
-import Data.Bytes.Get
-import Data.Bytes.Put
-import Data.Bytes.Serial (serialize, deserialize, serializeBE, deserializeBE)
-import Data.Bytes.Signed (Unsigned)
-import Data.Bytes.VarInt (VarInt(..))
-import Data.Foldable (traverse_)
-import Data.Int (Int64)
-import Data.List (elemIndex, foldl')
-import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Relation (Relation)
-import Data.Word (Word64)
-import Unison.Codebase.Branch (Branch(..), Branch0(..))
-import Unison.Codebase.Causal (Causal)
-import Unison.Codebase.TermEdit (TermEdit)
-import Unison.Codebase.TypeEdit (TypeEdit)
-import Unison.Hash (Hash)
-import Unison.Kind (Kind)
-import Unison.Reference (Reference)
-import Unison.Symbol (Symbol(..))
-import Unison.Term (AnnotatedTerm)
-import qualified Data.ByteString as B
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.Causal as Causal
-import qualified Unison.Codebase.TermEdit as TermEdit
-import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Data.Vector                   as Vector
+import qualified Unison.PatternP               as Pattern
+import           Unison.PatternP                ( Pattern )
+import           Control.Applicative            ( liftA2
+                                                , liftA3
+                                                )
+import           Control.Monad                  ( replicateM )
+import           Data.Bits                      ( Bits )
+import           Data.Bytes.Get
+import           Data.Bytes.Put
+import           Data.Bytes.Serial              ( serialize
+                                                , deserialize
+                                                , serializeBE
+                                                , deserializeBE
+                                                )
+import           Data.Bytes.Signed              ( Unsigned )
+import           Data.Bytes.VarInt              ( VarInt(..) )
+import           Data.Foldable                  ( traverse_ )
+import           Data.Int                       ( Int64 )
+import           Data.List                      ( elemIndex
+                                                , foldl'
+                                                )
+import           Data.Text                      ( Text )
+import           Data.Text.Encoding             ( encodeUtf8
+                                                , decodeUtf8
+                                                )
+import           Data.Word                      ( Word64 )
+import           Unison.Codebase.Branch         ( Branch(..)
+                                                , Branch0(..)
+                                                )
+import           Unison.Codebase.Causal         ( Causal )
+import           Unison.Codebase.TermEdit       ( TermEdit )
+import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Hash                    ( Hash )
+import           Unison.Kind                    ( Kind )
+import           Unison.Names (Referent)
+import qualified Unison.Names as Names
+import           Unison.Reference               ( Reference )
+import           Unison.Symbol                  ( Symbol(..) )
+import           Unison.Term                    ( AnnotatedTerm )
+import qualified Data.ByteString               as B
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Unison.ABT                    as ABT
+import qualified Unison.Codebase.Causal        as Causal
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Hash as Hash
-import qualified Unison.Kind as Kind
-import qualified Unison.Reference as Reference
-import qualified Data.Relation as Relation
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import qualified Unison.DataDeclaration as DataDeclaration
-import Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
+import qualified Unison.Hash                   as Hash
+import qualified Unison.Kind                   as Kind
+import qualified Unison.Reference              as Reference
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
+import           Unison.Util.Relation           ( Relation )
+import qualified Unison.Util.Relation          as Relation
+import qualified Unison.DataDeclaration        as DataDeclaration
+import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , EffectDeclaration'
+                                                )
 
 -- ABOUT THIS FORMAT:
+--
+-- A serialization format for uncompiled Unison syntax trees.
 --
 -- Finalized: No
 --
@@ -144,6 +162,29 @@ getReference = do
     0 -> Reference.Builtin <$> getText
     1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
+
+putReferent :: MonadPut m => Referent -> m ()
+putReferent r = case r of
+  Names.Ref r -> do
+    putWord8 0
+    putReference r
+  Names.Con r i -> do
+    putWord8 1
+    putReference r
+    putLength i
+  Names.Req r i -> do
+    putWord8 2
+    putReference r
+    putLength i
+
+getReferent :: MonadGet m => m Referent
+getReferent = do
+  tag <- getWord8
+  case tag of
+    0 -> Names.Ref <$> getReference
+    1 -> Names.Con <$> getReference <*> getLength
+    2 -> Names.Req <$> getReference <*> getLength
+    _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
 putMaybe Nothing _ = putWord8 0
@@ -416,7 +457,7 @@ getCausal getA = getWord8 >>= \case
 
 putTermEdit :: MonadPut m => TermEdit -> m ()
 putTermEdit (TermEdit.Replace r typing) =
-  putWord8 1 *> putReference r *> case typing of
+  putWord8 1 *> putReferent r *> case typing of
     TermEdit.Same -> putWord8 1
     TermEdit.Subtype -> putWord8 2
     TermEdit.Different -> putWord8 3
@@ -424,7 +465,7 @@ putTermEdit TermEdit.Deprecate = putWord8 2
 
 getTermEdit :: MonadGet m => m TermEdit
 getTermEdit = getWord8 >>= \case
-  1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
+  1 -> TermEdit.Replace <$> getReferent <*> (getWord8 >>= \case
     1 -> pure TermEdit.Same
     2 -> pure TermEdit.Subtype
     3 -> pure TermEdit.Different
@@ -445,18 +486,18 @@ getTypeEdit = getWord8 >>= \case
 
 putBranch :: MonadPut m => Branch -> m ()
 putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
-  putRelation termNamespace putText putReference
+  putRelation termNamespace putText putReferent
   putRelation patternNamespace putText (putPair' putReference putLength)
   putRelation typeNamespace putText putReference
-  putRelation editedTerms putReference putTermEdit
+  putRelation editedTerms putReferent putTermEdit
   putRelation editedTypes putReference putTypeEdit
 
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal
-  (Branch0 <$> getRelation getText getReference
+  (Branch0 <$> getRelation getText getReferent
            <*> getRelation getText (getPair getReference getLength)
            <*> getRelation getText getReference
-           <*> getRelation getReference getTermEdit
+           <*> getRelation getReferent getTermEdit
            <*> getRelation getReference getTypeEdit)
 
 putDataDeclaration :: (MonadPut m, Ord v)

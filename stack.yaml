@@ -2,6 +2,8 @@ flags: {}
 
 allow-newer: true # async package has needlessly strict upper bound
 
+allow-different-user: true
+
 packages:
 - yaks/easytest
 - parser-typechecker

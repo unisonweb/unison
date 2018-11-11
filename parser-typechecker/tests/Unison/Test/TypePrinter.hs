@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Unison.Test.TypePrinter where
 
 import EasyTest
@@ -7,6 +9,8 @@ import Unison.Symbol (Symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.PrettyPrintEnv as PPE
+
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -16,7 +20,7 @@ import qualified Unison.Util.PrettyPrint as PP
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
-       get_names = mempty
+       get_names = PPE.fromNames Unison.Builtin.names
        prettied = pretty get_names (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
