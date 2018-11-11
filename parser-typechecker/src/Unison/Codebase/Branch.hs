@@ -176,10 +176,8 @@ namesForPattern ref cid =
   R.lookupRan (ref, cid) . patternNamespace . Causal.head . unbranch
 
 prettyPrintEnv1 :: Branch -> PrettyPrintEnv
-prettyPrintEnv1 b = PrettyPrintEnv terms ctors reqs patterns types where
+prettyPrintEnv1 b = PrettyPrintEnv terms patterns types where
   terms r = multiset $ namesForTerm r b
-  ctors r cid = multiset $ namesForTerm (Names.Con r cid) b
-  reqs r cid = multiset $ namesForTerm (Names.Req r cid) b
   patterns r cid = multiset $ namesForPattern r cid b
   types r = multiset $ namesForType r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]

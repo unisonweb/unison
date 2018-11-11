@@ -184,26 +184,29 @@ makeSelfContained :: (Monad m, Var v) => Codebase m v a -> Branch -> UF.UnisonFi
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
   let pp = Branch.prettyPrintEnv1 b
+      termName r = PPE.termName pp (Names.Ref r)
+      typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r,) <$> getTypeDeclaration code rid
     _ -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) -> fmap (r,Var.named (PPE.termName pp r),) <$> getTerm code rid
+    r@(Reference.DerivedId rid) -> fmap (r,Var.named (termName r),) <$> getTerm code rid
     _ -> pure Nothing
   let unref t = ABT.visitPure go t where
         go t@(Term.Ref' (r@(Reference.DerivedId _))) =
-          Just (Term.var (ABT.annotation t) (Var.named $ PPE.termName pp r))
+          Just (Term.var (ABT.annotation t) (Var.named $ termName r))
         go _ = Nothing
       datas = Map.fromList [
         (v, (r, dd)) | (r, Right dd) <- decls,
-        v <- [Var.named (PPE.typeName pp r)]]
+        v <- [Var.named (typeName r)]]
       effects = Map.fromList [
         (v, (r, ed)) | (r, Left ed) <- decls,
-        v <- [Var.named (PPE.typeName pp r)]]
+        v <- [Var.named (typeName r)]]
       bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
+      unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
       tm' = case tm of
         Term.LetRecNamedAnnotatedTop' top ann bs e ->
-          Term.letRec top ann (bindings ++ bs) (unref e)
+          Term.letRec top ann (bindings ++ unrefBindings bs) (unref e)
         tm ->
           Term.letRec True (ABT.annotation tm) bindings (unref tm)
   pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects) tm'
