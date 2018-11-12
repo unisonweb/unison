@@ -26,10 +26,18 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO let suppression, delay blocks
+--TODO let-bound functions being rendered as lambdas, eg in basics.u `merge`, `let go = acc a b -> ...`  (printBinding should be more like prettyBinding) - and maybe drop breaking spaces on LHS
+--TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
+--TODO binding definition getting double indented, eg in sort or merge; also in match body
+--TODO "in cases where let is needed, let has higher precedence than fn application"
+--TODO "(Sequence.size a) Nat./ 2 doesn't need parens since fn application binds tighter than any infix operator"
+--TODO in demo/2.u `merge`, surplus parens in pattern, `((Optional.None), _)`, and surplus parens around lambda body (a case statement) (and in `sort` around a case statement as else body); ditto surplus parens around if/then/else in lambda body
+--TODO type annotations above let bindings, not appended to them, eg tictactoe.u `isWin`
+--TODO case alternatives are separated by ; if not being line broken - correct?  or force line breaks?
+--TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
+
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
---TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
 

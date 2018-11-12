@@ -249,7 +249,6 @@ test = scope "termprinter" . tests $
   , tc "foo (p + q + r) s"
   , tc "p + q + r + s"
   , tc_diff_rtt False "(foo.+) x y" "x foo.+ y" 0
-                                                   --      Or change pretty-printer to match?
   , tc "x + y + (f a b c)"
   , tc "x + y + (foo a b)"
   , tc "(foo x y p) + z"
