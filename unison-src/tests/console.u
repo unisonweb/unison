@@ -8,6 +8,7 @@ effect Console where
 
 fst x = case x of Pair.Pair a _ -> a
 
+--TODO type is wrongly being inferred (or at least displayed) as `Pair a (Pair a b) ->{} a`
 snd x = case x of Pair.Pair _ (Pair.Pair b _) -> b
 
 namespace Console where
