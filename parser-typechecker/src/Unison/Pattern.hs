@@ -95,8 +95,8 @@ instance H.Hashable (PatternP p) where
   tokens (ConstructorP _ r n args) =
     [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
   tokens (EffectPureP _ p) = H.Tag 7 : H.tokens p
-  tokens (EffectBindP _ _r _ctor _ps _k) =
-    H.Tag 8 : error "need fo figure out hashable"
+  tokens (EffectBindP _ r n args k) =
+    [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
 
 instance Eq (PatternP loc) where
