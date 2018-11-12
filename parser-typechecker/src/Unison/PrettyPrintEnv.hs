@@ -114,7 +114,10 @@ pickName r h = case argmax snd (Map.toList h) of
 
 pickNameReferent :: Referent -> Histogram -> Name
 pickNameReferent r h = case argmax snd (Map.toList h) of
-  Nothing -> Text.pack (show r)
+  Nothing -> case r of
+    Names.Ref r -> Text.pack (show r)
+    Names.Con r i -> Text.pack (show r <> "#" <> show i)
+    Names.Req r i -> Text.pack (show r <> "#" <> show i)
   Just (name,_) -> name
 
 pickNameCid :: Reference -> Int -> Histogram -> Name

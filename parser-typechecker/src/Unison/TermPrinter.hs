@@ -112,7 +112,7 @@ pretty n p term = specialCases term $ \case
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
   App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
   LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
-  Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
+  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0) (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
                     (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
                      PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
