@@ -474,13 +474,16 @@ hashComponent byName = let
 
 -- Group the definitions into strongly connected components and hash
 -- each component. Substitute the hash of each component into subsequent
--- components (using the `termFromHash` function).
+-- components (using the `termFromHash` function). Requires that the
+-- overall component has no free variables.
 hashComponents
   :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
   => (h -> Word64 -> Word64 -> Term f v ())
   -> Map.Map v (Term f v a)
   -> [(h, [(v, Term f v a)])]
 hashComponents termFromHash termsByName = let
+  bound = Set.fromList (Map.keys termsByName)
+  escapedVars = Set.unions (freeVars <$> Map.elems termsByName) `Set.difference` bound
   sccs = components (Map.toList termsByName)
   go _ [] = []
   go prevHashes (component : rest) = let
@@ -492,7 +495,10 @@ hashComponents termFromHash termsByName = let
     newHashesL = Map.toList newHashes
     sortedComponent' = [ (v, substsInheritAnnotation newHashesL t) | (v, t) <- sortedComponent ]
     in (h, sortedComponent') : go newHashes rest
-  in go Map.empty sccs
+  in if Set.null escapedVars then go Map.empty sccs
+     else error $ "can't hashComponents if bindings have free variables:\n  "
+               ++ show (map Var.qualifiedName (Set.toList escapedVars))
+               ++ "\n  " ++ show (map Var.qualifiedName (Map.keys termsByName))
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
@@ -518,7 +524,7 @@ hash t = hash' [] t where
             ind = findIndex lookup env
             hashInt :: Int -> h
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show (Var.name v)
+            die = error $ "unknown var in environment: " ++ show (Var.qualifiedName v)
                         ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t

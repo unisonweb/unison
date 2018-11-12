@@ -144,7 +144,8 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
               Result.compilerBug $ Result.TopLevelComponentNotFound v term
             Just (Term.Ann' x _) | redundant -> pure x
             Just x                           -> pure x
-          pure (v, tm, typ)
+          -- The Var.reset removes any freshening added during typechecking
+          pure (Var.reset v, tm, typ)
       in
         -- use tlcsFromTypechecker to inform annotation-stripping decisions
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker

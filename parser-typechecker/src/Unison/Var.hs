@@ -38,6 +38,9 @@ class (Show v, Eq v, Ord v) => Var v where
   freshIn :: Set v -> v -> v
   freshenId :: Word64 -> v -> v
 
+reset :: Var v => v -> v
+reset v = named (name v)
+
 unqualified :: Var v => v -> v
 unqualified = named . unqualifiedName
 

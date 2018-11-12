@@ -35,20 +35,14 @@ data UnisonFile v a = UnisonFile {
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
-data TypecheckedUnisonFile v a = TypecheckedUnisonFile {
-  dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
-  effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-  topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
-} deriving Show
-
--- Removes watch expressions from a typechecked file
-discardWatches :: Var v => TypecheckedUnisonFile v a -> TypecheckedUnisonFile v a
-discardWatches (TypecheckedUnisonFile ds es tlcs) =
-  TypecheckedUnisonFile ds es (filter notWatch tlcs)
-  where
-  -- todo: replace with something less janky once we have different
-  -- kinds of variables
-  notWatch tlc = any (\(v,_,_) -> Text.take 1 (Var.name v) /= "_") tlc
+data TypecheckedUnisonFile v a =
+  -- Giving this an ugly name to encourage use of lowercase smart ctor
+  -- which filters out watch expressions
+  TypecheckedUnisonFile_ {
+    dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
+    effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
+    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+  } deriving Show
 
 -- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
 data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
@@ -81,16 +75,16 @@ dependencies uf ns = directReferences <>
       ]
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes tm (TypecheckedUnisonFile datas effects _) =
+discardTypes tm (TypecheckedUnisonFile_ datas effects _) =
   UnisonFile datas effects tm
 
 discardTypes' :: TypecheckedUnisonFile' v a -> UnisonFile v a
 discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
   UnisonFile datas effects tm
 
-discardTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+discardTerm :: Var v => TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
-  TypecheckedUnisonFile datas effects tlcs
+  typecheckedUnisonFile datas effects tlcs
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -105,7 +99,7 @@ toNames (UnisonFile {..}) = datas <> effects
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty
+typecheckedUnisonFile0 = TypecheckedUnisonFile_ Map.empty Map.empty mempty
 
 typecheckedUnisonFile
   :: Var v
@@ -113,7 +107,7 @@ typecheckedUnisonFile
   -> Map v (Reference, EffectDeclaration' v a)
   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
   -> TypecheckedUnisonFile v a
-typecheckedUnisonFile ds es cs = TypecheckedUnisonFile ds es (removeWatches cs)
+typecheckedUnisonFile ds es cs = TypecheckedUnisonFile_ ds es (removeWatches cs)
  where
   -- todo: more robust way of doing this once we have different kinds of variables
   removeWatches = filter (not . null) . fmap filterDefs

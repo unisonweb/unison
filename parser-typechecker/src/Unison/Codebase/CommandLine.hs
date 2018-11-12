@@ -105,7 +105,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
   lineQueue       <- TQueue.newIO
   runtime         <- startRuntime
   lastTypechecked <- newIORef
-    (Nothing, UF.TypecheckedUnisonFile Map.empty Map.empty [], mempty)
+    (Nothing, UF.typecheckedUnisonFile0, mempty)
   let takeActualLine = atomically (takeLine lineQueue)
 
   -- load initial unison file if specified
@@ -210,7 +210,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.setTitle "Unison ✅"
             let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
             n <- randomRIO (0, length emoticons - 1)
-            let uf = UF.discardWatches (UF.discardTerm unisonFile)
+            let uf = UF.discardTerm unisonFile
                 defs = prettyTypecheckedFile uf errorEnv
                 prettyDefs = show $ Color.renderText defs
             when (not $ null defs) . putStrLn
