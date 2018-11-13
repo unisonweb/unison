@@ -83,6 +83,15 @@ data Branch0 =
           , editedTypes      :: Relation Reference TypeEdit
           } deriving (Eq)
 
+allNamedReferences :: Branch0 -> Set Reference
+allNamedReferences b = let
+  termRefs = Set.map Names.referentToReference (R.ran (termNamespace b))
+  typeRefs = R.ran (typeNamespace b)
+  in termRefs <> typeRefs
+
+allNamedTypes :: Branch0 -> Set Reference
+allNamedTypes b = R.ran (typeNamespace b)
+
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
 fromNames :: Names -> Branch0
