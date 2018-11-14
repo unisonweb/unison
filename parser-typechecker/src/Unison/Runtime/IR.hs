@@ -1,5 +1,6 @@
 module Unison.Runtime.IR where
 
+import Data.Foldable
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Word (Word64)
@@ -7,6 +8,7 @@ import qualified Unison.Reference as R
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Data.Vector (Vector)
+import qualified Unison.Term as Term
 
 type Pos = Int
 type Arity = Int
@@ -58,3 +60,16 @@ data Req
   = Req R.Reference ConstructorId [V] IR
   deriving (Eq,Show)
 
+
+decompile :: V -> Maybe (Term Symbol)
+decompile v = case v of
+  I n -> pure $ Term.int () n
+  N n -> pure $ Term.nat () n
+  F n -> pure $ Term.float () n
+  B b -> pure $ Term.boolean () b
+  T t -> pure $ Term.text () t
+  Lam _ f _ -> pure $ case f of Left r -> Term.ref() r; Right f -> f
+  Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
+  Sequence vs -> Term.vector' () <$> (traverse decompile vs)
+  Requested _ -> Nothing
+  Cont _ -> Nothing

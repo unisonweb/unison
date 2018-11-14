@@ -167,32 +167,17 @@ run env = go where
         _ -> error "type error"
   call _ _ _ = error "type error"
 
-decompile :: V -> Maybe (Term Symbol)
-decompile v = case v of
-  I n -> pure $ Term.int () n
-  N n -> pure $ Term.nat () n
-  F n -> pure $ Term.float () n
-  B b -> pure $ Term.boolean () b
-  T t -> pure $ Term.text () t
-  Lam _ f _ -> pure $ case f of Left r -> Term.ref() r; Right f -> f
-  Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
-  Sequence vs -> Term.vector' () <$> (traverse decompile vs)
-  Requested _ -> Nothing
-  Cont _ -> Nothing
-
 compile :: (R.Reference -> V) -> Term Symbol -> IR
-compile env = compile0 env []
+compile env t = compile0 env [] t
 
 compile0 :: (R.Reference -> V) -> [Symbol] -> Term Symbol -> IR
-compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t)) where
+compile0 env bound t =
+  go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t))
+  where
   go t = case t of
-    Term.LamsNamed' vs body
-      | ABT.isClosed t -> V (Lam (length vs) (Right $ void t) (go body))
-      | otherwise -> let
-        fvs = toList $ ABT.freeVars t
-        lifted = Term.lam'() (fvs ++ vs) (void body)
-        in compile0 env (ABT.annotation t) (Term.apps' lifted (Term.var() <$> fvs))
     Term.And' x y -> And (ind t x) (go y)
+    Term.LamsNamed' vs body -> undefined
+      V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body)))
     Term.Or' x y -> Or (ind t x) (go y)
     Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
     Term.Int' n -> V (I n)
@@ -212,6 +197,7 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t)) 
       _ -> DynamicApply (ind t f) (map (ind t) args) where
     Term.Handle' h body -> Handle (ind t h) (go body)
     Term.Ann' e _ -> go e
+    -- fill in Term.Request and pattern matching
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       unknown v = error $ "free variable during compilation: " ++ show v
