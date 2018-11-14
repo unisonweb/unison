@@ -378,16 +378,11 @@ main dir currentBranchName initialFile startRuntime codebase = do
             == "ls"
             || ls
             == "l"
-          -> let
-               query    = intercalateMap " " id args
-               allNames = Branch.allNames (Branch.head branch)
-               filtered = Codebase.sortedApproximateMatches query
-                             (Text.unpack <$> Set.toList allNames)
--- todo: show types of each
-             in
-               do
-                 putStrLn $ intercalateMap "\n" id filtered
-                 go branch name
+          -> do
+               out <- Codebase.listReferencesMatching codebase branch args
+               putStrLn out
+               putStrLn ""
+               go branch name
 
         ["branch"] -> do
           branches <- sort <$> Codebase.branches codebase

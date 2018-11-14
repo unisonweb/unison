@@ -33,6 +33,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
+import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Typechecker.TypeLookup (Decl, TypeLookup (TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
@@ -78,6 +79,39 @@ typecheckingEnvironment code t = do
         Left e  -> (datas, Map.insert r e effects)
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
+
+listReferences :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
+listReferences code branch refs = do
+  let ppe = Branch.prettyPrintEnv1 branch
+  terms <- fmap catMaybes . forM refs $ \r -> do
+    otyp <- getTypeOfTerm code r
+    pure $ fmap (PPE.termName ppe (Names.Ref r),) otyp
+  let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
+      typeRefs = filter (`Set.member` typeRefs0) refs
+  _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
+    Reference.DerivedId id -> do
+      d <- getTypeDeclaration code id
+      pure $ fmap (PPE.typeName ppe r,) d
+    _ -> pure Nothing
+  let termsPP = TypePrinter.prettySignatures ppe (sortOn fst terms)
+  -- todo: type decls also
+  pure (PP.render 80 termsPP)
+
+listReferencesMatching :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
+listReferencesMatching code b query = do
+  let termNames = Text.unpack <$> toList (Branch.allTermNames (Branch.head b))
+      typeNames = Text.unpack <$> toList (Branch.allTypeNames (Branch.head b))
+      matchingTerms =
+        if null query then termNames
+        else query >>= \q -> sortedApproximateMatches q termNames
+      matchingTypes =
+        if null query then typeNames
+        else query >>= \q -> sortedApproximateMatches q typeNames
+      matchingTypeRefs = matchingTypes >>= \name ->
+        Set.toList (Branch.typesNamed (Text.pack name) b)
+      matchingTermRefs = matchingTerms >>= \name ->
+        Set.toList (Branch.termsNamed (Text.pack name) b)
+  listReferences code b (matchingTypeRefs ++ [ r | Names.Ref r <- matchingTermRefs ])
 
 data Err = InvalidBranchFile FilePath String deriving Show
 

@@ -7,6 +7,7 @@ module Unison.TypePrinter where
 
 import qualified Data.Text as Text
 import           Data.Maybe (isJust)
+import Unison.Names (Name)
 import           Unison.Reference (pattern Builtin)
 import           Unison.Type
 import           Unison.Var (Var)
@@ -78,3 +79,7 @@ pretty n p tp = case tp of
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
 pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
+
+prettySignatures :: Var v => PrettyPrintEnv -> [(Name, AnnotatedType v a)] -> PrettyPrint String
+prettySignatures env ts =
+  PP.column2 [ (PP.text name, ":" <> PP.softbreak <> PP.Nest "  " (pretty env (-1) typ)) | (name, typ) <- ts ]
