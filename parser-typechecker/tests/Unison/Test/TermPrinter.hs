@@ -16,7 +16,7 @@ import qualified Unison.Util.PrettyPrint as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 get_names :: PPE.PrettyPrintEnv
-get_names = PPE.fromNames @Symbol Unison.Builtin.names
+get_names = PPE.fromNames Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -151,8 +151,8 @@ test = scope "termprinter" . tests $
   , tc "case x of 3.14159 -> foo"
   , tc "case x of true -> foo"
   , tc "case x of false -> foo"
-  , tc_diff "case x of y@(()) -> y" $ "case x of y@() -> y" -- TODO lose the brackets for `As (unary constructor)`
-  , tc_diff "case x of a@(b@(c@(()))) -> c" $ "case x of a@(b@(c@())) -> c"
+  , tc "case x of y@() -> y"
+  , tc "case x of a@(b@(c@())) -> c"
   , tc "case e of { a } -> z"
   --, tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                       -- need an actual effect constructor to test this with
@@ -248,7 +248,7 @@ test = scope "termprinter" . tests $
   , tc "(foo (p + q) r) + s"
   , tc "foo (p + q + r) s"
   , tc "p + q + r + s"
-  , tc_diff_rtt False "(foo.+) x y" "foo.+ x y" 0  -- TODO parser doesn't like foo.+ without the brackets - problem?
+  , tc_diff_rtt False "(foo.+) x y" "x foo.+ y" 0
                                                    --      Or change pretty-printer to match?
   , tc "x + y + (f a b c)"
   , tc "x + y + (foo a b)"
@@ -273,22 +273,36 @@ test = scope "termprinter" . tests $
   , tc "'(!foo)"
   , tc "x -> '(y -> 'z)"
   , tc "'(x -> '(y -> z))"
-  , pending $ tc "(\"a\", 2)"
-  , pending $ tc "(\"a\", 2, 2.0)"
-  , pending $ tc_diff "(2)" $ "2"
-  , pending $ tc "Pair 2 ()"  -- unary tuple
-  , pending $ tc "case x of a + b -> foo"
-  , pending $ tc "case x of (a, b) -> a"
-  , pending $ tc "case x of [a, b] -> a"
-  , pending $ tc "case x of [a] -> a"
-  , pending $ tc "case x of [] -> a"
+  , tc "(\"a\", 2)"
+  , tc "(\"a\", 2, 2.0)"
+  , tc_diff "(2)" $ "2"
+  , pending $ tc_diff "Pair \"2\" (Pair 2 ())" $ "(\"2\", 2)"  -- TODO parser produced
+                                                     --  Pair "2" (Pair 2 ()#0)
+                                                     -- instead of
+                                                     --  Pair#0 "2" (Pair#0 2 ()#0)
+                                                     -- Maybe because in this context the
+                                                     -- parser can't distinguish between a constructor
+                                                     -- called 'Pair' and a function called 'Pair'.
+  , pending $ tc "Pair 2 ()"  -- unary tuple; fails for same reason as above
+  , tc "case x of (a, b) -> a"
+  , tc "case x of () -> foo"
+  , pending $ tc "case x of [a, b] -> a"  -- issue #266
+  , pending $ tc "case x of [a] -> a"     -- ditto
+  , pending $ tc "case x of [] -> a"      -- ditto
   , tc_binding 50 "foo" (Just "Int") "3" "foo : Int\n\
                                          \foo = 3"
   , tc_binding 50 "foo" Nothing "3" "foo = 3"
   , tc_binding 50 "foo" (Just "Int -> Int") "n -> 3" "foo : Int -> Int\n\
-                                                      \foo n = 3"
+                                                     \foo n = 3"
   , tc_binding 50 "foo" Nothing "n -> 3" "foo n = 3"
   , tc_binding 50 "foo" Nothing "n m -> 3" "foo n m = 3"
   , tc_binding 9 "foo" Nothing "n m -> 3" "foo n m =\n\
                                           \  3"
+  , tc_binding 50 "+" (Just "Int -> Int -> Int") "a b -> foo a b" "(+) : Int -> Int -> Int\n\
+                                                                  \a + b = foo a b"
+  , tc_binding 50 "+" (Just "Int -> Int -> Int -> Int") "a b c -> foo a b c" "(+) : Int -> Int -> Int -> Int\n\
+                                                                             \(+) a b c = foo a b c"
+  , tc_binding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
+  , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
+
   ]

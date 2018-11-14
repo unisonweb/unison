@@ -2,16 +2,18 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Type where
 
 -- import Debug.Trace
+import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
@@ -157,15 +159,10 @@ unForalls t = go t []
         go body vs = Just(reverse vs, body)
 
 unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-unTuple t = (case t of
-    (Apps' (Ref' PairRef) [_,_]) -> id
-    (Ref' UnitRef) -> id
-    _ -> const Nothing) $
-    go t
-    where go :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-          go (Apps' (Ref' PairRef) (t:t':[])) = (t:) <$> go t'
-          go (Ref' UnitRef) = Just []
-          go _ = Nothing
+unTuple t = case t of 
+  Apps' (Ref' PairRef) [fst, snd] -> (fst :) <$> unTuple snd
+  Ref' UnitRef -> Just []
+  _ -> Nothing
 
 unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
@@ -209,7 +206,7 @@ derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 -- todo: use correct hashes here and hook these up everywhere
 unitRef, pairRef, optionalRef :: Reference
 unitRef = derivedBase58' "3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"
-pairRef = derivedBase58' "5b7ahnhXN8ARuH85tX5kMEVpMttGsokCsXAsmUMFsoDNJPuU6MBtCAnPmBQwNbLcTp1sbFmWeSYhagQRPwnHhDHp"
+pairRef = derivedBase58' "2tWjVAuc7y9ycWkiC1x89DCxrnCAPSWhS4xBZJ3b7oQDFFczHtPgjCpnypU7t8Hx567nFmdX7Ga1m9P21DHr8Y1Y"
 optionalRef = derivedBase58' "5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"
 
 unit, pair, optional :: Ord v => a -> AnnotatedType v a
@@ -364,6 +361,11 @@ generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
 
 toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
+
+dependencies :: Ord v => AnnotatedType v a -> Set Reference
+dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t = pure t
 
 -- Adds effect polymorphism to a type signature. That is, converts a signature like:
 --

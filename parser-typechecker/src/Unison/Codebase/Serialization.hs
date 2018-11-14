@@ -8,7 +8,6 @@ import Data.ByteString (ByteString, readFile, writeFile)
 import System.Directory (doesFileExist, createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
 import Prelude hiding (readFile, writeFile)
-import Debug.Trace
 
 type Get a = forall m . MonadGet m => m a
 type Put a = forall m . MonadPut m => a -> m ()
@@ -25,7 +24,7 @@ getFromBytes getA bytes =
 getFromFile :: Get a -> FilePath -> IO (Maybe a)
 getFromFile getA file = do
   b <- doesFileExist file
-  if (traceShow ("getFromFile", file, b) b) then getFromBytes getA <$> readFile file else pure Nothing
+  if b then getFromBytes getA <$> readFile file else pure Nothing
 
 putBytes :: Put a -> a -> ByteString
 putBytes put a = runPutS (put a)

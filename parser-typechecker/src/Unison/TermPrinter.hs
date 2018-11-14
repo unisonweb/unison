@@ -11,7 +11,8 @@ import           Data.Maybe (fromMaybe)
 import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
-import           Unison.Lexer (symbolyId0)
+import           Unison.Lexer (symbolyId)
+import qualified Unison.Names as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Term
@@ -25,7 +26,7 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO let suppression, missing features, delay blocks
+--TODO let suppression, delay blocks
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
@@ -89,7 +90,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint Str
 -- `Maybe Int` identifies which constructor.
 pretty n p term = specialCases term $ \case
   Var' v       -> l $ varName v
-  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n r)
+  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> parenNest (p >= 0) $
                     pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
@@ -104,13 +105,14 @@ pretty n p term = specialCases term $ \case
   Boolean' b   -> if b then l"true" else l"false"
   Text' s      -> l $ show s
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
-  RequestOrCtor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
+  Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
+  Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
   Handle' h body -> parenNest (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
   App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
   LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
-  Vector' xs   -> PP.Nest "  " $ PP.Group $ l"[" <> commaList (toList xs) <> l"]"
+  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0) (toList xs) <> l"]"
   If' cond t f -> parenNest (p >= 2) $
                     (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
                      PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
@@ -125,6 +127,8 @@ pretty n p term = specialCases term $ \case
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
+            (Tuple' [x], _) -> parenNest (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
+            (Tuple' xs, _)  -> parenNest True $ commaList xs
             BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
             _ -> case (term, nonForcePred) of
               AppsPred' f args -> parenNest (p >= 10) $
@@ -163,7 +167,7 @@ pretty n p term = specialCases term $ \case
         -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".
         binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
         binaryOpsPred = \case
-          Ref' r | isSymbolic (PrettyPrintEnv.termName n r) -> True
+          Ref' r | isSymbolic (PrettyPrintEnv.termName n (Names.Ref r)) -> True
           Var' v | isSymbolic (Var.name v)  -> True
           _                                 -> False
 
@@ -174,10 +178,6 @@ pretty n p term = specialCases term $ \case
 
         nonUnitArgPred :: Var v => v -> Bool
         nonUnitArgPred v = (Var.name v) /= "()"
-
-        -- When we use imports in rendering, this will need revisiting, so that we can render
-        -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
-        isSymbolic name = case symbolyId0 $ Text.unpack $ name of Right _ -> True; _ -> False
 
         -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
         -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing "a1 `f1` a2 `f2`".  Except
@@ -202,17 +202,22 @@ prettyPattern n p vs patt = case patt of
   Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
   Pattern.Nat _ u     -> (l $ show u, vs)
   Pattern.Float _ f   -> (l $ show f, vs)
-  Pattern.Constructor _ Type.UnitRef 0 [] -> (l"()", vs)
-  Pattern.Constructor _ ref i pats -> let
+  Pattern.Tuple [pp]   -> let
+    (printed, tail_vs) = prettyPattern n 10 vs pp
+    in (parenNest (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
+  Pattern.Tuple pats  -> let
     (pats_printed, tail_vs) = patterns vs pats
-    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.constructorName n ref i)) <> pats_printed, tail_vs)
+    in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
+  Pattern.Constructor _ ref i pats -> let
+    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
+    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed, tail_vs)
   Pattern.As _ pat    -> let (v : tail_vs) = vs
                              (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
                          in (parenNest (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let
-    (pats_printed, tail_vs) = patterns vs pats
+    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
     (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
     in (l"{" <> b"" <> (PP.Nest "  " $ PP.Group $ b" " <>
        l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed <> b" " <> l"->" <> b" " <>
@@ -221,8 +226,10 @@ prettyPattern n p vs patt = case patt of
   where l = Literal
         patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 10 vs pat
                                        (rest_printed, eventual_tail) = patterns tail_vs pats
-                                   in (b" " <> printed <> rest_printed, eventual_tail)
-        patterns vs [] = (Empty, vs)
+                                   in (printed : rest_printed, eventual_tail)
+        patterns vs [] = ([], vs)
+        patternsSep sep vs pats = case patterns vs pats of
+          (printed, tail_vs) -> (foldMap (\x -> sep <> x) printed, tail_vs)
 
 {- Render a binding, producing output of the form
 
@@ -230,17 +237,41 @@ foo : t -> u
 foo a = ...
 
 The first line is only output if the term has a type annotation as the outermost constructor.
+
+Binary functions with symbolic names are output infix, as follows:
+
+(+) : t -> t -> t
+a + b = ...
+
 -}
 prettyBinding :: Var v => PrettyPrintEnv -> v -> AnnotatedTerm v a -> PrettyPrint String
-prettyBinding n v = \case
-  Ann' tm tp -> PP.BrokenGroup $
-    PP.Group (l (varName v) <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
-    PP.Group (prettyBinding n v tm)
-  LamsNamedOpt' vs body ->
-    PP.Group (l (varName v) <> args <> b" " <> l"=") <> b" " <>
-              (PP.Nest "  " $ PP.Group (pretty n (-1) body))
-    where args = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
-  t -> l"error: " <> l (show t)
+prettyBinding n v term = go (symbolic && isBinary term) term where
+  go infix' = \case
+    Ann' tm tp -> PP.BrokenGroup $
+      PP.Group (renderName v <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
+      PP.Group (prettyBinding n v tm)
+    LamsNamedOpt' vs body ->
+      PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
+                (PP.Nest "  " $ PP.Group (pretty n (-1) body))
+      where
+    t -> l"error: " <> l (show t)
+    where
+      renderName v = (if symbolic
+                      then paren True
+                      else id) $ l (varName v)
+      defnLhs v vs = if infix'
+                     then case vs of
+                            x : y : _ -> l (Text.unpack (Var.name x)) <> b" " <>
+                                         l (varName v) <> b" " <>
+                                         l (Text.unpack (Var.name y))
+                            _ -> l"error"
+                     else renderName v <> (args vs)
+      args vs = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
+  isBinary = \case
+    Ann' tm _ -> isBinary tm
+    LamsNamedOpt' vs _ -> length vs == 2
+    _ -> False -- unhittable
+  symbolic = isSymbolic (Var.name v)
 
 prettyBinding' :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
@@ -260,3 +291,8 @@ l = Literal
 
 b :: String -> PrettyPrint String
 b = Breakable
+
+-- When we use imports in rendering, this will need revisiting, so that we can render
+-- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
+isSymbolic :: Text.Text -> Bool
+isSymbolic name = case symbolyId $ Text.unpack $ name of Right _ -> True; _ -> False

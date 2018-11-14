@@ -35,6 +35,7 @@ import qualified Unison.DataDeclaration       as DD
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
+import qualified Unison.Names                 as Names
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
@@ -118,7 +119,6 @@ prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
   where
   dot = "  "
   terms = renderTerm dot <$> join (UF.topLevelComponents file)
-  -- todo: can we color the 'type' and 'ability' keywords
   types = (renderDecl (dot <> style TypeKeyword "type ") <$> Map.toList (UF.dataDeclarations' file))
        <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
 
@@ -141,7 +141,7 @@ prettyTypecheckedFile
 prettyTypecheckedFile file env = let
   (types, terms) = prettyTypecheckedFile' file env
   sep n = if not (null n) then "\n" else ""
-  in intercalateMap "\n" snd types <> (sep types <> sep terms) <>
+  in intercalateMap "\n" snd types <> sep types <>
      intercalateMap "\n" snd terms <> sep terms
 
 -- Render an informational typechecking note
@@ -285,7 +285,7 @@ renderTypeError e env src = case e of
            [ "The "
            , ordinal argNum
            , " argument to the function "
-           , style ErrorSite (renderTerm f)
+           , style ErrorSite (renderTerm env f)
            , " is "
            , style Type2 (renderType' env foundType)
            , ", but I was expecting "
@@ -332,7 +332,9 @@ renderTypeError e env src = case e of
                in
                  mconcat
                    [ "\n"
-                   , "because the function has type"
+                   , "because the "
+                   , style ErrorSite (renderTerm env f)
+                   , " function has type"
                    , "\n\n"
                    , "  "
                    , renderType' env fte
@@ -564,11 +566,11 @@ renderTypeError e env src = case e of
   simplePath e = "    " <> simplePath' e <> "\n"
   simplePath' :: C.PathElement v loc -> AnnotatedText Color
   simplePath' = \case
-    C.InSynthesize e -> "InSynthesize e=" <> renderTerm e
+    C.InSynthesize e -> "InSynthesize e=" <> renderTerm env e
     C.InSubtype t1 t2 ->
       "InSubtype t1=" <> renderType' env t1 <> ", t2=" <> renderType' env t2
     C.InCheck e t ->
-      "InCheck e=" <> renderTerm e <> "," <> " t=" <> renderType' env t
+      "InCheck e=" <> renderTerm env e <> "," <> " t=" <> renderType' env t
     C.InInstantiateL v t ->
       "InInstantiateL v=" <> renderVar v <> ", t=" <> renderType' env t
     C.InInstantiateR t v ->
@@ -577,7 +579,7 @@ renderTypeError e env src = case e of
       "InSynthesizeApp t="
         <> renderType' env t
         <> ", e="
-        <> renderTerm e
+        <> renderTerm env e
         <> ", n="
         <> fromString (show n)
     C.InFunctionCall vs f ft es ->
@@ -585,11 +587,11 @@ renderTypeError e env src = case e of
         <> commas renderVar vs
         <> "]"
         <> ", f="
-        <> renderTerm f
+        <> renderTerm env f
         <> ", ft="
         <> renderType' env ft
         <> ", es=["
-        <> commas renderTerm es
+        <> commas (renderTerm env) es
         <> "]"
     C.InIfCond        -> "InIfCond"
     C.InIfBody loc    -> "InIfBody thenBody=" <> annotatedToEnglish loc
@@ -695,10 +697,12 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
     shortName v <> " : " <> renderType' env (C.apply ctx t)
   showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
-renderTerm :: (IsString s, Var v) => C.Term v loc -> s
-renderTerm (ABT.Var' v) | Settings.demoHideVarNumber =
+renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
+renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
-renderTerm e =
+renderTerm env (Term.Ref' r) =
+  fromString (Text.unpack $ PPE.termName env (Names.Ref r))
+renderTerm _ e =
   let s = show e
   in      -- todo: pretty print
       if length s > Settings.renderTermMaxLength
@@ -779,7 +783,7 @@ renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> R.Reference -> s
+showTermRef :: IsString s => Env -> Names.Referent -> s
 showTermRef env r = fromString . Text.unpack $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s

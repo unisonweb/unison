@@ -224,6 +224,7 @@ pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Tuple' xs <- (unTuple' -> Just xs)
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
@@ -545,14 +546,25 @@ unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) 
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
 
+unTuple' :: AnnotatedTerm2 vt at ap v a -> Maybe [AnnotatedTerm2 vt at ap v a]
+unTuple' t = case t of
+  Apps' (Constructor' Type.PairRef 0) [fst, snd] -> (fst :) <$> unTuple' snd
+  Constructor' Type.UnitRef 0 -> Just []
+  _ -> Nothing
+
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
-dependencies' :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+dependencies t =
+  dependencies' t <> referencedDataDeclarations t <> referencedEffectDeclarations t
+
+dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
+        f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
         f t = pure t
 
 referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
@@ -601,14 +613,22 @@ hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, Annota
 hashComponents m = Reference.hashComponents (\r -> ref() r) m
 
 -- The hash for a constructor
+hashConstructor'
+  :: (Reference -> Int -> Term Symbol) -> Reference -> Int -> Reference
+hashConstructor' f r cid =
+  let
+-- this is a bit circuitous, but defining everything in terms of hashComponents
+-- ensure the hashing is always done in the same way
+      m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, f r cid)])
+  in  case toList m of
+        [(r, _)] -> r
+        _        -> error "unpossible"
+
 hashConstructor :: Reference -> Int -> Reference
-hashConstructor r cid = let
-  -- this is a bit circuitous, but defining everything in terms of hashComponents
-  -- ensure the hashing is always done in the same way
-  m = hashComponents (Map.fromList [(Var.named "_" :: Symbol, constructor() r cid)])
-  in case toList m of
-    [(r,_)] -> r
-    _ -> error "unpossible"
+hashConstructor = hashConstructor' $ constructor ()
+
+hashRequest :: Reference -> Int -> Reference
+hashRequest = hashConstructor' $ request ()
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e =
@@ -707,7 +727,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
         B.Blank -> s"_"
         B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
         B.Recorded (B.Resolve _ r) -> s r
-    go _ (Ref r) = showsPrec 0 r
+    go _ (Ref r) = s"Ref(" <> showsPrec 0 r <> s")"
     go _ (Let _ b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
     go _ (LetRec _ bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
     go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)

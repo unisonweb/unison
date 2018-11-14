@@ -109,6 +109,7 @@ addComponentId i n s = show i <> "-" <> show n <> "-" <> s
 
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
+
 branchPath :: FilePath -> Text -> FilePath
 branchPath path name = branchesPath path </> Text.unpack name
 

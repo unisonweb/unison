@@ -48,7 +48,7 @@ object BootstrapStream {
   def main(args: Array[String]): Unit = {
     val localPort: Int = args match {
       case Array(s) => Try { s.toInt }.getOrElse(usage())
-      case _ => usage()
+      case _        => usage()
     }
 
     val channel =
@@ -59,53 +59,76 @@ object BootstrapStream {
         println(s"Couldn't connect to codebase editor on port $localPort.")
         sys.exit(1)
       }
-    while(true) {
-      val wrangle = false
-      val t =
-        try normalizedFromBinarySource(Source.fromSocketChannel(channel))
-        catch { case Source.Underflow() =>
-          println("Shutting down runtime.")
-          return ()
-        }
-      if (wrangle) {
-        // serialize term back to the channel
-        val serialized = Codecs.encodeTerm(t)
-        def go(s: Sequence[Array[Byte]]): Unit = s.headOption match {
-          case Some(array) =>
-            channel.write(ByteBuffer.wrap(array))
-            go(s.drop(1))
-          case None => ()
-        }
+    while (true) {
+      def transmitChunks(s: Sequence[Array[Byte]]): Unit = s.headOption match {
+        case Some(array) =>
+          if (!channel.isConnected) println("jvm debug: the channel isn't connected!")
+          channel.write(ByteBuffer.wrap(array))
+          transmitChunks(s.drop(1))
+        case None => ()
       }
-      else {
-        // sync byte
-        channel.write(ByteBuffer.wrap(Array[Byte](74)))
-      }
-    }
 
+      val chunks = Sink.toChunks(64*1024) { sink =>
+        // Evaluate the term while writing any watch expressions.
+        val t =
+          try normalizedFromBinarySource(Source.fromSocketChannel(channel),
+                                         watchSinker(sink))
+          catch {
+            case Source.Underflow() =>
+              println("Shutting down runtime.")
+              return ()
+          }
+        // We're done with watch expressions.
+        // Send marker that we're about to write the final term.
+        sink.putByte(1)
+        Serialization.V0.putTerm(sink, t)
+      }
+
+      val size = chunks.map(_.size).foldLeft(0)(_ + _)
+      val sizeChunks = Sink.toChunks(256) { sink => sink.putLong(size) }
+
+      def printChunks(chunks: Sequence[Array[Byte]]): Unit = {
+        println(s"debug: hex:\n" + chunks.toList.flatten.map("" + _.toInt.&(0xff).toHexString).mkString(" "))
+      }
+
+      transmitChunks(sizeChunks ++ chunks)
+    }
   }
 }
 
 object Bootstrap0 {
 
-  def watchHandler(label: String, v: Value): Unit = {
+  // Decompiles values it receives and sends the corresponding term
+  // to the sink, after sending the label.
+  def watchSinker(sink: Sink)(label: String, v: Value): Unit = {
+    // Send marker that a watch expression follows.
+    sink.putByte(0)
+
+    sink.putString(label)
+    Serialization.V0.putTerm(sink, Term.fullyDecompile(v.decompile))
+  }
+
+  def watchPrinter(label: String, v: Value): Unit = {
     println(label)
-    // val lead = "      | > "
     val lead = "      | > "
     val arr = "          ⧩"
     val tm = PrettyPrint.prettyTerm(Term.fullyDecompile(v.decompile)).render(80)
     val tm2 = tm.flatMap {
       case '\n' => '\n' + (" " * lead.size)
-      case ch    => ch.toString
+      case ch   => ch.toString
     }
     println(arr)
     println((" " * lead.size) + tm2 + "\n")
   }
 
-  def normalizedFromBinaryFile(fileName: String, wh: (String, Value) => Unit = watchHandler): Term =
+  def normalizedFromBinaryFile(
+      fileName: String,
+      wh: (String, Value) => Unit = watchPrinter): Term =
     normalizedFromBinarySource(Source.fromFile(fileName), wh)
 
-  def normalizedFromBinarySource(src: Source, wh: (String, Value) => Unit = watchHandler): Term = {
+  def normalizedFromBinarySource(
+      src: Source,
+      wh: (String, Value) => Unit = watchPrinter): Term = {
     fromBinarySource(src, normalize0(_, wh)(_))
   }
 
@@ -117,20 +140,24 @@ object Bootstrap0 {
 
     val term = termDecoder(src)
 
-    val datas = data.flatMap { case (id, arities) =>
-      arities.zipWithIndex.map {
-        case (arity, cid) =>
-          dataConstructor(id, ConstructorId(cid),
-                          Range(0,arity).map(x => Name("x" + x)):_*)
-      }
+    val datas = data.flatMap {
+      case (id, arities) =>
+        arities.zipWithIndex.map {
+          case (arity, cid) =>
+            dataConstructor(id,
+                            ConstructorId(cid),
+                            Range(0, arity).map(x => Name("x" + x)): _*)
+        }
     }.toMap
 
-    val effectss = effects.flatMap { case (id, arities) =>
-      arities.zipWithIndex.map {
-        case (arity, cid) =>
-          effectRequest(id, ConstructorId(cid),
-                        Range(0,arity).map(x => Name("x" + x)):_*)
-      }
+    val effectss = effects.flatMap {
+      case (id, arities) =>
+        arities.zipWithIndex.map {
+          case (arity, cid) =>
+            effectRequest(id,
+                          ConstructorId(cid),
+                          Range(0, arity).map(x => Name("x" + x)): _*)
+        }
     }.toMap
 
     val env =
@@ -144,27 +171,26 @@ object Bootstrap0 {
 
   val PROJECT_ROOT_ENV_NAME = "UNISON_PROJECT_ROOT"
   val UNISON_PROJECT_ROOT =
-    new File(Option(System.getProperty(PROJECT_ROOT_ENV_NAME))
-               .orElse(Option(System.getenv(PROJECT_ROOT_ENV_NAME)))
-               .getOrElse(".."))
+    new File(
+      Option(System.getProperty(PROJECT_ROOT_ENV_NAME))
+        .orElse(Option(System.getenv(PROJECT_ROOT_ENV_NAME)))
+        .getOrElse(".."))
 
   private implicit class Ops[A](val a: A) extends AnyVal {
     def unsafeTap(f: A => Unit): A = { f(a); a }
   }
-  def normalizedFromTextFile(u: Path,
-                             stackDir: File = UNISON_PROJECT_ROOT
-                            ): Either[String,Term] = {
-    if (! new File(UNISON_PROJECT_ROOT, "stack.yaml").isFile) Left {
+  def normalizedFromTextFile(
+      u: Path,
+      stackDir: File = UNISON_PROJECT_ROOT): Either[String, Term] = {
+    if (!new File(UNISON_PROJECT_ROOT, "stack.yaml").isFile) Left {
       import java.nio.file.{FileSystems, Path}
 
       val path: Path = FileSystems.getDefault.getPath(".").toAbsolutePath
       s"""Expected to find `stack.yaml` in `$UNISON_PROJECT_ROOT` to `stack exec bootstrap`,
          |but didn't. Specify the correct directory by setting a Java system property or
          |system environment variable called `$PROJECT_ROOT_ENV_NAME`.
-         |Current directory is: $path"""
-        .stripMargin
-    }
-    else {
+         |Current directory is: $path""".stripMargin
+    } else {
       import sys.process._
       val ub = Files.createTempFile(u.getFileName.toString, ".ub")
       val stderrBuffer = new StringBuffer
@@ -181,18 +207,19 @@ object Bootstrap0 {
         // Process(Seq("stack", "build"), stackDir) #&& // uncomment this to `stack build` every time
           Process(Seq("stack", "exec", "bootstrap", u.toString, ub.toString)) ! log
 
-      { if (haskellResult > 0) Left(stderrBuffer.toString)
-        else Right(normalizedFromBinaryFile(ub.toString)) }
-        .unsafeTap(_ => Files.delete(ub))
+      {
+        if (haskellResult > 0) Left(stderrBuffer.toString)
+        else Right(normalizedFromBinaryFile(ub.toString))
+      }.unsafeTap(_ => Files.delete(ub))
     }
   }
 
-  def normalizedFromText(s: String,
-                         stackDir: File = UNISON_PROJECT_ROOT
-                        ): Either[String, Term] = {
+  def normalizedFromText(
+      s: String,
+      stackDir: File = UNISON_PROJECT_ROOT): Either[String, Term] = {
     val u = Files.createTempFile("", ".u")
     Files.write(u, s.getBytes(StandardCharsets.UTF_8))
     normalizedFromTextFile(u, stackDir)
-        .unsafeTap(_ => Files.delete(u))
+      .unsafeTap(_ => Files.delete(u))
   }
 }

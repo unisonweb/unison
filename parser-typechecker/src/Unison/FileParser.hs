@@ -25,6 +25,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
 -- import Debug.Trace
 
@@ -81,7 +82,7 @@ dataDeclaration = do
         --    or just `Optional a` in the case of `None`
         ctorType = foldr arrow ctorReturnType ctorArgs
         ctorAnn = ann ctorName <> ann (last ctorArgs)
-        in (ann ctorName, L.payload ctorName,
+        in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
   constructors <- sepBy (reserved "|") dataConstructor
@@ -99,12 +100,12 @@ effectDeclaration = do
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
-  constructors <- sepBy semi constructor
+  constructors <- sepBy semi (constructor name)
   _ <- closeBlock
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
   pure (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
   where
-    constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
-    constructor = explodeToken <$>
+    constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
+    constructor name = explodeToken <$>
       prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
-      where explodeToken v t = (ann v, L.payload v, t)
+      where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)

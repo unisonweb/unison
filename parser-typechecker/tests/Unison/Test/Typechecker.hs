@@ -33,7 +33,7 @@ type SynthResult =
 type EitherResult = Either String (Term Symbol, Type Symbol)
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames (Builtin.names @Symbol)
+ppEnv = PPE.fromNames Builtin.names
 
 expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
 expectRight' (Left  e) = crash e

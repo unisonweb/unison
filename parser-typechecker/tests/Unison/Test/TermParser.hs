@@ -178,7 +178,7 @@ unitTests =
    w = wordyId
    s = symbolyId
 
-builtins :: Names Symbol x
+builtins :: Names
 builtins = Names.fromPatterns
   [("Pair", (R.Builtin "Pair", 0)),
    ("State.set", (R.Builtin "State", 0))]

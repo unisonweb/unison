@@ -8,40 +8,43 @@
 module Unison.FileParsers where
 
 import           Control.Monad              (foldM)
+import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
+import Control.Monad.Writer (tell)
 import           Data.Bytes.Put             (runPutS)
 import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import Data.Set (Set)
 import qualified Data.Set                   as Set
-import           Data.Maybe
 import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import qualified Unison.Builtin             as B
 import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
-import           Unison.Names               (Name, Names (..))
+import           Unison.Names               (Name, Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
-import           Unison.Reference           (pattern Builtin, Reference)
-import           Unison.Result              (Note (..), Result, pattern Result)
+import           Unison.Reference           (Reference)
+import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
 import           Unison.Type                (AnnotatedType)
 import qualified Unison.Typechecker         as Typechecker
+import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
+-- import Debug.Trace
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -77,85 +80,63 @@ convertNotes (Typechecker.Notes es is) =
   -- that will have the latest typechecking info
 
 parseAndSynthesizeFile
-  :: Var v
-  => Names v Ann
+  :: (Var v, Monad m)
+  => (Set Reference -> m (TL.TypeLookup v Ann))
+  -> Names
   -> FilePath
   -> Text
-  -> Result
+  -> ResultT
        (Seq (Note v Ann))
+       m
        (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
-parseAndSynthesizeFile names filePath src = do
+parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let (Result notes' r) = synthesizeFile names parsedUnisonFile
-  Result notes' $ Just (errorEnv, r)
+  let refs = UF.dependencies parsedUnisonFile names
+  typeLookup <- lift . lift $ typeLookupf refs
+  let (Result notes' r) = synthesizeFile typeLookup names parsedUnisonFile
+  tell notes' *> pure (errorEnv, r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => Names v Ann
+  => TL.TypeLookup v Ann
+  -> Names
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
-synthesizeFile builtinNames unisonFile = do
+synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 term0) = UF.bindBuiltins builtinNames unisonFile
-    -- map Names to Term.constructor values for UF data/effect ctors
-    ufDeclNames                     = UF.toNames uf
-    allTheNames                     = ufDeclNames <> builtinNames
-    -- substitute locally defined constructors for Vars into the UF body
-    term                            = Names.bindTerm ufDeclNames term0
+    uf@(UnisonFile dds0 eds0 term0) = unisonFile
+    localNames = UF.toNames uf
+    localTypes = UF.declsToTypeLookup uf
+    -- this is the preexisting terms and decls plus the local decls
+    allTheNames = localNames <> preexistingNames
+    term = Names.bindTerm allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
-    tdnrTerm                        = Term.prepareTDNR $ term
-    -- merge dds from unisonFile with dds from Unison.Builtin
-    -- note: `Map.union` is left-biased
-    datas :: Map v (Reference, DataDeclaration v)
-    datas = Map.union dds0 $ Map.fromList B.builtinDataDecls
-    -- same, but there are no eds in Unison.Builtin yet.
-    effects = Map.union eds0 $ Map.fromList B.builtinEffectDecls
-    env0 =
-      (Typechecker.Env
-        Intrinsic
-        []
-        typeOf
-        lookupData
-        lookupEffect
-        fqnsByShortName
-      )
+    tdnrTerm = Term.prepareTDNR $ term
+    lookupTypes = localTypes <> preexistingTypes
+    env0 = (Typechecker.Env Intrinsic [] lookupTypes fqnsByShortName)
      where
-      lookupData :: Applicative f => Reference -> f (DataDeclaration v)
-      lookupData r = pure $ fromMaybe (die "data" r) $ Map.lookup r datasr
-        where datasr = Map.fromList $ Foldable.toList datas
-      lookupEffect :: Applicative f => Reference -> f (EffectDeclaration v)
-      lookupEffect r =
-        pure $ fromMaybe (die "effect" r) $ Map.lookup r effectsr
-          where effectsr = Map.fromList $ Foldable.toList effects
-      die s h = error $ "unknown " ++ s ++ " reference " ++ show h
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-                          . fmap toKV . Map.toList $ termNames allTheNames
-       where
-        toKV (name, (_, typ)) =
-          ( Var.unqualified (Var.named @v name)
-          , [Typechecker.NamedReference name typ True]
-          )
-      typeOf :: Applicative f => Reference -> f (Type v)
-      typeOf r = pure . fromMaybe (error $ "unknown reference " ++ show r) $
-        Map.lookup r typeSigs
-       where
-        typeSigs = Map.fromList . fmap go . Map.toList $ termNames allTheNames
-        go (name, (_tm, typ)) = (Builtin name, typ)
+         [ (Names.unqualified name,
+            [Typechecker.NamedReference name typ (Right r)]) |
+           (name, r) <- Map.toList $ Names.termNames allTheNames,
+           typ <- Foldable.toList $ TL.typeOfReferent lookupTypes  r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
+  -- If typechecking succeeded, reapply the TDNR decisions to user's term:
   Result (convertNotes notes) mayType >>= \typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
-    topLevelComponents <- -- :: [[(v, Term v, Type v)]]
+    (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
         topLevelBindings :: Map Name (Term v)
-        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings term
+        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings tdnrTerm
         extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
         extractTopLevelBindings _                        = Map.empty
-        tlcsFromTypechecker = uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
+        tlcsFromTypechecker =
+          uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
         vars (v, _, _) = Var.name v
         strippedTopLevelBinding (v, typ, redundant) = do
           tm <- case Map.lookup (Var.name v) topLevelBindings of
@@ -163,44 +144,45 @@ synthesizeFile builtinNames unisonFile = do
               Result.compilerBug $ Result.TopLevelComponentNotFound v term
             Just (Term.Ann' x _) | redundant -> pure x
             Just x                           -> pure x
-          pure (v, tm, typ)
+          -- The Var.reset removes any freshening added during typechecking
+          pure (Var.reset v, tm, typ)
       in
         -- use tlcsFromTypechecker to inform annotation-stripping decisions
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
-    let tlcNames = Names.varsFromComponents topLevelComponents
-        doTdnr   = applyTdnrDecisions infos (tlcNames <> allTheNames)
+    let doTdnr = applyTdnrDecisions infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    t <- doTdnr tdnrTerm
+    t          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
  where
   applyTdnrDecisions
-    :: [Context.InfoNote v Ann] -> Names v Ann -> Term v -> Result' v (Term v)
-  applyTdnrDecisions infos names tdnrTerm = foldM go tdnrTerm decisions
+    :: [Context.InfoNote v Ann]
+    -> Term v
+    -> Result' v (Term v)
+  applyTdnrDecisions infos tdnrTerm = foldM go tdnrTerm decisions
    where
     -- UF data/effect ctors + builtins + TLC Term.vars
-    go term _decision@(shortv, loc, fqn) =
-      ABT.visit (resolve shortv loc fqn) term
-    decisions = [ (v, loc, fqn) | Context.Decision v loc fqn <- infos ]
+    go term _decision@(shortv, loc, replacement) =
+      ABT.visit (resolve shortv loc replacement) term
+    decisions = [ (v, loc, replacement) | Context.Decision v loc replacement <- infos ]
     -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
-    resolve shortv loc fqn t = case t of
+    resolve shortv loc replacement t = case t of
       Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
-        | loc' == loc && Var.nameStr shortv == name
-        -> case Names.lookupTerm names fqn of
-          Nothing -> Just . Result.compilerBug $
-            Result.ResolvedNameNotFound shortv loc fqn
-          Just ref -> Just $ pure (const loc <$> ref)
+        | loc' == loc && Var.nameStr shortv == name ->
+          -- loc of replacement already chosen correctly by whatever made the Decision
+          pure . pure $ replacement
       _ -> Nothing
 
 synthesizeAndSerializeUnisonFile
   :: Var v
-  => Names v Ann
+  => TL.TypeLookup v Ann
+  -> Names
   -> UnisonFile v
   -> Result
        (Seq (Note v Ann))
        (UF.TypecheckedUnisonFile' v Ann, ByteString)
-synthesizeAndSerializeUnisonFile names unisonFile =
-  let r = synthesizeFile names unisonFile
+synthesizeAndSerializeUnisonFile tl names unisonFile =
+  let r = synthesizeFile tl names unisonFile
       f unisonFile' =
         let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile
               (UF.discardTypes' unisonFile')

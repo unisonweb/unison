@@ -2,6 +2,8 @@
 
 module Unison.Codecs where
 
+-- A format for encoding runtime values, with sharing for compiled nodes.
+
 import Data.Text (Text)
 import           Control.Arrow (second)
 import           Control.Monad.State

@@ -62,6 +62,10 @@ toMaybe = (fst <$>) . runResultT
 runResultT :: ResultT notes f a -> f (Maybe a, notes)
 runResultT = runWriterT . runMaybeT
 
+-- Returns the `Result` in the `f` functor.
+getResult :: Functor f => ResultT notes f a -> f (Result notes a)
+getResult r = uncurry (flip Result) <$> runResultT r
+
 toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
 toEither r = ExceptT (fmap go $ runResultT r)
   where go (may, notes) = note notes may
@@ -69,15 +73,12 @@ toEither r = ExceptT (fmap go $ runResultT r)
 tell1 :: Monad f => note -> ResultT (Seq note) f ()
 tell1 = tell . pure
 
-fromParsing'
+fromParsing
   :: Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
-fromParsing' (Left e) = do
+fromParsing (Left e) = do
   tell1 $ Parsing e
   Fail.fail ""
-fromParsing' (Right a) = pure a
-
-fromParsing :: Either (Parser.Err v) a -> Result (Seq (Note v loc)) a
-fromParsing = fromParsing'
+fromParsing (Right a) = pure a
 
 tellAndFail :: Monad f => note -> ResultT (Seq note) f a
 tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"

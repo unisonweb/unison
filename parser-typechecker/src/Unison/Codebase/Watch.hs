@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE DoAndIfThenElse   #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -36,13 +37,17 @@ import           Unison.Codebase                ( Codebase )
 import           Unison.Codebase.Runtime        ( Runtime(..) )
 import qualified Unison.Codebase.Runtime       as RT
 import qualified Unison.FileParsers            as FileParsers
+import           Unison.Names                   ( Names )
 import qualified Unison.Parsers                as Parsers
 import           Unison.PrintError              ( renderParseErrorAsANSI
                                                 , renderNoteAsANSI
                                                 )
 import           Unison.Result                  ( pattern Result )
+import qualified Unison.TermPrinter             as TermPrinter
+import           Unison.Term                    ( Term )
 import qualified Unison.UnisonFile              as UF
 import           Unison.Util.Monoid
+import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
@@ -102,6 +107,24 @@ watchDirectory dir allow = do
         else await
   pure await
 
+watchPrinter :: Var v => Names -> Text -> Term v -> IO ()
+watchPrinter names label term = do
+  -- I guess this string constant comes from somewhere, and we are using
+  -- a bunch of spaces of the same total length.
+  let lead = const ' ' <$> "      | > "
+  -- weird that this doesn't incorporate the previous constant somehow
+  let arr = "          ⧩"
+  -- todo: replace 80 with some number calculated from the terminal width
+  -- e.g. http://hackage.haskell.org/package/terminal-size
+  let tm = TermPrinter.pretty' (Just 80) (PPE.fromNames names) term
+  let tm2 = tm >>= \case
+       '\n' -> '\n' : lead
+       c -> pure c
+  putStrLn $ Text.unpack label
+  putStrLn arr
+  putStrLn $ lead ++ tm2 ++ "\n"
+
+
 watcher
   :: Var v
   => Maybe FilePath
@@ -139,7 +162,7 @@ watcher initialFile dir runtime codebase = do
         Right (env0, parsedUnisonFile) -> do
           let
             (Result notes' r) =
-              FileParsers.synthesizeFile B.names parsedUnisonFile
+              FileParsers.synthesizeFile B.typeLookup B.names parsedUnisonFile
             showNote notes =
               intercalateMap "\n\n" (show . renderNoteAsANSI env0 source) notes
           putStrLn . showNote . toList $ notes'
@@ -151,7 +174,7 @@ watcher initialFile dir runtime codebase = do
               Console.setTitle "Unison ✅"
               putStrLn
                 "✅  Typechecked! Any watch expressions (lines starting with `>`) are shown below.\n"
-              RT.evaluate runtime (UF.discardTypes' typecheckedUnisonFile) codebase
+              void $ RT.evaluate runtime (UF.discardTypes' typecheckedUnisonFile) codebase
   (`finally` RT.terminate runtime) $ do
     case initialFile of
       Just sourceFile -> do

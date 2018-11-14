@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
-import           Control.Arrow ((&&&))
+import           Control.Arrow (first)
 import qualified Data.Map as Map
 import qualified Text.Megaparsec.Error as MPE
 import qualified Unison.ABT as ABT
@@ -17,6 +17,7 @@ import           Unison.Parser (Ann(..))
 import qualified Unison.Parser as Parser
 import           Unison.PrintError (prettyParseError)
 import qualified Unison.Reference as R
+import           Unison.Symbol (Symbol)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -25,8 +26,9 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Util.ColorText as Color
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import Unison.Names (Names)
+import Unison.Names (Names, Name)
 import qualified Unison.Names as Names
+import qualified Unison.Typechecker.TypeLookup as TL
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -50,7 +52,7 @@ t s = ABT.amap (const Intrinsic) .
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
 tm s = Names.bindTerm names . either (error . showParseError s) id $
-          Parser.run (Parser.root TermParser.term) s mempty
+          Parser.run (Parser.root TermParser.term) s names
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
@@ -59,25 +61,34 @@ parseDataDeclAsBuiltin s =
       [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
   in (v, (r, const Intrinsic <$> dd'))
 
-names0 :: Var v => Names v Ann
-names0 = Names.fromTypesV builtinTypes
+names0 :: Names
+names0 = Names.fromTypes builtinTypes
 
-names :: Var v => Names v Ann
-names = Names.fromTermsV builtinTypedTerms
-     <> Names.fromTypesV builtinTypes
-     <> foldMap DD.dataDeclToNames' builtinDataDecls
-     -- <> foldMap DD.effectDeclToNames' builtinEffectDecls
+names :: Names
+names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol)
+     <> Names.fromTypes builtinTypes
+     <> foldMap (DD.dataDeclToNames' @Symbol) builtinDataDecls
+     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
+
+typeLookup :: Var v => TL.TypeLookup v Ann
+typeLookup =
+  TL.TypeLookup builtins0
+    (Map.fromList $ map snd builtinDataDecls)
+    (Map.fromList $ map snd builtinEffectDecls)
 
 builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
-builtinTypedTerms = [(v, (e, t)) | (v, e@(Term.Ann' _ t)) <- builtinTerms ]
+builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
 
 builtinTerms :: Var v => [(v, Term v)]
 builtinTerms =
   [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
     (r, typ) <- Map.toList builtins0 ]
 
-builtinTypes :: Var v => [(v, R.Reference)]
-builtinTypes = (Var.named &&& R.Builtin) <$>
+builtinTypesV :: Var v => [(v, R.Reference)]
+builtinTypesV = first (Var.named) <$> builtinTypes
+
+builtinTypes :: [(Name, R.Reference)]
+builtinTypes = (,) <*> R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
 
 -- | parse some builtin data types, and resolve their free variables using

@@ -52,7 +52,7 @@ module Unison.Test.FileParser where
   test :: Test ()
   test = test1
 
-  builtins :: Names Symbol Ann
+  builtins :: Names
   builtins = Names.fromPatterns [
     ("Pair", (R.Builtin "Pair", 0)),
     ("State.set", (R.Builtin "State", 0))]

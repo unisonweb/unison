@@ -5,6 +5,10 @@
 
 module Unison.Util.PrettyPrint where
 
+import Prelude hiding (lines)
+import Data.List (foldl')
+import qualified Data.Text as Text
+import           Data.Text (Text)
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
 import           Unison.Util.Monoid (intercalateMap)
@@ -30,7 +34,7 @@ data PrettyPrint a
   | BrokenGroup (PrettyPrint a)
 
 -- What mode is this call to renderBroken using?
-data BreakMode  
+data BreakMode
   = Normal
   -- Line breaking is has been forced on by a BrokenGroup. (Another Group can return it to normal.)
   | Forced deriving (Eq)
@@ -70,7 +74,7 @@ renderUnbroken = \case
 -- Render a `PrettyPrint a` into a rectangular window of width `width` characters.
 -- `leading` characters of the first line have already been used (can be > width).
 -- `start` is True if this is at the start of the outer-most term being printed.
-renderBroken :: forall a b. (LL.ListLike a b, Eq b) 
+renderBroken :: forall a b. (LL.ListLike a b, Eq b)
              => BreakMode -> Bool -> Int -> Int -> b -> PrettyPrint a -> a
 renderBroken breakMode start width leading lineSeparator = \case
   Empty -> LL.empty
@@ -91,7 +95,7 @@ renderBroken breakMode start width leading lineSeparator = \case
   Group a       -> render' Normal False width leading lineSeparator a
   BrokenGroup a -> render' Forced False width leading lineSeparator a
 
-  where  
+  where
     replaceOneWithMany :: (LL.FoldableLL a b, Eq b) => b -> a -> a -> a
     replaceOneWithMany target replacement list =
       LL.foldr (go target replacement) LL.empty list
@@ -100,9 +104,9 @@ renderBroken breakMode start width leading lineSeparator = \case
                 if b == target then LL.append replacement a else LL.cons b a
 
     lengthOfLastLine :: (LL.ListLike a b, Eq b) => b -> a -> Int
-    lengthOfLastLine lineSeparator ra = 
-      let ixs = LL.findIndices (==lineSeparator) ra in 
-      (LL.length ra) - case ixs of 
+    lengthOfLastLine lineSeparator ra =
+      let ixs = LL.findIndices (==lineSeparator) ra in
+      (LL.length ra) - case ixs of
                          [] -> 0
                          _  -> (LL.last ixs) + 1
 
@@ -147,6 +151,23 @@ group p = Group p
 brokenGroup :: PrettyPrint a -> PrettyPrint a
 brokenGroup p = BrokenGroup p
 
+breakable :: IsString a => a -> PrettyPrint a
+breakable = Breakable
+
+padTo :: (IsString a, LL.ListLike a b) => Int -> PrettyPrint a -> PrettyPrint a
+padTo n p =
+  let rem = n - unbrokenWidth p
+  in if rem > 0 then p <> (fromString (replicate rem ' '))
+     else p
+
+column2 :: (IsString a, LL.ListLike a b) => [(PrettyPrint a, PrettyPrint a)] -> PrettyPrint a
+column2 rows = lines (group <$> alignedRows) where
+  maxWidth = foldl' max 0 (unbrokenWidth . fst <$> rows) + 1
+  alignedRows = [ padTo maxWidth col0 <> col1 | (col0, col1) <- rows ]
+
+text :: IsString a => Text -> PrettyPrint a
+text t = fromString (Text.unpack t)
+
 instance Semigroup (PrettyPrint a) where
   (<>) = mappend
 
@@ -157,7 +178,7 @@ instance Monoid (PrettyPrint a) where
 instance IsString a => IsString (PrettyPrint a) where
   fromString = Literal . fromString
 
-instance Show a => Show (PrettyPrint a) where 
+instance Show a => Show (PrettyPrint a) where
   show = \case
     Empty -> "Empty"
     Literal a -> "Literal " ++ (show a)

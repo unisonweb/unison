@@ -1,4 +1,4 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms #-}
+{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms, ViewPatterns, OverloadedStrings #-}
 
 module Unison.Pattern where
 
@@ -9,6 +9,7 @@ import Data.Foldable as Foldable
 import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
+import qualified Unison.Type as Type
 
 type Pattern = PatternP ()
 
@@ -76,6 +77,13 @@ pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
 pattern EffectBind r cid ps k = EffectBindP () r cid ps k
+pattern Tuple ps <- (unTuple -> Just ps)
+
+unTuple :: PatternP loc -> Maybe [PatternP loc]
+unTuple p = case p of
+  ConstructorP _ Type.PairRef 0 [fst, snd] -> (fst : ) <$> unTuple snd
+  ConstructorP _ Type.UnitRef 0 [] -> Just []
+  _ -> Nothing
 
 instance H.Hashable (PatternP p) where
   tokens (UnboundP _) = [H.Tag 0]
@@ -87,8 +95,8 @@ instance H.Hashable (PatternP p) where
   tokens (ConstructorP _ r n args) =
     [H.Tag 6, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args]
   tokens (EffectPureP _ p) = H.Tag 7 : H.tokens p
-  tokens (EffectBindP _ _r _ctor _ps _k) =
-    H.Tag 8 : error "need fo figure out hashable"
+  tokens (EffectBindP _ r n args k) =
+    [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
 
 instance Eq (PatternP loc) where
