@@ -8,8 +8,7 @@ _Disclaimer_ The getting-started instructions on this page have not yet been tes
 
 To get cracking with typechecking and running Unison functions, 
 * do the prerequisites mentioned for each side of the toolchain below (Scala and Haskell)
-* from the root directory of a clone of the Unison repo, run `./scripts/unisonloop.sh`
-* fire up the codebase editor `stack exec unison` - it watches for file changes in `unison-src`
+* from the root directory of a clone of the Unison repo, run `./scripts/unisonloop.sh` - that fires up the codebase editor, which watches for file changes in `unison-src`
 * once a file is typechecked, you can do `add` to add it to the codebase
 * and then `view` to view a definition.
 
