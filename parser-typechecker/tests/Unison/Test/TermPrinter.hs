@@ -186,12 +186,6 @@ test = scope "termprinter" . tests $
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
   , tc_breaks 50 "case x of\n\
                  \  12 -> x"
-  , pending $ tc_breaks 50 "if true\n\
-                 \then\n\
-                 \  case x of\n\  
-                 \    12 -> x\n\
-                 \else\n\
-                 \  x"              -- TODO parser bug?  'unexpected else' (and parens round case doesn't work either)
   , tc_breaks 15 "case x of\n\
                  \  12 -> x\n\
                  \  13 -> y\n\
@@ -329,5 +323,28 @@ test = scope "termprinter" . tests $
                  \      Optional.None -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
-
+  , tc_breaks 50 "case x of\n\
+                 \  (Optional.None, _) -> foo"
+  , pending $ tc_breaks 50 "if true\n\
+                 \then\n\
+                 \  case x of\n\  
+                 \    12 -> x\n\
+                 \else\n\
+                 \  x"              -- TODO parser bug?  'unexpected else', parens around case doens't help, cf next test
+  , pending $ tc_breaks 50 "if true\n\
+                 \then x\n\
+                 \else\n\
+                 \  (case x of\n\  
+                 \    12 -> x)"     -- TODO parser bug, 'unexpected )'
+  , tc_diff_rtt False "if true\n\
+                      \then x\n\
+                      \else case x of\n\  
+                      \  12 -> x"
+                      "if true\n\
+                      \then x\n\
+                      \else\n\
+                      \  (case x of\n\  
+                      \    12 -> x)" 50  -- TODO fix surplus parens around case.  
+                                         -- Are they only surplus due to layout cues?
+                                         -- And no round trip, due to issue in test directly above.
   ]

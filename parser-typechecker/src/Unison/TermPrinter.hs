@@ -28,7 +28,7 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
 --TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
 --TODO "in cases where let is needed, let has higher precedence than fn application"
---TODO in demo/2.u `merge`, surplus parens in pattern, `((Optional.None), _)`, and surplus parens around lambda body (a case statement) (and in `sort` around a case statement as else body); ditto surplus parens around if/then/else in lambda body
+--TODO surplus parens around a case statement as else body, see tests line 334; ditto surplus parens around if/then/else in lambda body
 --TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
 
 --TODO precedence comment and double check in type printer
@@ -64,8 +64,8 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
        if 2a then 2b else 2c
        handle 2h in 2b
        case 2x of
-         a | 2g -> 1b
-       let x = 1y
+         a | 2g -> 0b
+       let x = (-1)y
            1z
 
      >=0
@@ -225,7 +225,7 @@ prettyPattern n p vs patt = case patt of
                                                k_pat_printed <> b" ") <> l"}", eventual_tail)
   t -> (l"error: " <> l (show t), vs)
   where l = Literal
-        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 10 vs pat
+        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n (-1) vs pat
                                        (rest_printed, eventual_tail) = patterns tail_vs pats
                                    in (printed : rest_printed, eventual_tail)
         patterns vs [] = ([], vs)
