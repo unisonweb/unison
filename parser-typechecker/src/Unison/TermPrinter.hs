@@ -26,9 +26,7 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO let-bound functions being rendered as lambdas, eg in basics.u `merge`, `let go = acc a b -> ...`  (printBinding should be more like prettyBinding) - and maybe drop breaking spaces on LHS
 --TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
---TODO binding definition getting double indented, eg in sort or merge; also in match body
 --TODO "in cases where let is needed, let has higher precedence than fn application"
 --TODO "(Sequence.size a) Nat./ 2 doesn't need parens since fn application binds tighter than any infix operator"
 --TODO in demo/2.u `merge`, surplus parens in pattern, `((Optional.None), _)`, and surplus parens around lambda body (a case statement) (and in `sort` around a case statement as else body); ditto surplus parens around if/then/else in lambda body
@@ -99,7 +97,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint Str
 pretty n p term = specialCases term $ \case
   Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
-  Ann' tm t    -> parenNest (p >= 0) $
+  Ann' tm t    -> paren (p >= 0) $
                     pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
   Nat' u       -> l $ show u
@@ -115,34 +113,34 @@ pretty n p term = specialCases term $ \case
   Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
   Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
   Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
-  Handle' h body -> parenNest (p >= 2) $
+  Handle' h body -> paren (p >= 2) $
                       l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n 2 body))
   App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
   LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
   Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0) (toList xs) <> l"]"
-  If' cond t f -> parenNest (p >= 2) $
-                    (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
-                     PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
-                     PP.Group (l"else" <> b" " <> pretty n 2 f))
-  And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  If' cond t f -> paren (p >= 2) $
+                    (PP.Group (l"if" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 cond)) <> b" " <>
+                     PP.Group (l"then" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 t)) <> b" " <>
+                     PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 f)))
+  And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+  Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
   LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
-  Match' scrutinee branches -> parenNest (p >= 2) $
+  Match' scrutinee branches -> paren (p >= 2) $
                                PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
-            (Tuple' [x], _) -> parenNest (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
-            (Tuple' xs, _)  -> parenNest True $ commaList xs
-            BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
+            (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
+            (Tuple' xs, _)  -> paren True $ commaList xs
+            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
             _ -> case (term, nonForcePred) of
-              AppsPred' f args -> parenNest (p >= 10) $
+              AppsPred' f args -> paren (p >= 10) $
                 pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
               _ -> case (term, nonUnitArgPred) of
-                LamsNamedPred' vs body -> parenNest (p >= 3) $
+                LamsNamedPred' vs body -> paren (p >= 3) $
                                             varList vs <> l" ->" <> b" " <>
                                             (PP.Nest "  " $ PP.Group $ pretty n 2 body)
                 _ -> go term
@@ -154,7 +152,7 @@ pretty n p term = specialCases term $ \case
 
         -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
         -- These will replace the occurrences of b"; ".
-        printLet bs e = parenNest (p >= 2) $
+        printLet bs e = paren (p >= 2) $
                         PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $
                           (mconcat (map printBinding bs)) <>
                           PP.Group (pretty n 0 e))
@@ -210,16 +208,16 @@ prettyPattern n p vs patt = case patt of
   Pattern.Float _ f   -> (l $ show f, vs)
   Pattern.Tuple [pp]   -> let
     (printed, tail_vs) = prettyPattern n 10 vs pp
-    in (parenNest (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
+    in (paren (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
   Pattern.Tuple pats  -> let
     (pats_printed, tail_vs) = patterns vs pats
-    in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
+    in (paren True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
   Pattern.Constructor _ ref i pats -> let
     (pats_printed, tail_vs) = patternsSep (b" ") vs pats
-    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed, tail_vs)
+    in (paren (p >= 10) $ l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed, tail_vs)
   Pattern.As _ pat    -> let (v : tail_vs) = vs
                              (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
-                         in (parenNest (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)
+                         in (paren (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)
   Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
                               in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
   Pattern.EffectBind _ ref i pats k_pat -> let
@@ -285,9 +283,6 @@ prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 paren :: Bool -> PrettyPrint String -> PrettyPrint String
 paren True s = PP.Group $ l"(" <> s <> l")"
 paren False s = PP.Group s
-
-parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
-parenNest useParen contents = PP.Nest "  " $ paren useParen contents
 
 varName :: Var v => v -> String
 varName v = (Text.unpack (Var.name v))
