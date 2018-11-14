@@ -59,6 +59,10 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
       addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
+  -- optimization ideas:
+  -- can beta reduce any lambda as long as it's applied to vars only
+  -- can also sub any let as long as the number of occurrences of the var is 1
+  -- or the var is bound to another var, or the var is bound to a primitive
   go (Apps' f@(LamsNamed' vs body) args) = ap vs body args where
     ap vs body [] = lam' (ann f) vs body
     ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
