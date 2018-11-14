@@ -45,12 +45,10 @@ fromTerm' :: (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
 fromTerm' t = term (fromTerm t)
 
 fromTerm :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> ANF v a
-fromTerm t = ANF_ (go t) where
+fromTerm t = ANF_ (go $ lambdaLift t) where
   ann = ABT.annotation
   isVar (Var' _) = True
   isVar _ = False
-  isClosedLam t@(LamNamed' _ _) | Set.null (ABT.freeVars t) = True
-  isClosedLam _ = False
   fixAp t f args =
     let
       args' = Map.fromList $ toVar =<< (args `zip` [0..])
@@ -61,7 +59,7 @@ fromTerm t = ANF_ (go t) where
       addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
-  go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
+  go (Apps' f@(LamsNamed' vs body) args) = ap vs body args where
     ap vs body [] = lam' (ann f) vs body
     ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
     ap [] _body _args = error "type error"
@@ -73,10 +71,13 @@ fromTerm t = ANF_ (go t) where
     | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
                   in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
+  go (If' (Boolean' False) _ f) = go f
+  go (If' (Boolean' True) t _) = go t
   go e@(If' cond t f)
     | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
                   in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') t f)
+  -- todo: could do some simplication if scrutinee is concrete
   go e@(Match' scrutinee cases)
     | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
