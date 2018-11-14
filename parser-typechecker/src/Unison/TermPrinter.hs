@@ -28,7 +28,6 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
 --TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
 --TODO "in cases where let is needed, let has higher precedence than fn application"
---TODO "(Sequence.size a) Nat./ 2 doesn't need parens since fn application binds tighter than any infix operator"
 --TODO in demo/2.u `merge`, surplus parens in pattern, `((Optional.None), _)`, and surplus parens around lambda body (a case statement) (and in `sort` around a case statement as else body); ditto surplus parens around if/then/else in lambda body
 --TODO type annotations above let bindings, not appended to them, eg tictactoe.u `isWin`
 --TODO case alternatives are separated by ; if not being line broken - correct?  or force line breaks?
@@ -61,7 +60,7 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
      >=3
        x -> 2y
-       10x + 10y + ... 10z
+       3x + 3y + ... 3z
 
      >=2
        if 2a then 2b else 2c
@@ -135,7 +134,7 @@ pretty n p term = specialCases term $ \case
           case (term, binaryOpsPred) of
             (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
             (Tuple' xs, _)  -> paren True $ commaList xs
-            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
+            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 3 lastArg
             _ -> case (term, nonForcePred) of
               AppsPred' f args -> paren (p >= 10) $
                 pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
@@ -189,7 +188,7 @@ pretty n p term = specialCases term $ \case
         -- We build the result out from the right, starting at `f2`.
         binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
         binaryApps xs = foldr (flip (<>)) mempty (map r xs)
-                        where r (a, f) = pretty n 10 a <> b" " <> pretty n 10 f <> b" "
+                        where r (a, f) = pretty n 3 a <> b" " <> pretty n 10 f <> b" "
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
 pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
