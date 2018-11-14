@@ -159,9 +159,7 @@ pretty n p term = specialCases term $ \case
                           (mconcat (map printBinding bs)) <>
                           PP.Group (pretty n 0 e))
                         where
-                          printBinding (v, binding) = PP.Group (
-                            (l $ varName v) <> b" " <> l"=" <> b" " <> PP.Nest "  "
-                              (PP.Group (pretty n 1 binding))) <> b"; "
+                          printBinding (v, binding) = prettyBinding n v binding <> b"; "
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
@@ -259,8 +257,8 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
       PP.Group (renderName v <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
       PP.Group (prettyBinding n v tm)
     LamsNamedOpt' vs body ->
-      PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
-                (PP.Nest "  " $ PP.Group (pretty n (-1) body))
+      PP.Group (PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
+                (PP.Nest "  " $ PP.Group (pretty n (-1) body)))
       where
     t -> l"error: " <> l (show t)
     where
