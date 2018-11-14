@@ -165,9 +165,13 @@ test = scope "termprinter" . tests $
                            \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
-  , tc_breaks 50 "let\n\
-                 \  x = (1 : Int)\n\
-                 \  (x : Int)"
+  , tc_diff_rtt True "let\n\
+                     \  x = (1 : Int)\n\
+                     \  (x : Int)"
+                     "let\n\
+                     \  x : Int\n\
+                     \  x = 1\n\
+                     \  (x : Int)" 50
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
@@ -220,7 +224,8 @@ test = scope "termprinter" . tests $
             \    12\n\
             \  else\n\
             \    namespace baz where\n\
-            \      x = 1\n\
+            \      f : Int -> Int\n\
+            \      f x = x\n\
             \    13"               -- TODO suppress lets within block'
             "if foo\n\
             \then\n\
@@ -229,7 +234,8 @@ test = scope "termprinter" . tests $
             \    12)\n\
             \else\n\
             \  (let\n\
-            \    baz.x = 1\n\
+            \    baz.f : Int -> Int\n\
+            \    baz.f x = x\n\
             \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
                                    -- TODO add a test with a type annotation above the binding
   , tc "x + y"
