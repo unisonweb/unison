@@ -309,5 +309,11 @@ test = scope "termprinter" . tests $
                                                                              \(+) a b c = foo a b c"
   , tc_binding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
   , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
+  , tc_breaks 32 "let\n\
+                 \  go acc a b =\n\
+                 \    case Sequence.at 0 a of\n\
+                 \      Optional.None -> 0\n\
+                 \      Optional.Some hd1 -> 0\n\
+                 \  go [] a b"
 
   ]
