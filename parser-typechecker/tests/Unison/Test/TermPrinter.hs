@@ -149,7 +149,13 @@ test = scope "termprinter" . tests $
   , tc "case x of +1 -> foo"
   , tc "case x of -1 -> foo"
   , tc "case x of 3.14159 -> foo"
-  , tc "case x of true -> foo"
+  , tc_diff_rtt False "case x of\n\
+                      \  true -> foo\n\
+                      \  false -> bar" 
+                      "case x of true -> foo; false -> bar" 0 
+  , tc_breaks 50 "case x of\n\
+                 \  true -> foo\n\
+                 \  false -> bar"
   , tc "case x of false -> foo"
   , tc "case x of y@() -> y"
   , tc "case x of a@(b@(c@())) -> c"
@@ -178,6 +184,14 @@ test = scope "termprinter" . tests $
   , tc "case x of 12 -> x -> f x"
   , tc_diff "case x of (12) -> x" $ "case x of 12 -> x"
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
+  , tc_breaks 50 "case x of\n\
+                 \  12 -> x"
+  , pending $ tc_breaks 50 "if true\n\
+                 \then\n\
+                 \  case x of\n\  
+                 \    12 -> x\n\
+                 \else\n\
+                 \  x"              -- TODO parser bug?  'unexpected else' (and parens round case doesn't work either)
   , tc_breaks 15 "case x of\n\
                  \  12 -> x\n\
                  \  13 -> y\n\

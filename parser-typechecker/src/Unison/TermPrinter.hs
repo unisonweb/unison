@@ -29,8 +29,6 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 --TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
 --TODO "in cases where let is needed, let has higher precedence than fn application"
 --TODO in demo/2.u `merge`, surplus parens in pattern, `((Optional.None), _)`, and surplus parens around lambda body (a case statement) (and in `sort` around a case statement as else body); ditto surplus parens around if/then/else in lambda body
---TODO type annotations above let bindings, not appended to them, eg tictactoe.u `isWin`
---TODO case alternatives are separated by ; if not being line broken - correct?  or force line breaks?
 --TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
 
 --TODO precedence comment and double check in type printer
@@ -126,9 +124,9 @@ pretty n p term = specialCases term $ \case
   Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
   LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
-  Match' scrutinee branches -> paren (p >= 2) $
+  Match' scrutinee branches -> paren (p >= 2) $ PP.BrokenGroup $ 
                                PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
-                               (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
+                               (PP.Nest "  " $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
