@@ -20,6 +20,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Reference as R
 import qualified Unison.Term as Term
 import qualified Data.Vector as Vector
+import qualified Unison.Runtime.ANF as ANF
 
 type Machine = [V] -- a stack of values
 
@@ -183,7 +184,7 @@ compile :: (R.Reference -> V) -> Term Symbol -> IR
 compile env = compile0 env []
 
 compile0 :: (R.Reference -> V) -> [Symbol] -> Term Symbol -> IR
-compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
+compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t)) where
   go t = case t of
     Term.LamsNamed' vs body
       | ABT.isClosed t -> V (Lam (length vs) (Right $ void t) (go body))
@@ -231,4 +232,4 @@ parseAndNormalize :: (R.Reference -> V) -> String -> (Maybe (Term Symbol))
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol
-parseANF s = Term.anf . Term.unannotate $ B.tm s
+parseANF s = ANF.fromTerm' . Term.unannotate $ B.tm s

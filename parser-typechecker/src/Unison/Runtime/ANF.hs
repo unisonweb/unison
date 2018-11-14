@@ -2,33 +2,50 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# Language OverloadedStrings #-}
 {-# Language PatternSynonyms #-}
+{-# Language ScopedTypeVariables #-}
 
-module Unison.Runtime.ANF (int) where
+module Unison.Runtime.ANF (fromTerm, fromTerm', term, lambdaLift) where
 
-import Prelude hiding (abs)
-import Data.Foldable
-import Data.List
-import Data.Int (Int64)
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Word (Word64)
-import Unison.Reference (Reference)
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
-import Data.Vector (Vector)
-import qualified Data.Set as Set
-import qualified Unison.Var as Var
-import Unison.Var (Var)
-import Unison.Runtime.IR (IR)
-import qualified Unison.Runtime.IR as IR
-import qualified Unison.ABT as ABT
+import Data.Foldable hiding (and,or)
+import Data.List hiding (and,or)
+import Prelude hiding (abs,and,or)
 import Unison.Term
+import Unison.Var (Var)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Unison.ABT as ABT
+import qualified Unison.Term as Term
+import qualified Unison.Var as Var
 
 newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 
-fromTerm :: (Semigroup a, Var v) => Term.AnnotatedTerm v a -> ANF v a
-fromTerm t = go t where
+-- Replace all lambdas with free variables with closed lambdas.
+-- Works by adding a parameter for each free variable. These
+-- synthetic parameters are added before the existing lambda params.
+-- For example, `(x -> x + y + z)` becomes `(y z x -> x + y + z) y z`.
+-- As this replacement has the same type as the original lambda, it
+-- can be done as a purely local transformation, without updating any
+-- call sites of the lambda.
+--
+-- The transformation is shallow and doesn't look inside lambdas.
+lambdaLift :: (Ord v, Semigroup a) => AnnotatedTerm v a -> AnnotatedTerm v a
+lambdaLift t = ABT.visitPure go t where
+  go t@(LamsNamed' vs body) = Just $ let
+    fvs = ABT.freeVars t
+    a = ABT.annotation t
+    in if Set.null fvs then lam' a vs body -- `lambdaLift body` would make transform deep
+       else apps' (lam' a (toList fvs ++ vs) body)
+                  (var a <$> toList fvs)
+  go _ = Nothing
+
+fromTerm' :: (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
+fromTerm' t = term (fromTerm t)
+
+fromTerm :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> ANF v a
+fromTerm t = ANF_ (go t) where
   ann = ABT.annotation
   isVar (Var' _) = True
   isVar _ = False
@@ -43,7 +60,7 @@ fromTerm t = go t where
       toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
       addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
-  go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
+  go :: AnnotatedTerm v a -> AnnotatedTerm v a
   go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
     ap vs body [] = lam' (ann f) vs body
     ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
@@ -51,7 +68,7 @@ fromTerm t = go t where
   go t@(Apps' f args)
     | isVar f = fixAp t f args
     | otherwise = let fv' = ABT.fresh t (Var.named "f")
-                  in let1' False [(fv', anf f)] (fixAp t (var (ann f) fv') args)
+                  in let1' False [(fv', go f)] (fixAp t (var (ann f) fv') args)
   go e@(Handle' h body)
     | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
@@ -59,7 +76,7 @@ fromTerm t = go t where
   go e@(If' cond t f)
     | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1' False [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
+                  in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') t f)
   go e@(Match' scrutinee cases)
     | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
@@ -68,7 +85,7 @@ fromTerm t = go t where
     | isVar x = and (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
-        in let1' False [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
+        in let1' False [(x', go x)] (and (ann e) (var (ann x) x') (go y))
   go e@(Or' x y)
     | isVar x = or (ann e) x (go y)
     | otherwise =
