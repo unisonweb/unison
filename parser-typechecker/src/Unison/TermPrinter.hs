@@ -36,6 +36,12 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
 
+-- Description of the position of this ABT node, when viewed in the surface syntax.
+data SyntaxContext
+  -- This ABT node is at the top level of a TermParser.block.  
+  = Block
+  | Normal
+
 {- Explanation of precedence handling
 
    We illustrate precedence rules as follows.
@@ -86,16 +92,16 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint String
+pretty :: Var v => PrettyPrintEnv -> Int -> SyntaxContext -> AnnotatedTerm v a -> PrettyPrint String
 -- p is the operator precedence of the enclosing context (a number from 0 to 11, or
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
-pretty n p term = specialCases term $ \case
+pretty n p _ term = specialCases term $ \case
   Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> paren (p >= 0) $
-                    pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
+                    pretty n 10 Normal tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
   Nat' u       -> l $ show u
   Float' f     -> l $ show f
@@ -111,38 +117,38 @@ pretty n p term = specialCases term $ \case
   Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
   Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
   Handle' h body -> paren (p >= 2) $
-                      l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
-                      <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
-  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
-  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0) (toList xs) <> l"]"
+                      l"handle" <> b" " <> pretty n 2 Normal h <> b" " <> l"in" <> b" "
+                      <> PP.Nest "  " (PP.Group (pretty n 2 Block body))
+  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 Normal x
+  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 Normal x
+  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0 Normal) (toList xs) <> l"]"
   If' cond t f -> paren (p >= 2) $
-                    (PP.Group (l"if" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 cond)) <> b" " <>
-                     PP.Group (l"then" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 t)) <> b" " <>
-                     PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 f)))
-  And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
+                    (PP.Group (l"if" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block cond)) <> b" " <>
+                     PP.Group (l"then" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block t)) <> b" " <>
+                     PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block f)))
+  And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
+  Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
   LetRecNamed' bs e -> printLet bs e
   Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> paren (p >= 2) $ PP.BrokenGroup $ 
-                               PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
+                               PP.Group (l"case" <> b" " <> pretty n 2 Normal scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
-            (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
+            (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n 10 Normal x <> b" " <> l"()"
             (Tuple' xs, _)  -> paren True $ commaList xs
-            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 3 lastArg
+            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 3 Normal lastArg
             _ -> case (term, nonForcePred) of
               AppsPred' f args -> paren (p >= 10) $
-                pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
+                pretty n 10 Normal f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10 Normal) args))
               _ -> case (term, nonUnitArgPred) of
                 LamsNamedPred' vs body -> paren (p >= 3) $
                                             varList vs <> l" ->" <> b" " <>
-                                            (PP.Nest "  " $ PP.Group $ pretty n 2 body)
+                                            (PP.Nest "  " $ PP.Group $ pretty n 2 Block body)
                 _ -> go term
 
-        sepList sep xs = sepList' (pretty n 0) sep xs
+        sepList sep xs = sepList' (pretty n 0 Normal) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
         varList vs = sepList' (\v -> l $ varName v) (b" ") vs
         commaList = sepList (l"," <> b" ")
@@ -152,14 +158,14 @@ pretty n p term = specialCases term $ \case
         printLet bs e = paren (p >= 2) $
                         PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $
                           (mconcat (map printBinding bs)) <>
-                          PP.Group (pretty n 0 e))
+                          PP.Group (pretty n 0 Block e))
                         where
                           printBinding (v, binding) = prettyBinding n v binding <> b"; "
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
-          (PP.Nest "  " $ PP.Group $ pretty n 0 body) where
-            printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
+          (PP.Nest "  " $ PP.Group $ pretty n 0 Block body) where
+            printGuard (Just g) = l"|" <> b" " <> pretty n 2 Normal g <> b" "
             printGuard Nothing = Empty
         printCase _ = l"error"
 
@@ -186,11 +192,11 @@ pretty n p term = specialCases term $ \case
         -- We build the result out from the right, starting at `f2`.
         binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
         binaryApps xs = foldr (flip (<>)) mempty (map r xs)
-                        where r (a, f) = pretty n 3 a <> b" " <> pretty n 10 f <> b" "
+                        where r (a, f) = pretty n 3 Normal a <> b" " <> pretty n 10 Normal f <> b" "
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
-pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
+pretty' (Just width) n t = PP.render width   $ pretty n (-1) Normal t
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) Normal t
 
 prettyPattern :: Var v => PrettyPrintEnv -> Int -> [v] -> Pattern loc -> (PrettyPrint String, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a tail of variables it doesn't use.
@@ -253,7 +259,7 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
       PP.Group (prettyBinding n v tm)
     LamsNamedOpt' vs body ->
       PP.Group (PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
-                (PP.Nest "  " $ PP.Group (pretty n (-1) body)))
+                (PP.Nest "  " $ PP.Group (pretty n (-1) Block body)))
       where
     t -> l"error: " <> l (show t)
     where
