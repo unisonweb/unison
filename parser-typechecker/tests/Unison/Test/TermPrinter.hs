@@ -170,14 +170,14 @@ test = scope "termprinter" . tests $
                            \      else c) of\n\
                            \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
-  , tc "handle x -> foo in bar"
+  , tc "handle x -> foo in bar"  -- TODO !! rtt on below
   , tc_diff_rtt True "let\n\
                      \  x = (1 : Int)\n\
                      \  (x : Int)"
                      "let\n\
                      \  x : Int\n\
                      \  x = 1\n\
-                     \  (x : Int)" 50
+                     \  (x : Int)" 50 
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
@@ -225,26 +225,47 @@ test = scope "termprinter" . tests $
   , pending $ tc_breaks_diff 21 "case x of 12 -> if a then b else c" $  -- TODO
               "case x of 12 -> \n\
               \  if a then b else c"
-  , tc_diff_rtt False "if foo \n\
-            \  then \n\
-            \    use bar\n\
-            \    and true true\n\
-            \    12\n\
-            \  else\n\
-            \    namespace baz where\n\
-            \      f : Int -> Int\n\
-            \      f x = x\n\
-            \    13"               -- TODO suppress lets within block'
+  , tc_diff_rtt True "if foo\n\
+            \then\n\
+            \  use bar\n\
+            \  and true true\n\
+            \  12\n\
+            \else\n\
+            \  namespace baz where\n\
+            \    f : Int -> Int\n\
+            \    f x = x\n\
+            \  13"               
             "if foo\n\
             \then\n\
-            \  (let\n\
-            \    _1 = and true true\n\
-            \    12)\n\
+            \  and true true\n\  
+            \  12\n\
             \else\n\
-            \  (let\n\
-            \    baz.f : Int -> Int\n\
-            \    baz.f x = x\n\
-            \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
+            \  baz.f : Int -> Int\n\
+            \  baz.f x = x\n\
+            \  13" 50           
+  , tc_breaks 50 "if foo\n\
+                 \then\n\
+                 \  and true true\n\
+                 \  12\n\
+                 \else\n\
+                 \  baz.f : Int -> Int\n\
+                 \  baz.f x = x\n\
+                 \  13"       
+  , pending $ tc_breaks 90 "handle foo in\n\
+                 \  a = 5\n\
+                 \  b =\n\
+                 \    c = 3\n\
+                 \    true\n\
+                 \  false"  -- TODO comes back out with line breaks around foo
+  , tc_breaks 50 "case x of\n\
+                 \  true ->\n\
+                 \    d = 1\n\
+                 \    false\n\
+                 \  false ->\n\
+                 \    f x = x + 1\n\
+                 \    true"
+  , pending $ tc_breaks 50 "x -> e = 12\n\
+                 \     x + 1"  -- TODO parser looks like lambda body should be a block, but we hit 'unexpected ='
   , tc "x + y"
   , tc "x ~ y"                     -- TODO what about using a binary data constructor as infix?
   -- We don't store anything that would allow us to know whether the user originally wrote

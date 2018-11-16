@@ -7,8 +7,9 @@ module Unison.TermPrinter where
 import           Data.List
 import qualified Data.Text as Text
 import           Data.Foldable (fold, toList)
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, isJust)
 import           Data.Vector()
+import           Text.Read (readMaybe)
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
 import           Unison.Lexer (symbolyId)
@@ -41,6 +42,7 @@ data SyntaxContext
   -- This ABT node is at the top level of a TermParser.block.  
   = Block
   | Normal
+  deriving (Eq)
 
 {- Explanation of precedence handling
 
@@ -97,7 +99,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> SyntaxContext -> AnnotatedTerm v a -
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
-pretty n p _ term = specialCases term $ \case
+pretty n p sc term = specialCases term $ \case
   Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> paren (p >= 0) $
@@ -128,8 +130,8 @@ pretty n p _ term = specialCases term $ \case
                      PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block f)))
   And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
   Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
-  LetRecNamed' bs e -> printLet bs e
-  Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
+  LetRecNamed' bs e -> printLet sc bs e
+  Lets' bs e ->   printLet sc (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> paren (p >= 2) $ PP.BrokenGroup $ 
                                PP.Group (l"case" <> b" " <> pretty n 2 Normal scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ fold (intersperse (b"; ") (map printCase branches)))
@@ -155,12 +157,20 @@ pretty n p _ term = specialCases term $ \case
 
         -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
         -- These will replace the occurrences of b"; ".
-        printLet bs e = paren (p >= 2) $
-                        PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $
-                          (mconcat (map printBinding bs)) <>
-                          PP.Group (pretty n 0 Block e))
-                        where
-                          printBinding (v, binding) = prettyBinding n v binding <> b"; "
+        printLet sc bs e = 
+          paren ((sc /= Block) && p >= 2) $ PP.BrokenGroup $ letIntro $
+            (mconcat (map printBinding bs)) <>
+            PP.Group (pretty n 0 Normal e)
+          where
+            printBinding (v, binding) = 
+              if isBlank $ varName v 
+              then pretty n (-1) Normal binding <> b"; "
+              else prettyBinding n v binding <> b"; "
+            letIntro = case sc of 
+              Block  -> id
+              Normal -> \x -> l"let" <> b"; " <> (PP.Nest "  " x)
+            isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True  -- TODO is this hygienic? or can people name bindings _1 themselves?
+            isBlank _ = False
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
