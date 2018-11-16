@@ -26,7 +26,7 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = pretty get_names (-1) input_term
+       prettied = pretty get_names (-1) Normal input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -245,7 +245,6 @@ test = scope "termprinter" . tests $
             \    baz.f : Int -> Int\n\
             \    baz.f x = x\n\
             \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
-                                   -- TODO add a test with a type annotation above the binding
   , tc "x + y"
   , tc "x ~ y"                     -- TODO what about using a binary data constructor as infix?
   -- We don't store anything that would allow us to know whether the user originally wrote
