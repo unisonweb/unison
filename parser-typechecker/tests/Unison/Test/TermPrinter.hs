@@ -26,7 +26,7 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = pretty get_names (-1) Normal input_term
+       prettied = pretty get_names (ac (-1) Normal) input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied

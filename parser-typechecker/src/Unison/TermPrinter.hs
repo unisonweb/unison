@@ -27,7 +27,6 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO let suppression (eg console.u `simulate`, delay blocks (eg ability-keyword.u)
 --TODO "in cases where let is needed, let has higher precedence than fn application"
 --TODO surplus parens around a case statement as else body, see tests line 334; ditto surplus parens around if/then/else in lambda body
 --TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
@@ -36,6 +35,16 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 --TODO ? askInfo suffix; > watches
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
+
+-- Information about the context in which a term appears, which affects how the term should be rendered.
+data AmbientContext = AmbientContext 
+  {
+    -- The operator precedence of the enclosing context (a number from 0 to 11, or
+    -- -1 is rendered without outer parentheses unconditionally).  
+    -- Function application has precedence 10.
+    precedence :: Int
+  , syntaxContext :: SyntaxContext
+  } 
 
 -- Description of the position of this ABT node, when viewed in the surface syntax.
 data SyntaxContext
@@ -94,16 +103,14 @@ data SyntaxContext
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> Int -> SyntaxContext -> AnnotatedTerm v a -> PrettyPrint String
--- p is the operator precedence of the enclosing context (a number from 0 to 11, or
--- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
+pretty :: Var v => PrettyPrintEnv -> AmbientContext -> AnnotatedTerm v a -> PrettyPrint String
 -- n resolves references to text names.  When getting the name of one of the constructors of a type, the
 -- `Maybe Int` identifies which constructor.
-pretty n p sc term = specialCases term $ \case
+pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term $ \case
   Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> paren (p >= 0) $
-                    pretty n 10 Normal tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
+                    pretty n (ac 10 Normal) tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
   Nat' u       -> l $ show u
   Float' f     -> l $ show f
@@ -119,38 +126,38 @@ pretty n p sc term = specialCases term $ \case
   Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
   Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
   Handle' h body -> paren (p >= 2) $
-                      l"handle" <> b" " <> pretty n 2 Normal h <> b" " <> l"in" <> b" "
-                      <> PP.Nest "  " (PP.Group (pretty n 2 Block body))
-  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 Normal x
-  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 Normal x
-  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0 Normal) (toList xs) <> l"]"
+                      l"handle" <> b" " <> pretty n (ac 2 Normal) h <> b" " <> l"in" <> b" "
+                      <> PP.Nest "  " (PP.Group (pretty n (ac 2 Block) body))
+  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n (ac 11 Normal) x
+  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n (ac 11 Normal) x
+  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n (ac 0 Normal)) (toList xs) <> l"]"
   If' cond t f -> paren (p >= 2) $
-                    (PP.Group (l"if" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block cond)) <> b" " <>
-                     PP.Group (l"then" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block t)) <> b" " <>
-                     PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n 2 Block f)))
-  And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
-  Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n 10 Normal x <> b" " <> pretty n 10 Normal y
+                    (PP.Group (l"if" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n (ac 2 Block) cond)) <> b" " <>
+                     PP.Group (l"then" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n (ac 2 Block) t)) <> b" " <>
+                     PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n (ac 2 Block) f)))
+  And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n (ac 10 Normal) x <> b" " <> pretty n (ac 10 Normal) y
+  Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n (ac 10 Normal) x <> b" " <> pretty n (ac 10 Normal) y
   LetRecNamed' bs e -> printLet sc bs e
   Lets' bs e ->   printLet sc (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> paren (p >= 2) $ PP.BrokenGroup $ 
-                               PP.Group (l"case" <> b" " <> pretty n 2 Normal scrutinee <> b" " <> l"of") <> b" " <>
+                               PP.Group (l"case" <> b" " <> pretty n (ac 2 Normal) scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ fold (intersperse (b"; ") (map printCase branches)))
   t -> l"error: " <> l (show t)
   where specialCases term go =
           case (term, binaryOpsPred) of
-            (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n 10 Normal x <> b" " <> l"()"
+            (Tuple' [x], _) -> paren (p >= 10) $ l"Pair" <> b" " <> pretty n (ac 10 Normal) x <> b" " <> l"()"
             (Tuple' xs, _)  -> paren True $ commaList xs
-            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n 3 Normal lastArg
+            BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n (ac 3 Normal) lastArg
             _ -> case (term, nonForcePred) of
               AppsPred' f args -> paren (p >= 10) $
-                pretty n 10 Normal f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10 Normal) args))
+                pretty n (ac 10 Normal) f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n (ac 10 Normal)) args))
               _ -> case (term, nonUnitArgPred) of
                 LamsNamedPred' vs body -> paren (p >= 3) $
                                             varList vs <> l" ->" <> b" " <>
-                                            (PP.Nest "  " $ PP.Group $ pretty n 2 Block body)
+                                            (PP.Nest "  " $ PP.Group $ pretty n (ac 2 Block) body)
                 _ -> go term
 
-        sepList sep xs = sepList' (pretty n 0 Normal) sep xs
+        sepList sep xs = sepList' (pretty n (ac 0 Normal)) sep xs
         sepList' f sep xs = fold $ intersperse sep (map f xs)
         varList vs = sepList' (\v -> l $ varName v) (b" ") vs
         commaList = sepList (l"," <> b" ")
@@ -159,12 +166,11 @@ pretty n p sc term = specialCases term $ \case
         -- These will replace the occurrences of b"; ".
         printLet sc bs e = 
           paren ((sc /= Block) && p >= 2) $ PP.BrokenGroup $ letIntro $
-            (mconcat (map printBinding bs)) <>
-            PP.Group (pretty n 0 Normal e)
+            (mconcat (map printBinding bs)) <> PP.Group (pretty n (ac 0 Normal) e)
           where
             printBinding (v, binding) = 
               if isBlank $ varName v 
-              then pretty n (-1) Normal binding <> b"; "
+              then pretty n (ac (-1) Normal) binding <> b"; "
               else prettyBinding n v binding <> b"; "
             letIntro = case sc of 
               Block  -> id
@@ -174,8 +180,8 @@ pretty n p sc term = specialCases term $ \case
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
           PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
-          (PP.Nest "  " $ PP.Group $ pretty n 0 Block body) where
-            printGuard (Just g) = l"|" <> b" " <> pretty n 2 Normal g <> b" "
+          (PP.Nest "  " $ PP.Group $ pretty n (ac 0 Block) body) where
+            printGuard (Just g) = l"|" <> b" " <> pretty n (ac 2 Normal) g <> b" "
             printGuard Nothing = Empty
         printCase _ = l"error"
 
@@ -202,11 +208,11 @@ pretty n p sc term = specialCases term $ \case
         -- We build the result out from the right, starting at `f2`.
         binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
         binaryApps xs = foldr (flip (<>)) mempty (map r xs)
-                        where r (a, f) = pretty n 3 Normal a <> b" " <> pretty n 10 Normal f <> b" "
+                        where r (a, f) = pretty n (ac 3 Normal) a <> b" " <> pretty n (ac 10 Normal) f <> b" "
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
-pretty' (Just width) n t = PP.render width   $ pretty n (-1) Normal t
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) Normal t
+pretty' (Just width) n t = PP.render width   $ pretty n (ac (-1) Normal) t
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal) t
 
 prettyPattern :: Var v => PrettyPrintEnv -> Int -> [v] -> Pattern loc -> (PrettyPrint String, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a tail of variables it doesn't use.
@@ -269,7 +275,7 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
       PP.Group (prettyBinding n v tm)
     LamsNamedOpt' vs body ->
       PP.Group (PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
-                (PP.Nest "  " $ PP.Group (pretty n (-1) Block body)))
+                (PP.Nest "  " $ PP.Group (pretty n (ac (-1) Block) body)))
       where
     t -> l"error: " <> l (show t)
     where
@@ -310,3 +316,6 @@ b = Breakable
 -- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
 isSymbolic :: Text.Text -> Bool
 isSymbolic name = case symbolyId $ Text.unpack $ name of Right _ -> True; _ -> False
+
+ac :: Int -> SyntaxContext -> AmbientContext
+ac = AmbientContext
