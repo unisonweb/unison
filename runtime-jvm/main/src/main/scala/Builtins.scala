@@ -393,6 +393,9 @@ object Builtins {
   val Int_negate =
     fl_l("Int.negate", "x", -_)
 
+  val Int_truncate0 =
+    fl_l("Int.truncate0", "x", x => if (x < 0) 0 else x)
+
   // Unsigned machine integers
   def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.Nat)
 
@@ -428,6 +431,9 @@ object Builtins {
 
   val Nat_div =
     fnn_n("Nat./", "x", "y", java.lang.Long.divideUnsigned(_,_))
+
+  val Nat_mod =
+    fnn_n("Nat.mod", "x", "y", java.lang.Long.remainderUnsigned(_,_))
 
   val Nat_eq =
     fll_b("Nat.==", "x", "y", _ == _)
@@ -479,6 +485,8 @@ object Builtins {
 
   val Float_lt = fdd_b("Float.<", "x", "y", _ < _)
 
+  val Float_floor = fp_p("Float.floor", "x", (n: Float) => n.floor.toLong)
+
   val numericBuiltins: Map[Name, Computation] = Map(
     // arithmetic
     Int_inc,
@@ -490,6 +498,7 @@ object Builtins {
     Int_div,
     Int_signum,
     Int_negate,
+    Int_truncate0,
 
     Nat_toInt,
     Nat_inc,
@@ -500,11 +509,13 @@ object Builtins {
     Nat_add,
     Nat_sub,
     Nat_div,
+    Nat_mod,
 
     Float_add,
     Float_sub,
     Float_mul,
     Float_div,
+    Float_floor,
 
     // comparison
     Int_eq,
