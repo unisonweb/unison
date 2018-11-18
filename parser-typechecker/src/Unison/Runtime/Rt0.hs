@@ -6,21 +6,22 @@
 
 module Unison.Runtime.Rt0 where
 
-import Data.Functor
 import Data.Foldable
+import Data.Functor
 import Data.Int (Int64)
+import Data.List
 import Data.Text (Text)
 import Data.Word (Word64)
-import Data.List
+import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
-import Unison.Runtime.IR
-import qualified Unison.Builtin as B
-import qualified Unison.ABT as ABT
-import qualified Unison.Reference as R
-import qualified Unison.Term as Term
 import qualified Data.Vector as Vector
+import qualified Unison.ABT as ABT
+import qualified Unison.Builtin as B
+import qualified Unison.Pattern as Pattern
+import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
+import qualified Unison.Term as Term
 
 newtype Machine = Machine [V] -- a stack of values
 
@@ -94,7 +95,17 @@ run env = go where
     DynamicApply fnPos args -> call (at fnPos m) args m
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> case go body m of
-      RRequest req -> call (at handler m) [0] (Requested req `push` m)
+      -- todo: is this right?
+      -- handle h1 in
+      --   handle h2 in
+      --     -- what do do with h1 effects that occur here?
+      --     -- as they won't be caught by the inner handler
+      --     -- I think we want to attach h2 handler to the continuation
+      --     -- before propagating
+      RRequest req -> case call (at handler m) [0] (Requested req `push` m) of
+        RMatchFail -> RRequest req
+        r -> r
+      RDone v -> call (at handler m) [0] (Pure v `push` m)
       r -> r
     Var i -> done (at i m)
     V v -> done v
@@ -115,15 +126,17 @@ run env = go where
   runPattern :: V -> Pattern -> Machine -> Maybe Machine
   runPattern _ PatternIgnore m = Just m
   runPattern v PatternVar m = Just (push v m)
-  runPattern (I n) (PatternI n') m | n == n' = Just m
-  runPattern (F n) (PatternF n') m | n == n' = Just m
-  runPattern (N n) (PatternN n') m | n == n' = Just m
-  runPattern (B b) (PatternB b') m | b == b' = Just m
-  runPattern (T t) (PatternT t') m | t == t' = Just m
+  runPattern v (PatternAs p) m = runPattern v p (push v m)
+  runPattern (I n) (PatternI n') m = if n == n' then Just m else Nothing
+  runPattern (F n) (PatternF n') m = if n == n' then Just m else Nothing
+  runPattern (N n) (PatternN n') m = if n == n' then Just m else Nothing
+  runPattern (B b) (PatternB b') m = if b == b' then Just m else Nothing
+  runPattern (T t) (PatternT t') m = if t == t' then Just m else Nothing
   runPattern (Data rid cid args) (PatternData rid' cid' args') m | rid == rid' && cid == cid' =
     runPatterns args args' m
   runPattern (Sequence args) (PatternSequence args') m =
     runPatterns (toList args) (toList args') m
+  runPattern (Pure v) (PatternPure p) m = runPattern v p m
   runPattern (Requested (Req rid cid args k)) (PatternBind rid' cid' args' k') m | rid == rid' && cid == cid' =
     case runPatterns args args' m of
       Nothing -> Nothing
@@ -152,7 +165,7 @@ run env = go where
       _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
       _ | nargs > arity ->
         case go body (map (`at` m) (take arity args) `pushes` m) of
-          RRequest req -> RRequest $ req `appendCont` error "todo"
+          RRequest req -> RRequest $ req `appendCont` error "todo - overapplication yielding request"
           RDone fn' -> call fn' (drop arity args) m
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
@@ -190,6 +203,7 @@ compile0 env bound t =
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
+    Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
       Term.Ref' r -> Let (V (env r)) (DynamicApply 0 ((+1) . ind t <$> args))
       Term.Request' r cid -> Request r cid (ind t <$> args)
@@ -197,7 +211,7 @@ compile0 env bound t =
       _ -> DynamicApply (ind t f) (map (ind t) args) where
     Term.Handle' h body -> Handle (ind t h) (go body)
     Term.Ann' e _ -> go e
-    -- fill in Term.Request and pattern matching
+    Term.Match' scrutinee cases -> Match (ind t scrutinee) (compileCase <$> cases)
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       unknown v = error $ "free variable during compilation: " ++ show v
@@ -205,6 +219,19 @@ compile0 env bound t =
         Nothing -> error $ "free variable during compilation: " ++ show v
         Just i -> i
       ind _ e = error $ "ANF should eliminate any non-var arguments to apply " ++ show e
+      compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
+      compilePattern pat = case pat of
+        Pattern.Unbound -> PatternIgnore
+        Pattern.Var -> PatternVar
+        Pattern.Boolean b -> PatternB b
+        Pattern.Int n -> PatternI n
+        Pattern.Nat n -> PatternN n
+        Pattern.Float n -> PatternF n
+        Pattern.Constructor r cid args -> PatternData r cid (compilePattern <$> args)
+        Pattern.As pat -> PatternAs (compilePattern pat)
+        Pattern.EffectPure p -> PatternPure (compilePattern p)
+        Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
+        _ -> error $ "todo - compilePattern " ++ show pat
 
 normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =

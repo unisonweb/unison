@@ -21,6 +21,7 @@ data V
   | Lam Arity (Either R.Reference (Term Symbol)) IR
   | Data R.Reference ConstructorId [V]
   | Sequence (Vector V)
+  | Pure V
   | Requested Req
   | Cont IR
   deriving (Eq,Show)
@@ -29,7 +30,9 @@ data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
   | PatternSequence (Vector Pattern)
+  | PatternPure Pattern
   | PatternBind R.Reference ConstructorId [Pattern] Pattern
+  | PatternAs Pattern
   | PatternIgnore
   | PatternVar deriving (Eq,Show)
 
@@ -70,5 +73,6 @@ decompile v = case v of
   Lam _ f _ -> pure $ case f of Left r -> Term.ref() r; Right f -> f
   Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
   Sequence vs -> Term.vector' () <$> (traverse decompile vs)
+  Pure _ -> Nothing
   Requested _ -> Nothing
   Cont _ -> Nothing
