@@ -22,16 +22,19 @@ import qualified Unison.Term as Term
 import qualified Data.Vector as Vector
 import qualified Unison.Runtime.ANF as ANF
 
-type Machine = [V] -- a stack of values
+newtype Machine = Machine [V] -- a stack of values
 
 push :: V -> Machine -> Machine
-push = (:)
+push v (Machine m) = Machine (v : m)
 
 pushes :: [V] -> Machine -> Machine
-pushes s m = reverse s <> m
+pushes s (Machine m) = Machine (reverse s <> m)
+
+unpushes :: Int -> Machine -> [V]
+unpushes n (Machine m) = reverse . take n $ m
 
 at :: Int -> Machine -> V
-at i m = m !! i
+at i (Machine m) = m !! i
 
 ati :: Int -> Machine -> Int64
 ati i m = case at i m of
@@ -79,7 +82,7 @@ run env = go where
     Match scrutinee cases -> match (at scrutinee m) cases m
     Let b body -> case go b m of
       RRequest req -> RRequest (req `appendCont` body)
-      RDone v -> go body (v : m)
+      RDone v -> go body (push v m)
       e -> error $ show e
     LetRec bs body ->
       let m' = pushes bs' m
@@ -160,7 +163,7 @@ run env = go where
       _ -> case term of
         Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) (compile env lam)
           where
-          Just argterms = traverse decompile (reverse . take nargs $ m)
+          Just argterms = traverse decompile (unpushes nargs m)
           lam = Term.lam'() (drop nargs vs) $
             ABT.substs (vs `zip` argterms) body
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
@@ -208,7 +211,7 @@ compile0 env bound t =
 
 normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =
-  let v = case run env (compile env $ Term.unannotate t) [] of
+  let v = case run env (compile env $ Term.unannotate t) (Machine []) of
         RRequest e -> Requested e
         RDone a -> a
         e -> error $ show e
