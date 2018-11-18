@@ -57,20 +57,16 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
       argsANF = map toANF (args `zip` [0..])
       toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
       addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
-    in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
+      body f [] = go f
+      body f args@(arg : argTl) = case f of
+        Lam' f -> body (ABT.bind f arg) argTl
+        _ -> go (apps' f args)
+    in foldr addLet (body f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
-  -- optimization ideas:
-  -- can beta reduce any lambda as long as it's applied to vars only
-  -- can also sub any let as long as the number of occurrences of the var is 1
-  -- or the var is bound to another var, or the var is bound to a primitive
-  go (Apps' f@(LamsNamed' vs body) args) = ap vs body args where
-    ap vs body [] = lam' (ann f) vs body
-    ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
-    ap [] _body _args = error "type error"
   go t@(Apps' f args)
-    | isVar f = fixAp t f args
-    | otherwise = let fv' = ABT.fresh t (Var.named "f")
-                  in let1' False [(fv', go f)] (fixAp t (var (ann f) fv') args)
+    | isVar f && all isVar args = t
+    | otherwise = fixAp t f args
+  go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
   go e@(Handle' h body)
     | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
@@ -103,4 +99,18 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
   go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
   go e = e
+
+  -- test for whether an expression `let x = y in body` can be
+  -- reduced by substituting `y` into `body`. We only substitute
+  -- when `y` is a variable or a primitive, otherwise this might
+  -- end up duplicating evaluation or changing the order that
+  -- effects are evaluated
+  canSubstLet (Var' _) _body = True
+  canSubstLet (Int' _) _body = True
+  canSubstLet (Float' _) _body = True
+  canSubstLet (Nat' _) _body = True
+  canSubstLet (Boolean' _) _body = True
+  -- todo: if number of occurrences of the binding is 1 and the
+  -- binding is pure, okay to substitute
+  canSubstLet _ _ = False
 
