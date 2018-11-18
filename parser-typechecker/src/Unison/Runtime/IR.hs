@@ -44,7 +44,6 @@ data IR
   | MakeSequence [Pos]
   | V V
   | DynamicApply Pos [Pos] -- call to unknown function
-  | Resume Pos Pos -- Resume cont arg
   | Construct R.Reference ConstructorId [Pos]
   | Request R.Reference ConstructorId [Pos]
   | Handle Pos IR

@@ -91,11 +91,7 @@ run env = go where
           bs' = map (\ir -> g $ go ir m') bs
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
-    -- Apply body args -> go body (map (`at` m) args `pushes` m)
     DynamicApply fnPos args -> call (at fnPos m) args m
-    Resume cont arg -> case at cont m of
-      Cont k -> go k (at arg m `push` m)
-      v -> error $ "type error : resume expects a `Cont` here, got: " ++ show v
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> case go body m of
       RRequest req -> call (at handler m) [0] (Requested req `push` m)
@@ -168,6 +164,7 @@ run env = go where
             ABT.substs (vs `zip` argterms) body
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
+  call (Cont k) [arg] m = go k (push (at arg m) m)
   call _ _ _ = error "type error"
 
 compile :: (R.Reference -> V) -> Term Symbol -> IR
