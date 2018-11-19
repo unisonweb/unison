@@ -50,6 +50,7 @@ data IR
   | Construct R.Reference ConstructorId [Pos]
   | Request R.Reference ConstructorId [Pos]
   | Handle Pos IR
+  | HandleV V IR
   | If Pos IR IR
   | And Pos IR
   | Or Pos IR
@@ -62,6 +63,16 @@ data Req
   = Req R.Reference ConstructorId [V] IR
   deriving (Eq,Show)
 
+-- Appends `k2` to the end of the `k` continuation
+-- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
+-- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
+appendCont :: Req -> IR -> Req
+appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
+
+-- Wrap a `handle h` around the continuation inside the `Req`.
+-- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
+wrapHandler :: V -> Req -> Req
+wrapHandler h (Req r cid args k) = Req r cid args (HandleV h k)
 
 decompile :: V -> Maybe (Term Symbol)
 decompile v = case v of

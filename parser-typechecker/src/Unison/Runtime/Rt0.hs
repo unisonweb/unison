@@ -62,9 +62,6 @@ att i m = case at i m of
   T t -> t
   _ -> error "type error"
 
-appendCont :: Req -> IR -> Req
-appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
-
 data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
 
 done :: V -> Result
@@ -94,19 +91,8 @@ run env = go where
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     DynamicApply fnPos args -> call (at fnPos m) args m
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
-    Handle handler body -> case go body m of
-      -- todo: is this right?
-      -- handle h1 in
-      --   handle h2 in
-      --     -- what do do with h1 effects that occur here?
-      --     -- as they won't be caught by the inner handler
-      --     -- I think we want to attach h2 handler to the continuation
-      --     -- before propagating
-      RRequest req -> case call (at handler m) [0] (Requested req `push` m) of
-        RMatchFail -> RRequest req
-        r -> r
-      RDone v -> call (at handler m) [0] (Pure v `push` m)
-      r -> r
+    Handle handler body -> runHandler (at handler m) body m
+    HandleV handler body -> runHandler handler body m
     Var i -> done (at i m)
     V v -> done v
     Construct r cid args -> done $ Data r cid ((`at` m) <$> args)
@@ -122,6 +108,19 @@ run env = go where
     SubN i j -> done $ N (atn i m - atn j m)
     MultN i j -> done $ N (atn i m * atn j m)
     DivN i j -> done $ N (atn i m `div` atn j m)
+
+  -- If the body issues a request, we try passing it to the
+  -- handler. If it fails, the request is reraised with the
+  -- handler attached to the continuation. If the body
+  -- completes without issuing a request, we pass `Pure` to
+  -- the handler.
+  runHandler :: V -> IR -> Machine -> Result
+  runHandler h body m = case go body m of
+    RRequest req -> case call h [0] (Requested req `push` m) of
+      RMatchFail -> RRequest (wrapHandler h req)
+      r -> r
+    RDone v -> call h [0] (Pure v `push` m)
+    r -> r
 
   runPattern :: V -> Pattern -> Machine -> Maybe Machine
   runPattern _ PatternIgnore m = Just m
