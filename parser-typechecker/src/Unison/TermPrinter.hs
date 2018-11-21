@@ -40,7 +40,7 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 data AmbientContext = AmbientContext 
   {
     -- The operator precedence of the enclosing context (a number from 0 to 11, or
-    -- -1 is rendered without outer parentheses unconditionally).  
+    -- -1 to render without outer parentheses unconditionally).  
     -- Function application has precedence 10.
     precedence :: Int
   , syntaxContext :: SyntaxContext
@@ -104,8 +104,6 @@ data SyntaxContext
 -}
 
 pretty :: Var v => PrettyPrintEnv -> AmbientContext -> AnnotatedTerm v a -> PrettyPrint String
--- n resolves references to text names.  When getting the name of one of the constructors of a type, the
--- `Maybe Int` identifies which constructor.
 pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term $ \case
   Var' v       -> l $ varName v
   Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))

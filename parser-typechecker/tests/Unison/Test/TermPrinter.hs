@@ -170,7 +170,7 @@ test = scope "termprinter" . tests $
                            \      else c) of\n\
                            \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
-  , tc "handle x -> foo in bar"  -- TODO !! rtt on below
+  , tc "handle x -> foo in bar"
   , tc_diff_rtt True "let\n\
                      \  x = (1 : Int)\n\
                      \  (x : Int)"
