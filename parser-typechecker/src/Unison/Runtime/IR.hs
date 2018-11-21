@@ -60,6 +60,7 @@ data IR
   | And Pos IR
   | Or Pos IR
   | Match Pos [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
+  -- | Watch Text (Term Symbol) IR
   deriving (Eq,Show)
 
 -- Contains the effect ref and ctor id, the args, and the continuation
@@ -88,7 +89,7 @@ compile0 env bound t =
   where
   go t = case t of
     Term.And' x y -> And (ind t x) (go y)
-    Term.LamsNamed' vs body -> undefined
+    Term.LamsNamed' vs body ->
       V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body)))
     Term.Or' x y -> Or (ind t x) (go y)
     Term.If' cond ifT ifF -> If (ind t cond) (go ifT) (go ifF)
