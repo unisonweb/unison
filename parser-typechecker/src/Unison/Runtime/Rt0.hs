@@ -64,7 +64,7 @@ data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
 done :: V -> Result
 done = RDone
 
-run :: (R.Reference -> V) -> IR -> Machine -> Result
+run :: (R.Reference -> IR) -> IR -> Machine -> Result
 run env = go where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
@@ -178,7 +178,7 @@ run env = go where
   call (Cont k) [arg] m = go k (push (at arg m) m)
   call _ _ _ = error "type error"
 
-normalize :: (R.Reference -> V) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
+normalize :: (R.Reference -> IR) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =
   let v = case run env (compile env $ Term.unannotate t) (Machine []) of
         RRequest e -> Requested e
@@ -186,7 +186,7 @@ normalize env t =
         e -> error $ show e
   in decompile v
 
-parseAndNormalize :: (R.Reference -> V) -> String -> (Maybe (Term Symbol))
+parseAndNormalize :: (R.Reference -> IR) -> String -> (Maybe (Term Symbol))
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol

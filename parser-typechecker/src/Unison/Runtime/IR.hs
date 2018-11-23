@@ -80,10 +80,10 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 wrapHandler :: V -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (HandleV h k)
 
-compile :: (R.Reference -> V) -> Term Symbol -> IR
+compile :: (R.Reference -> IR) -> Term Symbol -> IR
 compile env t = compile0 env [] t
 
-compile0 :: (R.Reference -> V) -> [Symbol] -> Term Symbol -> IR
+compile0 :: (R.Reference -> IR) -> [Symbol] -> Term Symbol -> IR
 compile0 env bound t =
   go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t))
   where
@@ -98,14 +98,14 @@ compile0 env bound t =
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
-    Term.Ref' r -> V (env r)
+    Term.Ref' r -> env r
     Term.Var' v -> maybe (unknown v) Var $ elemIndex v (ABT.annotation t)
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
-      Term.Ref' r -> Let (V (env r)) (DynamicApply 0 ((+1) . ind t <$> args))
+      Term.Ref' r -> Let (env r) (DynamicApply 0 ((+1) . ind t <$> args))
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
       _ -> DynamicApply (ind t f) (map (ind t) args) where
