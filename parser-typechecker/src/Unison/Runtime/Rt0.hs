@@ -8,11 +8,14 @@ module Unison.Runtime.Rt0 where
 
 import Data.Foldable
 import Data.Int (Int64)
+import Data.Map (Map)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+-- import qualified Data.Text as Text
+import qualified Data.Map as Map
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
@@ -74,6 +77,7 @@ run env = go where
     Or i j -> case at i m of
       b@(B True) -> done b
       _ -> go j m
+    Not i -> done (B (not (atb i m)))
     Match scrutinee cases -> match (at scrutinee m) cases m
     Let b body -> case go b m of
       RRequest req -> RRequest (req `appendCont` body)
@@ -93,18 +97,39 @@ run env = go where
     Var i -> done (at i m)
     V v -> done v
     Construct r cid args -> done $ Data r cid ((`at` m) <$> args)
+    -- Ints
     AddI i j -> done $ I (ati i m + ati j m)
     SubI i j -> done $ I (ati i m - ati j m)
     MultI i j -> done $ I (ati i m * ati j m)
     DivI i j -> done $ I (ati i m `div` ati j m)
+    GtI i j -> done $ B (ati i m > ati j m)
+    LtI i j -> done $ B (ati i m < ati j m)
+    GtEqI i j -> done $ B (ati i m >= ati j m)
+    LtEqI i j -> done $ B (ati i m <= ati j m)
+    EqI i j -> done $ B (ati i m == ati j m)
+
+    -- Floats
     AddF i j -> done $ F (atf i m + atf j m)
     SubF i j -> done $ F (atf i m - atf j m)
     MultF i j -> done $ F (atf i m * atf j m)
     DivF i j -> done $ F (atf i m / atf j m)
+    GtF i j -> done $ B (atf i m > atf j m)
+    LtF i j -> done $ B (atf i m < atf j m)
+    GtEqF i j -> done $ B (atf i m >= atf j m)
+    LtEqF i j -> done $ B (atf i m <= atf j m)
+    EqF i j -> done $ B (atf i m == atf j m)
+
+    -- Nats
     AddN i j -> done $ N (atn i m + atn j m)
-    SubN i j -> done $ N (atn i m - atn j m)
+    DropN i j -> done $ N (atn i m - atn j m)
+    SubN i j -> done $ I (fromIntegral (atn i m) - fromIntegral (atn j m))
     MultN i j -> done $ N (atn i m * atn j m)
     DivN i j -> done $ N (atn i m `div` atn j m)
+    GtN i j -> done $ B (atn i m > atn j m)
+    LtN i j -> done $ B (atn i m < atn j m)
+    GtEqN i j -> done $ B (atn i m >= atn j m)
+    LtEqN i j -> done $ B (atn i m <= atn j m)
+    EqN i j -> done $ B (atn i m == atn j m)
 
   -- If the body issues a request, we try passing it to the
   -- handler. If it fails, the request is reraised with the
@@ -186,8 +211,111 @@ normalize env t =
         e -> error $ show e
   in decompile v
 
+parseAndNormalize' :: String -> Maybe (Term Symbol)
+parseAndNormalize' s = parseAndNormalize env s
+  where
+  env r = case Map.lookup r builtins of
+    Nothing -> error $ "unknown ref " ++ show r
+    Just ir -> ir
+
 parseAndNormalize :: (R.Reference -> IR) -> String -> (Maybe (Term Symbol))
 parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
 
 parseANF :: String -> Term Symbol
 parseANF s = ANF.fromTerm' . Term.unannotate $ B.tm s
+
+builtins :: Map R.Reference IR
+builtins = Map.fromList $
+  [ (R.Builtin name, V (Lam arity (Left (R.Builtin name)) ir)) |
+    (name, arity, ir) <-
+      [ ("Int.+", 2, AddI 1 0)
+      , ("Int.-", 2, SubI 1 0)
+      , ("Int.*", 2, MultI 1 0)
+      , ("Int./", 2, DivI 1 0)
+      , ("Int.<", 2, LtI 1 0)
+      , ("Int.>", 2, GtI 1 0)
+      , ("Int.<=", 2, LtEqI 1 0)
+      , ("Int.>=", 2, GtEqI 1 0)
+      , ("Int.==", 2, EqI 1 0)
+      --, ("Int.increment", "Int -> Int")
+      --, ("Int.is-even", "Int -> Boolean")
+      --, ("Int.is-odd", "Int -> Boolean")
+      --, ("Int.signum", "Int -> Int")
+      --, ("Int.negate", "Int -> Int")
+
+      , ("Nat.+", 2, AddN 1 0)
+      , ("Nat.drop", 2, DropN 1 0)
+      , ("Nat.sub", 2, SubN 1 0)
+      , ("Nat.*", 2, MultN 1 0)
+      , ("Nat./", 2, DivN 1 0)
+      , ("Nat.<", 2, LtN 1 0)
+      , ("Nat.>", 2, GtN 1 0)
+      , ("Nat.<=", 2, LtEqN 1 0)
+      , ("Nat.>=", 2, GtEqN 1 0)
+      , ("Nat.==", 2, EqN 1 0)
+      --, ("Nat.increment", "Nat -> Nat")
+      --, ("Nat.is-even", "Nat -> Boolean")
+      --, ("Nat.is-odd", "Nat -> Boolean")
+
+      , ("Float.+", 2, AddF 1 0)
+      , ("Float.-", 2, SubF 1 0)
+      , ("Float.*", 2, MultF 1 0)
+      , ("Float./", 2, DivF 1 0)
+      , ("Float.<", 2, LtF 1 0)
+      , ("Float.>", 2, GtF 1 0)
+      , ("Float.<=", 2, LtEqF 1 0)
+      , ("Float.>=", 2, GtEqF 1 0)
+      , ("Float.==", 2, EqF 1 0)
+
+      , ("Boolean.not", 1, Not 0)
+
+      , ("Text.empty", 0, V (T ""))
+      --, ("Text.++", "Text -> Text -> Text")
+      --, ("Text.take", "Nat -> Text -> Text")
+      --, ("Text.drop", "Nat -> Text -> Text")
+      --, ("Text.size", "Text -> Nat")
+      --, ("Text.==", "Text -> Text -> Boolean")
+      --, ("Text.!=", "Text -> Text -> Boolean")
+      --, ("Text.<=", "Text -> Text -> Boolean")
+      --, ("Text.>=", "Text -> Text -> Boolean")
+      --, ("Text.<", "Text -> Text -> Boolean")
+      --, ("Text.>", "Text -> Text -> Boolean")
+
+      --, ("Stream.empty", "Stream a")
+      --, ("Stream.single", "a -> Stream a")
+      --, ("Stream.constant", "a -> Stream a")
+      --, ("Stream.from-int", "Int -> Stream Int")
+      --, ("Stream.from-nat", "Nat -> Stream Nat")
+      --, ("Stream.cons", "a -> Stream a -> Stream a")
+      --, ("Stream.take", "Nat -> Stream a -> Stream a")
+      --, ("Stream.drop", "Nat -> Stream a -> Stream a")
+      --, ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
+      --, ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
+      --, ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
+      --, ("Stream.iterate", "a -> (a -> a) -> Stream a")
+      --, ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
+      --, ("Stream.toSequence", "Stream a -> Sequence a")
+      --, ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
+      --, ("Stream.sum-int", "Stream Int -> Int")
+      --, ("Stream.sum-nat", "Stream Nat -> Nat")
+      --, ("Stream.sum-float", "Stream Float -> Float")
+      --, ("Stream.append", "Stream a -> Stream a -> Stream a")
+      --, ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
+      --, ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
+
+      --, ("Sequence.empty", "[a]")
+      --, ("Sequence.cons", "a -> [a] -> [a]")
+      --, ("Sequence.snoc", "[a] -> a -> [a]")
+      --, ("Sequence.take", "Nat -> [a] -> [a]")
+      --, ("Sequence.drop", "Nat -> [a] -> [a]")
+      --, ("Sequence.++", "[a] -> [a] -> [a]")
+      --, ("Sequence.size", "[a] -> Nat")
+      --, ("Sequence.at", "Nat -> [a] -> Optional a")
+
+      -- , ("Debug.watch", "Text -> a -> a")
+      ]
+  ]
+

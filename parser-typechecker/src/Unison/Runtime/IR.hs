@@ -44,9 +44,16 @@ data Pattern
 -- Computations, need to be reduced to values
 data IR
   = Var Pos
+  -- Ints
   | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
-  | AddN Pos Pos | SubN Pos Pos | MultN Pos Pos | DivN Pos Pos
+  | GtI Pos Pos | LtI Pos Pos | GtEqI Pos Pos | LtEqI Pos Pos | EqI Pos Pos
+  -- Nats
+  | AddN Pos Pos | DropN Pos Pos | SubN Pos Pos | MultN Pos Pos | DivN Pos Pos
+  | GtN Pos Pos | LtN Pos Pos | GtEqN Pos Pos | LtEqN Pos Pos | EqN Pos Pos
+  -- Floats
   | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
+  | GtF Pos Pos | LtF Pos Pos | GtEqF Pos Pos | LtEqF Pos Pos | EqF Pos Pos
+  -- Control flow
   | Let IR IR
   | LetRec [IR] IR
   | MakeSequence [Pos]
@@ -59,6 +66,7 @@ data IR
   | If Pos IR IR
   | And Pos IR
   | Or Pos IR
+  | Not Pos
   | Match Pos [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
   -- | Watch Text (Term Symbol) IR
   deriving (Eq,Show)
