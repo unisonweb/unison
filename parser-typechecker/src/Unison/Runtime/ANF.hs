@@ -49,6 +49,8 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   ann = ABT.annotation
   isVar (Var' _) = True
   isVar _ = False
+  isRef (Ref' _) = True
+  isRef _ = False
   fixAp t f args =
     let
       args' = Map.fromList $ toVar =<< (args `zip` [0..])
@@ -64,7 +66,7 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
     in foldr addLet (body f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
   go t@(Apps' f args)
-    | isVar f && all isVar args = t
+    | (isRef f || isVar f) && all isVar args = t
     | otherwise = fixAp t f args
   go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
   go e@(Handle' h body)
@@ -76,7 +78,7 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   go e@(If' cond t f)
     | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') t f)
+                  in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') (go t) (go f))
   -- todo: could do some simplication if scrutinee is concrete
   go e@(Match' scrutinee cases)
     | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
