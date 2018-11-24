@@ -6,15 +6,16 @@
 
 module Unison.Runtime.Rt0 where
 
+-- import qualified Data.Text as Text
 import Data.Foldable
 import Data.Int (Int64)
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
--- import qualified Data.Text as Text
 import qualified Data.Map as Map
 import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
@@ -22,6 +23,9 @@ import qualified Unison.Builtin as B
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
+import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import qualified Unison.TermPrinter as TermPrinter
 
 newtype Machine = Machine [V] -- a stack of values
 
@@ -201,7 +205,7 @@ run env = go where
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call (Cont k) [arg] m = go k (push (at arg m) m)
-  call _ _ _ = error "type error"
+  call f _ _ = error $ "type error " ++ show f
 
 normalize :: (R.Reference -> IR) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =
@@ -211,18 +215,29 @@ normalize env t =
         e -> error $ show e
   in decompile v
 
-parseAndNormalize' :: String -> Maybe (Term Symbol)
+parseAndNormalize' :: String -> String
 parseAndNormalize' s = parseAndNormalize env s
   where
   env r = case Map.lookup r builtins of
     Nothing -> error $ "unknown ref " ++ show r
     Just ir -> ir
 
-parseAndNormalize :: (R.Reference -> IR) -> String -> (Maybe (Term Symbol))
-parseAndNormalize env s = normalize env (Term.unannotate $ B.tm s)
+parseAndNormalize :: (R.Reference -> IR) -> String -> String
+parseAndNormalize env s = let
+  tm = Term.unannotate $ B.tm s
+  r = normalize env tm
+  in prettyTerm (fromMaybe tm r)
+
+prettyTerm :: Term Symbol -> String
+prettyTerm t = let
+  ppEnv = PrettyPrintEnv.fromNames B.names
+  in PP.render 80 (TermPrinter.pretty ppEnv 0 t)
 
 parseANF :: String -> Term Symbol
 parseANF s = ANF.fromTerm' . Term.unannotate $ B.tm s
+
+parseANFPretty :: String -> String
+parseANFPretty s = prettyTerm (parseANF s)
 
 builtins :: Map R.Reference IR
 builtins = Map.fromList $

@@ -6,7 +6,7 @@
 {-# Language PatternSynonyms #-}
 {-# Language ScopedTypeVariables #-}
 
-module Unison.Runtime.ANF (fromTerm, fromTerm', term, lambdaLift) where
+module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, lambdaLift) where
 
 import Data.Foldable hiding (and,or)
 import Data.List hiding (and,or)
@@ -41,6 +41,38 @@ lambdaLift t = ABT.visitPure go t where
                   (var a <$> toList fvs)
   go _ = Nothing
 
+optimize :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
+optimize t = go t where
+  ann = ABT.annotation
+  go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
+  go e@(App' f arg) = case go f of
+    Lam' f -> go (ABT.bind f arg)
+    f -> app (ann e) f (go arg)
+  go (If' (Boolean' False) _ f) = go f
+  go (If' (Boolean' True) t _) = go t
+  -- todo: can simplify match expressions
+  go e@(ABT.Var' _) = e
+  go e@(ABT.Tm' f) = case e of
+    Lam' _ -> e -- optimization is shallow - don't descend into lambdas
+    _ -> ABT.tm' (ann e) (go <$> f)
+  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
+  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
+  go e = e
+
+  -- test for whether an expression `let x = y in body` can be
+  -- reduced by substituting `y` into `body`. We only substitute
+  -- when `y` is a variable or a primitive, otherwise this might
+  -- end up duplicating evaluation or changing the order that
+  -- effects are evaluated
+  canSubstLet (Var' _) _body = True
+  canSubstLet (Int' _) _body = True
+  canSubstLet (Float' _) _body = True
+  canSubstLet (Nat' _) _body = True
+  canSubstLet (Boolean' _) _body = True
+  -- todo: if number of occurrences of the binding is 1 and the
+  -- binding is pure, okay to substitute
+  canSubstLet _ _ = False
+
 fromTerm' :: (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
 fromTerm' t = term (fromTerm t)
 
@@ -51,35 +83,29 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   isVar _ = False
   isRef (Ref' _) = True
   isRef _ = False
-  fixAp t f args =
-    let
-      args' = Map.fromList $ toVar =<< (args `zip` [0..])
-      toVar (b, i) | isVar b   = []
-                   | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
-      argsANF = map toANF (args `zip` [0..])
-      toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
-      addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
-      body f [] = go f
-      body f args@(arg : argTl) = case f of
-        Lam' f -> body (ABT.bind f arg) argTl
-        _ -> go (apps' f args)
-    in foldr addLet (body f argsANF) (args `zip` [(0::Int)..])
+  fixAp t f args = let
+    args' = Map.fromList $ toVar =<< (args `zip` [0..])
+    toVar (b, i) | isVar b   = []
+                 | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
+    argsANF = map toANF (args `zip` [0..])
+    toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
+    addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
+    in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
-  go t@(Apps' f args)
-    | (isRef f || isVar f) && all isVar args = t
+  go e@(Apps' f args)
+    | (isRef f || isVar f) && all isVar args = e
+    | not (isRef f || isVar f) =
+      let f' = ABT.fresh e (Var.named "f")
+      in let1' False [(f', go f)] (go $ apps' (var (ann f) f') args)
     | otherwise = fixAp t f args
-  go (Let1' b body) | canSubstLet b body = go (ABT.bind body b)
   go e@(Handle' h body)
     | isVar h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
                   in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
-  go (If' (Boolean' False) _ f) = go f
-  go (If' (Boolean' True) t _) = go t
   go e@(If' cond t f)
     | isVar cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
                   in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') (go t) (go f))
-  -- todo: could do some simplication if scrutinee is concrete
   go e@(Match' scrutinee cases)
     | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
@@ -101,18 +127,4 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
   go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
   go e = e
-
-  -- test for whether an expression `let x = y in body` can be
-  -- reduced by substituting `y` into `body`. We only substitute
-  -- when `y` is a variable or a primitive, otherwise this might
-  -- end up duplicating evaluation or changing the order that
-  -- effects are evaluated
-  canSubstLet (Var' _) _body = True
-  canSubstLet (Int' _) _body = True
-  canSubstLet (Float' _) _body = True
-  canSubstLet (Nat' _) _body = True
-  canSubstLet (Boolean' _) _body = True
-  -- todo: if number of occurrences of the binding is 1 and the
-  -- binding is pure, okay to substitute
-  canSubstLet _ _ = False
 
