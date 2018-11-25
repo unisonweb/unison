@@ -1,18 +1,17 @@
+{-# Language TupleSections #-}
+
 module Unison.Runtime.IR where
 
 import Data.Foldable
 import Data.Functor (void)
 import Data.Int (Int64)
 import Data.List
-import Data.Maybe (fromMaybe)
-import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Pattern as Pattern
@@ -95,21 +94,21 @@ wrapHandler :: V -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (HandleV h k)
 
 compile :: (R.Reference -> IR) -> Term Symbol -> IR
-compile env t = compile0 env [] mempty t
+compile env t = compile0 env [] t
 
-freeVars :: [Symbol] -> Map Symbol V -> Term Symbol -> Set Symbol
-freeVars bound precompiled t =
-  ABT.freeVars t `Set.difference` Set.fromList bound `Set.difference` Map.keysSet precompiled
+freeVars :: [(Symbol,a)] -> Term Symbol -> Set Symbol
+freeVars bound t =
+  ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
 
-compile0 :: (R.Reference -> IR) -> [Symbol] -> Map Symbol V -> Term Symbol -> IR
-compile0 env bound precompiled t = case freeVars bound precompiled t of
-  fvs | Set.null fvs -> go ((++ bound) <$> ABT.annotateBound' (ANF.fromTerm' t))
+compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
+compile0 env bound t = case freeVars bound t of
+  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
       | otherwise    -> error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
   go t = case t of
     Term.And' x y -> And (ind "and" t x) (go y)
     Term.LamsNamed' vs body ->
-      V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) precompiled (void body)))
+      V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body)))
     Term.Or' x y -> Or (ind "or" t x) (go y)
     Term.If' cond ifT ifF -> If (ind "cond" t cond) (go ifT) (go ifF)
     Term.Int' n -> V (I n)
@@ -118,16 +117,12 @@ compile0 env bound precompiled t = case freeVars bound precompiled t of
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
     Term.Ref' r -> env r
-    Term.Var' v -> fromMaybe (unknown v) $ asum [
-      Var <$> elemIndex v (ABT.annotation t),
-      V <$> Map.lookup v precompiled]
+    Term.Var' v -> compileVar 0 v (ABT.annotation t)
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
-      -- TODO: this is wrong - it changes the stack positions of variables
-      -- that the function call might reference, should link in refs before compilation
       Term.Ref' r -> Apply (env r) (ind "apps-ref" t <$> args)
       Term.Request' r cid -> Request r cid (ind "apps-req" t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind "apps-ctor" t <$> args)
@@ -138,8 +133,11 @@ compile0 env bound precompiled t = case freeVars bound precompiled t of
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
+      compileVar _ v [] = unknown v
+      compileVar i v ((v',o):tl) | v == v'   = maybe (Var i) V o
+                                 | otherwise = compileVar (i + 1) v tl
       unknown v = error $ "free variable during compilation: " ++ show v
-      ind _msg t (Term.Var' v) = case elemIndex v (ABT.annotation t) of
+      ind _msg t (Term.Var' v) = case elemIndex v (fst <$> ABT.annotation t) of
         Nothing -> error $ "free variable during compilation: " ++ show v
         Just i -> i
       ind msg _ e = error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
