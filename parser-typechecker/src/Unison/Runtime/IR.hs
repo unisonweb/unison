@@ -5,7 +5,6 @@ module Unison.Runtime.IR where
 import Data.Foldable
 import Data.Functor (void)
 import Data.Int (Int64)
-import Data.List
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -45,34 +44,35 @@ data Pattern
   | PatternIgnore
   | PatternVar deriving (Eq,Show)
 
+data Z = Slot Pos | Val V deriving (Eq,Show)
+
 -- Computations, need to be reduced to values
 data IR
   = Var Pos
   -- Ints
-  | AddI Pos Pos | SubI Pos Pos | MultI Pos Pos | DivI Pos Pos
-  | GtI Pos Pos | LtI Pos Pos | GtEqI Pos Pos | LtEqI Pos Pos | EqI Pos Pos
+  | AddI Z Z | SubI Z Z | MultI Z Z | DivI Z Z
+  | GtI Z Z | LtI Z Z | GtEqI Z Z | LtEqI Z Z | EqI Z Z
   -- Nats
-  | AddN Pos Pos | DropN Pos Pos | SubN Pos Pos | MultN Pos Pos | DivN Pos Pos
-  | GtN Pos Pos | LtN Pos Pos | GtEqN Pos Pos | LtEqN Pos Pos | EqN Pos Pos
+  | AddN Z Z | DropN Z Z | SubN Z Z | MultN Z Z | DivN Z Z
+  | GtN Z Z | LtN Z Z | GtEqN Z Z | LtEqN Z Z | EqN Z Z
   -- Floats
-  | AddF Pos Pos | SubF Pos Pos | MultF Pos Pos | DivF Pos Pos
-  | GtF Pos Pos | LtF Pos Pos | GtEqF Pos Pos | LtEqF Pos Pos | EqF Pos Pos
+  | AddF Z Z | SubF Z Z | MultF Z Z | DivF Z Z
+  | GtF Z Z | LtF Z Z | GtEqF Z Z | LtEqF Z Z | EqF Z Z
   -- Control flow
   | Let IR IR
   | LetRec [IR] IR
-  | MakeSequence [Pos]
+  | MakeSequence [Z]
   | V V
-  | Apply IR [Pos]
-  | DynamicApply Pos [Pos] -- call to unknown function
-  | Construct R.Reference ConstructorId [Pos]
-  | Request R.Reference ConstructorId [Pos]
-  | Handle Pos IR
-  | HandleV V IR
-  | If Pos IR IR
-  | And Pos IR
-  | Or Pos IR
-  | Not Pos
-  | Match Pos [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
+  | Apply IR [Z]
+  | DynamicApply Z [Z] -- call to unknown function
+  | Construct R.Reference ConstructorId [Z]
+  | Request R.Reference ConstructorId [Z]
+  | Handle Z IR
+  | If Z IR IR
+  | And Z IR
+  | Or Z IR
+  | Not Z
+  | Match Z [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
   -- | Watch Text (Term Symbol) IR
   deriving (Eq,Show)
 
@@ -91,7 +91,7 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
 wrapHandler :: V -> Req -> Req
-wrapHandler h (Req r cid args k) = Req r cid args (HandleV h k)
+wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
 compile :: (R.Reference -> IR) -> Term Symbol -> IR
 compile env t = compile0 env [] t
@@ -117,7 +117,9 @@ compile0 env bound t = case freeVars bound t of
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
     Term.Ref' r -> env r
-    Term.Var' v -> compileVar 0 v (ABT.annotation t)
+    Term.Var' v -> case compileVar 0 v (ABT.annotation t) of
+      Slot i -> Var i
+      Val v -> V v
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
@@ -134,12 +136,10 @@ compile0 env bound t = case freeVars bound t of
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       compileVar _ v [] = unknown v
-      compileVar i v ((v',o):tl) | v == v'   = maybe (Var i) V o
+      compileVar i v ((v',o):tl) | v == v'   = maybe (Slot i) Val o
                                  | otherwise = compileVar (i + 1) v tl
       unknown v = error $ "free variable during compilation: " ++ show v
-      ind _msg t (Term.Var' v) = case elemIndex v (fst <$> ABT.annotation t) of
-        Nothing -> error $ "free variable during compilation: " ++ show v
-        Just i -> i
+      ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
       ind msg _ e = error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
       compilePattern pat = case pat of

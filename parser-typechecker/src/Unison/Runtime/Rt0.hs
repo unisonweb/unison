@@ -7,6 +7,7 @@
 module Unison.Runtime.Rt0 where
 
 -- import qualified Data.Text as Text
+import Debug.Trace
 import Data.Foldable
 import Data.Int (Int64)
 import Data.Map (Map)
@@ -18,7 +19,6 @@ import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import qualified Data.Map as Map
 import qualified Data.Vector as Vector
-import qualified Unison.ABT as ABT
 import qualified Unison.Builtin as B
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
@@ -38,30 +38,32 @@ pushes s (Machine m) = Machine (reverse s <> m)
 unpushes :: Int -> Machine -> [V]
 unpushes n (Machine m) = reverse . take n $ m
 
-at :: Int -> Machine -> V
-at i (Machine m) = m !! i
+at :: Z -> Machine -> V
+at i (Machine m) = case i of
+  Val v -> v
+  Slot i -> m !! i
 
-ati :: Int -> Machine -> Int64
+ati :: Z -> Machine -> Int64
 ati i m = case at i m of
   I i -> i
   _ -> error "type error"
 
-atn :: Int -> Machine -> Word64
+atn :: Z -> Machine -> Word64
 atn i m = case at i m of
   N i -> i
   _ -> error "type error"
 
-atf :: Int -> Machine -> Double
+atf :: Z -> Machine -> Double
 atf i m = case at i m of
   F i -> i
   _ -> error "type error"
 
-atb :: Int -> Machine -> Bool
+atb :: Z -> Machine -> Bool
 atb i m = case at i m of
   B b -> b
   _ -> error "type error"
 
-att :: Int -> Machine -> Text
+att :: Z -> Machine -> Text
 att i m = case at i m of
   T t -> t
   _ -> error "type error"
@@ -102,8 +104,7 @@ run env = go where
       e -> error $ show e
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> runHandler (at handler m) body m
-    HandleV handler body -> runHandler handler body m
-    Var i -> done (at i m)
+    Var i -> done (at (Slot i) m)
     V v -> done v
     Construct r cid args -> done $ Data r cid ((`at` m) <$> args)
     -- Ints
@@ -147,10 +148,10 @@ run env = go where
   -- the handler.
   runHandler :: V -> IR -> Machine -> Result
   runHandler h body m = case go body m of
-    RRequest req -> case call h [0] (Requested req `push` m) of
+    RRequest req -> case call h [Slot 0] (Requested req `push` m) of
       RMatchFail -> RRequest (wrapHandler h req)
       r -> r
-    RDone v -> call h [0] (Pure v `push` m)
+    RDone v -> call h [Slot 0] (Pure v `push` m)
     r -> r
 
   runPattern :: V -> Pattern -> Machine -> Maybe Machine
@@ -189,7 +190,7 @@ run env = go where
         RDone (B True) -> go rhs m -- guard passed, commit to this case
         _ -> match s cases m0 -- guard failed, try next case
 
-  call :: V -> [Pos] -> Machine -> Result
+  call :: V -> [Z] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in
     case nargs of
       _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
@@ -200,13 +201,14 @@ run env = go where
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
       _ -> case term of
-        Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) (compile env lam)
+        Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) compiled
           where
           Just argterms = traverse decompile (unpushes nargs m)
-          -- todo: introduce a `let` inside the lambda body to preserve sharing
-          -- for any 'large' argterm with multiple occurrences in the body
-          lam = Term.lam'() (drop nargs vs) $
-            ABT.substs (vs `zip` argterms) body
+          toBound vs = reverse ((,Nothing) <$> vs)
+          bound = toBound (drop nargs vs) ++ reverse (vs `zip` map Just (unpushes nargs m))
+          compiled = traceShow (vs, args) $ compile0 env bound body
+          lam = Term.let1' False (vs `zip` argterms) $
+                Term.lam'() (drop nargs vs) body
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call (Cont k) [arg] m = go k (push (at arg m) m)
@@ -248,46 +250,46 @@ builtins :: Map R.Reference IR
 builtins = Map.fromList $
   [ (R.Builtin name, V (Lam arity (Left (R.Builtin name)) ir)) |
     (name, arity, ir) <-
-      [ ("Int.+", 2, AddI 1 0)
-      , ("Int.-", 2, SubI 1 0)
-      , ("Int.*", 2, MultI 1 0)
-      , ("Int./", 2, DivI 1 0)
-      , ("Int.<", 2, LtI 1 0)
-      , ("Int.>", 2, GtI 1 0)
-      , ("Int.<=", 2, LtEqI 1 0)
-      , ("Int.>=", 2, GtEqI 1 0)
-      , ("Int.==", 2, EqI 1 0)
+      [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
+      , ("Int.-", 2, SubI (Slot 1) (Slot 0))
+      , ("Int.*", 2, MultI (Slot 1) (Slot 0))
+      , ("Int./", 2, DivI (Slot 1) (Slot 0))
+      , ("Int.<", 2, LtI (Slot 1) (Slot 0))
+      , ("Int.>", 2, GtI (Slot 1) (Slot 0))
+      , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
+      , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
+      , ("Int.==", 2, EqI (Slot 1) (Slot 0))
       --, ("Int.increment", "Int -> Int")
       --, ("Int.is-even", "Int -> Boolean")
       --, ("Int.is-odd", "Int -> Boolean")
       --, ("Int.signum", "Int -> Int")
       --, ("Int.negate", "Int -> Int")
 
-      , ("Nat.+", 2, AddN 1 0)
-      , ("Nat.drop", 2, DropN 1 0)
-      , ("Nat.sub", 2, SubN 1 0)
-      , ("Nat.*", 2, MultN 1 0)
-      , ("Nat./", 2, DivN 1 0)
-      , ("Nat.<", 2, LtN 1 0)
-      , ("Nat.>", 2, GtN 1 0)
-      , ("Nat.<=", 2, LtEqN 1 0)
-      , ("Nat.>=", 2, GtEqN 1 0)
-      , ("Nat.==", 2, EqN 1 0)
+      , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
+      , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
+      , ("Nat.sub", 2, SubN (Slot 1) (Slot 0))
+      , ("Nat.*", 2, MultN (Slot 1) (Slot 0))
+      , ("Nat./", 2, DivN (Slot 1) (Slot 0))
+      , ("Nat.<", 2, LtN (Slot 1) (Slot 0))
+      , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
+      , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
+      , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
+      , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
       --, ("Nat.increment", "Nat -> Nat")
       --, ("Nat.is-even", "Nat -> Boolean")
       --, ("Nat.is-odd", "Nat -> Boolean")
 
-      , ("Float.+", 2, AddF 1 0)
-      , ("Float.-", 2, SubF 1 0)
-      , ("Float.*", 2, MultF 1 0)
-      , ("Float./", 2, DivF 1 0)
-      , ("Float.<", 2, LtF 1 0)
-      , ("Float.>", 2, GtF 1 0)
-      , ("Float.<=", 2, LtEqF 1 0)
-      , ("Float.>=", 2, GtEqF 1 0)
-      , ("Float.==", 2, EqF 1 0)
+      , ("Float.+", 2, AddF (Slot 1) (Slot 0))
+      , ("Float.-", 2, SubF (Slot 1) (Slot 0))
+      , ("Float.*", 2, MultF (Slot 1) (Slot 0))
+      , ("Float./", 2, DivF (Slot 1) (Slot 0))
+      , ("Float.<", 2, LtF (Slot 1) (Slot 0))
+      , ("Float.>", 2, GtF (Slot 1) (Slot 0))
+      , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
+      , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
+      , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
-      , ("Boolean.not", 1, Not 0)
+      , ("Boolean.not", 1, Not (Slot 0))
 
       , ("Text.empty", 0, V (T ""))
       --, ("Text.++", "Text -> Text -> Text")
