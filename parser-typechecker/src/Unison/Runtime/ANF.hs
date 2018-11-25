@@ -72,19 +72,25 @@ optimize t = go t where
   -- binding is pure, okay to substitute
   canSubstLet _ _ = False
 
+isLeaf :: ABT.Term (F typeVar typeAnn patternAnn) v a -> Bool
+isLeaf (Var' _) = True
+isLeaf (Int' _) = True
+isLeaf (Float' _) = True
+isLeaf (Nat' _) = True
+isLeaf (Boolean' _) = True
+isLeaf _ = False
+
 fromTerm' :: (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
 fromTerm' t = term (fromTerm t)
 
 fromTerm :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> ANF v a
 fromTerm t = ANF_ (go $ lambdaLift t) where
   ann = ABT.annotation
-  isVar (Var' _) = True
-  isVar _ = False
   isRef (Ref' _) = True
   isRef _ = False
   fixAp t f args = let
     args' = Map.fromList $ toVar =<< (args `zip` [0..])
-    toVar (b, i) | isVar b   = []
+    toVar (b, i) | isLeaf b   = []
                  | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
     argsANF = map toANF (args `zip` [0..])
     toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
@@ -92,30 +98,30 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
     in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
   go :: AnnotatedTerm v a -> AnnotatedTerm v a
   go e@(Apps' f args)
-    | (isRef f || isVar f) && all isVar args = e
-    | not (isRef f || isVar f) =
+    | (isRef f || isLeaf f) && all isLeaf args = e
+    | not (isRef f || isLeaf f) =
       let f' = ABT.fresh e (Var.named "f")
       in let1' False [(f', go f)] (go $ apps' (var (ann f) f') args)
     | otherwise = fixAp t f args
   go e@(Handle' h body)
-    | isVar h = handle (ann e) h (go body)
+    | isLeaf h = handle (ann e) h (go body)
     | otherwise = let h' = ABT.fresh e (Var.named "handler")
                   in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
   go e@(If' cond t f)
-    | isVar cond = iff (ann e) cond (go t) (go f)
+    | isLeaf cond = iff (ann e) cond (go t) (go f)
     | otherwise = let cond' = ABT.fresh e (Var.named "cond")
                   in let1' False [(cond', go cond)] (iff (ann e) (var (ann cond) cond') (go t) (go f))
   go e@(Match' scrutinee cases)
-    | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
+    | isLeaf scrutinee = match (ann e) scrutinee (fmap go <$> cases)
     | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
                   in let1' False [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
   go e@(And' x y)
-    | isVar x = and (ann e) x (go y)
+    | isLeaf x = and (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
         in let1' False [(x', go x)] (and (ann e) (var (ann x) x') (go y))
   go e@(Or' x y)
-    | isVar x = or (ann e) x (go y)
+    | isLeaf x = or (ann e) x (go y)
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
         in let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))

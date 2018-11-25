@@ -2,6 +2,7 @@
 
 module Unison.Runtime.IR where
 
+import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
 import Data.Int (Int64)
@@ -105,7 +106,7 @@ freeVars bound t =
 
 compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
 compile0 env bound t = case freeVars bound t of
-  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
+  fvs | Set.null fvs -> traceShowId $ go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
       | otherwise    -> error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
   go t = case t of
@@ -143,7 +144,9 @@ compile0 env bound t = case freeVars bound t of
                                  | otherwise = compileVar (i + 1) v tl
       unknown v = error $ "free variable during compilation: " ++ show v
       ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
-      ind msg _ e = error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
+      ind msg _t e = case go e of
+        V v -> Val v
+        _ -> error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
