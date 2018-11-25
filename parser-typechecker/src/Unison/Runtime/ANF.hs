@@ -6,7 +6,7 @@
 {-# Language PatternSynonyms #-}
 {-# Language ScopedTypeVariables #-}
 
-module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, lambdaLift) where
+module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term) where
 
 import Data.Foldable hiding (and,or)
 import Data.List hiding (and,or)
@@ -21,7 +21,6 @@ import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 
 newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
-
 -- Replace all lambdas with free variables with closed lambdas.
 -- Works by adding a parameter for each free variable. These
 -- synthetic parameters are added before the existing lambda params.
