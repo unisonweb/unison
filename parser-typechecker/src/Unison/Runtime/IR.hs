@@ -44,7 +44,10 @@ data Pattern
   | PatternIgnore
   | PatternVar deriving (Eq,Show)
 
-data Z = Slot Pos | Val V deriving (Eq,Show)
+data Z = Slot Pos | Val V deriving (Eq)
+instance Show Z where
+  show (Slot i) = "#" ++ show i
+  show (Val v) = show v
 
 -- Computations, need to be reduced to values
 data IR
