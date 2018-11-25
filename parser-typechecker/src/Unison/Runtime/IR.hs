@@ -63,6 +63,7 @@ data IR
   | LetRec [IR] IR
   | MakeSequence [Pos]
   | V V
+  | Apply IR [Pos]
   | DynamicApply Pos [Pos] -- call to unknown function
   | Construct R.Reference ConstructorId [Pos]
   | Request R.Reference ConstructorId [Pos]
@@ -127,7 +128,7 @@ compile0 env bound precompiled t = case freeVars bound precompiled t of
     Term.Apps' f args -> case f of
       -- TODO: this is wrong - it changes the stack positions of variables
       -- that the function call might reference, should link in refs before compilation
-      Term.Ref' r -> Let (env r) (DynamicApply 0 ((+1) . ind "apps-ref" t <$> args))
+      Term.Ref' r -> Apply (env r) (ind "apps-ref" t <$> args)
       Term.Request' r cid -> Request r cid (ind "apps-req" t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind "apps-ctor" t <$> args)
       _ -> let msg = "apps-fn" ++ show args

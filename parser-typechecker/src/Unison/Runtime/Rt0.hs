@@ -95,6 +95,11 @@ run env = go where
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     DynamicApply fnPos args -> call (at fnPos m) args m
+    Apply (V fn) args -> call fn args m
+    Apply fn args -> case go fn m of
+      RRequest _req -> error "todo"
+      RDone fn -> call fn args m
+      e -> error $ show e
     Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
     Handle handler body -> runHandler (at handler m) body m
     HandleV handler body -> runHandler handler body m
