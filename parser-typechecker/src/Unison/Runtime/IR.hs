@@ -5,6 +5,7 @@ module Unison.Runtime.IR where
 import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
+import Data.Maybe (isJust)
 import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Text (Text)
@@ -98,7 +99,7 @@ wrapHandler :: V -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
 compile :: (R.Reference -> IR) -> Term Symbol -> IR
-compile env t = compile0 env [] t
+compile env t = traceShowId $ compile0 env [] t
 
 freeVars :: [(Symbol,a)] -> Term Symbol -> Set Symbol
 freeVars bound t =
@@ -106,7 +107,7 @@ freeVars bound t =
 
 compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
 compile0 env bound t = case freeVars bound t of
-  fvs | Set.null fvs -> traceShowId $ go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
+  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
       | otherwise    -> error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
   go t = case t of
@@ -140,8 +141,10 @@ compile0 env bound t = case freeVars bound t of
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       compileVar _ v [] = unknown v
-      compileVar i v ((v',o):tl) | v == v'   = maybe (Slot i) Val o
-                                 | otherwise = compileVar (i + 1) v tl
+      compileVar i v ((v',o):tl) =
+        if v == v' then maybe (Slot i) Val o
+        else if isJust o then compileVar i v tl
+        else compileVar (i + 1) v tl
       unknown v = error $ "free variable during compilation: " ++ show v
       ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
       ind msg _t e = case go e of

@@ -1,13 +1,13 @@
 {-# Language OverloadedStrings #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language StrictData #-}
+{-# Language BangPatterns #-}
 {-# Language TupleSections #-}
 {-# Language UnicodeSyntax #-}
 
 module Unison.Runtime.Rt0 where
 
 -- import qualified Data.Text as Text
-import Debug.Trace
 import Data.Foldable
 import Data.Int (Int64)
 import Data.Map (Map)
@@ -17,26 +17,27 @@ import Data.Word (Word64)
 import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map as Map
 import qualified Data.Vector as Vector
 import qualified Unison.Builtin as B
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
-import qualified Unison.Util.PrettyPrint as PP
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Util.PrettyPrint as PP
 
 newtype Machine = Machine [V] -- a stack of values
+
+instance Show Machine where
+  show (Machine m) = "[ " ++ intercalateMap "\n  " show m ++ " ]"
 
 push :: V -> Machine -> Machine
 push v (Machine m) = Machine (v : m)
 
 pushes :: [V] -> Machine -> Machine
 pushes s (Machine m) = Machine (reverse s <> m)
-
-unpushes :: Int -> Machine -> [V]
-unpushes n (Machine m) = reverse . take n $ m
 
 at :: Z -> Machine -> V
 at i (Machine m) = case i of
@@ -73,8 +74,12 @@ data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
 done :: V -> Result
 done = RDone
 
+arity :: V -> Int
+arity (Lam n _ _) = n
+arity _ = 0
+
 run :: (R.Reference -> IR) -> IR -> Machine -> Result
-run env = go where
+run env ir m = go ir m where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
     And i j -> case at i m of
@@ -89,11 +94,11 @@ run env = go where
       RRequest req -> RRequest (req `appendCont` body)
       RDone v -> go body (push v m)
       e -> error $ show e
-    LetRec bs body ->
-      let m' = pushes bs' m
-          g (RDone a) = a
-          g e = error ("bindings in a let rec must not have effects " ++ show e)
-          bs' = map (\ir -> g $ go ir m') bs
+    LetRec bs body -> let
+      m' = pushes bs' m
+      toVal (RDone a) = a
+      toVal e = error ("bindings in a let rec must not have effects " ++ show e)
+      bs' = map (\ir -> toVal $ go ir m') bs
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     DynamicApply fnPos args -> call (at fnPos m) args m
@@ -203,10 +208,11 @@ run env = go where
       _ -> case term of
         Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) compiled
           where
-          Just argterms = traverse decompile (unpushes nargs m)
+          argvs = map (`at` m) args
+          Just argterms = traverse decompile argvs
           toBound vs = reverse ((,Nothing) <$> vs)
-          bound = toBound (drop nargs vs) ++ reverse (vs `zip` map Just (unpushes nargs m))
-          compiled = traceShow (vs, args) $ compile0 env bound body
+          bound = toBound (drop nargs vs) ++ reverse (vs `zip` map Just argvs)
+          compiled = compile0 env bound body
           lam = Term.let1' False (vs `zip` argterms) $
                 Term.lam'() (drop nargs vs) body
         Left _builtin -> error "todo - handle partial application of builtins by forming closure"
@@ -259,7 +265,7 @@ builtins = Map.fromList $
       , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
       , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
       , ("Int.==", 2, EqI (Slot 1) (Slot 0))
-      --, ("Int.increment", "Int -> Int")
+      , ("Int.increment", AddI (Val (I 1)) (Slot 0))
       --, ("Int.is-even", "Int -> Boolean")
       --, ("Int.is-odd", "Int -> Boolean")
       --, ("Int.signum", "Int -> Int")
