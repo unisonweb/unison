@@ -265,7 +265,7 @@ builtins = Map.fromList $
       , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
       , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
       , ("Int.==", 2, EqI (Slot 1) (Slot 0))
-      , ("Int.increment", AddI (Val (I 1)) (Slot 0))
+      , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
       --, ("Int.is-even", "Int -> Boolean")
       --, ("Int.is-odd", "Int -> Boolean")
       --, ("Int.signum", "Int -> Int")
