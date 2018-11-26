@@ -27,7 +27,6 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO "in cases where let is needed, let has higher precedence than fn application"
 --TODO surplus parens around a case statement as else body, see tests line 334; ditto surplus parens around if/then/else in lambda body
 --TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
 
@@ -66,6 +65,10 @@ data SyntaxContext
 
    The pretty-printer uses the following rules for printing terms.
 
+     >=12
+       let x = (-1)y
+         1z
+
      >=11
        ! 11x
        ' 11x
@@ -82,8 +85,6 @@ data SyntaxContext
        handle 2h in 2b
        case 2x of
          a | 2g -> 0b
-       let x = (-1)y
-           1z
 
      >=0
        10a : 0Int
@@ -163,7 +164,7 @@ pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term
         -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
         -- These will replace the occurrences of b"; ".
         printLet sc bs e = 
-          paren ((sc /= Block) && p >= 2) $ PP.BrokenGroup $ letIntro $
+          paren ((sc /= Block) && p >= 12) $ PP.BrokenGroup $ letIntro $
             (mconcat (map printBinding bs)) <> PP.Group (pretty n (ac 0 Normal) e)
           where
             printBinding (v, binding) = 

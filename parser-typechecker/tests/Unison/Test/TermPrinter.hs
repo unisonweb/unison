@@ -367,4 +367,22 @@ test = scope "termprinter" . tests $
                       \    12 -> x)" 50  -- TODO fix surplus parens around case.  
                                          -- Are they only surplus due to layout cues?
                                          -- And no round trip, due to issue in test directly above.
+  , tc_breaks 80 "'let\n\
+                 \  foo = bar\n\
+                 \  baz foo"
+  , tc_breaks 80 "!let\n\
+                 \  foo = bar\n\
+                 \  baz foo"
+  , tc_diff_rtt True "foo let\n\
+                     \      a = 1\n\
+                     \      b"
+                     "foo\n\
+                     \  let\n\
+                     \    a = 1\n\
+                     \    b" 80
+  , pending $ tc_breaks 80 "if let\n\
+                           \     a = b\n\
+                           \     a\n\
+                           \then foo\n\
+                           \else bar"   -- TODO parser throws 'unexpected then'
   ]
