@@ -101,9 +101,9 @@ run env ir m = go ir m where
       bs' = map (\ir -> toVal $ go ir m') bs
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
-    DynamicApply fnPos args -> call (at fnPos m) args m
-    Apply (V fn) args -> call fn args m
-    Apply fn args -> case go fn m of
+    ApplyZ fnPos args -> call (at fnPos m) args m
+    ApplyIR (V fn) args -> call fn args m
+    ApplyIR fn args -> case go fn m of
       RRequest _req -> error "todo"
       RDone fn -> call fn args m
       e -> error $ show e

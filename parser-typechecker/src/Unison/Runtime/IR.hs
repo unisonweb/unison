@@ -36,6 +36,8 @@ data V
   | Cont IR
   deriving (Eq,Show)
 
+-- Patterns - for now this follows Unison.Pattern exactly, but
+-- we may switch to more efficient runtime representation of patterns
 data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
@@ -46,12 +48,10 @@ data Pattern
   | PatternIgnore
   | PatternVar deriving (Eq,Show)
 
+-- Leaf level instructions - these return immediately without using any stack
 data Z = Slot Pos | Val V deriving (Eq)
-instance Show Z where
-  show (Slot i) = "#" ++ show i
-  show (Val v) = show v
 
--- Computations, need to be reduced to values
+-- Computations - evaluation reduces these to values
 data IR
   = Var Pos
   -- Ints
@@ -68,8 +68,8 @@ data IR
   | LetRec [IR] IR
   | MakeSequence [Z]
   | V V
-  | Apply IR [Z]
-  | DynamicApply Z [Z] -- call to unknown function
+  | ApplyIR IR [Z]
+  | ApplyZ Z [Z] -- call to unknown function
   | Construct R.Reference ConstructorId [Z]
   | Request R.Reference ConstructorId [Z]
   | Handle Z IR
@@ -105,6 +105,10 @@ freeVars :: [(Symbol,a)] -> Term Symbol -> Set Symbol
 freeVars bound t =
   ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
 
+-- Main compilation function - converts an arbitrary term to an `IR`.
+-- Takes a way of resolving `Reference`s and an environment of variables,
+-- some of which may already be precompiled to `V`s. (This occurs when
+-- recompiling a function that is being partially applied)
 compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
 compile0 env bound t = case freeVars bound t of
   fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
@@ -130,11 +134,11 @@ compile0 env bound t = case freeVars bound t of
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
-      Term.Ref' r -> Apply (env r) (ind "apps-ref" t <$> args)
+      Term.Ref' r -> ApplyIR (env r) (ind "apps-ref" t <$> args)
       Term.Request' r cid -> Request r cid (ind "apps-req" t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind "apps-ctor" t <$> args)
       _ -> let msg = "apps-fn" ++ show args
-           in DynamicApply (ind msg t f) (map (ind "apps-args" t) args) where
+           in ApplyZ (ind msg t f) (map (ind "apps-args" t) args) where
     Term.Handle' h body -> Handle (ind "handle" t h) (go body)
     Term.Ann' e _ -> go e
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
@@ -177,3 +181,8 @@ decompile v = case v of
   Pure _ -> Nothing
   Requested _ -> Nothing
   Cont _ -> Nothing
+
+instance Show Z where
+  show (Slot i) = "#" ++ show i
+  show (Val v) = show v
+
