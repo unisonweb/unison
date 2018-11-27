@@ -42,6 +42,7 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
+    Unison.Codebase.Editor
     Unison.Codebase.FileCodebase
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
@@ -90,6 +91,7 @@ library
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
     Unison.Util.Components
+    Unison.Util.Free
     Unison.Util.Logger
     Unison.Util.Menu
     Unison.Util.Monoid

@@ -371,13 +371,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
         "add"  : args -> addDefinitions branch name args
         "view" : args -> viewDefinitions branch name args
         ls : args
-          | ls
-            == "list"
-            || -- todo: more comprehensive way of allowing command abbreviations
-               ls
-            == "ls"
-            || ls
-            == "l"
+          | ls == "list" || -- todo: more comprehensive way of allowing command abbreviations
+            ls == "ls" ||
+            ls == "l"
           -> do
                out <- Codebase.listReferencesMatching codebase branch args
                putStrLn out
@@ -544,4 +540,3 @@ selectBranch codebase name takeLine = do
 
 builtinBranch :: Branch
 builtinBranch = Branch.append (Branch.fromNames B.names) mempty
-
