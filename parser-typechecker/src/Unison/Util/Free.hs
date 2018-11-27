@@ -12,6 +12,9 @@ import Control.Monad (ap, liftM, (>=>))
 
 data Free f a = Pure a | forall x . Bind (f x) (x -> Free f a)
 
+eval :: f a -> Free f a
+eval fa = Bind fa Pure
+
 instance Functor (Free f) where
   fmap = liftM
 

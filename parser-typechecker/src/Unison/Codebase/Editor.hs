@@ -4,6 +4,7 @@ module Unison.Codebase.Editor where
 
 import Data.Text (Text)
 import Data.Sequence (Seq)
+import Data.Foldable (toList)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Parser (Ann)
@@ -11,6 +12,9 @@ import Unison.Reference (Reference)
 import Unison.Result (Result, Note)
 import Unison.Names (Name, Referent)
 import Unison.Util.Free (Free)
+import qualified Unison.Parser as Parser
+import qualified Unison.Result as Result
+import qualified Unison.Typechecker.Context as Context
 import qualified Unison.Util.Free as Free
 import qualified Unison.UnisonFile as UF
 import qualified Unison.PrettyPrintEnv as PPE
@@ -44,7 +48,8 @@ data Input
 data Command v a where
   Input :: Command v (Either (TypecheckingResult v) Input)
 
-  Report :: Note v Ann -> Command v ()
+  ReportParseErrors :: [Parser.Err v] -> Command v ()
+  ReportTypeErrors :: PPE.PrettyPrintEnv -> [Context.ErrorNote v loc] -> Command v ()
 
   Add :: BranchName -> UF.TypecheckedUnisonFile' v Ann -> Command v (AddOutput v)
 
@@ -116,14 +121,24 @@ commandLine _codebase command = do
 
       _ -> error "todo"
 
--- loop :: Free (Command v) ()
--- loop = do
---   e <- lift Input
---   case e of
---     Left r -> ...
---     Right c -> do
---       loop
---
+loop :: BranchName -> Free (Command v) ()
+loop branchName = go branchName where
+  go :: BranchName -> Free (Command v) ()
+  go branchName = do
+    e <- Free.eval Input
+    case e of
+      Left (Result.Result notes r) -> case r of
+        Nothing -> do -- parsing failed
+          Free.eval $
+            ReportParseErrors [ err | Result.Parsing err <- toList notes]
+          go branchName
+        Just (errorEnv, r) -> case r of
+          Nothing -> do -- typechecking failed
+            Free.eval $ ReportTypeErrors errorEnv
+                          [ err | Result.TypeError err <- toList notes]
+          Just unisonFile -> do undefined unisonFile
+      Right input -> do undefined input
+
 -- commandLine :: Codebase -> IO (Command v) a -> IO a
 --
 -- interact :: IO Line -> IO (SourceName, Source) -> FreeT (Command v) IO ()
