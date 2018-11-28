@@ -115,6 +115,7 @@ library
     directory,
     errors,
     edit-distance,
+    extra,
     filepath,
     free,
     fsnotify,
