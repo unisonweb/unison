@@ -387,4 +387,6 @@ test = scope "termprinter" . tests $
                            \then foo\n\
                            \else bar"   -- TODO parser throws 'unexpected then'
   , tc_breaks 80 "Stream.fold-left 0 (+) t"
+  , tc_breaks 80 "foo?"
+  , tc_breaks 80 "(foo a b)?"
   ]

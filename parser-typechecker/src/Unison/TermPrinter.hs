@@ -28,7 +28,7 @@ import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
 --TODO precedence comment and double check in type printer
---TODO ? askInfo suffix; > watches
+--TODO > watches
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
 
@@ -76,6 +76,7 @@ data InfixContext
      >=11
        ! 11x
        ' 11x
+       11x ?
 
      >=10
        10f 10x 10y ...
@@ -133,6 +134,7 @@ pretty n AmbientContext{precedence=p, blockContext=bc, infixContext=ic} term = s
                       l"handle" <> b" " <> pretty n (ac 2 Normal) h <> b" " <> l"in" <> b" "
                       <> PP.Nest "  " (PP.Group (pretty n (ac 2 Block) body))
   App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n (ac 11 Normal) x
+  AskInfo' x   -> paren (p >= 11) $ pretty n (ac 11 Normal) x <> l"?"
   LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n (ac 11 Normal) x
   Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n (ac 0 Normal)) (toList xs) <> l"]"
   If' cond t f -> paren (p >= 2) $
@@ -153,7 +155,7 @@ pretty n AmbientContext{precedence=p, blockContext=bc, infixContext=ic} term = s
             (Tuple' xs, _)  -> paren True $ commaList xs
             BinaryAppsPred' apps lastArg -> paren (p >= 3) $ binaryApps apps <> pretty n (ac 3 Normal) lastArg
             _ -> case (term, nonForcePred) of
-              AppsPred' f args -> paren (p >= 10) $
+              AppsPred' f args | not $ isVarKindInfo f -> paren (p >= 10) $
                 pretty n (ac 10 Normal) f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n (ac 10 Normal)) args))
               _ -> case (term, nonUnitArgPred) of
                 LamsNamedPred' vs body -> paren (p >= 3) $
