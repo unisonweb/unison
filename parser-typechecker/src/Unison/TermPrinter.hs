@@ -27,9 +27,6 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO surplus parens around a case statement as else body, see tests line 334; ditto surplus parens around if/then/else in lambda body
---TODO `sum = Stream.fold-left 0 (+) t` being rendered as `sum = Stream.fold-left 0 + t`
-
 --TODO precedence comment and double check in type printer
 --TODO ? askInfo suffix; > watches
 --TODO (improve code layout below)
@@ -42,14 +39,21 @@ data AmbientContext = AmbientContext
     -- -1 to render without outer parentheses unconditionally).  
     -- Function application has precedence 10.
     precedence :: Int
-  , syntaxContext :: SyntaxContext
+  , blockContext :: BlockContext
+  , infixContext :: InfixContext
   } 
 
 -- Description of the position of this ABT node, when viewed in the surface syntax.
-data SyntaxContext
+data BlockContext
   -- This ABT node is at the top level of a TermParser.block.  
   = Block
   | Normal
+  deriving (Eq)
+
+data InfixContext
+  -- This ABT node is an infix operator being used in infix position.
+  = Infix
+  | NonInfix  
   deriving (Eq)
 
 {- Explanation of precedence handling
@@ -105,9 +109,10 @@ data SyntaxContext
 -}
 
 pretty :: Var v => PrettyPrintEnv -> AmbientContext -> AnnotatedTerm v a -> PrettyPrint String
-pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term $ \case
-  Var' v       -> l $ varName v
-  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
+pretty n AmbientContext{precedence=p, blockContext=bc, infixContext=ic} term = specialCases term $ \case
+  Var' v       -> parenIfInfix (varName v) ic $ l $ varName v
+  Ref' r       -> parenIfInfix name ic $ l $ name
+                  where name = Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
   Ann' tm t    -> paren (p >= 0) $
                     pretty n (ac 10 Normal) tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
@@ -136,8 +141,8 @@ pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term
                      PP.Group (l"else" <> b" " <> (PP.Nest "  " $ PP.Group $ pretty n (ac 2 Block) f)))
   And' x y     -> paren (p >= 10) $ l"and" <> b" " <> pretty n (ac 10 Normal) x <> b" " <> pretty n (ac 10 Normal) y
   Or' x y      -> paren (p >= 10) $ l"or" <> b" " <> pretty n (ac 10 Normal) x <> b" " <> pretty n (ac 10 Normal) y
-  LetRecNamed' bs e -> printLet sc bs e
-  Lets' bs e ->   printLet sc (map (\(_, v, binding) -> (v, binding)) bs) e
+  LetRecNamed' bs e -> printLet bc bs e
+  Lets' bs e ->   printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e
   Match' scrutinee branches -> paren (p >= 2) $ PP.BrokenGroup $ 
                                PP.Group (l"case" <> b" " <> pretty n (ac 2 Normal) scrutinee <> b" " <> l"of") <> b" " <>
                                (PP.Nest "  " $ fold (intersperse (b"; ") (map printCase branches)))
@@ -207,7 +212,8 @@ pretty n AmbientContext{precedence=p, syntaxContext=sc} term = specialCases term
         -- We build the result out from the right, starting at `f2`.
         binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
         binaryApps xs = foldr (flip (<>)) mempty (map r xs)
-                        where r (a, f) = pretty n (ac 3 Normal) a <> b" " <> pretty n (ac 10 Normal) f <> b" "
+                        where r (a, f) = pretty n (ac 3 Normal) a <> b" " <> 
+                                         pretty n (AmbientContext 10 Normal Infix) f <> b" "
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
 pretty' (Just width) n t = PP.render width   $ pretty n (ac (-1) Normal) t
@@ -278,9 +284,6 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
       where
     t -> l"error: " <> l (show t)
     where
-      renderName v = (if symbolic
-                      then paren True
-                      else id) $ l (varName v)
       defnLhs v vs = if infix'
                      then case vs of
                             x : y : _ -> l (Text.unpack (Var.name x)) <> b" " <>
@@ -289,11 +292,12 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
                             _ -> l"error"
                      else renderName v <> (args vs)
       args vs = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
+      renderName v = parenIfInfix (varName v) NonInfix $ l (varName v)
+  symbolic = isSymbolic (Var.name v)
   isBinary = \case
     Ann' tm _ -> isBinary tm
     LamsNamedOpt' vs _ -> length vs == 2
     _ -> False -- unhittable
-  symbolic = isSymbolic (Var.name v)
 
 prettyBinding' :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
@@ -301,6 +305,11 @@ prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 paren :: Bool -> PrettyPrint String -> PrettyPrint String
 paren True s = PP.Group $ l"(" <> s <> l")"
 paren False s = PP.Group s
+
+parenIfInfix :: String -> InfixContext -> PrettyPrint String -> PrettyPrint String
+parenIfInfix name ic = if isSymbolic (Text.pack name) && ic == NonInfix
+                       then paren True
+                       else id
 
 varName :: Var v => v -> String
 varName v = (Text.unpack (Var.name v))
@@ -312,9 +321,9 @@ b :: String -> PrettyPrint String
 b = Breakable
 
 -- When we use imports in rendering, this will need revisiting, so that we can render
--- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
+-- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId doesn't match 'foo.+', only '+'.
 isSymbolic :: Text.Text -> Bool
 isSymbolic name = case symbolyId $ Text.unpack $ name of Right _ -> True; _ -> False
 
-ac :: Int -> SyntaxContext -> AmbientContext
-ac = AmbientContext
+ac :: Int -> BlockContext -> AmbientContext
+ac prec bc  = AmbientContext prec bc NonInfix

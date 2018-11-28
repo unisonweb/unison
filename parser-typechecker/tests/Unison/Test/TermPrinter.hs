@@ -367,6 +367,7 @@ test = scope "termprinter" . tests $
                       \    12 -> x)" 50  -- TODO fix surplus parens around case.  
                                          -- Are they only surplus due to layout cues?
                                          -- And no round trip, due to issue in test directly above.
+  , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens                                         
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
                  \  baz foo"
@@ -385,4 +386,5 @@ test = scope "termprinter" . tests $
                            \     a\n\
                            \then foo\n\
                            \else bar"   -- TODO parser throws 'unexpected then'
+  , tc_breaks 80 "Stream.fold-left 0 (+) t"
   ]
