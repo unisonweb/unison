@@ -496,6 +496,10 @@ addTermName :: Referent -> Name -> Branch -> Branch
 addTermName r new (Branch b) = Branch $ Causal.step go b where
   go b = b { termNamespace = R.insert new r (termNamespace b) }
 
+addPatternName :: Reference -> Int -> Name -> Branch -> Branch
+addPatternName r i new (Branch b) = Branch $ Causal.step go b where
+  go b = b { patternNamespace = R.insert new (r,i) (patternNamespace b) }
+
 addTypeName :: Reference -> Name -> Branch -> Branch
 addTypeName r new (Branch b) = Branch $ Causal.step go b where
   go b = b { typeNamespace = R.insert new r (typeNamespace b) }

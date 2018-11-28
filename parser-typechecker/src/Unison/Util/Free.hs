@@ -1,4 +1,4 @@
-{-# Language ExistentialQuantification #-}
+{-# Language ExistentialQuantification, Rank2Types #-}
 
 module Unison.Util.Free where
 
@@ -16,6 +16,11 @@ eval :: f a -> Free f a
 eval fa = Bind fa Pure
 
 -- unfold :: (v -> f (Either a v)) -> v -> Free f a
+
+fold :: Monad m => (forall x. f x -> m x) -> Free f a -> m a
+fold f m = case m of
+  Pure a -> pure a
+  Bind x k -> f x >>= fold f . k
 
 unfold :: (v -> Either a (f v)) -> v -> Free f a
 unfold f seed = case f seed of
