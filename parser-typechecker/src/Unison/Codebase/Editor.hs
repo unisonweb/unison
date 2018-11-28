@@ -44,12 +44,17 @@ data Input
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
+  | QuitI
+
+data Notification
+  = Success Input Bool
 
 data Command v a where
   Input :: Command v (Either (TypecheckingResult v) Input)
 
   ReportParseErrors :: [Parser.Err v] -> Command v ()
   ReportTypeErrors :: PPE.PrettyPrintEnv -> [Context.ErrorNote v loc] -> Command v ()
+  Notify :: Notification -> Command v ()
 
   Add :: BranchName -> UF.TypecheckedUnisonFile' v Ann -> Command v (AddOutput v)
 
@@ -77,6 +82,9 @@ data Command v a where
   DisplayConflicts :: Branch0 -> Command v ()
 
   --
+  -- LookupTerm :: BranchName -> Name -> Command v (Maybe Referent)
+  -- LookupType :: BranchName -> Name -> Command v (Maybe Reference)
+  -- LookupPattern :: BranchName -> Name -> Command v (Maybe (Reference, Int))
   AddTermName :: BranchName -> Referent -> Name -> Command v ()
   AddTypeName :: BranchName -> Reference -> Name -> Command v ()
   AddPatternName :: BranchName -> Reference -> Int -> Name -> Command v ()
@@ -121,9 +129,11 @@ commandLine _codebase command = do
 
       _ -> error "todo"
 
-loop :: BranchName -> Free (Command v) ()
-loop branchName = go branchName where
-  go :: BranchName -> Free (Command v) ()
+type LoopState = BranchName
+
+loop :: LoopState -> Free (Command v) ()
+loop branchName = Free.unfold' go branchName where
+  go :: LoopState -> Free (Command v) (Either () LoopState)
   go branchName = do
     e <- Free.eval Input
     case e of
@@ -131,13 +141,37 @@ loop branchName = go branchName where
         Nothing -> do -- parsing failed
           Free.eval $
             ReportParseErrors [ err | Result.Parsing err <- toList notes]
-          go branchName
+          repeat
         Just (errorEnv, r) -> case r of
           Nothing -> do -- typechecking failed
             Free.eval $ ReportTypeErrors errorEnv
                           [ err | Result.TypeError err <- toList notes]
-          Just unisonFile -> do undefined unisonFile
-      Right input -> do undefined input
+            repeat
+          Just unisonFile -> undefined unisonFile
+      Right input -> case input of
+        AliasI nameTarget oldName newName -> do
+          (Free.eval $ Alias branchName nameTarget oldName newName) >>=
+            (Free.eval . Notify . Success input)
+          repeat
+        RenameI nameTarget oldName newName -> do
+          (Free.eval $ Rename branchName nameTarget oldName newName) >>=
+            (Free.eval . Notify . Success input)
+          repeat
+        UnnameI nameTarget name -> do
+          (Free.eval $ Unname branchName nameTarget name) >>=
+            (Free.eval . Notify . Success input)
+          repeat
+        AddI -> error "todo"
+        ListBranchesI -> error "todo"
+        SwitchBranchI _branchName -> pure $ Right branchName
+        ForkBranchI _branchName -> do
+          error "todo"
+          -- repeat
+        MergeBranchI _branchName -> error "todo"
+        QuitI -> quit
+    where
+      repeat = pure $ Right branchName
+      quit = pure $ Left ()
 
 -- commandLine :: Codebase -> IO (Command v) a -> IO a
 --

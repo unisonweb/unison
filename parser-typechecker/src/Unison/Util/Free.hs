@@ -15,6 +15,29 @@ data Free f a = Pure a | forall x . Bind (f x) (x -> Free f a)
 eval :: f a -> Free f a
 eval fa = Bind fa Pure
 
+-- unfold :: (v -> f (Either a v)) -> v -> Free f a
+
+unfold :: (v -> Either a (f v)) -> v -> Free f a
+unfold f seed = case f seed of
+  Left a -> Pure a
+  Right fv -> Bind fv (unfold f)
+
+unfold' :: (v -> Free f (Either a v)) -> v -> Free f a
+unfold' f seed = f seed >>= either Pure (unfold' f)
+
+unfoldM :: (Traversable f, Applicative m, Monad m)
+        => (b -> m (Either a (f b))) -> b -> m (Free f a)
+unfoldM f seed = do
+  e <- f seed
+  case e of
+    Left a -> pure (Pure a)
+    Right fb -> free <$> traverse (unfoldM f) fb
+
+free :: Traversable f => f (Free f a) -> Free f a
+free = go . sequence
+  where go (Pure fa) = Bind fa Pure
+        go (Bind fi f) = Bind fi (go . f)
+
 instance Functor (Free f) where
   fmap = liftM
 
