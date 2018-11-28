@@ -51,20 +51,21 @@ data Input
   | MergeBranchI BranchName
   | QuitI
 
-data Notification v
+data Output v
   = Success Input Bool
   | NoUnisonFile
   | UnknownBranch BranchName
   | BranchAlreadyExists BranchName
   | ListOfBranches [BranchName]
   | AddOutput (AddOutput v)
+  | ParseErrors [Parser.Err v]
+  | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
 
 data Command v a where
   Input :: Command v (Either (TypecheckingResult v) Input)
 
-  ReportParseErrors :: [Parser.Err v] -> Command v ()
-  ReportTypeErrors :: PPE.PrettyPrintEnv -> [Context.ErrorNote v loc] -> Command v ()
-  Notify :: Notification v -> Command v ()
+  -- Presents some output to the user
+  Notify :: Output v -> Command v ()
 
   Add :: BranchName -> UF.TypecheckedUnisonFile' v Ann -> Command v (AddOutput v)
 
@@ -152,12 +153,12 @@ loop s = Free.unfold' go s where
     case e of
       Left (Result.Result notes r) -> case r of
         Nothing -> do -- parsing failed
-          Free.eval $
-            ReportParseErrors [ err | Result.Parsing err <- toList notes]
+          Free.eval . Notify $ ParseErrors
+                          [ err | Result.Parsing err <- toList notes]
           repeat
         Just (errorEnv, r) -> case r of
           Nothing -> do -- typechecking failed
-            Free.eval $ ReportTypeErrors errorEnv
+            Free.eval . Notify $ TypeErrors errorEnv
                           [ err | Result.TypeError err <- toList notes]
             repeat
           Just unisonFile -> updateUnisonFile unisonFile
