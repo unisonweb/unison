@@ -1,18 +1,21 @@
 {-# Language TupleSections #-}
+{-# Language OverloadedStrings #-}
 
 module Unison.Runtime.IR where
 
-import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
-import Data.Maybe (isJust)
 import Data.Int (Int64)
+import Data.Map (Map)
+import Data.Maybe (isJust)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
+import Debug.Trace
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Pattern as Pattern
@@ -186,3 +189,97 @@ instance Show Z where
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
 
+builtins :: Map R.Reference IR
+builtins = Map.fromList $
+  [ (R.Builtin name, V (Lam arity (Left (R.Builtin name)) ir)) |
+    (name, arity, ir) <-
+      [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
+      , ("Int.-", 2, SubI (Slot 1) (Slot 0))
+      , ("Int.*", 2, MultI (Slot 1) (Slot 0))
+      , ("Int./", 2, DivI (Slot 1) (Slot 0))
+      , ("Int.<", 2, LtI (Slot 1) (Slot 0))
+      , ("Int.>", 2, GtI (Slot 1) (Slot 0))
+      , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
+      , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
+      , ("Int.==", 2, EqI (Slot 1) (Slot 0))
+      , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
+      --, ("Int.is-even", "Int -> Boolean")
+      --, ("Int.is-odd", "Int -> Boolean")
+      --, ("Int.signum", "Int -> Int")
+      --, ("Int.negate", "Int -> Int")
+
+      , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
+      , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
+      , ("Nat.sub", 2, SubN (Slot 1) (Slot 0))
+      , ("Nat.*", 2, MultN (Slot 1) (Slot 0))
+      , ("Nat./", 2, DivN (Slot 1) (Slot 0))
+      , ("Nat.<", 2, LtN (Slot 1) (Slot 0))
+      , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
+      , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
+      , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
+      , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
+      --, ("Nat.increment", "Nat -> Nat")
+      --, ("Nat.is-even", "Nat -> Boolean")
+      --, ("Nat.is-odd", "Nat -> Boolean")
+
+      , ("Float.+", 2, AddF (Slot 1) (Slot 0))
+      , ("Float.-", 2, SubF (Slot 1) (Slot 0))
+      , ("Float.*", 2, MultF (Slot 1) (Slot 0))
+      , ("Float./", 2, DivF (Slot 1) (Slot 0))
+      , ("Float.<", 2, LtF (Slot 1) (Slot 0))
+      , ("Float.>", 2, GtF (Slot 1) (Slot 0))
+      , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
+      , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
+      , ("Float.==", 2, EqF (Slot 1) (Slot 0))
+
+      , ("Boolean.not", 1, Not (Slot 0))
+
+      , ("Text.empty", 0, V (T ""))
+      --, ("Text.++", "Text -> Text -> Text")
+      --, ("Text.take", "Nat -> Text -> Text")
+      --, ("Text.drop", "Nat -> Text -> Text")
+      --, ("Text.size", "Text -> Nat")
+      --, ("Text.==", "Text -> Text -> Boolean")
+      --, ("Text.!=", "Text -> Text -> Boolean")
+      --, ("Text.<=", "Text -> Text -> Boolean")
+      --, ("Text.>=", "Text -> Text -> Boolean")
+      --, ("Text.<", "Text -> Text -> Boolean")
+      --, ("Text.>", "Text -> Text -> Boolean")
+
+      --, ("Stream.empty", "Stream a")
+      --, ("Stream.single", "a -> Stream a")
+      --, ("Stream.constant", "a -> Stream a")
+      --, ("Stream.from-int", "Int -> Stream Int")
+      --, ("Stream.from-nat", "Nat -> Stream Nat")
+      --, ("Stream.cons", "a -> Stream a -> Stream a")
+      --, ("Stream.take", "Nat -> Stream a -> Stream a")
+      --, ("Stream.drop", "Nat -> Stream a -> Stream a")
+      --, ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
+      --, ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
+      --, ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
+      --, ("Stream.iterate", "a -> (a -> a) -> Stream a")
+      --, ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
+      --, ("Stream.toSequence", "Stream a -> Sequence a")
+      --, ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
+      --, ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
+      --, ("Stream.sum-int", "Stream Int -> Int")
+      --, ("Stream.sum-nat", "Stream Nat -> Nat")
+      --, ("Stream.sum-float", "Stream Float -> Float")
+      --, ("Stream.append", "Stream a -> Stream a -> Stream a")
+      --, ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
+      --, ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
+
+      --, ("Sequence.empty", "[a]")
+      --, ("Sequence.cons", "a -> [a] -> [a]")
+      --, ("Sequence.snoc", "[a] -> a -> [a]")
+      --, ("Sequence.take", "Nat -> [a] -> [a]")
+      --, ("Sequence.drop", "Nat -> [a] -> [a]")
+      --, ("Sequence.++", "[a] -> [a] -> [a]")
+      --, ("Sequence.size", "[a] -> Nat")
+      --, ("Sequence.at", "Nat -> [a] -> Optional a")
+
+      -- , ("Debug.watch", "Text -> a -> a")
+      ]
+  ]
