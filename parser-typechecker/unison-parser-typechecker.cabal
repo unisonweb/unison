@@ -73,6 +73,7 @@ library
     Unison.Runtime.ANF
     Unison.Runtime.IR
     Unison.Runtime.Rt0
+    Unison.Runtime.Rt1
     Unison.Settings
     Unison.Symbol
     Unison.Term
@@ -103,6 +104,7 @@ library
 
   build-depends:
     ansi-terminal,
+    array,
     async,
     base,
     base58-bytestring,

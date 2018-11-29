@@ -41,7 +41,7 @@ pushes s (Machine m) = Machine (reverse s <> m)
 at :: Z -> Machine -> V
 at i (Machine m) = case i of
   Val v -> v
-  Slot i -> m !! i
+  Slot i -> m !! fromIntegral i
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of

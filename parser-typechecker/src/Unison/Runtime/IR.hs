@@ -23,7 +23,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 
-type Pos = Int
+type Pos = Word64
 type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
