@@ -1,36 +1,42 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DoAndIfThenElse     #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DoAndIfThenElse #-}
 
 
 
 module Unison.Codebase.Editor where
 
-import Control.Monad.Extra (ifM)
-import Data.Text (Text)
-import Data.Sequence (Seq)
-import Data.Foldable (toList)
-import Unison.Codebase (Codebase)
-import Unison.Codebase.Branch (Branch, Branch0)
-import Unison.Parser (Ann)
-import Unison.Result (Result, Note)
-import Unison.Names (Name, NameTarget)
-import Unison.Util.Free (Free)
-import qualified Unison.Codebase.Branch as Branch
+import           Control.Monad.Extra        (ifM)
+import           Data.Foldable              (toList)
+import           Data.Sequence              (Seq)
+import           Data.Text                  (Text)
+import           Unison.Codebase            (Codebase)
+import           Unison.Codebase.Branch     (Branch, Branch0)
+import qualified Unison.Codebase.Branch     as Branch
+import           Unison.Names               (Name, NameTarget, Referent)
+import           Unison.Parser              (Ann)
+import           Unison.Result              (Note, Result)
+import           Unison.Util.Free           (Free)
 -- import qualified Unison.Codebase as Codebase
-import qualified Unison.Names as Names
-import qualified Unison.Parser as Parser
-import qualified Unison.Result as Result
+import qualified Unison.Names               as Names
+import qualified Unison.Parser              as Parser
+import qualified Unison.PrettyPrintEnv      as PPE
+import           Unison.Reference           (Reference)
+import qualified Unison.Result              as Result
+import qualified Unison.Term                as Term
+import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
-import qualified Unison.Util.Free as Free
-import qualified Unison.UnisonFile as UF
-import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.UnisonFile          as UF
+import qualified Unison.Util.Free           as Free
 
 type BranchName = Name
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v = Result (Seq (Note v Ann))  (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+type Term v a = Term.AnnotatedTerm v a
+type Type v a = Type.AnnotatedType v a
+
 
 data AddOutput v
   = NothingToAdd
@@ -42,18 +48,19 @@ data AddOutput v
           , collisions :: UF.TypecheckedUnisonFile' v Ann }
 
 data Input
-  = AliasI NameTarget Name Name
-  | RenameI NameTarget Name Name
-  | UnnameI NameTarget Name
+  = AliasUnconflictedI NameTarget Name Name
+  | RenameUnconflictedI NameTarget Name Name
+  | UnnameAllI NameTarget Name
   | AddI -- [Name]
   | ListBranchesI
+  | FuzzySearchByNameI String
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
   | QuitI
 
 data Output v
-  = Success Input Bool
+  = Success Input
   | NoUnisonFile
   | UnknownBranch BranchName
   | UnknownName BranchName NameTarget Name
@@ -62,6 +69,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches [BranchName]
+  | SearchResult BranchName String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -134,61 +142,76 @@ loop s = Free.unfold' go s where
               TypeErrors errorEnv [ err | Result.TypeError err <- toList notes]
           Just unisonFile -> updateUnisonFile unisonFile
       Right input -> case input of
-        AliasI nameTarget existingName newName -> do
+        AliasUnconflictedI nameTarget existingName newName -> do
           branch <- Free.eval (LoadBranch currentBranchName)
           case branch of
             Nothing -> repeatWithOutput $ UnknownBranch currentBranchName
             Just branch ->
-              let wrangle :: Foldable f
-                          => (Name -> Branch -> f a)
-                          -> (a -> Name -> Branch -> Branch)
-                          -> Free (Command v) (Either () (LoopState v))
-                  wrangle named add =
-                    if null (named newName branch)
-                    then repeatWithOutput $
-                      NameAlreadyExists currentBranchName nameTarget newName
+              let alias :: Foldable f
+                        => (Name -> Branch -> f a)
+                        -> (a -> Name -> Branch -> Branch)
+                        -> Free (Command v) (Either () (LoopState v))
+                  alias named add =
+                    if (not . null) (named newName branch)
+                    then repeatWithOutput
+                      (NameAlreadyExists currentBranchName nameTarget newName)
                     else case toList (named existingName branch) of
-                      [t] -> do
-                        success <- Free.eval . MergeBranch currentBranchName $
-                          add t newName branch
-                        if success then repeatWithOutput (Success input True)
-                        else repeatWithOutput $ UnknownBranch currentBranchName
+                      [t] ->
+                        ifM (Free.eval . MergeBranch currentBranchName $
+                          add t newName branch)
+                            (repeatWithOutput (Success input))
+                            (repeatWithOutput (UnknownBranch currentBranchName))
                       [] -> repeatWithOutput $
                         UnknownName currentBranchName nameTarget existingName
                       _ -> repeatWithOutput $
                         ConflictedName currentBranchName nameTarget existingName
               in case nameTarget of
-                Names.TermName ->
-                  wrangle Branch.termsNamed Branch.addTermName
-                Names.PatternName ->
-                  wrangle Branch.patternsNamed (uncurry Branch.addPatternName)
-                Names.TypeName ->
-                  wrangle Branch.typesNamed Branch.addTypeName
+                Names.TermName -> alias Branch.termsNamed Branch.addTermName
+                Names.TypeName -> alias Branch.typesNamed Branch.addTypeName
+                Names.PatternName -> alias Branch.patternsNamed (uncurry Branch.addPatternName)
 
-        RenameI _ _ _ -> error "todo"
-        -- RenameI nameTarget oldName newName -> do
-        --   branch <- Free.eval (LoadBranch currentBranchName)
-        --   case branch of
-        --     Nothing -> repeatWithOutput $ UnknownBranch currentBranchName
-        --     Just branch ->
-        --       let errorUnknownName = repeatWithOutput $
-        --             UnknownName currentBranchName nameTarget oldName
-        --           errorNameExists = repeatWithOutput $
-        --             NameAlreadyExists currentBranchName nameTarget newName
-        --           errorConflictedName = repeatWithOutput $
-        --             ConflictedName currentBranchName nameTarget existingName
-        --       in case nameTarget of
-        --         Names.TermName ->
-        --           if branch.hasTermNamed newName branch
-        --           then errorNameExists
-        --           else case toList (Branch.termsNamed oldName branch) of
-        --             [t] -> Free.eval (MergeBranch currentBranchName (Branch.renameTerm oldName newName branch)) >> repeatWithOutput (Success input True)
-        --             [] -> errorUnknownName
-        --             _ -> errorConflictedName
+        RenameUnconflictedI nameTarget oldName newName -> do
+          branch <- Free.eval (LoadBranch currentBranchName)
+          case branch of
+            Nothing -> repeatWithOutput $ UnknownBranch currentBranchName
+            Just branch ->
+              let rename :: Foldable f
+                        => (Name -> Branch -> f a)
+                        -> (Name -> Name -> Branch -> Branch)
+                        -> Free (Command v) (Either () (LoopState v))
+                  rename named rename' =
+                    if (not . null) (named newName branch)
+                    then repeatWithOutput (NameAlreadyExists currentBranchName nameTarget newName)
+                    else case toList (named oldName branch) of
+                      [_] -> -- unique, unconflicted name
+                        ifM (Free.eval . MergeBranch currentBranchName $ rename' oldName newName branch)
+                          (repeatWithOutput (Success input))
+                          (repeatWithOutput (UnknownBranch currentBranchName))
+                      [] -> repeatWithOutput
+                        (UnknownName currentBranchName nameTarget oldName)
+                      _ -> repeatWithOutput
+                        (ConflictedName currentBranchName nameTarget oldName)
+              in case nameTarget of
+                Names.TermName -> rename Branch.termsNamed Branch.renameTerm
+                Names.TypeName -> rename Branch.typesNamed Branch.renameType
+                Names.PatternName -> rename Branch.patternsNamed Branch.renamePattern
 
-        UnnameI _nameTarget _name -> error "todo"
-        --   (Free.eval $ Unname currentBranchName nameTarget name) >>=
-        --     (repeatWithOutput . Success input)
+        UnnameAllI nameTarget name -> do
+          branch <- Free.eval (LoadBranch currentBranchName)
+          case branch of
+            Nothing -> repeatWithOutput (UnknownBranch currentBranchName)
+            Just branch ->
+              let unname :: (Name -> Branch -> Branch)
+                         -> Free (Command v) (Either () (LoopState v))
+                  unname unname' =
+                    ifM (Free.eval . MergeBranch currentBranchName $ unname' name branch)
+                        (repeatWithOutput (Success input))
+                        (repeatWithOutput (UnknownBranch currentBranchName))
+              in case nameTarget of
+                Names.TermName    -> unname Branch.deleteTermsNamed
+                Names.TypeName    -> unname Branch.deleteTypesNamed
+                Names.PatternName -> unname Branch.deletePatternsNamed
+
         AddI -> case uf of
           Nothing -> repeatWithOutput NoUnisonFile
           Just uf -> do
@@ -201,7 +224,7 @@ loop s = Free.unfold' go s where
           loadBranchOrComplain currentBranchName $ \branch -> do
             ifM (Free.eval $ ForkBranch branch targetBranchName)
                 (do
-                  Free.eval . Notify $ Success input True
+                  Free.eval . Notify $ Success input
                   switchBranch targetBranchName)
                 (repeatWithOutput $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranch -> do
@@ -209,8 +232,9 @@ loop s = Free.unfold' go s where
           case branch of
             Nothing -> repeatWithOutput $ UnknownBranch inputBranch
             Just branch ->
-              (Free.eval $ MergeBranch currentBranchName branch) >>=
-                (repeatWithOutput . Success input)
+              ifM (Free.eval $ MergeBranch currentBranchName branch)
+                  (repeatWithOutput $ Success input)
+                  (repeatWithOutput $ UnknownBranch inputBranch)
         QuitI -> quit
     where
       repeat = pure $ Right s

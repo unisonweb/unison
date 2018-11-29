@@ -509,10 +509,30 @@ renameType old new (Branch b) =
   Branch $ Causal.stepIf (R.memberDom old . typeNamespace) go b where
     go b = b { typeNamespace = R.replaceDom old new (typeNamespace b)}
 
+renamePattern :: Name -> Name -> Branch -> Branch
+renamePattern old new (Branch b) = Branch $ Causal.step go b where
+  go b = b { patternNamespace = R.replaceDom old new (patternNamespace b) }
+
 renameTerm :: Name -> Name -> Branch -> Branch
 renameTerm old new (Branch b) =
   Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
     go b = b { termNamespace = R.replaceDom old new (termNamespace b)}
+
+deleteTermName :: Referent -> Name -> Branch -> Branch
+deleteTermName r name (Branch b) = Branch $ Causal.step go b where
+  go b = b { termNamespace = R.delete name r (termNamespace b) }
+
+deleteTermsNamed :: Name -> Branch -> Branch
+deleteTermsNamed name (Branch b) = Branch $ Causal.step go b where
+  go b = b { termNamespace = R.deleteDom name (termNamespace b) }
+
+deleteTypesNamed :: Name -> Branch -> Branch
+deleteTypesNamed name (Branch b) = Branch $ Causal.step go b where
+  go b = b { typeNamespace = R.deleteDom name (typeNamespace b) }
+
+deletePatternsNamed :: Name -> Branch -> Branch
+deletePatternsNamed name (Branch b) = Branch $ Causal.step go b where
+  go b = b { patternNamespace = R.deleteDom name (patternNamespace b) }
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
