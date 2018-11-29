@@ -294,7 +294,10 @@ addTermName :: BranchName -> (Output v -> Action i v) -> Action i v -> Referent 
 addTermName currentBranchName respond success r name =
   updateBranch currentBranchName (Branch.addTermName r name) respond success
 
+addTypeName :: BranchName -> (Output v -> Action i v) -> Action i v -> Reference -> Name -> Action i v
 addTypeName = undefined
+
+addPatternName :: BranchName -> (Output v -> Action i v) -> Action i v -> Reference -> Int -> Name -> Action i v
 addPatternName = undefined
 
 mergeBranch :: BranchName -> BranchName -> (Output v -> Action i v) -> Action i v -> Action i v
