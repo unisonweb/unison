@@ -142,6 +142,7 @@ loop s = Free.unfold' go s where
               TypeErrors errorEnv [ err | Result.TypeError err <- toList notes]
           Just unisonFile -> updateUnisonFile unisonFile
       Right input -> case input of
+        FuzzySearchByNameI _ -> error "todo"
         AliasUnconflictedI nameTarget existingName newName -> do
           branch <- Free.eval (LoadBranch currentBranchName)
           case branch of
