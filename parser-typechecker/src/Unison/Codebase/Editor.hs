@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DoAndIfThenElse #-}
 
 
 
@@ -56,8 +57,8 @@ data Output v
   | NoUnisonFile
   | UnknownBranch BranchName
   | UnknownName BranchName NameTarget Name
-  -- `name` refers to more than one `nameTarget`
   | NameAlreadyExists BranchName NameTarget Name
+  -- `name` refers to more than one `nameTarget`
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches [BranchName]
@@ -97,30 +98,6 @@ data Command v a where
 
   -- Tell the UI to display a set of conflicts
   DisplayConflicts :: Branch0 -> Command v ()
-
-  --
-  -- LookupTerm :: BranchName -> Name -> Command v (Maybe Referent)
-  -- LookupType :: BranchName -> Name -> Command v (Maybe Reference)
-  -- LookupPattern :: BranchName -> Name -> Command v (Maybe (Reference, Int))
-  -- AddTermName :: BranchName -> Referent -> Name -> Command v ()
-  -- AddTypeName :: BranchName -> Reference -> Name -> Command v ()
-  -- AddPatternName :: BranchName -> Reference -> Int -> Name -> Command v ()
-  -- RemoveTermName :: BranchName -> Referent -> Name -> Command v ()
-  -- RemoveTypeName :: BranchName -> Reference -> Name -> Command v ()
-  -- RemovePatternName :: BranchName -> Reference -> Int -> Name -> Command v ()
-
-  -- Alias :: BranchName -> NameTarget -> Name -> Name -> Command v Bool
-  -- Rename :: BranchName -> NameTarget -> Name -> Name -> Command v Bool
-  -- Unname :: BranchName -> NameTarget -> Name -> Command v Bool
-
-  -- DisplayAliasFailure :: NameTarget -> Name -> Name
-
-
-  -- AddName :: BranchName -> Name -> Name -> Command v Bool
-
-
-  -- CurrentBranch :: Command v (Name, Branch)
-  -- SwitchBranch :: Name -> Command (Maybe Branch)
 
   -- RemainingWork :: Branch -> Command v [RemainingWork]
 
