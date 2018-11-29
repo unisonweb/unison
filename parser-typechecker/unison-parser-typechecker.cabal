@@ -43,6 +43,7 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
     Unison.Codebase.Editor
+    Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
