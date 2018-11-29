@@ -6,6 +6,7 @@ import           Data.Sequence              (Seq)
 import           Data.Text                  (Text)
 import           Unison.Codebase            (Codebase)
 import           Unison.Codebase.Branch     (Branch, Branch0)
+-- import           Unison.DataDeclaration     (DataDeclaration', EffectDeclaration')
 import           Unison.Names               (Name, NameTarget, Referent)
 import           Unison.Parser              (Ann)
 import qualified Unison.Parser              as Parser
@@ -72,7 +73,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches [BranchName]
-  | SearchResult BranchName String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
+  | SearchResult BranchName SearchType String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -86,6 +87,19 @@ data Command i v a where
   Add :: BranchName -> UF.TypecheckedUnisonFile' v Ann -> Command i v (AddOutput v)
 
   Typecheck :: SourceName -> Source -> Command i v (TypecheckingResult v)
+
+  -- Load definitions from codebase:
+  -- option 1:
+      -- LoadTerm :: Reference -> Command i v (Maybe (Term v Ann))
+      -- LoadTypeOfTerm :: Reference -> Command i v (Maybe (Type v Ann))
+      -- LoadDataDeclaration :: Reference -> Command i v (Maybe (DataDeclaration' v Ann))
+      -- LoadEffectDeclaration :: Reference -> Command i v (Maybe (EffectDeclaration' v Ann))
+  -- option 2:
+      -- LoadTerm :: Reference -> Command i v (Maybe (Term v Ann))
+      -- LoadTypeOfTerm :: Reference -> Command i v (Maybe (Type v Ann))
+      -- LoadTypeDecl :: Reference -> Command i v (Maybe (TypeLookup.Decl v Ann))
+  -- option 3:
+      -- TypeLookup :: [Reference] -> Command i v (TypeLookup.TypeLookup)
 
   ListBranches :: Command i v [BranchName]
 
