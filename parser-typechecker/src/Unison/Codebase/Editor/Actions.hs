@@ -95,10 +95,27 @@ withBranch branchName respond f = do
     Just branch -> f branch
 
 aliasUnconflicted :: forall i v. BranchName -> (Output v -> Action i v) -> NameTarget -> Name -> Name -> Action i v -> Action i v
-aliasUnconflicted currentBranchName repeat nameTarget existingName newName success = do
-  branch <- Free.eval (LoadBranch currentBranchName)
+aliasUnconflicted branchName respond nameTarget existingName newName success = do
+  -- updateBranch respond success branchName $ case nameTarget of
+  --   Names.TermName -> alias Branch.termsNamed Branch.addTermName
+  --   Names.TypeName -> alias Branch.typesNamed Branch.addTypeName
+  --   Names.PatternName -> alias Branch.patternsNamed (uncurry Branch.addPatternName)
+  -- where
+  --   alias named alias' branch =
+  --     if (not . null) (named newName branch)
+  --     then respond (NameAlreadyExists branchName nameTarget newName)
+  --     else case toList (named existingName branch) of
+  --       [t] -> alias' t newName branch
+  --       [] -> respond (UnknownName branchName nameTarget existingName)
+  --       _ -> respond (ConflictedName branchName nameTarget existingName)
+  --
+  --
+  --
+  --
+  -- do
+  branch <- Free.eval (LoadBranch branchName)
   case branch of
-    Nothing -> repeat $ UnknownBranch currentBranchName
+    Nothing -> respond $ UnknownBranch branchName
     Just branch ->
       let alias :: Foldable f
                 => (Name -> Branch -> f a)
@@ -106,17 +123,17 @@ aliasUnconflicted currentBranchName repeat nameTarget existingName newName succe
                 -> Action i v
           alias named add =
             if (not . null) (named newName branch)
-            then repeat (NameAlreadyExists currentBranchName nameTarget newName)
+            then respond (NameAlreadyExists branchName nameTarget newName)
             else case toList (named existingName branch) of
               [t] ->
-                ifM (Free.eval . MergeBranch currentBranchName $
+                ifM (Free.eval . MergeBranch branchName $
                   add t newName branch)
                     success
-                    (repeat $ UnknownBranch currentBranchName)
-              [] -> repeat $
-                UnknownName currentBranchName nameTarget existingName
-              _ -> repeat $
-                ConflictedName currentBranchName nameTarget existingName
+                    (respond $ UnknownBranch branchName)
+              [] -> respond $
+                UnknownName branchName nameTarget existingName
+              _ -> respond $
+                ConflictedName branchName nameTarget existingName
       in case nameTarget of
         Names.TermName -> alias Branch.termsNamed Branch.addTermName
         Names.TypeName -> alias Branch.typesNamed Branch.addTypeName
@@ -149,6 +166,21 @@ renameUnconflicted currentBranchName repeat nameTarget oldName newName success =
         Names.TypeName    -> rename Branch.typesNamed Branch.renameType
         Names.PatternName -> rename Branch.patternsNamed Branch.renamePattern
 
+-- renameUnconflicted :: forall i v. BranchName -> (Output v -> Action i v) -> NameTarget -> Name -> Name -> Action i v -> Action i v
+-- renameUnconflicted branchName respond nameTarget oldName newName success =
+--   case nameTarget of
+--     Names.TermName -> rename Branch.termsNamed Branch.renameTerm
+--     Names.TypeName -> rename Branch.typesNamed Branch.renameType
+--     Names.PatternName -> rename Branch.patternsNamed Branch.renamePattern
+--   where
+--     rename named rename' branch =
+--       if (not . null) (named newName branch)
+--       then respond (NameAlreadyExists branchName nameTarget newName)
+--       else case toList (named oldName branch) of
+--         [_] -> updateBranch' respond success branchName (rename' oldName newName)
+--         [] -> respond (UnknownName branchName nameTarget oldName)
+--         _ -> respond (ConflictedName branchName nameTarget oldName)
+
 unnameAll :: forall i v
           . BranchName
           -> (Output v -> Action i v)
@@ -156,25 +188,15 @@ unnameAll :: forall i v
           -> Name
           -> Action i v
           -> Action i v
-unnameAll currentBranchName repeat nameTarget name success = do
-  branch <- Free.eval (LoadBranch currentBranchName)
-  case branch of
-    Nothing -> repeat (UnknownBranch currentBranchName)
-    Just branch ->
-      let unname :: (Name -> Branch -> Branch)
-                 -> Action i v
-          unname unname' =
-            ifM (Free.eval . MergeBranch currentBranchName $ unname' name branch)
-                success
-                (repeat (UnknownBranch currentBranchName))
-      in case nameTarget of
-        Names.TermName    -> unname Branch.deleteTermsNamed
-        Names.TypeName    -> unname Branch.deleteTypesNamed
-        Names.PatternName -> unname Branch.deletePatternsNamed
+unnameAll branchName respond nameTarget name success =
+  updateBranch respond success branchName $ case nameTarget of
+    Names.TermName -> Branch.deleteTermsNamed name
+    Names.TypeName -> Branch.deleteTypesNamed name
+    Names.PatternName -> Branch.deletePatternsNamed name
 
 addTermName :: BranchName -> (Output v -> Action i v) -> Action i v -> Referent -> Name -> Action i v
 addTermName currentBranchName respond success r name =
-  updateBranch currentBranchName (Branch.addTermName r name) respond success
+  updateBranch respond success currentBranchName (Branch.addTermName r name)
 
 addTypeName :: BranchName -> (Output v -> Action i v) -> Action i v -> Reference -> Name -> Action i v
 addTypeName = undefined
@@ -184,16 +206,18 @@ addPatternName = undefined
 
 mergeBranch :: BranchName -> BranchName -> (Output v -> Action i v) -> Action i v -> Action i v
 mergeBranch sourceBranchName targetBranchName respond success =
-  withBranch sourceBranchName respond $ \b ->
-    mergeBranch' targetBranchName b respond success
+  withBranch sourceBranchName respond $
+    mergeBranch' targetBranchName respond success
 
-mergeBranch' :: BranchName -> Branch -> (Output v -> Action i v) -> Action i v -> Action i v
-mergeBranch' targetBranchName s respond success =
-  ifM (Free.eval $ MergeBranch targetBranchName s)
+mergeBranch' :: BranchName -> (Output v -> Action i v) -> Action i v -> Branch -> Action i v
+mergeBranch' targetBranchName respond success b =
+  ifM (Free.eval $ MergeBranch targetBranchName b)
       success
       (respond $ UnknownBranch targetBranchName)
 
-updateBranch :: BranchName -> (Branch -> Branch) -> (Output v -> Action i v) -> Action i v -> Action i v
-updateBranch branchName f respond success =
-  withBranch branchName respond $
-    \b -> mergeBranch' branchName (f b) respond success
+updateBranch :: (Output v -> Action i v) -> Action i v -> BranchName -> (Branch -> Branch) -> Action i v
+updateBranch respond success branchName f =
+  withBranch branchName respond $ mergeBranch' branchName respond success . f
+
+-- updateBranch' :: (Output v -> Action i v) -> Action i v -> BranchName -> ((Branch -> Branch) -> Action i v) -> Action i v
+-- updateBranch' respond success branchName f = undefined
