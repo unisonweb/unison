@@ -103,14 +103,17 @@ fromNames names = Branch0 terms pats types R.empty R.empty
 
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
-  let (ours', theirs') = join bimap (Causal.head . unbranch) (ours, theirs)
-      to :: (Ord a, Ord b) => Set (a,b) -> Relation a b
-      to               = R.fromList . Set.toList
+  uncurry diff' $ join bimap (Causal.head . unbranch) (ours, theirs)
+
+diff' :: Branch0 -> Branch0 -> Diff
+diff' ours theirs =
+  let to :: (Ord a, Ord b) => Set (a,b) -> Relation a b
+      to               = R.fromSet
       fro :: (Ord a, Ord b) => Relation a b -> Set (a, b)
-      fro              = Set.fromList . R.toList
+      fro              = R.toSet
       diffSet f =
-        ( to (fro (f ours') `Set.difference` fro (f theirs'))
-        , to (fro (f theirs') `Set.difference` fro (f ours'))
+        ( to (fro (f ours) `Set.difference` fro (f theirs))
+        , to (fro (f theirs) `Set.difference` fro (f ours))
         )
       (ourTerms    , theirTerms    ) = diffSet termNamespace
       (ourPats     , theirPats     ) = diffSet patternNamespace
@@ -340,6 +343,25 @@ nameCollisions b0 b = go b0 (head b) where
     (Set.intersection (R.dom $ typeNamespace b1) (R.dom $ typeNamespace b2) R.<| typeNamespace b1)
     R.empty
     R.empty
+
+-- Returns names occurring in both branches that also have the same referent.
+duplicates :: Branch0 -> Branch -> Branch0
+duplicates b0 b = go b0 (head b)
+ where
+  terms    = R.toSet . termNamespace
+  types    = R.toSet . typeNamespace
+  patterns = R.toSet . patternNamespace
+  go b1 b2 = Branch0
+    (R.fromSet . Set.intersection (terms b1) $ terms b2)
+    (R.fromSet . Set.intersection (patterns b1) $ patterns b2)
+    (R.fromSet . Set.intersection (types b1) $ types b2)
+    R.empty
+    R.empty
+
+-- Returns the subset of `b0` whose names collide with elements of `b`
+-- (and don't have the same referent).
+collisions :: Branch0 -> Branch -> Branch0
+collisions b0 b = ours $ nameCollisions b0 b `diff'` duplicates b0 b
 
 -- todo: treat name collisions as edits to a branch
 -- editsFromNameCollisions :: Codebase -> Branch0 -> Branch -> Branch

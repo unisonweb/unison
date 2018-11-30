@@ -27,13 +27,15 @@ import qualified Unison.Result              as Result
 import qualified Unison.Term                as Term
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
-import qualified Unison.UnisonFile          as UF
+import qualified Unison.UnisonFile          as U.F
 import qualified Unison.Util.Free           as Free
 
 type BranchName = Name
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type TypecheckingResult v = Result (Seq (Note v Ann))  (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+type TypecheckingResult v =
+  Result (Seq (Note v Ann))
+         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
@@ -113,15 +115,23 @@ data Command v a where
   -- can suggest use of preexisting definitions
   -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
 
-
-commandLine :: Codebase IO v Ann -> Free (Command v) a -> IO a
-commandLine _codebase command = do
-  -- set up file watching...
+commandLine :: IO (Either (TypecheckingResult v) Input) -> Codebase IO v Ann -> Free (Command v) a -> IO a
+commandLine awaitInput codebase command = do
   Free.fold go command
   where
     go :: Command v a -> IO a
-    go = undefined
-
+    go =
+      \case
+        -- Wait until we get either user input or a unison file update
+        Input -> awaitInput
+        Notify output -> notifyUser output
+        Add branchName unisonFile -> do
+          branch <- getBranch branchName
+          let branchUpdate = Branch.typecheckedFile unisonFile
+              collisions = Branch.collisions branchUpdate branch
+              duplicates = Branch.duplicates branchUpdate branch
+              successes  = ours $ Branch.diff branchUpdate (collisions <> duplicates)
+          if collisions  Added successes duplicates collisions
 
 data LoopState v
   = LoopState BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
