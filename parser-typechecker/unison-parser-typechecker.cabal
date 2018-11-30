@@ -74,6 +74,7 @@ library
     Unison.Runtime.IR
     Unison.Runtime.Rt0
     Unison.Runtime.Rt1
+    Unison.Runtime.Vector
     Unison.Settings
     Unison.Symbol
     Unison.Term
@@ -114,6 +115,7 @@ library
     containers,
     comonad,
     cryptonite,
+    data-memocombinators,
     directory,
     errors,
     edit-distance,
