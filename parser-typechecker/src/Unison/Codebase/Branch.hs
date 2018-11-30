@@ -544,6 +544,14 @@ deleteTermName :: Referent -> Name -> Branch -> Branch
 deleteTermName r name (Branch b) = Branch $ Causal.step go b where
   go b = b { termNamespace = R.delete name r (termNamespace b) }
 
+deleteTypeName :: Reference -> Name -> Branch -> Branch
+deleteTypeName r name (Branch b) = Branch $ Causal.step go b where
+  go b = b { typeNamespace = R.delete name r (typeNamespace b) }
+
+deletePatternName :: Reference -> Int -> Name -> Branch -> Branch
+deletePatternName r i name (Branch b) = Branch $ Causal.step go b where
+  go b = b { patternNamespace = R.delete name (r, i) (patternNamespace b) }
+
 deleteTermsNamed :: Name -> Branch -> Branch
 deleteTermsNamed name (Branch b) = Branch $ Causal.step go b where
   go b = b { termNamespace = R.deleteDom name (termNamespace b) }

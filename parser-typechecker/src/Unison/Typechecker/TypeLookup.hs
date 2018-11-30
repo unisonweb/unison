@@ -12,6 +12,7 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
+-- Used for typechecking.
 data TypeLookup v a =
   TypeLookup { typeOfTerms :: Map Reference (Type v a)
              , dataDecls :: Map Reference (DataDeclaration v a)
