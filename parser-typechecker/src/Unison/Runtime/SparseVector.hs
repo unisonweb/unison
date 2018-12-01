@@ -3,6 +3,7 @@
 
 module Unison.Runtime.SparseVector where
 
+import Prelude hiding (unzip)
 import qualified Data.Vector.Unboxed.Mutable as MUV
 import Data.Bits ((.|.), (.&.))
 import qualified Data.Bits as B
@@ -17,16 +18,19 @@ data SparseVector bits a
   = SparseVector { indices :: !bits
                  , elements :: !(UV.Vector a) }
 
+-- todo: instance (UV.Unbox a, B.FiniteBits bits, Num n)
+--   => Num (SparseVector bits n)
+
+-- Denotationally: `map f v n = f <$> v n`
 map :: (UV.Unbox a, UV.Unbox b) => (a -> b) -> SparseVector bits a -> SparseVector bits b
 map f v = v { elements = UV.map f (elements v) }
 
-isSupersetOf :: B.FiniteBits bits => bits -> bits -> Bool
-isSupersetOf b1 b2 = (b1 .&. b2) == b2
-
+-- Denotationally, a mask is a `Nat -> Bool`, so this implementation
+-- means: `mask ok v n = if ok n then v n else Nothing`
 mask :: (UV.Unbox a, B.FiniteBits bits)
      => bits -> SparseVector bits a -> SparseVector bits a
 mask bits a =
-  if indices' == bits then a
+  if indices' == bits then a -- check if mask is a superset
   else SparseVector indices' $ UV.create $ do
         vec <- MUV.new (B.popCount indices')
         go vec (indices a) bits 0 0
@@ -47,6 +51,8 @@ mask bits a =
           else
             go out indAs (indBs `B.shiftR` (b1 + 1)) i k
 
+-- Denotationally: `zipWith f a b n = f <$> a n <*> b n`, in other words,
+-- this takes the intersection of the two shapes.
 zipWith
  :: (UV.Unbox a, UV.Unbox b, UV.Unbox c, B.FiniteBits bits)
  => (a -> b -> c)
@@ -58,33 +64,63 @@ zipWith f a b =
    SparseVector (indices a) (UV.zipWith f (elements a) (elements b))
  else let
    indices' = indices a .&. indices b
-   (eas, ebs) = (elements a, elements b)
-   go !out !indAs !indBs !i !j !k =
-     if indAs == B.zeroBits || indBs == B.zeroBits then pure out
-     else let
-       a1 = B.countTrailingZeros indAs
-       b1 = B.countTrailingZeros indBs
-       in
-         if a1 == b1 then do
-           MUV.write out k (f (eas UV.! (i + a1)) (ebs UV.! (j + a1)))
-           go out (indAs `B.shiftR` (a1 + 1))
-                  (indBs `B.shiftR` (b1 + 1))
-                  (i + 1) (j + 1) (k + 1)
-         else if a1 < b1 then
-           go out (indAs `B.shiftR` (a1 + 1))
-                  indBs
-                  (i + 1) j k
-         else
-           go out indAs
-                  (indBs `B.shiftR` (b1 + 1))
-                  i (j + 1) k
-   in SparseVector indices' $ UV.create $ do
-        vec <- MUV.new (B.popCount indices')
-        go vec (indices a) (indices b) 0 0 0
+   a' = mask indices' a
+   b' = mask indices' b
+   in SparseVector indices' (UV.zipWith f (elements a') (elements b'))
 
--- Finds the index of the least significant 1 bit.
-findFirst1 :: B.FiniteBits b => b -> Int
-findFirst1 b = 1 + B.countTrailingZeros b
+_1 :: (UV.Unbox a, UV.Unbox b) => SparseVector bits (a,b) -> SparseVector bits a
+_1 = fst . unzip
+
+_2 :: (UV.Unbox a, UV.Unbox b) => SparseVector bits (a,b) -> SparseVector bits b
+_2 = snd . unzip
+
+-- Denotationally: `unzip p = (\n -> fst <$> p n, \n -> snd <$> p n)`
+unzip :: (UV.Unbox a, UV.Unbox b)
+     => SparseVector bits (a,b)
+     -> (SparseVector bits a, SparseVector bits b)
+unzip (SparseVector inds ps) =
+  let (as,bs) = UV.unzip ps
+  in (SparseVector inds as, SparseVector inds bs)
+
+-- Denotationally: `choose bs a b n = if bs n then a n else b n`
+choose :: (B.FiniteBits bits, UV.Unbox a)
+       => bits
+       -> SparseVector bits a
+       -> SparseVector bits a
+       -> SparseVector bits a
+choose bits t f
+  | B.zeroBits == bits = f
+  | B.complement bits == B.zeroBits = t
+  | otherwise = -- it's a mix of true and false
+    merge (mask bits t) (mask (B.complement bits) f)
+
+-- Denotationally: `merge a b n = a n <|> b n`
+merge :: (B.FiniteBits bits, UV.Unbox a)
+      => SparseVector bits a
+      -> SparseVector bits a
+      -> SparseVector bits a
+merge a b = SparseVector indices' tricky
+  where
+  indices' = indices a .|. indices b
+  tricky = UV.create $ do
+    vec <- MUV.new (B.popCount indices')
+    go vec (indices a) (indices b) 0 0 0
+  (!eas, !ebs) = (elements a, elements b)
+  go !out !indAs !indBs !i !j !k =
+    if indAs == B.zeroBits || indBs == B.zeroBits then pure out
+    else let
+      (!a1, !b1) = (B.countTrailingZeros indAs, B.countTrailingZeros indBs)
+      in if a1 == b1 then do
+          MUV.write out k (eas UV.! (i + a1))
+          go out (indAs `B.shiftR` (a1 + 1)) (indBs `B.shiftR` (b1 + 1))
+                 (i + 1) (j + 1) (k + 1)
+         else if a1 < b1 then do
+           MUV.write out k (eas UV.! (i + a1))
+           go out (indAs `B.shiftR` (a1 + 1)) indBs
+                  (i + 1) j (k + 1)
+         else do
+           MUV.write out k (ebs UV.! (j + a1))
+           go out indAs (indBs `B.shiftR` (b1 + 1)) i (j + 1) (k + 1)
 
 -- Pointer equality a la Scala.
 eq :: a -> a -> Bool
