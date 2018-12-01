@@ -54,6 +54,12 @@ data Input
   | ChooseTermForNameI Referent Name
   | ChooseTypeForNameI Reference Name
   | ChoosePatternForNameI Reference Int Name
+  -- create and remove update directives
+  | AddTermUpdateI Referent Referent
+  | AddTypeUpdateI Reference Reference
+  | RemoveTermUpdateI Referent Referent
+  | RemoveTypeUpdateI Referent Referent
+  | ListUpdatesI
   -- other
   | AddI -- [Name]
   | ListBranchesI
