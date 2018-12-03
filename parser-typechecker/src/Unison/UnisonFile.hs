@@ -53,6 +53,10 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   typ :: AnnotatedType v a
 } deriving Show
 
+discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
+  TypecheckedUnisonFile_ datas effects components
+
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: Var v => UnisonFile v a -> Names -> Set Reference
 dependencies uf ns = directReferences <>
@@ -145,6 +149,17 @@ bindBuiltins names (UnisonFile d e t) =
     (second (DD.bindBuiltins names) <$> d)
     (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
     (Names.bindTerm names t)
+
+filterVars
+  :: Var v
+  => Set v
+  -> Set v
+  -> TypecheckedUnisonFile v a
+  -> TypecheckedUnisonFile v a
+filterVars types terms file = TypecheckedUnisonFile_
+  (dataDeclarations' file `Map.restrictKeys` types)
+  (effectDeclarations' file `Map.restrictKeys` types)
+  (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form

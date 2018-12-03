@@ -103,14 +103,17 @@ fromNames names = Branch0 terms pats types R.empty R.empty
 
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
-  let (ours', theirs') = join bimap (Causal.head . unbranch) (ours, theirs)
-      to :: (Ord a, Ord b) => Set (a,b) -> Relation a b
-      to               = R.fromList . Set.toList
+  uncurry diff' $ join bimap (Causal.head . unbranch) (ours, theirs)
+
+diff' :: Branch0 -> Branch0 -> Diff
+diff' ours theirs =
+  let to :: (Ord a, Ord b) => Set (a,b) -> Relation a b
+      to               = R.fromSet
       fro :: (Ord a, Ord b) => Relation a b -> Set (a, b)
-      fro              = Set.fromList . R.toList
+      fro              = R.toSet
       diffSet f =
-        ( to (fro (f ours') `Set.difference` fro (f theirs'))
-        , to (fro (f theirs') `Set.difference` fro (f ours'))
+        ( to (fro (f ours) `Set.difference` fro (f theirs))
+        , to (fro (f theirs) `Set.difference` fro (f ours))
         )
       (ourTerms    , theirTerms    ) = diffSet termNamespace
       (ourPats     , theirPats     ) = diffSet patternNamespace
@@ -341,12 +344,55 @@ nameCollisions b0 b = go b0 (head b) where
     R.empty
     R.empty
 
+-- Returns names occurring in both branches that also have the same referent.
+duplicates :: Branch0 -> Branch -> Branch0
+duplicates b0 b = go b0 (head b)
+ where
+  terms    = R.toSet . termNamespace
+  types    = R.toSet . typeNamespace
+  patterns = R.toSet . patternNamespace
+  go b1 b2 = Branch0
+    (R.fromSet . Set.intersection (terms b1) $ terms b2)
+    (R.fromSet . Set.intersection (patterns b1) $ patterns b2)
+    (R.fromSet . Set.intersection (types b1) $ types b2)
+    R.empty
+    R.empty
+
+-- Returns the subset of `b0` whose names collide with elements of `b`
+-- (and don't have the same referent).
+collisions :: Branch0 -> Branch -> Branch0
+collisions b0 b = ours $ nameCollisions b0 b `diff'` duplicates b0 b
+
+-- Returns the subset of `b0` whose referents collide with elements of `b`
+refCollisions :: Branch0 -> Branch -> Branch0
+refCollisions b0 b = go b0 (head b)
+ where
+  -- `set R.<| rel` filters `rel` to contain tuples whose first elem is in `set`
+  go b1 b2 = Branch0
+    (    termNamespace b1
+    R.|> (Set.intersection (R.ran $ termNamespace b1)
+                           (R.ran $ termNamespace b2)
+         )
+    )
+    (    patternNamespace b1
+    R.|> (Set.intersection (R.ran $ patternNamespace b1)
+                           (R.ran $ patternNamespace b2)
+         )
+    )
+    (    typeNamespace b1
+    R.|> (Set.intersection (R.ran $ typeNamespace b1)
+                           (R.ran $ typeNamespace b2)
+         )
+    )
+    R.empty
+    R.empty
+
 -- todo: treat name collisions as edits to a branch
 -- editsFromNameCollisions :: Codebase -> Branch0 -> Branch -> Branch
 
 -- Promote a typechecked file to a `Branch0` which can be added to a `Branch`
-typecheckedFile :: forall v a. Var v => UF.TypecheckedUnisonFile v a -> Branch0
-typecheckedFile file = let
+fromTypecheckedFile :: forall v a. Var v => UF.TypecheckedUnisonFile v a -> Branch0
+fromTypecheckedFile file = let
   toName = Var.name
   hashedTerms = UF.hashTerms file
   ctors :: [(v, Referent)]
@@ -364,6 +410,27 @@ typecheckedFile file = let
              (typeNamespace1 `R.union` typeNamespace2)
              R.empty
              R.empty
+
+-- | Returns the types and terms, respectively, whose names occur in both
+-- the branch and the file.
+intersectWithFile
+  :: forall v a
+   . Var v
+  => Branch0
+  -> UF.TypecheckedUnisonFile v a
+  -> (Set v, Set v)
+intersectWithFile branch file =
+  ( Set.union
+    (Map.keysSet (UF.dataDeclarations' file) `Set.intersection` typeNames)
+    (Map.keysSet (UF.effectDeclarations' file) `Set.intersection` typeNames)
+  , Set.fromList
+    $   UF.topLevelComponents file
+    >>= (>>= (\(v, _, _) -> if Set.member v termNames then [v] else []))
+  )
+ where
+  typeNames = Set.map (Var.named) $ allTypeNames branch
+  termNames = Set.map (Var.named) $ allTermNames branch
+
 
 modify :: (Branch0 -> Branch0) -> Branch -> Branch
 modify f (Branch b) = Branch $ Causal.step f b

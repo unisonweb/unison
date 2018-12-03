@@ -65,6 +65,10 @@ toList :: Relation a b -> [(a, b)]
 toList r =
   concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList . domain $ r)
 
+-- | Builds a Set from a Relation
+toSet :: (Ord a, Ord b) => Relation a b -> S.Set (a, b)
+toSet = S.fromList . toList
+
 -- |
 -- Builds a 'Relation' consiting of an association between: @x@ and @y@.
 singleton :: a -> b -> Relation a b
@@ -337,3 +341,7 @@ deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
 
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
+
+fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
+fromSet = fromList . S.toList
+
