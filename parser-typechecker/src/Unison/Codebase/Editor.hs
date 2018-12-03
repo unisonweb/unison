@@ -208,6 +208,21 @@ typecheck codebase names sourceName src =
     (unpack sourceName)
     src
 
+builtinBranch :: Branch
+builtinBranch = Branch.append (Branch.fromNames B.names) mempty
+
+newBranch :: Monad m => Codebase m v a -> BranchName -> m Bool
+newBranch codebase branchName = forkBranch codebase builtinBranch branchName
+
+forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+forkBranch codebase branch branchName = do
+  b <- Codebase.getBranch codebase branchName
+  case b of
+    Nothing -> do
+      newBranch <- Codebase.mergeBranch codebase branchName branch
+      pure $ newBranch == branch
+    Just _ -> pure False
+
 commandLine
   :: forall i v a
    . Var v
@@ -227,5 +242,8 @@ commandLine awaitInput codebase command = do
       pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
-
+    ListBranches -> Codebase.branches codebase
+    LoadBranch branchName -> Codebase.getBranch codebase branchName
+    NewBranch branchName -> newBranch codebase branchName
+    ForkBranch branch branchName -> forkBranch codebase branch branchName
 
