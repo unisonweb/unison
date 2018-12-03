@@ -78,8 +78,11 @@ loop s = Free.unfold' go s where
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf ->
-            (Free.eval $ Add currentBranchName uf) >>= (respond . AddOutput)
+          Just uf -> do
+            branch <- Free.eval $ LoadBranch currentBranchName
+            case branch of
+              Nothing -> respond $ UnknownBranch currentBranchName
+              Just branch -> Free.eval (Add branch uf) >>= (respond . AddOutput)
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches
         SwitchBranchI branchName -> switchBranch branchName
