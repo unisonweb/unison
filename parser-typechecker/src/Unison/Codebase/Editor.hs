@@ -55,11 +55,16 @@ data Input
   | ChooseTypeForNameI Reference Name
   | ChoosePatternForNameI Reference Int Name
   -- create and remove update directives
-  | AddTermUpdateI Referent Referent
-  | AddTypeUpdateI Reference Reference
-  | RemoveTermUpdateI Referent Referent
-  | RemoveTypeUpdateI Referent Referent
-  | ListUpdatesI
+  | ListAllUpdatesI
+    -- update a term or type, error if it would produce a conflict
+  | UpdateTermI Referent Referent
+  | UpdateTypeI Reference Reference
+    -- clear updates for a term or type
+  | RemoveAllTermUpdatesI Referent
+  | RemoveAllTypeUpdatesI Reference
+  -- resolve update conflicts
+  | ChooseUpdateForTermI Referent Referent
+  | ChooseUpdateForTypeI Reference Reference
   -- other
   | AddI -- [Name]
   | ListBranchesI

@@ -406,9 +406,11 @@ data ReferenceOps m = ReferenceOps
 -- foo' -> Replace foo'' *optional
 -- bar' -> Replace bar'' *optional
 
-replaceType
-  :: Monad m => ReferenceOps m -> Reference -> Reference -> Branch -> m Branch
-replaceType = undefined
+replaceType :: Reference -> Reference -> Branch -> Branch
+replaceType old new (Branch b) = Branch $ Causal.step go b where
+  go b = b { editedTypes = R.insert old (TypeEdit.Replace new) (editedTypes b)
+           , typeNamespace = R.replaceRan old new $ typeNamespace b
+           }
 
 insertNames :: Monad m
             => ReferenceOps m
