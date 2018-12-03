@@ -7,6 +7,7 @@ module Unison.Codebase.Editor where
 import           Data.Sequence              (Seq)
 import           Data.Text                  (Text)
 import           Unison.Codebase            (Codebase)
+import qualified Unison.Codebase            as Codebase
 import           Unison.Codebase.Branch     (Branch, Branch0)
 import qualified Unison.Codebase.Branch     as Branch
 -- import           Unison.DataDeclaration     (DataDeclaration', EffectDeclaration')
@@ -135,6 +136,9 @@ data Command i v a where
   -- can suggest use of preexisting definitions
   -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
 
+notifyUser :: Output v -> IO ()
+notifyUser = undefined
+
 commandLine
   :: forall i v a
    . IO (Either (TypecheckingResult v) i)
@@ -144,16 +148,20 @@ commandLine
 commandLine awaitInput codebase command = do
   Free.fold go command
  where
-  go :: Command i v a -> IO a
+  go :: forall x . Command i v x -> IO x
   go = \case
       -- Wait until we get either user input or a unison file update
     Input                     -> awaitInput
     Notify output             -> notifyUser output
     Add branchName unisonFile -> do
-      branch <- getBranch branchName
+      branch <- Codebase.getBranch branchName
       let
-        branchUpdate = Branch.typecheckedFile unisonFile
-        collisions   = Branch.collisions branchUpdate branch
-        duplicates   = Branch.duplicates branchUpdate branch
-        successes = ours $ Branch.diff branchUpdate (collisions <> duplicates)
-      Added successes duplicates collisions
+        branchUpdate =
+          Branch.typecheckedFile $ UF.discardTopLevelTerm unisonFile
+        collisions = Branch.collisions branchUpdate branch
+        duplicates = Branch.duplicates branchUpdate branch
+        successes =
+          Branch.ours $ Branch.diff branchUpdate (collisions <> duplicates)
+      pure $ Added (Branch.typecheckedFile successes)
+                   (Branch.typecheckedFile duplicates)
+                   (Branch.typecheckedFile collisions)

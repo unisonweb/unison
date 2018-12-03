@@ -53,6 +53,10 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   typ :: AnnotatedType v a
 } deriving Show
 
+discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
+  TypecheckedUnisonFile_ datas effects components
+
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: Var v => UnisonFile v a -> Names -> Set Reference
 dependencies uf ns = directReferences <>
