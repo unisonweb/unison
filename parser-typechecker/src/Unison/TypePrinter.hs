@@ -18,6 +18,28 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
+{- Explanation of precedence handling
+
+   We illustrate precedence rules as follows.
+
+     >=10
+       10f 10x
+
+   This example shows that a type application f x is enclosed in parentheses
+   whenever the ambient precedence around it is >= 10, and that when printing its
+   two components, an ambient precedence of 10 is used in both places.
+
+   The pretty-printer uses the following rules for printing types.
+
+     >=10
+       10f 10x
+       { 0e } 10t
+
+     >=0
+       0a -> 0b
+
+-}
+
 pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> PrettyPrint String
 -- p is the operator precedence of the enclosing context (a number from 0 to 11, or
 -- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.

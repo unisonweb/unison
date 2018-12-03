@@ -27,7 +27,6 @@ import           Unison.Util.PrettyPrint (PrettyPrint(..))
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
---TODO precedence comment and double check in type printer
 --TODO > watches
 --TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
