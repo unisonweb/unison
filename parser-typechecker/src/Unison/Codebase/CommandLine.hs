@@ -276,7 +276,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
               <> " will tell me about new definitions."
             go branch name
           Just _ -> do
-            let branchUpdate = Branch.typecheckedFile typecheckedFile
+            let branchUpdate = Branch.fromTypecheckedFile typecheckedFile
                 collisions   = Branch.nameCollisions branchUpdate branch
                 -- todo: collisions should really be collisions `Branch.subtract` branch,
                 -- since if the names have a matching hash that's fine

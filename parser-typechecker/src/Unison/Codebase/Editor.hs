@@ -4,25 +4,34 @@
 
 module Unison.Codebase.Editor where
 
-import           Data.Sequence              (Seq)
-import           Data.Text                  (Text)
-import           Unison.Codebase            (Codebase)
-import qualified Unison.Codebase            as Codebase
-import           Unison.Codebase.Branch     (Branch, Branch0)
-import qualified Unison.Codebase.Branch     as Branch
+import           Data.Sequence                  ( Seq )
+import           Data.Set                       ( Set )
+import           Data.Text                      ( Text )
+import           Unison.Codebase                ( Codebase )
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.Branch         ( Branch
+                                                , Branch0
+                                                )
+import qualified Unison.Codebase.Branch        as Branch
 -- import           Unison.DataDeclaration     (DataDeclaration', EffectDeclaration')
-import           Unison.Names               (Name, NameTarget, Referent)
-import           Unison.Parser              (Ann)
-import qualified Unison.Parser              as Parser
-import qualified Unison.PrettyPrintEnv      as PPE
-import           Unison.Reference           (Reference)
-import           Unison.Result              (Note, Result)
-import qualified Unison.Term                as Term
-import qualified Unison.Type                as Type
-import qualified Unison.Typechecker.Context as Context
-import qualified Unison.UnisonFile          as UF
-import           Unison.Util.Free           (Free)
-import qualified Unison.Util.Free           as Free
+import           Unison.Names                   ( Name
+                                                , NameTarget
+                                                , Referent
+                                                )
+import           Unison.Parser                  ( Ann )
+import qualified Unison.Parser                 as Parser
+import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.Reference               ( Reference )
+import           Unison.Result                  ( Note
+                                                , Result
+                                                )
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker.Context    as Context
+import qualified Unison.UnisonFile             as UF
+import           Unison.Util.Free               ( Free )
+import qualified Unison.Util.Free              as Free
+import           Unison.Var                     ( Var )
 
 type BranchName = Name
 type Source = Text -- "id x = x\nconst a b = a"
@@ -33,14 +42,24 @@ type TypecheckingResult v =
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
+data AddOutputComponent v =
+  AddOutputComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+
 data AddOutput v
   = NothingToAdd
-  | Added { -- Previously existed only in the file; now added to the codebase.
-            successful :: UF.TypecheckedUnisonFile' v Ann
+  | NoBranch BranchName
+  | Added {
+          -- The file that we tried to add from
+            originalFile :: UF.TypecheckedUnisonFile v Ann
+          -- Previously existed only in the file; now added to the codebase.
+          , successful :: AddOutputComponent v
           -- Exists in the branch and the file, with the same name and contents.
-          , duplicates :: UF.TypecheckedUnisonFile' v Ann
+          , duplicates :: AddOutputComponent v
+          -- Already defined in the branch, but with a different name.
+          , duplicateReferents :: AddOutputComponent v
           -- Has a colliding name but a different definition than the codebase.
-          , collisions :: UF.TypecheckedUnisonFile' v Ann }
+          , collisions :: AddOutputComponent v
+          }
 
 data SearchType = Exact | Fuzzy
 
@@ -145,9 +164,29 @@ data Command i v a where
 notifyUser :: Output v -> IO ()
 notifyUser = undefined
 
+addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
+addToBranch branch unisonFile
+  = let
+      branchUpdate = Branch.fromTypecheckedFile unisonFile
+      collisions   = Branch.collisions branchUpdate branch
+      duplicates   = Branch.duplicates branchUpdate branch
+      dupeRefs     = Branch.ours
+        $ Branch.diff' (Branch.refCollisions branchUpdate branch) duplicates
+      successes = Branch.ours
+        $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
+      mkOutput x =
+        uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
+    in
+      Added unisonFile
+            (mkOutput successes)
+            (mkOutput duplicates)
+            (mkOutput dupeRefs)
+            (mkOutput collisions)
+
 commandLine
   :: forall i v a
-   . IO (Either (TypecheckingResult v) i)
+   . Var v
+  => IO (Either (TypecheckingResult v) i)
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
@@ -156,18 +195,13 @@ commandLine awaitInput codebase command = do
  where
   go :: forall x . Command i v x -> IO x
   go = \case
-      -- Wait until we get either user input or a unison file update
+    -- Wait until we get either user input or a unison file update
     Input                     -> awaitInput
     Notify output             -> notifyUser output
     Add branchName unisonFile -> do
-      branch <- Codebase.getBranch branchName
-      let
-        branchUpdate =
-          Branch.typecheckedFile $ UF.discardTopLevelTerm unisonFile
-        collisions = Branch.collisions branchUpdate branch
-        duplicates = Branch.duplicates branchUpdate branch
-        successes =
-          Branch.ours $ Branch.diff branchUpdate (collisions <> duplicates)
-      pure $ Added (Branch.typecheckedFile successes)
-                   (Branch.typecheckedFile duplicates)
-                   (Branch.typecheckedFile collisions)
+      branch <- Codebase.getBranch codebase branchName
+      case branch of
+        Nothing -> pure $ NoBranch branchName
+        Just branch ->
+          pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
+
