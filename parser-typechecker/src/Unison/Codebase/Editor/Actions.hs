@@ -41,6 +41,11 @@ loop s = Free.unfold' go s where
           Just unisonFile -> updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI _ _ -> error "todo"
+        AddTermUpdateI _old _new -> error "todo"
+        AddTypeUpdateI _old _new -> error "todo"
+        RemoveTermUpdateI _old _new -> error "todo"
+        RemoveTypeUpdateI _old _new -> error "todo"
+        ListUpdatesI -> error "todo"
         AddTermNameI r name ->
           addTermName currentBranchName respond success r name
         AddTypeNameI r name ->
