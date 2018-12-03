@@ -6,7 +6,8 @@ module Unison.Codebase.Editor where
 
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, unpack )
+import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch
@@ -14,7 +15,9 @@ import           Unison.Codebase.Branch         ( Branch
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
 -- import           Unison.DataDeclaration     (DataDeclaration', EffectDeclaration')
+import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
+                                                , Names
                                                 , NameTarget
                                                 , Referent
                                                 )
@@ -25,6 +28,7 @@ import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
                                                 , Result
                                                 )
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as Context
@@ -47,7 +51,6 @@ data AddOutputComponent v =
 
 data AddOutput v
   = NothingToAdd
-  | NoBranch BranchName
   | Added {
           -- The file that we tried to add from
             originalFile :: UF.TypecheckedUnisonFile v Ann
@@ -115,9 +118,12 @@ data Command i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
 
-  Add :: BranchName -> UF.TypecheckedUnisonFile' v Ann -> Command i v (AddOutput v)
+  Add :: Branch -> UF.TypecheckedUnisonFile' v Ann -> Command i v (AddOutput v)
 
-  Typecheck :: SourceName -> Source -> Command i v (TypecheckingResult v)
+  Typecheck :: Branch
+            -> SourceName
+            -> Source
+            -> Command i v (TypecheckingResult v)
 
   -- Load definitions from codebase:
   -- option 1:
@@ -183,6 +189,20 @@ addToBranch branch unisonFile
             (mkOutput dupeRefs)
             (mkOutput collisions)
 
+typecheck
+  :: (Monad m, Var v)
+  => Codebase m v Ann
+  -> Names
+  -> SourceName
+  -> Text
+  -> m (TypecheckingResult v)
+typecheck codebase names sourceName src =
+  Result.getResult $ parseAndSynthesizeFile
+    (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+    names
+    (unpack sourceName)
+    src
+
 commandLine
   :: forall i v a
    . Var v
@@ -196,12 +216,11 @@ commandLine awaitInput codebase command = do
   go :: forall x . Command i v x -> IO x
   go = \case
     -- Wait until we get either user input or a unison file update
-    Input                     -> awaitInput
-    Notify output             -> notifyUser output
-    Add branchName unisonFile -> do
-      branch <- Codebase.getBranch codebase branchName
-      case branch of
-        Nothing -> pure $ NoBranch branchName
-        Just branch ->
-          pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
+    Input         -> awaitInput
+    Notify output -> notifyUser output
+    Add branch unisonFile ->
+      pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
+    Typecheck branch sourceName source ->
+      typecheck codebase (Branch.toNames branch) sourceName source
+
 
