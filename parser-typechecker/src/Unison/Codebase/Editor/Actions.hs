@@ -5,19 +5,26 @@
 
 module Unison.Codebase.Editor.Actions where
 
-import           Control.Monad.Extra    (ifM)
-import           Data.Foldable          (toList)
-import           Unison.Codebase.Branch (Branch)
-import qualified Unison.Codebase.Branch as Branch
-import           Unison.Codebase.Editor
-import           Unison.Names           (Name, NameTarget, Referent)
-import qualified Unison.Names           as Names
-import           Unison.Parser          (Ann)
-import           Unison.Reference       (Reference)
-import qualified Unison.Result          as Result
-import qualified Unison.UnisonFile      as UF
-import           Unison.Util.Free       (Free)
-import qualified Unison.Util.Free       as Free
+import           Control.Monad.Extra            ( ifM )
+import           Data.Foldable                  ( toList )
+import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Editor         ( Command(..)
+                                                , BranchName
+                                                , Input(..)
+                                                , Output(..)
+                                                )
+import           Unison.Names                   ( Name
+                                                , NameTarget
+                                                , Referent
+                                                )
+import qualified Unison.Names                  as Names
+import           Unison.Parser                  ( Ann )
+import           Unison.Reference               ( Reference )
+import qualified Unison.Result                 as Result
+import qualified Unison.UnisonFile             as UF
+import           Unison.Util.Free               ( Free )
+import qualified Unison.Util.Free              as Free
 
 type Action i v = Free (Command i v) (Either () (LoopState v))
 
@@ -89,12 +96,13 @@ loop s = Free.unfold' go s where
           Free.eval ListBranches >>= respond . ListOfBranches
         SwitchBranchI branchName -> switchBranch branchName
         ForkBranchI targetBranchName ->
-          withBranch currentBranchName respond $ \branch -> do
+          withBranch currentBranchName respond $ \branch ->
             ifM (Free.eval $ ForkBranch branch targetBranchName)
                 (outputSuccess >> switchBranch targetBranchName)
                 (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName ->
-          mergeBranch inputBranchName currentBranchName respond success
+          withBranch inputBranchName respond $ \branch ->
+            mergeBranch currentBranchName respond success branch
         QuitI -> quit
         where success = respond $ Success input
               outputSuccess = (Free.eval . Notify) (Success input)
@@ -129,30 +137,38 @@ aliasUnconflicted branchName respond nameTarget existingName newName success =
       if (not . null) (named newName branch)
       then respond (NameAlreadyExists branchName nameTarget newName)
       else case toList (named existingName branch) of
-        [t] -> mergeBranch' branchName respond success $ alias' t newName branch
+        [t] -> mergeBranch branchName respond success $ alias' t newName branch
         [] -> respond (UnknownName branchName nameTarget existingName)
         _ -> respond (ConflictedName branchName nameTarget existingName)
 
-renameUnconflicted :: forall i v. BranchName -> (Output v -> Action i v) -> NameTarget -> Name -> Name -> Action i v -> Action i v
+renameUnconflicted
+  :: forall i v
+   . BranchName
+  -> (Output v -> Action i v)
+  -> NameTarget
+  -> Name
+  -> Name
+  -> Action i v
+  -> Action i v
 renameUnconflicted branchName respond nameTarget oldName newName success =
   withBranch branchName respond $ case nameTarget of
     Names.TermName    -> rename Branch.termsNamed Branch.renameTerm
     Names.TypeName    -> rename Branch.typesNamed Branch.renameType
     Names.PatternName -> rename Branch.patternsNamed Branch.renamePattern
-  where
-    rename :: Foldable f
-           => (Name -> Branch -> f a)
-           -> (Name -> Name -> Branch -> Branch)
-           -> Branch
-           -> Action i v
-    rename named rename' branch =
-      if (not . null) (named newName branch)
-      then respond (NameAlreadyExists branchName nameTarget newName)
-      else case toList (named oldName branch) of
-        [_] -> mergeBranch' branchName respond success $
-                  rename' oldName newName branch
-        [] -> respond (UnknownName branchName nameTarget oldName)
-        _ -> respond (ConflictedName branchName nameTarget oldName)
+ where
+  rename
+    :: Foldable f
+    => (Name -> Branch -> f a)
+    -> (Name -> Name -> Branch -> Branch)
+    -> Branch
+    -> Action i v
+  rename named rename' branch = if (not . null) (named newName branch)
+    then respond (NameAlreadyExists branchName nameTarget newName)
+    else case toList (named oldName branch) of
+      [_] -> mergeBranch branchName respond success
+        $ rename' oldName newName branch
+      [] -> respond (UnknownName branchName nameTarget oldName)
+      _  -> respond (ConflictedName branchName nameTarget oldName)
 
 unnameAll :: forall i v
           . BranchName
@@ -167,29 +183,53 @@ unnameAll branchName respond nameTarget name success =
     Names.TypeName -> Branch.deleteTypesNamed name
     Names.PatternName -> Branch.deletePatternsNamed name
 
-addTermName :: BranchName -> (Output v -> Action i v) -> Action i v -> Referent -> Name -> Action i v
+addTermName
+  :: BranchName
+  -> (Output v -> Action i v)
+  -> Action i v
+  -> Referent
+  -> Name
+  -> Action i v
 addTermName branchName respond success r name =
   updateBranch respond success branchName (Branch.addTermName r name)
 
-addTypeName :: BranchName -> (Output v -> Action i v) -> Action i v -> Reference -> Name -> Action i v
+addTypeName
+  :: BranchName
+  -> (Output v -> Action i v)
+  -> Action i v
+  -> Reference
+  -> Name
+  -> Action i v
 addTypeName branchName respond success r name =
   updateBranch respond success branchName (Branch.addTypeName r name)
 
-addPatternName :: BranchName -> (Output v -> Action i v) -> Action i v -> Reference -> Int -> Name -> Action i v
+addPatternName
+  :: BranchName
+  -> (Output v -> Action i v)
+  -> Action i v
+  -> Reference
+  -> Int
+  -> Name
+  -> Action i v
 addPatternName branchName respond success r i name =
   updateBranch respond success branchName (Branch.addPatternName r i name)
 
-mergeBranch :: BranchName -> BranchName -> (Output v -> Action i v) -> Action i v -> Action i v
-mergeBranch sourceBranchName targetBranchName respond success =
-  withBranch sourceBranchName respond $
-    mergeBranch' targetBranchName respond success
+mergeBranch
+  :: BranchName
+  -> (Output v -> Action i v)
+  -> Action i v
+  -> Branch
+  -> Action i v
+mergeBranch targetBranchName respond success b = ifM
+  (Free.eval $ MergeBranch targetBranchName b)
+  success
+  (respond $ UnknownBranch targetBranchName)
 
-mergeBranch' :: BranchName -> (Output v -> Action i v) -> Action i v -> Branch -> Action i v
-mergeBranch' targetBranchName respond success b =
-  ifM (Free.eval $ MergeBranch targetBranchName b)
-      success
-      (respond $ UnknownBranch targetBranchName)
-
-updateBranch :: (Output v -> Action i v) -> Action i v -> BranchName -> (Branch -> Branch) -> Action i v
+updateBranch
+  :: (Output v -> Action i v)
+  -> Action i v
+  -> BranchName
+  -> (Branch -> Branch)
+  -> Action i v
 updateBranch respond success branchName f =
-  withBranch branchName respond $ mergeBranch' branchName respond success . f
+  withBranch branchName respond $ mergeBranch branchName respond success . f

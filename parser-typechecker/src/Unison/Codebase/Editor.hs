@@ -4,7 +4,9 @@
 
 module Unison.Codebase.Editor where
 
+import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
+import           Data.Foldable                  ( traverse_ )
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text
@@ -38,6 +40,7 @@ import qualified Unison.Typechecker.Context    as Context
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 
 type BranchName = Name
@@ -257,3 +260,19 @@ commandLine awaitInput codebase command = do
     ForkBranch branch branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' branch
+    DisplayConflicts branch -> do
+      let terms = R.dom $ Branch.termNamespace branch
+          patterns = R.dom $ Branch.patternNamespace branch
+          types = R.dom $ Branch.typeNamespace branch
+      when (not $ null terms) $ do
+        putStrLn "The following terms have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ unpack x)) terms
+      when (not $ null patterns) $ do
+        putStrLn "The following patterns have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ unpack x)) patterns
+      when (not $ null types) $ do
+        putStrLn "The following types have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ unpack x)) types
+      -- TODO: Present conflicting TermEdits and TypeEdits
+      -- if we ever allow users to edit hashes directly.
+
