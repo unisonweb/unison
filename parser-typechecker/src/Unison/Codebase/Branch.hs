@@ -212,6 +212,15 @@ conflicts f = conflicts' . f . Causal.head . unbranch where
         let bs = R.lookupDom a r
         in if Set.size bs > 1 then Map.insert a bs m else m
 
+conflicts' :: Branch -> Branch0
+conflicts' b = Branch0 (c termNamespace)
+                       (c patternNamespace)
+                       (c typeNamespace)
+                       (c editedTerms)
+                       (c editedTypes)
+  where c f = R.fromMultimap . conflicts f $ b
+
+
 -- Use as `resolved editedTerms branch`
 resolved :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a b
 resolved f = resolved' . f . Causal.head . unbranch where

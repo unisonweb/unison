@@ -163,8 +163,11 @@ data Command i v a where
   -- `False` if no branch with that name exists, `True` otherwise.
   MergeBranch :: BranchName -> Branch -> Command i v Bool
 
-  -- Return the subset of the branch tip which is in a conflicted state
-  GetConflicts :: BranchName -> Command i v (Maybe Branch0)
+  -- Return the subset of the branch tip which is in a conflicted state.
+  -- A conflict is:
+  -- * A name with more than one referent.
+  -- *
+  GetConflicts :: Branch -> Command i v Branch0
 
   -- Tell the UI to display a set of conflicts
   DisplayConflicts :: Branch0 -> Command i v ()
@@ -253,4 +256,4 @@ commandLine awaitInput codebase command = do
     NewBranch branchName -> newBranch codebase branchName
     ForkBranch branch branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
-
+    GetConflicts branch -> pure $ Branch.conflicts' branch

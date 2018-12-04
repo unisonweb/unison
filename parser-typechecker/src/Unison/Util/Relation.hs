@@ -342,6 +342,10 @@ deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
 
+fromMultimap :: (Ord a, Ord b) => Map a (Set b) -> Relation a b
+fromMultimap m =
+  foldl' (\r (a, bs) -> insertManyRan a bs r) empty $ Map.toList m
+
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
 
