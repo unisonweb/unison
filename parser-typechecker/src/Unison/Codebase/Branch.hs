@@ -81,7 +81,7 @@ data Branch0 =
           , typeNamespace    :: Relation Name Reference
           , editedTerms      :: Relation Referent TermEdit
           , editedTypes      :: Relation Reference TypeEdit
-          } deriving (Eq)
+          } deriving (Eq, Show)
 
 allNamedReferences :: Branch0 -> Set Reference
 allNamedReferences b = let

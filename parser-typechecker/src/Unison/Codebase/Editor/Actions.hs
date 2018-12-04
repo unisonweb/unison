@@ -2,17 +2,20 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternSynonyms     #-}
 
 module Unison.Codebase.Editor.Actions where
 
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList )
+import           Data.Text                      ( Text )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
                                                 , Input(..)
                                                 , Output(..)
+                                                , SourceName
                                                 )
 import           Unison.Names                   ( Name
                                                 , NameTarget
@@ -21,6 +24,7 @@ import           Unison.Names                   ( Name
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
 import           Unison.Reference               ( Reference )
+import           Unison.Result                  (pattern Result)
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -31,30 +35,35 @@ type Action i v = Free (Command i v) (Either () (LoopState v))
 data LoopState v
   = LoopState BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
 
-loop :: LoopState v -> Free (Command Input v) ()
-loop s = Free.unfold' go s where
-  go :: forall v. LoopState v -> Action Input v
+loop :: LoopState v -> Free (Command (Either (SourceName, Text) Input) v) ()
+loop s = Free.unfold' go s
+ where
+  go :: forall v . LoopState v -> Action (Either (SourceName, Text) Input) v
   go s@(LoopState currentBranchName uf) = do
     e <- Free.eval Input
     case e of
-      Left (Result.Result notes r) -> case r of
-        Nothing -> -- parsing failed
-          respond $
-            ParseErrors [ err | Result.Parsing err <- toList notes]
-        Just (errorEnv, r) -> case r of
-          Nothing -> -- typechecking failed
-            respond $
-              TypeErrors errorEnv [ err | Result.TypeError err <- toList notes]
-          Just unisonFile -> updateUnisonFile unisonFile
+      Left (sourceName, text) -> do
+        withBranch currentBranchName respond $ \branch -> do
+          (Result notes r) <- Free.eval (Typecheck branch sourceName text)
+          case r of
+            -- Parsing failed
+            Nothing ->
+              respond $ ParseErrors [ err | Result.Parsing err <- toList notes ]
+            Just (errorEnv, r) -> case r of
+              -- Typing failed
+              Nothing -> respond $ TypeErrors
+                errorEnv
+                [ err | Result.TypeError err <- toList notes ]
+              Just unisonFile -> updateUnisonFile unisonFile
       Right input -> case input of
-        SearchByNameI _ _ -> error "todo"
-        UpdateTermI _old _new -> error "todo"
-        UpdateTypeI _old _new -> error "todo"
-        RemoveAllTermUpdatesI _t -> error "todo"
-        RemoveAllTypeUpdatesI _t -> error "todo"
+        SearchByNameI _    _           -> error "todo"
+        UpdateTermI   _old _new        -> error "todo"
+        UpdateTypeI   _old _new        -> error "todo"
+        RemoveAllTermUpdatesI _t       -> error "todo"
+        RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
         ChooseUpdateForTypeI _old _new -> error "todo"
-        ListAllUpdatesI -> error "todo"
+        ListAllUpdatesI                -> error "todo"
         AddTermNameI r name ->
           addTermName currentBranchName respond success r name
         AddTypeNameI r name ->
@@ -62,27 +71,37 @@ loop s = Free.unfold' go s where
         AddPatternNameI r i name ->
           addPatternName currentBranchName respond success r i name
         RemoveTermNameI r name ->
-          updateBranch respond success currentBranchName $
-            Branch.deleteTermName r name
+          updateBranch respond success currentBranchName
+            $ Branch.deleteTermName r name
         RemoveTypeNameI r name ->
-          updateBranch respond success currentBranchName $
-            Branch.deleteTypeName r name
+          updateBranch respond success currentBranchName
+            $ Branch.deleteTypeName r name
         RemovePatternNameI r i name ->
-          updateBranch respond success currentBranchName $
-            Branch.deletePatternName r i name
+          updateBranch respond success currentBranchName
+            $ Branch.deletePatternName r i name
         ChooseTermForNameI r name ->
-          unnameAll currentBranchName respond Names.TermName name $
-            addTermName currentBranchName respond success r name
+          unnameAll currentBranchName respond Names.TermName name
+            $ addTermName currentBranchName respond success r name
         ChooseTypeForNameI r name ->
-          unnameAll currentBranchName respond Names.TypeName name $
-            addTypeName currentBranchName respond success r name
+          unnameAll currentBranchName respond Names.TypeName name
+            $ addTypeName currentBranchName respond success r name
         ChoosePatternForNameI r i name ->
-          unnameAll currentBranchName respond Names.PatternName name $
-            addPatternName currentBranchName respond success r i name
-        AliasUnconflictedI nameTarget existingName newName ->
-          aliasUnconflicted currentBranchName respond nameTarget existingName newName success
-        RenameUnconflictedI nameTarget oldName newName ->
-          renameUnconflicted currentBranchName respond nameTarget oldName newName success
+          unnameAll currentBranchName respond Names.PatternName name
+            $ addPatternName currentBranchName respond success r i name
+        AliasUnconflictedI nameTarget existingName newName -> aliasUnconflicted
+          currentBranchName
+          respond
+          nameTarget
+          existingName
+          newName
+          success
+        RenameUnconflictedI nameTarget oldName newName -> renameUnconflicted
+          currentBranchName
+          respond
+          nameTarget
+          oldName
+          newName
+          success
         UnnameAllI nameTarget name ->
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
@@ -91,28 +110,32 @@ loop s = Free.unfold' go s where
             branch <- Free.eval $ LoadBranch currentBranchName
             case branch of
               Nothing -> respond $ UnknownBranch currentBranchName
-              Just branch -> Free.eval (Add branch uf) >>= (respond . AddOutput)
-        ListBranchesI ->
-          Free.eval ListBranches >>= respond . ListOfBranches
+              Just branch ->
+                Free.eval (Add branch uf) >>= (respond . AddOutput)
+        ListBranchesI -> Free.eval ListBranches >>= respond . ListOfBranches
         SwitchBranchI branchName -> switchBranch branchName
         ForkBranchI targetBranchName ->
-          withBranch currentBranchName respond $ \branch ->
-            ifM (Free.eval $ ForkBranch branch targetBranchName)
-                (outputSuccess >> switchBranch targetBranchName)
-                (respond $ BranchAlreadyExists targetBranchName)
-        MergeBranchI inputBranchName ->
-          withBranch inputBranchName respond $ \branch ->
-            mergeBranch currentBranchName respond success branch
+          withBranch currentBranchName respond $ \branch -> ifM
+            (Free.eval $ ForkBranch branch targetBranchName)
+            (outputSuccess >> switchBranch targetBranchName)
+            (respond $ BranchAlreadyExists targetBranchName)
+        MergeBranchI inputBranchName -> withBranch inputBranchName respond
+          $ \branch -> mergeBranch currentBranchName respond success branch
         QuitI -> quit
-        where success = respond $ Success input
-              outputSuccess = (Free.eval . Notify) (Success input)
-    where
-      respond :: Output v -> Action i v
-      respond output = (Free.eval . Notify) output >> pure (Right s)
-      switchBranch branchName = pure . Right $ LoopState branchName uf
-      updateUnisonFile :: forall f v. Applicative f => UF.TypecheckedUnisonFile' v Ann -> f (Either () (LoopState v))
-      updateUnisonFile = pure . Right . LoopState currentBranchName . Just
-      quit = pure $ Left ()
+       where
+        success       = respond $ Success input
+        outputSuccess = (Free.eval . Notify) (Success input)
+   where
+    respond :: Output v -> Action i v
+    respond output = (Free.eval . Notify) output >> pure (Right s)
+    switchBranch branchName = pure . Right $ LoopState branchName uf
+    updateUnisonFile
+      :: forall f v
+       . Applicative f
+      => UF.TypecheckedUnisonFile' v Ann
+      -> f (Either () (LoopState v))
+    updateUnisonFile = pure . Right . LoopState currentBranchName . Just
+    quit             = pure $ Left ()
 
 withBranch :: BranchName -> (Output v -> Action i v) -> (Branch -> Action i v) -> Action i v
 withBranch branchName respond f = do

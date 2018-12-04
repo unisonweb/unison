@@ -38,7 +38,7 @@ data Names = Names
 data Referent = Ref Reference | Req Reference Int | Con Reference Int
   deriving (Show, Ord, Eq)
 
-data NameTarget = TermName | TypeName | PatternName
+data NameTarget = TermName | TypeName | PatternName deriving (Show)
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r

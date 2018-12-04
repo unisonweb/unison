@@ -54,6 +54,7 @@ type Type v a = Type.AnnotatedType v a
 
 data AddOutputComponent v =
   AddOutputComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+  deriving (Show)
 
 data AddOutput v
   = NothingToAdd
@@ -69,8 +70,9 @@ data AddOutput v
           -- Has a colliding name but a different definition than the codebase.
           , collisions :: AddOutputComponent v
           }
+          deriving (Show)
 
-data SearchType = Exact | Fuzzy
+data SearchType = Exact | Fuzzy deriving (Show)
 
 data Input
   -- high-level manipulation of names
@@ -107,6 +109,7 @@ data Input
   | ForkBranchI BranchName
   | MergeBranchI BranchName
   | QuitI
+  deriving (Show)
 
 data Output v
   = Success Input
@@ -122,9 +125,11 @@ data Output v
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | DisplayConflicts Branch0
+  deriving (Show)
 
 data Command i v a where
-  Input :: Command i v (Either (TypecheckingResult v) i)
+  Input :: Command i v i
 
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
@@ -172,17 +177,30 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Tell the UI to display a set of conflicts
-  DisplayConflicts :: Branch0 -> Command i v ()
-
   -- RemainingWork :: Branch -> Command i v [RemainingWork]
 
   -- idea here is to find "close matches" of stuff in the input file, so
   -- can suggest use of preexisting definitions
   -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
 
-notifyUser :: Output v -> IO ()
-notifyUser = undefined
+notifyUser :: Var v => Output v -> IO ()
+notifyUser o = case o of
+  DisplayConflicts branch -> do
+    let terms = R.dom $ Branch.termNamespace branch
+        patterns = R.dom $ Branch.patternNamespace branch
+        types = R.dom $ Branch.typeNamespace branch
+    when (not $ null terms) $ do
+      putStrLn "🙅 The following terms have conflicts: "
+      traverse_ (\x -> putStrLn ("  " ++ unpack x)) terms
+    when (not $ null patterns) $ do
+      putStrLn "🙅 The following patterns have conflicts: "
+      traverse_ (\x -> putStrLn ("  " ++ unpack x)) patterns
+    when (not $ null types) $ do
+      putStrLn "🙅 The following types have conflicts: "
+      traverse_ (\x -> putStrLn ("  " ++ unpack x)) types
+    -- TODO: Present conflicting TermEdits and TypeEdits
+    -- if we ever allow users to edit hashes directly.
+  _ -> putStrLn $ show o
 
 addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
 addToBranch branch unisonFile
@@ -238,7 +256,7 @@ mergeBranch codebase branch branchName = ifM
 commandLine
   :: forall i v a
    . Var v
-  => IO (Either (TypecheckingResult v) i)
+  => IO i
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
@@ -260,19 +278,4 @@ commandLine awaitInput codebase command = do
     ForkBranch branch branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' branch
-    DisplayConflicts branch -> do
-      let terms = R.dom $ Branch.termNamespace branch
-          patterns = R.dom $ Branch.patternNamespace branch
-          types = R.dom $ Branch.typeNamespace branch
-      when (not $ null terms) $ do
-        putStrLn "The following terms have conflicts: "
-        traverse_ (\x -> putStrLn ("  " ++ unpack x)) terms
-      when (not $ null patterns) $ do
-        putStrLn "The following patterns have conflicts: "
-        traverse_ (\x -> putStrLn ("  " ++ unpack x)) patterns
-      when (not $ null types) $ do
-        putStrLn "The following types have conflicts: "
-        traverse_ (\x -> putStrLn ("  " ++ unpack x)) types
-      -- TODO: Present conflicting TermEdits and TypeEdits
-      -- if we ever allow users to edit hashes directly.
 
