@@ -42,6 +42,7 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
+    Unison.Codebase.CommandLine2
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase

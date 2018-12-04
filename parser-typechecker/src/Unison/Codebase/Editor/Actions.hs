@@ -8,14 +8,13 @@ module Unison.Codebase.Editor.Actions where
 
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList )
-import           Data.Text                      ( Text )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
                                                 , Input(..)
                                                 , Output(..)
-                                                , SourceName
+                                                , Event(..)
                                                 )
 import           Unison.Names                   ( Name
                                                 , NameTarget
@@ -35,14 +34,22 @@ type Action i v = Free (Command i v) (Either () (LoopState v))
 data LoopState v
   = LoopState BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
 
-loop :: LoopState v -> Free (Command (Either (SourceName, Text) Input) v) ()
+loopState0 :: BranchName -> LoopState v
+loopState0 b = LoopState b Nothing
+
+startLoop :: BranchName -> Free (Command (Either Event Input) v) ()
+startLoop = loop . loopState0
+
+loop :: LoopState v -> Free (Command (Either Event Input) v) ()
 loop s = Free.unfold' go s
  where
-  go :: forall v . LoopState v -> Action (Either (SourceName, Text) Input) v
+  go :: forall v . LoopState v -> Action (Either Event Input) v
   go s@(LoopState currentBranchName uf) = do
     e <- Free.eval Input
     case e of
-      Left (sourceName, text) -> do
+      Left (UnisonBranchChanged _names) -> do
+        error "todo"
+      Left (UnisonFileChanged sourceName text) -> do
         withBranch currentBranchName respond $ \branch -> do
           (Result notes r) <- Free.eval (Typecheck branch sourceName text)
           case r of

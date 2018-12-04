@@ -85,6 +85,7 @@ collectUntilPause queue minPauseµsec = do
           else go
   go
 
+-- TODO: Return a way of cancelling the watch
 watchDirectory :: FilePath -> (FilePath -> Bool) -> IO (IO (FilePath, Text))
 watchDirectory dir allow = do
   previousFiles <- newIORef Map.empty

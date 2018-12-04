@@ -4,9 +4,7 @@
 
 module Unison.Codebase.Editor where
 
-import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
-import           Data.Foldable                  ( traverse_ )
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text
@@ -40,8 +38,11 @@ import qualified Unison.Typechecker.Context    as Context
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
-import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
+
+data Event
+  = UnisonFileChanged SourceName Text
+  | UnisonBranchChanged (Set Name)
 
 type BranchName = Name
 type Source = Text -- "id x = x\nconst a b = a"
@@ -183,25 +184,6 @@ data Command i v a where
   -- can suggest use of preexisting definitions
   -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
 
-notifyUser :: Var v => Output v -> IO ()
-notifyUser o = case o of
-  DisplayConflicts branch -> do
-    let terms = R.dom $ Branch.termNamespace branch
-        patterns = R.dom $ Branch.patternNamespace branch
-        types = R.dom $ Branch.typeNamespace branch
-    when (not $ null terms) $ do
-      putStrLn "🙅 The following terms have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ unpack x)) terms
-    when (not $ null patterns) $ do
-      putStrLn "🙅 The following patterns have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ unpack x)) patterns
-    when (not $ null types) $ do
-      putStrLn "🙅 The following types have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ unpack x)) types
-    -- TODO: Present conflicting TermEdits and TypeEdits
-    -- if we ever allow users to edit hashes directly.
-  _ -> putStrLn $ show o
-
 addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
 addToBranch branch unisonFile
   = let
@@ -257,10 +239,11 @@ commandLine
   :: forall i v a
    . Var v
   => IO i
+  -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput codebase command = do
+commandLine awaitInput notifyUser codebase command = do
   Free.fold go command
  where
   go :: forall x . Command i v x -> IO x
@@ -278,4 +261,3 @@ commandLine awaitInput codebase command = do
     ForkBranch branch branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' branch
-
