@@ -4,9 +4,12 @@
 
 module Unison.Codebase.Editor where
 
+import           Control.Monad.Extra            ( ifM )
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
-import           Data.Text                      ( Text, unpack )
+import           Data.Text                      ( Text
+                                                , unpack
+                                                )
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -157,7 +160,7 @@ data Command i v a where
   ForkBranch :: Branch -> BranchName -> Command i v Bool
 
   -- Merges the branch with the existing branch with the given name. Returns
-  -- `Nothing` if no branch with that name exists.
+  -- `False` if no branch with that name exists, `True` otherwise.
   MergeBranch :: BranchName -> Branch -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state
@@ -216,12 +219,15 @@ newBranch codebase branchName = forkBranch codebase builtinBranch branchName
 
 forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 forkBranch codebase branch branchName = do
-  b <- Codebase.getBranch codebase branchName
-  case b of
-    Nothing -> do
-      newBranch <- Codebase.mergeBranch codebase branchName branch
-      pure $ newBranch == branch
-    Just _ -> pure False
+  ifM (Codebase.branchExists codebase branchName)
+      (pure False)
+      ((branch ==) <$> Codebase.mergeBranch codebase branchName branch)
+
+mergeBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+mergeBranch codebase branch branchName = ifM
+  (Codebase.branchExists codebase branchName)
+  (Codebase.mergeBranch codebase branchName branch *> pure True)
+  (pure False)
 
 commandLine
   :: forall i v a
@@ -246,4 +252,5 @@ commandLine awaitInput codebase command = do
     LoadBranch branchName -> Codebase.getBranch codebase branchName
     NewBranch branchName -> newBranch codebase branchName
     ForkBranch branch branchName -> forkBranch codebase branch branchName
+    MergeBranch branchName branch -> mergeBranch codebase branch branchName
 
