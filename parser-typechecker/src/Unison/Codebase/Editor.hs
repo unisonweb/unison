@@ -160,6 +160,9 @@ data Command i v a where
   -- Loads a branch by name from the codebase, returning `Nothing` if not found.
   LoadBranch :: BranchName -> Command i v (Maybe Branch)
 
+  -- Switches the app state to the given branch.
+  SwitchBranch :: Branch -> BranchName -> Command i v ()
+
   -- Returns `Nothing` if a branch by that name already exists.
   NewBranch :: BranchName -> Command i v Bool
 
@@ -239,11 +242,12 @@ commandLine
   :: forall i v a
    . Var v
   => IO i
+  -> (Branch -> BranchName -> IO ())
   -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput notifyUser codebase command = do
+commandLine awaitInput branchChange notifyUser codebase command = do
   Free.fold go command
  where
   go :: forall x . Command i v x -> IO x
@@ -261,3 +265,4 @@ commandLine awaitInput notifyUser codebase command = do
     ForkBranch branch branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' branch
+    SwitchBranch branch branchName -> branchChange branch branchName

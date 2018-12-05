@@ -32,36 +32,35 @@ import qualified Unison.Util.Free              as Free
 type Action i v = Free (Command i v) (Either () (LoopState v))
 
 data LoopState v
-  = LoopState BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
+  = LoopState Branch BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
 
-loopState0 :: BranchName -> LoopState v
-loopState0 b = LoopState b Nothing
+loopState0 :: Branch -> BranchName -> LoopState v
+loopState0 b bn = LoopState b bn Nothing
 
-startLoop :: BranchName -> Free (Command (Either Event Input) v) ()
-startLoop = loop . loopState0
+startLoop :: Branch -> BranchName -> Free (Command (Either Event Input) v) ()
+startLoop = (loop .) . loopState0
 
 loop :: LoopState v -> Free (Command (Either Event Input) v) ()
 loop s = Free.unfold' go s
  where
   go :: forall v . LoopState v -> Action (Either Event Input) v
-  go s@(LoopState currentBranchName uf) = do
+  go s@(LoopState currentBranch currentBranchName uf) = do
     e <- Free.eval Input
     case e of
       Left (UnisonBranchChanged _names) -> do
         error "todo"
       Left (UnisonFileChanged sourceName text) -> do
-        withBranch currentBranchName respond $ \branch -> do
-          (Result notes r) <- Free.eval (Typecheck branch sourceName text)
-          case r of
-            -- Parsing failed
-            Nothing ->
-              respond $ ParseErrors [ err | Result.Parsing err <- toList notes ]
-            Just (errorEnv, r) -> case r of
-              -- Typing failed
-              Nothing -> respond $ TypeErrors
-                errorEnv
-                [ err | Result.TypeError err <- toList notes ]
-              Just unisonFile -> updateUnisonFile unisonFile
+        (Result notes r) <- Free.eval (Typecheck currentBranch sourceName text)
+        case r of
+          -- Parsing failed
+          Nothing ->
+            respond $ ParseErrors [ err | Result.Parsing err <- toList notes ]
+          Just (errorEnv, r) -> case r of
+            -- Typing failed
+            Nothing -> respond $ TypeErrors
+              errorEnv
+              [ err | Result.TypeError err <- toList notes ]
+            Just unisonFile -> updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI _    _           -> error "todo"
         UpdateTermI   _old _new        -> error "todo"
@@ -121,11 +120,10 @@ loop s = Free.unfold' go s
                 Free.eval (Add branch uf) >>= (respond . AddOutput)
         ListBranchesI -> Free.eval ListBranches >>= respond . ListOfBranches
         SwitchBranchI branchName -> switchBranch branchName
-        ForkBranchI targetBranchName ->
-          withBranch currentBranchName respond $ \branch -> ifM
-            (Free.eval $ ForkBranch branch targetBranchName)
-            (outputSuccess >> switchBranch targetBranchName)
-            (respond $ BranchAlreadyExists targetBranchName)
+        ForkBranchI targetBranchName -> ifM
+          (Free.eval $ ForkBranch currentBranch targetBranchName)
+          (outputSuccess >> switchBranch targetBranchName)
+          (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
           $ \branch -> mergeBranch currentBranchName respond success branch
         QuitI -> quit
@@ -135,14 +133,18 @@ loop s = Free.unfold' go s
    where
     respond :: Output v -> Action i v
     respond output = (Free.eval . Notify) output >> pure (Right s)
-    switchBranch branchName = pure . Right $ LoopState branchName uf
+    switchBranch branchName = do
+      withBranch branchName respond $ \branch -> do
+        Free.eval $ SwitchBranch branch branchName
+        pure . Right $ LoopState branch branchName uf
     updateUnisonFile
       :: forall f v
        . Applicative f
       => UF.TypecheckedUnisonFile' v Ann
       -> f (Either () (LoopState v))
-    updateUnisonFile = pure . Right . LoopState currentBranchName . Just
-    quit             = pure $ Left ()
+    updateUnisonFile =
+      pure . Right . LoopState currentBranch currentBranchName . Just
+    quit = pure $ Left ()
 
 withBranch :: BranchName -> (Output v -> Action i v) -> (Branch -> Action i v) -> Action i v
 withBranch branchName respond f = do

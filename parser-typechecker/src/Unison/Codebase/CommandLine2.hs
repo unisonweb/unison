@@ -4,21 +4,21 @@
 
 module Unison.Codebase.CommandLine2 where
 
-import           Control.Applicative
 import           Data.Foldable                  ( traverse_ )
 import           Data.List                      ( isSuffixOf )
 import qualified Data.Text                      as Text
+import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO )
-import           Control.Concurrent.STM         ( STM
-                                                , atomically
-                                                )
+import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
                                                 , void
                                                 , when
                                                 )
+import           Control.Monad.IO.Class         ( MonadIO )
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.Editor         ( Output(..)
                                                 , BranchName
                                                 , Event(..)
@@ -54,33 +54,13 @@ notifyUser o = case o of
     -- if we ever allow users to edit hashes directly.
   _ -> putStrLn $ show o
 
-queueInput :: TQueue (Maybe Char) -> IO ()
-queueInput q =
-  void
-    .   forkIO
-    .   forever
-    $   Just
-    <$> getChar
-    <|> pure Nothing
-    >>= atomically
-    .   Q.enqueue q
-
--- block until a full line is available
-takeLine :: TQueue (Maybe Char) -> STM (Maybe String)
-takeLine q = do
-  line <- Q.takeWhile (\x -> x /= Just '\n' && x /= Nothing) q
-  ch   <- Q.dequeue q
-  if (ch /= Just '\n' && ch /= Nothing)
-    then error "unpossibility in takeLine"
-    else pure $ sequence line
-
--- blocks until a line ending in '\n' is available, or EOF
-awaitCompleteLine :: TQueue (Maybe Char) -> STM ()
-awaitCompleteLine ch =
-  void $ Q.peekWhile (\x -> x /= Just '\n' && x /= Nothing) ch
-
-takeLineIO :: TQueue (Maybe Char) -> IO (Maybe String)
-takeLineIO = atomically . takeLine
+queueInput
+  :: (Monad m, MonadIO m)
+  => TQueue (Maybe String)
+  -> Codebase m v a
+  -> Branch
+  -> m ()
+queueInput _q = error "todo"
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -124,32 +104,48 @@ parseInput (Just s) = case words s of
   ["quit"] -> pure QuitI
   _ -> undefined
 
+-- inputParser :: Monad m => [InputPattern] -> Codebase m v a -> BranchName -> Maybe String -> Either String Input
+-- inputParser patterns codebase branch input
+
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
+
+data InputPattern = InputPattern
+  { patternName :: String
+  , args :: [ArgumentType]
+  , help :: Text
+  , parse :: [String] -> Input
+  }
+
+data ArgumentType = ArgumentType
+  { typeName :: String
+  , suggestions :: forall m v a . Monad m => Codebase m v a -> BranchName -> m [String]
+  }
 
 main
   :: forall v
    . Var v
   => FilePath
+  -> Branch
   -> BranchName
   -> Maybe FilePath
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranchName _initialFile startRuntime codebase = do
+main dir currentBranch currentBranchName _initialFile startRuntime codebase = do
   eventQueue <- Q.newIO
   lineQueue  <- Q.newIO
   _runtime   <- startRuntime
-  queueInput lineQueue
+  -- queueInput lineQueue
   watchFileSystem eventQueue dir
   watchBranchUpdates eventQueue codebase
   let awaitInput =
-        Q.raceIO (Q.peek eventQueue) (awaitCompleteLine lineQueue) >>= \case
+        Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
           Right _ -> do
-            line <- takeLineIO lineQueue
+            line <- atomically $ Q.dequeue lineQueue
             case parseInput line of
               Left  msg -> putStrLn msg *> awaitInput
               Right i   -> pure (Right i)
           Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-  Editor.commandLine awaitInput notifyUser codebase
-    $ Actions.startLoop currentBranchName
+  Editor.commandLine awaitInput (const (error "todo")) notifyUser codebase
+    $ Actions.startLoop currentBranch currentBranchName

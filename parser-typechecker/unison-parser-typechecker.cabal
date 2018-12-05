@@ -122,6 +122,7 @@ library
     free,
     fsnotify,
     hashable,
+    haskeline,
     io-streams,
     lens,
     ListLike,
