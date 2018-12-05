@@ -177,16 +177,17 @@ codebase1 builtinTypeAnnotation
   branchUpdates :: IO (IO (), IO (Set Name))
   branchUpdates = do
     branchFileChanges <- TQueue.newIO
+    (cancelWatch, watcher) <- Watch.watchDirectory' (branchesPath path)
     -- add .ubf file changes to intermediate queue
     watcher1 <- forkIO $ do
-      watcher <- Watch.watchDirectory' (branchesPath path)
       forever $ do
         (filePath,_) <- watcher
         when (".ubf" `isSuffixOf` filePath) $
           atomically . TQueue.enqueue branchFileChanges $ filePath
     -- smooth out intermediate queue
-    pure $ (killThread watcher1, Set.map ubfPathToName . Set.fromList <$>
-                  Watch.collectUntilPause branchFileChanges 400000)
+    pure $ (cancelWatch >> killThread watcher1,
+            Set.map ubfPathToName . Set.fromList <$>
+              Watch.collectUntilPause branchFileChanges 400000)
   in Codebase getTerm getTypeOfTerm putTerm
               getDecl putDecl
               branches getBranch mergeBranch branchUpdates

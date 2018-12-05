@@ -126,7 +126,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
 
   -- watch for .u file changes
   void . forkIO $ do
-    watcher <- Watch.watchDirectory dir allow
+    (_, watcher) <- Watch.watchDirectory dir allow
     forever $ do
       (filePath, text) <- watcher
       atomically . TQueue.enqueue queue $ UnisonFileChanged filePath text

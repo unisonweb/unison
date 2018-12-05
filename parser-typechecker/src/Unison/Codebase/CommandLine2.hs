@@ -5,22 +5,27 @@
 
 module Unison.Codebase.CommandLine2 where
 
+import           Control.Exception              ( finally )
+import           Control.Monad.Trans            ( lift )
 import           Control.Arrow                  ( (&&&) )
 import           Data.Foldable                  ( traverse_ )
 import           Data.IORef
 import           Data.List                      ( isSuffixOf )
-import           Data.Maybe                     ( listToMaybe, fromMaybe )
-import qualified Data.Map                       as Map
+import           Data.Maybe                     ( listToMaybe
+                                                , fromMaybe
+                                                )
+import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
-import qualified Data.Text                      as Text
+import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
-import           Control.Concurrent             ( forkIO )
+import           Control.Concurrent             ( forkIO, killThread )
 import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
-                                                , void
                                                 , when
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO, liftIO )
+import           Control.Monad.IO.Class         ( MonadIO
+                                                , liftIO
+                                                )
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Branch        as Branch
@@ -33,7 +38,8 @@ import           Unison.Codebase.Editor         ( Output(..)
 import qualified Unison.Codebase.Editor        as Editor
 import qualified Unison.Codebase.Editor.Actions
                                                as Actions
-import           Unison.Codebase.Runtime
+import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Util.Relation          as R
@@ -67,20 +73,22 @@ allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
 -- TODO: Return all of these thread IDs so we can throw async exceptions at
 -- them when we need to quit.
 
-watchFileSystem :: TQueue Event -> FilePath -> IO ()
-watchFileSystem q dir = void . forkIO $ do
-  watcher <- Watch.watchDirectory dir allow
-  forever $ do
+watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
+watchFileSystem q dir = do
+  (cancel, watcher) <- Watch.watchDirectory dir allow
+  t <- forkIO . forever $ do
     (filePath, text) <- watcher
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
+  pure (cancel >> killThread t)
 
-watchBranchUpdates :: TQueue Event -> Codebase IO v a -> IO ()
+watchBranchUpdates :: TQueue Event -> Codebase IO v a -> IO (IO ())
 watchBranchUpdates q codebase = do
-  (_cancelExternalBranchUpdates, externalBranchUpdates) <-
+  (cancelExternalBranchUpdates, externalBranchUpdates) <-
     Codebase.branchUpdates codebase
-  void . forkIO . forever $ do
+  thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
     atomically . Q.enqueue q . UnisonBranchChanged $ updatedBranches
+  pure (cancelExternalBranchUpdates >> killThread thread)
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
@@ -129,7 +137,7 @@ validInputs
           Left
             .  warnNote
             $  "Use `branch` to list all branches "
-            <> "or `branch foo` to switch to the branch 'foo'."
+            <> "or `branch foo` to switch to or create the branch 'foo'."
       )
     , InputPattern
       "fork"
@@ -179,6 +187,7 @@ autoComplete q ss = completion <$> Codebase.sortedApproximateMatches q ss
 
 parseInput :: Map String InputPattern -> [String] -> Either String Input
 parseInput patterns ss = case ss of
+  [] -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat -> parse pat args
     Nothing ->
@@ -193,59 +202,73 @@ queueInput
   -> TQueue Input
   -> Codebase m v a
   -> Branch
+  -> BranchName
   -> m ()
-queueInput patterns q codebase branch = Line.runInputT settings $ do
-  line <- Line.getInputLine "> "
+queueInput patterns q codebase branch branchName = Line.runInputT settings $ do
+  line <- Line.getInputLine (Text.unpack branchName <> "> ")
   case line of
     Nothing -> liftIO . atomically $ Q.enqueue q QuitI
     Just l  -> case parseInput patterns $ words l of
-      Left err ->
+      Left err -> lift $ do
         liftIO (putStrLn $ warnNote err)
-          *> queueInput patterns q codebase branch
+        queueInput patterns q codebase branch branchName
       Right i -> liftIO . atomically $ Q.enqueue q i
  where
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
-    let ws = words $ reverse prev
-    in  case ws of
-          h : t -> fromMaybe (pure []) $ do
-            p            <- Map.lookup h patterns
-            (_, argType) <- listToMaybe $ drop (length t) (args p)
-            pure $ suggestions argType word codebase branch
-          _ -> pure []
+    -- User hasn't finished a command name, complete from command names
+    if null prev then pure $ autoComplete word (Map.keys patterns)
+    -- User has finished a command name; use completions for that command
+    else case words $ reverse prev of
+      h : t -> fromMaybe (pure []) $ do
+        p            <- Map.lookup h patterns
+        (_, argType) <- listToMaybe $ drop (length t) (args p)
+        pure $ suggestions argType word codebase branch
+      _ -> pure []
 
 main
   :: forall v
    . Var v
   => FilePath
-  -> Branch
   -> BranchName
   -> Maybe FilePath
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranch currentBranchName _initialFile startRuntime codebase =
+main dir currentBranchName _initialFile startRuntime codebase =
   do
+    currentBranch <- Codebase.getBranch codebase currentBranchName
     eventQueue <- Q.newIO
-    lineQueue  <- Q.newIO
-    runtime    <- startRuntime
-    branchRef  <- newIORef (currentBranch, currentBranchName)
-    watchFileSystem eventQueue dir
-    watchBranchUpdates eventQueue codebase
-    let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
-        awaitInput = do
-          (branch, _branchName) <- readIORef branchRef
-          queueInput patternMap lineQueue codebase branch
-          Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
-            Right _ -> do
-              line <- atomically $ Q.dequeue lineQueue
-              case parseInput patternMap line of
-                Left  msg -> putStrLn msg *> awaitInput
-                Right i   -> pure (Right i)
-            Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-    Editor.commandLine awaitInput
-                       runtime
-                       (curry $ writeIORef branchRef)
-                       notifyUser
-                       codebase
-      $ Actions.startLoop currentBranch currentBranchName
+    inputQueue <- Q.newIO
+    currentBranch <- case currentBranch of
+      Nothing ->
+        Codebase.mergeBranch codebase currentBranchName Branch.empty <*
+        (putStrLn $ "☝️  No branch existed called '"
+                <> Text.unpack currentBranchName <>
+                "' so I've created it for you.")
+      Just b -> pure b
+    do
+      runtime    <- startRuntime
+      branchRef  <- newIORef (currentBranch, currentBranchName)
+      cancelFileSystemWatch <- watchFileSystem eventQueue dir
+      cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
+      let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
+      inputReader <- forkIO . forever $ do
+        (branch, branchName) <- readIORef branchRef
+        queueInput patternMap inputQueue codebase branch branchName
+      let
+        awaitInput = Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>=
+          \case Right _ -> Right <$> atomically (Q.dequeue inputQueue)
+                Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+        cleanup = do
+          killThread inputReader
+          Runtime.terminate runtime
+          cancelFileSystemWatch
+          cancelWatchBranchUpdates
+      (`finally` cleanup) $
+        Editor.commandLine awaitInput
+                           runtime
+                           (curry $ writeIORef branchRef)
+                           notifyUser
+                           codebase
+        $ Actions.startLoop currentBranch currentBranchName
