@@ -1,12 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase.CommandLine2 where
 
+import           Control.Arrow                  ( (&&&) )
 import           Data.Foldable                  ( traverse_ )
 import           Data.IORef
 import           Data.List                      ( isSuffixOf )
+import           Data.Maybe                     ( listToMaybe, fromMaybe )
+import qualified Data.Map                       as Map
 import qualified Data.Text                      as Text
 import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO )
@@ -104,29 +108,118 @@ parseInput (Just s) = case words s of
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
 
+type IsOptional = Bool
+
 data InputPattern = InputPattern
   { patternName :: String
-  , args :: [ArgumentType]
+  , args :: [(IsOptional, ArgumentType)]
   , help :: Text
-  , parse :: [String] -> Input
+  , parse :: [String] -> Either String Input
   }
 
 data ArgumentType = ArgumentType
   { typeName :: String
-  , suggestions :: forall m v a . Monad m => Codebase m v a -> BranchName -> m [String]
+  , suggestions :: forall m v a . Monad m
+                => String
+                -> Codebase m v a
+                -> Branch
+                -> m [Line.Completion]
   }
+
+validInputs :: [InputPattern]
+validInputs
+  = [ InputPattern
+      "add"
+      []
+      (  "`add` adds to the codebase all the definitions from "
+      <> "the most recently typechecked file."
+      )
+      (\ws -> if not $ null ws
+        then Left $ warnNote "`add` doesn't take any arguments."
+        else pure AddI
+      )
+    , InputPattern
+      "branch"
+      [(True, branchArg)]
+      (  "`branch` lists all branches in the codebase.\n"
+      <> "`branch foo` switches to the branch named 'foo', "
+      <> "creating it first if it doesn't exist."
+      )
+      (\case
+        []  -> pure ListBranchesI
+        [b] -> pure . SwitchBranchI $ Text.pack b
+        _ ->
+          Left
+            .  warnNote
+            $  "Use `branch` to list all branches "
+            <> "or `branch foo` to switch to the branch 'foo'."
+      )
+    , InputPattern
+      "fork"
+      [(False, branchArg)]
+      (  "`fork foo` creates the branch 'foo' "
+      <> "as a fork of the current branch."
+      )
+      (\case
+        [b] -> pure . ForkBranchI $ Text.pack b
+        _   -> Left $ warnNote
+          "Use `fork foo` to create the branch 'foo' from the current branch."
+      )
+    , InputPattern
+      "merge"
+      [(False, branchArg)]
+      ("`merge foo` merges the branch 'foo' into the current branch.")
+      (\case
+        [b] -> pure . MergeBranchI $ Text.pack b
+        _ ->
+          Left
+            .  warnNote
+            $  "Use `merge foo` to merge the branch 'foo' "
+            <> " into the current branch."
+      )
+    , quit "quit"
+    , quit "exit"
+    ]
+ where
+  branchArg = ArgumentType "branch" $ \q codebase _ -> do
+    branches <- Codebase.branches codebase
+    let bs = Text.unpack <$> branches
+    pure $ autoComplete q bs
+  quit s = InputPattern
+    s
+    []
+    "Exits the Unison command line interface."
+    (\case
+      [] -> pure QuitI
+      _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
+    )
+
+completion :: String -> Line.Completion
+completion s = Line.Completion s s True
+
+autoComplete :: String -> [String] -> [Line.Completion]
+autoComplete q ss = completion <$> Codebase.sortedApproximateMatches q ss
 
 queueInput
   :: (MonadIO m, Line.MonadException m)
-  => TQueue (Maybe String)
+  => (String -> Maybe InputPattern)
+  -> TQueue (Maybe String)
   -> Codebase m v a
   -> Branch
   -> m ()
-queueInput q _codebase _branch = Line.runInputT settings $ do
+queueInput lookupPattern q codebase branch = Line.runInputT settings $ do
   line <- Line.getInputLine "> "
   liftIO . atomically $ Q.enqueue q line
  where
-  settings = Line.Settings (error "tab complete") (Just ".unisonHistory") True
+  settings = Line.Settings tabComplete (Just ".unisonHistory") True
+  tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
+    let ws = words $ reverse prev
+    in case ws of
+        h : t -> fromMaybe (pure []) $ do
+          p <- lookupPattern h
+          (_, argType) <- listToMaybe $ drop (length t) (args p)
+          pure $ suggestions argType word codebase branch
+        _ -> pure []
 
 main
   :: forall v
@@ -146,9 +239,11 @@ main dir currentBranch currentBranchName _initialFile startRuntime codebase =
     branchRef  <- newIORef (currentBranch, currentBranchName)
     watchFileSystem eventQueue dir
     watchBranchUpdates eventQueue codebase
-    let awaitInput = do
+    let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
+        lookupPattern s = Map.lookup s patternMap
+        awaitInput = do
           (branch, _branchName) <- readIORef branchRef
-          queueInput lineQueue codebase branch
+          queueInput lookupPattern lineQueue codebase branch
           Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
             Right _ -> do
               line <- atomically $ Q.dequeue lineQueue
