@@ -60,7 +60,10 @@ loop s = Free.unfold' go s
             Nothing -> respond $ TypeErrors
               errorEnv
               [ err | Result.TypeError err <- toList notes ]
-            Just unisonFile -> updateUnisonFile unisonFile
+            Just unisonFile -> do
+              e <- Free.eval (Evaluate $ UF.discardTypes' unisonFile)
+              Free.eval (Notify (Evaluated e))
+              updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI _    _           -> error "todo"
         UpdateTermI   _old _new        -> error "todo"

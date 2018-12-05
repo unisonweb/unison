@@ -32,6 +32,8 @@ import           Unison.Result                  ( Note
                                                 , Result
                                                 )
 import qualified Unison.Result                 as Result
+import qualified Unison.Codebase.Runtime       as Runtime
+import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as Context
@@ -127,6 +129,7 @@ data Output v
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
+  | Evaluated ([(Text, Term v ())], Term v ())
   deriving (Show)
 
 data Command i v a where
@@ -141,6 +144,10 @@ data Command i v a where
             -> SourceName
             -> Source
             -> Command i v (TypecheckingResult v)
+
+  -- Evaluate a UnisonFile and return the result and the result of
+  -- any watched expressions (which are just labeled with `Text`)
+  Evaluate :: UF.UnisonFile v Ann -> Command i v ([(Text, Term v ())], Term v ())
 
   -- Load definitions from codebase:
   -- option 1:
@@ -242,12 +249,13 @@ commandLine
   :: forall i v a
    . Var v
   => IO i
+  -> Runtime v
   -> (Branch -> BranchName -> IO ())
   -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput branchChange notifyUser codebase command = do
+commandLine awaitInput rt branchChange notifyUser codebase command = do
   Free.fold go command
  where
   go :: forall x . Command i v x -> IO x
@@ -259,6 +267,7 @@ commandLine awaitInput branchChange notifyUser codebase command = do
       pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
+    Evaluate unisonFile -> Runtime.evaluate rt unisonFile codebase
     ListBranches -> Codebase.branches codebase
     LoadBranch branchName -> Codebase.getBranch codebase branchName
     NewBranch branchName -> newBranch codebase branchName

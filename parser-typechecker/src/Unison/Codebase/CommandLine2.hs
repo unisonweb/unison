@@ -135,7 +135,7 @@ main
 main dir currentBranch currentBranchName _initialFile startRuntime codebase = do
   eventQueue <- Q.newIO
   lineQueue  <- Q.newIO
-  _runtime   <- startRuntime
+  runtime   <- startRuntime
   -- queueInput lineQueue
   watchFileSystem eventQueue dir
   watchBranchUpdates eventQueue codebase
@@ -147,5 +147,10 @@ main dir currentBranch currentBranchName _initialFile startRuntime codebase = do
               Left  msg -> putStrLn msg *> awaitInput
               Right i   -> pure (Right i)
           Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-  Editor.commandLine awaitInput (const (error "todo")) notifyUser codebase
+  Editor.commandLine
+    awaitInput
+    runtime
+    (const (error "set current branch"))
+    notifyUser
+    codebase
     $ Actions.startLoop currentBranch currentBranchName
