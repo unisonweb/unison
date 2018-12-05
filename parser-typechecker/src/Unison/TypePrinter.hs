@@ -60,9 +60,10 @@ pretty n p tp = case tp of
     if (p <= 0)
     then pretty n p body
     else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> PP.Nest "  " (PP.Group $ pretty n 0 body)
-  --TODO undo generalizeEffects before printing - see Type.ungeneralizeEffects
-  EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
-  EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
+  t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
+    EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
+    EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
+    _ -> l"error"
   _ -> l"error"
   where commaList xs = intercalateMap (l"," <> b" ") (pretty n 0) xs
         effects Nothing = Empty
