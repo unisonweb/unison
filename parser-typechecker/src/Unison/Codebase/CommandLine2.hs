@@ -11,6 +11,7 @@ import           Data.IORef
 import           Data.List                      ( isSuffixOf )
 import           Data.Maybe                     ( listToMaybe, fromMaybe )
 import qualified Data.Map                       as Map
+import           Data.Map                       ( Map )
 import qualified Data.Text                      as Text
 import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO )
@@ -80,30 +81,6 @@ watchBranchUpdates q codebase = do
   void . forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
     atomically . Q.enqueue q . UnisonBranchChanged $ updatedBranches
-
-parseInput :: Maybe String -> Either String Input
-parseInput Nothing = Right QuitI
-parseInput (Just s) = case words s of
-  [] -> Left ""
-  "add" : tl -> case tl of
-    [] -> pure AddI
-    _ -> Left $ warnNote "`add` doesn't take any arguments."
-  ["branch"] -> pure ListBranchesI
-  ["branch", b] -> pure . SwitchBranchI $ Text.pack b
-  "branch" : _ -> Left . warnNote $
-    "Use `branch` to list all branches " <>
-    "or `branch foo` to switch to the branch 'foo'."
-  ["fork", b] -> pure . ForkBranchI $ Text.pack b
-  "fork" : _ -> Left . warnNote $
-    "Use `fork foo` to create the branch 'foo' from the current branch."
-  ["merge", b] -> pure . MergeBranchI $ Text.pack b
-  "merge" : _ -> Left . warnNote $
-    "Use `merge foo` to merge the branch 'foo' into the current branch."
-  ["quit"] -> pure QuitI
-  _ -> undefined
-
--- inputParser :: Monad m => [InputPattern] -> Codebase m v a -> BranchName -> Maybe String -> Either String Input
--- inputParser patterns codebase branch input
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
@@ -200,26 +177,42 @@ completion s = Line.Completion s s True
 autoComplete :: String -> [String] -> [Line.Completion]
 autoComplete q ss = completion <$> Codebase.sortedApproximateMatches q ss
 
+parseInput :: Map String InputPattern -> [String] -> Either String Input
+parseInput patterns ss = case ss of
+  command : args -> case Map.lookup command patterns of
+    Just pat -> parse pat args
+    Nothing ->
+      Left
+        $  "I don't know how to "
+        <> command
+        <> ". Type `help` or `?` to get help."
+
 queueInput
   :: (MonadIO m, Line.MonadException m)
-  => (String -> Maybe InputPattern)
-  -> TQueue (Maybe String)
+  => Map String InputPattern
+  -> TQueue Input
   -> Codebase m v a
   -> Branch
   -> m ()
-queueInput lookupPattern q codebase branch = Line.runInputT settings $ do
+queueInput patterns q codebase branch = Line.runInputT settings $ do
   line <- Line.getInputLine "> "
-  liftIO . atomically $ Q.enqueue q line
+  case line of
+    Nothing -> liftIO . atomically $ Q.enqueue q QuitI
+    Just l  -> case parseInput patterns $ words l of
+      Left err ->
+        liftIO (putStrLn $ warnNote err)
+          *> queueInput patterns q codebase branch
+      Right i -> liftIO . atomically $ Q.enqueue q i
  where
-  settings = Line.Settings tabComplete (Just ".unisonHistory") True
+  settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     let ws = words $ reverse prev
-    in case ws of
-        h : t -> fromMaybe (pure []) $ do
-          p <- lookupPattern h
-          (_, argType) <- listToMaybe $ drop (length t) (args p)
-          pure $ suggestions argType word codebase branch
-        _ -> pure []
+    in  case ws of
+          h : t -> fromMaybe (pure []) $ do
+            p            <- Map.lookup h patterns
+            (_, argType) <- listToMaybe $ drop (length t) (args p)
+            pure $ suggestions argType word codebase branch
+          _ -> pure []
 
 main
   :: forall v
@@ -240,14 +233,13 @@ main dir currentBranch currentBranchName _initialFile startRuntime codebase =
     watchFileSystem eventQueue dir
     watchBranchUpdates eventQueue codebase
     let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
-        lookupPattern s = Map.lookup s patternMap
         awaitInput = do
           (branch, _branchName) <- readIORef branchRef
-          queueInput lookupPattern lineQueue codebase branch
+          queueInput patternMap lineQueue codebase branch
           Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
             Right _ -> do
               line <- atomically $ Q.dequeue lineQueue
-              case parseInput line of
+              case parseInput patternMap line of
                 Left  msg -> putStrLn msg *> awaitInput
                 Right i   -> pure (Right i)
             Left _ -> Left <$> atomically (Q.dequeue eventQueue)
