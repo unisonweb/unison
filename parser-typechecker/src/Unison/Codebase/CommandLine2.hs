@@ -105,7 +105,27 @@ watchBranchUpdates q codebase = do
 
 parseInput :: Maybe String -> Either String Input
 parseInput Nothing = Right QuitI
-parseInput (Just _s) = undefined -- TODO
+parseInput (Just s) = case words s of
+  [] -> Left ""
+  "add" : tl -> case tl of
+    [] -> pure AddI
+    _ -> Left $ warnNote "`add` doesn't take any arguments."
+  ["branch"] -> pure ListBranchesI
+  ["branch", b] -> pure . SwitchBranchI $ Text.pack b
+  "branch" : _ -> Left . warnNote $
+    "Use `branch` to list all branches " <>
+    "or `branch foo` to switch to the branch 'foo'."
+  ["fork", b] -> pure . ForkBranchI $ Text.pack b
+  "fork" : _ -> Left . warnNote $
+    "Use `fork foo` to create the branch 'foo' from the current branch."
+  ["merge", b] -> pure . MergeBranchI $ Text.pack b
+  "merge" : _ -> Left . warnNote $
+    "Use `merge foo` to merge the branch 'foo' into the current branch."
+  ["quit"] -> pure QuitI
+  _ -> undefined
+
+warnNote :: String -> String
+warnNote s = "⚠️  " <> s
 
 main
   :: forall v
@@ -133,4 +153,3 @@ main dir currentBranchName _initialFile startRuntime codebase = do
           Left _ -> Left <$> atomically (Q.dequeue eventQueue)
   Editor.commandLine awaitInput notifyUser codebase
     $ Actions.startLoop currentBranchName
-
