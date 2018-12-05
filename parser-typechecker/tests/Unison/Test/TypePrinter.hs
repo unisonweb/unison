@@ -90,8 +90,9 @@ test = scope "typeprinter" . tests $
   , tc "a -> (b -> c) -> d"
   , tc "(a -> b) -> c -> d"
   , tc "((a -> b) -> c) -> d"
-  -- TODO need to faithfully reverse generalizeLowercase.
-  , tc_diff_rtt False "(∀ a . 'a) -> ()" "'a -> ()" 0  -- note rank-2: pretty-printer needs to avoid suppressing the forall
+  , tc "(∀ a. 'a) -> ()"
+  , tc "(∀ a. (∀ b. 'b) -> a) -> ()"
+  , tc_diff "∀ a. 'a" $ "'a"
   , tc "a -> '(b -> c)"
   , tc "a -> b -> c -> d"
   , tc "a -> 'Pair b c"
@@ -156,12 +157,12 @@ test = scope "typeprinter" . tests $
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
-              \(∀ a. (a -> a -> a))\n\
-              \b" 26
+              \(∀ a. a -> a -> a)\n\
+              \b" 24
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not breaking under forall
               "Pair\n\
-              \(∀ a. (a -> a -> a))\n\
-              \b" 16
+              \(∀ a. a -> a -> a)\n\
+              \b" 14
 
   ]

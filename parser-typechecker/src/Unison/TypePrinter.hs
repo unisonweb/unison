@@ -57,9 +57,9 @@ pretty n p tp = case tp of
   Effect1' e t -> parenNest (p >= 10) $ pretty n 9 e <> l" " <> pretty n 10 t
   Effects' es  -> effects (Just es)
   ForallNamed' v body ->
-    if (p <= 0)
+    if (p < 0)
     then pretty n p body
-    else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> PP.Nest "  " (PP.Group $ pretty n 0 body)
+    else paren True $ l"∀ " <> l (Text.unpack (Var.name v)) <> l". " <> PP.Nest "  " (PP.Group $ pretty n (-1) body)
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
     EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest -> parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
