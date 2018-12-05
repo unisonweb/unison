@@ -63,7 +63,6 @@ tc_breaks_diff width s expected = tc_diff_rtt True s expected width
 tc_breaks :: Int -> String -> Test ()
 tc_breaks width s = tc_diff_rtt True s s width
 
--- TODO dedup these test functions (and the one in TypePrinter.hs) (abstract over prettied)
 tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tc_binding width v mtp tm expected =
    let base_term = Unison.Builtin.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
@@ -75,7 +74,6 @@ tc_binding width v mtp tm expected =
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
-       --actual_reparsed = Unison.Builtin.tm actual
    in scope expected $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
@@ -83,14 +81,7 @@ tc_binding width v mtp tm expected =
                note $ "show(input)  : "   ++ show (input_term input_type)
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
-       ){-, (   --TODO add reparse
-       if (not rtt) || (input_term == actual_reparsed) then ok
-       else do note $ "round trip test..."
-               note $ "single parse: " ++ show input_term
-               note $ "double parse: " ++ show actual_reparsed
-               note $ "prettyprint  : "   ++ show prettied
-               crash "single parse != double parse"
-       )-}]
+       )]
 
 test :: Test ()
 test = scope "termprinter" . tests $
@@ -105,19 +96,18 @@ test = scope "termprinter" . tests $
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
-  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO raise issue: lexer doesn't support strings with quotes in
+  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO lexer doesn't support strings with quotes in
   , tc "2 : Nat"
   , tc "x -> and x false"
   , tc "x y -> and x y"
   , tc "x y z -> and x y"
   , tc "x y y -> and x y"
-  , pending $ tc_diff "()" $ "()#0"  -- TODO
+  , tc "()"
   , tc "Pair"
   , tc "foo"
-  , pending $ tc_diff "Sequence.empty" $  "Sequence.empty : [a]"  -- TODO whatever is adding the annotations
-         -- is adding a second one on the reparse.  Also it's showing 'Sequence a' not '[a]'
+  , tc "Sequence.empty"
   , tc "None"
-  , pending $ tc_diff "Optional.None" $ "Optional#0"  -- TODO
+  , tc "Optional.None"
   , tc "handle foo in bar"
   , tc "Pair 1 1"
   -- let bindings have no unbroken form accepted by the parser.
@@ -160,10 +150,10 @@ test = scope "termprinter" . tests $
   , tc "case x of y@() -> y"
   , tc "case x of a@(b@(c@())) -> c"
   , tc "case e of { a } -> z"
-  --, tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
-                                      -- need an actual effect constructor to test this with
+  , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
+                                              -- need an actual effect constructor to test this with
   , pending $ tc "if a then (if b then c else d) else e"
-  , pending $ tc "(if b then c else d)"   -- TODO raise issue - parser doesn't like bracketed ifs (`unexpected )`)
+  , pending $ tc "(if b then c else d)"   -- TODO parser doesn't like bracketed ifs (`unexpected )`)
   , pending $ tc "handle foo in (handle bar in baz)"  -- similarly
   , pending $ tc_breaks 16 "case (if a \n\
                            \      then b\n\
@@ -217,14 +207,17 @@ test = scope "termprinter" . tests $
   , tc "f x y z"
   , tc "f (g x) y"
   , tc_diff "(f x) y" $ "f x y"
-  , pending $ tc "1.0e-19"         -- TODO, raise issue, parser throws UnknownLexeme
+  , pending $ tc "1.0e-19"         -- TODO parser throws UnknownLexeme
   , pending $ tc "-1.0e19"         -- ditto
   , tc "0.0"
   , tc "-0.0"
   , pending $ tc_diff "+0.0" $ "0.0"  -- TODO parser throws "Prelude.read: no parse" - should it?  Note +0 works for UInt.
-  , pending $ tc_breaks_diff 21 "case x of 12 -> if a then b else c" $  -- TODO
-              "case x of 12 -> \n\
-              \  if a then b else c"
+  , tc_breaks_diff 21 "case x of 12 -> if a then b else c" $ 
+              "case x of\n\
+              \  12 ->\n\
+              \    if a\n\
+              \    then b\n\
+              \    else c"
   , tc_diff_rtt True "if foo\n\
             \then\n\
             \  use bar\n\
@@ -267,9 +260,7 @@ test = scope "termprinter" . tests $
   , pending $ tc_breaks 50 "x -> e = 12\n\
                  \     x + 1"  -- TODO parser looks like lambda body should be a block, but we hit 'unexpected ='
   , tc "x + y"
-  , tc "x ~ y"                     -- TODO what about using a binary data constructor as infix?
-  -- We don't store anything that would allow us to know whether the user originally wrote
-  -- "x `foo` y" or "foo x y".  Since it's not symbolic, go with the latter.
+  , tc "x ~ y"
   , tc_diff "x `foo` y" $ "foo x y"
   , tc "x + (y + z)"
   , tc "x + y + z"

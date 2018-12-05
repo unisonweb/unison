@@ -179,7 +179,7 @@ pretty n AmbientContext{precedence=p, blockContext=bc, infixContext=ic} term = s
             letIntro = case sc of 
               Block  -> id
               Normal -> \x -> l"let" <> b"; " <> (PP.Nest "  " x)
-            isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True  -- TODO is this hygienic? or can people name bindings _1 themselves?
+            isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
             isBlank _ = False
 
         printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
