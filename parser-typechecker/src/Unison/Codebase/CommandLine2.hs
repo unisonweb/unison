@@ -5,6 +5,7 @@
 module Unison.Codebase.CommandLine2 where
 
 import           Data.Foldable                  ( traverse_ )
+import           Data.IORef
 import           Data.List                      ( isSuffixOf )
 import qualified Data.Text                      as Text
 import           Data.Text                      ( Text )
@@ -14,7 +15,7 @@ import           Control.Monad                  ( forever
                                                 , void
                                                 , when
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO )
+import           Control.Monad.IO.Class         ( MonadIO, liftIO )
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.Branch        as Branch
@@ -34,6 +35,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as Q
 import           Unison.Var                     ( Var )
+import qualified System.Console.Haskeline      as Line
 
 notifyUser :: Var v => Output v -> IO ()
 notifyUser o = case o of
@@ -53,14 +55,6 @@ notifyUser o = case o of
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
   _ -> putStrLn $ show o
-
-queueInput
-  :: (Monad m, MonadIO m)
-  => TQueue (Maybe String)
-  -> Codebase m v a
-  -> Branch
-  -> m ()
-queueInput _q = error "todo"
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -122,6 +116,18 @@ data ArgumentType = ArgumentType
   , suggestions :: forall m v a . Monad m => Codebase m v a -> BranchName -> m [String]
   }
 
+queueInput
+  :: (MonadIO m, Line.MonadException m)
+  => TQueue (Maybe String)
+  -> Codebase m v a
+  -> Branch
+  -> m ()
+queueInput q _codebase _branch = Line.runInputT settings $ do
+  line <- Line.getInputLine "> "
+  liftIO . atomically $ Q.enqueue q line
+ where
+  settings = Line.Settings (error "tab complete") (Just ".unisonHistory") True
+
 main
   :: forall v
    . Var v
@@ -132,25 +138,27 @@ main
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranch currentBranchName _initialFile startRuntime codebase = do
-  eventQueue <- Q.newIO
-  lineQueue  <- Q.newIO
-  runtime   <- startRuntime
-  -- queueInput lineQueue
-  watchFileSystem eventQueue dir
-  watchBranchUpdates eventQueue codebase
-  let awaitInput =
-        Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
-          Right _ -> do
-            line <- atomically $ Q.dequeue lineQueue
-            case parseInput line of
-              Left  msg -> putStrLn msg *> awaitInput
-              Right i   -> pure (Right i)
-          Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-  Editor.commandLine
-    awaitInput
-    runtime
-    (const (error "set current branch"))
-    notifyUser
-    codebase
-    $ Actions.startLoop currentBranch currentBranchName
+main dir currentBranch currentBranchName _initialFile startRuntime codebase =
+  do
+    eventQueue <- Q.newIO
+    lineQueue  <- Q.newIO
+    runtime    <- startRuntime
+    branchRef  <- newIORef (currentBranch, currentBranchName)
+    watchFileSystem eventQueue dir
+    watchBranchUpdates eventQueue codebase
+    let awaitInput = do
+          (branch, _branchName) <- readIORef branchRef
+          queueInput lineQueue codebase branch
+          Q.raceIO (Q.peek eventQueue) (Q.peek lineQueue) >>= \case
+            Right _ -> do
+              line <- atomically $ Q.dequeue lineQueue
+              case parseInput line of
+                Left  msg -> putStrLn msg *> awaitInput
+                Right i   -> pure (Right i)
+            Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+    Editor.commandLine awaitInput
+                       runtime
+                       (curry $ writeIORef branchRef)
+                       notifyUser
+                       codebase
+      $ Actions.startLoop currentBranch currentBranchName
