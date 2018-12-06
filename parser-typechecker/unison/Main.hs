@@ -34,7 +34,7 @@ main = do
         theCodebase
   exists <- FileCodebase.exists codebasePath
   when (not exists) $ do
-    putStrLn $ "No codebase exists here, initializing one in: " <> codebasePath
+    putStrLn $ "☝️  No codebase exists here so I'm initializing one in: " <> codebasePath
     FileCodebase.initialize codebasePath
     Codebase.initialize theCodebase
   launch

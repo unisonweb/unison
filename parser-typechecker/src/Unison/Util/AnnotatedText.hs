@@ -49,7 +49,7 @@ deannotate :: AnnotatedText a -> AnnotatedText b
 deannotate t = const Nothing <$> t
 
 reannotate :: a -> AnnotatedText a -> AnnotatedText a
-reannotate a t = fmap (const a) <$> t
+reannotate a t = const (Just a) <$> t
 
 reannotate' :: a -> AnnotatedText' a -> AnnotatedText' a
 reannotate' a t = const a <$> t

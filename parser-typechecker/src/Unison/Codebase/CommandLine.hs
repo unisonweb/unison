@@ -533,10 +533,7 @@ selectBranch codebase name takeLine = do
       case choice of
         Just (Left Cancel) -> pure Nothing
         Just (Left Create) -> do
-          branch <- mergeBranchAndShowDiff codebase name builtinBranch
+          branch <- mergeBranchAndShowDiff codebase name Codebase.builtinBranch
           pure $ Just (name, branch)
         Just (Right name) -> selectBranch codebase name takeLine
         Nothing           -> pure Nothing
-
-builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames B.names) mempty

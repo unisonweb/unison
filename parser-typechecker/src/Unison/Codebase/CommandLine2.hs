@@ -5,6 +5,8 @@
 
 module Unison.Codebase.CommandLine2 where
 
+import Data.String (fromString)
+import qualified Unison.Util.ColorText as CT
 import           Control.Exception              ( finally )
 import           Control.Monad.Trans            ( lift )
 import           Control.Arrow                  ( (&&&) )
@@ -45,6 +47,7 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as Q
+import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Var                     ( Var )
 import qualified System.Console.Haskeline      as Line
 
@@ -111,9 +114,48 @@ data ArgumentType = ArgumentType
                 -> m [Line.Completion]
   }
 
+showPatternHelp :: InputPattern -> String
+showPatternHelp i =
+  bold (patternName i) <> "\n" <> Text.unpack (help i)
+  -- bold (patternName i) <> " " <> showArgs (args i) <> "\n" <> Text.unpack (help i)
+  where
+    bold s = show $ CT.renderText (CT.style CT.Bold (fromString s))
+    -- showArgs args = intercalateMap " " g args
+    -- g (isOptional, arg) =
+    --   if isOptional then "[" <> typeName arg <> "]"
+    --   else typeName arg
+
 validInputs :: [InputPattern]
-validInputs
-  = [ InputPattern
+validInputs = nonmetas ++ [helpPattern]
+  where
+  commandNames = patternName <$> nonmetas
+  commandMap = Map.fromList (commandNames `zip` nonmetas)
+  helpPattern = InputPattern
+    "help"
+    [(True, commandName)]
+    "`help` shows general help and `help <cmd>` shows help for one command."
+    (\case
+      [] -> Left $ intercalateMap "\n\n" showPatternHelp nonmetas
+      [cmd] -> case Map.lookup cmd commandMap of
+        Nothing -> Left . warnNote $ "I don't know of that command. Try `help`."
+        Just pat -> Left $ Text.unpack (help pat)
+      _ -> Left $ warnNote "Use `help <cmd>` or `help`.")
+  commandName = ArgumentType "command" $ \q _ _ ->
+    pure $ autoComplete q commandNames
+  branchArg = ArgumentType "branch" $ \q codebase _ -> do
+    branches <- Codebase.branches codebase
+    let bs = Text.unpack <$> branches
+    pure $ autoComplete q bs
+  quit s = InputPattern
+    s
+    []
+    "Exits the Unison command line interface."
+    (\case
+      [] -> pure QuitI
+      _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
+    )
+  nonmetas =
+    [ InputPattern
       "add"
       []
       (  "`add` adds to the codebase all the definitions from "
@@ -163,21 +205,8 @@ validInputs
             <> " into the current branch."
       )
     , quit "quit"
-    , quit "exit"
+    -- , quit "exit"
     ]
- where
-  branchArg = ArgumentType "branch" $ \q codebase _ -> do
-    branches <- Codebase.branches codebase
-    let bs = Text.unpack <$> branches
-    pure $ autoComplete q bs
-  quit s = InputPattern
-    s
-    []
-    "Exits the Unison command line interface."
-    (\case
-      [] -> pure QuitI
-      _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
-    )
 
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True
@@ -209,8 +238,8 @@ queueInput patterns q codebase branch branchName = Line.runInputT settings $ do
   case line of
     Nothing -> liftIO . atomically $ Q.enqueue q QuitI
     Just l  -> case parseInput patterns $ words l of
-      Left err -> lift $ do
-        liftIO (putStrLn $ warnNote err)
+      Left msg -> lift $ do
+        liftIO (putStrLn msg)
         queueInput patterns q codebase branch branchName
       Right i -> liftIO . atomically $ Q.enqueue q i
  where
@@ -242,8 +271,8 @@ main dir currentBranchName _initialFile startRuntime codebase =
     inputQueue <- Q.newIO
     currentBranch <- case currentBranch of
       Nothing ->
-        Codebase.mergeBranch codebase currentBranchName Branch.empty <*
-        (putStrLn $ "☝️  No branch existed called '"
+        Codebase.mergeBranch codebase currentBranchName Codebase.builtinBranch <*
+        (putStrLn $ "☝️  No branch existed named '"
                 <> Text.unpack currentBranchName <>
                 "' so I've created it for you.")
       Just b -> pure b
