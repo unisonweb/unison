@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
@@ -5,14 +6,16 @@
 
 module Unison.Codebase.CommandLine2 where
 
-import Data.String (fromString)
-import qualified Unison.Util.ColorText as CT
+import           Data.String                    ( fromString )
+import qualified Unison.Util.ColorText         as CT
 import           Control.Exception              ( finally )
 import           Control.Monad.Trans            ( lift )
-import           Control.Arrow                  ( (&&&) )
 import           Data.Foldable                  ( traverse_ )
 import           Data.IORef
-import           Data.List                      ( isSuffixOf, sort )
+import           Data.List                      ( isSuffixOf
+                                                , sort
+                                                , intercalate
+                                                )
 import           Data.Maybe                     ( listToMaybe
                                                 , fromMaybe
                                                 )
@@ -20,7 +23,9 @@ import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
-import           Control.Concurrent             ( forkIO, killThread )
+import           Control.Concurrent             ( forkIO
+                                                , killThread
+                                                )
 import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
                                                 , when
@@ -40,7 +45,7 @@ import           Unison.Codebase.Editor         ( Output(..)
 import qualified Unison.Codebase.Editor        as Editor
 import qualified Unison.Codebase.Editor.Actions
                                                as Actions
-import           Unison.Codebase.Runtime       (Runtime)
+import           Unison.Codebase.Runtime        ( Runtime )
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
 import           Unison.Parser                  ( Ann )
@@ -104,6 +109,7 @@ type IsOptional = Bool
 
 data InputPattern = InputPattern
   { patternName :: String
+  , aliases :: [String]
   , args :: [(IsOptional, ArgumentType)]
   , help :: Text
   , parse :: [String] -> Either String Input
@@ -120,97 +126,112 @@ data ArgumentType = ArgumentType
 
 showPatternHelp :: InputPattern -> String
 showPatternHelp i =
-  bold (patternName i) <> "\n" <> Text.unpack (help i)
+  bold (patternName i)
+    <> (if not . null $ aliases i
+         then " (or " <> intercalate ", " (aliases i) <> ")"
+         else ""
+       )
+    <> "\n"
+    <> Text.unpack (help i)
   -- bold (patternName i) <> " " <> showArgs (args i) <> "\n" <> Text.unpack (help i)
-  where
-    bold s = show $ CT.renderText (CT.style CT.Bold (fromString s))
+  where bold s = show $ CT.renderText (CT.style CT.Bold (fromString s))
     -- showArgs args = intercalateMap " " g args
     -- g (isOptional, arg) =
     --   if isOptional then "[" <> typeName arg <> "]"
     --   else typeName arg
 
 validInputs :: [InputPattern]
-validInputs = nonmetas ++ [helpPattern]
-  where
-  commandNames = patternName <$> nonmetas
-  commandMap = Map.fromList (commandNames `zip` nonmetas)
-  helpPattern = InputPattern
+validInputs = validPatterns
+ where
+  commandNames = patternName <$> validPatterns
+  commandMap   = Map.fromList (commandNames `zip` validPatterns)
+  helpPattern  = InputPattern
     "help"
+    ["?"]
     [(True, commandName)]
     "`help` shows general help and `help <cmd>` shows help for one command."
     (\case
-      [] -> Left $ intercalateMap "\n\n" showPatternHelp nonmetas
+      []    -> Left $ intercalateMap "\n\n" showPatternHelp validPatterns
       [cmd] -> case Map.lookup cmd commandMap of
-        Nothing -> Left . warnNote $ "I don't know of that command. Try `help`."
+        Nothing ->
+          Left . warnNote $ "I don't know of that command. Try `help`."
         Just pat -> Left $ Text.unpack (help pat)
-      _ -> Left $ warnNote "Use `help <cmd>` or `help`.")
-  commandName = ArgumentType "command" $ \q _ _ ->
-    pure $ autoComplete q commandNames
+      _ -> Left $ warnNote "Use `help <cmd>` or `help`."
+    )
+  commandName =
+    ArgumentType "command" $ \q _ _ -> pure $ autoComplete q commandNames
   branchArg = ArgumentType "branch" $ \q codebase _ -> do
     branches <- Codebase.branches codebase
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
-  quit s = InputPattern
-    s
+  quit = InputPattern
+    "quit"
+    ["exit"]
     []
     "Exits the Unison command line interface."
     (\case
       [] -> pure QuitI
       _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
     )
-  nonmetas =
-    [ InputPattern
-      "add"
-      []
-      (  "`add` adds to the codebase all the definitions from "
-      <> "the most recently typechecked file."
-      )
-      (\ws -> if not $ null ws
-        then Left $ warnNote "`add` doesn't take any arguments."
-        else pure AddI
-      )
-    , InputPattern
-      "branch"
-      [(True, branchArg)]
-      (  "`branch` lists all branches in the codebase.\n"
-      <> "`branch foo` switches to the branch named 'foo', "
-      <> "creating it first if it doesn't exist."
-      )
-      (\case
-        []  -> pure ListBranchesI
-        [b] -> pure . SwitchBranchI $ Text.pack b
-        _ ->
-          Left
-            .  warnNote
-            $  "Use `branch` to list all branches "
-            <> "or `branch foo` to switch to or create the branch 'foo'."
-      )
-    , InputPattern
-      "fork"
-      [(False, branchArg)]
-      (  "`fork foo` creates the branch 'foo' "
-      <> "as a fork of the current branch."
-      )
-      (\case
-        [b] -> pure . ForkBranchI $ Text.pack b
-        _   -> Left $ warnNote
-          "Use `fork foo` to create the branch 'foo' from the current branch."
-      )
-    , InputPattern
-      "merge"
-      [(False, branchArg)]
-      ("`merge foo` merges the branch 'foo' into the current branch.")
-      (\case
-        [b] -> pure . MergeBranchI $ Text.pack b
-        _ ->
-          Left
-            .  warnNote
-            $  "Use `merge foo` to merge the branch 'foo' "
-            <> " into the current branch."
-      )
-    , quit "quit"
-    -- , quit "exit"
-    ]
+  validPatterns
+    = [ helpPattern
+      , InputPattern
+        "add"
+        []
+        []
+        (  "`add` adds to the codebase all the definitions from "
+        <> "the most recently typechecked file."
+        )
+        (\ws -> if not $ null ws
+          then Left $ warnNote "`add` doesn't take any arguments."
+          else pure AddI
+        )
+      , InputPattern
+        "branch"
+        []
+        [(True, branchArg)]
+        (  "`branch` lists all branches in the codebase.\n"
+        <> "`branch foo` switches to the branch named 'foo', "
+        <> "creating it first if it doesn't exist."
+        )
+        (\case
+          []  -> pure ListBranchesI
+          [b] -> pure . SwitchBranchI $ Text.pack b
+          _ ->
+            Left
+              .  warnNote
+              $  "Use `branch` to list all branches "
+              <> "or `branch foo` to switch to or create the branch 'foo'."
+        )
+      , InputPattern
+        "fork"
+        []
+        [(False, branchArg)]
+        (  "`fork foo` creates the branch 'foo' "
+        <> "as a fork of the current branch."
+        )
+        (\case
+          [b] -> pure . ForkBranchI $ Text.pack b
+          _ ->
+            Left
+              $  warnNote "Use `fork foo` to create the branch 'foo' "
+              <> "from the current branch."
+        )
+      , InputPattern
+        "merge"
+        []
+        [(False, branchArg)]
+        ("`merge foo` merges the branch 'foo' into the current branch.")
+        (\case
+          [b] -> pure . MergeBranchI $ Text.pack b
+          _ ->
+            Left
+              .  warnNote
+              $  "Use `merge foo` to merge the branch 'foo' "
+              <> " into the current branch."
+        )
+      , quit
+      ]
 
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True
@@ -268,43 +289,46 @@ main
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranchName _initialFile startRuntime codebase =
+main dir currentBranchName _initialFile startRuntime codebase = do
+  currentBranch <- Codebase.getBranch codebase currentBranchName
+  eventQueue    <- Q.newIO
+  inputQueue    <- Q.newIO
+  currentBranch <- case currentBranch of
+    Nothing ->
+      Codebase.mergeBranch codebase currentBranchName Codebase.builtinBranch
+        <* (  putStrLn
+           $  "☝️  I found no branch named '"
+           <> Text.unpack currentBranchName
+           <> "' so I've created it for you."
+           )
+    Just b -> pure b
   do
-    currentBranch <- Codebase.getBranch codebase currentBranchName
-    eventQueue <- Q.newIO
-    inputQueue <- Q.newIO
-    currentBranch <- case currentBranch of
-      Nothing ->
-        Codebase.mergeBranch codebase currentBranchName Codebase.builtinBranch <*
-        (putStrLn $ "☝️  No branch existed named '"
-                <> Text.unpack currentBranchName <>
-                "' so I've created it for you.")
-      Just b -> pure b
-    do
-      runtime    <- startRuntime
-      branchRef  <- newIORef (currentBranch, currentBranchName)
-      cancelFileSystemWatch <- watchFileSystem eventQueue dir
-      cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
-      let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
-      -- todo: need to do something fancy here to ensure that the
-      -- line reader gets the latest branch, since the IORef isn't updated
-      -- right away
-      inputReader <- forkIO . forever $ do
-        (branch, branchName) <- readIORef branchRef
-        queueInput patternMap inputQueue codebase branch branchName
-      let
-        awaitInput = Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>=
-          \case Right _ -> Right <$> atomically (Q.dequeue inputQueue)
-                Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+    runtime                  <- startRuntime
+    branchRef                <- newIORef (currentBranch, currentBranchName)
+    cancelFileSystemWatch    <- watchFileSystem eventQueue dir
+    cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
+    let patternMap =
+          Map.fromList
+            $   validInputs
+            >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
+    -- todo: need to do something fancy here to ensure that the
+    -- line reader gets the latest branch, since the IORef isn't updated
+    -- right away
+    inputReader <- forkIO . forever $ do
+      (branch, branchName) <- readIORef branchRef
+      queueInput patternMap inputQueue codebase branch branchName
+    let awaitInput = Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>= \case
+          Right _ -> Right <$> atomically (Q.dequeue inputQueue)
+          Left  _ -> Left <$> atomically (Q.dequeue eventQueue)
         cleanup = do
           killThread inputReader
           Runtime.terminate runtime
           cancelFileSystemWatch
           cancelWatchBranchUpdates
-      (`finally` cleanup) $
-        Editor.commandLine awaitInput
+    (`finally` cleanup)
+      $ Editor.commandLine awaitInput
                            runtime
                            (curry $ writeIORef branchRef)
                            notifyUser
                            codebase
-        $ Actions.startLoop currentBranch currentBranchName
+      $ Actions.startLoop currentBranch currentBranchName
