@@ -84,18 +84,15 @@ test = scope "typeprinter" . tests $
   , tc "'Pair a a"
   , tc "a -> 'b"
   , tc "'(a -> b)"
-  -- The next six tests will change after the pretty-printer can reverse
-  -- generalizeEffects.  Also, they currently fail the round-trip test because
-  -- generalizeEffects leaves the `Forall 𝛆` on the outside of the expression,
-  -- whereas the parse of the current explicit post-pretty-print version does not.
-  , tc_diff_rtt False "(a -> b) -> c" "(a ->{𝛆} b) -> c" 0
-  , tc_diff_rtt False "'a -> b" "'{𝛆} a -> b" 0
-  , tc_diff_rtt False "a -> 'b -> c" "a -> '{𝛆} b -> c" 0
-  , tc_diff_rtt False "a -> (b -> c) -> d" "a -> (b ->{𝛆} c) -> d" 0
-  , tc_diff_rtt False "(a -> b) -> c -> d" "(a ->{𝛆} b) -> c -> d" 0
-  , tc_diff_rtt False "((a -> b) -> c) -> d" "((a ->{𝛆} b) ->{𝛆} c) -> d" 0
-  -- This test is pending for a similar reason - need to faithfully reverse generalizeLowercase.
-  , pending $ tc_diff "(∀ a . 'a) -> ()" $ "('{𝛆} a) -> ()"  -- note rank-2: pretty-printer needs to avoid suppressing the forall
+  , tc "(a -> b) -> c"
+  , tc "'a -> b"
+  , tc "a -> 'b -> c"
+  , tc "a -> (b -> c) -> d"
+  , tc "(a -> b) -> c -> d"
+  , tc "((a -> b) -> c) -> d"
+  , tc "(∀ a. 'a) -> ()"
+  , tc "(∀ a. (∀ b. 'b) -> a) -> ()"
+  , tc_diff "∀ a. 'a" $ "'a"
   , tc "a -> '(b -> c)"
   , tc "a -> b -> c -> d"
   , tc "a -> 'Pair b c"
@@ -134,6 +131,8 @@ test = scope "typeprinter" . tests $
   , tc "'{e} a"
   , tc "'{e} (a -> b)"
   , tc "'{e} (a ->{f} b)"
+  , pending $ tc "Pair a '{e} b"                           -- parser hits unexpected '
+  , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
   , tc "'(a -> 'a)"
   , tc "'()"
   , tc "'('a)"
@@ -158,12 +157,12 @@ test = scope "typeprinter" . tests $
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
-              \(∀ a. (a -> a -> a))\n\
-              \b" 26
+              \(∀ a. a -> a -> a)\n\
+              \b" 24
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not breaking under forall
               "Pair\n\
-              \(∀ a. (a -> a -> a))\n\
-              \b" 16
+              \(∀ a. a -> a -> a)\n\
+              \b" 14
 
   ]
