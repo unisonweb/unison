@@ -8,6 +8,7 @@ module Unison.Codebase.Editor.Actions where
 
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList )
+import qualified Data.Set as Set
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
@@ -28,6 +29,7 @@ import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import qualified Unison.Codebase as Codebase
 
 type Action i v = Free (Command i v) (Either () (LoopState v))
 
@@ -47,10 +49,12 @@ loop s = Free.unfold' go s
   go s@(LoopState currentBranch currentBranchName uf) = do
     e <- Free.eval Input
     case e of
-      Left (UnisonBranchChanged _names) -> do
-        error "todo"
+      Left (UnisonBranchChanged names) ->
+        if Set.member currentBranchName names then
+          switchBranch currentBranchName
+        else pure (Right s)
       Left (UnisonFileChanged sourceName text) -> do
-        (Result notes r) <- Free.eval (Typecheck currentBranch sourceName text)
+        Result notes r <- Free.eval (Typecheck currentBranch sourceName text)
         case r of
           -- Parsing failed
           Nothing ->
@@ -115,13 +119,10 @@ loop s = Free.unfold' go s
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf -> do
-            branch <- Free.eval $ LoadBranch currentBranchName
-            case branch of
-              Nothing -> respond $ UnknownBranch currentBranchName
-              Just branch ->
-                Free.eval (Add branch uf) >>= (respond . AddOutput)
-        ListBranchesI -> Free.eval ListBranches >>= respond . ListOfBranches
+          Just uf ->
+            Free.eval (Add currentBranch uf) >>= (respond . AddOutput)
+        ListBranchesI ->
+          Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName -> switchBranch branchName
         ForkBranchI targetBranchName -> ifM
           (Free.eval $ ForkBranch currentBranch targetBranchName)
@@ -137,9 +138,16 @@ loop s = Free.unfold' go s
     respond :: Output v -> Action i v
     respond output = (Free.eval . Notify) output >> pure (Right s)
     switchBranch branchName = do
-      withBranch branchName respond $ \branch -> do
-        Free.eval $ SwitchBranch branch branchName
-        pure . Right $ LoopState branch branchName uf
+      branch <- Free.eval $ LoadBranch branchName
+      case branch of
+        Nothing -> do
+          let newBranch = Codebase.builtinBranch
+          Free.eval $ SwitchBranch newBranch branchName
+          _ <- Free.eval $ NewBranch branchName
+          pure . Right $ LoopState newBranch branchName uf
+        Just branch -> do
+          Free.eval $ SwitchBranch branch branchName
+          pure . Right $ LoopState branch branchName uf
     updateUnisonFile
       :: forall f v
        . Applicative f

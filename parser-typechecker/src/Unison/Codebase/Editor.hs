@@ -123,7 +123,7 @@ data Output v
   -- `name` refers to more than one `nameTarget`
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
-  | ListOfBranches [BranchName]
+  | ListOfBranches BranchName [BranchName]
   | SearchResult BranchName SearchType String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]

@@ -12,7 +12,7 @@ import           Control.Monad.Trans            ( lift )
 import           Control.Arrow                  ( (&&&) )
 import           Data.Foldable                  ( traverse_ )
 import           Data.IORef
-import           Data.List                      ( isSuffixOf )
+import           Data.List                      ( isSuffixOf, sort )
 import           Data.Maybe                     ( listToMaybe
                                                 , fromMaybe
                                                 )
@@ -68,6 +68,10 @@ notifyUser o = case o of
       traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
+  ListOfBranches current branches -> putStrLn $ let
+    go n = if n == current then "* " <> n
+           else "  " <>  n
+    in Text.unpack $ intercalateMap "\n" go (sort branches)
   _ -> putStrLn $ show o
 
 allow :: FilePath -> Bool
@@ -282,6 +286,9 @@ main dir currentBranchName _initialFile startRuntime codebase =
       cancelFileSystemWatch <- watchFileSystem eventQueue dir
       cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
       let patternMap = Map.fromList $ (patternName &&& id) <$> validInputs
+      -- todo: need to do something fancy here to ensure that the
+      -- line reader gets the latest branch, since the IORef isn't updated
+      -- right away
       inputReader <- forkIO . forever $ do
         (branch, branchName) <- readIORef branchRef
         queueInput patternMap inputQueue codebase branch branchName
