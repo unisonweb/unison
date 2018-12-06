@@ -21,7 +21,7 @@ import qualified Unison.PrettyPrintEnv         as PPE
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
-  either (error . show . Color.renderText . prettyParseError src) id
+  either (error . Color.toANSI . prettyParseError src) id
 
 parse :: Var v => Parser.P v a -> String -> Names -> Either (Parser.Err v) a
 parse p s env = Parser.run (Parser.root p) s env

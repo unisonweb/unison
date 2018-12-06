@@ -1,14 +1,17 @@
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE FlexibleInstances          #-}
+-- {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Unison.Util.AnnotatedText where
 
+import qualified Data.List as L
 import           Data.Foldable      (foldl')
+import qualified Data.Foldable      as Foldable
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>), (:<|)))
@@ -18,19 +21,36 @@ import           Safe               (headMay, lastMay)
 import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
 import           Unison.Util.Range  (Range (..), inRange)
+import qualified Data.ListLike      as LL
 
-type AnnotatedText a = AnnotatedText' (Maybe a)
+-- type AnnotatedText a = AnnotatedText (Maybe a)
 
-newtype AnnotatedText' a = AnnotatedText' (Seq (String, a))
+newtype AnnotatedText a = AnnotatedText (Seq (String, Maybe a))
   deriving (Functor, Foldable, Show)
 
-instance Semigroup (AnnotatedText' a) where
-  AnnotatedText' (as :|> ("", _)) <> bs = AnnotatedText' as <> bs
-  as <> AnnotatedText' (("", _) :<| bs) = as <> AnnotatedText' bs
-  AnnotatedText' as <> AnnotatedText' bs = AnnotatedText' (as <> bs)
+instance Semigroup (AnnotatedText a) where
+  AnnotatedText (as :|> ("", _)) <> bs = AnnotatedText as <> bs
+  as <> AnnotatedText (("", _) :<| bs) = as <> AnnotatedText bs
+  AnnotatedText as <> AnnotatedText bs = AnnotatedText (as <> bs)
 
-instance Monoid (AnnotatedText' a) where
-  mempty = AnnotatedText' Seq.empty
+instance Monoid (AnnotatedText a) where
+  mempty = AnnotatedText Seq.empty
+
+instance LL.FoldableLL (AnnotatedText a) Char where
+  foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at where
+    f' z (str, _) = L.foldl' f z str
+  foldl f z at = LL.foldl f z at
+  foldr f z (AnnotatedText at) = Foldable.foldr f' z at where
+    f' (str, _) z = L.foldr f z str
+
+instance LL.ListLike (AnnotatedText a) Char where
+  singleton ch = fromString [ch]
+  uncons (AnnotatedText at) = case at of
+    (s,a) :<| tl -> case L.uncons s of
+      Nothing -> LL.uncons (AnnotatedText tl)
+      Just (hd,s) -> Just (hd, AnnotatedText $ (s,a) :<| tl)
+    Seq.Empty -> Nothing
+  null (AnnotatedText at) = all (null . fst) at
 
   -- Quoted text (indented, with source line numbers) with annotated portions.
 data AnnotatedExcerpt a = AnnotatedExcerpt
@@ -39,41 +59,37 @@ data AnnotatedExcerpt a = AnnotatedExcerpt
   , annotations :: Map Range a
   } deriving (Functor)
 
-annotate :: a -> String -> AnnotatedText a
-annotate a str = AnnotatedText' . Seq.singleton $ (str, Just a)
-
-annotate' :: a -> String -> AnnotatedText' a
-annotate' a str = AnnotatedText' . Seq.singleton $ (str, a)
+annotate' :: Maybe b -> AnnotatedText a -> AnnotatedText b
+annotate' a (AnnotatedText at) =
+  AnnotatedText $ (\(s,_) -> (s, a)) <$> at
 
 deannotate :: AnnotatedText a -> AnnotatedText b
-deannotate t = const Nothing <$> t
+deannotate at = annotate' Nothing at
 
-reannotate :: a -> AnnotatedText a -> AnnotatedText a
-reannotate a t = const (Just a) <$> t
-
-reannotate' :: a -> AnnotatedText' a -> AnnotatedText' a
-reannotate' a t = const a <$> t
+annotate :: a -> AnnotatedText a -> AnnotatedText a
+annotate a (AnnotatedText at) =
+  AnnotatedText $ (\(s,_) -> (s,Just a)) <$> at
 
 trailingNewLine :: AnnotatedText a -> Bool
-trailingNewLine (AnnotatedText' (init :|> (s,_))) =
+trailingNewLine (AnnotatedText (init :|> (s,_))) =
   case lastMay s of
          Just '\n' -> True
          Just _    -> False
-         _         -> trailingNewLine (AnnotatedText' init)
+         _         -> trailingNewLine (AnnotatedText init)
 trailingNewLine _ = False
 
 markup :: AnnotatedExcerpt a -> Map Range a -> AnnotatedExcerpt a
 markup a r = a { annotations = r `Map.union` annotations a }
 
--- renderTextUnstyled :: AnnotatedText' a -> Rendered Void
--- renderTextUnstyled (AnnotatedText' chunks) = foldl' go mempty chunks
+-- renderTextUnstyled :: AnnotatedText a -> Rendered Void
+-- renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
 --   where go r (text, _) = r <> fromString text
 
-textLength :: AnnotatedText' a -> Int
-textLength (AnnotatedText' chunks) = foldl' go 0 chunks
+textLength :: AnnotatedText a -> Int
+textLength (AnnotatedText chunks) = foldl' go 0 chunks
   where go len (text, _a) = len + length text
 
-textEmpty :: AnnotatedText' a -> Bool
+textEmpty :: AnnotatedText a -> Bool
 textEmpty = (==0) . textLength
 
 condensedExcerptToText :: Int -> AnnotatedExcerpt a -> AnnotatedText a
@@ -110,7 +126,7 @@ excerptToText e =
         (additions, pos') =
           if c == '\n'
           then ("\n" <> renderLineNumber (line + 1), Pos (line + 1) 1)
-          else (annotate' maybeColor [c], Pos line (col + 1))
+          else (annotate' maybeColor (fromString [c]), Pos line (col + 1))
       in track pos' stack' remainingAnnotations (rendered <> additions) rest
 
 snipWithContext :: Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
@@ -153,7 +169,7 @@ snipWithContext margin source =
           else (Just r0, taken, Map.insert r1 a1 rest)
 
 instance IsString (AnnotatedText a) where
-  fromString s = AnnotatedText' . pure $ (s, Nothing)
+  fromString s = AnnotatedText . pure $ (s, Nothing)
 
 instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
