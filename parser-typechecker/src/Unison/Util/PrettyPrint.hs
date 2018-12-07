@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -11,7 +12,34 @@ import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
+import Data.Sequence (Seq)
+import Data.Foldable (toList)
+import qualified Data.Sequence as Seq
 import           Unison.Util.Monoid (intercalateMap)
+
+type Width = Int
+
+data PP2 a =
+  PP2 { preferred :: Width,
+        fits :: Seq (Width -> (Int, Seq a)) } deriving Functor
+
+instance Semigroup (PP2 a) where (<>) = mappend
+instance Monoid (PP2 a) where
+  mempty = PP2 0 mempty
+  mappend p1 p2 = PP2 (preferred p1 + preferred p2) (fits p1 <> fits p2)
+-- empty = PP2 0 mempty
+
+group2 :: PP2 a -> PP2 a
+group2 (PP2 w cs) = PP2 w (pure $ combine cs)
+  where
+  combine cs w =
+    let outs = ($ w) <$> cs
+    in (foldl' (+) 0 . toList $ fst <$> outs, mconcat . toList $ snd <$> outs)
+  empty = PP2 0 mempty
+
+-- literal :: LL.ListLike a elem => a -> PP2 a
+-- literal a =
+
 
 -- A tree of `a` tokens, to be rendered to a character window by traversing the
 -- leaves depth-first left-to-right, marked up with specifiers about where to
