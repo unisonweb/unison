@@ -12,26 +12,27 @@ import qualified Data.Text as Text
 import           Data.Text (Text)
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
-import Data.Sequence (Seq)
-import Data.Foldable (toList)
-import qualified Data.Sequence as Seq
+import Data.Sequence (Seq((:<|)))
 import           Unison.Util.Monoid (intercalateMap)
 
-type Width = Word
+type Width = Int
 
 -- Delta lines columns
-data Delta = Delta !Word !Word
+data Delta = Delta !Int !Int deriving (Eq,Ord,Show)
 
 instance Semigroup Delta where (<>) = mappend
 instance Monoid Delta where
   mempty = Delta 0 0
   mappend (Delta l c) (Delta 0 c2) = Delta l (c + c2)
-  mappend (Delta l c) (Delta l2 c2) = Delta (l + l2) c2
+  mappend (Delta l _) (Delta l2 c2) = Delta (l + l2) c2
 
 data PP2 a = PP2
   { flow :: (Delta, Seq a)
   , breaks :: Seq (Width -> PP2 a) }
   deriving Functor
+
+preferred :: PP2 a -> Delta
+preferred = fst . flow
 
 instance Semigroup (PP2 a) where (<>) = mappend
 instance Monoid (PP2 a) where
@@ -40,24 +41,39 @@ instance Monoid (PP2 a) where
     PP2 (flow p1 <> flow p2) (breaks p1 <> breaks p2)
 
 group2 :: PP2 a -> PP2 a
-group2 (PP2 f cs) = PP2 f $ pure (\w -> breakN w cs)
-
-breakN :: Width -> Seq (Width -> PP2 a) -> PP2 a
-breakN w cs = foldMap ($ w) cs
+group2 (PP2 f cs) = PP2 f $ pure (\w -> foldMap ($ w) cs)
 
 fit :: Width -> PP2 a -> (Delta, Seq a)
-fit w (PP2 p@(Delta y x, s) _) | x <= w = p
+fit w (PP2 p@(Delta _ x, _) _) | x <= w = p
 fit w (PP2 _ cs) = fitN w cs
 
 fitN :: Width -> Seq (Width -> PP2 a) -> (Delta, Seq a)
 fitN avail cs = case LL.uncons cs of
   Nothing -> (mempty, mempty)
-  Just (hd, tl) -> go (hd avail) where
-    -- todo add a same check to prevent infinite loop if there's unbreakable
-    -- literal greater than width
-    go (PP2 p@(Delta _ x, _) _) | x <= avail =
-      p <> fitN (avail - x) tl
-    go (PP2 _ bs) = go (breakN avail bs)
+  Just (hd, tl) -> go avail (pure $ hd avail) where
+    go avail (pp@(PP2 p@(Delta _ x, _) _) :<| hds)
+      | x <= avail || isUnbreakable pp = p <> go (avail - x) hds
+    go avail (PP2 _ cs :<| hds) =
+      go avail ((($ avail) <$> cs) <> hds)
+    go avail _ = fitN avail tl
+    isUnbreakable (PP2 (d,_) hs) = preferred (foldMap ($ 0) hs) == d
+
+lit :: LL.ListLike a Char => a -> PP2 a
+lit a =
+  let delta = foldl' (<>) mempty $ map chDelta (LL.toList a)
+  in lit' delta a
+
+lit' :: Delta -> a -> PP2 a
+lit' delta a =
+  let result = PP2 (delta, pure a) (pure $ const result)
+  in result
+
+chDelta :: Char -> Delta
+chDelta '\n' = Delta 1 0
+chDelta _ = Delta 0 1
+
+instance IsString s => IsString (PP2 s) where
+  fromString s = lit' (foldMap chDelta s) (fromString s)
 
 render2 :: Monoid a => Width -> PP2 a -> a
 render2 width pp = foldMap id . snd $ fit width pp
