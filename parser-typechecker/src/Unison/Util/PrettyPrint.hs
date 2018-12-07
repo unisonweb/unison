@@ -17,28 +17,53 @@ import Data.Foldable (toList)
 import qualified Data.Sequence as Seq
 import           Unison.Util.Monoid (intercalateMap)
 
-type Width = Int
+type Width = Word
 
-data PP2 a =
-  PP2 { preferred :: Width,
-        fits :: Seq (Width -> (Int, Seq a)) } deriving Functor
+-- Delta lines columns
+data Delta = Delta !Word !Word
+
+instance Semigroup Delta where (<>) = mappend
+instance Monoid Delta where
+  mempty = Delta 0 0
+  mappend (Delta l c) (Delta 0 c2) = Delta l (c + c2)
+  mappend (Delta l c) (Delta l2 c2) = Delta (l + l2) c2
+
+data PP2 a = PP2
+  { flow :: (Delta, Seq a)
+  , breaks :: Seq (Width -> PP2 a) }
+  deriving Functor
 
 instance Semigroup (PP2 a) where (<>) = mappend
 instance Monoid (PP2 a) where
-  mempty = PP2 0 mempty
-  mappend p1 p2 = PP2 (preferred p1 + preferred p2) (fits p1 <> fits p2)
--- empty = PP2 0 mempty
+  mempty = PP2 mempty mempty
+  mappend p1 p2 =
+    PP2 (flow p1 <> flow p2) (breaks p1 <> breaks p2)
 
 group2 :: PP2 a -> PP2 a
-group2 (PP2 w cs) = PP2 w (pure $ combine cs)
-  where
-  combine cs w =
-    let outs = ($ w) <$> cs
-    in (foldl' (+) 0 . toList $ fst <$> outs, mconcat . toList $ snd <$> outs)
-  empty = PP2 0 mempty
+group2 (PP2 f cs) = PP2 f $ pure (\w -> breakN w cs)
 
--- literal :: LL.ListLike a elem => a -> PP2 a
--- literal a =
+breakN :: Width -> Seq (Width -> PP2 a) -> PP2 a
+breakN w cs = foldMap ($ w) cs
+
+fit :: Width -> PP2 a -> (Delta, Seq a)
+fit w (PP2 p@(Delta y x, s) _) | x <= w = p
+fit w (PP2 _ cs) = fitN w cs
+
+fitN :: Width -> Seq (Width -> PP2 a) -> (Delta, Seq a)
+fitN avail cs = case LL.uncons cs of
+  Nothing -> (mempty, mempty)
+  Just (hd, tl) -> go (hd avail) where
+    -- todo add a same check to prevent infinite loop if there's unbreakable
+    -- literal greater than width
+    go (PP2 p@(Delta _ x, _) _) | x <= avail =
+      p <> fitN (avail - x) tl
+    go (PP2 _ bs) = go (breakN avail bs)
+
+render2 :: Monoid a => Width -> PP2 a -> a
+render2 width pp = foldMap id . snd $ fit width pp
+
+-- render :: (LL.ListLike a Char) => Int -> PrettyPrint a -> a
+-- breakable2 :: IsString s => woot
 
 
 -- A tree of `a` tokens, to be rendered to a character window by traversing the
