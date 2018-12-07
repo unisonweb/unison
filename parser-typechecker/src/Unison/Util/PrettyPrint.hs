@@ -72,6 +72,18 @@ chDelta :: Char -> Delta
 chDelta '\n' = Delta 1 0
 chDelta _ = Delta 0 1
 
+hang :: IsString a => Int -> String -> PP2 a -> PP2 a
+hang indentation sp pp = let
+  unbroken = fromString sp <> pp
+  go _ = "\n" <> indent indentation pp
+  in PP2 (flow unbroken) $ pure go
+
+indent :: Int -> PP2 a -> PP2 a
+indent _by _pp = error "todo"
+
+wrap :: (LL.ListLike s Char, IsString s) => [s] -> PP2 s
+wrap _words = error "todo"
+
 instance IsString s => IsString (PP2 s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
 
