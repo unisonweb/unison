@@ -121,7 +121,7 @@ annotateBound t = go Set.empty t where
     Abs x body -> abs' a x (go (Set.insert x bound) body)
     Tm body -> tm' a (go bound <$> body)
 
--- | Return the list of all variables bound by this ABT
+-- | Return the set of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
 bound t = Set.fromList (bound' t)
 
