@@ -98,6 +98,7 @@ library
     Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.PrettyPrint
+    Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation
     Unison.Util.TQueue
