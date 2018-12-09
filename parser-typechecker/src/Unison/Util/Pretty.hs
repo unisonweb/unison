@@ -8,10 +8,11 @@
 
 module Unison.Util.Pretty where
 
+import Debug.Trace
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Prelude hiding (lines, map)
-import Data.List (foldl')
+import Data.List (foldl',scanl')
 import qualified Data.ListLike      as LL
 import           Data.String        (IsString, fromString)
 import Data.Sequence (Seq)
@@ -22,6 +23,10 @@ import Data.Foldable (toList)
 type Width = Int
 
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
+  deriving Show
+data F s r
+  = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
+  deriving (Show, Foldable, Traversable, Functor)
 
 map :: LL.ListLike s2 Char => (s -> s2) -> Pretty s -> Pretty s2
 map f p = case out p of
@@ -30,7 +35,7 @@ map f p = case out p of
   Group p -> group (map f p)
   Lit s -> lit' (foldMap chDelta $ LL.toList s2) s2 where s2 = f s
   OrElse p1 p2 -> orElse (map f p1) (map f p2)
-  Wrap p -> wrap (map f p)
+  Wrap p -> wrap_ (map f <$> p)
 
 flatMap :: (s -> Pretty s2) -> Pretty s -> Pretty s2
 flatMap f p = case out p of
@@ -39,11 +44,7 @@ flatMap f p = case out p of
   Group p -> group (flatMap f p)
   Lit s -> f s
   OrElse p1 p2 -> orElse (flatMap f p1) (flatMap f p2)
-  Wrap p -> wrap (flatMap f p)
-
-data F s r
-  = Empty | Group r | Lit s | Wrap r | OrElse r r | Append (Seq r)
-  deriving (Foldable, Traversable, Functor)
+  Wrap p -> wrap_ (flatMap f <$> p)
 
 lit :: (IsString s, LL.ListLike s Char) => s -> Pretty s
 lit s = lit' (foldMap chDelta $ LL.toList s) s
@@ -54,16 +55,20 @@ lit' d s = Pretty d (Lit s)
 orElse :: Pretty s -> Pretty s -> Pretty s
 orElse p1 p2 = Pretty (delta p1) (OrElse p1 p2)
 
-wrap :: Pretty s -> Pretty s
-wrap p = Pretty (delta p) (Wrap p)
+wrap :: IsString s => [Pretty s] -> Pretty s
+wrap [] = mempty
+wrap (p:ps) = wrap_ . Seq.fromList $ p : fmap (softbreak <>) ps
+
+wrap_ :: Seq (Pretty s) -> Pretty s
+wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
 
 wrapStr :: IsString s => String -> Pretty s
-wrapStr s = group . wrap . spaced $ fromString <$> words s
+wrapStr = wrap . fmap fromString . words
 
 group :: Pretty s -> Pretty s
 group p = Pretty (delta p) (Group p)
 
-render :: (Monoid s, IsString s) => Width -> Pretty s -> s
+render :: (Show s, Monoid s, IsString s) => Width -> Pretty s -> s
 render avail p =
   if preferredWidth p <= avail || isLit p then flow p
   else render avail (break1 p)
@@ -76,35 +81,25 @@ render avail p =
       Group p -> p
       Lit _ -> p
       OrElse _ p -> break1 p
-      Wrap pi -> go avail mempty (break1 pi) where
-        inc w (Delta 0 x) = w + x
-        inc w (Delta _ x) = x
-        go avail acc pj = case out pj of
-          _ | preferredWidth acc > avail -> acc <> pj
-          Append pjs -> case pjs of
-            Seq.Empty -> acc
-            hd Seq.:<| pjs ->
-              if preferredWidth hd <= avail then
-                go (inc avail $ delta hd) (acc <> hd) (Pretty (foldMap delta pjs) (Append pjs))
-              else
-                acc <> hd <> Pretty (foldMap delta pjs) (Append pjs)
-          Empty -> acc
-          Group pj -> acc <> pj
-          Lit _ -> acc <> pj
-          Wrap pj -> go avail acc pj
-          OrElse pj1 pj2 ->
-            if preferredWidth pj1 + preferredWidth acc <= avail then
-              acc <> pj1
-            else
-              go avail acc pj2
+      Wrap ps -> go mempty ps where
+        go _ Seq.Empty = mempty
+        go start ps = let
+          ws = drop 1 . scanl' (<>) start $ delta <$> (toList ps)
+          n = length $ takeWhile (\(Delta _ w) -> w <= avail) ws
+          rem = Seq.drop n ps
+          s2 = Seq.take n ps <> (break1 <$> Seq.take 1 rem)
+          hd = flows' s2
+          in if n == 0 then error $ "unable to progress: " ++ show start ++ " " ++ show ps
+             else hd <> go (start <> delta hd) (Seq.drop 1 rem)
 
+    flows' ps = lit' (foldMap delta ps) (foldMap flow ps)
     flow p = case out p of
       Append ps -> foldMap flow ps
       Empty -> mempty
       Group p -> flow p
       Lit s -> s
       OrElse p _ -> flow p
-      Wrap p -> flow p
+      Wrap ps -> foldMap flow ps
 
 newline :: IsString s => Pretty s
 newline = lit' (chDelta '\n') (fromString "\n")
@@ -233,3 +228,6 @@ ex4 = "x =" <> hang (spaced $ replicate 7 "sdlfkj")
 
 ex5 :: Pretty String
 ex5 = indentN 2 $ wrapStr "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras pretium metus dolor, id maximus mi commodo ac. Nullam accumsan ex non leo rutrum vulputate. Suspendisse potenti. Vivamus ultricies finibus neque, ut lacinia sem ornare sed. Morbi feugiat non sem sit amet tincidunt. Nam porttitor auctor orci, a vulputate metus. In non quam et magna elementum posuere. Nam laoreet nisl nec est iaculis, et ornare sem volutpat. Integer eget laoreet tortor. Fusce finibus pellentesque libero ac elementum."
+
+ex6 :: Pretty String
+ex6 = indentN 2 $ wrapStr "ab cde ef gh"
