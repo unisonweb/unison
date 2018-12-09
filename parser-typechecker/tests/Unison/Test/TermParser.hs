@@ -190,6 +190,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s builtins of
     Left e -> do
-      note . show $ renderParseErrorAsANSI s e
-      crash . show $ renderParseErrorAsANSI s e
+      note $ renderParseErrorAsANSI s e
+      crash $ renderParseErrorAsANSI s e
     Right _ -> ok

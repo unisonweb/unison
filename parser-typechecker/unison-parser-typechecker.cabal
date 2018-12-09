@@ -42,6 +42,7 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
+    Unison.Codebase.CommandLine2
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
@@ -122,6 +123,7 @@ library
     free,
     fsnotify,
     hashable,
+    haskeline,
     io-streams,
     lens,
     ListLike,
@@ -170,18 +172,18 @@ executable bootstrap
     vector,
     unison-parser-typechecker
 
-executable watcher
+executable unison
   main-is: Main.hs
-  hs-source-dirs: watcher
+  hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
     safe,
     unison-parser-typechecker
 
-executable unison
+executable unisonold
   main-is: Main.hs
-  hs-source-dirs: unison
+  hs-source-dirs: unisonold
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,

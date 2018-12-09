@@ -14,6 +14,17 @@ data TQueue a = TQueue (TVar (Seq a)) (TVar Word64)
 newIO :: IO (TQueue a)
 newIO = TQueue <$> newTVarIO mempty <*> newTVarIO 0
 
+size :: TQueue a -> STM Int
+size (TQueue q _) = S.length <$> readTVar q
+
+-- Waits for this queue to reach a size <= target.
+-- Consumes no elements; it's expected there is some
+-- other thread which is consuming elements from the queue.
+awaitSize :: Int -> TQueue a -> STM ()
+awaitSize target q = size q >>= \n ->
+  if n <= target then pure ()
+  else retry
+
 peek :: TQueue a -> STM a
 peek (TQueue v _) = readTVar v >>= \case
   a :<| _ -> pure a

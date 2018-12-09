@@ -39,7 +39,7 @@ showParseError :: Var v
                => String
                -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
                -> String
-showParseError s = show . Color.renderText . prettyParseError s
+showParseError s = Color.toANSI . prettyParseError s
 
 t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .

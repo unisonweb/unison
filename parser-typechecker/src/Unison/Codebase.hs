@@ -265,3 +265,6 @@ sortedApproximateMatches q possible = trim (sortOn fst matches) where
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
+
+builtinBranch :: Branch
+builtinBranch = Branch.append (Branch.fromNames Builtin.names) mempty

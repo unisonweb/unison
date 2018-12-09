@@ -4,9 +4,12 @@
 
 module Unison.Codebase.Editor where
 
+import           Control.Monad.Extra            ( ifM )
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
-import           Data.Text                      ( Text, unpack )
+import           Data.Text                      ( Text
+                                                , unpack
+                                                )
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -29,6 +32,8 @@ import           Unison.Result                  ( Note
                                                 , Result
                                                 )
 import qualified Unison.Result                 as Result
+import qualified Unison.Codebase.Runtime       as Runtime
+import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as Context
@@ -36,6 +41,10 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
+
+data Event
+  = UnisonFileChanged SourceName Text
+  | UnisonBranchChanged (Set Name)
 
 type BranchName = Name
 type Source = Text -- "id x = x\nconst a b = a"
@@ -48,6 +57,7 @@ type Type v a = Type.AnnotatedType v a
 
 data AddOutputComponent v =
   AddOutputComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+  deriving (Show)
 
 data AddOutput v
   = NothingToAdd
@@ -63,8 +73,9 @@ data AddOutput v
           -- Has a colliding name but a different definition than the codebase.
           , collisions :: AddOutputComponent v
           }
+          deriving (Show)
 
-data SearchType = Exact | Fuzzy
+data SearchType = Exact | Fuzzy deriving (Show)
 
 data Input
   -- high-level manipulation of names
@@ -101,6 +112,7 @@ data Input
   | ForkBranchI BranchName
   | MergeBranchI BranchName
   | QuitI
+  deriving (Show)
 
 data Output v
   = Success Input
@@ -111,14 +123,17 @@ data Output v
   -- `name` refers to more than one `nameTarget`
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
-  | ListOfBranches [BranchName]
+  | ListOfBranches BranchName [BranchName]
   | SearchResult BranchName SearchType String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | DisplayConflicts Branch0
+  | Evaluated ([(Text, Term v ())], Term v ())
+  deriving (Show)
 
 data Command i v a where
-  Input :: Command i v (Either (TypecheckingResult v) i)
+  Input :: Command i v i
 
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
@@ -129,6 +144,10 @@ data Command i v a where
             -> SourceName
             -> Source
             -> Command i v (TypecheckingResult v)
+
+  -- Evaluate a UnisonFile and return the result and the result of
+  -- any watched expressions (which are just labeled with `Text`)
+  Evaluate :: UF.UnisonFile v Ann -> Command i v ([(Text, Term v ())], Term v ())
 
   -- Load definitions from codebase:
   -- option 1:
@@ -148,6 +167,9 @@ data Command i v a where
   -- Loads a branch by name from the codebase, returning `Nothing` if not found.
   LoadBranch :: BranchName -> Command i v (Maybe Branch)
 
+  -- Switches the app state to the given branch.
+  SwitchBranch :: Branch -> BranchName -> Command i v ()
+
   -- Returns `Nothing` if a branch by that name already exists.
   NewBranch :: BranchName -> Command i v Bool
 
@@ -157,23 +179,20 @@ data Command i v a where
   ForkBranch :: Branch -> BranchName -> Command i v Bool
 
   -- Merges the branch with the existing branch with the given name. Returns
-  -- `Nothing` if no branch with that name exists.
+  -- `False` if no branch with that name exists, `True` otherwise.
   MergeBranch :: BranchName -> Branch -> Command i v Bool
 
-  -- Return the subset of the branch tip which is in a conflicted state
-  GetConflicts :: BranchName -> Command i v (Maybe Branch0)
-
-  -- Tell the UI to display a set of conflicts
-  DisplayConflicts :: Branch0 -> Command i v ()
+  -- Return the subset of the branch tip which is in a conflicted state.
+  -- A conflict is:
+  -- * A name with more than one referent.
+  -- *
+  GetConflicts :: Branch -> Command i v Branch0
 
   -- RemainingWork :: Branch -> Command i v [RemainingWork]
 
   -- idea here is to find "close matches" of stuff in the input file, so
   -- can suggest use of preexisting definitions
   -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
-
-notifyUser :: Output v -> IO ()
-notifyUser = undefined
 
 addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
 addToBranch branch unisonFile
@@ -216,21 +235,27 @@ newBranch codebase branchName = forkBranch codebase builtinBranch branchName
 
 forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 forkBranch codebase branch branchName = do
-  b <- Codebase.getBranch codebase branchName
-  case b of
-    Nothing -> do
-      newBranch <- Codebase.mergeBranch codebase branchName branch
-      pure $ newBranch == branch
-    Just _ -> pure False
+  ifM (Codebase.branchExists codebase branchName)
+      (pure False)
+      ((branch ==) <$> Codebase.mergeBranch codebase branchName branch)
+
+mergeBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+mergeBranch codebase branch branchName = ifM
+  (Codebase.branchExists codebase branchName)
+  (Codebase.mergeBranch codebase branchName branch *> pure True)
+  (pure False)
 
 commandLine
   :: forall i v a
    . Var v
-  => IO (Either (TypecheckingResult v) i)
+  => IO i
+  -> Runtime v
+  -> (Branch -> BranchName -> IO ())
+  -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput codebase command = do
+commandLine awaitInput rt branchChange notifyUser codebase command = do
   Free.fold go command
  where
   go :: forall x . Command i v x -> IO x
@@ -242,8 +267,11 @@ commandLine awaitInput codebase command = do
       pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
+    Evaluate unisonFile -> Runtime.evaluate rt unisonFile codebase
     ListBranches -> Codebase.branches codebase
     LoadBranch branchName -> Codebase.getBranch codebase branchName
     NewBranch branchName -> newBranch codebase branchName
     ForkBranch branch branchName -> forkBranch codebase branch branchName
-    _ -> undefined
+    MergeBranch branchName branch -> mergeBranch codebase branch branchName
+    GetConflicts branch -> pure $ Branch.conflicts' branch
+    SwitchBranch branch branchName -> branchChange branch branchName

@@ -23,6 +23,9 @@ data PrettyPrintEnv = PrettyPrintEnv {
   -- names for types
   types :: Reference -> Histogram }
 
+instance Show PrettyPrintEnv where
+  show _ = "PrettyPrintEnv"
+
 fromNames :: Names -> PrettyPrintEnv
 fromNames ns =
   let

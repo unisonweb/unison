@@ -35,7 +35,7 @@ data Names = Names
 
 data Referent' = TermRef Reference | TypeRef Reference
 
-data NameTarget = TermName | TypeName | PatternName
+data NameTarget = TermName | TypeName | PatternName deriving (Show)
 
 instance Show Names where
   -- really barebones, just to see what names are present

@@ -49,7 +49,7 @@ import qualified Unison.TypeVar               as TypeVar
 import qualified Unison.UnisonFile            as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
-import           Unison.Util.ColorText        (ANSI, Color, Rendered)
+import           Unison.Util.ColorText        (Color)
 import qualified Unison.Util.ColorText        as Color
 import           Unison.Util.Monoid           (intercalateMap)
 import           Unison.Util.Range            (Range (..))
@@ -100,7 +100,7 @@ styleAnnotated :: Annotated a => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (, sty) <$> rangeForAnnotated a
 
 style :: s -> String -> AnnotatedText s
-style sty str = AT.annotate sty str
+style sty str = AT.annotate sty (fromString str)
 
 describeStyle :: Color -> AnnotatedText Color
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -711,9 +711,7 @@ renderTerm _ e =
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
-renderType' env typ =
-  let AT.AnnotatedText' seq = renderType env (const id) typ
-  in  fromString . fold . fmap fst $ seq
+renderType' env typ = fromString . Color.toPlain $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -852,11 +850,11 @@ showLexerOutput :: Bool
 showLexerOutput = False
 
 renderNoteAsANSI :: (Var v, Annotated a, Show a, Ord a)
-                 => Env -> String -> Note v a -> Rendered ANSI
-renderNoteAsANSI e s n = Color.renderText $ printNoteWithSource e s n
+                 => Env -> String -> Note v a -> String
+renderNoteAsANSI e s n = Color.toANSI $ printNoteWithSource e s n
 
-renderParseErrorAsANSI :: Var v => String -> Parser.Err v -> Rendered ANSI
-renderParseErrorAsANSI src = Color.renderText . prettyParseError src
+renderParseErrorAsANSI :: Var v => String -> Parser.Err v -> String
+renderParseErrorAsANSI src = Color.toANSI . prettyParseError src
 
 printNoteWithSource
   :: (Var v, Annotated a, Show a, Ord a)
