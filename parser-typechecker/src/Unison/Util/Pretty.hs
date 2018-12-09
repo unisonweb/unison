@@ -7,6 +7,7 @@
 module Unison.Util.Pretty (
    Pretty,
    bulleted,
+   -- breakable
    column2,
    commas,
    dashed,
@@ -20,6 +21,7 @@ module Unison.Util.Pretty (
    indentNAfterNewline,
    leftPad,
    lines,
+   linesSpaced,
    lit,
    map,
    minWidth,
@@ -44,7 +46,7 @@ module Unison.Util.Pretty (
   ) where
 
 import           Data.Foldable                  ( toList )
-import           Data.List                      ( foldl' , scanl' )
+import           Data.List                      ( foldl' , scanl', intersperse )
 import           Data.Sequence                  ( Seq )
 import           Data.String                    ( IsString , fromString )
 import           Data.Text                      ( Text )
@@ -166,6 +168,9 @@ parenthesizeIf True s = parenthesize s
 
 lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 lines = intercalateMap newline id
+
+linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
+linesSpaced ps = lines (intersperse " " $ toList ps)
 
 bulleted :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
 bulleted = intercalateMap newline (\b -> "* " <> indentAfterNewline "  " b)
