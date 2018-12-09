@@ -2,27 +2,62 @@
 {-# LANGUAGE DeriveFoldable      #-}
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Util.Pretty where
+module Unison.Util.Pretty (
+   Pretty,
+   bulleted,
+   column2,
+   commas,
+   dashed,
+   flatMap,
+   group,
+   hang',
+   hang,
+   indent,
+   indentAfterNewline,
+   indentN,
+   indentNAfterNewline,
+   leftPad,
+   lines,
+   lit,
+   map,
+   minWidth,
+   newline,
+   numbered,
+   orElse,
+   parenthesize,
+   parenthesizeIf,
+   preferredWidth,
+   render,
+   rightPad,
+   sep,
+   sepSpaced,
+   softbreak,
+   spaced,
+   text,
+   toANSI,
+   toPlain,
+   wrap,
+   wrapWords,
+   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+  ) where
 
-import Debug.Trace
-import Data.Text (Text)
-import qualified Data.Text as Text
-import Prelude hiding (lines, map)
-import Data.List (foldl',scanl')
-import qualified Data.ListLike      as LL
-import           Data.String        (IsString, fromString)
-import Data.Sequence (Seq)
-import qualified Data.Sequence as Seq
-import           Unison.Util.Monoid (intercalateMap)
-import Data.Foldable (toList)
+import           Data.Foldable                  ( toList )
+import           Data.List                      ( foldl' , scanl' )
+import           Data.Sequence                  ( Seq )
+import           Data.String                    ( IsString , fromString )
+import           Data.Text                      ( Text )
+import           Prelude                 hiding ( lines , map )
+import qualified Unison.Util.ColorText         as CT
+import           Unison.Util.Monoid             ( intercalateMap )
+import qualified Data.ListLike                 as LL
+import qualified Data.Sequence                 as Seq
+import qualified Data.Text                     as Text
 
 type Width = Int
 
-data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
+data Pretty s = Pretty { delta :: Delta, minDelta :: Delta, out :: F s (Pretty s) }
   deriving Show
 data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
@@ -50,31 +85,35 @@ lit :: (IsString s, LL.ListLike s Char) => s -> Pretty s
 lit s = lit' (foldMap chDelta $ LL.toList s) s
 
 lit' :: Delta -> s -> Pretty s
-lit' d s = Pretty d (Lit s)
+lit' d s = Pretty d d (Lit s)
 
 orElse :: Pretty s -> Pretty s -> Pretty s
-orElse p1 p2 = Pretty (delta p1) (OrElse p1 p2)
+orElse p1 p2 = Pretty (delta p1) (minDelta p2) (OrElse p1 p2)
 
 wrap :: IsString s => [Pretty s] -> Pretty s
 wrap [] = mempty
 wrap (p:ps) = wrap_ . Seq.fromList $ p : fmap (softbreak <>) ps
 
 wrap_ :: Seq (Pretty s) -> Pretty s
-wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
+wrap_ ps = Pretty (foldMap delta ps) (foldMap minDelta ps) (Wrap ps)
 
-wrapStr :: IsString s => String -> Pretty s
-wrapStr = wrap . fmap fromString . words
+wrapWords :: IsString s => String -> Pretty s
+wrapWords = wrap . fmap fromString . words
 
 group :: Pretty s -> Pretty s
-group p = Pretty (delta p) (Group p)
+group p = Pretty (delta p) (minDelta p) (Group p)
 
-render :: (Show s, Monoid s, IsString s) => Width -> Pretty s -> s
+toANSI :: Width -> Pretty CT.ColorText -> String
+toANSI avail p = CT.toANSI (render avail p)
+
+toPlain :: Width -> Pretty CT.ColorText -> String
+toPlain avail p = CT.toPlain (render avail p)
+
+render :: (Monoid s, IsString s) => Width -> Pretty s -> s
 render avail p =
-  if preferredWidth p <= avail || isLit p then flow p
+  if preferredWidth p <= avail || minWidth p > avail then flow p
   else render avail (break1 p)
   where
-    isLit (Pretty _ (Lit _)) = True
-    isLit _ = False
     break1 p = case out p of
       Append ps -> foldMap break1 ps
       Empty -> mempty
@@ -89,8 +128,7 @@ render avail p =
           rem = Seq.drop n ps
           s2 = Seq.take n ps <> (break1 <$> Seq.take 1 rem)
           hd = flows' s2
-          in if n == 0 then error $ "unable to progress: " ++ show start ++ " " ++ show ps
-             else hd <> go (start <> delta hd) (Seq.drop 1 rem)
+          in hd <> go (start <> delta hd) (Seq.drop 1 rem)
 
     flows' ps = lit' (foldMap delta ps) (foldMap flow ps)
     flow p = case out p of
@@ -183,9 +221,9 @@ instance IsString s => IsString (Pretty s) where
 
 instance Semigroup (Pretty s) where (<>) = mappend
 instance Monoid (Pretty s) where
-  mempty = Pretty mempty Empty
-  mappend p1 p2 = Pretty (delta p1 <> delta p2) . Append $
-    case (out p1, out p2) of
+  mempty = Pretty mempty mempty Empty
+  mappend p1 p2 = Pretty (delta p1 <> delta p2) (minDelta p1 <> minDelta p2) .
+    Append $ case (out p1, out p2) of
       (Append ps1, Append ps2) -> ps1 <> ps2
       (Append ps1, _) -> ps1 <> pure p2
       (_, Append ps2) -> pure p1 <> ps2
@@ -204,30 +242,50 @@ chDelta :: Char -> Delta
 chDelta '\n' = Delta 1 0
 chDelta _ = Delta 0 1
 
-strDelta :: LL.ListLike s Char => s -> Delta
-strDelta s = foldMap chDelta $ LL.toList s
-
 preferredWidth :: Pretty s -> Width
-preferredWidth (Pretty (Delta _ w) _) = w
+preferredWidth p = case delta p of Delta _ w -> w
 
-ex :: Pretty String
-ex = indentN 2 $ numbered (fromString . show) stuff
-  where
-    stuff = replicate 10 (commas $ replicate 10 "hi")
+minWidth :: Pretty s -> Width
+minWidth p = case minDelta p of Delta _ w -> w
 
-ex2 :: Pretty String
-ex2 = indentN 2 $ lines (replicate 10 "hi")
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen,
+  hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold :: Pretty CT.ColorText -> Pretty CT.ColorText
+black = map CT.black
+red = map CT.red
+green = map CT.green
+yellow = map CT.yellow
+blue = map CT.yellow
+purple = map CT.purple
+cyan = map CT.cyan
+white = map CT.white
+hiBlack = map CT.hiBlack
+hiRed = map CT.hiRed
+hiGreen = map CT.hiGreen
+hiYellow = map CT.hiYellow
+hiBlue = map CT.hiBlue
+hiPurple = map CT.hiPurple
+hiCyan = map CT.hiCyan
+hiWhite = map CT.hiWhite
+bold = map CT.bold
 
-ex3 :: Pretty String
-ex3 = indentN 2 $ numbered (fromString . show) stuff
-  where
-    stuff = replicate 10 (group $ sepSpaced "**" (replicate 5 . group . commas $ replicate 5 "hi"))
-
-ex4 :: Pretty String
-ex4 = "x =" <> hang (spaced $ replicate 7 "sdlfkj")
-
-ex5 :: Pretty String
-ex5 = indentN 2 $ wrapStr "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras pretium metus dolor, id maximus mi commodo ac. Nullam accumsan ex non leo rutrum vulputate. Suspendisse potenti. Vivamus ultricies finibus neque, ut lacinia sem ornare sed. Morbi feugiat non sem sit amet tincidunt. Nam porttitor auctor orci, a vulputate metus. In non quam et magna elementum posuere. Nam laoreet nisl nec est iaculis, et ornare sem volutpat. Integer eget laoreet tortor. Fusce finibus pellentesque libero ac elementum."
-
-ex6 :: Pretty String
-ex6 = indentN 2 $ wrapStr "ab cde ef gh"
+--ex :: Pretty String
+--ex = indentN 2 $ numbered (fromString . show) stuff
+--  where
+--    stuff = replicate 10 (commas $ replicate 10 "hi")
+--
+--ex2 :: Pretty String
+--ex2 = indentN 2 $ lines (replicate 10 "hi")
+--
+--ex3 :: Pretty String
+--ex3 = indentN 2 $ numbered (fromString . show) stuff
+--  where
+--    stuff = replicate 10 (group $ sepSpaced "**" (replicate 5 . group . commas $ replicate 5 "hi"))
+--
+--ex4 :: Pretty String
+--ex4 = "x =" <> hang (spaced $ replicate 7 "sdlfkj")
+--
+--ex5 :: Pretty String
+--ex5 = indentN 2 $ wrapWords "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras pretium metus dolor, id maximus mi commodo ac. Nullam accumsan ex non leo rutrum vulputate. Suspendisse potenti. Vivamus ultricies finibus neque, ut lacinia sem ornare sed. Morbi feugiat non sem sit amet tincidunt. Nam porttitor auctor orci, a vulputate metus. In non quam et magna elementum posuere. Nam laoreet nisl nec est iaculis, et ornare sem volutpat. Integer eget laoreet tortor. Fusce finibus pellentesque libero ac elementum."
+--
+--ex6 :: Pretty String
+--ex6 = indentN 2 $ wrapWords "ab cde ef gh"
