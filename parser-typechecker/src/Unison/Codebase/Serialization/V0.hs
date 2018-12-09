@@ -38,8 +38,8 @@ import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
-import           Unison.Names (Referent)
-import qualified Unison.Names as Names
+import           Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( AnnotatedTerm )
@@ -165,14 +165,14 @@ getReference = do
 
 putReferent :: MonadPut m => Referent -> m ()
 putReferent r = case r of
-  Names.Ref r -> do
+  Referent.Ref r -> do
     putWord8 0
     putReference r
-  Names.Con r i -> do
+  Referent.Con r i -> do
     putWord8 1
     putReference r
     putLength i
-  Names.Req r i -> do
+  Referent.Req r i -> do
     putWord8 2
     putReference r
     putLength i
@@ -181,9 +181,9 @@ getReferent :: MonadGet m => m Referent
 getReferent = do
   tag <- getWord8
   case tag of
-    0 -> Names.Ref <$> getReference
-    1 -> Names.Con <$> getReference <*> getLength
-    2 -> Names.Req <$> getReference <*> getLength
+    0 -> Referent.Ref <$> getReference
+    1 -> Referent.Con <$> getReference <*> getLength
+    2 -> Referent.Req <$> getReference <*> getLength
     _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
@@ -359,11 +359,11 @@ putTerm putVar putA typ = putABT putVar putA go typ where
       -> putWord8 4 *> putText t
     Term.Blank _
       -> error $ "can't serialize term with blanks"
-    Term.Ref r
+    Term.Ref (Referent.Ref r)
       -> putWord8 5 *> putReference r
-    Term.Constructor r cid
+    Term.Ref (Referent.Con r cid)
       -> putWord8 6 *> putReference r *> putLength cid
-    Term.Request r cid
+    Term.Ref (Referent.Req r cid)
       -> putWord8 7 *> putReference r *> putLength cid
     Term.Handle h a
       -> putWord8 8 *> putChild h *> putChild a
@@ -401,7 +401,7 @@ getTerm getVar getA = getABT getVar getA go where
     2 -> Term.Float <$> getFloat
     3 -> Term.Boolean <$> getBoolean
     4 -> Term.Text <$> getText
-    5 -> Term.Ref <$> getReference
+    5 -> Term.Reff <$> getReference
     6 -> Term.Constructor <$> getReference <*> getLength
     7 -> Term.Request <$> getReference <*> getLength
     8 -> Term.Handle <$> getChild <*> getChild

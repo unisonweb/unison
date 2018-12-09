@@ -22,6 +22,7 @@ import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import qualified Unison.Referent as Referent
 import qualified Unison.Term as Term
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
@@ -108,7 +109,7 @@ toNames0
   :: Var v
   => v
   -> Reference
-  -> (Reference -> Int -> Names.Referent)
+  -> (Reference -> Int -> Referent.Referent)
   -> DataDeclaration' v a
   -> Names
 toNames0 typeSymbol r f dd =
@@ -120,10 +121,10 @@ toNames0 typeSymbol r f dd =
         <> Names.fromTypesV [(typeSymbol, r)]
 
 dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
-dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Names.Con dd
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
-effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Names.Req $ toDataDecl ed
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Referent.Req $ toDataDecl ed
 
 dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d

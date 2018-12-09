@@ -29,9 +29,11 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import           Unison.Hash              (Hash)
 import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
-import           Unison.Names             (Name, Names (..), Referent)
+import           Unison.Names             (Name, Names (..))
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import qualified Unison.Referent          as Referent
+import           Unison.Referent          (Referent)
 import qualified Unison.UnisonFile        as UF
 import           Unison.Util.Relation     (Relation)
 import qualified Unison.Util.Relation     as R
@@ -83,11 +85,11 @@ data Branch0 =
           , editedTypes      :: Relation Reference TypeEdit
           } deriving (Eq)
 
-allNamedReferences :: Branch0 -> Set Reference
-allNamedReferences b = let
-  termRefs = Set.map Names.referentToReference (R.ran (termNamespace b))
-  typeRefs = R.ran (typeNamespace b)
-  in termRefs <> typeRefs
+-- allNamedReferences :: Branch0 -> Set Reference
+-- allNamedReferences b = let
+--   termRefs = Set.map Names.referentToReference (R.ran (termNamespace b))
+--   typeRefs = R.ran (typeNamespace b)
+--   in termRefs <> typeRefs
 
 allNamedTypes :: Branch0 -> Set Reference
 allNamedTypes b = R.ran (typeNamespace b)
@@ -231,15 +233,15 @@ resolved f = resolved' . f . Causal.head . unbranch where
 data RemainingWork
   = TermNameConflict Name (Set Referent)
   | TypeNameConflict Name (Set Reference)
-  | TermEditConflict Reference (Set TermEdit)
+  | TermEditConflict Referent (Set TermEdit)
   | TypeEditConflict Reference (Set TypeEdit)
-  -- ObsoleteTerm r [(old,new)]: r depended on old, which has been updated to new
-  | ObsoleteTerm Reference (Set (Reference, Either TermEdit TypeEdit))
+  -- ObsoleteTerm r [(oldterm,newterm)] [(oldtype, newtype)]:
+  -- r depended on old, which has been updated to new
+  | ObsoleteTerm Referent (Set (Referent, TermEdit)) (Set (Reference, TypeEdit))
   | ObsoleteType Reference (Set (Reference, TypeEdit))
   deriving (Eq, Ord, Show)
 
 -- remaining :: forall m. Monad m => ReferenceOps m -> Branch -> m (Set RemainingWork)
--- remaining _ops _b = error "todo"
 -- remaining ops b@(Branch (Causal.head -> b0)) = do
 -- -- If any of r's dependencies have been updated, r should be updated.
 -- -- Alternatively: If `a` has been edited, then all of a's dependents
@@ -255,7 +257,7 @@ data RemainingWork
 --     (uncurry ObsoleteTerm <$> Map.toList obsoleteTerms) ++
 --     (uncurry ObsoleteType <$> Map.toList obsoleteTypes)
 --   where                    -- referent -> (oldreference, edit)
---     wrangleUpdatedTerms :: m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
+--     wrangleUpdatedTerms :: m (Map Referent (Set (Referent, TermEdit)))
 --     wrangleUpdatedTerms =
 --       -- 1. filter the edits to find the ones that are resolved (not conflicted)
 --       -- 2. for each resolved (oldref,edit) pair,
@@ -263,25 +265,33 @@ data RemainingWork
 --       -- 2c.  if the referent is unedited, add it to the work:
 --       -- 2c(i).  add it to the term work list if it's a term ref,
 --       -- 2c(ii). only terms can depend on terms, so it's a term ref.
---       let termEdits :: Map Reference TermEdit -- oldreference, edit
+--       let termEdits :: Map Referent TermEdit -- oldreference, edit
 --           termEdits = resolved editedTerms b
---           transitiveDependents :: Reference -> m (Set Reference)
---           transitiveDependents r = transitiveClosure1 (dependents ops) r
+--           transitiveDependents :: Referent -> m (Set Reference)
+--           transitiveDependents (Names.Ref r) = transitiveDependents' r
+--           transitiveDependents (Names.Con r _i) = transitiveDependents' r
+--           transitiveDependents (Names.Req r _i) = transitiveDependents' r
+--           transitiveDependents' :: Reference -> m (Set Reference)
+--           transitiveDependents' r = transitiveClosure1 (dependents ops) r
+--           isEdited :: Referent -> Bool
 --           isEdited r = R.memberDom r (editedTerms b0)
---           uneditedTransitiveDependents :: Reference -> m [Reference]
+--           --
+--           uneditedTransitiveDependents :: Referent -> m [Referent]
 --           uneditedTransitiveDependents r =
---             filter (not . isEdited) . toList <$> transitiveDependents r
---           asSingleton :: Reference -> TermEdit -> Reference -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
---           asSingleton oldRef edit referent = Map.singleton referent (Set.singleton (oldRef, Left edit))
---           workFromEdit :: (Reference, TermEdit) -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
+--             filter (not . isEdited) . toList . fmap Names.Ref <$> transitiveDependents r
+--           asSingleton :: Reference -> TermEdit -> Reference -> Map Reference (Set (Reference, TermEdit))
+--           asSingleton oldRef edit referent = Map.singleton referent (Set.singleton (oldRef, edit))
+--           workFromEdit :: (Referent, TermEdit) -> m (Map Referent (Set (Referent, TermEdit), Set (Reference, TypeEdit)))
 --           workFromEdit (oldRef, edit) =
 --             mconcat . fmap (asSingleton oldRef edit) <$> uneditedTransitiveDependents oldRef
 --       in fmap mconcat (traverse workFromEdit $ Map.toList termEdits)
 --
 --     wrangleUpdatedTypes ::
 --       Monad m => ReferenceOps m
---               -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
---               -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
+--               -> Map Referent (Set (Referent, TermEdit)
+--                               ,Set (Reference, TypeEdit))
+--               -> m (Map Referent (Set (Referent, TermEdit)
+--                                  ,Set (Reference, TypeEdit))
 --                    ,Map Reference (Set (Reference, TypeEdit)))
 --     wrangleUpdatedTypes ops initialTermEdits =
 --       -- 1. filter the edits to find the ones that are resolved (not conflicted)
@@ -397,12 +407,12 @@ fromTypecheckedFile file = let
   hashedTerms = UF.hashTerms file
   ctors :: [(v, Referent)]
   ctors = Map.toList $ UF.hashConstructors file
-  conNamespace = R.fromList [ (toName v, r) | (v, r@(Names.Con _ _)) <- ctors ]
-  reqNamespace = R.fromList [ (toName v, r) | (v, r@(Names.Req _ _)) <- ctors ]
+  conNamespace = R.fromList [ (toName v, r) | (v, r@(Referent.Con _ _)) <- ctors ]
+  reqNamespace = R.fromList [ (toName v, r) | (v, r@(Referent.Req _ _)) <- ctors ]
   patternNamespace =
-    R.fromList ([ (toName v, (r,i)) | (v, (Names.Con r i)) <- ctors ] <>
-                [ (toName v, (r,i)) | (v, (Names.Req r i)) <- ctors ])
-  termNamespace1 = R.fromList [ (toName v, Names.Ref r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
+    R.fromList ([ (toName v, (r,i)) | (v, (Referent.Con r i)) <- ctors ] <>
+                [ (toName v, (r,i)) | (v, (Referent.Req r i)) <- ctors ])
+  termNamespace1 = R.fromList [ (toName v, Referent.Ref r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
   typeNamespace1 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.dataDeclarations' file) ]
   typeNamespace2 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.effectDeclarations' file) ]
   in Branch0 (termNamespace1 `R.union` conNamespace `R.union` reqNamespace)
@@ -502,9 +512,9 @@ deleteOrphans as b c =
 codebase :: Monad m => ReferenceOps m -> Branch -> m (Set Reference)
 codebase ops (Branch (Causal.head -> Branch0 {..})) =
   let initial = Set.fromList $
-        (Names.referentToReference . snd <$> R.toList termNamespace) ++
+        (Referent.referentToReference . snd <$> R.toList termNamespace) ++
         (snd <$> R.toList typeNamespace) ++
-        (Names.referentToReference <$>
+        (Referent.referentToReference <$>
             (map snd (R.toList editedTerms) >>= TermEdit.referents)) ++
         (map snd (R.toList editedTypes) >>= TypeEdit.references)
   in transitiveClosure (dependencies ops) initial

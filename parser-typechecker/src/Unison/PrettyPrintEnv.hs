@@ -7,7 +7,9 @@ import Data.Map (Map)
 import Unison.Reference (Reference)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import Unison.Names (Name,Names,Referent)
+import Unison.Names (Name,Names)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import qualified Unison.Names as Names
 
 type Histogram = Map Name Word
@@ -84,8 +86,8 @@ fromConstructorNames ctors reqs = let
   toH Nothing = mempty
   toH (Just t) = Map.fromList [(t, 1)]
   in mempty { terms = \r -> case r of
-                Names.Con r i -> toH $ Map.lookup (r,i) cs
-                Names.Req r i -> toH $ Map.lookup (r,i) rs
+                Referent.Con r i -> toH $ Map.lookup (r,i) cs
+                Referent.Req r i -> toH $ Map.lookup (r,i) rs
                 _ -> mempty
             , patterns = \r i -> toH $ Map.lookup (r,i) (cs `Map.union` rs) }
 
@@ -99,10 +101,10 @@ typeName :: PrettyPrintEnv -> Reference -> Name
 typeName env r = pickName r (types env r)
 
 constructorName :: PrettyPrintEnv -> Reference -> Int -> Name
-constructorName env r cid = pickNameCid r cid (terms env (Names.Con r cid))
+constructorName env r cid = pickNameCid r cid (terms env (Referent.Con r cid))
 
 requestName :: PrettyPrintEnv -> Reference -> Int -> Name
-requestName env r cid = pickNameCid r cid (terms env (Names.Req r cid))
+requestName env r cid = pickNameCid r cid (terms env (Referent.Req r cid))
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> Name
 patternName env r cid = pickNameCid r cid (patterns env r cid)
@@ -115,9 +117,9 @@ pickName r h = case argmax snd (Map.toList h) of
 pickNameReferent :: Referent -> Histogram -> Name
 pickNameReferent r h = case argmax snd (Map.toList h) of
   Nothing -> case r of
-    Names.Ref r -> Text.pack (show r)
-    Names.Con r i -> Text.pack (show r <> "#" <> show i)
-    Names.Req r i -> Text.pack (show r <> "#" <> show i)
+    Referent.Ref r -> Text.pack (show r)
+    Referent.Con r i -> Text.pack (show r <> "#" <> show i)
+    Referent.Req r i -> Text.pack (show r <> "#" <> show i)
   Just (name,_) -> name
 
 pickNameCid :: Reference -> Int -> Histogram -> Name

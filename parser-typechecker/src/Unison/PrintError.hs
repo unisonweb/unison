@@ -35,10 +35,10 @@ import qualified Unison.DataDeclaration       as DD
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
-import qualified Unison.Names                 as Names
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
+import qualified Unison.Referent              as Referent
 import           Unison.Result                (Note (..))
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
@@ -701,7 +701,7 @@ renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
 renderTerm env (Term.Ref' r) =
-  fromString (Text.unpack $ PPE.termName env (Names.Ref r))
+  fromString (Text.unpack $ PPE.termName env r)
 renderTerm _ e =
   let s = show e
   in      -- todo: pretty print
@@ -783,7 +783,7 @@ renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> Names.Referent -> s
+showTermRef :: IsString s => Env -> Referent.Referent -> s
 showTermRef env r = fromString . Text.unpack $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s

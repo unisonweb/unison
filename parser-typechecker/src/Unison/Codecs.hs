@@ -24,6 +24,7 @@ import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
 import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
+import qualified Unison.Referent as Referent
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
@@ -63,18 +64,18 @@ serializeTerm x = do
     ABT.Tm f -> case f of
       Ann e _ -> do
         serializeTerm e -- ignore types (todo: revisit)
-      Ref ref -> do
+      Ref (Referent.Ref ref) -> do
         putTag
         putWord8 2
         serializeReference ref
         incPosition
-      Constructor ref id -> do
+      Ref (Referent.Con ref id) -> do
         putTag
         putWord8 3
         serializeReference ref
         putWord32be $ fromIntegral id
         incPosition
-      Request ref id -> do
+      Ref (Referent.Req ref id) -> do
         putTag
         putWord8 4
         serializeReference ref

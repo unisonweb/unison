@@ -12,7 +12,6 @@ import           Data.Vector()
 import           Unison.ABT (pattern AbsN')
 import qualified Unison.Blank as Blank
 import           Unison.Lexer (symbolyId)
-import qualified Unison.Names as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Term
@@ -90,7 +89,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint Str
 -- `Maybe Int` identifies which constructor.
 pretty n p term = specialCases term $ \case
   Var' v       -> l $ varName v
-  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
+  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n r)
   Ann' tm t    -> parenNest (p >= 0) $
                     pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
   Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
@@ -167,7 +166,7 @@ pretty n p term = specialCases term $ \case
         -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".
         binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
         binaryOpsPred = \case
-          Ref' r | isSymbolic (PrettyPrintEnv.termName n (Names.Ref r)) -> True
+          Ref' r | isSymbolic (PrettyPrintEnv.termName n r) -> True
           Var' v | isSymbolic (Var.name v)  -> True
           _                                 -> False
 

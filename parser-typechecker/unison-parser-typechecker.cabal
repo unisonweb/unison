@@ -71,6 +71,7 @@ library
     Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
+    Unison.Referent
     Unison.Result
     Unison.Runtime.Rt0
     Unison.Settings

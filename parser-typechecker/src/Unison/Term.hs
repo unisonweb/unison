@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Term where
 
@@ -39,6 +40,8 @@ import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
+import           Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
@@ -54,6 +57,7 @@ data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
+
 data F typeVar typeAnn patternAnn a
   = Int Int64
   | Nat Word64
@@ -61,11 +65,7 @@ data F typeVar typeAnn patternAnn a
   | Boolean Bool
   | Text Text
   | Blank (B.Blank typeAnn)
-  | Ref Reference
-  -- First argument identifies the data type,
-  -- second argument identifies the constructor
-  | Constructor Reference Int
-  | Request Reference Int
+  | Ref Referent
   | Handle a a
   | App a a
   | Ann a (Type.AnnotatedType typeVar typeAnn)
@@ -92,6 +92,10 @@ data F typeVar typeAnn patternAnn a
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
+
+pattern Reff r = Ref (Referent.Ref r)
+pattern Constructor r id = Ref (Referent.Con r id)
+pattern Request r id = Ref (Referent.Req r id)
 
 type IsTop = Bool
 
@@ -207,11 +211,12 @@ pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
-pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
+pattern Reff' r <- (ABT.out -> ABT.Tm (Ref (Referent.Ref r)))
+pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Referent.Ref (Builtin r))))
 pattern App' f x <- (ABT.out -> ABT.Tm (App f x))
 pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branches))
-pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Constructor ref n))
-pattern Request' ref n <- (ABT.out -> ABT.Tm (Request ref n))
+pattern Constructor' ref n <- (ABT.out -> ABT.Tm (Ref (Referent.Con ref n)))
+pattern Request' ref n <- (ABT.out -> ABT.Tm (Ref (Referent.Req ref n)))
 pattern RequestOrCtor' ref n <- (unReqOrCtor -> Just (ref, n))
 pattern If' cond t f <- (ABT.out -> ABT.Tm (If cond t f))
 pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
@@ -253,11 +258,14 @@ var = ABT.annotatedVar
 var' :: Var v => Text -> Term' vt v
 var' = var() . ABT.v'
 
-ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
+ref :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
 
+reff :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
+reff a r = ABT.tm' a (Reff r)
+
 builtin :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
-builtin a n = ref a (Reference.Builtin n)
+builtin a n = reff a (Reference.Builtin n)
 
 float :: Ord v => a -> Double -> AnnotatedTerm2 vt at ap v a
 float a d = ABT.tm' a (Float d)
@@ -563,7 +571,7 @@ dependencies t =
 
 dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Ref r) = Writer.tell [r] *> pure t
+  where f t@(Reff r) = Writer.tell [r] *> pure t
         f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
         f t = pure t
 
@@ -598,10 +606,10 @@ referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
   go (Pattern.EffectBind _ id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
   go _ = pure ()
 
-updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
-updateDependencies u tm = ABT.rebuildUp go tm where
-  go (Ref r) = Ref (Map.findWithDefault r r u)
-  go f = f
+-- updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
+-- updateDependencies u tm = ABT.rebuildUp go tm where
+--   go (Ref r) = Ref (Map.findWithDefault r r u)
+--   go f = f
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
@@ -610,7 +618,7 @@ betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
 hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
-hashComponents m = Reference.hashComponents (\r -> ref() r) m
+hashComponents m = Reference.hashComponents (\r -> reff() r) m
 
 -- The hash for a constructor
 hashConstructor'
@@ -629,6 +637,21 @@ hashConstructor = hashConstructor' $ constructor ()
 
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
+
+fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+fromReferent a = \case
+  Referent.Ref r -> reff a r
+  Referent.Req r i -> request a r i
+  Referent.Con r i -> constructor a r i
+
+-- termToReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
+-- termToReferent t = case t of
+--   Term.Ref' r           -> Just $ Ref r
+--   Term.Request' r i     -> Just $ Req r i
+--   Term.Constructor' r i -> Just $ Con r i
+--   _                     -> Nothing
+
+
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
@@ -693,8 +716,8 @@ instance Var v => Hashable1 (F v a p) where
       -- function as is used here, this case ensures that references are 'transparent'
       -- wrt hash and hashing is unaffected by whether expressions are linked.
       -- So for example `x = 1 + 1` and `y = x` hash the same.
-      Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
-      Ref (Reference.Derived h i n) ->
+      Reff (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
+      Reff (Reference.Derived h i n) ->
         Hashable.accumulate [tag 1, hashed $ Hashable.fromBytes (Hash.toBytes h), Hashable.Nat i, Hashable.Nat n]
       -- Note: start each layer with leading `1` byte, to avoid collisions with
       -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
@@ -709,8 +732,8 @@ instance Var v => Hashable1 (F v a p) where
             B.Blank -> [tag 0]
             B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
             B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
-        Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
-        Ref (Reference.Derived _ _ _) -> error "handled above, but GHC can't figure this out"
+        Reff (Reference.Builtin name) -> [tag 2, accumulateToken name]
+        Reff (Reference.Derived _ _ _) -> error "handled above, but GHC can't figure this out"
         App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
         Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
         Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)

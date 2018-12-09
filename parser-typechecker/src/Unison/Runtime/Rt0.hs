@@ -170,7 +170,7 @@ decompile v = case v of
   F n -> Term.float () n
   B b -> Term.boolean () b
   T t -> Term.text () t
-  Lam _ f _ -> case f of Left r -> Term.ref() r; Right f -> f
+  Lam _ f _ -> case f of Left r -> Term.reff() r; Right f -> f
   Data r cid args -> Term.apps' (Term.constructor() r cid) (toList $ fmap decompile args)
   Requested (Req r cid args _) ->
     let req = Term.apps (Term.request() r cid) (((),) . decompile <$> args)
@@ -196,13 +196,13 @@ compile0 env bound t = go ((++ bound) <$> ABT.annotateBound' (Term.anf t)) where
     Term.Float' n -> V (F n)
     Term.Boolean' b -> V (B b)
     Term.Text' t -> V (T t)
-    Term.Ref' r -> V (env r)
+    Term.Reff' r -> V (env r)
     Term.Var' v -> maybe (unknown v) Var $ elemIndex v (ABT.annotation t)
     Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Apps' f args -> case f of
-      Term.Ref' r -> Let (V (env r)) (DynamicApply 0 ((+1) . ind t <$> args))
+      Term.Reff' r -> Let (V (env r)) (DynamicApply 0 ((+1) . ind t <$> args))
       Term.Request' r cid -> Request r cid (ind t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind t <$> args)
       _ -> DynamicApply (ind t f) (map (ind t) args) where

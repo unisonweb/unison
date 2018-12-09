@@ -67,7 +67,6 @@ import           Data.Word                      ( Word64 )
 import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
-import qualified Unison.Names                  as Names
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
@@ -75,6 +74,7 @@ import qualified Unison.DataDeclaration        as DD
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import           Unison.Reference               ( Reference )
+import           Unison.Referent                ( Referent )
 import           Unison.Term                    ( AnnotatedTerm' )
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( AnnotatedType )
@@ -185,9 +185,9 @@ data CompilerBug v loc
   | PatternMatchFailure
   | EffectConstructorHadMultipleEffects (Type v loc)
   | FreeVarsInTypeAnnotation (Set (TypeVar v loc))
-  | UnannotatedReference Reference
+  | UnannotatedReferent Referent
   | MalformedPattern (Pattern loc)
-  | UnknownTermReference Reference
+  | UnknownTermReferent Referent
   deriving Show
 
 data PathElement v loc
@@ -215,7 +215,7 @@ type ConstructorId = Int
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
-             , suggestionReplacement :: Either v Names.Referent
+             , suggestionReplacement :: Either v Referent
              } |
   WrongType { suggestionName :: Text
             , suggestionType :: Type v loc
@@ -747,7 +747,7 @@ synthesize e = scope (InSynthesize e) $
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
       pure t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
-  go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
+  go (Term.Ref' h) = compilerCrash $ UnannotatedReferent h
   go (Term.Constructor' r cid) = do
     t <- getDataConstructorType r cid
     pure $ Type.generalizeEffects (Type.arity t) t
@@ -1420,10 +1420,10 @@ synthesizeClosed
 synthesizeClosed builtinLoc abilities lookupType term0 = let
   datas = TL.dataDecls lookupType
   effects = TL.effectDecls lookupType
-  term = annotateRefs (TL.typeOfTerm' lookupType) term0
+  term = annotateRefs (TL.typeOfReferent' lookupType) term0
   in case term of
     Left missingRef ->
-      compilerCrashResult (UnknownTermReference missingRef)
+      compilerCrashResult (UnknownTermReferent missingRef)
     Right term -> run builtinLoc [] datas effects $ do
       verifyDataDeclarations datas
       verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -1451,7 +1451,7 @@ verifyClosed t toV2 =
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
 annotateRefs :: (Applicative f, Var v)
-             => (Reference -> f (Type.AnnotatedType v loc))
+             => (Referent -> f (Type.AnnotatedType v loc))
              -> Term v loc
              -> f (Term v loc)
 annotateRefs synth = ABT.visit f where
@@ -1569,4 +1569,3 @@ instance MonadReader (MEnv v loc) (M v loc) where
 instance Alternative (M v loc) where
   empty = liftResult empty
   a <|> b = a `orElse` b
-

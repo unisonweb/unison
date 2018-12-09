@@ -10,10 +10,11 @@ import           Data.Foldable          (toList)
 import           Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import           Unison.Codebase.Editor
-import           Unison.Names           (Name, NameTarget, Referent)
+import           Unison.Names           (Name, NameTarget)
 import qualified Unison.Names           as Names
 import           Unison.Parser          (Ann)
 import           Unison.Reference       (Reference)
+import Unison.Referent (Referent)
 import qualified Unison.Result          as Result
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Free       (Free)

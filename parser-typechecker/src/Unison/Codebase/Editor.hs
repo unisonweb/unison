@@ -19,12 +19,12 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
                                                 , Names
                                                 , NameTarget
-                                                , Referent
                                                 )
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
+import           Unison.Referent (Referent)
 import           Unison.Result                  ( Note
                                                 , Result
                                                 )
@@ -246,4 +246,4 @@ commandLine awaitInput codebase command = do
     LoadBranch branchName -> Codebase.getBranch codebase branchName
     NewBranch branchName -> newBranch codebase branchName
     ForkBranch branch branchName -> forkBranch codebase branch branchName
-
+    _ -> undefined

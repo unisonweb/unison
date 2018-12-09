@@ -81,7 +81,7 @@ builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
 
 builtinTerms :: Var v => [(v, Term v)]
 builtinTerms =
-  [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
+  [ (toSymbol r, Term.ann Intrinsic (Term.reff Intrinsic r) typ) |
     (r, typ) <- Map.toList builtins0 ]
 
 builtinTypesV :: Var v => [(v, R.Reference)]

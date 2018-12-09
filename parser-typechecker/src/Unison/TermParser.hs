@@ -187,7 +187,7 @@ ifthen = label "if" $ do
 hashLit :: Var v => TermP v
 hashLit =
   -- todo: should probably come up with syntax for hash component refs
-  tok (\ann h -> Term.ref ann (R.DerivedPrivate_ (R.Id h 0 1))) <$> hashLiteral
+  tok (\ann h -> Term.reff ann (R.DerivedPrivate_ (R.Id h 0 1))) <$> hashLiteral
 
 prefixTerm :: Var v => TermP v
 prefixTerm = tok Term.var <$> prefixVar
