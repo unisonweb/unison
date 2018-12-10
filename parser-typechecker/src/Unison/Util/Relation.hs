@@ -349,3 +349,9 @@ fromMultimap m =
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
 
+instance (Ord a, Ord b) => Monoid (Relation a b) where
+  mempty = empty
+  mappend = (<>)
+
+instance (Ord a, Ord b) => Semigroup (Relation a b) where
+  (<>) = union
