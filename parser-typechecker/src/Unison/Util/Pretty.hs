@@ -76,24 +76,6 @@ data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
   deriving (Show, Foldable, Traversable, Functor)
 
-map :: LL.ListLike s2 Char => (s -> s2) -> Pretty s -> Pretty s2
-map f p = case out p of
-  Append ps -> foldMap (map f) ps
-  Empty -> mempty
-  Group p -> group (map f p)
-  Lit s -> lit' (foldMap chDelta $ LL.toList s2) s2 where s2 = f s
-  OrElse p1 p2 -> orElse (map f p1) (map f p2)
-  Wrap p -> wrap_ (map f <$> p)
-
-flatMap :: (s -> Pretty s2) -> Pretty s -> Pretty s2
-flatMap f p = case out p of
-  Append ps -> foldMap (flatMap f) ps
-  Empty -> mempty
-  Group p -> group (flatMap f p)
-  Lit s -> f s
-  OrElse p1 p2 -> orElse (flatMap f p1) (flatMap f p2)
-  Wrap p -> wrap_ (flatMap f <$> p)
-
 lit :: (IsString s, LL.ListLike s Char) => s -> Pretty s
 lit s = lit' (foldMap chDelta $ LL.toList s) s
 
@@ -204,7 +186,7 @@ lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 lines = intercalateMap newline id
 
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-linesSpaced ps = lines (intersperse " " $ toList ps)
+linesSpaced ps = lines (intersperse "" $ toList ps)
 
 bulleted :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
 bulleted = intercalateMap newline (\b -> "* " <> indentAfterNewline "  " b)
@@ -311,7 +293,7 @@ black = map CT.black
 red = map CT.red
 green = map CT.green
 yellow = map CT.yellow
-blue = map CT.yellow
+blue = map CT.blue
 purple = map CT.purple
 cyan = map CT.cyan
 white = map CT.white
@@ -339,6 +321,25 @@ metaPretty p = go (0::Int) p where
     OrElse a b -> parenthesizeIf (prec > 0) $
       "OrElse" `hang` spaced [go 1 a, go 1 b]
     Append s -> surroundCommas "[" "]" (go 1 <$> s)
+
+map :: LL.ListLike s2 Char => (s -> s2) -> Pretty s -> Pretty s2
+map f p = case out p of
+  Append ps -> foldMap (map f) ps
+  Empty -> mempty
+  Group p -> group (map f p)
+  Lit s -> lit' (foldMap chDelta $ LL.toList s2) s2 where s2 = f s
+  OrElse p1 p2 -> orElse (map f p1) (map f p2)
+  Wrap p -> wrap_ (map f <$> p)
+
+flatMap :: (s -> Pretty s2) -> Pretty s -> Pretty s2
+flatMap f p = case out p of
+  Append ps -> foldMap (flatMap f) ps
+  Empty -> mempty
+  Group p -> group (flatMap f p)
+  Lit s -> f s
+  OrElse p1 p2 -> orElse (flatMap f p1) (flatMap f p2)
+  Wrap p -> wrap_ (flatMap f <$> p)
+
 
 --class Prettyable a where
 --  pretty :: a -> Pretty CT.ColorText
