@@ -126,7 +126,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal) tm
-        <> PP.hang ": " (TypePrinter.pretty n 0 t)
+        <> PP.hang " :" (TypePrinter.pretty n 0 t)
     Int'     i  -> (if i >= 0 then l "+" else mempty) <> (l $ show i)
     Nat'     u  -> l $ show u
     Float'   f  -> l $ show f
