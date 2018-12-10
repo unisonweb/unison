@@ -4,6 +4,7 @@
 
 module Unison.TermPrinter where
 
+import           Control.Monad                  (join)
 import           Data.List
 import qualified Data.Text                     as Text
 import           Data.Foldable                  ( fold
@@ -176,10 +177,9 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
       ]
     LetRecNamed' bs e -> printLet bc bs e
     Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e
-    Match' scrutinee branches -> paren (p >= 2)
-        $  PP.group
-        $  PP.spaced ["case", pretty n (ac 2 Normal) scrutinee, "of"]
-           `PP.hang` PP.lines (map printCase branches)
+    Match' scrutinee branches -> paren (p >= 2) $
+      ("case " <> pretty n (ac 2 Normal) scrutinee <> " of") `PP.hang` bs
+      where bs = PP.lines (map printCase branches)
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
@@ -188,7 +188,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
         PP.spaced [pretty n (ac 10 Normal) x, "()" ]
     (Tuple' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
-      binaryApps apps <> PP.softbreak <> pretty n (ac 3 Normal) lastArg
+      binaryApps apps (pretty n (ac 3 Normal) lastArg)
     _ -> case (term, nonForcePred) of
       AppsPred' f args | not $ isVarKindInfo f ->
         paren (p >= 10) $ pretty n (ac 10 Normal) f `PP.hang`
@@ -222,11 +222,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` pretty n (ac 0 Block) body
     where
-    lhs = PP.group
-      $  fst (prettyPattern n (-1) vs pat)
-      <> PP.softbreak <> printGuard guard
-      <> "->"
-    printGuard (Just g) = PP.spaced ["|", pretty n (ac 2 Normal) g, ""]
+    lhs = PP.group (fst (prettyPattern n (-1) vs pat))
+       <> printGuard guard
+       <> " ->"
+    printGuard (Just g) = PP.group $ PP.spaced ["", "|", pretty n (ac 2 Normal) g, ""]
     printGuard Nothing  = mempty
   printCase _ = l "error"
 
@@ -254,12 +253,21 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> Pretty String
-  binaryApps xs = foldr (flip (<>)) mempty (map r xs)
+    :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)]
+             -> Pretty String
+             -> Pretty String
+  binaryApps xs last = unbroken `PP.orElse` broken
+   -- todo: use `PP.column2` in the case where we need to break
    where
-    r (a, f) = PP.spaced [
-      pretty n (ac 3 Normal) a,
-      pretty n (AmbientContext 10 Normal Infix) f ]
+    unbroken = PP.spaced (ps ++ [last])
+    broken = PP.column2 (psCols $ [""] ++ ps ++ [last])
+    psCols ps = case take 2 ps of
+      [x,y] -> (x,y) : psCols (drop 2 ps)
+      [] -> []
+      _ -> error "??"
+    ps = join $ [r a f | (a, f) <- reverse xs ]
+    r a f = [pretty n (ac 3 Normal) a,
+             pretty n (AmbientContext 10 Normal Infix) f]
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal) t
