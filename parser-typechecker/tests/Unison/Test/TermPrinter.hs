@@ -110,14 +110,9 @@ test = scope "termprinter" . tests $
   , tc "Optional.None"
   , tc "handle foo in bar"
   , tc "Pair 1 1"
-  -- let bindings have no unbroken form accepted by the parser.
-  -- We could choose to render them broken anyway, but that would complicate
-  -- PrettyPrint.renderUnbroken a great deal.
-  , tc_diff_rtt False "let\n\
-                      \  x = 1\n\
-                      \  x\n"
-                      "let; x = 1; x"
-                      0
+  , tc "let\n\
+       \  x = 1\n\
+       \  x"
   , tc_breaks 50 "let\n\
                  \  x = 1\n\
                  \  x"

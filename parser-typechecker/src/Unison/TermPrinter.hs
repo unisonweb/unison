@@ -167,7 +167,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
         "else" `PP.hang` pf
        ]
       else PP.spaced [
-        "if" `PP.hang` pcond <> (" then" `PP.hang` pt), 
+        "if" `PP.hang` pcond <> (" then" `PP.hang` pt),
         "else" `PP.hang` pf
        ]
      where
@@ -338,7 +338,7 @@ prettyPattern n p vs patt = case patt of
     in  (printed : rest_printed, eventual_tail)
   patterns vs [] = ([], vs)
   patternsSep sep vs pats = case patterns vs pats of
-    (printed, tail_vs) -> (foldMap (\x -> sep <> x) printed, tail_vs)
+    (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
 {- Render a binding, producing output of the form
 
