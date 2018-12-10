@@ -29,9 +29,11 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import           Unison.Hash              (Hash)
 import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
-import           Unison.Names             (Name, Names (..), Referent)
+import           Unison.Names             (Name, Names (..))
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import           Unison.Referent          (Referent)
+import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
 import           Unison.Util.Relation     (Relation)
 import qualified Unison.Util.Relation     as R
@@ -85,7 +87,7 @@ data Branch0 =
 
 allNamedReferences :: Branch0 -> Set Reference
 allNamedReferences b = let
-  termRefs = Set.map Names.referentToReference (R.ran (termNamespace b))
+  termRefs = Set.map Referent.toReference (R.ran (termNamespace b))
   typeRefs = R.ran (typeNamespace b)
   in termRefs <> typeRefs
 
@@ -406,12 +408,12 @@ fromTypecheckedFile file = let
   hashedTerms = UF.hashTerms file
   ctors :: [(v, Referent)]
   ctors = Map.toList $ UF.hashConstructors file
-  conNamespace = R.fromList [ (toName v, r) | (v, r@(Names.Con _ _)) <- ctors ]
-  reqNamespace = R.fromList [ (toName v, r) | (v, r@(Names.Req _ _)) <- ctors ]
+  conNamespace = R.fromList [ (toName v, r) | (v, r@(Referent.Con _ _)) <- ctors ]
+  reqNamespace = R.fromList [ (toName v, r) | (v, r@(Referent.Req _ _)) <- ctors ]
   patternNamespace =
-    R.fromList ([ (toName v, (r,i)) | (v, (Names.Con r i)) <- ctors ] <>
-                [ (toName v, (r,i)) | (v, (Names.Req r i)) <- ctors ])
-  termNamespace1 = R.fromList [ (toName v, Names.Ref r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
+    R.fromList ([ (toName v, (r,i)) | (v, (Referent.Con r i)) <- ctors ] <>
+                [ (toName v, (r,i)) | (v, (Referent.Req r i)) <- ctors ])
+  termNamespace1 = R.fromList [ (toName v, Referent.Ref r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
   typeNamespace1 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.dataDeclarations' file) ]
   typeNamespace2 = R.fromList [ (toName v, r) | (v, (r, _)   ) <- Map.toList (UF.effectDeclarations' file) ]
   in Branch0 (termNamespace1 `R.union` conNamespace `R.union` reqNamespace)
@@ -511,9 +513,9 @@ deleteOrphans as b c =
 codebase :: Monad m => ReferenceOps m -> Branch -> m (Set Reference)
 codebase ops (Branch (Causal.head -> Branch0 {..})) =
   let initial = Set.fromList $
-        (Names.referentToReference . snd <$> R.toList termNamespace) ++
+        (Referent.toReference . snd <$> R.toList termNamespace) ++
         (snd <$> R.toList typeNamespace) ++
-        (Names.referentToReference <$>
+        (Referent.toReference <$>
             (map snd (R.toList editedTerms) >>= TermEdit.referents)) ++
         (map snd (R.toList editedTypes) >>= TypeEdit.references)
   in transitiveClosure (dependencies ops) initial

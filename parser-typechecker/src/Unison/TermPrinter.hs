@@ -17,9 +17,9 @@ import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN' )
 import qualified Unison.Blank                  as Blank
 import           Unison.Lexer                   ( symbolyId )
-import qualified Unison.Names                  as Names
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
+import qualified Unison.Referent               as Referent
 import           Unison.Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -123,7 +123,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   = specialCases term $ \case
     Var' v -> parenIfInfix (varName v) ic $ l $ varName v
     Ref' r -> parenIfInfix name ic $ l $ name
-      where name = Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
+      where name = Text.unpack (PrettyPrintEnv.termName n (Referent.Ref r))
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal) tm
@@ -279,7 +279,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   -- "x + y" and "foo x y" but not "x `foo` y".
   binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
   binaryOpsPred = \case
-    Ref' r | isSymbolic (PrettyPrintEnv.termName n (Names.Ref r)) -> True
+    Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
     Var' v | isSymbolic (Var.name v) -> True
     _ -> False
 

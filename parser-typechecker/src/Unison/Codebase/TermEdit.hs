@@ -2,7 +2,7 @@ module Unison.Codebase.TermEdit where
 
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
-import Unison.Names (Referent)
+import Unison.Referent (Referent)
 
 data TermEdit = Replace Referent Typing | Deprecate
   deriving (Eq, Ord, Show)

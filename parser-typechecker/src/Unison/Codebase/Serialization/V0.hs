@@ -38,8 +38,6 @@ import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
 import           Unison.Kind                    ( Kind )
-import           Unison.Names (Referent)
-import qualified Unison.Names as Names
 import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( AnnotatedTerm )
@@ -54,6 +52,8 @@ import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
 import qualified Unison.Reference              as Reference
+import           Unison.Referent               (Referent)
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Util.Relation           ( Relation )
@@ -165,14 +165,14 @@ getReference = do
 
 putReferent :: MonadPut m => Referent -> m ()
 putReferent r = case r of
-  Names.Ref r -> do
+  Referent.Ref r -> do
     putWord8 0
     putReference r
-  Names.Con r i -> do
+  Referent.Con r i -> do
     putWord8 1
     putReference r
     putLength i
-  Names.Req r i -> do
+  Referent.Req r i -> do
     putWord8 2
     putReference r
     putLength i
@@ -181,9 +181,9 @@ getReferent :: MonadGet m => m Referent
 getReferent = do
   tag <- getWord8
   case tag of
-    0 -> Names.Ref <$> getReference
-    1 -> Names.Con <$> getReference <*> getLength
-    2 -> Names.Req <$> getReference <*> getLength
+    0 -> Referent.Ref <$> getReference
+    1 -> Referent.Con <$> getReference <*> getLength
+    2 -> Referent.Req <$> getReference <*> getLength
     _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
