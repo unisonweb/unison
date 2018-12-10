@@ -33,8 +33,8 @@ tc_diff_rtt rtt s expected width =
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
        if actual == expected then ok
-       else do note $ "expected: " ++ show expected
-               note $ "actual  : "   ++ show actual
+       else do note $ "expected:\n" ++ expected
+               note $ "actual:\n"   ++ actual
                note $ "show(input)  : "   ++ show input_term
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
@@ -142,7 +142,7 @@ test = scope "termprinter" . tests $
   , tc_diff_rtt False "case x of\n\
                       \  true -> foo\n\
                       \  false -> bar"
-                      "case x of true -> foo; false -> bar" 0
+                      "case x of\n  true -> foo\n  false -> bar" 0
   , tc_breaks 50 "case x of\n\
                  \  true -> foo\n\
                  \  false -> bar"
@@ -174,8 +174,10 @@ test = scope "termprinter" . tests $
   , tc "case x of 12 -> x -> f x"
   , tc_diff "case x of (12) -> x" $ "case x of 12 -> x"
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
-  , tc_breaks 50 "case x of\n\
-                 \  12 -> x"
+  , tc "case x of 12 -> x"
+  , tc_diff_rtt True "case x of\n\
+                     \  12 -> x"
+                     "case x of 12 -> x" 50
   , tc_breaks 15 "case x of\n\
                  \  12 -> x\n\
                  \  13 -> y\n\
