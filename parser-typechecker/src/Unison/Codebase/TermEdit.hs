@@ -2,12 +2,12 @@ module Unison.Codebase.TermEdit where
 
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as H
-import Unison.Referent (Referent)
+import Unison.Reference (Reference)
 
-data TermEdit = Replace Referent Typing | Deprecate
+data TermEdit = Replace Reference Typing | Deprecate
   deriving (Eq, Ord, Show)
 
-referents :: TermEdit -> [Referent]
+referents :: TermEdit -> [Reference]
 referents (Replace r _) = [r]
 referents Deprecate = []
 
@@ -26,6 +26,6 @@ instance Hashable TermEdit where
   tokens (Replace r t) = [H.Tag 0] ++ H.tokens r ++ H.tokens t
   tokens Deprecate = [H.Tag 1]
 
-toReference :: TermEdit -> Maybe Referent
+toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r
 toReference Deprecate     = Nothing

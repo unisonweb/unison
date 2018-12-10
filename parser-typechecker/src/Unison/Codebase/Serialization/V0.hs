@@ -457,7 +457,7 @@ getCausal getA = getWord8 >>= \case
 
 putTermEdit :: MonadPut m => TermEdit -> m ()
 putTermEdit (TermEdit.Replace r typing) =
-  putWord8 1 *> putReferent r *> case typing of
+  putWord8 1 *> putReference r *> case typing of
     TermEdit.Same -> putWord8 1
     TermEdit.Subtype -> putWord8 2
     TermEdit.Different -> putWord8 3
@@ -465,7 +465,7 @@ putTermEdit TermEdit.Deprecate = putWord8 2
 
 getTermEdit :: MonadGet m => m TermEdit
 getTermEdit = getWord8 >>= \case
-  1 -> TermEdit.Replace <$> getReferent <*> (getWord8 >>= \case
+  1 -> TermEdit.Replace <$> getReference <*> (getWord8 >>= \case
     1 -> pure TermEdit.Same
     2 -> pure TermEdit.Subtype
     3 -> pure TermEdit.Different
@@ -489,7 +489,7 @@ putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
   putRelation termNamespace putText putReferent
   putRelation patternNamespace putText (putPair' putReference putLength)
   putRelation typeNamespace putText putReference
-  putRelation editedTerms putReferent putTermEdit
+  putRelation editedTerms putReference putTermEdit
   putRelation editedTypes putReference putTypeEdit
 
 getBranch :: MonadGet m => m Branch
@@ -497,7 +497,7 @@ getBranch = Branch <$> getCausal
   (Branch0 <$> getRelation getText getReferent
            <*> getRelation getText (getPair getReference getLength)
            <*> getRelation getText getReference
-           <*> getRelation getReferent getTermEdit
+           <*> getRelation getReference getTermEdit
            <*> getRelation getReference getTypeEdit)
 
 putDataDeclaration :: (MonadPut m, Ord v)

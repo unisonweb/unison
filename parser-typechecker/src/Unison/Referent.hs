@@ -10,13 +10,8 @@ import           Data.Word        (Word64)
 data Referent = Ref Reference | Req Reference Int | Con Reference Int
   deriving (Show, Ord, Eq)
 
-data Referent' = TypeRef Reference | TermRef Referent
-
--- referentToTerm :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
--- moved to Term.fromReferent
-
--- termToReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
--- moved to Term.toReferent
+-- referentToTerm moved to Term.fromReferent
+-- termToReferent moved to Term.toReferent
 
 toReference :: Referent -> Reference
 toReference = \case
