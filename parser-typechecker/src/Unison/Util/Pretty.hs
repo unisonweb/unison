@@ -29,14 +29,18 @@ module Unison.Util.Pretty (
    numbered,
    orElse,
    parenthesize,
+   parenthesizeCommas,
    parenthesizeIf,
    preferredWidth,
    render,
+   renderUnbroken,
    rightPad,
    sep,
    sepSpaced,
    softbreak,
+   spaceIfBreak,
    spaced,
+   spacedMap,
    text,
    toANSI,
    toPlain,
@@ -111,6 +115,9 @@ toANSI avail p = CT.toANSI (render avail p)
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
 
+renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
+renderUnbroken = render maxBound
+
 render :: (Monoid s, IsString s) => Width -> Pretty s -> s
 render avail p =
   if preferredWidth p <= avail || minWidth p > avail then flow p
@@ -144,23 +151,34 @@ render avail p =
 newline :: IsString s => Pretty s
 newline = lit' (chDelta '\n') (fromString "\n")
 
+spaceIfBreak :: IsString s => Pretty s
+spaceIfBreak = "" `orElse` " "
+
 softbreak :: IsString s => Pretty s
 softbreak = " " `orElse` newline
 
 spaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 spaced = intercalateMap softbreak id
 
+spacedMap :: (Foldable f, IsString s) => (a -> Pretty s) -> f a -> Pretty s
+spacedMap f as = spaced . fmap f $ toList as
+
 commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
+
+parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
+parenthesizeCommas fs = parenthesize $
+  spaceIfBreak <>
+  intercalateMap ("," <> softbreak <> spaceIfBreak <> spaceIfBreak) id fs
 
 sepSpaced :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepSpaced between = sep (between <> softbreak)
 
 sep :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
-sep between = intercalateMap (between) id
+sep between = intercalateMap between id
 
 parenthesize :: IsString s => Pretty s -> Pretty s
-parenthesize p = "(" <> p <> ")"
+parenthesize p = group $ "(" <> p <> ")"
 
 parenthesizeIf :: IsString s => Bool -> Pretty s -> Pretty s
 parenthesizeIf False s = s
@@ -201,10 +219,12 @@ text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
 
 hang' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
-hang' by sp p = (sp <> p) `orElse` ("\n" <> indent by (group p))
+hang' from by p =
+  (from <> " " <> p) `orElse`
+  (from <> "\n" <> indent by (group p))
 
-hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-hang p = hang' "  " " " p
+hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+hang from p = hang' from "  " p
 
 indent :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indent by p = by <> indentAfterNewline by p

@@ -68,7 +68,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
-    Unison.PrettyPrint
+    Unison.Pretty
     Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
@@ -97,7 +97,6 @@ library
     Unison.Util.Logger
     Unison.Util.Menu
     Unison.Util.Monoid
-    Unison.Util.PrettyPrint
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation

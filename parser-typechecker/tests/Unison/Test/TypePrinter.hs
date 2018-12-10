@@ -8,7 +8,7 @@ import Unison.TypePrinter
 import Unison.Symbol (Symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 

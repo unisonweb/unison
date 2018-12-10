@@ -39,8 +39,8 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText     (AnnotatedText)
 import           Unison.Util.ColorText         (Color)
-import           Unison.Util.PrettyPrint       (PrettyPrint)
-import qualified Unison.Util.PrettyPrint       as PP
+import           Unison.Util.Pretty            (Pretty)
+import qualified Unison.Util.Pretty            as PP
 import qualified Unison.Var                    as Var
 import Unison.Var (Var)
 
@@ -137,7 +137,7 @@ initialize c = do
   goData   = go Right
 
 prettyBinding :: (Var.Var v, Monad m)
-  => Codebase m v a -> Name -> Referent -> Branch -> m (Maybe (PrettyPrint String))
+  => Codebase m v a -> Name -> Referent -> Branch -> m (Maybe (Pretty String))
 prettyBinding _ _ (Names.Ref (Reference.Builtin _)) _ = pure Nothing
 prettyBinding cb name r0@(Names.Ref r1@(Reference.DerivedId r)) b = go =<< getTerm cb r where
   go Nothing = pure Nothing
@@ -156,14 +156,14 @@ prettyBinding cb name r0@(Names.Ref r1@(Reference.DerivedId r)) b = go =<< getTe
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(Name,Referent)] -> Branch -> m (PrettyPrint String)
+  => Codebase m v a -> [(Name,Referent)] -> Branch -> m (Pretty String)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
 
 -- Search for and display bindings matching the given query
 prettyBindingsQ :: (Var.Var v, Monad m)
-  => Codebase m v a -> String -> Branch -> m (PrettyPrint String)
+  => Codebase m v a -> String -> Branch -> m (Pretty String)
 prettyBindingsQ cb query b = let
   possible = Branch.allTermNames (Branch.head b)
   matches = sortedApproximateMatches query (Text.unpack <$> toList possible)
