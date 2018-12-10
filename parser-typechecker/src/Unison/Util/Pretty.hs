@@ -146,7 +146,7 @@ render availableWidth p = go mempty [Right p] where
       OrElse _ p -> go cur (Right p : rest)
       Wrap ps    -> go cur ((Right <$> toList ps) <> rest)
 
-  fits p (Delta _ x) = preferredWidth p <= availableWidth - x
+  fits p (Delta _ x) = preferredWidth p < availableWidth - x
 
   flow p = case out p of
     Append ps -> foldMap flow ps

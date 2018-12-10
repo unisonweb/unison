@@ -167,8 +167,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
         "else" `PP.hang` pf
        ]
       else PP.spaced [
-        "if" `PP.hang` pcond,
-        "then" `PP.hang` pt,
+        "if" `PP.hang` pcond <> (" then" `PP.hang` pt), 
         "else" `PP.hang` pf
        ]
      where

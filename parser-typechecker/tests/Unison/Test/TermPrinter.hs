@@ -217,8 +217,7 @@ test = scope "termprinter" . tests $
   , tc_breaks_diff 21 "case x of 12 -> if a then b else c" $
               "case x of\n\
               \  12 ->\n\
-              \    if a\n\
-              \    then b\n\
+              \    if a then b\n\
               \    else c"
   , tc_diff_rtt True "if foo\n\
             \then\n\
@@ -351,13 +350,17 @@ test = scope "termprinter" . tests $
                       \then x\n\
                       \else case x of\n\
                       \  12 -> x"
-                      "if true\n\
-                      \then x\n\
+                      "if true then x\n\
                       \else\n\
                       \  (case x of\n\
-                      \    12 -> x)" 50  -- TODO fix surplus parens around case.
+                      \    12 -> x)" 20  -- TODO fix surplus parens around case.
                                          -- Are they only surplus due to layout cues?
                                          -- And no round trip, due to issue in test directly above.
+  , tc_diff_rtt False "if true\n\
+                      \then x\n\
+                      \else case x of\n\
+                      \  12 -> x"
+                      "if true then x else (case x of 12 -> x)" 50
   , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
