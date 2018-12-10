@@ -22,7 +22,6 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
                                                 , Names
                                                 , NameTarget
-                                                , Referent
                                                 )
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -32,6 +31,7 @@ import           Unison.Result                  ( Note
                                                 , Result
                                                 )
 import qualified Unison.Result                 as Result
+import           Unison.Referent (Referent)
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term

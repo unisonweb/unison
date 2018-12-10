@@ -33,7 +33,7 @@ import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
 import           Unison.Names               (Name)
-import qualified Unison.Names as Names
+import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
@@ -66,7 +66,7 @@ convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
   NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
-                 , replacement :: Either v Names.Referent }
+                 , replacement :: Either v Referent }
   deriving Show
 
 data Env v loc = Env
@@ -249,7 +249,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
-        where solved = either (Term.var loc) (Names.referentToTerm loc) replacement
+        where solved = either (Term.var loc) (Term.fromReferent loc) replacement
   substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc

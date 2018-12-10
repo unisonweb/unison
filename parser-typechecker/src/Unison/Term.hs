@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Term where
 
@@ -39,6 +40,8 @@ import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
+import           Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
@@ -640,6 +643,20 @@ hashConstructor = hashConstructor' $ constructor ()
 
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
+
+fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+fromReferent a = \case
+  Referent.Ref r -> ref a r
+  Referent.Req r i -> request a r i
+  Referent.Con r i -> constructor a r i
+
+toReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
+toReferent t = case t of
+  Ref' r           -> Just $ Referent.Ref r
+  Request' r i     -> Just $ Referent.Req r i
+  Constructor' r i -> Just $ Referent.Con r i
+  _                -> Nothing
+
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

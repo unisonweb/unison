@@ -24,12 +24,13 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch        (Branch)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Names                  (Name, Referent)
-import qualified Unison.Names                  as Names
+import           Unison.Names                  (Name)
 import           Unison.Parser                 (Ann)
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference              (Reference)
 import qualified Unison.Reference              as Reference
+import           Unison.Referent               (Referent)
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
@@ -85,7 +86,7 @@ listReferences code branch refs = do
   let ppe = Branch.prettyPrintEnv1 branch
   terms <- fmap catMaybes . forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
-    pure $ fmap (PPE.termName ppe (Names.Ref r),) otyp
+    pure $ fmap (PPE.termName ppe (Referent.Ref r),) otyp
   let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
       typeRefs = filter (`Set.member` typeRefs0) refs
   _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
@@ -111,7 +112,7 @@ listReferencesMatching code b query = do
         Set.toList (Branch.typesNamed (Text.pack name) b)
       matchingTermRefs = matchingTerms >>= \name ->
         Set.toList (Branch.termsNamed (Text.pack name) b)
-  listReferences code b (matchingTypeRefs ++ [ r | Names.Ref r <- matchingTermRefs ])
+  listReferences code b (matchingTypeRefs ++ [ r | Referent.Ref r <- matchingTermRefs ])
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
@@ -138,8 +139,8 @@ initialize c = do
 
 prettyBinding :: (Var.Var v, Monad m)
   => Codebase m v a -> Name -> Referent -> Branch -> m (Maybe (Pretty String))
-prettyBinding _ _ (Names.Ref (Reference.Builtin _)) _ = pure Nothing
-prettyBinding cb name r0@(Names.Ref r1@(Reference.DerivedId r)) b = go =<< getTerm cb r where
+prettyBinding _ _ (Referent.Ref (Reference.Builtin _)) _ = pure Nothing
+prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b = go =<< getTerm cb r where
   go Nothing = pure Nothing
   go (Just tm) = let
     -- We boost the `(r0,name)` association since if this is a recursive
@@ -218,7 +219,7 @@ makeSelfContained :: (Monad m, Var v) => Codebase m v a -> Branch -> UF.UnisonFi
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
   let pp = Branch.prettyPrintEnv1 b
-      termName r = PPE.termName pp (Names.Ref r)
+      termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r,) <$> getTypeDeclaration code rid
