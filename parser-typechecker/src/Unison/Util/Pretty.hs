@@ -43,6 +43,7 @@ module Unison.Util.Pretty (
    spacesIfBreak,
    spaced,
    spacedMap,
+   surroundCommas,
    text,
    toANSI,
    toPlain,
@@ -169,9 +170,14 @@ commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
 
 parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-parenthesizeCommas fs = parenthesize $
-  spaceIfBreak <>
-  intercalateMap ("," <> softbreak <> spaceIfBreak <> spaceIfBreak) id fs
+parenthesizeCommas = surroundCommas "(" ")"
+
+surroundCommas :: (Foldable f, IsString s) => Pretty s -> Pretty s -> f (Pretty s) -> Pretty s
+surroundCommas start stop fs = group $
+  start <> spaceIfBreak
+        <> intercalateMap ("," <> softbreak <> align) id fs
+        <> stop
+  where align = spacesIfBreak (preferredWidth start + 1)
 
 sepSpaced :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepSpaced between = sep (between <> softbreak)
@@ -306,13 +312,22 @@ hiWhite = map CT.hiWhite
 bold = map CT.bold
 
 instance Show s => Show (Pretty s) where
-  show p = case out p of
-    Lit s -> show s
+  show p = render 80 (metaPretty p)
+
+metaPretty :: Show s => Pretty s -> Pretty String
+metaPretty p = go (0::Int) p where
+  go prec p = case out p of
+    Lit s -> parenthesizeIf (prec > 0) $ "Lit" `hang` lit (show s)
     Empty -> "Empty"
-    Group g -> "(Group " <> show g <> ")"
-    Wrap s -> "(Wrap [" <> intercalateMap "," show s <> "])"
-    OrElse a b -> "(OrElse " <> show a <> " " <> show b <> ")"
-    Append a -> "[" <> intercalateMap "," show a <> "]"
+    Group g -> parenthesizeIf (prec > 0) $ "Group" `hang` go 1 g
+    Wrap s -> parenthesizeIf (prec > 0) $ "Wrap" `hang`
+      surroundCommas "[" "]" (go 1 <$> s)
+    OrElse a b -> parenthesizeIf (prec > 0) $
+      "OrElse" `hang` spaced [go 1 a, go 1 b]
+    Append s -> surroundCommas "[" "]" (go 1 <$> s)
+
+--class Prettyable a where
+--  pretty :: a -> Pretty CT.ColorText
 
 --ex :: Pretty String
 --ex = indentN 2 $ numbered (fromString . show) stuff
