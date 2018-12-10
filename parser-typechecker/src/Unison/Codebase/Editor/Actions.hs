@@ -49,9 +49,8 @@ loop s = Free.unfold' go s
   go s@(LoopState currentBranch currentBranchName uf) = do
     e <- Free.eval Input
     case e of
-      Left (UnisonBranchChanged names) ->
-        if Set.member currentBranchName names then
-          switchBranch currentBranchName
+      Left (UnisonBranchChanged names) -> if Set.member currentBranchName names
+        then switchBranch currentBranchName
         else pure (Right s)
       Left (UnisonFileChanged sourceName text) -> do
         Result notes r <- Free.eval (Typecheck currentBranch sourceName text)
@@ -69,9 +68,12 @@ loop s = Free.unfold' go s
               Free.eval (Notify (Evaluated e))
               updateUnisonFile unisonFile
       Right input -> case input of
-        SearchByNameI _    _           -> error "todo"
-        UpdateTermI   _old _new        -> error "todo"
-        UpdateTypeI   _old _new        -> error "todo"
+        SearchByNameI st qs ->
+          withBranch currentBranchName respond $ \branch ->
+            Free.eval (SearchTerms branch st qs)
+              >>= (respond . ListOfTerms currentBranchName st qs)
+        UpdateTermI _old _new          -> error "todo"
+        UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
@@ -119,12 +121,11 @@ loop s = Free.unfold' go s
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf ->
-            Free.eval (Add currentBranch uf) >>= (respond . AddOutput)
+          Just uf -> Free.eval (Add currentBranch uf) >>= (respond . AddOutput)
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
-        SwitchBranchI branchName -> switchBranch branchName
-        ForkBranchI targetBranchName -> ifM
+        SwitchBranchI branchName       -> switchBranch branchName
+        ForkBranchI   targetBranchName -> ifM
           (Free.eval $ ForkBranch currentBranch targetBranchName)
           (outputSuccess >> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
@@ -276,3 +277,4 @@ updateBranch
   -> Action i v
 updateBranch respond success branchName f =
   withBranch branchName respond $ mergeBranch branchName respond success . f
+

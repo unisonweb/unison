@@ -214,9 +214,22 @@ validInputs = validPatterns
           [b] -> pure . ForkBranchI $ Text.pack b
           _ ->
             Left
-              $  warnNote "Use `fork foo` to create the branch 'foo' "
+              .  warnNote
+              $  "Use `fork foo` to create the branch 'foo' "
               <> "from the current branch."
         )
+      , InputPattern
+        "list"
+        ["ls"]
+        []
+        (  "`list` shows all definitions in the current branch, "
+        <> "as well as their types.\n"
+        <> "`list foo` shows all definitions with a name similar to 'foo' "
+        <> "in the current branch, as well as their types."
+        <> "`list foo bar` shows all definitions with a name similar to 'foo' "
+        <> "or 'bar' in the current branch, as well as their types."
+        )
+        (pure . SearchByNameI Editor.Fuzzy)
       , InputPattern
         "merge"
         []

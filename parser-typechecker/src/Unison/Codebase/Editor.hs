@@ -107,7 +107,7 @@ data Input
   -- other
   | AddI -- [Name]
   | ListBranchesI
-  | SearchByNameI SearchType String
+  | SearchByNameI SearchType [String]
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
@@ -124,7 +124,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | SearchResult BranchName SearchType String [(Name, Referent, Type v Ann)] [(Name, Reference {-, Kind -})] [(Name, Reference, Int, Type v Ann)]
+  | ListOfTerms BranchName SearchType [String] [(Name, Referent, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -190,9 +190,11 @@ data Command i v a where
 
   -- RemainingWork :: Branch -> Command i v [RemainingWork]
 
-  -- idea here is to find "close matches" of stuff in the input file, so
-  -- can suggest use of preexisting definitions
-  -- Search :: UF.TypecheckedUnisonFile' v Ann -> Command v (UF.TypecheckedUnisonFile' v Ann?)
+  -- Return a list of terms whose names match the given queries.
+  SearchTerms :: Branch
+              -> SearchType
+              -> [String]
+              -> Command i v [(Name, Referent, Type v Ann)]
 
 addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
 addToBranch branch unisonFile
@@ -275,3 +277,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     MergeBranch branchName branch -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' branch
     SwitchBranch branch branchName -> branchChange branch branchName
+    SearchTerms branch _searchType queries ->
+      Codebase.fuzzyFindTerms codebase branch queries
+
