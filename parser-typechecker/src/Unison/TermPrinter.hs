@@ -298,7 +298,7 @@ prettyPattern n p vs patt = case patt of
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref i [] ->
-    (PP.text (PrettyPrintEnv.patternName n ref i), vs) 
+    (PP.text (PrettyPrintEnv.patternName n ref i), vs)
   Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
@@ -364,6 +364,7 @@ prettyBinding n v term = go (symbolic && isBinary term) term where
                       PP.text (Var.name v),
                       PP.text (Var.name y)]
         _ -> l "error"
+      else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap (PP.text . Var.name) vs
     renderName v = parenIfInfix (Var.nameStr v) NonInfix $ l (Var.nameStr v)
