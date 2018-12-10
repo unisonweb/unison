@@ -25,6 +25,7 @@ module Unison.Util.Pretty (
    lit,
    map,
    minWidth,
+   nest,
    newline,
    numbered,
    orElse,
@@ -51,7 +52,7 @@ module Unison.Util.Pretty (
   ) where
 
 import           Data.Foldable                  ( toList )
-import           Data.List                      ( foldl' , scanl', intersperse )
+import           Data.List                      ( foldl' , intersperse )
 import           Data.Sequence                  ( Seq )
 import           Data.String                    ( IsString , fromString )
 import           Data.Text                      ( Text )
@@ -65,7 +66,7 @@ import qualified Data.Text                     as Text
 type Width = Int
 
 data Pretty s = Pretty { delta :: Delta, minDelta :: Delta, out :: F s (Pretty s) }
-  deriving Show
+
 data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
   deriving (Show, Foldable, Traversable, Functor)
@@ -120,34 +121,31 @@ renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound
 
 render :: (Monoid s, IsString s) => Width -> Pretty s -> s
-render avail p =
-  if preferredWidth p <= avail || minWidth p > avail then flow p
-  else render avail (break1 p)
-  where
-    break1 p = case out p of
-      Append ps -> foldMap break1 ps
-      Empty -> mempty
-      Group p -> p
-      Lit _ -> p
-      OrElse _ p -> break1 p
-      Wrap ps -> go mempty ps where
-        go _ Seq.Empty = mempty
-        go start ps = let
-          ws = drop 1 . scanl' (<>) start $ delta <$> (toList ps)
-          n = length $ takeWhile (\(Delta _ w) -> w <= avail) ws
-          rem = Seq.drop n ps
-          s2 = Seq.take n ps <> (break1 <$> Seq.take 1 rem)
-          hd = flows' s2
-          in hd <> go (start <> delta hd) (Seq.drop 1 rem)
+render availableWidth p = go mempty [Right p] where
+  go _   []       = mempty
+  go cur (p:rest) = case p of
+    Right p -> -- `p` might fit, let's try it!
+      if p `fits` cur then flow p <> go (cur <> delta p) rest
+      else go cur (Left p : rest) -- nope, switch to breaking mode
+    Left p -> case out p of -- `p` requires breaking
+      Append ps  -> go cur ((Left <$> toList ps) <> rest)
+      Empty      -> go cur rest
+      Group p    -> go cur (Right p : rest)
+      -- Note: literals can't be broken further so they're
+      -- added to output unconditionally
+      Lit l      -> l <> go (cur <> delta p) rest
+      OrElse _ p -> go cur (Right p : rest)
+      Wrap ps    -> go cur ((Right <$> toList ps) <> rest)
 
-    flows' ps = lit' (foldMap delta ps) (foldMap flow ps)
-    flow p = case out p of
-      Append ps -> foldMap flow ps
-      Empty -> mempty
-      Group p -> flow p
-      Lit s -> s
-      OrElse p _ -> flow p
-      Wrap ps -> foldMap flow ps
+  fits p (Delta _ x) = preferredWidth p <= availableWidth - x
+
+  flow p = case out p of
+    Append ps -> foldMap flow ps
+    Empty -> mempty
+    Group p -> flow p
+    Lit s -> s
+    OrElse p _ -> flow p
+    Wrap ps -> foldMap flow ps
 
 newline :: IsString s => Pretty s
 newline = lit' (chDelta '\n') (fromString "\n")
@@ -224,11 +222,18 @@ text t = fromString (Text.unpack t)
 
 hang' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
 hang' from by p = group $
-  (from <> " " <> p) `orElse`
-  (from <> "\n" <> indent by (group p))
+  if preferredHeight p > 0 then from <> "\n" <> group (indent by p)
+  else (from <> " " <> group p) `orElse`
+       (from <> "\n" <> group (indent by p))
+
+-- onBreak :: Pretty s -> Pretty s
+-- onBreak p = mempty `orElse` p
 
 hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 hang from p = hang' from "  " p
+
+nest :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+nest by = hang' "" by
 
 indent :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indent by p = by <> indentAfterNewline by p
@@ -274,6 +279,9 @@ chDelta _ = Delta 0 1
 preferredWidth :: Pretty s -> Width
 preferredWidth p = case delta p of Delta _ w -> w
 
+preferredHeight :: Pretty s -> Width
+preferredHeight p = case delta p of Delta h _ -> h
+
 minWidth :: Pretty s -> Width
 minWidth p = case minDelta p of Delta _ w -> w
 
@@ -296,6 +304,15 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+
+instance Show s => Show (Pretty s) where
+  show p = case out p of
+    Lit s -> show s
+    Empty -> "Empty"
+    Group g -> "(Group " <> show g <> ")"
+    Wrap s -> "(Wrap [" <> intercalateMap "," show s <> "])"
+    OrElse a b -> "(OrElse " <> show a <> " " <> show b <> ")"
+    Append a -> "[" <> intercalateMap "," show a <> "]"
 
 --ex :: Pretty String
 --ex = indentN 2 $ numbered (fromString . show) stuff

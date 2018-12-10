@@ -52,8 +52,8 @@ pretty n p tp = case tp of
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x ->
     PP.group $ l "[" <> pretty n 0 x <> l "]"
-  Tuple' [x] ->
-    PP.parenthesizeIf (p >= 10) $ PP.spaced ["Pair", pretty n 10 x, "()" ]
+  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $
+    "Pair" `PP.hang` PP.spaced [pretty n 10 x, "()"]
   Tuple' xs -> PP.parenthesizeCommas $ map (pretty n 0) xs
   Apps' f xs -> PP.parenthesizeIf (p >= 10) $
     pretty n 9 f `PP.hang` PP.spaced (pretty n 10 <$> xs)
