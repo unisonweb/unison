@@ -161,10 +161,21 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
                             xs
         <> "]"
       where optSpace = PP.orElse "" " "
-    If' cond t f -> paren (p >= 2) $ PP.spaced [
-      "if" `PP.hang` pretty n (ac 2 Block) cond,
-      "then" `PP.hang` pretty n (ac 2 Block) t,
-      "else" `PP.hang` pretty n (ac 2 Block) f ]
+    If' cond t f -> paren (p >= 2) $
+      if height > 0 then PP.lines [
+        "if " <> pcond <> (" then") `PP.hang` pt,
+        "else" `PP.hang` pf
+       ]
+      else PP.spaced [
+        "if" `PP.hang` pcond,
+        "then" `PP.hang` pt,
+        "else" `PP.hang` pf
+       ]
+     where
+       height = PP.preferredHeight pt `max` PP.preferredHeight pf
+       pcond  = pretty n (ac 2 Block) cond
+       pt     = pretty n (ac 2 Block) t
+       pf     = pretty n (ac 2 Block) f
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         "and", pretty n (ac 10 Normal) x,

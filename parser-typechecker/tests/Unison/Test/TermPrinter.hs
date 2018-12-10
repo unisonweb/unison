@@ -230,16 +230,14 @@ test = scope "termprinter" . tests $
             \    f : Int -> Int\n\
             \    f x = x\n\
             \  13"
-            "if foo\n\
-            \then\n\
+            "if foo then\n\
             \  and true true\n\
             \  12\n\
             \else\n\
             \  baz.f : Int -> Int\n\
             \  baz.f x = x\n\
             \  13" 50
-  , tc_breaks 50 "if foo\n\
-                 \then\n\
+  , tc_breaks 50 "if foo then\n\
                  \  and true true\n\
                  \  12\n\
                  \else\n\

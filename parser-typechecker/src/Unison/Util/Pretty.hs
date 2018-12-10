@@ -15,6 +15,8 @@ module Unison.Util.Pretty (
    group,
    hang',
    hang,
+   hangUngrouped',
+   hangUngrouped,
    indent,
    indentAfterNewline,
    indentN,
@@ -29,10 +31,12 @@ module Unison.Util.Pretty (
    newline,
    numbered,
    orElse,
+   orElses,
    parenthesize,
    parenthesizeCommas,
    parenthesizeIf,
    preferredWidth,
+   preferredHeight,
    render,
    renderUnbroken,
    rightPad,
@@ -53,7 +57,7 @@ module Unison.Util.Pretty (
   ) where
 
 import           Data.Foldable                  ( toList )
-import           Data.List                      ( foldl' , intersperse )
+import           Data.List                      ( foldl' , foldr1, intersperse )
 import           Data.Sequence                  ( Seq )
 import           Data.String                    ( IsString , fromString )
 import           Data.Text                      ( Text )
@@ -98,6 +102,10 @@ lit' d s = Pretty d d (Lit s)
 
 orElse :: Pretty s -> Pretty s -> Pretty s
 orElse p1 p2 = Pretty (delta p1) (minDelta p2) (OrElse p1 p2)
+
+orElses :: [Pretty s] -> Pretty s
+orElses [] = mempty
+orElses ps = foldr1 orElse ps
 
 wrap :: IsString s => [Pretty s] -> Pretty s
 wrap [] = mempty
@@ -232,8 +240,14 @@ hang' from by p = group $
   else (from <> " " <> group p) `orElse`
        (from <> "\n" <> group (indent by p))
 
--- onBreak :: Pretty s -> Pretty s
--- onBreak p = mempty `orElse` p
+hangUngrouped' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
+hangUngrouped' from by p =
+  if preferredHeight p > 0 then from <> "\n" <> indent by p
+  else (from <> " " <> p) `orElse`
+       (from <> "\n" <> indent by p)
+
+hangUngrouped :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+hangUngrouped from p = hangUngrouped' from "  " p
 
 hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 hang from p = hang' from "  " p
