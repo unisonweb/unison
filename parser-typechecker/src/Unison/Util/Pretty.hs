@@ -39,6 +39,7 @@ module Unison.Util.Pretty (
    sepSpaced,
    softbreak,
    spaceIfBreak,
+   spacesIfBreak,
    spaced,
    spacedMap,
    text,
@@ -154,6 +155,9 @@ newline = lit' (chDelta '\n') (fromString "\n")
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
 
+spacesIfBreak :: IsString s => Int -> Pretty s
+spacesIfBreak n = "" `orElse` (fromString $ replicate n ' ')
+
 softbreak :: IsString s => Pretty s
 softbreak = " " `orElse` newline
 
@@ -219,7 +223,7 @@ text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
 
 hang' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
-hang' from by p =
+hang' from by p = group $
   (from <> " " <> p) `orElse`
   (from <> "\n" <> indent by (group p))
 

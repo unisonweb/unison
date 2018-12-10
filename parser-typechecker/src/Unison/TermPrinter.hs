@@ -187,8 +187,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
       paren (p >= 10) $ "Pair" `PP.hang`
         PP.spaced [pretty n (ac 10 Normal) x, "()" ]
     (Tuple' xs, _) -> paren True $ commaList xs
-    BinaryAppsPred' apps lastArg ->
-      paren (p >= 3) $ binaryApps apps <> pretty n (ac 3 Normal) lastArg
+    BinaryAppsPred' apps lastArg -> paren (p >= 3) $
+      binaryApps apps <> PP.softbreak <> pretty n (ac 3 Normal) lastArg
     _ -> case (term, nonForcePred) of
       AppsPred' f args | not $ isVarKindInfo f ->
         paren (p >= 10) $ pretty n (ac 10 Normal) f `PP.hang`
