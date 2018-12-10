@@ -55,7 +55,7 @@ pretty n p tp = case tp of
   Tuple' [x] ->
     PP.parenthesizeIf (p >= 10) $ PP.spaced ["Pair", pretty n 10 x, "()" ]
   Tuple' xs -> PP.parenthesizeCommas $ map (pretty n 0) xs
-  Apps' f xs -> parenNoGroup (p >= 10) $
+  Apps' f xs -> PP.parenthesizeIf (p >= 10) $
     pretty n 9 f `PP.hang` PP.spaced (pretty n 10 <$> xs)
   Effect1' e t -> PP.parenthesizeIf (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
   Effects' es -> effects (Just es)

@@ -157,12 +157,11 @@ test = scope "typeprinter" . tests $
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
-              \(∀ a. a -> a -> a)\n\
-              \b" 24
+              \  (∀ a. a -> a -> a) b" 24
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not breaking under forall
               "Pair\n\
-              \(∀ a. a -> a -> a)\n\
-              \b" 14
+              \  (∀ a. a -> a -> a)\n\
+              \  b" 14
 
   ]
