@@ -222,10 +222,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` pretty n (ac 0 Block) body
     where
-    lhs = PP.group (fst (prettyPattern n (-1) vs pat))
+    lhs = PP.group (fst (prettyPattern n (-1) vs pat) <> " ")
        <> printGuard guard
-       <> " ->"
-    printGuard (Just g) = PP.group $ PP.spaced ["", "|", pretty n (ac 2 Normal) g, ""]
+       <> "->"
+    printGuard (Just g) = PP.group $ PP.spaced ["|", pretty n (ac 2 Normal) g, ""]
     printGuard Nothing  = mempty
   printCase _ = l "error"
 
@@ -297,6 +297,8 @@ prettyPattern n p vs patt = case patt of
   Pattern.Tuple pats ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
+  Pattern.Constructor _ ref i [] ->
+    (PP.text (PrettyPrintEnv.patternName n ref i), vs) 
   Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)

@@ -336,7 +336,7 @@ test = scope "termprinter" . tests $
                  \      Optional.None -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
-  , tc_breaks 50 "case x of\n\
+  , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
   , pending $ tc_breaks 50 "if true\n\
                  \then\n\
