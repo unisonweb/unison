@@ -7,42 +7,53 @@
 
 module Unison.Codebase where
 
-import           Control.Monad                 (foldM, forM)
-import           Data.Char                     (toLower)
-import           Data.Foldable                 (toList, traverse_)
+import           Control.Monad                  ( foldM
+                                                , forM
+                                                , join
+                                                )
+import           Data.Char                      ( toLower )
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
 import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Maybe                    (catMaybes)
-import           Data.Set                      (Set)
-import qualified Data.Set as Set
-import           Data.String                   (fromString)
+import           Data.Maybe                     ( catMaybes )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.String                    ( fromString )
 import qualified Data.Text                     as Text
-import           Text.EditDistance             (defaultEditCosts,
-                                                levenshteinDistance)
+import           Data.Traversable               ( for )
+import           Text.EditDistance              ( defaultEditCosts
+                                                , levenshteinDistance
+                                                )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch        (Branch)
+import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Names                  (Name, Referent)
+import           Unison.Names                   ( Name
+                                                , Referent
+                                                )
 import qualified Unison.Names                  as Names
-import           Unison.Parser                 (Ann)
+import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Reference              (Reference)
+import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Typechecker.TypeLookup (Decl, TypeLookup (TypeLookup))
+import           Unison.Typechecker.TypeLookup  ( Decl
+                                                , TypeLookup(TypeLookup)
+                                                )
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
-import           Unison.Util.AnnotatedText     (AnnotatedText)
-import           Unison.Util.ColorText         (Color)
-import           Unison.Util.PrettyPrint       (PrettyPrint)
+import           Unison.Util.AnnotatedText      ( AnnotatedText )
+import           Unison.Util.ColorText          ( Color )
+import           Unison.Util.PrettyPrint        ( PrettyPrint )
 import qualified Unison.Util.PrettyPrint       as PP
 import qualified Unison.Var                    as Var
-import Unison.Var (Var)
+import           Unison.Var                     ( Var )
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -97,21 +108,60 @@ listReferences code branch refs = do
   -- todo: type decls also
   pure (PP.render 80 termsPP)
 
-listReferencesMatching :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
-listReferencesMatching code b query = do
-  let termNames = Text.unpack <$> toList (Branch.allTermNames (Branch.head b))
-      typeNames = Text.unpack <$> toList (Branch.allTypeNames (Branch.head b))
-      matchingTerms =
-        if null query then termNames
+fuzzyFindTerms
+  :: (Var v, Monad m)
+  => Codebase m v a
+  -> Branch
+  -> [String]
+  -> m [(Name, Referent, Type v a)]
+fuzzyFindTerms codebase branch query =
+  let termNames =
+        Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
+      matchingTerms = if null query
+        then termNames
         else query >>= \q -> sortedApproximateMatches q termNames
-      matchingTypes =
-        if null query then typeNames
+  in  fmap join . for matchingTerms $ \name ->
+        fmap join . for
+            [ r
+            | Names.Ref r <- Set.toList
+              $ Branch.termsNamed (Text.pack name) branch
+            ]
+          $ \ref ->
+              fmap (Text.pack name, Names.Ref ref, )
+                .   toList
+                <$> getTypeOfTerm codebase ref
+
+fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
+fuzzyFindTypes branch query =
+  let typeNames =
+        Text.unpack <$> toList (Branch.allTypeNames $ Branch.head branch)
+      matchingTypes = if null query
+        then typeNames
         else query >>= \q -> sortedApproximateMatches q typeNames
-      matchingTypeRefs = matchingTypes >>= \name ->
-        Set.toList (Branch.typesNamed (Text.pack name) b)
-      matchingTermRefs = matchingTerms >>= \name ->
-        Set.toList (Branch.termsNamed (Text.pack name) b)
-  listReferences code b (matchingTypeRefs ++ [ r | Names.Ref r <- matchingTermRefs ])
+  in  matchingTypes >>= \name ->
+        (Text.pack name, )
+          <$> (Set.toList $ Branch.typesNamed (Text.pack name) branch)
+
+
+listReferencesMatching
+  :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
+listReferencesMatching code b query = do
+  let
+    termNames     = Text.unpack <$> toList (Branch.allTermNames (Branch.head b))
+    typeNames     = Text.unpack <$> toList (Branch.allTypeNames (Branch.head b))
+    matchingTerms = if null query
+      then termNames
+      else query >>= \q -> sortedApproximateMatches q termNames
+    matchingTypes = if null query
+      then typeNames
+      else query >>= \q -> sortedApproximateMatches q typeNames
+    matchingTypeRefs = matchingTypes
+      >>= \name -> Set.toList (Branch.typesNamed (Text.pack name) b)
+    matchingTermRefs = matchingTerms
+      >>= \name -> Set.toList (Branch.termsNamed (Text.pack name) b)
+  listReferences code
+                 b
+                 (matchingTypeRefs ++ [ r | Names.Ref r <- matchingTermRefs ])
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
