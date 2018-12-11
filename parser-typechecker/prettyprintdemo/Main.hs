@@ -36,12 +36,12 @@ main = do
 
     PP.bulleted [
       PP.sep ", " (replicate 10 "a"),
-      PP.lines ["Alice", "Bob", "Carol"],
+      PP.lines ["Alice", PP.hiBlue "Bob", "Carol"],
       PP.blue "foo bar baz"
     ],
 
     PP.indentN 4 $ PP.bulleted ["Alice", "Bob", "Carol"],
-    PP.dashed ["Alice", "Bob", "Carol"],
+    PP.dashed ["Alice", PP.red "Bob", "Carol"],
     PP.column2 [
       (PP.bold "Name", PP.bold "Favorite color"),
       ("Alice"       , PP.red "Red"),
@@ -54,6 +54,7 @@ main = do
     -- Feel free to start the numbering wherever you like
     PP.numbered (fromString . show . (10 +)) ["uno", "dos", "tres"]
 
+    -- todo: examples for grouping and breaking
     ]
   loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
   -- loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas sem nisi, venenatis viverra ex eu, tristique dapibus justo. Ut lobortis mattis rutrum. Vivamus mattis eros diam, a egestas mi venenatis vel. Nunc felis dui, consectetur ac volutpat vitae, molestie in augue. Cras nec aliquet ex. In et sem vel sapien auctor euismod. Pellentesque eu aliquam dolor. Cras porttitor mi velit, dapibus vulputate odio pharetra non. Etiam iaculis nulla eu nisl euismod ultricies."

@@ -250,9 +250,12 @@ indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
 
 indentAfterNewline :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indentAfterNewline by p = flatMap f p where
-  f s = case LL.break (== '\n') s of
-    (hd, s) -> if LL.null s then lit hd
-               else lit hd <> "\n" <> by <> f (LL.drop 1 s)
+  f s0 = case LL.break (== '\n') s0 of
+    (hd, s) -> if LL.null s then lit s0
+               -- use `take` and `drop` to preserve annotations or
+               -- or other extra info attached to the original `s`
+               else lit (LL.take (LL.length hd) s0) <> 
+                    "\n" <> by <> f (LL.drop 1 s)
 
 instance IsString s => IsString (Pretty s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
@@ -339,29 +342,3 @@ flatMap f p = case out p of
   Lit s -> f s
   OrElse p1 p2 -> orElse (flatMap f p1) (flatMap f p2)
   Wrap p -> wrap_ (flatMap f <$> p)
-
-
---class Prettyable a where
---  pretty :: a -> Pretty CT.ColorText
-
---ex :: Pretty String
---ex = indentN 2 $ numbered (fromString . show) stuff
---  where
---    stuff = replicate 10 (commas $ replicate 10 "hi")
---
---ex2 :: Pretty String
---ex2 = indentN 2 $ lines (replicate 10 "hi")
---
---ex3 :: Pretty String
---ex3 = indentN 2 $ numbered (fromString . show) stuff
---  where
---    stuff = replicate 10 (group $ sepSpaced "**" (replicate 5 . group . commas $ replicate 5 "hi"))
---
---ex4 :: Pretty String
---ex4 = "x =" <> hang (spaced $ replicate 7 "sdlfkj")
---
---ex5 :: Pretty String
---ex5 = indentN 2 $ wrapWords "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras pretium metus dolor, id maximus mi commodo ac. Nullam accumsan ex non leo rutrum vulputate. Suspendisse potenti. Vivamus ultricies finibus neque, ut lacinia sem ornare sed. Morbi feugiat non sem sit amet tincidunt. Nam porttitor auctor orci, a vulputate metus. In non quam et magna elementum posuere. Nam laoreet nisl nec est iaculis, et ornare sem volutpat. Integer eget laoreet tortor. Fusce finibus pellentesque libero ac elementum."
---
---ex6 :: Pretty String
---ex6 = indentN 2 $ wrapWords "ab cde ef gh"
