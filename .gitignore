@@ -1,6 +1,5 @@
 # Unison
 .unison/
-.unisonHistory
 
 # Haskell
 dist
@@ -37,4 +36,3 @@ haskell-tags
 .virtualenv
 .vagrant
 .bloop
-

@@ -29,7 +29,6 @@ import           Control.Concurrent             ( forkIO
 import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
                                                 , when
-                                                , void
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
@@ -326,16 +325,14 @@ main dir currentBranchName _initialFile startRuntime codebase = do
     -- todo: need to do something fancy here to ensure that the
     -- line reader gets the latest branch, since the IORef isn't updated
     -- right away
-    let inputReader = forkIO $ do
-          (branch, branchName) <- readIORef branchRef
-          queueInput patternMap inputQueue codebase branch branchName
-        awaitInput = do
-          void inputReader
-          e <- Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue)
-          case e of
-            Right _ -> Right <$> atomically (Q.dequeue inputQueue)
-            Left  _ -> Left <$> atomically (Q.dequeue eventQueue)
+    inputReader <- forkIO . forever $ do
+      (branch, branchName) <- readIORef branchRef
+      queueInput patternMap inputQueue codebase branch branchName
+    let awaitInput = Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>= \case
+          Right _ -> Right <$> atomically (Q.dequeue inputQueue)
+          Left  _ -> Left <$> atomically (Q.dequeue eventQueue)
         cleanup = do
+          killThread inputReader
           Runtime.terminate runtime
           cancelFileSystemWatch
           cancelWatchBranchUpdates
