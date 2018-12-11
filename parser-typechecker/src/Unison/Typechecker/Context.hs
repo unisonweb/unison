@@ -67,7 +67,6 @@ import           Data.Word                      ( Word64 )
 import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
-import qualified Unison.Names                  as Names
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
@@ -75,6 +74,7 @@ import qualified Unison.DataDeclaration        as DD
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import           Unison.Reference               ( Reference )
+import           Unison.Referent                ( Referent )
 import           Unison.Term                    ( AnnotatedTerm' )
 import qualified Unison.Term                   as Term
 import           Unison.Type                    ( AnnotatedType )
@@ -215,7 +215,7 @@ type ConstructorId = Int
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
-             , suggestionReplacement :: Either v Names.Referent
+             , suggestionReplacement :: Either v Referent
              } |
   WrongType { suggestionName :: Text
             , suggestionType :: Type v loc

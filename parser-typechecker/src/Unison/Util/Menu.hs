@@ -15,7 +15,7 @@ import           Data.Strings              (strPadLeft)
 import           Safe                      (atMay)
 import qualified Text.Read                 as Read
 import           Unison.Util.AnnotatedText (textEmpty)
-import           Unison.Util.ColorText     (ColorText, renderText)
+import           Unison.Util.ColorText     (ColorText, toANSI)
 import           Unison.Util.Monoid        (intercalateMap)
 -- utility - command line menus
 
@@ -128,9 +128,9 @@ groupMenu1 :: forall a mc
       -> IO (Maybe (Either mc [a]))
 groupMenu1 console caption render renderMeta groups metas initial = do
   when ((not . textEmpty) caption) $ do
-    print . renderText $ caption
+    print . toANSI $ caption
     putStrLn ""
-  print . renderText $ renderChoices render renderMeta groups metas (`elem` initial)
+  print . toANSI $ renderChoices render renderMeta groups metas (`elem` initial)
   resume
   where
       restart = groupMenu1 console caption render renderMeta groups metas initial
@@ -236,9 +236,9 @@ groupMenuN' :: forall a mc. Ord a
             -> IO (Either mc [[a]])
 groupMenuN' console caption render renderMeta groups metas initials = do
   when ((not . textEmpty) caption) $ do
-    print . renderText $ caption
+    print . toANSI $ caption
     putStrLn ""
-  print . renderText $ renderChoices render renderMeta groups metas ((`any` initials) . elem)
+  print . toANSI $ renderChoices render renderMeta groups metas ((`any` initials) . elem)
   resume initials
   where
     restart initials = groupMenuN' console caption render renderMeta groups metas initials

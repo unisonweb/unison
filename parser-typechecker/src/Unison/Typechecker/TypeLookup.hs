@@ -3,9 +3,10 @@ module Unison.Typechecker.TypeLookup where
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Unison.Reference (Reference)
+import Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import Unison.Type (AnnotatedType)
 import qualified Unison.DataDeclaration as DD
-import qualified Unison.Names as Names
 
 type Type v a = AnnotatedType v a
 type DataDeclaration v a = DD.DataDeclaration' v a
@@ -19,11 +20,11 @@ data TypeLookup v a =
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
 
-typeOfReferent :: TypeLookup v a -> Names.Referent -> Maybe (Type v a)
+typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
-  Names.Ref r -> typeOfTerm tl r
-  Names.Con r cid -> typeOfDataConstructor tl r cid
-  Names.Req r cid -> typeOfEffectConstructor tl r cid
+  Referent.Ref r -> typeOfTerm tl r
+  Referent.Con r cid -> typeOfDataConstructor tl r cid
+  Referent.Req r cid -> typeOfEffectConstructor tl r cid
 
 typeOfDataConstructor :: TypeLookup v a -> Reference -> Int -> Maybe (Type v a)
 typeOfDataConstructor tl r cid = go =<< Map.lookup r (dataDecls tl)

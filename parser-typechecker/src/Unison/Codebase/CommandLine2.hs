@@ -126,15 +126,13 @@ data ArgumentType = ArgumentType
 
 showPatternHelp :: InputPattern -> String
 showPatternHelp i =
-  bold (patternName i)
+  CT.toANSI (CT.bold (fromString $ patternName i))
     <> (if not . null $ aliases i
          then " (or " <> intercalate ", " (aliases i) <> ")"
          else ""
        )
     <> "\n"
     <> Text.unpack (help i)
-  -- bold (patternName i) <> " " <> showArgs (args i) <> "\n" <> Text.unpack (help i)
-  where bold s = show $ CT.renderText (CT.style CT.Bold (fromString s))
     -- showArgs args = intercalateMap " " g args
     -- g (isOptional, arg) =
     --   if isOptional then "[" <> typeName arg <> "]"

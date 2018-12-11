@@ -19,11 +19,11 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 )
 import           Unison.Names                   ( Name
                                                 , NameTarget
-                                                , Referent
                                                 )
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
 import           Unison.Reference               ( Reference )
+import           Unison.Referent                (Referent)
 import           Unison.Result                  (pattern Result)
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF

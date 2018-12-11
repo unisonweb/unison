@@ -9,7 +9,7 @@ import           Text.RawString.QQ
 import           Unison.Lexer (Pos (..))
 import           Unison.Util.AnnotatedText (AnnotatedExcerpt (..),
                                             condensedExcerptToText, markup)
-import           Unison.Util.ColorText (ANSI, Color (..), Rendered, renderText)
+import           Unison.Util.ColorText (Color (..), toANSI)
 import qualified Unison.Util.ColorText as ColorText
 import           Unison.Util.Range (Range (..))
 
@@ -19,12 +19,12 @@ test = scope "colortext" . tests $ [
     -- scope "inclusive-exclusive range" . expect . trace ("ex4e: " ++ show (rawRender ex4e) ++ "\n" ++ "ex4t: " ++ show (rawRender ex4t) ++ "\n")$ ex4e == ex4t
   ]
 
-ex4e :: Rendered ANSI
-ex4e = renderText . condensedExcerptToText 1 $ markup "abc" m
+ex4e :: String
+ex4e = toANSI . condensedExcerptToText 1 $ markup "abc" m
         where m = Map.singleton (Range (Pos 1 2) (Pos 1 3)) Red
 
-ex4t :: Rendered ANSI
-ex4t = renderText $ "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
+ex4t :: String
+ex4t = toANSI $ "    1 | " <> "a" <> ColorText.style Red "b" <> "c" <> "\n"
 
 
 ex2 :: AnnotatedExcerpt Color
@@ -36,8 +36,8 @@ ex2 = markup ex (Map.fromList
       , (Range (Pos 12 30) (Pos 13 27), Green) -- fall ... aground.
       ])
 
-renderEx2 :: Rendered ANSI
-renderEx2 = renderText . condensedExcerptToText 3 $ ex2
+renderEx2 :: String
+renderEx2 = toANSI . condensedExcerptToText 3 $ ex2
 
 ex3 :: AnnotatedExcerpt Color
 ex3 = markup "Hello, world!" $ Map.fromList

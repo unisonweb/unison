@@ -17,9 +17,11 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
-import           Unison.Names           (Names, Referent)
+import           Unison.Names           (Names)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
+import           Unison.Referent        (Referent)
+import qualified Unison.Referent        as Referent
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
@@ -72,7 +74,7 @@ dependencies uf ns = directReferences <>
         -- if the name or unqualified name is in Term.freeVars,
         -- include the reference
     freeTermVarRefs =
-      [ Names.referentToReference referent
+      [ Referent.toReference referent
       | (name, referent) <- Map.toList $ Names.termNames ns
       , Var.named name `Set.member` Term.freeVars tm
         || Var.unqualified (Var.named name) `Set.member` Term.freeVars tm
@@ -121,9 +123,9 @@ hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Names.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Names.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 hashTerms ::
