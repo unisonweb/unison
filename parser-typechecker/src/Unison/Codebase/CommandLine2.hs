@@ -58,57 +58,60 @@ import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Var                     ( Var )
 import qualified System.Console.Haskeline      as Line
 import           System.Directory               ( canonicalizePath )
+import qualified System.Console.Terminal.Size  as Terminal
 
-notifyUser :: Var v => Int -> FilePath -> Output v -> IO ()
-notifyUser width dir o = case o of
-  Success _    -> putStrLn "Done."
-  NoUnisonFile -> do
-    dir' <- canonicalizePath dir
-    putPrettyLn
-      .  Pretty.wrap
-      $  (fromString <$> words
-           (  "There's nothing for me to add right now. "
-           <> "If you modify a file with the .u extension under the "
+notifyUser :: Var v => FilePath -> Output v -> IO ()
+notifyUser dir o = do
+  width <- fromMaybe 80 . fmap Terminal.width <$> Terminal.size
+  let putPrettyLn = putStrLn . Pretty.toANSI width
+  case o of
+    Success _    -> putStrLn "Done."
+    NoUnisonFile -> do
+      dir' <- canonicalizePath dir
+      putPrettyLn
+        .  Pretty.wrap
+        $  (fromString <$> words
+             (  "There's nothing for me to add right now. "
+             <> "If you modify a file with the .u extension under the "
+             )
            )
-         )
-      ++ [Pretty.blue $ fromString dir']
-      ++ (fromString <$> words
-           (  " directory, I'll find any definitions in that file. "
-           <> "After that, you can use `add` to add them to the codebase."
+        ++ [Pretty.blue $ fromString dir']
+        ++ (fromString <$> words
+             (  " directory, I'll find any definitions in that file. "
+             <> "After that, you can use `add` to add them to the codebase."
+             )
            )
-         )
-  UnknownBranch branchName ->
-    putPrettyLn
-      $  fromString (warnNote "I don't know of a branch named ")
-      <> (Pretty.red $ Pretty.text branchName)
-      <> "."
-  UnknownName branchName _nameTarget name ->
-    putPrettyLn
-      $  fromString (warnNote "I don't know of anything named ")
-      <> (Pretty.red $ Pretty.text name)
-      <> " in the branch "
-      <> (Pretty.blue $ Pretty.text branchName)
-  DisplayConflicts branch -> do
-    let terms    = R.dom $ Branch.termNamespace branch
-        patterns = R.dom $ Branch.patternNamespace branch
-        types    = R.dom $ Branch.typeNamespace branch
-    when (not $ null terms) $ do
-      putStrLn "🙅 The following terms have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) terms
-    when (not $ null patterns) $ do
-      putStrLn "🙅 The following patterns have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) patterns
-    when (not $ null types) $ do
-      putStrLn "🙅 The following types have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
-    -- TODO: Present conflicting TermEdits and TypeEdits
-    -- if we ever allow users to edit hashes directly.
-  ListOfBranches current branches ->
-    putStrLn
-      $ let go n = if n == current then "* " <> n else "  " <> n
-        in  Text.unpack $ intercalateMap "\n" go (sort branches)
-  _ -> putStrLn $ show o
-  where putPrettyLn = putStrLn . Pretty.toANSI width
+    UnknownBranch branchName ->
+      putPrettyLn
+        $  fromString (warnNote "I don't know of a branch named ")
+        <> (Pretty.red $ Pretty.text branchName)
+        <> "."
+    UnknownName branchName _nameTarget name ->
+      putPrettyLn
+        $  fromString (warnNote "I don't know of anything named ")
+        <> (Pretty.red $ Pretty.text name)
+        <> " in the branch "
+        <> (Pretty.blue $ Pretty.text branchName)
+    DisplayConflicts branch -> do
+      let terms    = R.dom $ Branch.termNamespace branch
+          patterns = R.dom $ Branch.patternNamespace branch
+          types    = R.dom $ Branch.typeNamespace branch
+      when (not $ null terms) $ do
+        putStrLn "🙅 The following terms have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) terms
+      when (not $ null patterns) $ do
+        putStrLn "🙅 The following patterns have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) patterns
+      when (not $ null types) $ do
+        putStrLn "🙅 The following types have conflicts: "
+        traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
+      -- TODO: Present conflicting TermEdits and TypeEdits
+      -- if we ever allow users to edit hashes directly.
+    ListOfBranches current branches ->
+      putStrLn
+        $ let go n = if n == current then "* " <> n else "  " <> n
+          in  Text.unpack $ intercalateMap "\n" go (sort branches)
+    _ -> putStrLn $ show o
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -371,7 +374,6 @@ main dir currentBranchName _initialFile startRuntime codebase = do
       $ Editor.commandLine awaitInput
                            runtime
                            (\b bn -> writeIORef branchRef (b, bn))
-                           (notifyUser 80 dir)
+                           (notifyUser dir)
                            codebase
       $ Actions.startLoop currentBranch currentBranchName
-

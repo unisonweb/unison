@@ -138,6 +138,7 @@ library
     safe,
     stm,
     strings,
+    terminal-size,
     text,
     time,
     transformers,
