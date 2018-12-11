@@ -31,20 +31,12 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-<<<<<<< HEAD
-import           Unison.Names                  (Name)
-import           Unison.Parser                 (Ann)
-=======
-import           Unison.Names                   ( Name
-                                                , Referent
-                                                )
-import qualified Unison.Names                  as Names
+import           Unison.Names                   ( Name )
 import           Unison.Parser                  ( Ann )
->>>>>>> e6d4247835ae64cffce70d29e59e7ed8ffffd993
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent               (Referent)
+import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
@@ -84,32 +76,34 @@ data Codebase m v a =
 
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.
-typecheckingEnvironment :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (TypeLookup v a)
+typecheckingEnvironment
+  :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (TypeLookup v a)
 typecheckingEnvironment code t = do
   let deps = Term.dependencies t
-  termTypes0 <- forM (toList deps) $ \r -> (r,) <$> getTypeOfTerm code r
+  termTypes0 <- forM (toList deps) $ \r -> (r, ) <$> getTypeOfTerm code r
   let termTypes = Map.fromList [ (r, t) | (r, Just t) <- termTypes0 ]
-  let rids = [ (r0,r) | r0@(Reference.DerivedId r) <- toList deps ]
-  decls0 <- forM rids $ \(r0,r) -> (r0,) <$> getTypeDeclaration code r
-  let allDecls = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
+  let rids      = [ (r0, r) | r0@(Reference.DerivedId r) <- toList deps ]
+  decls0 <- forM rids $ \(r0, r) -> (r0, ) <$> getTypeDeclaration code r
+  let allDecls         = Map.fromList [ (r, d) | (r, Just d) <- decls0 ]
       (datas, effects) = foldl' go (mempty, mempty) (Map.toList allDecls)
       go (datas, effects) (r, d) = case d of
-        Left e  -> (datas, Map.insert r e effects)
+        Left  e -> (datas, Map.insert r e effects)
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-listReferences :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
+listReferences
+  :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
 listReferences code branch refs = do
   let ppe = Branch.prettyPrintEnv1 branch
   terms <- fmap catMaybes . forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
-    pure $ fmap (PPE.termName ppe (Referent.Ref r),) otyp
+    pure $ fmap (PPE.termName ppe (Referent.Ref r), ) otyp
   let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
-      typeRefs = filter (`Set.member` typeRefs0) refs
+      typeRefs  = filter (`Set.member` typeRefs0) refs
   _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
     Reference.DerivedId id -> do
       d <- getTypeDeclaration code id
-      pure $ fmap (PPE.typeName ppe r,) d
+      pure $ fmap (PPE.typeName ppe r, ) d
     _ -> pure Nothing
   let termsPP = TypePrinter.prettySignatures ppe (sortOn fst terms)
   -- todo: type decls also
@@ -130,11 +124,11 @@ fuzzyFindTerms codebase branch query =
   in  fmap join . for matchingTerms $ \name ->
         fmap join . for
             [ r
-            | Names.Ref r <- Set.toList
+            | Ref r <- Set.toList
               $ Branch.termsNamed (Text.pack name) branch
             ]
           $ \ref ->
-              fmap (Text.pack name, Names.Ref ref, )
+              fmap (Text.pack name, Ref ref, )
                 .   toList
                 <$> getTypeOfTerm codebase ref
 
@@ -168,7 +162,7 @@ listReferencesMatching code b query = do
       >>= \name -> Set.toList (Branch.termsNamed (Text.pack name) b)
   listReferences code
                  b
-                 (matchingTypeRefs ++ [ r | Names.Ref r <- matchingTermRefs ])
+                 (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
@@ -193,23 +187,33 @@ initialize c = do
   goEffect = go Left
   goData   = go Right
 
-prettyBinding :: (Var.Var v, Monad m)
-  => Codebase m v a -> Name -> Referent -> Branch -> m (Maybe (PrettyPrint String))
+prettyBinding
+  :: (Var.Var v, Monad m)
+  => Codebase m v a
+  -> Name
+  -> Referent
+  -> Branch
+  -> m (Maybe (PrettyPrint String))
 prettyBinding _ _ (Referent.Ref (Reference.Builtin _)) _ = pure Nothing
-prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b = go =<< getTerm cb r where
+prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
+  go =<< getTerm cb r
+ where
   go Nothing = pure Nothing
-  go (Just tm) = let
-    -- We boost the `(r0,name)` association since if this is a recursive
-    -- fn whose body also mentions `r`, want name to be the same as the binding.
-    ppEnv = Branch.prettyPrintEnv [b] `mappend`
-            PPE.scale 10 (PPE.fromTermNames [(r0, name)])
-    in case tm of
-      Term.Ann' _ _ -> pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
-      _ -> do
-        Just typ <- getTypeOfTerm cb r1
-        pure . Just $ TermPrinter.prettyBinding ppEnv
-          (Var.named name)
-          (Term.ann (ABT.annotation tm) tm typ)
+  go (Just tm) =
+    let
+-- We boost the `(r0,name)` association since if this is a recursive
+-- fn whose body also mentions `r`, want name to be the same as the binding.
+        ppEnv = Branch.prettyPrintEnv [b]
+          `mappend` PPE.scale 10 (PPE.fromTermNames [(r0, name)])
+    in  case tm of
+          Term.Ann' _ _ ->
+            pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
+          _ -> do
+            Just typ <- getTypeOfTerm cb r1
+            pure . Just $ TermPrinter.prettyBinding
+              ppEnv
+              (Var.named name)
+              (Term.ann (ABT.annotation tm) tm typ)
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
@@ -219,105 +223,148 @@ prettyBindings cb tms b = do
   pure $ PP.linesSpaced ds
 
 -- Search for and display bindings matching the given query
-prettyBindingsQ :: (Var.Var v, Monad m)
-  => Codebase m v a -> String -> Branch -> m (PrettyPrint String)
-prettyBindingsQ cb query b = let
-  possible = Branch.allTermNames (Branch.head b)
-  matches = sortedApproximateMatches query (Text.unpack <$> toList possible)
-  str = fromString
-  bs = [ (name,r) | name <- Text.pack <$> matches,
-                    r <- take 1 (toList $ Branch.termsNamed name b) ]
-  go pp = if length matches > 5
-          then PP.linesSpaced [pp, "... " <> str (show (length matches - 5)) <>
-                               " more (use `> list " <> str query <> "` to see all matches)"]
-          else pp
-  in go <$> prettyBindings cb (take 5 bs) b
+prettyBindingsQ
+  :: (Var.Var v, Monad m)
+  => Codebase m v a
+  -> String
+  -> Branch
+  -> m (PrettyPrint String)
+prettyBindingsQ cb query b =
+  let possible = Branch.allTermNames (Branch.head b)
+      matches =
+        sortedApproximateMatches query (Text.unpack <$> toList possible)
+      str = fromString
+      bs =
+        [ (name, r)
+        | name <- Text.pack <$> matches
+        , r    <- take 1 (toList $ Branch.termsNamed name b)
+        ]
+      go pp = if length matches > 5
+        then PP.linesSpaced
+          [ pp
+          , "... "
+          <> str (show (length matches - 5))
+          <> " more (use `> list "
+          <> str query
+          <> "` to see all matches)"
+          ]
+        else pp
+  in  go <$> prettyBindings cb (take 5 bs) b
 
-prettyListingQ :: (Var.Var v, Monad m)
-  => Codebase m v a -> String -> Branch -> m (AnnotatedText Color)
+prettyListingQ
+  :: (Var.Var v, Monad m)
+  => Codebase m v a
+  -> String
+  -> Branch
+  -> m (AnnotatedText Color)
 prettyListingQ _cb _query _b =
-  error "todo - find all matches, display similar output to PrintError.prettyTypecheckedFile"
+  error
+    $  "todo - find all matches, display similar output to "
+    <> "PrintError.prettyTypecheckedFile"
 
-typeLookupForDependencies :: Monad m =>
-  Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies
+  :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
 typeLookupForDependencies codebase refs = foldM go mempty refs
-  where go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
-          getTypeOfTerm codebase ref >>= \case
-            Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
-            Nothing -> getTypeDeclaration codebase id >>= \case
-              Just (Left ed) ->
-                pure $ TypeLookup mempty mempty (Map.singleton ref ed)
-              Just (Right dd) ->
-                pure $ TypeLookup mempty (Map.singleton ref dd) mempty
-              Nothing -> pure mempty
-        go tl _builtin = pure tl -- codebase isn't consulted for builtins
+ where
+  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+    getTypeOfTerm codebase ref >>= \case
+      Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
+      Nothing  -> getTypeDeclaration codebase id >>= \case
+        Just (Left ed) ->
+          pure $ TypeLookup mempty mempty (Map.singleton ref ed)
+        Just (Right dd) ->
+          pure $ TypeLookup mempty (Map.singleton ref dd) mempty
+        Nothing -> pure mempty
+  go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
-transitiveDependencies :: (Monad m, Var v) => Codebase m v a -> Set Reference -> Reference -> m (Set Reference)
-transitiveDependencies code seen0 r =
-  if Set.member r seen0 then pure seen0
-  else let seen = Set.insert r seen0 in case r of
-    Reference.DerivedId id -> do
-      t <- getTerm code id
-      case t of
-        Just t -> foldM (transitiveDependencies code) seen (Term.dependencies t)
-        Nothing -> do
-          t <- getTypeDeclaration code id
+transitiveDependencies
+  :: (Monad m, Var v)
+  => Codebase m v a
+  -> Set Reference
+  -> Reference
+  -> m (Set Reference)
+transitiveDependencies code seen0 r = if Set.member r seen0
+  then pure seen0
+  else
+    let seen = Set.insert r seen0
+    in
+      case r of
+        Reference.DerivedId id -> do
+          t <- getTerm code id
           case t of
-            Nothing -> pure seen
-            Just (Left ed) ->
-              foldM (transitiveDependencies code) seen (DD.dependencies (DD.toDataDecl ed))
-            Just (Right dd) ->
-              foldM (transitiveDependencies code) seen (DD.dependencies dd)
-    _ -> pure seen
+            Just t ->
+              foldM (transitiveDependencies code) seen (Term.dependencies t)
+            Nothing -> do
+              t <- getTypeDeclaration code id
+              case t of
+                Nothing        -> pure seen
+                Just (Left ed) -> foldM (transitiveDependencies code)
+                                        seen
+                                        (DD.dependencies (DD.toDataDecl ed))
+                Just (Right dd) -> foldM (transitiveDependencies code)
+                                         seen
+                                         (DD.dependencies dd)
+        _ -> pure seen
 
--- Creates a self-contained `UnisonFile` which bakes in all transitive dependencies
-makeSelfContained :: (Monad m, Var v) => Codebase m v a -> Branch -> UF.UnisonFile v a -> m (UF.UnisonFile v a)
+-- Creates a self-contained `UnisonFile` which bakes in
+-- all transitive dependencies
+makeSelfContained
+  :: (Monad m, Var v)
+  => Codebase m v a
+  -> Branch
+  -> UF.UnisonFile v a
+  -> m (UF.UnisonFile v a)
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
   let pp = Branch.prettyPrintEnv1 b
       termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) -> fmap (r,) <$> getTypeDeclaration code rid
-    _ -> pure Nothing
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> getTypeDeclaration code rid
+    _                           -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) -> fmap (r,Var.named (termName r),) <$> getTerm code rid
+    r@(Reference.DerivedId rid) ->
+      fmap (r, Var.named (termName r), ) <$> getTerm code rid
     _ -> pure Nothing
-  let unref t = ABT.visitPure go t where
-        go t@(Term.Ref' (r@(Reference.DerivedId _))) =
-          Just (Term.var (ABT.annotation t) (Var.named $ termName r))
-        go _ = Nothing
-      datas = Map.fromList [
-        (v, (r, dd)) | (r, Right dd) <- decls,
-        v <- [Var.named (typeName r)]]
-      effects = Map.fromList [
-        (v, (r, ed)) | (r, Left ed) <- decls,
-        v <- [Var.named (typeName r)]]
-      bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
-      unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
-      tm' = case tm of
-        Term.LetRecNamedAnnotatedTop' top ann bs e ->
-          Term.letRec top ann (bindings ++ unrefBindings bs) (unref e)
-        tm ->
-          Term.letRec True (ABT.annotation tm) bindings (unref tm)
+  let
+    unref t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+        Just (Term.var (ABT.annotation t) (Var.named $ termName r))
+      go _ = Nothing
+    datas = Map.fromList
+      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [Var.named (typeName r)] ]
+    effects = Map.fromList
+      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [Var.named (typeName r)] ]
+    bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
+    unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
+    tm' = case tm of
+      Term.LetRecNamedAnnotatedTop' top ann bs e ->
+        Term.letRec top ann (bindings ++ unrefBindings bs) (unref e)
+      tm -> Term.letRec True (ABT.annotation tm) bindings (unref tm)
   pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects) tm'
 
 sortedApproximateMatches :: String -> [String] -> [String]
-sortedApproximateMatches q possible = trim (sortOn fst matches) where
+sortedApproximateMatches q possible = trim (sortOn fst matches)
+ where
   nq = length q
-  score s | s == q                         = 0 :: Int -- exact match is top choice
-          | map toLower q == map toLower s = 1        -- ignore case
-          | q `isSuffixOf` s               = 2        -- matching suffix is pretty good
-          | q `isInfixOf`  s               = 3        -- a match somewhere
-          | q `isPrefixOf` s               = 4        -- ...
-          | map toLower q `isInfixOf`
-            map toLower s                  = 5
+  score s | s == q                         = 0 :: Int
+          | -- exact match is top choice
+            map toLower q == map toLower s = 1
+          |        -- ignore case
+            q `isSuffixOf` s               = 2
+          |        -- matching suffix is pretty good
+            q `isInfixOf` s                = 3
+          |        -- a match somewhere
+            q `isPrefixOf` s               = 4
+          |        -- ...
+            map toLower q `isInfixOf` map toLower s = 5
           | q `isSubsequenceOf` s          = 6
-          | otherwise                      = 7 + editDistance (map toLower q) (map toLower s)
+          | otherwise = 7 + editDistance (map toLower q) (map toLower s)
   editDistance q s = levenshteinDistance defaultEditCosts q s
   matches = map (\s -> (score s, s)) possible
-  trim ((_,h):_) | h == q = [h]
-  trim ms        = map snd $ takeWhile (\(n,_) -> n - 7 < nq `div` 4) ms
+  trim ((_, h) : _) | h == q = [h]
+  trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> Name -> m Bool
 branchExists codebase name = elem name <$> branches codebase
