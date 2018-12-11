@@ -26,9 +26,15 @@ import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO
                                                 , killThread
                                                 )
+import           Control.Concurrent.MVar        ( takeMVar
+                                                , tryPutMVar
+                                                , newEmptyMVar
+                                                , tryTakeMVar
+                                                )
 import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
                                                 , when
+                                                , void
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
@@ -261,6 +267,9 @@ parseInput patterns ss = case ss of
         <> command
         <> ". Type `help` or `?` to get help."
 
+prompt :: String
+prompt = "> "
+
 queueInput
   :: (MonadIO m, Line.MonadException m)
   => Map String InputPattern
@@ -270,7 +279,7 @@ queueInput
   -> BranchName
   -> m ()
 queueInput patterns q codebase branch branchName = Line.runInputT settings $ do
-  line <- Line.getInputLine (Text.unpack branchName <> "> ")
+  line <- Line.getInputLine (Text.unpack branchName <> prompt)
   case line of
     Nothing -> liftIO . atomically $ Q.enqueue q QuitI
     Just l  -> case parseInput patterns $ words l of
@@ -318,21 +327,36 @@ main dir currentBranchName _initialFile startRuntime codebase = do
     branchRef                <- newIORef (currentBranch, currentBranchName)
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
+    -- Blocks the input prompting thread
+    lock                     <- newEmptyMVar
     let patternMap =
           Map.fromList
             $   validInputs
             >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
-    -- todo: need to do something fancy here to ensure that the
-    -- line reader gets the latest branch, since the IORef isn't updated
-    -- right away
-    inputReader <- forkIO . forever $ do
-      (branch, branchName) <- readIORef branchRef
-      queueInput patternMap inputQueue codebase branch branchName
-    let awaitInput = Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>= \case
-          Right _ -> Right <$> atomically (Q.dequeue inputQueue)
-          Left  _ -> Left <$> atomically (Q.dequeue eventQueue)
+        startInputReader = forkIO . forever $ do
+          takeMVar lock
+          (branch, branchName) <- readIORef branchRef
+          queueInput patternMap inputQueue codebase branch branchName
+    -- Store the input thread in a variable so we can interact with it
+    -- when we get an asynchronous file update.
+    inputReaderRef <- newIORef =<< startInputReader
+    let awaitInput = do
+          -- Release the lock, we're ready for more input.
+          void $ tryPutMVar lock ()
+          -- Race the user input and file watch.
+          Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>= \case
+            Right _ -> Right <$> atomically (Q.dequeue inputQueue)
+            Left  _ -> Left <$> do
+              -- If we got a file watch event, lock the input thread ...
+              void $ tryTakeMVar lock
+              -- ... kill it, losing the user's input so far
+              killThread =<< readIORef inputReaderRef
+              -- ... and start it again in a locked state.
+              -- We'll unlock it the next time we're ready for input.
+              writeIORef inputReaderRef =<< startInputReader
+              atomically $ Q.dequeue eventQueue
         cleanup = do
-          killThread inputReader
+          killThread =<< readIORef inputReaderRef
           Runtime.terminate runtime
           cancelFileSystemWatch
           cancelWatchBranchUpdates
@@ -343,3 +367,4 @@ main dir currentBranchName _initialFile startRuntime codebase = do
                            notifyUser
                            codebase
       $ Actions.startLoop currentBranch currentBranchName
+
