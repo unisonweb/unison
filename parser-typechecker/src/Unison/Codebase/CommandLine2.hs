@@ -25,7 +25,6 @@ import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO
                                                 , killThread
-                                                , threadDelay
                                                 )
 import qualified Control.Concurrent.Async      as Async
 import           Control.Concurrent.STM         ( atomically )
@@ -51,16 +50,44 @@ import           Unison.Codebase.Runtime        ( Runtime )
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
 import           Unison.Parser                  ( Ann )
+import qualified Unison.Util.Pretty            as Pretty
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as Q
 import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Var                     ( Var )
 import qualified System.Console.Haskeline      as Line
+import           System.Directory               ( canonicalizePath )
 
-notifyUser :: Var v => Output v -> IO ()
-notifyUser o = case o of
-  Success _ -> putStrLn "Done."
+notifyUser :: Var v => Int -> FilePath -> Output v -> IO ()
+notifyUser width dir o = case o of
+  Success _    -> putStrLn "Done."
+  NoUnisonFile -> do
+    dir' <- canonicalizePath dir
+    putPrettyLn
+      .  Pretty.wrap
+      $  (fromString <$> words
+           (  "There's nothing for me to add right now. "
+           <> "If you modify a file with the .u extension under the "
+           )
+         )
+      ++ [Pretty.blue $ fromString dir']
+      ++ (fromString <$> words
+           (  " directory, I'll find any definitions in that file. "
+           <> "After that, you can use `add` to add them to the codebase."
+           )
+         )
+  UnknownBranch branchName ->
+    putPrettyLn
+      $  fromString (warnNote "I don't know of a branch named ")
+      <> (Pretty.red $ Pretty.text branchName)
+      <> "."
+  UnknownName branchName _nameTarget name ->
+    putPrettyLn
+      $  fromString (warnNote "I don't know of anything named ")
+      <> (Pretty.red $ Pretty.text name)
+      <> " in the branch "
+      <> (Pretty.blue $ Pretty.text branchName)
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         patterns = R.dom $ Branch.patternNamespace branch
@@ -76,11 +103,12 @@ notifyUser o = case o of
       traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  ListOfBranches current branches -> putStrLn $ let
-    go n = if n == current then "* " <> n
-           else "  " <>  n
-    in Text.unpack $ intercalateMap "\n" go (sort branches)
+  ListOfBranches current branches ->
+    putStrLn
+      $ let go n = if n == current then "* " <> n else "  " <> n
+        in  Text.unpack $ intercalateMap "\n" go (sort branches)
   _ -> putStrLn $ show o
+  where putPrettyLn = putStrLn . Pretty.toANSI width
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -241,7 +269,7 @@ validInputs = validPatterns
           _ ->
             Left
               .  warnNote
-              $  "Use `merge foo` to merge the branch 'foo' "
+              $  "Use `merge foo` to merge the branch 'foo'"
               <> " into the current branch."
         )
       , quit
@@ -343,7 +371,7 @@ main dir currentBranchName _initialFile startRuntime codebase = do
       $ Editor.commandLine awaitInput
                            runtime
                            (\b bn -> writeIORef branchRef (b, bn))
-                           notifyUser
+                           (notifyUser 80 dir)
                            codebase
       $ Actions.startLoop currentBranch currentBranchName
 

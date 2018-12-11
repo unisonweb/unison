@@ -254,7 +254,7 @@ indentAfterNewline by p = flatMap f p where
     (hd, s) -> if LL.null s then lit s0
                -- use `take` and `drop` to preserve annotations or
                -- or other extra info attached to the original `s`
-               else lit (LL.take (LL.length hd) s0) <> 
+               else lit (LL.take (LL.length hd) s0) <>
                     "\n" <> by <> f (LL.drop 1 s)
 
 instance IsString s => IsString (Pretty s) where
