@@ -127,17 +127,17 @@ loop s = Free.unfold' go s
         SwitchBranchI branchName       -> switchBranch branchName
         ForkBranchI   targetBranchName -> ifM
           (Free.eval $ ForkBranch currentBranch targetBranchName)
-          (outputSuccess >> switchBranch targetBranchName)
+          (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
           $ \branch -> mergeBranch currentBranchName respond success branch
         QuitI -> quit
        where
         success       = respond $ Success input
-        outputSuccess = (Free.eval . Notify) (Success input)
+        outputSuccess = Free.eval . Notify $ Success input
    where
     respond :: Output v -> Action i v
-    respond output = (Free.eval . Notify) output >> pure (Right s)
+    respond output = Free.eval (Notify output) >> pure (Right s)
     switchBranch branchName = do
       branch <- Free.eval $ LoadBranch branchName
       case branch of

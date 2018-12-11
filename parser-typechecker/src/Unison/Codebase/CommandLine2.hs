@@ -25,16 +25,12 @@ import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO
                                                 , killThread
+                                                , threadDelay
                                                 )
-import           Control.Concurrent.MVar        ( takeMVar
-                                                , tryPutMVar
-                                                , newEmptyMVar
-                                                , tryTakeMVar
-                                                )
+import qualified Control.Concurrent.Async      as Async
 import           Control.Concurrent.STM         ( atomically )
 import           Control.Monad                  ( forever
                                                 , when
-                                                , void
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
@@ -64,6 +60,7 @@ import qualified System.Console.Haskeline      as Line
 
 notifyUser :: Var v => Output v -> IO ()
 notifyUser o = case o of
+  Success _ -> putStrLn "Done."
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         patterns = R.dom $ Branch.patternNamespace branch
@@ -270,35 +267,35 @@ parseInput patterns ss = case ss of
 prompt :: String
 prompt = "> "
 
-queueInput
+getUserInput
   :: (MonadIO m, Line.MonadException m)
   => Map String InputPattern
-  -> TQueue Input
   -> Codebase m v a
   -> Branch
   -> BranchName
-  -> m ()
-queueInput patterns q codebase branch branchName = Line.runInputT settings $ do
-  line <- Line.getInputLine (Text.unpack branchName <> prompt)
+  -> m Input
+getUserInput patterns codebase branch branchName = Line.runInputT settings $ do
+  line <- Line.getInputLine $ Text.unpack branchName <> prompt
   case line of
-    Nothing -> liftIO . atomically $ Q.enqueue q QuitI
+    Nothing -> pure QuitI
     Just l  -> case parseInput patterns $ words l of
       Left msg -> lift $ do
-        liftIO (putStrLn msg)
-        queueInput patterns q codebase branch branchName
-      Right i -> liftIO . atomically $ Q.enqueue q i
+        liftIO $ putStrLn msg
+        getUserInput patterns codebase branch branchName
+      Right i -> pure i
  where
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
-    if null prev then pure $ autoComplete word (Map.keys patterns)
+    if null prev
+      then pure $ autoComplete word (Map.keys patterns)
     -- User has finished a command name; use completions for that command
-    else case words $ reverse prev of
-      h : t -> fromMaybe (pure []) $ do
-        p            <- Map.lookup h patterns
-        (_, argType) <- listToMaybe $ drop (length t) (args p)
-        pure $ suggestions argType word codebase branch
-      _ -> pure []
+      else case words $ reverse prev of
+        h : t -> fromMaybe (pure []) $ do
+          p            <- Map.lookup h patterns
+          (_, argType) <- listToMaybe $ drop (length t) (args p)
+          pure $ suggestions argType word codebase branch
+        _ -> pure []
 
 main
   :: forall v
@@ -312,7 +309,6 @@ main
 main dir currentBranchName _initialFile startRuntime codebase = do
   currentBranch <- Codebase.getBranch codebase currentBranchName
   eventQueue    <- Q.newIO
-  inputQueue    <- Q.newIO
   currentBranch <- case currentBranch of
     Nothing ->
       Codebase.mergeBranch codebase currentBranchName Codebase.builtinBranch
@@ -327,43 +323,26 @@ main dir currentBranchName _initialFile startRuntime codebase = do
     branchRef                <- newIORef (currentBranch, currentBranchName)
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
-    -- Blocks the input prompting thread
-    lock                     <- newEmptyMVar
     let patternMap =
           Map.fromList
             $   validInputs
             >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
-        startInputReader = forkIO . forever $ do
-          takeMVar lock
+        getInput = do
           (branch, branchName) <- readIORef branchRef
-          queueInput patternMap inputQueue codebase branch branchName
-    -- Store the input thread in a variable so we can interact with it
-    -- when we get an asynchronous file update.
-    inputReaderRef <- newIORef =<< startInputReader
+          getUserInput patternMap codebase branch branchName
     let awaitInput = do
-          -- Release the lock, we're ready for more input.
-          void $ tryPutMVar lock ()
           -- Race the user input and file watch.
-          Q.raceIO (Q.peek eventQueue) (Q.peek inputQueue) >>= \case
-            Right _ -> Right <$> atomically (Q.dequeue inputQueue)
-            Left  _ -> Left <$> do
-              -- If we got a file watch event, lock the input thread ...
-              void $ tryTakeMVar lock
-              -- ... kill it, losing the user's input so far
-              killThread =<< readIORef inputReaderRef
-              -- ... and start it again in a locked state.
-              -- We'll unlock it the next time we're ready for input.
-              writeIORef inputReaderRef =<< startInputReader
-              atomically $ Q.dequeue eventQueue
+          Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+            Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+            x      -> pure x
         cleanup = do
-          killThread =<< readIORef inputReaderRef
           Runtime.terminate runtime
           cancelFileSystemWatch
           cancelWatchBranchUpdates
     (`finally` cleanup)
       $ Editor.commandLine awaitInput
                            runtime
-                           (curry $ writeIORef branchRef)
+                           (\b bn -> writeIORef branchRef (b, bn))
                            notifyUser
                            codebase
       $ Actions.startLoop currentBranch currentBranchName
