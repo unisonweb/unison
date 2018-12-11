@@ -108,10 +108,10 @@ toANSI avail p = CT.toANSI (render avail p)
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
 
-renderUnbroken :: (Show s, Monoid s, IsString s) => Pretty s -> s
+renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound
 
-render :: (Show s, Monoid s, IsString s) => Width -> Pretty s -> s
+render :: (Monoid s, IsString s) => Width -> Pretty s -> s
 render availableWidth p = go mempty [Right p] where
   go _   []       = mempty
   go cur (p:rest) = case p of
