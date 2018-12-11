@@ -30,7 +30,7 @@ main = do
 
     PP.bold "Indentation: can indent by n spaces, or by another `Pretty`",
     PP.indentN 2 (PP.wrapWords loremIpsum),
-    PP.indent (PP.red (fromString ">> ")) (PP.wrapWords loremIpsum),
+    PP.indent (PP.red ">> ") (PP.wrapWords loremIpsum),
 
     PP.bold "Other handy functions",
 
@@ -52,9 +52,17 @@ main = do
     PP.numbered (fromString . show) [
       "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"],
     -- Feel free to start the numbering wherever you like
-    PP.numbered (fromString . show . (10 +)) ["uno", "dos", "tres"]
+    PP.numbered (fromString . show . (10 +)) ["uno", "dos", "tres"],
 
-    -- todo: examples for grouping and breaking
+    PP.bold "Grouping and breaking",
+    PP.wrapWords "The orElse function chooses between two `Pretty`, preferring the first if it fits, and using the second otherwise.",
+
+    PP.wrapWords "The `group` function introduces a level of breaking. The renderer will try to avoid breaking up a `group` unless it's needed. Groups are broken \"outside in\".",
+
+    -- question - I think this group shouldn't be needed
+    PP.group (PP.orElse "This fits." "So this won't be used."),
+    "This is a very long string which won't fit."
+      `PP.orElse` "This is a very...(truncated)"
     ]
   loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
   -- loremIpsum = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas sem nisi, venenatis viverra ex eu, tristique dapibus justo. Ut lobortis mattis rutrum. Vivamus mattis eros diam, a egestas mi venenatis vel. Nunc felis dui, consectetur ac volutpat vitae, molestie in augue. Cras nec aliquet ex. In et sem vel sapien auctor euismod. Pellentesque eu aliquam dolor. Cras porttitor mi velit, dapibus vulputate odio pharetra non. Etiam iaculis nulla eu nisl euismod ultricies."
