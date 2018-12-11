@@ -50,6 +50,17 @@ instance LL.ListLike (AnnotatedText a) Char where
       Nothing -> LL.uncons (AnnotatedText tl)
       Just (hd,s) -> Just (hd, AnnotatedText $ (s,a) :<| tl)
     Seq.Empty -> Nothing
+  take n (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl ->
+      if n <= length s then AnnotatedText $ pure (take n s, a)
+      else AnnotatedText (pure (s,a)) <>
+           LL.take (n - length s) (AnnotatedText tl)
+  drop n (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl ->
+      if n <= length s then AnnotatedText $ pure (drop n s, a)
+      else LL.drop (n - length s) (AnnotatedText tl)
   null (AnnotatedText at) = all (null . fst) at
 
   -- Quoted text (indented, with source line numbers) with annotated portions.

@@ -12,7 +12,7 @@ import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 get_names :: PPE.PrettyPrintEnv
@@ -33,8 +33,8 @@ tc_diff_rtt rtt s expected width =
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
        if actual == expected then ok
-       else do note $ "expected: " ++ show expected
-               note $ "actual  : "   ++ show actual
+       else do note $ "expected:\n" ++ expected
+               note $ "actual:\n"   ++ actual
                note $ "show(input)  : "   ++ show input_term
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
@@ -110,14 +110,9 @@ test = scope "termprinter" . tests $
   , tc "Optional.None"
   , tc "handle foo in bar"
   , tc "Pair 1 1"
-  -- let bindings have no unbroken form accepted by the parser.
-  -- We could choose to render them broken anyway, but that would complicate
-  -- PrettyPrint.renderUnbroken a great deal.
-  , tc_diff_rtt False "let\n\
-                      \  x = 1\n\
-                      \  x\n"
-                      "let; x = 1; x"
-                      0
+  , tc "let\n\
+       \  x = 1\n\
+       \  x"
   , tc_breaks 50 "let\n\
                  \  x = 1\n\
                  \  x"
@@ -141,8 +136,8 @@ test = scope "termprinter" . tests $
   , tc "case x of 3.14159 -> foo"
   , tc_diff_rtt False "case x of\n\
                       \  true -> foo\n\
-                      \  false -> bar" 
-                      "case x of true -> foo; false -> bar" 0 
+                      \  false -> bar"
+                      "case x of\n  true -> foo\n  false -> bar" 0
   , tc_breaks 50 "case x of\n\
                  \  true -> foo\n\
                  \  false -> bar"
@@ -167,15 +162,17 @@ test = scope "termprinter" . tests $
                      "let\n\
                      \  x : Int\n\
                      \  x = 1\n\
-                     \  (x : Int)" 50 
+                     \  (x : Int)" 50
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
   , tc "case x of 12 -> x -> f x"
   , tc_diff "case x of (12) -> x" $ "case x of 12 -> x"
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
-  , tc_breaks 50 "case x of\n\
-                 \  12 -> x"
+  , tc "case x of 12 -> x"
+  , tc_diff_rtt True "case x of\n\
+                     \  12 -> x"
+                     "case x of 12 -> x" 50
   , tc_breaks 15 "case x of\n\
                  \  12 -> x\n\
                  \  13 -> y\n\
@@ -212,11 +209,10 @@ test = scope "termprinter" . tests $
   , tc "0.0"
   , tc "-0.0"
   , pending $ tc_diff "+0.0" $ "0.0"  -- TODO parser throws "Prelude.read: no parse" - should it?  Note +0 works for UInt.
-  , tc_breaks_diff 21 "case x of 12 -> if a then b else c" $ 
+  , tc_breaks_diff 21 "case x of 12 -> if a then b else c" $
               "case x of\n\
               \  12 ->\n\
-              \    if a\n\
-              \    then b\n\
+              \    if a then b\n\
               \    else c"
   , tc_diff_rtt True "if foo\n\
             \then\n\
@@ -227,23 +223,21 @@ test = scope "termprinter" . tests $
             \  namespace baz where\n\
             \    f : Int -> Int\n\
             \    f x = x\n\
-            \  13"               
-            "if foo\n\
-            \then\n\
-            \  and true true\n\  
+            \  13"
+            "if foo then\n\
+            \  and true true\n\
             \  12\n\
             \else\n\
             \  baz.f : Int -> Int\n\
             \  baz.f x = x\n\
-            \  13" 50           
-  , tc_breaks 50 "if foo\n\
-                 \then\n\
+            \  13" 50
+  , tc_breaks 50 "if foo then\n\
                  \  and true true\n\
                  \  12\n\
                  \else\n\
                  \  baz.f : Int -> Int\n\
                  \  baz.f x = x\n\
-                 \  13"       
+                 \  13"
   , pending $ tc_breaks 90 "handle foo in\n\
                  \  a = 5\n\
                  \  b =\n\
@@ -334,31 +328,35 @@ test = scope "termprinter" . tests $
                  \      Optional.None -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
-  , tc_breaks 50 "case x of\n\
+  , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
   , pending $ tc_breaks 50 "if true\n\
                  \then\n\
-                 \  case x of\n\  
+                 \  case x of\n\
                  \    12 -> x\n\
                  \else\n\
                  \  x"              -- TODO parser bug?  'unexpected else', parens around case doens't help, cf next test
   , pending $ tc_breaks 50 "if true\n\
                  \then x\n\
                  \else\n\
-                 \  (case x of\n\  
+                 \  (case x of\n\
                  \    12 -> x)"     -- TODO parser bug, 'unexpected )'
   , tc_diff_rtt False "if true\n\
                       \then x\n\
-                      \else case x of\n\  
+                      \else case x of\n\
                       \  12 -> x"
-                      "if true\n\
-                      \then x\n\
+                      "if true then x\n\
                       \else\n\
-                      \  (case x of\n\  
-                      \    12 -> x)" 50  -- TODO fix surplus parens around case.  
+                      \  (case x of\n\
+                      \    12 -> x)" 20  -- TODO fix surplus parens around case.
                                          -- Are they only surplus due to layout cues?
                                          -- And no round trip, due to issue in test directly above.
-  , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens                                         
+  , tc_diff_rtt False "if true\n\
+                      \then x\n\
+                      \else case x of\n\
+                      \  12 -> x"
+                      "if true then x else (case x of 12 -> x)" 50
+  , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
                  \  baz foo"

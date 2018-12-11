@@ -12,9 +12,8 @@ import           Unison.Reference               ( pattern Builtin )
 import           Unison.Type
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
-import           Unison.Util.Monoid             ( intercalateMap )
-import qualified Unison.Util.PrettyPrint       as PP
-import           Unison.Util.PrettyPrint        ( PrettyPrint(..) )
+import qualified Unison.Util.Pretty            as PP
+import Unison.Util.Pretty (Pretty)
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 
@@ -41,9 +40,9 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 -}
 
 pretty
-  :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> PrettyPrint String
--- p is the operator precedence of the enclosing context (a number from 0 to 
--- 11, or -1 to avoid outer parentheses unconditionally).  Function 
+  :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
+-- p is the operator precedence of the enclosing context (a number from 0 to
+-- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
 pretty n p tp = case tp of
   Var' v     -> l $ Text.unpack (Var.name v)
@@ -52,39 +51,33 @@ pretty n p tp = case tp of
   Abs' _     -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x ->
-    PP.Group $ l "[" <> pretty n 0 x <> l "]"
-  Tuple' [x] ->
-    parenNest (p >= 10) $ l "Pair" <> b " " <> pretty n 10 x <> b " " <> l "()"
-  Tuple' xs -> parenNest True $ commaList xs
-  Apps' f xs ->
-    parenNoGroup (p >= 10)
-      $  pretty n 9 f
-      <> ( PP.Nest "  "
-         $ PP.Group (mconcat $ map (\x -> b " " <> pretty n 10 x) xs)
-         )
-  Effect1' e t -> parenNest (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
+    PP.group $ l "[" <> pretty n 0 x <> l "]"
+  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $
+    "Pair" `PP.hang` PP.spaced [pretty n 10 x, "()"]
+  Tuple' xs -> PP.parenthesizeCommas $ map (pretty n 0) xs
+  Apps' f xs -> PP.parenthesizeIf (p >= 10) $
+    pretty n 9 f `PP.hang` PP.spaced (pretty n 10 <$> xs)
+  Effect1' e t -> PP.parenthesizeIf (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
   Effects' es -> effects (Just es)
   ForallNamed' v body -> if (p < 0)
     then pretty n p body
-    else
-      paren True $ l "∀ " <> l (Text.unpack (Var.name v)) <> l ". " <> PP.Nest
-        "  "
-        (PP.Group $ pretty n (-1) body)
+    else paren True $
+      ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
+      `PP.hang` pretty n (-1) body
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
     EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest ->
-      parenNest (p >= 0) $ pretty n 0 fst <> arrows False False rest
+      PP.parenthesizeIf (p >= 0) $ pretty n 0 fst <> arrows False False rest
     _ -> l "error"
   _ -> l "error"
  where
-  commaList xs = intercalateMap (l "," <> b " ") (pretty n 0) xs
-  effects Nothing   = Empty
-  effects (Just es) = PP.Group $ l "{" <> commaList es <> l "}"
+  effects Nothing   = mempty
+  effects (Just es) = PP.group $ "{" <> PP.commas (pretty n 0 <$> es) <> "}"
   arrow delay first mes =
-    (if first then Empty else b " " <> l "->")
-      <> (if delay then (if first then l "'" else l " '") else Empty)
+    (if first then mempty else PP.softbreak <> l "->")
+      <> (if delay then (if first then l "'" else l " '") else mempty)
       <> effects mes
-      <> if (isJust mes) || (not delay) && (not first) then l " " else Empty
+      <> if (isJust mes) || (not delay) && (not first) then l " " else mempty
 
   arrows delay first [(mes, Ref' UnitRef)] = arrow delay first mes <> l "()"
   arrows delay first ((mes, Ref' UnitRef) : rest) =
@@ -95,32 +88,32 @@ pretty n p tp = case tp of
          $  pretty n 0 arg
          <> arrows False False rest
          )
-  arrows False False [] = Empty
-  arrows False True  [] = Empty  -- not reachable
-  arrows True  _     [] = Empty  -- not reachable
+  arrows False False [] = mempty
+  arrows False True  [] = mempty  -- not reachable
+  arrows True  _     [] = mempty  -- not reachable
 
-  paren True  s = PP.Group $ l "(" <> s <> l ")"
-  paren False s = PP.Group s
+  paren True  s = PP.group $ l "(" <> s <> l ")"
+  paren False s = PP.group s
 
   parenNoGroup True  s = l "(" <> s <> l ")"
   parenNoGroup False s = s
 
-  parenNest useParen contents = PP.Nest "  " $ paren useParen contents
+  -- parenNest useParen contents = PP.Nest "  " $ paren useParen contents
 
-  l = Literal
+  l = PP.lit
 
-  b = Breakable
+  -- b = Breakable
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (-1) t
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
+pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
 prettySignatures
   :: Var v
   => PrettyPrintEnv
   -> [(Name, AnnotatedType v a)]
-  -> PrettyPrint String
+  -> Pretty String
 prettySignatures env ts = PP.column2
-  [ (PP.text name, ":" <> PP.softbreak <> PP.Nest "  " (pretty env (-1) typ))
+  [ (PP.text name, ":" <> PP.hang "" (pretty env (-1) typ))
   | (name, typ) <- ts
   ]

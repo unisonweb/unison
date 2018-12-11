@@ -70,7 +70,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.ColorText         as Color
 import qualified Unison.Util.Menu              as Menu
 import           Unison.Util.Monoid
-import qualified Unison.Util.PrettyPrint       as PP
+import qualified Unison.Util.Pretty            as PP
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )

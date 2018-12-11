@@ -8,7 +8,7 @@ import Unison.TypePrinter
 import Unison.Symbol (Symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 
@@ -30,6 +30,8 @@ tc_diff_rtt rtt s expected width =
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
                note $ "actual  : "   ++ show actual
+               note $ "expectedS:\n"   ++ expected
+               note $ "actualS:\n"   ++ actual
                note $ "show(input)  : "   ++ show input_type
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
@@ -157,12 +159,11 @@ test = scope "typeprinter" . tests $
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
-              \(∀ a. a -> a -> a)\n\
-              \b" 24
+              \  (∀ a. a -> a -> a) b" 24
 
   , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not breaking under forall
               "Pair\n\
-              \(∀ a. a -> a -> a)\n\
-              \b" 14
+              \  (∀ a. a -> a -> a)\n\
+              \  b" 21
 
   ]
