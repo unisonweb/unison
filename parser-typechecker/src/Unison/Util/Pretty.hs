@@ -26,7 +26,6 @@ module Unison.Util.Pretty (
    linesSpaced,
    lit,
    map,
-   minWidth,
    nest,
    newline,
    numbered,
@@ -70,7 +69,7 @@ import qualified Data.Text                     as Text
 
 type Width = Int
 
-data Pretty s = Pretty { delta :: Delta, minDelta :: Delta, out :: F s (Pretty s) }
+data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
 
 data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
@@ -80,10 +79,10 @@ lit :: (IsString s, LL.ListLike s Char) => s -> Pretty s
 lit s = lit' (foldMap chDelta $ LL.toList s) s
 
 lit' :: Delta -> s -> Pretty s
-lit' d s = Pretty d d (Lit s)
+lit' d s = Pretty d (Lit s)
 
 orElse :: Pretty s -> Pretty s -> Pretty s
-orElse p1 p2 = Pretty (delta p1) (minDelta p2) (OrElse p1 p2)
+orElse p1 p2 = Pretty (delta p1) (OrElse p1 p2)
 
 orElses :: [Pretty s] -> Pretty s
 orElses [] = mempty
@@ -91,16 +90,17 @@ orElses ps = foldr1 orElse ps
 
 wrap :: IsString s => [Pretty s] -> Pretty s
 wrap [] = mempty
-wrap (p:ps) = wrap_ . Seq.fromList $ p : fmap (softbreak <>) ps
+wrap (p:ps) = wrap_ . Seq.fromList $
+  p : fmap (\p -> (" " <> p) `orElse` (newline <> p)) ps
 
 wrap_ :: Seq (Pretty s) -> Pretty s
-wrap_ ps = Pretty (foldMap delta ps) (foldMap minDelta ps) (Wrap ps)
+wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
 
 wrapWords :: IsString s => String -> Pretty s
 wrapWords = wrap . fmap fromString . words
 
 group :: Pretty s -> Pretty s
-group p = Pretty (delta p) (minDelta p) (Group p)
+group p = Pretty (delta p) (Group p)
 
 toANSI :: Width -> Pretty CT.ColorText -> String
 toANSI avail p = CT.toANSI (render avail p)
@@ -108,10 +108,10 @@ toANSI avail p = CT.toANSI (render avail p)
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
 
-renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
+renderUnbroken :: (Show s, Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound
 
-render :: (Monoid s, IsString s) => Width -> Pretty s -> s
+render :: (Show s, Monoid s, IsString s) => Width -> Pretty s -> s
 render availableWidth p = go mempty [Right p] where
   go _   []       = mempty
   go cur (p:rest) = case p of
@@ -128,8 +128,6 @@ render availableWidth p = go mempty [Right p] where
       OrElse _ p -> go cur (Right p : rest)
       Wrap ps    -> go cur ((Right <$> toList ps) <> rest)
 
-  fits p (Delta _ x) = preferredWidth p < availableWidth - x
-
   flow p = case out p of
     Append ps -> foldMap flow ps
     Empty -> mempty
@@ -137,6 +135,10 @@ render availableWidth p = go mempty [Right p] where
     Lit s -> s
     OrElse p _ -> flow p
     Wrap ps -> foldMap flow ps
+
+  fits p cur =
+    let cur' = cur { maxCol = col cur }
+    in maxCol (cur' <> delta p) < availableWidth
 
 newline :: IsString s => Pretty s
 newline = lit' (chDelta '\n') (fromString "\n")
@@ -257,35 +259,33 @@ instance IsString s => IsString (Pretty s) where
 
 instance Semigroup (Pretty s) where (<>) = mappend
 instance Monoid (Pretty s) where
-  mempty = Pretty mempty mempty Empty
-  mappend p1 p2 = Pretty (delta p1 <> delta p2) (minDelta p1 <> minDelta p2) .
+  mempty = Pretty mempty Empty
+  mappend p1 p2 = Pretty (delta p1 <> delta p2) .
     Append $ case (out p1, out p2) of
       (Append ps1, Append ps2) -> ps1 <> ps2
       (Append ps1, _) -> ps1 <> pure p2
       (_, Append ps2) -> pure p1 <> ps2
       (_,_) -> pure p1 <> pure p2
 
--- Delta lines columns
-data Delta = Delta !Int !Int deriving (Eq,Ord,Show)
+data Delta =
+  Delta { line :: !Int, col :: !Int, maxCol :: !Int }
+  deriving (Eq,Ord,Show)
 
 instance Semigroup Delta where (<>) = mappend
 instance Monoid Delta where
-  mempty = Delta 0 0
-  mappend (Delta l c) (Delta 0 c2) = Delta l (c + c2)
-  mappend (Delta l _) (Delta l2 c2) = Delta (l + l2) c2
+  mempty = Delta 0 0 0
+  mappend (Delta l c mc) (Delta 0 c2 mc2) = Delta l (c + c2) (mc `max` mc2 `max` (c+c2))
+  mappend (Delta l _ mc) (Delta l2 c2 mc2) = Delta (l + l2) c2 (mc `max` mc2)
 
 chDelta :: Char -> Delta
-chDelta '\n' = Delta 1 0
-chDelta _ = Delta 0 1
+chDelta '\n' = Delta 1 0 0
+chDelta _ = Delta 0 1 1
 
 preferredWidth :: Pretty s -> Width
-preferredWidth p = case delta p of Delta _ w -> w
+preferredWidth p = col (delta p)
 
 preferredHeight :: Pretty s -> Width
-preferredHeight p = case delta p of Delta h _ -> h
-
-minWidth :: Pretty s -> Width
-minWidth p = case minDelta p of Delta _ w -> w
+preferredHeight p = line (delta p)
 
 black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen,
   hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold :: Pretty CT.ColorText -> Pretty CT.ColorText
