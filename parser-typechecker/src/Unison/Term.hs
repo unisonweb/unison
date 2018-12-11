@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Unison.Term where
 
@@ -39,6 +40,8 @@ import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
+import           Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
@@ -241,6 +244,7 @@ pattern LetRecTop' top subst <- (unLetRec -> Just (top, subst))
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (_, ann, bs,e))
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
           (unLetRecNamedAnnotated -> Just (top, ann, bs,e))
+pattern AskInfo' arg <- (unAskInfo -> Just arg)
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -557,6 +561,16 @@ unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
+unAskInfo :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a)
+unAskInfo tm = case tm of
+  App' t arg | isVarKindInfo t -> Just arg
+  _ -> Nothing
+
+isVarKindInfo :: Var v => AnnotatedTerm' vt v a -> Bool
+isVarKindInfo t = case t of 
+  Var' v | (Var.kind v) == "info" -> True
+  _ -> False
+
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies t =
   dependencies' t <> referencedDataDeclarations t <> referencedEffectDeclarations t
@@ -629,6 +643,20 @@ hashConstructor = hashConstructor' $ constructor ()
 
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
+
+fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
+fromReferent a = \case
+  Referent.Ref r -> ref a r
+  Referent.Req r i -> request a r i
+  Referent.Con r i -> constructor a r i
+
+toReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
+toReferent t = case t of
+  Ref' r           -> Just $ Referent.Ref r
+  Request' r i     -> Just $ Referent.Req r i
+  Constructor' r i -> Just $ Referent.Con r i
+  _                -> Nothing
+
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

@@ -78,7 +78,7 @@ go files how = do
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env notes =
-  intercalateMap "\n\n" (show . PrintError.renderNoteAsANSI env source) notes
+  intercalateMap "\n\n" (PrintError.renderNoteAsANSI env source) notes
 
 decodeResult
   :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)

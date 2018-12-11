@@ -35,10 +35,11 @@ import qualified Unison.DataDeclaration       as DD
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
-import qualified Unison.Names                 as Names
 import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
+import           Unison.Referent              (Referent)
+import qualified Unison.Referent              as Referent
 import           Unison.Result                (Note (..))
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
@@ -49,7 +50,7 @@ import qualified Unison.TypeVar               as TypeVar
 import qualified Unison.UnisonFile            as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
 import qualified Unison.Util.AnnotatedText    as AT
-import           Unison.Util.ColorText        (ANSI, Color, Rendered)
+import           Unison.Util.ColorText        (Color)
 import qualified Unison.Util.ColorText        as Color
 import           Unison.Util.Monoid           (intercalateMap)
 import           Unison.Util.Range            (Range (..))
@@ -100,7 +101,7 @@ styleAnnotated :: Annotated a => sty -> a -> Maybe (Range, sty)
 styleAnnotated sty a = (, sty) <$> rangeForAnnotated a
 
 style :: s -> String -> AnnotatedText s
-style sty str = AT.annotate sty str
+style sty str = AT.annotate sty (fromString str)
 
 describeStyle :: Color -> AnnotatedText Color
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -701,7 +702,7 @@ renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
 renderTerm env (Term.Ref' r) =
-  fromString (Text.unpack $ PPE.termName env (Names.Ref r))
+  fromString (Text.unpack $ PPE.termName env (Referent.Ref r))
 renderTerm _ e =
   let s = show e
   in      -- todo: pretty print
@@ -711,9 +712,7 @@ renderTerm _ e =
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
-renderType' env typ =
-  let AT.AnnotatedText' seq = renderType env (const id) typ
-  in  fromString . fold . fmap fst $ seq
+renderType' env typ = fromString . Color.toPlain $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
 -- | You can pass `(const id)` if no styling is needed, or call `renderType'`.
@@ -783,7 +782,7 @@ renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
-showTermRef :: IsString s => Env -> Names.Referent -> s
+showTermRef :: IsString s => Env -> Referent -> s
 showTermRef env r = fromString . Text.unpack $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s
@@ -852,11 +851,11 @@ showLexerOutput :: Bool
 showLexerOutput = False
 
 renderNoteAsANSI :: (Var v, Annotated a, Show a, Ord a)
-                 => Env -> String -> Note v a -> Rendered ANSI
-renderNoteAsANSI e s n = Color.renderText $ printNoteWithSource e s n
+                 => Env -> String -> Note v a -> String
+renderNoteAsANSI e s n = Color.toANSI $ printNoteWithSource e s n
 
-renderParseErrorAsANSI :: Var v => String -> Parser.Err v -> Rendered ANSI
-renderParseErrorAsANSI src = Color.renderText . prettyParseError src
+renderParseErrorAsANSI :: Var v => String -> Parser.Err v -> String
+renderParseErrorAsANSI src = Color.toANSI . prettyParseError src
 
 printNoteWithSource
   :: (Var v, Annotated a, Show a, Ord a)

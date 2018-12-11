@@ -12,7 +12,7 @@ import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 
 get_names :: PPE.PrettyPrintEnv
@@ -26,15 +26,15 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = pretty get_names (-1) input_term
+       prettied = pretty get_names (ac (-1) Normal) input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
        if actual == expected then ok
-       else do note $ "expected: " ++ show expected
-               note $ "actual  : "   ++ show actual
+       else do note $ "expected:\n" ++ expected
+               note $ "actual:\n"   ++ actual
                note $ "show(input)  : "   ++ show input_term
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
@@ -63,7 +63,6 @@ tc_breaks_diff width s expected = tc_diff_rtt True s expected width
 tc_breaks :: Int -> String -> Test ()
 tc_breaks width s = tc_diff_rtt True s s width
 
--- TODO dedup these test functions (and the one in TypePrinter.hs) (abstract over prettied)
 tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tc_binding width v mtp tm expected =
    let base_term = Unison.Builtin.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
@@ -75,7 +74,6 @@ tc_binding width v mtp tm expected =
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
-       --actual_reparsed = Unison.Builtin.tm actual
    in scope expected $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
@@ -83,14 +81,7 @@ tc_binding width v mtp tm expected =
                note $ "show(input)  : "   ++ show (input_term input_type)
                note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
-       ){-, (   --TODO add reparse
-       if (not rtt) || (input_term == actual_reparsed) then ok
-       else do note $ "round trip test..."
-               note $ "single parse: " ++ show input_term
-               note $ "double parse: " ++ show actual_reparsed
-               note $ "prettyprint  : "   ++ show prettied
-               crash "single parse != double parse"
-       )-}]
+       )]
 
 test :: Test ()
 test = scope "termprinter" . tests $
@@ -105,29 +96,23 @@ test = scope "termprinter" . tests $
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
-  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO raise issue: lexer doesn't support strings with quotes in
+  , pending $ tc "\"they said \\\"hi\\\"\""  -- TODO lexer doesn't support strings with quotes in
   , tc "2 : Nat"
   , tc "x -> and x false"
   , tc "x y -> and x y"
   , tc "x y z -> and x y"
   , tc "x y y -> and x y"
-  , pending $ tc_diff "()" $ "()#0"  -- TODO
+  , tc "()"
   , tc "Pair"
   , tc "foo"
-  , pending $ tc_diff "Sequence.empty" $  "Sequence.empty : [a]"  -- TODO whatever is adding the annotations
-         -- is adding a second one on the reparse.  Also it's showing 'Sequence a' not '[a]'
+  , tc "Sequence.empty"
   , tc "None"
-  , pending $ tc_diff "Optional.None" $ "Optional#0"  -- TODO
+  , tc "Optional.None"
   , tc "handle foo in bar"
   , tc "Pair 1 1"
-  -- let bindings have no unbroken form accepted by the parser.
-  -- We could choose to render them broken anyway, but that would complicate
-  -- PrettyPrint.renderUnbroken a great deal.
-  , tc_diff_rtt False "let\n\
-                      \  x = 1\n\
-                      \  x\n"
-                      "let; x = 1; x"
-                      0
+  , tc "let\n\
+       \  x = 1\n\
+       \  x"
   , tc_breaks 50 "let\n\
                  \  x = 1\n\
                  \  x"
@@ -149,15 +134,21 @@ test = scope "termprinter" . tests $
   , tc "case x of +1 -> foo"
   , tc "case x of -1 -> foo"
   , tc "case x of 3.14159 -> foo"
-  , tc "case x of true -> foo"
+  , tc_diff_rtt False "case x of\n\
+                      \  true -> foo\n\
+                      \  false -> bar"
+                      "case x of\n  true -> foo\n  false -> bar" 0
+  , tc_breaks 50 "case x of\n\
+                 \  true -> foo\n\
+                 \  false -> bar"
   , tc "case x of false -> foo"
   , tc "case x of y@() -> y"
   , tc "case x of a@(b@(c@())) -> c"
   , tc "case e of { a } -> z"
-  --, tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
-                                      -- need an actual effect constructor to test this with
+  , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
+                                              -- need an actual effect constructor to test this with
   , pending $ tc "if a then (if b then c else d) else e"
-  , pending $ tc "(if b then c else d)"   -- TODO raise issue - parser doesn't like bracketed ifs (`unexpected )`)
+  , pending $ tc "(if b then c else d)"   -- TODO parser doesn't like bracketed ifs (`unexpected )`)
   , pending $ tc "handle foo in (handle bar in baz)"  -- similarly
   , pending $ tc_breaks 16 "case (if a \n\
                            \      then b\n\
@@ -165,15 +156,23 @@ test = scope "termprinter" . tests $
                            \  112 -> x"        -- similarly
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
-  , tc_breaks 50 "let\n\
-                 \  x = (1 : Int)\n\
-                 \  (x : Int)"
+  , tc_diff_rtt True "let\n\
+                     \  x = (1 : Int)\n\
+                     \  (x : Int)"
+                     "let\n\
+                     \  x : Int\n\
+                     \  x = 1\n\
+                     \  (x : Int)" 50
   , tc "case x of 12 -> (y : Int)"
   , tc "if a then (b : Int) else (c : Int)"
   , tc "case x of 12 -> if a then b else c"
   , tc "case x of 12 -> x -> f x"
   , tc_diff "case x of (12) -> x" $ "case x of 12 -> x"
   , tc_diff "case (x) of 12 -> x" $ "case x of 12 -> x"
+  , tc "case x of 12 -> x"
+  , tc_diff_rtt True "case x of\n\
+                     \  12 -> x"
+                     "case x of 12 -> x" 50
   , tc_breaks 15 "case x of\n\
                  \  12 -> x\n\
                  \  13 -> y\n\
@@ -205,37 +204,57 @@ test = scope "termprinter" . tests $
   , tc "f x y z"
   , tc "f (g x) y"
   , tc_diff "(f x) y" $ "f x y"
-  , pending $ tc "1.0e-19"         -- TODO, raise issue, parser throws UnknownLexeme
+  , pending $ tc "1.0e-19"         -- TODO parser throws UnknownLexeme
   , pending $ tc "-1.0e19"         -- ditto
   , tc "0.0"
   , tc "-0.0"
   , pending $ tc_diff "+0.0" $ "0.0"  -- TODO parser throws "Prelude.read: no parse" - should it?  Note +0 works for UInt.
-  , pending $ tc_breaks_diff 21 "case x of 12 -> if a then b else c" $  -- TODO
-              "case x of 12 -> \n\
-              \  if a then b else c"
-  , tc_diff_rtt False "if foo \n\
-            \  then \n\
-            \    use bar\n\
-            \    and true true\n\
-            \    12\n\
-            \  else\n\
-            \    namespace baz where\n\
-            \      x = 1\n\
-            \    13"               -- TODO suppress lets within block'
-            "if foo\n\
+  , tc_breaks_diff 21 "case x of 12 -> if a then b else c" $
+              "case x of\n\
+              \  12 ->\n\
+              \    if a then b\n\
+              \    else c"
+  , tc_diff_rtt True "if foo\n\
             \then\n\
-            \  (let\n\
-            \    _1 = and true true\n\
-            \    12)\n\
+            \  use bar\n\
+            \  and true true\n\
+            \  12\n\
             \else\n\
-            \  (let\n\
-            \    baz.x = 1\n\
-            \    13)" 50           -- TODO no round trip because parser can't handle the _1 -  I think it should be able to?
-                                   -- TODO add a test with a type annotation above the binding
+            \  namespace baz where\n\
+            \    f : Int -> Int\n\
+            \    f x = x\n\
+            \  13"
+            "if foo then\n\
+            \  and true true\n\
+            \  12\n\
+            \else\n\
+            \  baz.f : Int -> Int\n\
+            \  baz.f x = x\n\
+            \  13" 50
+  , tc_breaks 50 "if foo then\n\
+                 \  and true true\n\
+                 \  12\n\
+                 \else\n\
+                 \  baz.f : Int -> Int\n\
+                 \  baz.f x = x\n\
+                 \  13"
+  , pending $ tc_breaks 90 "handle foo in\n\
+                 \  a = 5\n\
+                 \  b =\n\
+                 \    c = 3\n\
+                 \    true\n\
+                 \  false"  -- TODO comes back out with line breaks around foo
+  , tc_breaks 50 "case x of\n\
+                 \  true ->\n\
+                 \    d = 1\n\
+                 \    false\n\
+                 \  false ->\n\
+                 \    f x = x + 1\n\
+                 \    true"
+  , pending $ tc_breaks 50 "x -> e = 12\n\
+                 \     x + 1"  -- TODO parser looks like lambda body should be a block, but we hit 'unexpected ='
   , tc "x + y"
-  , tc "x ~ y"                     -- TODO what about using a binary data constructor as infix?
-  -- We don't store anything that would allow us to know whether the user originally wrote
-  -- "x `foo` y" or "foo x y".  Since it's not symbolic, go with the latter.
+  , tc "x ~ y"
   , tc_diff "x `foo` y" $ "foo x y"
   , tc "x + (y + z)"
   , tc "x + y + z"
@@ -243,18 +262,17 @@ test = scope "termprinter" . tests $
   , tc "x \\ y == z ~ a"
   , tc "foo x (y + z)"
   , tc "foo (x + y) z"
-  , tc "(foo x y) + z"
-  , tc "(foo p q) + r + s"
-  , tc "(foo (p + q) r) + s"
+  , tc "foo x y + z"
+  , tc "foo p q + r + s"
+  , tc "foo (p + q) r + s"
   , tc "foo (p + q + r) s"
   , tc "p + q + r + s"
   , tc_diff_rtt False "(foo.+) x y" "x foo.+ y" 0
-                                                   --      Or change pretty-printer to match?
-  , tc "x + y + (f a b c)"
-  , tc "x + y + (foo a b)"
-  , tc "(foo x y p) + z"
-  , tc "(foo p q a) + r + s"
-  , tc "(foo (p + q) r a) + s"
+  , tc "x + y + f a b c"
+  , tc "x + y + foo a b"
+  , tc "foo x y p + z"
+  , tc "foo p q a + r + s"
+  , tc "foo (p + q) r a + s"
   , tc "foo (x + y) (p - q)"
   , tc "x -> x + y"
   , tc "if p then x + y else a - b"
@@ -304,5 +322,60 @@ test = scope "termprinter" . tests $
                                                                              \(+) a b c = foo a b c"
   , tc_binding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
   , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
-
+  , tc_breaks 32 "let\n\
+                 \  go acc a b =\n\
+                 \    case Sequence.at 0 a of\n\
+                 \      Optional.None -> 0\n\
+                 \      Optional.Some hd1 -> 0\n\
+                 \  go [] a b"
+  , tc_breaks 30 "case x of\n\
+                 \  (Optional.None, _) -> foo"
+  , pending $ tc_breaks 50 "if true\n\
+                 \then\n\
+                 \  case x of\n\
+                 \    12 -> x\n\
+                 \else\n\
+                 \  x"              -- TODO parser bug?  'unexpected else', parens around case doens't help, cf next test
+  , pending $ tc_breaks 50 "if true\n\
+                 \then x\n\
+                 \else\n\
+                 \  (case x of\n\
+                 \    12 -> x)"     -- TODO parser bug, 'unexpected )'
+  , tc_diff_rtt False "if true\n\
+                      \then x\n\
+                      \else case x of\n\
+                      \  12 -> x"
+                      "if true then x\n\
+                      \else\n\
+                      \  (case x of\n\
+                      \    12 -> x)" 20  -- TODO fix surplus parens around case.
+                                         -- Are they only surplus due to layout cues?
+                                         -- And no round trip, due to issue in test directly above.
+  , tc_diff_rtt False "if true\n\
+                      \then x\n\
+                      \else case x of\n\
+                      \  12 -> x"
+                      "if true then x else (case x of 12 -> x)" 50
+  , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
+  , tc_breaks 80 "'let\n\
+                 \  foo = bar\n\
+                 \  baz foo"
+  , tc_breaks 80 "!let\n\
+                 \  foo = bar\n\
+                 \  baz foo"
+  , tc_diff_rtt True "foo let\n\
+                     \      a = 1\n\
+                     \      b"
+                     "foo\n\
+                     \  let\n\
+                     \    a = 1\n\
+                     \    b" 80
+  , pending $ tc_breaks 80 "if let\n\
+                           \     a = b\n\
+                           \     a\n\
+                           \then foo\n\
+                           \else bar"   -- TODO parser throws 'unexpected then'
+  , tc_breaks 80 "Stream.fold-left 0 (+) t"
+  , tc_breaks 80 "foo?"
+  , tc_breaks 80 "(foo a b)?"
   ]

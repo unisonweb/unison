@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -70,7 +70,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.ColorText         as Color
 import qualified Unison.Util.Menu              as Menu
 import           Unison.Util.Monoid
-import qualified Unison.Util.PrettyPrint       as PP
+import qualified Unison.Util.Pretty            as PP
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
@@ -126,7 +126,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
 
   -- watch for .u file changes
   void . forkIO $ do
-    watcher <- Watch.watchDirectory dir allow
+    (_, watcher) <- Watch.watchDirectory dir allow
     forever $ do
       (filePath, text) <- watcher
       atomically . TQueue.enqueue queue $ UnisonFileChanged filePath text
@@ -188,7 +188,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
           Console.setTitle "Unison \128721"
           forM_ notes $ \case
             Result.Parsing err -> do
-              print . Color.renderText $ prettyParseError (unpack src) err
+              putStrLn . Color.toANSI $ prettyParseError (unpack src) err
               clearLastTypechecked
             err ->
               error
@@ -200,7 +200,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             Console.setTitle "Unison \128721"
             let showNote notes = intercalateMap
                   "\n\n"
-                  (show . renderNoteAsANSI errorEnv (unpack src))
+                  (renderNoteAsANSI errorEnv (unpack src))
                   (filter notInfo notes)
                 notInfo (Result.TypeInfo _) = False
                 notInfo _                   = True
@@ -212,7 +212,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             n <- randomRIO (0, length emoticons - 1)
             let uf = UF.discardTerm unisonFile
                 defs = prettyTypecheckedFile uf errorEnv
-                prettyDefs = show $ Color.renderText defs
+                prettyDefs = Color.toANSI defs
             when (not $ null defs) . putStrLn
               $  "✅ "
               ++ [emoticons !! n]
@@ -276,7 +276,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
               <> " will tell me about new definitions."
             go branch name
           Just _ -> do
-            let branchUpdate = Branch.typecheckedFile typecheckedFile
+            let branchUpdate = Branch.fromTypecheckedFile typecheckedFile
                 collisions   = Branch.nameCollisions branchUpdate branch
                 -- todo: collisions should really be collisions `Branch.subtract` branch,
                 -- since if the names have a matching hash that's fine
@@ -298,7 +298,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
                 let hashedTerms = UF.hashTerms typecheckedFile
                 putStrLn $ "Adding the following definitions:"
                 putStrLn ""
-                putStrLn . show $ Color.renderText
+                putStrLn $ Color.toANSI
                   (prettyTypecheckedFile typecheckedFile env)
                 putStrLn ""
                 let
@@ -371,13 +371,9 @@ main dir currentBranchName initialFile startRuntime codebase = do
         "add"  : args -> addDefinitions branch name args
         "view" : args -> viewDefinitions branch name args
         ls : args
-          | ls
-            == "list"
-            || -- todo: more comprehensive way of allowing command abbreviations
-               ls
-            == "ls"
-            || ls
-            == "l"
+          | ls == "list" || -- todo: more comprehensive way of allowing command abbreviations
+            ls == "ls" ||
+            ls == "l"
           -> do
                out <- Codebase.listReferencesMatching codebase branch args
                putStrLn out
@@ -537,11 +533,7 @@ selectBranch codebase name takeLine = do
       case choice of
         Just (Left Cancel) -> pure Nothing
         Just (Left Create) -> do
-          branch <- mergeBranchAndShowDiff codebase name builtinBranch
+          branch <- mergeBranchAndShowDiff codebase name Codebase.builtinBranch
           pure $ Just (name, branch)
         Just (Right name) -> selectBranch codebase name takeLine
         Nothing           -> pure Nothing
-
-builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames B.names) mempty
-

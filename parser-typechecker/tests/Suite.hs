@@ -16,6 +16,7 @@ import qualified Unison.Test.TypePrinter as TypePrinter
 import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.ColorText as ColorText
+import qualified Unison.Test.RemainingWork as RemainingWork
 
 test :: Test ()
 test = tests
@@ -30,6 +31,7 @@ test = tests
   , DataDeclaration.test
   , Range.test
   , ColorText.test
+  , RemainingWork.test
  ]
 
 main :: IO ()

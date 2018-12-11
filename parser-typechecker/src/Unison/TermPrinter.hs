@@ -4,34 +4,60 @@
 
 module Unison.TermPrinter where
 
+import           Control.Monad                  (join)
 import           Data.List
-import qualified Data.Text as Text
-import           Data.Foldable (fold, toList)
-import           Data.Maybe (fromMaybe)
-import           Data.Vector()
-import           Unison.ABT (pattern AbsN')
-import qualified Unison.Blank as Blank
-import           Unison.Lexer (symbolyId)
-import qualified Unison.Names as Names
-import           Unison.PatternP (Pattern)
-import qualified Unison.PatternP as Pattern
+import qualified Data.Text                     as Text
+import           Data.Foldable                  ( fold
+                                                )
+import           Data.Maybe                     ( fromMaybe
+                                                , isJust
+                                                )
+import           Data.Vector                    ( )
+import           Text.Read                      ( readMaybe )
+import           Unison.ABT                     ( pattern AbsN' )
+import qualified Unison.Blank                  as Blank
+import           Unison.Lexer                   ( symbolyId )
+import           Unison.PatternP                ( Pattern )
+import qualified Unison.PatternP               as Pattern
+import qualified Unison.Referent               as Referent
 import           Unison.Term
-import qualified Unison.Type as Type
-import qualified Unison.TypePrinter as TypePrinter
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import           Unison.Util.Monoid (intercalateMap)
-import qualified Unison.Util.PrettyPrint as PP
-import           Unison.Util.PrettyPrint (PrettyPrint(..))
-import           Unison.PrettyPrintEnv (PrettyPrintEnv)
-import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import qualified Unison.Type                   as Type
+import qualified Unison.TypePrinter            as TypePrinter
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
+import           Unison.Util.Monoid             ( intercalateMap )
+import qualified Unison.Util.Pretty             as PP
+import           Unison.Util.Pretty             ( Pretty )
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
+import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 
---TODO let suppression, delay blocks
---TODO precedence comment and double check in type printer
---TODO ? askInfo suffix; > watches
---TODO try it out on 'real' code (as an in-place edit pass on unison-src maybe)
---TODO (improve code layout below)
 --TODO use imports to trim fully qualified names
+
+-- Information about the context in which a term appears, which affects how the
+-- term should be rendered.
+data AmbientContext = AmbientContext
+  {
+    -- The operator precedence of the enclosing context (a number from 0 to 11,
+    -- or -1 to render without outer parentheses unconditionally).
+    -- Function application has precedence 10.
+    precedence :: Int
+  , blockContext :: BlockContext
+  , infixContext :: InfixContext
+  }
+
+-- Description of the position of this ABT node, when viewed in the
+-- surface syntax.
+data BlockContext
+  -- This ABT node is at the top level of a TermParser.block.
+  = Block
+  | Normal
+  deriving (Eq)
+
+data InfixContext
+  -- This ABT node is an infix operator being used in infix position.
+  = Infix
+  | NonInfix
+  deriving (Eq)
 
 {- Explanation of precedence handling
 
@@ -40,30 +66,34 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
      >=10
        10f 10x
 
-   This example shows that a function application f x is enclosed in parentheses
-   whenever the ambient precedence around it is >= 10, and that when printing its
-   two components, an ambient precedence of 10 is used in both places.
+   This example shows that a function application f x is enclosed in
+   parentheses whenever the ambient precedence around it is >= 10, and that
+   when printing its two components, an ambient precedence of 10 is used in
+   both places.
 
    The pretty-printer uses the following rules for printing terms.
+
+     >=12
+       let x = (-1)y
+         1z
 
      >=11
        ! 11x
        ' 11x
+       11x ?
 
      >=10
        10f 10x 10y ...
 
      >=3
        x -> 2y
-       10x + 10y + ... 10z
+       3x + 3y + ... 3z
 
      >=2
        if 2a then 2b else 2c
        handle 2h in 2b
        case 2x of
-         a | 2g -> 1b
-       let x = 1y
-           1z
+         a | 2g -> 0b
 
      >=0
        10a : 0Int
@@ -83,160 +113,240 @@ import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedTerm v a -> PrettyPrint String
--- p is the operator precedence of the enclosing context (a number from 0 to 11, or
--- -1 to avoid outer parentheses unconditionally).  Function application has precedence 10.
--- n resolves references to text names.  When getting the name of one of the constructors of a type, the
--- `Maybe Int` identifies which constructor.
-pretty n p term = specialCases term $ \case
-  Var' v       -> l $ varName v
-  Ref' r       -> l $ Text.unpack (PrettyPrintEnv.termName n (Names.Ref r))
-  Ann' tm t    -> parenNest (p >= 0) $
-                    pretty n 10 tm <> b" " <> (PP.Nest "  " $ PP.Group (l": " <> TypePrinter.pretty n 0 t))
-  Int' i       -> (if i >= 0 then l"+" else Empty) <> (l $ show i)
-  Nat' u       -> l $ show u
-  Float' f     -> l $ show f
-  -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse them.  Haskell
-  --      doesn't have literals for them either.  Is this function only required to
-  --      operate on terms produced by the parser?  In which case the code is fine as
-  --      it stands.  If it can somehow run on values produced by execution (or, one day, on
-  --      terms produced by metaprograms), then it needs to be able to print them (and
-  --      then the parser ought to be able to parse them, to maintain symmetry.)
-  Boolean' b   -> if b then l"true" else l"false"
-  Text' s      -> l $ show s
-  Blank' id    -> l"_" <> (l $ fromMaybe "" (Blank.nameb id))
-  Constructor' ref i -> l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
-  Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
-  Handle' h body -> parenNest (p >= 2) $
-                      l"handle" <> b" " <> pretty n 2 h <> b" " <> l"in" <> b" "
-                      <> PP.Nest "  " (PP.Group (pretty n 2 body))
-  App' x (Constructor' Type.UnitRef 0) -> paren (p >= 11) $ l"!" <> pretty n 11 x
-  LamNamed' v x | (Var.name v) == "()"   -> paren (p >= 11) $ l"'" <> pretty n 11 x
-  Vector' xs   -> PP.Group $ l"[" <> intercalateMap ("," <> b" ") (PP.Nest " " . pretty n 0) (toList xs) <> l"]"
-  If' cond t f -> parenNest (p >= 2) $
-                    (PP.Group (l"if" <> b" " <> pretty n 2 cond) <> b" " <>
-                     PP.Group (l"then" <> b" " <> pretty n 2 t) <> b" " <>
-                     PP.Group (l"else" <> b" " <> pretty n 2 f))
-  And' x y     -> parenNest (p >= 10) $ l"and" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  Or' x y      -> parenNest (p >= 10) $ l"or" <> b" " <> pretty n 10 x <> b" " <> pretty n 10 y
-  LetRecNamed' bs e -> printLet bs e
-  Lets' bs e ->   printLet (map (\(_, v, binding) -> (v, binding)) bs) e
-  Match' scrutinee branches -> parenNest (p >= 2) $
-                               PP.Group (l"case" <> b" " <> pretty n 2 scrutinee <> b" " <> l"of") <> b" " <>
-                               (PP.Nest "  " $ PP.Group $ fold (intersperse (b"; ") (map printCase branches)))
-  t -> l"error: " <> l (show t)
-  where specialCases term go =
-          case (term, binaryOpsPred) of
-            (Tuple' [x], _) -> parenNest (p >= 10) $ l"Pair" <> b" " <> pretty n 10 x <> b" " <> l"()"
-            (Tuple' xs, _)  -> parenNest True $ commaList xs
-            BinaryAppsPred' apps lastArg -> parenNest (p >= 3) $ binaryApps apps <> pretty n 10 lastArg
-            _ -> case (term, nonForcePred) of
-              AppsPred' f args -> parenNest (p >= 10) $
-                pretty n 10 f <> b" " <> PP.Nest "  " (PP.Group (intercalateMap (b" ") (pretty n 10) args))
-              _ -> case (term, nonUnitArgPred) of
-                LamsNamedPred' vs body -> parenNest (p >= 3) $
-                                            varList vs <> l" ->" <> b" " <>
-                                            (PP.Nest "  " $ PP.Group $ pretty n 2 body)
-                _ -> go term
+pretty
+  :: Var v
+  => PrettyPrintEnv
+  -> AmbientContext
+  -> AnnotatedTerm v a
+  -> Pretty String
+pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
+  = specialCases term $ \case
+    Var' v -> parenIfInfix (Var.nameStr v) ic . PP.text $ Var.name v
+    Ref' r -> parenIfInfix name ic $ l $ name
+      where name = Text.unpack (PrettyPrintEnv.termName n (Referent.Ref r))
+    Ann' tm t ->
+      paren (p >= 0)
+        $  pretty n (ac 10 Normal) tm
+        <> PP.hang " :" (TypePrinter.pretty n 0 t)
+    Int'     i  -> (if i >= 0 then l "+" else mempty) <> (l $ show i)
+    Nat'     u  -> l $ show u
+    Float'   f  -> l $ show f
+    -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
+    --      them.  Haskell doesn't have literals for them either.  Is this
+    --      function only required to operate on terms produced by the parser?
+    --      In which case the code is fine as it stands.  If it can somehow run
+    --      on values produced by execution (or, one day, on terms produced by
+    --      metaprograms), then it needs to be able to print them (and then the
+    --       parser ought to be able to parse them, to maintain symmetry.)
+    Boolean' b  -> if b then l "true" else l "false"
+    Text'    s  -> l $ show s
+    Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
+    Constructor' ref i ->
+      l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
+    Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
+    Handle' h body ->
+      paren (p >= 2)
+        $ ("handle" `PP.hang` pretty n (ac 2 Normal) h)
+        <> PP.softbreak
+        <> ("in" `PP.hang` pretty n (ac 2 Block) body)
+    App' x (Constructor' Type.UnitRef 0) ->
+      paren (p >= 11) $ l "!" <> pretty n (ac 11 Normal) x
+    AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal) x <> l "?"
+    LamNamed' v x | (Var.name v) == "()" ->
+      paren (p >= 11) $ l "'" <> pretty n (ac 11 Normal) x
+    Vector' xs -> PP.group $
+      "[" <> optSpace
+          <> intercalateMap ("," <> PP.softbreak <> optSpace)
+                            (pretty n (ac 0 Normal))
+                            xs
+        <> "]"
+      where optSpace = PP.orElse "" " "
+    If' cond t f -> paren (p >= 2) $
+      if height > 0 then PP.lines [
+        "if " <> pcond <> (" then") `PP.hang` pt,
+        "else" `PP.hang` pf
+       ]
+      else PP.spaced [
+        "if" `PP.hang` pcond <> (" then" `PP.hang` pt),
+        "else" `PP.hang` pf
+       ]
+     where
+       height = PP.preferredHeight pt `max` PP.preferredHeight pf
+       pcond  = pretty n (ac 2 Block) cond
+       pt     = pretty n (ac 2 Block) t
+       pf     = pretty n (ac 2 Block) f
+    And' x y ->
+      paren (p >= 10) $ PP.spaced [
+        "and", pretty n (ac 10 Normal) x,
+               pretty n (ac 10 Normal) y
+      ]
+    Or' x y ->
+      paren (p >= 10) $ PP.spaced [
+        "or", pretty n (ac 10 Normal) x,
+              pretty n (ac 10 Normal) y
+      ]
+    LetRecNamed' bs e -> printLet bc bs e
+    Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e
+    Match' scrutinee branches -> paren (p >= 2) $
+      ("case " <> pretty n (ac 2 Normal) scrutinee <> " of") `PP.hang` bs
+      where bs = PP.lines (map printCase branches)
+    t -> l "error: " <> l (show t)
+ where
+  specialCases term go = case (term, binaryOpsPred) of
+    (Tuple' [x], _) ->
+      paren (p >= 10) $ "Pair" `PP.hang`
+        PP.spaced [pretty n (ac 10 Normal) x, "()" ]
+    (Tuple' xs, _) -> paren True $ commaList xs
+    BinaryAppsPred' apps lastArg -> paren (p >= 3) $
+      binaryApps apps (pretty n (ac 3 Normal) lastArg)
+    _ -> case (term, nonForcePred) of
+      AppsPred' f args | not $ isVarKindInfo f ->
+        paren (p >= 10) $ pretty n (ac 10 Normal) f `PP.hang`
+          PP.spacedMap (pretty n (ac 10 Normal)) args
+      _ -> case (term, nonUnitArgPred) of
+        LamsNamedPred' vs body ->
+          paren (p >= 3) $
+            (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block) body
+        _ -> go term
 
-        sepList sep xs = sepList' (pretty n 0) sep xs
-        sepList' f sep xs = fold $ intersperse sep (map f xs)
-        varList vs = sepList' (\v -> l $ varName v) (b" ") vs
-        commaList = sepList (l"," <> b" ")
+  sepList sep xs = sepList' (pretty n (ac 0 Normal)) sep xs
+  sepList' f sep xs = fold $ intersperse sep (map f xs)
+  varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
+  commaList = sepList ("," <> PP.softbreak)
 
-        -- The parser requires lets to use layout, so use BrokenGroup to get some unconditional line-breaks.
-        -- These will replace the occurrences of b"; ".
-        printLet bs e = parenNest (p >= 2) $
-                        PP.BrokenGroup $ l"let" <> b"; " <> (PP.Nest "  " $
-                          (mconcat (map printBinding bs)) <>
-                          PP.Group (pretty n 0 e))
-                        where
-                          printBinding (v, binding) = PP.Group (
-                            (l $ varName v) <> b" " <> l"=" <> b" " <> PP.Nest "  "
-                              (PP.Group (pretty n 1 binding))) <> b"; "
+  printLet sc bs e =
+    paren ((sc /= Block) && p >= 12)
+      $  letIntro
+      $  PP.lines (map printBinding bs ++
+                   [PP.group $ pretty n (ac 0 Normal) e])
+   where
+    printBinding (v, binding) = if isBlank $ Var.nameStr v
+      then pretty n (ac (-1) Normal) binding
+      else prettyBinding n v binding
+    letIntro = case sc of
+      Block  -> id
+      Normal -> \x -> "let" `PP.hang` x
+    isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
+    isBlank _ = False
 
-        printCase (MatchCase pat guard (AbsN' vs body)) = PP.Group $
-          PP.Group ((fst $ prettyPattern n (-1) vs pat) <> b" " <> printGuard guard <> l"->") <> b" " <>
-          (PP.Nest "  " $ PP.Group $ pretty n 0 body) where
-            printGuard (Just g) = l"|" <> b" " <> pretty n 2 g <> b" "
-            printGuard Nothing = Empty
-        printCase _ = l"error"
+  printCase (MatchCase pat guard (AbsN' vs body)) =
+    PP.group $ lhs `PP.hang` pretty n (ac 0 Block) body
+    where
+    lhs = PP.group (fst (prettyPattern n (-1) vs pat) <> " ")
+       <> printGuard guard
+       <> "->"
+    printGuard (Just g) = PP.group $ PP.spaced ["|", pretty n (ac 2 Normal) g, ""]
+    printGuard Nothing  = mempty
+  printCase _ = l "error"
 
-        -- This predicate controls which binary functions we render as infix operators.
-        -- At the moment the policy is just to render symbolic operators as infix - not 'wordy'
-        -- function names.  So we produce "x + y" and "foo x y" but not "x `foo` y".
-        binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
-        binaryOpsPred = \case
-          Ref' r | isSymbolic (PrettyPrintEnv.termName n (Names.Ref r)) -> True
-          Var' v | isSymbolic (Var.name v)  -> True
-          _                                 -> False
+  -- This predicate controls which binary functions we render as infix
+  -- operators.  At the moment the policy is just to render symbolic
+  -- operators as infix - not 'wordy' function names.  So we produce
+  -- "x + y" and "foo x y" but not "x `foo` y".
+  binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
+  binaryOpsPred = \case
+    Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
+    Var' v | isSymbolic (Var.name v) -> True
+    _ -> False
 
-        nonForcePred :: AnnotatedTerm v a -> Bool
-        nonForcePred = \case
-          Constructor' Type.UnitRef 0 -> False
-          _                           -> True
+  nonForcePred :: AnnotatedTerm v a -> Bool
+  nonForcePred = \case
+    Constructor' Type.UnitRef 0 -> False
+    _                           -> True
 
-        nonUnitArgPred :: Var v => v -> Bool
-        nonUnitArgPred v = (Var.name v) /= "()"
+  nonUnitArgPred :: Var v => v -> Bool
+  nonUnitArgPred v = (Var.name v) /= "()"
 
-        -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
-        -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing "a1 `f1` a2 `f2`".  Except
-        -- the operators are all symbolic, so we won't produce any backticks.
-        -- We build the result out from the right, starting at `f2`.
-        binaryApps :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)] -> PrettyPrint String
-        binaryApps xs = foldr (flip (<>)) mempty (map r xs)
-                        where r (a, f) = pretty n 10 a <> b" " <> pretty n 10 f <> b" "
+  -- Render a binary infix operator sequence, like [(a2, f2), (a1, f1)],
+  -- meaning (a1 `f1` a2) `f2` (a3 rendered by the caller), producing
+  -- "a1 `f1` a2 `f2`".  Except the operators are all symbolic, so we won't
+  -- produce any backticks.  We build the result out from the right,
+  -- starting at `f2`.
+  binaryApps
+    :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)]
+             -> Pretty String
+             -> Pretty String
+  binaryApps xs last = unbroken `PP.orElse` broken
+   -- todo: use `PP.column2` in the case where we need to break
+   where
+    unbroken = PP.spaced (ps ++ [last])
+    broken = PP.column2 (psCols $ [""] ++ ps ++ [last])
+    psCols ps = case take 2 ps of
+      [x,y] -> (x,y) : psCols (drop 2 ps)
+      [] -> []
+      _ -> error "??"
+    ps = join $ [r a f | (a, f) <- reverse xs ]
+    r a f = [pretty n (ac 3 Normal) a,
+             pretty n (AmbientContext 10 Normal Infix) f]
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
-pretty' (Just width) n t = PP.render width   $ pretty n (-1) t
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (-1) t
+pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal) t
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal) t
 
-prettyPattern :: Var v => PrettyPrintEnv -> Int -> [v] -> Pattern loc -> (PrettyPrint String, [v])
--- vs is the list of pattern variables used by the pattern, plus possibly a tail of variables it doesn't use.
--- This tail is the second component of the return value.
+prettyPattern
+  :: Var v
+  => PrettyPrintEnv
+  -> Int
+  -> [v]
+  -> Pattern loc
+  -> (Pretty String, [v])
+-- vs is the list of pattern variables used by the pattern, plus possibly a
+-- tail of variables it doesn't use.  This tail is the second component of
+-- the return value.
 prettyPattern n p vs patt = case patt of
-  Pattern.Unbound _  -> (l"_", vs)
-  Pattern.Var _      -> let (v : tail_vs) = vs
-                        in (l $ varName v, tail_vs)
-  Pattern.Boolean _ b -> (if b then l"true" else l"false", vs)
-  Pattern.Int _ i     -> ((if i >= 0 then l"+" else Empty) <> (l $ show i), vs)
-  Pattern.Nat _ u     -> (l $ show u, vs)
-  Pattern.Float _ f   -> (l $ show f, vs)
-  Pattern.Tuple [pp]   -> let
-    (printed, tail_vs) = prettyPattern n 10 vs pp
-    in (parenNest (p >= 10) $ l"Pair" <> b" " <> printed <> b" " <> l"()", tail_vs)
-  Pattern.Tuple pats  -> let
-    (pats_printed, tail_vs) = patterns vs pats
-    in (parenNest True $ intercalateMap (l"," <> b" ") id pats_printed, tail_vs)
-  Pattern.Constructor _ ref i pats -> let
-    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
-    in (parenNest (p >= 10) $ l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed, tail_vs)
-  Pattern.As _ pat    -> let (v : tail_vs) = vs
-                             (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
-                         in (parenNest (p >= 11) $ ((l $ varName v) <> l"@" <> printed), eventual_tail)
-  Pattern.EffectPure _ pat -> let (printed, eventual_tail) = prettyPattern n (-1) vs pat
-                              in (l"{" <> b" " <> printed <> b" " <> l"}", eventual_tail)
-  Pattern.EffectBind _ ref i pats k_pat -> let
-    (pats_printed, tail_vs) = patternsSep (b" ") vs pats
-    (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-    in (l"{" <> b"" <> (PP.Nest "  " $ PP.Group $ b" " <>
-       l (Text.unpack (PrettyPrintEnv.patternName n ref i)) <> pats_printed <> b" " <> l"->" <> b" " <>
-                                               k_pat_printed <> b" ") <> l"}", eventual_tail)
-  t -> (l"error: " <> l (show t), vs)
-  where l = Literal
-        patterns vs (pat : pats) = let (printed, tail_vs) = prettyPattern n 10 vs pat
-                                       (rest_printed, eventual_tail) = patterns tail_vs pats
-                                   in (printed : rest_printed, eventual_tail)
-        patterns vs [] = ([], vs)
-        patternsSep sep vs pats = case patterns vs pats of
-          (printed, tail_vs) -> (foldMap (\x -> sep <> x) printed, tail_vs)
+  Pattern.Unbound _   -> (l "_", vs)
+  Pattern.Var     _   -> let (v : tail_vs) = vs in (l $ Var.nameStr v, tail_vs)
+  Pattern.Boolean _ b -> (if b then l "true" else l "false", vs)
+  Pattern.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
+  Pattern.Nat     _ u -> (l $ show u, vs)
+  Pattern.Float   _ f -> (l $ show f, vs)
+  Pattern.Tuple [pp] ->
+    let (printed, tail_vs) = prettyPattern n 10 vs pp
+    in  ( paren (p >= 10) $ PP.sep " " ["Pair", printed, "()"]
+        , tail_vs )
+  Pattern.Tuple pats ->
+    let (pats_printed, tail_vs) = patterns vs pats
+    in  (PP.parenthesizeCommas pats_printed, tail_vs)
+  Pattern.Constructor _ ref i [] ->
+    (PP.text (PrettyPrintEnv.patternName n ref i), vs)
+  Pattern.Constructor _ ref i pats ->
+    let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
+    in  ( paren (p >= 10)
+          $ PP.text (PrettyPrintEnv.patternName n ref i)
+            `PP.hang` pats_printed
+        , tail_vs)
+  Pattern.As _ pat ->
+    let (v : tail_vs)            = vs
+        (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
+    in  (paren (p >= 11) $ ((l $ Var.nameStr v) <> l "@" <> printed), eventual_tail)
+  Pattern.EffectPure _ pat ->
+    let (printed, eventual_tail) = prettyPattern n (-1) vs pat
+    in  (PP.sep " " ["{", printed, "}"], eventual_tail)
+  Pattern.EffectBind _ ref i pats k_pat ->
+    let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
+        (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
+    in  ("{" <> l (Text.unpack (PrettyPrintEnv.patternName n ref i))
+             <> (intercalateMap " " id [pats_printed, "->", k_pat_printed]) <>
+         "}"
+        , eventual_tail)
+  t -> (l "error: " <> l (show t), vs)
+ where
+  l = PP.lit
+  patterns vs (pat : pats) =
+    let (printed     , tail_vs      ) = prettyPattern n (-1) vs pat
+        (rest_printed, eventual_tail) = patterns tail_vs pats
+    in  (printed : rest_printed, eventual_tail)
+  patterns vs [] = ([], vs)
+  patternsSep sep vs pats = case patterns vs pats of
+    (printed, tail_vs) -> (PP.sep sep printed, tail_vs)
 
 {- Render a binding, producing output of the form
 
 foo : t -> u
 foo a = ...
 
-The first line is only output if the term has a type annotation as the outermost constructor.
+The first line is only output if the term has a type annotation as the
+outermost constructor.
 
 Binary functions with symbolic names are output infix, as follows:
 
@@ -244,55 +354,62 @@ Binary functions with symbolic names are output infix, as follows:
 a + b = ...
 
 -}
-prettyBinding :: Var v => PrettyPrintEnv -> v -> AnnotatedTerm v a -> PrettyPrint String
+prettyBinding
+  :: Var v => PrettyPrintEnv -> v -> AnnotatedTerm v a -> Pretty String
 prettyBinding n v term = go (symbolic && isBinary term) term where
   go infix' = \case
-    Ann' tm tp -> PP.BrokenGroup $
-      PP.Group (renderName v <> l" : " <> TypePrinter.pretty n (-1) tp) <> b";" <>
-      PP.Group (prettyBinding n v tm)
-    LamsNamedOpt' vs body ->
-      PP.Group (defnLhs v vs <> b" " <> l"=") <> b" " <>
-                (PP.Nest "  " $ PP.Group (pretty n (-1) body))
-      where
-    t -> l"error: " <> l (show t)
-    where
-      renderName v = (if symbolic
-                      then paren True
-                      else id) $ l (varName v)
-      defnLhs v vs = if infix'
-                     then case vs of
-                            x : y : _ -> l (Text.unpack (Var.name x)) <> b" " <>
-                                         l (varName v) <> b" " <>
-                                         l (Text.unpack (Var.name y))
-                            _ -> l"error"
-                     else renderName v <> (args vs)
-      args vs = foldMap (\x -> b" " <> l (Text.unpack (Var.name x))) vs
-  isBinary = \case
-    Ann' tm _ -> isBinary tm
-    LamsNamedOpt' vs _ -> length vs == 2
-    _ -> False -- unhittable
+    Ann' tm tp -> PP.lines [
+      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty n (-1) tp)),
+      PP.group (prettyBinding n v tm) ]
+    LamsNamedOpt' vs body -> PP.group $
+      PP.group (defnLhs v vs <> " =") `PP.hang`
+      pretty n (ac (-1) Block) body
+     where
+    t -> l "error: " <> l (show t)
+   where
+    defnLhs v vs = if infix'
+      then case vs of
+        x : y : _ ->
+          PP.sep " " [PP.text (Var.name x),
+                      PP.text (Var.name v),
+                      PP.text (Var.name y)]
+        _ -> l "error"
+      else if null vs then renderName v
+      else renderName v `PP.hang` args vs
+    args vs = PP.spacedMap (PP.text . Var.name) vs
+    renderName v = parenIfInfix (Var.nameStr v) NonInfix $ l (Var.nameStr v)
   symbolic = isSymbolic (Var.name v)
+  isBinary = \case
+    Ann'          tm _ -> isBinary tm
+    LamsNamedOpt' vs _ -> length vs == 2
+    _                  -> False -- unhittable
 
-prettyBinding' :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
+prettyBinding'
+  :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 
-paren :: Bool -> PrettyPrint String -> PrettyPrint String
-paren True s = PP.Group $ l"(" <> s <> l")"
-paren False s = PP.Group s
+paren :: Bool -> Pretty String -> Pretty String
+paren True  s = PP.group $ "(" <> s <> ")"
+paren False s = PP.group s
 
-parenNest :: Bool -> PrettyPrint String -> PrettyPrint String
-parenNest useParen contents = PP.Nest "  " $ paren useParen contents
+parenIfInfix
+  :: String -> InfixContext -> Pretty String -> Pretty String
+parenIfInfix name ic =
+  if isSymbolic (Text.pack name) && ic == NonInfix then paren True else id
 
-varName :: Var v => v -> String
-varName v = (Text.unpack (Var.name v))
+l :: String -> Pretty String
+l = PP.lit
 
-l :: String -> PrettyPrint String
-l = Literal
+-- b :: String -> Pretty String
+-- b = Breakable
 
-b :: String -> PrettyPrint String
-b = Breakable
-
--- When we use imports in rendering, this will need revisiting, so that we can render
--- say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId0 doesn't match 'foo.+', only '+'.
+-- When we use imports in rendering, this will need revisiting, so that we can
+-- render say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId doesn't match
+-- 'foo.+', only '+'.
 isSymbolic :: Text.Text -> Bool
-isSymbolic name = case symbolyId $ Text.unpack $ name of Right _ -> True; _ -> False
+isSymbolic name = case symbolyId $ Text.unpack $ name of
+  Right _ -> True
+  _       -> False
+
+ac :: Int -> BlockContext -> AmbientContext
+ac prec bc = AmbientContext prec bc NonInfix
