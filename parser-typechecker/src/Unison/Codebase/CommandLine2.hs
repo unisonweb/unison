@@ -101,9 +101,17 @@ notifyUser dir o = do
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
     ListOfBranches current branches ->
-      putStrLn
-        $ let go n = if n == current then "* " <> n else "  " <> n
-          in  Text.unpack $ intercalateMap "\n" go (sort branches)
+      putPrettyLn $
+        let go n = if n == current then P.bold ("* " <> P.text n)
+                   else "  " <> P.text n
+          in intercalateMap "\n" go (sort branches)
+    BranchAlreadyExists b ->
+      putPrettyLn $
+        warn ("There's already a branch called " <> P.text b <> ".\n\n") <>
+        (tip $ "You can switch to that branch via"
+            <> backtick ("branch " <> P.text b)
+            <> "or delete it via" <> backtickEOS ("branch.delete " <> P.text b))
+
     _ -> putStrLn $ show o
 
 allow :: FilePath -> Bool
@@ -131,6 +139,15 @@ watchBranchUpdates q codebase = do
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
+
+backtick :: IsString s => P.Pretty s -> P.Pretty s
+backtick s = P.group ("`" <> s <> "`")
+
+backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
+backtickEOS s = P.group ("`" <> s <> "`.")
+
+tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
+tip s = P.column2 [(P.bold "Tip:", P.wrap s)]
 
 warn :: IsString s => P.Pretty s -> P.Pretty s
 warn s = P.group "⚠️  " <> s
