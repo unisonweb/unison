@@ -50,6 +50,19 @@ instance LL.ListLike (AnnotatedText a) Char where
       Nothing -> LL.uncons (AnnotatedText tl)
       Just (hd,s) -> Just (hd, AnnotatedText $ (s,a) :<| tl)
     Seq.Empty -> Nothing
+  break f at = (LL.takeWhile (not . f) at, LL.dropWhile (not . f) at)
+  takeWhile f (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl -> let s' = L.takeWhile f s in
+      if length s' == length s then
+        AnnotatedText (pure (s,a)) <> LL.takeWhile f (AnnotatedText tl)
+      else
+        AnnotatedText (pure (s',a))
+  dropWhile f (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl -> case L.dropWhile f s of
+      [] -> LL.dropWhile f (AnnotatedText tl)
+      s  -> AnnotatedText $ (s,a) :<| tl
   take n (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
     (s,a) :<| tl ->

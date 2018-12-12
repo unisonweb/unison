@@ -25,12 +25,13 @@ main = do
     PP.bold "Use the `Monoid` and/or `Semigroup` to combine strings",
     "Hello, " <> PP.red "world!",
 
-    PP.yellow "`wrapWords` does automatic line wrapping",
-    PP.wrapWords loremIpsum,
+    PP.yellow "`wrap` does automatic line wrapping",
+    PP.wrap $ loremIpsum,
+    PP.wrapString "Can also call `wrapString` directly if you have a String value.",
 
     PP.bold "Indentation: can indent by n spaces, or by another `Pretty`",
-    PP.indentN 2 (PP.wrapWords loremIpsum),
-    PP.indent (PP.red ">> ") (PP.wrapWords loremIpsum),
+    PP.indentN 2 (PP.wrap loremIpsum),
+    PP.indent (PP.red ">> ") (PP.wrap loremIpsum),
 
     PP.bold "Other handy functions",
 
@@ -55,9 +56,9 @@ main = do
     PP.numbered (fromString . show . (10 +)) ["uno", "dos", "tres"],
 
     PP.bold "Grouping and breaking",
-    PP.wrapWords "The orElse function chooses between two `Pretty`, preferring the first if it fits, and using the second otherwise.",
+    PP.wrap "The orElse function chooses between two `Pretty`, preferring the first if it fits, and using the second otherwise.",
 
-    PP.wrapWords "The `group` function introduces a level of breaking. The renderer will try to avoid breaking up a `group` unless it's needed. Groups are broken \"outside in\".",
+    PP.wrap "The `group` function introduces a level of breaking. The renderer will try to avoid breaking up a `group` unless it's needed. Groups are broken \"outside in\".",
 
     -- question - I think this group shouldn't be needed
     PP.group (PP.orElse "This fits." "So this won't be used."),

@@ -6,7 +6,7 @@
 
 module Unison.Codebase.CommandLine2 where
 
-import           Data.String                    ( fromString )
+import           Data.String                    ( fromString, IsString )
 import qualified Unison.Util.ColorText         as CT
 import           Control.Exception              ( finally )
 import           Control.Monad.Trans            ( lift )
@@ -50,7 +50,7 @@ import           Unison.Codebase.Runtime        ( Runtime )
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
 import           Unison.Parser                  ( Ann )
-import qualified Unison.Util.Pretty            as Pretty
+import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as Q
@@ -62,36 +62,35 @@ import qualified System.Console.Terminal.Size  as Terminal
 
 notifyUser :: Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
-  width <- fromMaybe 80 . fmap Terminal.width <$> Terminal.size
-  let putPrettyLn = putStrLn . Pretty.toANSI width
+  -- note - even if user's terminal is huge, we restrict available width since
+  -- it's hard to read code or text that's super wide.
+  width <- fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
-      putPrettyLn
-        .  Pretty.wrap
-        $  (fromString <$> words
-             (  "There's nothing for me to add right now. "
-             <> "If you modify a file with the .u extension under the "
-             )
-           )
-        ++ [Pretty.blue $ fromString dir']
-        ++ (fromString <$> words
-             (  " directory, I'll find any definitions in that file. "
-             <> "After that, you can use `add` to add them to the codebase."
-             )
-           )
+      putPrettyLn $ P.lines [
+        nothingTodo $ P.wrap "There's nothing for me to add right now.", "",
+        P.column2 [(P.bold "Tip:", msg dir')], ""]
+      where
+        msg dir = P.wrap $
+          "If you modify a file with the .u extension under the" <>
+          -- Don't break up the dir name if it's got spaces
+          P.group (P.blue (fromString dir)) <>
+          "directory, I'll find any definitions in the file and you" <>
+          "can use" <> P.bold "`add`" <> "to add them to the codebase."
     UnknownBranch branchName ->
       putPrettyLn
         $  fromString (warnNote "I don't know of a branch named ")
-        <> (Pretty.red $ Pretty.text branchName)
+        <> (P.red $ P.text branchName)
         <> "."
     UnknownName branchName _nameTarget name ->
       putPrettyLn
         $  fromString (warnNote "I don't know of anything named ")
-        <> (Pretty.red $ Pretty.text name)
+        <> (P.red $ P.text name)
         <> " in the branch "
-        <> (Pretty.blue $ Pretty.text branchName)
+        <> (P.blue $ P.text branchName)
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -138,6 +137,12 @@ watchBranchUpdates q codebase = do
 
 warnNote :: String -> String
 warnNote s = "⚠️  " <> s
+
+warn :: IsString s => P.Pretty s -> P.Pretty s
+warn s = P.group "⚠️  " <> s
+
+nothingTodo :: IsString s => P.Pretty s -> P.Pretty s
+nothingTodo s = P.group "😶  " <> s
 
 type IsOptional = Bool
 

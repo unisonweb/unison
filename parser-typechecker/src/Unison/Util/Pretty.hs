@@ -51,10 +51,11 @@ module Unison.Util.Pretty (
    toANSI,
    toPlain,
    wrap,
-   wrapWords,
+   wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
   ) where
 
+import           Data.Char                      ( isSpace )
 import           Data.Foldable                  ( toList )
 import           Data.List                      ( foldl' , foldr1, intersperse )
 import           Data.Sequence                  ( Seq )
@@ -88,16 +89,30 @@ orElses :: [Pretty s] -> Pretty s
 orElses [] = mempty
 orElses ps = foldr1 orElse ps
 
-wrap :: IsString s => [Pretty s] -> Pretty s
-wrap [] = mempty
-wrap (p:ps) = wrap_ . Seq.fromList $
+wrapImpl :: IsString s => [Pretty s] -> Pretty s
+wrapImpl [] = mempty
+wrapImpl (p:ps) = wrap_ . Seq.fromList $
   p : fmap (\p -> (" " <> p) `orElse` (newline <> p)) ps
+
+wrapString :: (LL.ListLike s Char, IsString s) => String -> Pretty s
+wrapString s = wrap (lit $ fromString s)
+
+wrap :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+wrap p = wrapImpl (toLeaves [p]) where
+  toLeaves [] = []
+  toLeaves (hd:tl) = case out hd of
+    Empty -> toLeaves tl
+    Lit s -> wordify s ++ toLeaves tl
+    Group _ -> hd : toLeaves tl
+    OrElse a _ -> toLeaves (a:tl)
+    Wrap _ -> hd : toLeaves tl
+    Append hds -> toLeaves (toList hds ++ tl)
+  wordify s0 = let s = LL.dropWhile isSpace s0 in
+    if LL.null s then []
+    else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
 
 wrap_ :: Seq (Pretty s) -> Pretty s
 wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
-
-wrapWords :: IsString s => String -> Pretty s
-wrapWords = wrap . fmap fromString . words
 
 group :: Pretty s -> Pretty s
 group p = Pretty (delta p) (Group p)
