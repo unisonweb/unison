@@ -71,14 +71,12 @@ notifyUser dir o = do
       dir' <- canonicalizePath dir
       putPrettyLn $ P.lines [
         nothingTodo $ P.wrap "There's nothing for me to add right now.", "",
-        P.column2 [(P.bold "Tip:", msg dir')], ""]
+        P.column2 [(P.bold "Hint:", msg dir')], ""]
       where
         msg dir = P.wrap $
-          "If you modify a file with the .u extension under the" <>
-          -- Don't break up the dir name if it's got spaces
+          "I'm currently watching for definitions in .u files under the" <>
           P.group (P.blue (fromString dir)) <>
-          "directory, I'll find any definitions in the file and you" <>
-          "can use" <> P.bold "`add`" <> "to add them to the codebase."
+          "directory. Double-check that you've updated something there before using the" <> P.bold "`add`" <> "command."
     UnknownBranch branchName -> putPrettyLn . warn $
       "I don't know of a branch named" <> P.red (P.text branchName) <> "."
     UnknownName branchName _nameTarget name -> putPrettyLn . warn . P.wrap $
