@@ -22,7 +22,6 @@ import           Data.Maybe                     ( listToMaybe
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import qualified Data.Text                     as Text
-import           Data.Text                      ( Text )
 import           Control.Concurrent             ( forkIO
                                                 , killThread
                                                 )
@@ -80,17 +79,12 @@ notifyUser dir o = do
           P.group (P.blue (fromString dir)) <>
           "directory, I'll find any definitions in the file and you" <>
           "can use" <> P.bold "`add`" <> "to add them to the codebase."
-    UnknownBranch branchName ->
-      putPrettyLn
-        $  fromString (warnNote "I don't know of a branch named ")
-        <> (P.red $ P.text branchName)
-        <> "."
-    UnknownName branchName _nameTarget name ->
-      putPrettyLn
-        $  fromString (warnNote "I don't know of anything named ")
-        <> (P.red $ P.text name)
-        <> " in the branch "
-        <> (P.blue $ P.text branchName)
+    UnknownBranch branchName -> putPrettyLn . warn $
+      "I don't know of a branch named" <> P.red (P.text branchName) <> "."
+    UnknownName branchName _nameTarget name -> putPrettyLn . warn . P.wrap $
+        "I don't know of anything named" <>
+        P.red (P.text name) <>
+        "in the branch" <> P.blue (P.text branchName)
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -150,8 +144,8 @@ data InputPattern = InputPattern
   { patternName :: String
   , aliases :: [String]
   , args :: [(IsOptional, ArgumentType)]
-  , help :: Text
-  , parse :: [String] -> Either String Input
+  , help :: P.Pretty CT.ColorText
+  , parse :: [String] -> Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType
@@ -163,19 +157,13 @@ data ArgumentType = ArgumentType
                 -> m [Line.Completion]
   }
 
-showPatternHelp :: InputPattern -> String
-showPatternHelp i =
-  CT.toANSI (CT.bold (fromString $ patternName i))
-    <> (if not . null $ aliases i
-         then " (or " <> intercalate ", " (aliases i) <> ")"
-         else ""
-       )
-    <> "\n"
-    <> Text.unpack (help i)
-    -- showArgs args = intercalateMap " " g args
-    -- g (isOptional, arg) =
-    --   if isOptional then "[" <> typeName arg <> "]"
-    --   else typeName arg
+showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
+showPatternHelp i = P.lines [
+  P.bold (fromString $ patternName i) <> fromString
+    (if not . null $ aliases i
+     then " (or " <> intercalate ", " (aliases i) <> ")"
+     else ""),
+  help i ]
 
 validInputs :: [InputPattern]
 validInputs = validPatterns
@@ -191,9 +179,9 @@ validInputs = validPatterns
       []    -> Left $ intercalateMap "\n\n" showPatternHelp validPatterns
       [cmd] -> case Map.lookup cmd commandMap of
         Nothing ->
-          Left . warnNote $ "I don't know of that command. Try `help`."
-        Just pat -> Left $ Text.unpack (help pat)
-      _ -> Left $ warnNote "Use `help <cmd>` or `help`."
+          Left . warn $ "I don't know of that command. Try `help`."
+        Just pat -> Left $ help pat
+      _ -> Left $ warn "Use `help <cmd>` or `help`."
     )
   commandName =
     ArgumentType "command" $ \q _ _ -> pure $ autoComplete q commandNames
@@ -220,25 +208,24 @@ validInputs = validPatterns
         <> "the most recently typechecked file."
         )
         (\ws -> if not $ null ws
-          then Left $ warnNote "`add` doesn't take any arguments."
+          then Left $ warn "`add` doesn't take any arguments."
           else pure AddI
         )
       , InputPattern
         "branch"
         []
         [(True, branchArg)]
-        (  "`branch` lists all branches in the codebase.\n"
-        <> "`branch foo` switches to the branch named 'foo', "
-        <> "creating it first if it doesn't exist."
+        (P.column2 [("`branch`", P.wrap "lists all branches in the codebase.")
+                   ,("`branch foo`", P.wrap $ "switches to the branch named 'foo', "
+                                  <> "creating it first if it doesn't exist.")]
         )
         (\case
           []  -> pure ListBranchesI
           [b] -> pure . SwitchBranchI $ Text.pack b
           _ ->
-            Left
-              .  warnNote
-              $  "Use `branch` to list all branches "
-              <> "or `branch foo` to switch to or create the branch 'foo'."
+            Left . warn . P.wrap $
+              "Use `branch` to list all branches " <>
+              "or `branch foo` to switch to or create the branch 'foo'."
         )
       , InputPattern
         "fork"
@@ -249,22 +236,20 @@ validInputs = validPatterns
         )
         (\case
           [b] -> pure . ForkBranchI $ Text.pack b
-          _ ->
-            Left
-              .  warnNote
-              $  "Use `fork foo` to create the branch 'foo' "
-              <> "from the current branch."
+          _ -> Left . warn . P.wrap $
+            "Use `fork foo` to create the branch 'foo'" <>
+            "from the current branch."
         )
       , InputPattern
         "list"
         ["ls"]
         []
-        (  "`list` shows all definitions in the current branch, "
-        <> "as well as their types.\n"
-        <> "`list foo` shows all definitions with a name similar to 'foo' "
-        <> "in the current branch, as well as their types."
-        <> "`list foo bar` shows all definitions with a name similar to 'foo' "
-        <> "or 'bar' in the current branch, as well as their types."
+        (P.column2 [
+          ("`list`", P.wrap $ "shows all definitions in the current branch."),
+          ("`list foo`", P.wrap $ "shows all definitions with a name similar"
+                               <> "to 'foo' in the current branch."),
+          ("`list foo bar`", P.wrap $ "shows all definitions with a name similar"
+                                   <> "to 'foo' or 'bar' in the current branch.")]
         )
         (pure . SearchByNameI Editor.Fuzzy)
       , InputPattern
@@ -274,11 +259,9 @@ validInputs = validPatterns
         ("`merge foo` merges the branch 'foo' into the current branch.")
         (\case
           [b] -> pure . MergeBranchI $ Text.pack b
-          _ ->
-            Left
-              .  warnNote
-              $  "Use `merge foo` to merge the branch 'foo'"
-              <> " into the current branch."
+          _ -> Left . warn . P.wrap $
+            "Use `merge foo` to merge the branch 'foo'" <>
+            "into the current branch."
         )
       , quit
       ]
@@ -289,19 +272,26 @@ completion s = Line.Completion s s True
 autoComplete :: String -> [String] -> [Line.Completion]
 autoComplete q ss = completion <$> Codebase.sortedApproximateMatches q ss
 
-parseInput :: Map String InputPattern -> [String] -> Either String Input
+parseInput :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of
   [] -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat -> parse pat args
-    Nothing ->
-      Left
-        $  "I don't know how to "
-        <> command
-        <> ". Type `help` or `?` to get help."
+    Nothing -> Left . warn . P.wrap $
+      "I don't know how to " <> P.group (fromString command) <>
+      ". Type `help` or `?` to get help."
 
 prompt :: String
 prompt = "> "
+
+putPrettyLn :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn p = do
+  width <- getAvailableWidth
+  putStrLn . P.toANSI width $ p
+
+getAvailableWidth :: IO Int
+getAvailableWidth =
+  fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
 
 getUserInput
   :: (MonadIO m, Line.MonadException m)
@@ -316,7 +306,7 @@ getUserInput patterns codebase branch branchName = Line.runInputT settings $ do
     Nothing -> pure QuitI
     Just l  -> case parseInput patterns $ words l of
       Left msg -> lift $ do
-        liftIO $ putStrLn msg
+        liftIO $ putPrettyLn msg
         getUserInput patterns codebase branch branchName
       Right i -> pure i
  where
