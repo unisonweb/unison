@@ -71,7 +71,7 @@ loop s = Free.unfold' go s
         SearchByNameI st qs ->
           withBranch currentBranchName respond $ \branch ->
             Free.eval (SearchTerms branch st qs)
-              >>= (respond . ListOfTerms currentBranchName st qs)
+              >>= (respond . ListOfTerms branch st qs)
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"

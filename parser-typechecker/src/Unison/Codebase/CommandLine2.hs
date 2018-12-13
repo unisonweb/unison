@@ -48,7 +48,9 @@ import qualified Unison.Codebase.Editor.Actions
 import           Unison.Codebase.Runtime        ( Runtime )
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
+import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
+import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
@@ -63,26 +65,87 @@ notifyUser :: Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
   -- note - even if user's terminal is huge, we restrict available width since
   -- it's hard to read code or text that's super wide.
-  width <- fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  width <-
+    fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
-      putPrettyLn $ P.lines [
-        nothingTodo $ P.wrap "There's nothing for me to add right now.", "",
-        P.column2 [(P.bold "Hint:", msg dir')], ""]
-      where
-        msg dir = P.wrap $
-          "I'm currently watching for definitions in .u files under the" <>
-          P.group (P.blue (fromString dir)) <>
-          "directory. Double-check that you've updated something there before using the" <> P.bold "`add`" <> "command."
-    UnknownBranch branchName -> putPrettyLn . warn $
-      "I don't know of a branch named" <> P.red (P.text branchName) <> "."
-    UnknownName branchName _nameTarget name -> putPrettyLn . warn . P.wrap $
-        "I don't know of anything named" <>
-        P.red (P.text name) <>
-        "in the branch" <> P.blue (P.text branchName)
+      putPrettyLn $ P.lines
+        [ nothingTodo $ P.wrap "There's nothing for me to add right now."
+        , ""
+        , P.column2 [(P.bold "Hint:", msg dir')]
+        , ""
+        ]
+     where
+      msg dir =
+        P.wrap
+          $  "I'm currently watching for definitions in .u files under the"
+          <> P.group (P.blue $ fromString dir)
+          <> "directory. Make sure you've updated something there before using the"
+          <> P.bold "`add`"
+          <> "command."
+    UnknownBranch branchName ->
+      putPrettyLn
+        .  warn
+        .  P.wrap
+        $  "I don't know of a branch named "
+        <> P.red (P.text branchName)
+        <> "."
+    UnknownName branchName nameTarget name ->
+      putPrettyLn
+        .  warn
+        .  P.wrap
+        $  "I don't know of any "
+        <> fromString (Names.renderNameTarget nameTarget)
+        <> " named "
+        <> P.red (P.text name)
+        <> " in the branch "
+        <> P.blue (P.text branchName)
+        <> "."
+    NameAlreadyExists branchName nameTarget name ->
+      putPrettyLn
+        .  warn
+        .  P.wrap
+        $  "There's already a "
+        <> fromString (Names.renderNameTarget nameTarget)
+        <> " named "
+        <> P.red (P.text name)
+        <> " in the branch "
+        <> P.blue (P.text branchName)
+        <> "."
+    ConflictedName branchName nameTarget name ->
+      putPrettyLn
+        .  warn
+        .  P.wrap
+        $  "The name "
+        <> P.red (P.text name)
+        <> " refers to more than one "
+        <> fromString (Names.renderNameTarget nameTarget)
+        <> " in the branch "
+        <> P.blue (P.text branchName)
+        <> "."
+    BranchAlreadyExists b ->
+      putPrettyLn
+        $  warn ("There's already a branch called " <> P.text b <> ".\n\n")
+        <> (  tip
+           $  "You can switch to that branch via"
+           <> backtick ("branch " <> P.text b)
+           <> "or delete it via"
+           <> backtickEOS ("branch.delete " <> P.text b)
+           )
+    ListOfBranches current branches ->
+      putPrettyLn
+        $ let
+            go n = if n == current
+              then P.bold ("* " <> P.text n)
+              else "  " <> P.text n
+          in  intercalateMap "\n" go (sort branches)
+    ListOfTerms branch _searchType _queries terms -> do
+      let ppe = Branch.prettyPrintEnv1 branch
+          sigs = (\(name,_,typ) -> (name, typ)) <$> terms
+       in putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -98,17 +161,6 @@ notifyUser dir o = do
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
-    ListOfBranches current branches ->
-      putPrettyLn $
-        let go n = if n == current then P.bold ("* " <> P.text n)
-                   else "  " <> P.text n
-          in intercalateMap "\n" go (sort branches)
-    BranchAlreadyExists b ->
-      putPrettyLn $
-        warn ("There's already a branch called " <> P.text b <> ".\n\n") <>
-        (tip $ "You can switch to that branch via"
-            <> backtick ("branch " <> P.text b)
-            <> "or delete it via" <> backtickEOS ("branch.delete " <> P.text b))
 
     _ -> putStrLn $ show o
 

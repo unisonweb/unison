@@ -39,8 +39,7 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 
 -}
 
-pretty
-  :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
+pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
@@ -52,17 +51,19 @@ pretty n p tp = case tp of
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x ->
     PP.group $ l "[" <> pretty n 0 x <> l "]"
-  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $
-    "Pair" `PP.hang` PP.spaced [pretty n 10 x, "()"]
-  Tuple' xs -> PP.parenthesizeCommas $ map (pretty n 0) xs
-  Apps' f xs -> PP.parenthesizeIf (p >= 10) $
-    pretty n 9 f `PP.hang` PP.spaced (pretty n 10 <$> xs)
-  Effect1' e t -> PP.parenthesizeIf (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
-  Effects' es -> effects (Just es)
+  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
+    [pretty n 10 x, "()"]
+  Tuple' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
+  Apps' f xs -> PP.parenthesizeIf (p >= 10) $ pretty n 9 f `PP.hang` PP.spaced
+    (pretty n 10 <$> xs)
+  Effect1' e t ->
+    PP.parenthesizeIf (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
+  Effects' es         -> effects (Just es)
   ForallNamed' v body -> if (p < 0)
     then pretty n p body
-    else paren True $
-      ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
+    else
+      paren True
+      $         ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
       `PP.hang` pretty n (-1) body
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
     EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest

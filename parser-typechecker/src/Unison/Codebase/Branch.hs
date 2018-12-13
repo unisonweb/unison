@@ -75,7 +75,7 @@ import qualified Unison.Var               as Var
 --
 -- Operations around making transitive updates, resolving conflicts...
 -- determining remaining work before one branch "covers" another...
-newtype Branch = Branch { unbranch :: Causal Branch0 } deriving Eq
+newtype Branch = Branch { unbranch :: Causal Branch0 } deriving (Eq, Show)
 
 data Branch0 =
   Branch0 { termNamespace    :: Relation Name Referent

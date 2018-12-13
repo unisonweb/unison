@@ -35,6 +35,12 @@ data Names = Names
 
 data NameTarget = TermName | TypeName | PatternName deriving (Show)
 
+renderNameTarget :: NameTarget -> String
+renderNameTarget = \case
+  TermName -> "term"
+  TypeName -> "type"
+  PatternName -> "pattern"
+
 instance Show Names where
   -- really barebones, just to see what names are present
   show (Names es ps ts) =

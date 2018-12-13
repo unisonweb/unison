@@ -124,7 +124,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfTerms BranchName SearchType [String] [(Name, Referent, Type v Ann)]
+  | ListOfTerms Branch SearchType [String] [(Name, Referent, Type v Ann)]
   | AddOutput (AddOutput v)
   | ParseErrors [Parser.Err v]
   | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]

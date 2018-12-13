@@ -72,9 +72,20 @@ type Width = Int
 
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
 
+instance Functor Pretty where
+  fmap f (Pretty d o) = Pretty d (mapLit f $ fmap (fmap f) o)
+
 data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
   deriving (Show, Foldable, Traversable, Functor)
+
+mapLit :: (s -> t) -> F s r -> F t r
+mapLit f (Lit s) = Lit (f s)
+mapLit _ Empty = Empty
+mapLit _ (Group r) = Group r
+mapLit _ (Wrap s) = Wrap s
+mapLit _ (OrElse r s) = OrElse r s
+mapLit _ (Append s) = Append s
 
 lit :: (IsString s, LL.ListLike s Char) => s -> Pretty s
 lit s = lit' (foldMap chDelta $ LL.toList s) s
