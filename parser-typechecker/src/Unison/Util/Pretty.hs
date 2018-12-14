@@ -191,6 +191,7 @@ commas = intercalateMap ("," <> softbreak) id
 oxfordCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 oxfordCommas xs = case toList xs of
   []     -> ""
+  [x]    -> x
   [x, y] -> x <> " and " <> y
   xs ->
     intercalateMap ("," <> softbreak) id (init xs)

@@ -168,7 +168,7 @@ notifyUser dir o = do
                else ""
              dupeMsg = if not (null dupeTypes && null dupeTerms)
                then
-                 "👯  I skipped the following definitions "
+                 "👯  I skipped the following definitions"
                  <> " because they already exist in the current branch: "
                  <> P.newline
                  <> P.bulleted (fromVar <$> toList dupeTypes)
@@ -195,21 +195,38 @@ notifyUser dir o = do
                       P.newline
                     else
                       ""
-             dupeRefMsg =
+             nameCollMsg kind collsOfThatKind =
                P.lines
                  . fmap
                      (\(k, v) ->
                        warn
-                         $  "The type you added as "
+                         $  "The "
+                         <> kind
+                         <> " you added as "
                          <> P.blue (P.text k)
-                         <> " is already defined as "
-                         <> P.oxfordCommas (P.text <$> toList v)
+                         <> " already exists with "
+                         <> (if length v > 1
+                              then "different names. "
+                              else "a different name. "
+                            )
+                         <> "It's defined as "
+                         <> P.oxfordCommas (P.green . P.text <$> toList v)
+                         <> ". I've added "
+                         <> P.blue (P.text k)
+                         <> " as a new name for it."
                      )
                  . Map.toList
                  . R.domain
-                 $ Branch.typeCollisions refcolls
+                 $ collsOfThatKind refcolls
+             dupeRefMsg     = nameCollMsg "term" Branch.termCollisions
+             dupeTypeRefMsg = nameCollMsg "type" Branch.typeCollisions
            in
-             putPrettyLn $ addMsg <> dupeMsg <> collMsg <> dupeRefMsg
+             putPrettyLn
+             $  addMsg
+             <> dupeMsg
+             <> collMsg
+             <> dupeTypeRefMsg
+             <> dupeRefMsg
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
