@@ -160,7 +160,7 @@ notifyUser dir o = do
              Editor.AddOutputComponent collidedTypes collidedTerms = colls
              addMsg = if not (null addedTypes && null addedTerms)
                then
-                 "✓  OK, I added the following definitions: "
+                 "✓  OK, I added these definitions: "
                  <> P.newline
                  <> P.bulleted (fromVar <$> toList addedTypes)
                  <> P.bulleted (fromVar <$> toList addedTerms)
@@ -168,7 +168,7 @@ notifyUser dir o = do
                else ""
              dupeMsg = if not (null dupeTypes && null dupeTerms)
                then
-                 "👯  I skipped the following definitions"
+                 "👯  I skipped these definitions"
                  <> " because they already exist in the current branch: "
                  <> P.newline
                  <> P.bulleted (fromVar <$> toList dupeTypes)
@@ -232,13 +232,13 @@ notifyUser dir o = do
           patterns = R.dom $ Branch.patternNamespace branch
           types    = R.dom $ Branch.typeNamespace branch
       when (not $ null terms) $ do
-        putStrLn "🙅 The following terms have conflicts: "
+        putStrLn "🙅 These terms have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) terms
       when (not $ null patterns) $ do
-        putStrLn "🙅 The following patterns have conflicts: "
+        putStrLn "🙅 These patterns have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) patterns
       when (not $ null types) $ do
-        putStrLn "🙅 The following types have conflicts: "
+        putStrLn "🙅 These types have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
