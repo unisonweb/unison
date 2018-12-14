@@ -10,6 +10,7 @@ module Unison.Util.Pretty (
    -- breakable
    column2,
    commas,
+   oxfordCommas,
    dashed,
    flatMap,
    group,
@@ -186,6 +187,18 @@ spacedMap f as = spaced . fmap f $ toList as
 
 commas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 commas = intercalateMap ("," <> softbreak) id
+
+oxfordCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
+oxfordCommas xs = case toList xs of
+  []     -> ""
+  [x, y] -> x <> " and " <> y
+  xs ->
+    intercalateMap ("," <> softbreak) id (init xs)
+      <> ","
+      <> softbreak
+      <> "and"
+      <> softbreak
+      <> last xs
 
 parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 parenthesizeCommas = surroundCommas "(" ")"

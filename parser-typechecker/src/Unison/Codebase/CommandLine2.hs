@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
@@ -6,11 +7,15 @@
 
 module Unison.Codebase.CommandLine2 where
 
-import           Data.String                    ( fromString, IsString )
+import           Data.String                    ( fromString
+                                                , IsString
+                                                )
 import qualified Unison.Util.ColorText         as CT
 import           Control.Exception              ( finally )
 import           Control.Monad.Trans            ( lift )
-import           Data.Foldable                  ( traverse_ )
+import           Data.Foldable                  ( traverse_
+                                                , toList
+                                                )
 import           Data.IORef
 import           Data.List                      ( isSuffixOf
                                                 , sort
@@ -57,16 +62,16 @@ import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as Q
 import           Unison.Util.Monoid             ( intercalateMap )
 import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 import qualified System.Console.Haskeline      as Line
 import           System.Directory               ( canonicalizePath )
 import qualified System.Console.Terminal.Size  as Terminal
 
-notifyUser :: Var v => FilePath -> Output v -> IO ()
+notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
   -- note - even if user's terminal is huge, we restrict available width since
   -- it's hard to read code or text that's super wide.
-  width <-
-    fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  width <- fromMaybe 80 . fmap Terminal.width <$> Terminal.size
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
@@ -82,7 +87,7 @@ notifyUser dir o = do
       msg dir =
         P.wrap
           $  "I'm currently watching for definitions in .u files under the"
-          <> P.group (P.blue $ fromString dir)
+          <> renderFileName dir
           <> "directory. Make sure you've updated something there before using the"
           <> P.bold "`add`"
           <> "command."
@@ -142,10 +147,67 @@ notifyUser dir o = do
               then P.bold ("* " <> P.text n)
               else "  " <> P.text n
           in  intercalateMap "\n" go (sort branches)
-    ListOfTerms branch _searchType _queries terms -> do
-      let ppe = Branch.prettyPrintEnv1 branch
-          sigs = (\(name,_,typ) -> (name, typ)) <$> terms
-       in putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
+    ListOfTerms branch _ _ terms ->
+      let ppe  = Branch.prettyPrintEnv1 branch
+          sigs = (\(name, _, typ) -> (name, typ)) <$> terms
+      in  putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
+    AddOutput a -> case a of
+      Editor.NothingToAdd -> notifyUser dir (NoUnisonFile @v)
+      Editor.Added _ adds dupes colls refcolls
+        -> let
+             Editor.AddOutputComponent addedTypes    addedTerms    = adds
+             Editor.AddOutputComponent dupeTypes     dupeTerms     = dupes
+             Editor.AddOutputComponent collidedTypes collidedTerms = colls
+             addMsg = if not (null addedTypes && null addedTerms)
+               then
+                 "✓  OK, I added the following definitions: "
+                 <> P.bulleted (fromVar <$> toList addedTypes)
+                 <> P.bulleted (fromVar <$> toList addedTerms)
+                 <> P.newline
+               else ""
+             dupeMsg = if not (null dupeTypes && null dupeTerms)
+               then
+                 "👯  I skipped the following definitions "
+                 <> " because they already exist in the current branch: "
+                 <> P.bulleted (fromVar <$> toList dupeTypes)
+                 <> P.bulleted (fromVar <$> toList dupeTerms)
+                 <> P.newline
+               else ""
+             collMsg =
+               ( P.lines
+                 . fmap
+                     (\x ->
+                       warn
+                         $  "The name "
+                         <> P.blue x
+                         <> " already has another definition "
+                         <> "in the current branch."
+                     )
+                 . toList
+                 $ (  (fromVar <$> toList collidedTypes)
+                   <> (fromVar <$> toList collidedTerms)
+                   )
+                 )
+                 <> if not (null collidedTypes && null collidedTerms)
+                    then
+                      P.newline
+                    else
+                      ""
+             dupeRefMsg =
+               P.lines
+                 . fmap
+                     (\(k, v) ->
+                       warn
+                         $  "The type you added as "
+                         <> P.blue (P.text k)
+                         <> " is already defined as "
+                         <> P.oxfordCommas (P.text <$> toList v)
+                     )
+                 . Map.toList
+                 . R.domain
+                 $ Branch.typeCollisions refcolls
+           in
+             putPrettyLn $ addMsg <> dupeMsg <> collMsg <> dupeRefMsg
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -161,8 +223,12 @@ notifyUser dir o = do
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
-
     _ -> putStrLn $ show o
+
+  where
+    renderFileName = P.group . P.blue . fromString
+    fromVar = P.text . Var.name
+
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)

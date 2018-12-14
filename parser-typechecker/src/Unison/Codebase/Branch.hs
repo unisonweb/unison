@@ -77,6 +77,12 @@ import qualified Unison.Var               as Var
 -- determining remaining work before one branch "covers" another...
 newtype Branch = Branch { unbranch :: Causal Branch0 } deriving (Eq, Show)
 
+data RefCollisions =
+  RefCollisions { termCollisions :: Relation Name Name
+                , patternCollisions :: Relation Name Name
+                , typeCollisions :: Relation Name Name
+                } deriving (Eq, Show)
+
 data Branch0 =
   Branch0 { termNamespace    :: Relation Name Referent
           , patternNamespace :: Relation Name (Reference,Int)
@@ -373,9 +379,26 @@ duplicates b0 b = go b0 (head b)
 collisions :: Branch0 -> Branch -> Branch0
 collisions b0 b = ours $ nameCollisions b0 b `diff'` duplicates b0 b
 
+-- Returns the references that have different names in `a` vs `b`
+differentNames :: Branch0 -> Branch -> RefCollisions
+differentNames a b = RefCollisions collTerms collPats collTypes
+ where
+  hb = head b
+  colls f b =
+    R.fromMultimap
+      . fmap
+          (Set.unions . toList . Set.map
+            (\n -> Set.fromList . toList . R.lookupRan n $ f b)
+          )
+      . R.domain
+      . f
+  collTerms = colls termNamespace hb a
+  collPats  = colls patternNamespace hb a
+  collTypes = colls typeNamespace hb a
+
 -- Returns the subset of `b0` whose referents collide with elements of `b`
 refCollisions :: Branch0 -> Branch -> Branch0
-refCollisions b0 b = go b0 (head b)
+refCollisions b0 b = ours . diff' (go b0 $ head b) $ duplicates b0 b
  where
   -- `set R.<| rel` filters `rel` to contain tuples whose first elem is in `set`
   go b1 b2 = Branch0

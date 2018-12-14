@@ -68,10 +68,10 @@ data AddOutput v
           , successful :: AddOutputComponent v
           -- Exists in the branch and the file, with the same name and contents.
           , duplicates :: AddOutputComponent v
-          -- Already defined in the branch, but with a different name.
-          , duplicateReferents :: AddOutputComponent v
           -- Has a colliding name but a different definition than the codebase.
           , collisions :: AddOutputComponent v
+          -- Already defined in the branch, but with a different name.
+          , duplicateReferents :: Branch.RefCollisions
           }
           deriving (Show)
 
@@ -202,8 +202,8 @@ addToBranch branch unisonFile
       branchUpdate = Branch.fromTypecheckedFile unisonFile
       collisions   = Branch.collisions branchUpdate branch
       duplicates   = Branch.duplicates branchUpdate branch
-      dupeRefs     = Branch.ours
-        $ Branch.diff' (Branch.refCollisions branchUpdate branch) duplicates
+      dupeRefs     = Branch.refCollisions branchUpdate branch
+      diffNames    = Branch.differentNames dupeRefs branch
       successes = Branch.ours
         $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
       mkOutput x =
@@ -212,9 +212,8 @@ addToBranch branch unisonFile
       Added unisonFile
             (mkOutput successes)
             (mkOutput duplicates)
-            (mkOutput dupeRefs)
             (mkOutput collisions)
-
+            diffNames
 typecheck
   :: (Monad m, Var v)
   => Codebase m v Ann
