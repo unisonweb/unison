@@ -29,6 +29,7 @@ import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import           Unison.Var                     ( Var )
 import qualified Unison.Codebase as Codebase
 
 type Action i v = Free (Command i v) (Either () (LoopState v))
@@ -39,13 +40,15 @@ data LoopState v
 loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing
 
-startLoop :: Branch -> BranchName -> Free (Command (Either Event Input) v) ()
+startLoop
+  :: Var v => Branch -> BranchName -> Free (Command (Either Event Input) v) ()
 startLoop = (loop .) . loopState0
 
-loop :: LoopState v -> Free (Command (Either Event Input) v) ()
+loop
+  :: forall v . Var v => LoopState v -> Free (Command (Either Event Input) v) ()
 loop s = Free.unfold' go s
  where
-  go :: forall v . LoopState v -> Action (Either Event Input) v
+  go :: forall v . Var v => LoopState v -> Action (Either Event Input) v
   go s@(LoopState currentBranch currentBranchName uf) = do
     e <- Free.eval Input
     case e of
@@ -121,7 +124,10 @@ loop s = Free.unfold' go s
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf -> Free.eval (Add currentBranch uf) >>= (respond . AddOutput)
+          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) ->
+            let uf = UF.typecheckedUnisonFile datas effects tlcs
+            in  Free.eval (Add currentBranchName currentBranch uf)
+                  >>= (respond . AddOutput)
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName       -> switchBranch branchName

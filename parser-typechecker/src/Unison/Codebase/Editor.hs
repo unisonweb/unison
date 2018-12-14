@@ -64,6 +64,8 @@ data AddOutput v
   | Added {
           -- The file that we tried to add from
             originalFile :: UF.TypecheckedUnisonFile v Ann
+          -- The branch after adding everything
+          , updatedBranch :: Branch
           -- Previously existed only in the file; now added to the codebase.
           , successful :: AddOutputComponent v
           -- Exists in the branch and the file, with the same name and contents.
@@ -138,7 +140,10 @@ data Command i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
 
-  Add :: Branch -> UF.TypecheckedUnisonFile' v Ann -> Command i v (AddOutput v)
+  Add :: BranchName
+      -> Branch
+      -> UF.TypecheckedUnisonFile v Ann
+      -> Command i v (AddOutput v)
 
   Typecheck :: Branch
             -> SourceName
@@ -196,24 +201,37 @@ data Command i v a where
               -> [String]
               -> Command i v [(Name, Referent, Type v Ann)]
 
-addToBranch :: Var v => Branch -> UF.TypecheckedUnisonFile v Ann -> AddOutput v
-addToBranch branch unisonFile
-  = let
-      branchUpdate = Branch.fromTypecheckedFile unisonFile
-      collisions   = Branch.collisions branchUpdate branch
-      duplicates   = Branch.duplicates branchUpdate branch
-      dupeRefs     = Branch.refCollisions branchUpdate branch
-      diffNames    = Branch.differentNames dupeRefs branch
-      successes = Branch.ours
-        $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
-      mkOutput x =
-        uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
-    in
-      Added unisonFile
-            (mkOutput successes)
-            (mkOutput duplicates)
-            (mkOutput collisions)
-            diffNames
+addToBranch
+  :: (Var v, Monad m)
+  => Codebase m v a
+  -> BranchName
+  -> Branch
+  -> UF.TypecheckedUnisonFile v Ann
+  -> m (AddOutput v)
+addToBranch codebase branchName branch unisonFile =
+  let
+    branchUpdate = Branch.fromTypecheckedFile unisonFile
+    collisions   = Branch.collisions branchUpdate branch
+    duplicates   = Branch.duplicates branchUpdate branch
+    dupeRefs     = Branch.refCollisions branchUpdate branch
+    diffNames    = Branch.differentNames dupeRefs branch
+    successes    = Branch.ours
+      $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
+    mkOutput x =
+      uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
+  in
+    do
+      updated <-
+        Codebase.mergeBranch codebase branchName
+        .  Branch.one
+        $  successes
+        <> dupeRefs
+      pure $ Added unisonFile
+                   updated
+                   (mkOutput successes)
+                   (mkOutput duplicates)
+                   (mkOutput collisions)
+                   diffNames
 typecheck
   :: (Monad m, Var v)
   => Codebase m v Ann
@@ -264,18 +282,18 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     -- Wait until we get either user input or a unison file update
     Input         -> awaitInput
     Notify output -> notifyUser output
-    Add branch unisonFile ->
-      pure . addToBranch branch $ UF.discardTopLevelTerm unisonFile
+    Add branchName branch unisonFile ->
+      addToBranch codebase branchName branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
-    Evaluate unisonFile -> Runtime.evaluate rt unisonFile codebase
-    ListBranches -> Codebase.branches codebase
-    LoadBranch branchName -> Codebase.getBranch codebase branchName
-    NewBranch branchName -> newBranch codebase branchName
-    ForkBranch branch branchName -> forkBranch codebase branch branchName
-    MergeBranch branchName branch -> mergeBranch codebase branch branchName
-    GetConflicts branch -> pure $ Branch.conflicts' branch
-    SwitchBranch branch branchName -> branchChange branch branchName
+    Evaluate unisonFile               -> Runtime.evaluate rt unisonFile codebase
+    ListBranches                      -> Codebase.branches codebase
+    LoadBranch branchName             -> Codebase.getBranch codebase branchName
+    NewBranch  branchName             -> newBranch codebase branchName
+    ForkBranch  branch     branchName -> forkBranch codebase branch branchName
+    MergeBranch branchName branch     -> mergeBranch codebase branch branchName
+    GetConflicts branch               -> pure $ Branch.conflicts' branch
+    SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch _searchType queries ->
       Codebase.fuzzyFindTerms codebase branch queries
 

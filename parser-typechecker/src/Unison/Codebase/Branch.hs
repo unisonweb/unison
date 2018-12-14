@@ -91,6 +91,9 @@ data Branch0 =
           , editedTypes      :: Relation Reference TypeEdit
           } deriving (Eq, Show)
 
+one :: Branch0 -> Branch
+one = Branch . Causal.one
+
 allNamedReferences :: Branch0 -> Set Reference
 allNamedReferences b = let
   termRefs = Set.map Referent.toReference (R.ran (termNamespace b))

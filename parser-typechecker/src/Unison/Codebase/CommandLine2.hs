@@ -153,7 +153,7 @@ notifyUser dir o = do
       in  putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
     AddOutput a -> case a of
       Editor.NothingToAdd -> notifyUser dir (NoUnisonFile @v)
-      Editor.Added _ adds dupes colls refcolls
+      Editor.Added _ofile _branch adds dupes colls refcolls
         -> let
              Editor.AddOutputComponent addedTypes    addedTerms    = adds
              Editor.AddOutputComponent dupeTypes     dupeTerms     = dupes
@@ -161,6 +161,7 @@ notifyUser dir o = do
              addMsg = if not (null addedTypes && null addedTerms)
                then
                  "✓  OK, I added the following definitions: "
+                 <> P.newline
                  <> P.bulleted (fromVar <$> toList addedTypes)
                  <> P.bulleted (fromVar <$> toList addedTerms)
                  <> P.newline
@@ -169,6 +170,7 @@ notifyUser dir o = do
                then
                  "👯  I skipped the following definitions "
                  <> " because they already exist in the current branch: "
+                 <> P.newline
                  <> P.bulleted (fromVar <$> toList dupeTypes)
                  <> P.bulleted (fromVar <$> toList dupeTerms)
                  <> P.newline
