@@ -204,11 +204,18 @@ oxfordCommas xs = case toList xs of
 parenthesizeCommas :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 parenthesizeCommas = surroundCommas "(" ")"
 
-surroundCommas :: (Foldable f, IsString s) => Pretty s -> Pretty s -> f (Pretty s) -> Pretty s
-surroundCommas start stop fs = group $
-  start <> spaceIfBreak
-        <> intercalateMap ("," <> softbreak <> align) id fs
-        <> stop
+surroundCommas
+  :: (Foldable f, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> f (Pretty s)
+  -> Pretty s
+surroundCommas start stop fs =
+  group
+    $  start
+    <> spaceIfBreak
+    <> intercalateMap ("," <> softbreak <> align) id fs
+    <> stop
   where align = spacesIfBreak (preferredWidth start + 1)
 
 sepSpaced :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
@@ -230,47 +237,64 @@ lines = intercalateMap newline id
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)
 
-bulleted :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
+bulleted
+  :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
 bulleted = intercalateMap newline (\b -> "* " <> indentAfterNewline "  " b)
 
-dashed :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
+dashed
+  :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
 dashed = intercalateMap newline (\b -> "- " <> indentAfterNewline "  " b)
 
-numbered :: (Foldable f, LL.ListLike s Char, IsString s) => (Int -> Pretty s) -> f (Pretty s) -> Pretty s
-numbered num ps = column2 (fmap num [1..] `zip` toList ps)
+numbered
+  :: (Foldable f, LL.ListLike s Char, IsString s)
+  => (Int -> Pretty s)
+  -> f (Pretty s)
+  -> Pretty s
+numbered num ps = column2 (fmap num [1 ..] `zip` toList ps)
 
 leftPad, rightPad :: IsString s => Int -> Pretty s -> Pretty s
 leftPad n p =
   let rem = n - preferredWidth p
-  in if rem > 0 then fromString (replicate rem ' ') <> p
-     else p
+  in  if rem > 0 then fromString (replicate rem ' ') <> p else p
 rightPad n p =
   let rem = n - preferredWidth p
-  in if rem > 0 then p <> fromString (replicate rem ' ')
-     else p
+  in  if rem > 0 then p <> fromString (replicate rem ' ') else p
 
-column2 :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> alignedRows) where
+column2
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
+column2 rows = lines (group <$> alignedRows)
+ where
   maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
-  alignedRows = [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
-                | (col0, col1) <- rows ]
+  alignedRows =
+    [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
+    | (col0, col1) <- rows
+    ]
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
 
-hang' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
-hang' from by p = group $
-  if preferredHeight p > 0 then from <> "\n" <> group (indent by p)
-  else (from <> " " <> group p) `orElse`
-       (from <> "\n" <> group (indent by p))
+hang'
+  :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+hang' from by p = group $ if preferredHeight p > 0
+  then from <> "\n" <> group (indent by p)
+  else (from <> " " <> group p) `orElse` (from <> "\n" <> group (indent by p))
 
-hangUngrouped' :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s -> Pretty s
-hangUngrouped' from by p =
-  if preferredHeight p > 0 then from <> "\n" <> indent by p
-  else (from <> " " <> p) `orElse`
-       (from <> "\n" <> indent by p)
+hangUngrouped'
+  :: (LL.ListLike s Char, IsString s)
+  => Pretty s
+  -> Pretty s
+  -> Pretty s
+  -> Pretty s
+hangUngrouped' from by p = if preferredHeight p > 0
+  then from <> "\n" <> indent by p
+  else (from <> " " <> p) `orElse` (from <> "\n" <> indent by p)
 
-hangUngrouped :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+hangUngrouped
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 hangUngrouped from p = hangUngrouped' from "  " p
 
 hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
@@ -285,17 +309,20 @@ indent by p = by <> indentAfterNewline by p
 indentN :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentN by = indent (fromString $ replicate by ' ')
 
-indentNAfterNewline :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
+indentNAfterNewline
+  :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
 
-indentAfterNewline :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-indentAfterNewline by p = flatMap f p where
+indentAfterNewline
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+indentAfterNewline by p = flatMap f p
+ where
   f s0 = case LL.break (== '\n') s0 of
-    (hd, s) -> if LL.null s then lit s0
-               -- use `take` and `drop` to preserve annotations or
-               -- or other extra info attached to the original `s`
-               else lit (LL.take (LL.length hd) s0) <>
-                    "\n" <> by <> f (LL.drop 1 s)
+    (hd, s) -> if LL.null s
+      then lit s0
+      -- use `take` and `drop` to preserve annotations or
+      -- or other extra info attached to the original `s`
+      else lit (LL.take (LL.length hd) s0) <> "\n" <> by <> f (LL.drop 1 s)
 
 instance IsString s => IsString (Pretty s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
@@ -317,7 +344,8 @@ data Delta =
 instance Semigroup Delta where (<>) = mappend
 instance Monoid Delta where
   mempty = Delta 0 0 0
-  mappend (Delta l c mc) (Delta 0 c2 mc2) = Delta l (c + c2) (mc `max` mc2 `max` (c+c2))
+  mappend (Delta l c mc) (Delta 0 c2 mc2) =
+    Delta l (c + c2) (mc `max` mc2 `max` (c + c2))
   mappend (Delta l _ mc) (Delta l2 c2 mc2) = Delta (l + l2) c2 (mc `max` mc2)
 
 chDelta :: Char -> Delta
@@ -330,8 +358,8 @@ preferredWidth p = col (delta p)
 preferredHeight :: Pretty s -> Width
 preferredHeight p = line (delta p)
 
-black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen,
-  hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold :: Pretty CT.ColorText -> Pretty CT.ColorText
+black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+  :: Pretty CT.ColorText -> Pretty CT.ColorText
 black = map CT.black
 red = map CT.red
 green = map CT.green

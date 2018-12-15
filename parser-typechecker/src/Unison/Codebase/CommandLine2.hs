@@ -133,7 +133,8 @@ notifyUser dir o = do
         <> "."
     BranchAlreadyExists b ->
       putPrettyLn
-        $  warn ("There's already a branch called " <> P.text b <> ".\n\n")
+        $  warn
+             (P.wrap $ "There's already a branch called " <> P.text b <> ".\n\n")
         <> (  tip
            $  "You can switch to that branch via"
            <> backtick ("branch " <> P.text b)
@@ -168,11 +169,14 @@ notifyUser dir o = do
                else ""
              dupeMsg = if not (null dupeTypes && null dupeTerms)
                then
-                 "👯  I skipped these definitions"
-                 <> " because they already exist in the current branch: "
-                 <> P.newline
-                 <> P.bulleted (fromVar <$> toList dupeTypes)
-                 <> P.bulleted (fromVar <$> toList dupeTerms)
+                 P.wrap
+                   (  "\128111\8205\9794\65039  I skipped these definitions"
+                   <> " because they already exist in the current branch: "
+                   )
+                 <> P.lines
+                      [ P.bulleted (fromVar <$> toList dupeTypes)
+                      , P.bulleted (fromVar <$> toList dupeTerms)
+                      ]
                  <> P.newline
                else ""
              collMsg =
@@ -180,6 +184,7 @@ notifyUser dir o = do
                  . fmap
                      (\x ->
                        warn
+                         .  P.wrap
                          $  "The name "
                          <> P.blue x
                          <> " already has another definition "
@@ -200,6 +205,7 @@ notifyUser dir o = do
                  . fmap
                      (\(k, v) ->
                        warn
+                         .  P.wrap
                          $  "The "
                          <> kind
                          <> " you added as "
@@ -443,7 +449,7 @@ putPrettyLn p = do
 
 getAvailableWidth :: IO Int
 getAvailableWidth =
-  fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  fromMaybe 80 . fmap (\s -> 120 `min` Terminal.width s) <$> Terminal.size
 
 getUserInput
   :: (MonadIO m, Line.MonadException m)
