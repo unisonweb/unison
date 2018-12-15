@@ -46,7 +46,6 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
 
--- todo: add loc to MatchCase
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
