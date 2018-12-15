@@ -1,7 +1,7 @@
 These are commands that will likely be useful during development.
 
 
-__General:__ `./test.sh` compiles and builds both the Haskell and Scala code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
+__General:__ `./scripts/test.sh` compiles and builds both the Haskell and Scala code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
 
 ## Scala
 
