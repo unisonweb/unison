@@ -1,6 +1,6 @@
 These are commands that will likely be useful during development.
 
-__General:__ `./test.sh` compiles and builds both the Haskell and Scala code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
+__General:__ `./scripts/test.sh` compiles and builds both the Haskell and Scala code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
 
 _Disclaimer_ The getting-started instructions on this page have not yet been tested from a 'clean install'.  If they don't work for you, please get in touch via [gitter](https://gitter.im/unisonweb/unison) so we can help.  If you have any fixes to the process, please send us a PR!
 
