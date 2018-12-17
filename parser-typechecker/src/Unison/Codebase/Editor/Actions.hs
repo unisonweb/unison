@@ -59,11 +59,12 @@ loop s = Free.unfold' go s
         Result notes r <- Free.eval (Typecheck currentBranch sourceName text)
         case r of
           -- Parsing failed
-          Nothing ->
-            respond $ ParseErrors [ err | Result.Parsing err <- toList notes ]
+          Nothing -> respond
+            $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
           Just (errorEnv, r) -> case r of
             -- Typing failed
             Nothing -> respond $ TypeErrors
+              text
               errorEnv
               [ err | Result.TypeError err <- toList notes ]
             Just unisonFile -> do

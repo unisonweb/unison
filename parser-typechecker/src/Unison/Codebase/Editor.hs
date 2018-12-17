@@ -128,8 +128,9 @@ data Output v
   | ListOfBranches BranchName [BranchName]
   | ListOfTerms Branch SearchType [String] [(Name, Referent, Type v Ann)]
   | AddOutput (AddOutput v)
-  | ParseErrors [Parser.Err v]
-  | TypeErrors PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  -- Original source, followed by the errors:
+  | ParseErrors Text [Parser.Err v]
+  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
   | Evaluated ([(Text, Term v ())], Term v ())
   deriving (Show)
