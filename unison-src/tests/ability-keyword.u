@@ -1,0 +1,9 @@
+
+ability Foo where
+  foo : {Foo} Text
+
+x = 'let
+  y = Foo.foo
+  ()
+
+x

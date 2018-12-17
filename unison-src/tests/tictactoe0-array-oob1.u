@@ -1,6 +1,6 @@
 -- board piece
 
-type Board = Board UInt64 UInt64 UInt64
+type Board = Board Nat Nat Nat
 
 use Board.Board
 

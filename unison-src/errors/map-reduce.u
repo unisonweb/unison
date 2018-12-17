@@ -15,7 +15,7 @@ effect Remote n where
 
 type Monoid a = Monoid (a -> a -> a) a
 
-use UInt64 + - * / == <
+use Nat + - * / == <
 use Sequence map take drop size fold-left halve
 use Optional None Some
 use Monoid.Monoid -- import the constructor
@@ -61,7 +61,7 @@ namespace Sequence where
   halve : [a] -> ([a], [a])
   halve as = (take (size as / 2) as, drop (size as / 2) as)
 
-ex : '{Remote n} UInt64
+ex : '{Remote n} Nat
 ex = 'let
   alice = spawn
   bob = spawn
@@ -76,9 +76,9 @@ par-apply f a b = 'let
   f !x !y
 
 -- this currently crashes the compiler
-Remote.run-local : '{Remote UInt64} a -> a
+Remote.run-local : '{Remote Nat} a -> a
 Remote.run-local r =
-  step : UInt64 -> Effect (Remote UInt64) a -> a
+  step : Nat -> Effect (Remote Nat) a -> a
   step nid r = case r of
     {a} -> a
     {Remote.fork t -> k} -> handle (step nid) in k t
@@ -97,7 +97,7 @@ dos f a a2 = f !a !a2
 f <| i = f i
 i |> f = f i
 
-Stream.from-uint64 1
+Stream.from-nat 1
   |> Stream.take 15
   |> Stream.to-sequence
 

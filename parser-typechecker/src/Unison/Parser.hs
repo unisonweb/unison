@@ -8,8 +8,6 @@ import           Control.Applicative
 import           Control.Monad        (join)
 import           Data.Bifunctor       (bimap)
 import           Data.List.NonEmpty   (NonEmpty (..))
-import           Data.Map             (Map)
-import qualified Data.Map             as Map
 import           Data.Maybe
 import qualified Data.Set             as Set
 import           Data.Text            (Text)
@@ -24,44 +22,15 @@ import           Unison.Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import           Unison.Reference     (Reference)
 import           Unison.Term          (MatchCase (..))
-import qualified Unison.UnisonFile    as UnisonFile
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
+import Unison.Names (Names)
 
 debug :: Bool
 debug = False
 
-data PEnv v =
-  PEnv { constructorLookup :: UnisonFile.CtorLookup
-       , typesByName       :: Map v Reference }
-
--- Given a mapping from name to qualified name, update a `PEnv`,
--- so for instance if the input has [(Some, Optional.Some)],
--- and `Optional.Some` is a constructor in the input `PEnv`,
--- the alias `Some` will map to that same constructor
-importing :: Var v => [(v,v)] -> PEnv v -> PEnv v
-importing shortToLongName (PEnv ctors types) = let
-  vs v = Text.unpack $ Var.name v
-  go :: Ord k => Map k v -> (k, k) -> Map k v
-  go m (qname, shortname) = case Map.lookup qname m of
-    Nothing -> m
-    Just v  -> Map.insert shortname v m
-  ctors' = foldl go ctors [ (vs qn, vs n) | (n, qn) <- shortToLongName ]
-  types' = foldl go types shortToLongName
-  in PEnv ctors' types'
-
-instance Ord v => Semigroup (PEnv v) where
-  (<>) = mappend
-
-instance Ord v => Monoid (PEnv v) where
-  -- note : Map.mappend uses left value on collision, which isn't what
-  -- we want here, so we flip the order
-  mappend (PEnv x y) (PEnv x2 y2) = PEnv (x2 `mappend` x) (y2 `mappend` y)
-  mempty = penv0
-
-type P v = P.ParsecT (Error v) Input ((->) (PEnv v))
+type P v = P.ParsecT (Error v) Input ((->) (Names))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
@@ -76,6 +45,7 @@ data Error v
 
 data Ann
   = Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
+  | External
   | Ann { start :: L.Pos, end :: L.Pos }
   deriving (Eq, Ord, Show)
 
@@ -187,7 +157,7 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> PEnv v -> Either (Err v) a
+run' :: Var v => P v a -> String -> String -> Names -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
@@ -195,17 +165,22 @@ run' p s name =
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex) -- todo: L.reorder
 
-run :: Var v => P v a -> String -> PEnv v -> Either (Err v) a
+run :: Var v => P v a -> String -> Names -> Either (Err v) a
 run p s = run' p s ""
-
-penv0 :: PEnv v
-penv0 = PEnv Map.empty Map.empty
 
 -- Virtual pattern match on a lexeme.
 queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
   where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
+
+currentLine :: Var v => P v (Int, String)
+currentLine = P.lookAhead $ do
+  tok0 <- P.satisfy (const True)
+  let line0 = L.line (L.start tok0)
+  toks <- many $ P.satisfy (\t -> L.line (L.start t) == line0)
+  let lineToks = tok0 Data.List.NonEmpty.:|  toks
+  pure (line0, P.showTokens lineToks)
 
 -- Consume a block opening and return the string that opens the block.
 openBlock :: Var v => P v (L.Token String)
@@ -311,3 +286,12 @@ chainr1 p op = go1 where
 
 chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
+
+attempt :: Var v => P v a -> P v a
+attempt = P.try
+
+-- Gives this var an id based on its position - a useful trick to
+-- obtain a variable whose id won't match any other id in the file
+-- `positionalVar a Var.missingResult`
+positionalVar :: (Annotated a, Var v) => a -> (v -> v) -> v
+positionalVar a kind = kind (Var.nameds (show (ann a)))

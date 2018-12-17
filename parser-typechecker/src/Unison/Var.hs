@@ -6,6 +6,8 @@ import Data.Set (Set)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import Data.Word (Word64)
+import Unison.Util.Monoid (intercalateMap)
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
@@ -34,7 +36,48 @@ class (Show v, Eq v, Ord v) => Var v where
   clear :: v -> v
   qualifiedName :: v -> Text
   freshIn :: Set v -> v -> v
-  freshenId :: Word -> v -> v
+  freshenId :: Word64 -> v -> v
+
+reset :: Var v => v -> v
+reset v = named (name v)
+
+unqualified :: Var v => v -> v
+unqualified = named . unqualifiedName
+
+unqualifiedName :: Var v => v -> Text
+unqualifiedName = last . Text.splitOn "." . name
+
+namespaced :: Var v => [v] -> v
+namespaced vs = named $ intercalateMap "." qualifiedName vs
+
+type Kind = String
+
+nameStr :: Var v => v -> String
+nameStr = Text.unpack . name
+
+kind :: Var v => v -> Kind
+kind v = case Text.unpack (name v) of
+  ':' : tl -> takeWhile (/= ':') tl
+  _ -> ""
+
+rekind :: Var v => Kind -> v -> v
+rekind "" v = v
+rekind k v  = rename (Text.pack $ k ++ (Text.unpack $ name v)) v
+
+missingResult :: Var v => v -> v
+missingResult = rekind ":missing-result:"
+
+askInfo :: Var v => v -> v
+askInfo = rekind ":info:"
+
+unknown :: Var v => v -> v
+unknown = rekind ""
+
+unknownK :: Kind
+unknownK = ""
+
+isKind :: Var v => (v -> v) -> v -> Bool
+isKind f v = kind (f $ named "-") == kind v
 
 nameds :: Var v => String -> v
 nameds s = named (Text.pack s)

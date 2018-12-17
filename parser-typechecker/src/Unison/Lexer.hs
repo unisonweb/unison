@@ -74,6 +74,7 @@ instance ShowToken (Token Lexeme) where
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
+      pretty Close = ""
       pretty t = show t
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
@@ -163,6 +164,7 @@ reorder ts = join . sortWith f . stanzas $ ts
     f (t : _) = case payload $ headToken t of
       Open "type" -> 0
       Reserved "effect" -> 0
+      Reserved "ability" -> 0
       Reserved "use" -> 1
       _ -> 3 :: Int
 
@@ -179,6 +181,7 @@ lexer0 scope rem =
     -- skip whitespace and comments
     goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
+      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         goWhitespace l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
@@ -215,6 +218,7 @@ lexer0 scope rem =
     -- pushes its column onto the layout stack
     pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
     pushLayout b l pos rem = span' isSpace rem $ \case
+      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
@@ -353,7 +357,7 @@ wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_-?!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` "_-!'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
@@ -414,7 +418,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>?.~\\/|;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|;"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -422,7 +426,7 @@ keywords = Set.fromList [
   "handle", "in",
   "where", "use",
   "and", "or", "true", "false",
-  "type", "effect", "alias",
+  "type", "effect", "ability", "alias",
   "let", "namespace", "case", "of"]
 
 -- These keywords introduce a layout block
@@ -441,7 +445,7 @@ layoutCloseOnlyKeywords :: Set String
 layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
-delimiters = Set.fromList "()[]{},"
+delimiters = Set.fromList "()[]{},?"
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

@@ -11,7 +11,7 @@ object BuiltinTypes {
   }
 
   object Unit extends Constructor(0) {
-    val Id = org.unisonweb.Id("()")
+    val Id = org.unisonweb.Id(Hash.fromBase58("3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"), 0, 1)
     val pattern: Pattern = Pattern.Data(Id, cid, Nil)
     val term: Term = Term.Constructor(Id, cid)
     val value: Value = Value.Data(Id, cid, Array())
@@ -19,7 +19,7 @@ object BuiltinTypes {
 
   /* Tuple.pattern(Unit.pattern, Optional.Some.pattern(Pattern.Wildcard)) */
   object Tuple extends Constructor(0) {
-    val Id = org.unisonweb.Id("Pair")
+    val Id = org.unisonweb.Id(Hash.fromBase58("2tWjVAuc7y9ycWkiC1x89DCxrnCAPSWhS4xBZJ3b7oQDFFczHtPgjCpnypU7t8Hx567nFmdX7Ga1m9P21DHr8Y1Y"), 0, 1)
     def consPattern(hd: Pattern, tl: Pattern): Pattern =
       Pattern.Data(Id, cid, List(hd,tl))
     def pattern(ps: Pattern*): Pattern =
@@ -33,7 +33,7 @@ object BuiltinTypes {
   }
 
   object Optional {
-    val Id = org.unisonweb.Id("Optional")
+    val Id = org.unisonweb.Id(Hash.fromBase58("5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"), 0, 1)
     object None extends Constructor(0) {
       val pattern: Pattern = Pattern.Data(Id, cid, Nil)
       val term: Term = Term.Constructor(Id, cid)
@@ -43,55 +43,6 @@ object BuiltinTypes {
       def pattern(p: Pattern): Pattern = Pattern.Data(Id, cid, List(p))
       def term(t: Term): Term = Term.Constructor(Id, cid)(t)
       def value(v: Value): Value = Value.Data(Id, cid, Array(v))
-    }
-  }
-
-  object Either {
-    val Id = org.unisonweb.Id("Either")
-    object Left extends Constructor(0) {
-      def pattern(p: Pattern): Pattern = Pattern.Data(Id, cid, List(p))
-      def term(t: Term): Term = Term.Constructor(Id, cid)(t)
-      def value(v: Value): Value = Value.Data(Id, cid, Array(v))
-    }
-    object Right extends Constructor(1) {
-      def pattern(p: Pattern): Pattern = Pattern.Data(Id, cid, List(p))
-      def term(t: Term): Term = Term.Constructor(Id, cid)(t)
-      def value(v: Value): Value = Value.Data(Id, cid, Array(v))
-    }
-  }
-
-  object Effects {
-
-    object State {
-      val Id = org.unisonweb.Id("State")
-      object Get extends Constructor(0) {
-        def pattern(k: Pattern): Pattern =
-          Pattern.EffectBind(Id, cid, List(), k)
-        def term: Term = Term.Request(Id, cid)
-      }
-      object Set extends Constructor(1) {
-        def pattern(p: Pattern, k: Pattern): Pattern =
-          Pattern.EffectBind(Id, cid, List(p), k)
-        def term(t: Term): Term = Term.Request(Id, cid)(t)
-      }
-    }
-
-    object Read {
-      val Id = org.unisonweb.Id("Read")
-      object Read extends Constructor(0) {
-        def pattern(k: Pattern): Pattern =
-          Pattern.EffectBind(Id, cid, List(), k)
-        def term: Term = Term.Request(Id, cid)
-      }
-    }
-
-    object Write {
-      val Id = org.unisonweb.Id("Write")
-      object Write extends Constructor(0) {
-        def pattern(v: Pattern, k: Pattern): Pattern =
-          Pattern.EffectBind(Id, cid, List(v), k)
-        def term(t: Term): Term = Term.Request(Id, cid)(t)
-      }
     }
   }
 
@@ -189,18 +140,5 @@ object BuiltinTypes {
       dataConstructor(Tuple.Id, Tuple.cid, "head", "tail"),
       dataConstructor(Optional.Id, Optional.None.cid),
       dataConstructor(Optional.Id, Optional.Some.cid, "a"),
-      dataConstructor(Either.Id, Either.Left.cid, "a"),
-      dataConstructor(Either.Id, Either.Right.cid, "b")
     )
-
-  val effects: Map[(Id,ConstructorId),Computation] = {
-    import Effects._
-    Map(
-      effectRequest(State.Id, State.Get.cid),
-      effectRequest(State.Id, State.Set.cid, "state"),
-      effectRequest(Read.Id, Read.Read.cid),
-      effectRequest(Write.Id, Write.Write.cid, "w")
-    )
-  }
-
 }

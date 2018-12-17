@@ -1,0 +1,12 @@
+increment : Nat -> Nat
+increment n = n + 1
+
+> x = 1 + 40
+> increment x
+
+replicate : Nat -> a -> [a]
+replicate n a =
+  as = take n (Stream.constant a)
+  toSequence as
+
+> replicate 6 "ARI"

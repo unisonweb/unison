@@ -4,11 +4,11 @@ effect IO where
 
 foo : () -> {IO} ()
 foo unit =
-  inc-by : Int64 -> {IO, State Int64} ()
+  inc-by : Int -> {IO, State Int} ()
   inc-by i =
     IO.launch-missiles -- OK, since declared by `inc-by` signature
     y = State.get
-    State.put (y Int64.+ i)
+    State.put (y Int.+ i)
   ()
 
 type Optional a =

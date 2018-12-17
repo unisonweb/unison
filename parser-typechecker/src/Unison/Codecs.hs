@@ -1,6 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternSynonyms, FlexibleContexts #-}
 
 module Unison.Codecs where
+
+-- A format for encoding runtime values, with sharing for compiled nodes.
 
 import Data.Text (Text)
 import           Control.Arrow (second)
@@ -21,7 +23,7 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Hash as Hash
-import           Unison.Reference
+import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
@@ -83,15 +85,15 @@ serializeTerm x = do
         putWord8 5
         lengthEncode text
         incPosition
-      Int64 n -> do
+      Int n -> do
         putTag
         putWord8 6
-        serializeInt64 n
+        serializeInt n
         incPosition
-      UInt64 n -> do
+      Nat n -> do
         putTag
         putWord8 6
-        serializeUInt64 n
+        serializeNat n
         incPosition
       Float n -> do
         putTag
@@ -125,7 +127,7 @@ serializeTerm x = do
         putLength (1 :: Int)
         putBackref posarg
         incPosition
-      Let binding body -> do
+      Let _ binding body -> do
         posbind <- serializeTerm binding
         posbod <- serializeTerm body
         putTag
@@ -178,7 +180,7 @@ serializeTerm x = do
         putBackref hpos
         putBackref bpos
         incPosition
-      LetRec bs body -> do
+      LetRec _ bs body -> do
         positions <- traverse serializeTerm bs
         pbody <- serializeTerm body
         putTag
@@ -192,8 +194,8 @@ serializePattern :: MonadPut m => Pattern a -> m ()
 serializePattern p = case p of
   -- note: the putWord8 0 is the tag before any unboxed pattern
   Pattern.Boolean _ b -> putWord8 0 *> serializeBoolean b
-  Pattern.Int64 _ n -> putWord8 0 *> serializeInt64 n
-  Pattern.UInt64 _ n -> putWord8 0 *> serializeUInt64 n
+  Pattern.Int _ n -> putWord8 0 *> serializeInt n
+  Pattern.Nat _ n -> putWord8 0 *> serializeNat n
   Pattern.Float _ n -> putWord8 0 *> serializeFloat n
   Pattern.Var _ -> putWord8 1
   Pattern.Unbound _ -> putWord8 2
@@ -223,13 +225,13 @@ serializeFloat n = do
   putByteString . BL.toStrict . toLazyByteString $ doubleBE n
   putWord8 3
 
-serializeUInt64 :: MonadPut m => Word64 -> m ()
-serializeUInt64 n = do
+serializeNat :: MonadPut m => Word64 -> m ()
+serializeNat n = do
   putWord64be n
   putWord8 2
 
-serializeInt64 :: MonadPut m => Int64 -> m ()
-serializeInt64 n = do
+serializeInt :: MonadPut m => Int64 -> m ()
+serializeInt n = do
   putByteString . BL.toStrict . toLazyByteString $ int64BE n
   putWord8 1
 
@@ -279,25 +281,43 @@ serializeReference ref = case ref of
   Builtin text -> do
     putWord8 0
     lengthEncode text
-  Derived hash -> do
+  Derived hash i n -> do
     putWord8 1
     let bs = Hash.toBytes hash
     putLength $ B.length bs
     putByteString bs
+    putLength i
+    putLength n
+  _ -> error "impossible"
 
 serializeConstructorArities :: MonadPut m => Reference -> [Int] -> m ()
 serializeConstructorArities r constructorArities = do
   serializeReference r
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
-serializeFile :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
+serializeFile
+  :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
 serializeFile (UnisonFile dataDecls effectDecls body) = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
-  let effectDecls' = second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
+  let effectDecls' =
+        second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   -- NB: we rewrite the term to minimize away let rec cycles, as let rec
   -- blocks aren't allowed to have effects
-  pos <- serializeTerm (ABT.rebuildUp' Components.minimize' body)
+  pos <- serializeTerm
+    (ABT.rebuildUp'
+      ( either
+          (\e ->
+            error
+              (  "The Unison file is malformed. It has duplicate bindings "
+              ++ show (const () <$> e)
+              )
+          )
+          id
+      . Components.minimize'
+      )
+      body
+    )
   putWord8 0
   putBackref pos

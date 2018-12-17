@@ -1,4 +1,4 @@
---nt64 -> UInt64 -> UInt64
+--nt64 -> Nat -> Nat
 ---------------------------
 --id asdfasdf = asdfasdf
 --x = id 3
@@ -9,7 +9,7 @@
 --or true y
 --or true 3
 
---f : Int64 -> Int64
+--f : Int -> Int
 --f = id
 --or true (f 1)
 
@@ -35,7 +35,7 @@
 --a : Text
 --a = 1
 --a
---3 UInt64.+ Optional.None
+--3 Nat.+ Optional.None
 --[1,2,3,4,"5",6,7]
 --h : a -> a -> a -> a -> a
 --h a b c d = d

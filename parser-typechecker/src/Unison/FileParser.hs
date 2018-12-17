@@ -1,23 +1,21 @@
-{-# Language ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables, TupleSections #-}
 
 module Unison.FileParser where
 
+import qualified Unison.ABT as ABT
+import qualified Data.Set as Set
 import           Control.Applicative
 import           Control.Monad (void)
-import           Control.Monad.Reader (local)
+import           Control.Monad.Reader (local, ask)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
-import           Data.Tuple (swap)
 import           Prelude hiding (readFile)
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
-import qualified Unison.PrintError as PrintError
-import           Unison.Reference (Reference)
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
@@ -28,39 +26,29 @@ import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.PrettyPrintEnv as PPE
 -- import Debug.Trace
 
-file :: forall v . Var v
-     => [(v, AnnotatedTerm v Ann)]
-     -> [(v, Reference)]
-     -> P v (PrintError.Env, UnisonFile v Ann)
-file builtinTerms builtinTypes = do
-  traceRemainingTokens "file before parsing declarations"
+file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
+file = do
   _ <- openBlock
+  names <- ask
   (dataDecls, effectDecls) <- declarations
-  let env = environmentFor builtinTerms builtinTypes dataDecls effectDecls
-      ctorLookup0 :: Map.Map String (Reference, Int)
-      ctorLookup0 = UF.constructorLookup env `mappend` Map.fromList
-        [ (Text.unpack $ Var.name v, (r,cid)) |
-          (v, Term.RequestOrCtor' r cid) <- builtinTerms ]
-  local (PEnv ctorLookup0 (Map.fromList builtinTypes) `mappend`) $ do
-    traceRemainingTokens "file"
-    term <- TermParser.block' "top-level block"
+  let env = environmentFor names dataDecls effectDecls
+  -- push names onto the stack ahead of existing names
+  local (UF.names env `mappend`) $ do
+    names <- ask
+    term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
               (void <$> peekAny) -- we actually opened before the declarations
               closeBlock
-    let unisonFile = UnisonFile
-                      (UF.datas env)
-                      (UF.effects env)
-                      (UF.resolveTerm env term)
-        newReferenceNames :: Map Reference String
-        newReferenceNames =
-          (Map.fromList . fmap getName . Map.toList) (UF.typesByName env)
-        newConstructorNames :: Map (Reference, Int) String
-        newConstructorNames =
-          (Map.fromList . fmap swap . Map.toList) ctorLookup0
-        getName (v,r) = (r, (Text.unpack . Var.shortName) v)
+    let uf = UnisonFile (UF.datas env) (UF.effects env) term
+    pure (PPE.fromNames names, uf)
 
-    pure (PrintError.Env newReferenceNames newConstructorNames, unisonFile)
+terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
+  | Set.member v (ABT.freeVars e) = Term.letRec top a bs (Term.unit (ABT.annotation body))
+  | otherwise = e
+terminateTerm e = e
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
@@ -94,7 +82,7 @@ dataDeclaration = do
         --    or just `Optional a` in the case of `None`
         ctorType = foldr arrow ctorReturnType ctorArgs
         ctorAnn = ann ctorName <> ann (last ctorArgs)
-        in (ann ctorName, L.payload ctorName,
+        in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
   constructors <- sepBy (reserved "|") dataConstructor
@@ -107,17 +95,17 @@ dataDeclaration = do
 
 effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
 effectDeclaration = do
-  effectStart <- reserved "effect"
+  effectStart <- reserved "effect" <|> reserved "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
-  constructors <- sepBy semi constructor
+  constructors <- sepBy semi (constructor name)
   _ <- closeBlock
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
   pure (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
   where
-    constructor :: Var v => P v (Ann, v, AnnotatedType v Ann)
-    constructor = explodeToken <$>
+    constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
+    constructor name = explodeToken <$>
       prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
-      where explodeToken v t = (ann v, L.payload v, t)
+      where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)

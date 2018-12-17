@@ -1,14 +1,16 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Unison.Test.TypePrinter where
 
 import EasyTest
-import qualified Data.Text as Text
 import Unison.Type
 import Unison.TypePrinter
 import Unison.Symbol (Symbol)
 import Unison.Builtin
 import Unison.Parser (Ann(..))
-import Unison.Reference
-import qualified Unison.Util.PrettyPrint as PP
+import qualified Unison.Util.Pretty as PP
+import qualified Unison.PrettyPrintEnv as PPE
+
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -17,36 +19,42 @@ import qualified Unison.Util.PrettyPrint as PP
 -- Note that this does not verify the position of the PrettyPrint Break elements.
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
-   let input_term = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
-       get_names x = case x of
-                       Builtin t -> t
-                       Derived _ -> Text.empty
+   let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
+       get_names = PPE.fromNames Unison.Builtin.names
+       prettied = pretty get_names (-1) input_type
        actual = if width == 0
-                then PP.renderUnbroken $ pretty get_names (-1) input_term
-                else PP.renderBroken width True '\n' $ pretty get_names (-1) input_term
+                then PP.renderUnbroken $ prettied
+                else PP.render width $ prettied
        actual_reparsed = Unison.Builtin.t actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected
                note $ "actual  : "   ++ show actual
-               note $ "show(input)  : "   ++ show input_term
+               note $ "expectedS:\n"   ++ expected
+               note $ "actualS:\n"   ++ actual
+               note $ "show(input)  : "   ++ show input_type
+               note $ "prettyprint  : "   ++ show prettied
                crash "actual != expected"
        ), (
-       if (not rtt) || (input_term == actual_reparsed) then ok
+       if (not rtt) || (input_type == actual_reparsed) then ok
        else do note $ "round trip test..."
-               note $ "single parse: " ++ show input_term
+               note $ "single parse: " ++ show input_type
                note $ "double parse: " ++ show actual_reparsed
+               note $ "prettyprint  : "   ++ show prettied
                crash "single parse != double parse"
        )]
 
 -- As above, but do the round-trip test unconditionally.
+tc_diff :: String -> String -> Test ()
 tc_diff s expected = tc_diff_rtt True s expected 0
 
 -- As above, but expect not even cosmetic differences between the input string
 -- and the pretty-printed version.
+tc :: String -> Test ()
 tc s = tc_diff s s
 
 -- Use renderBroken to render the output to some maximum width.
+tc_breaks :: String -> Int -> String -> Test ()
 tc_breaks s width expected = tc_diff_rtt True s expected width
 
 test :: Test ()
@@ -78,18 +86,15 @@ test = scope "typeprinter" . tests $
   , tc "'Pair a a"
   , tc "a -> 'b"
   , tc "'(a -> b)"
-  -- The next six tests will change after the pretty-printer can reverse
-  -- generalizeEffects.  Also, they currently fail the round-trip test because
-  -- generalizeEffects leaves the `Forall 𝛆` on the outside of the expression,
-  -- whereas the parse of the current explicit post-pretty-print version does not.
-  , tc_diff_rtt False "(a -> b) -> c" "(a ->{𝛆} b) -> c" 0
-  , tc_diff_rtt False "'a -> b" "'{𝛆} a -> b" 0
-  , tc_diff_rtt False "a -> 'b -> c" "a -> '{𝛆} b -> c" 0
-  , tc_diff_rtt False "a -> (b -> c) -> d" "a -> (b ->{𝛆} c) -> d" 0
-  , tc_diff_rtt False "(a -> b) -> c -> d" "(a ->{𝛆} b) -> c -> d" 0
-  , tc_diff_rtt False "((a -> b) -> c) -> d" "((a ->{𝛆} b) ->{𝛆} c) -> d" 0
-  -- This test is pending for a similar reason - need to faithfully reverse generalizeLowercase.
-  , pending $ tc_diff "(∀ a . 'a) -> ()" $ "('{𝛆} a) -> ()"  -- note rank-2: pretty-printer needs to avoid suppressing the forall
+  , tc "(a -> b) -> c"
+  , tc "'a -> b"
+  , tc "a -> 'b -> c"
+  , tc "a -> (b -> c) -> d"
+  , tc "(a -> b) -> c -> d"
+  , tc "((a -> b) -> c) -> d"
+  , tc "(∀ a. 'a) -> ()"
+  , tc "(∀ a. (∀ b. 'b) -> a) -> ()"
+  , tc_diff "∀ a. 'a" $ "'a"
   , tc "a -> '(b -> c)"
   , tc "a -> b -> c -> d"
   , tc "a -> 'Pair b c"
@@ -128,6 +133,8 @@ test = scope "typeprinter" . tests $
   , tc "'{e} a"
   , tc "'{e} (a -> b)"
   , tc "'{e} (a ->{f} b)"
+  , pending $ tc "Pair a '{e} b"                           -- parser hits unexpected '
+  , tc_diff_rtt False "Pair a ('{e} b)" "Pair a '{e} b" 80 -- no RTT due to the above
   , tc "'(a -> 'a)"
   , tc "'()"
   , tc "'('a)"
@@ -139,35 +146,24 @@ test = scope "typeprinter" . tests $
   , pending $ tc_diff "∀a . a" $ "a" -- lexer doesn't accept, treats ∀a as one lexeme - feels like it should work
   , pending $ tc_diff "∀ A . 'A" $ "'A"  -- 'unknown parse error' - should this be accepted?
 
-  , pending $ tc_breaks "a -> b -> c -> d" 10 $  -- hitting 'unexpected Semi' in the reparse
+  , tc_diff_rtt False "a -> b -> c -> d"   -- hitting 'unexpected Semi' in the reparse
               "a\n\
               \-> b\n\
               \-> c\n\
-              \-> d"
+              \-> d" 10
 
-  , pending $ tc_breaks "a -> Pair b c -> d" 14 $  -- ditto, and extra line breaks that seem superfluous in Pair
+  , tc_diff_rtt False "a -> Pair b c -> d"   -- ditto, and extra line breaks that seem superfluous in Pair
               "a\n\
               \-> Pair b c\n\
-              \-> d"
+              \-> d" 14
 
-  , pending $ tc_breaks "a -> Pair b c -> d" 10 $  -- as above, and missing indentation, pending fix to Nest rendering
-              "a\n\
-              \-> Pair\n\
-              \b\n\
-              \c\n\
-              \-> d"
-
-  , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 26 $   -- as above, and more indenting would be nice
+  , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not nesting under Pair
               "Pair\n\
-              \(∀ a . (a\n\
-              \-> a\n\
-              \-> a))\n\
-              \b"
+              \  (∀ a. a -> a -> a) b" 24
 
-  , pending $ tc_breaks "Pair (forall a. a -> a -> a) b" 18 $   -- ditto
-              "Pair (∀ a .\n\
-              \ a\n\
-              \ -> a\n\
-              \ -> a) b"
+  , tc_diff_rtt False "Pair (forall a. (a -> a -> a)) b"    -- as above, and TODO not breaking under forall
+              "Pair\n\
+              \  (∀ a. a -> a -> a)\n\
+              \  b" 21
 
   ]

@@ -1,7 +1,7 @@
-x : UInt64
+x : Nat
 x = 42 + 2
 
-y : Int64
+y : Int
 y = +42 + -2
 
 z : Float

@@ -536,7 +536,7 @@ package object compilation {
   // proposed soln: have compileUnderappliedCall return a Lambda that,
   // when called, sets the `rec` parameter to the ORIGINAL lambda,
   // rather than the newly returned lambda
-  def compileUnderappliedCall(builtins: Environment)(
+  def compileUnderappliedCall(builtins: Environment2)(
     lam: Lambda, compiledArgs: Array[Computation]): Computation = {
 
     val names = lam.names.toArray
@@ -708,7 +708,7 @@ package object compilation {
   // - notice `f` has arity 1, and that the call is in tail position
   //    - issue tail call to `f`
   // - if `f` has arity > 1
-  def dynamicCall(builtins: Environment)(
+  def dynamicCall(builtins: Environment2)(
                   fn: Computation, args: List[Computation], isTail: Boolean): Computation = {
     val argsArray = args.toArray
     (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
@@ -760,7 +760,7 @@ package object compilation {
    * are substituted away. `bodyRec` is used for compiling the
    * body of the lambda, after this substitution has been performed.
    */
-  def compileLambda(builtins: Environment)
+  def compileLambda(builtins: Environment2)
                    (e: Term, env: Vector[Name],
                     currentRec: CurrentRec,
                     bodyRec: CurrentRec,
@@ -854,7 +854,7 @@ package object compilation {
     else compiledLambda
   }
 
-  def compileLambdaImpl(builtins: Environment)
+  def compileLambdaImpl(builtins: Environment2)
                        (e: Term, env: Vector[Name],
                         currentRec: CurrentRec,
                         bodyRec: CurrentRec, // the CurrentRec when compiling body
@@ -940,8 +940,12 @@ package object compilation {
     }
   }
 
-  def normalize(builtins: Environment)(e: Term, fullyDecompile: Boolean = true): Term = {
-    val c = compileTop(builtins)(e)
+  def normalize(builtins: Environment)(e: Term, fullyDecompile: Boolean = true): Term =
+    normalize0(builtins, (_,_) => ())(e, fullyDecompile)
+
+  def normalize0(builtins: Environment, onWatch: (String, Value) => Unit)(
+                 e: Term, fullyDecompile: Boolean = true): Term = {
+    val c = compileTop(builtins, onWatch)(e)
     val v = run(c)
     val x = Term.etaNormalForm(v.decompile)
     if (fullyDecompile) Term.fullyDecompile(x)
@@ -957,14 +961,24 @@ package object compilation {
   }
 
   /** Compile top-level term */
-  def compileTop(builtins: Environment)(e: Term) =
+  def compileTop(env: Environment, onWatch: (String,Value) => Unit = (_,_) => ())(e: Term) =
     if (!Term.freeVars(e).isEmpty)
       sys.error("Can't compile top-level term with free variables "
                 + Term.freeVars(e).mkString(", "))
-    else
-      compile(builtins)(Term.ANF(e), Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    else {
+      val b2 = Environment2(env.builtins, env.userDefined, env.dataConstructors, env.effects, onWatch)
+      compile(b2)(Term.ANF(e), Vector(), CurrentRec.none, RecursiveVars.empty, IsTail)
+    }
 
-  def compile(builtins: Environment)(
+  case class Environment2(
+    builtins: Map[Name, Computation],
+    userDefined: Map[Id.H, Computation],
+    dataConstructors: Map[(Id,ConstructorId), Computation],
+    effects: Map[(Id,ConstructorId), Computation],
+    // callback invoked on watch expressions during execution
+    watch: (String,Value) => Unit)
+
+  def compile(builtins: Environment2)(
     e: Term,
     env: Vector[Name] = Vector.empty,
     currentRec: CurrentRec = CurrentRec.none,
@@ -976,7 +990,7 @@ package object compilation {
       case Term.Text(txt) => Return(Builtins.External(txt, e))
       case Term.Id(Id.Builtin(name)) =>
         builtins.builtins(name)
-      case Term.Id(Id.HashRef(h)) => ???
+      case Term.Id(Id.HashRef(h)) => builtins.userDefined(h)
       case Term.Constructor(id,cid) => builtins.dataConstructors(id -> cid)
       case Term.Compiled(param) =>
         if (param.toValue eq null)
@@ -1100,6 +1114,23 @@ package object compilation {
         compile(builtins)(Term.Apply(fn, (args ++ args2): _*), env, currentRec, recVars, isTail)
 
       case Term.Apply(fn, Nil) => sys.error("the parser isn't supposed to produce this")
+
+      case Term.Apply(Term.Id(Id.Builtin(watch)), List(note, e)) if watch.toString == "Debug.watch" =>
+        // todo: could we make this first class? issue is builtins don't
+        // currently have access to the watch environment
+        val ce = compile(builtins)(e, env, currentRec, recVars, IsNotTail)
+        val cnote = compile(builtins)(note, env, currentRec, recVars, IsNotTail)
+        (r,rec,top,stackU,x1,x0,stackB,x1b,x0b) => {
+          val cev = ce(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+          val cvb = r.boxed
+          val cnotev = {
+            cnote(r,rec,top,stackU,x1,x0,stackB,x1b,x0b)
+            val txt = r.boxed.asInstanceOf[Builtins.External].get.asInstanceOf[util.Text.Text]
+            util.Text.toString(txt)
+          }
+          builtins.watch(cnotev, Value(cev, cvb))
+          cev
+        }
 
       case Term.Apply(fn, args) =>
         val compiledArgs: List[Computation] =

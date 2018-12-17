@@ -1,5 +1,5 @@
 effect State s where
-  get : UInt64 -> {State s} s
+  get : Nat -> {State s} s
   set : s -> {State s} ()
 
 effect Console where

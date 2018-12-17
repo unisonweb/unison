@@ -9,9 +9,9 @@ state s e = case e of
   {State.set s -> k} -> handle state s in k ()
 -- modify : ∀ s . (s -> s) -> {State s} ()
 -- modify f = State.set (f (State.get()))
-ex : () -> {State UInt64} UInt64
+ex : () -> {State Nat} Nat
 ex blah =
-  State.get() UInt64.+ 42
+  State.get() Nat.+ 42
 -- note this currently succeeds, the handle block
 -- gets an inferred type of ∀ a . a, it appears that
 -- the existential `a` which gets instantiated for the

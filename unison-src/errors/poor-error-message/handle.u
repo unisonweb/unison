@@ -20,13 +20,13 @@ state woot eff = case eff of
 modify : (s -> s) -> {State s} ()
 modify f = State.put (f State.get)
 
-increment : '{State UInt64} ()
+increment : '{State Nat} ()
 increment = '(modify ((+) 1))
 
 first : (a, b) -> a
 first p = case p of (a,_) -> a
 
-ex : UInt64
+ex : Nat
 ex =
   result = handle (state 0)
     let

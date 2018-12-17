@@ -15,10 +15,12 @@ package object unisonweb {
 
   object Id {
     def apply(n: Name): Id = Builtin(n)
-    def apply(h: Hash): Id = HashRef(h)
+    def apply(h: H): Id = HashRef(h)
+    def apply(hash: Hash, pos: Long, size: Long): Id = HashRef(H(hash, pos, size))
 
     case class Builtin(name: Term.Name) extends Id
-    case class HashRef(hash: Hash) extends Id
+    case class HashRef(id: H) extends Id
+    case class H(hash: Hash, pos: Long, size: Long)
   }
 
   case class ConstructorId(toInt: Int) extends AnyVal

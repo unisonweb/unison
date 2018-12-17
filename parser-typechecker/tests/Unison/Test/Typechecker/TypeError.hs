@@ -1,19 +1,21 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Unison.Test.Typechecker.TypeError where
 
 import           Data.Foldable                (toList)
 import           Data.Maybe                   (isJust)
 import           EasyTest
-import qualified Unison.FileParsers           as FileParsers
 import           Unison.Parser                (Ann)
-import           Unison.Result                (Result (..))
+import           Unison.Result                (pattern Result)
 import qualified Unison.Result                as Result
 import           Unison.Symbol                (Symbol)
 import qualified Unison.Typechecker.Context   as C
-import           Unison.Typechecker.Extractor (NoteExtractor)
+import           Unison.Typechecker.Extractor (ErrorExtractor)
 import qualified Unison.Typechecker.Extractor as Ex
 import qualified Unison.Typechecker.TypeError as Err
 import           Unison.Var                   (Var)
+import qualified Unison.Test.Common as Common
 
 test :: Test ()
 test = scope "extractor" . tests $
@@ -30,18 +32,28 @@ test = scope "extractor" . tests $
   , n "if ((x -> x + 1) true) then 1 else 2" Err.cond
   , n "case 3 of 3 | 3 -> 3" Err.matchBody
   , y "1 1" Err.applyingNonFunction
-  , y "1 Int64.+ 1" Err.applyingFunction
+  , y "1 Int.+ 1" Err.applyingFunction
+  , y ( "ability Abort where\n" ++
+        "  abort : {Abort} a\n" ++
+        "\n" ++
+        "xyz : t -> Effect Abort t -> t\n" ++
+        "xyz default abort = case abort of\n" ++
+        "  {a} -> 3\n" ++
+        "  {Abort.abort -> k} ->\n" ++
+        "    handle xyz default in k 100\n"
+      ) Err.matchBody
   ]
-  where y, n :: String -> NoteExtractor Symbol Ann a -> Test ()
+  where y, n :: String -> ErrorExtractor Symbol Ann a -> Test ()
         y s ex = scope s $ expect $ yieldsError s ex
         n s ex = scope s $ expect $ noYieldsError s ex
 
-noYieldsError :: Var v => String -> NoteExtractor v Ann a -> Bool
+noYieldsError :: Var v => String -> ErrorExtractor v Ann a -> Bool
 noYieldsError s ex = not $ yieldsError s ex
 
-yieldsError :: forall v a. Var v => String -> NoteExtractor v Ann a -> Bool
+yieldsError :: forall v a. Var v => String -> ErrorExtractor v Ann a -> Bool
 yieldsError s ex = let
-  Result notes (Just _) = FileParsers.parseAndSynthesizeAsFile "test" s
-  notes' :: [C.Note v Ann]
-  notes' = [ n | Result.Typechecking n <- toList notes ]
-  in any (isJust . Ex.runNote ex) notes'
+  Result notes (Just _) = Common.parseAndSynthesizeAsFile "test" s
+  notes' :: [C.ErrorNote v Ann]
+  notes' = [ n | Result.TypeError n <- toList notes ]
+  in any (isJust . Ex.extract ex) notes'
+

@@ -7,7 +7,7 @@ case Optional.Some 3 of
 -- as of 5ae98f7, produces this message:
 
   --Each case of a case/of expression need to have the same type.
-  --  Here, one is UInt64, and another is Text:
+  --  Here, one is Nat, and another is Text:
   --
   --    4 |   x -> 1         -- x is highlighted
   --    5 |   y -> "boo"     -- "boo" is highlighted

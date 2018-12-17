@@ -3,13 +3,18 @@
 {-# Language DeriveFoldable #-}
 {-# Language DeriveTraversable #-}
 {-# Language DeriveGeneric #-}
+{-# Language OverloadedStrings #-}
 
 module Unison.DataDeclaration where
 
-import Data.Bifunctor (second)
-import Data.Functor
-import           Data.Map (Map, intersectionWith)
+import Safe (atMay)
+import Data.List (sortOn)
+import Unison.Hash (Hash)
+import           Data.Functor
+import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Prelude hiding (cycle)
 import           Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
@@ -17,34 +22,122 @@ import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
+import           Unison.Referent (Referent)
+import qualified Unison.Referent as Referent
+import qualified Unison.Term as Term
+import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
-import           Unison.Typechecker.Components (components)
 import           Unison.Var (Var)
+import Data.Text (Text)
+import qualified Unison.Var as Var
+import Unison.Names (Names)
+import Unison.Names as Names
+-- import Debug.Trace
 
 type DataDeclaration v = DataDeclaration' v ()
 
 data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
-  bound :: [v], -- todo: do we actually use the names? or just the length
+  bound :: [v],
   constructors' :: [(a, v, AnnotatedType v a)]
 } deriving (Show, Functor)
+
+generateConstructorRefs
+  :: (Reference -> Int -> Reference)
+  -> Reference.Id
+  -> Int
+  -> [(Int, Reference)]
+generateConstructorRefs hashCtor rid n =
+  (\i -> (i, hashCtor (Reference.DerivedPrivate_ rid) i)) <$> [0 .. n]
+
+-- Returns references to the constructors,
+-- along with the terms for those references and their types.
+constructorTerms
+  :: (Reference -> Int -> Reference)
+  -> (a -> Reference -> Int -> AnnotatedTerm v a)
+  -> Reference.Id
+  -> DataDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+constructorTerms hashCtor f rid dd =
+  (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
+    (constructors' dd)
+    (generateConstructorRefs hashCtor rid (length $ constructors dd))
+
+dataConstructorTerms
+  :: Ord v
+  => Reference.Id
+  -> DataDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
+
+effectConstructorTerms
+  :: Ord v
+  => Reference.Id
+  -> EffectDeclaration' v a
+  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+effectConstructorTerms rid ed =
+  constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
+
+constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
+constructorTypes = (snd <$>) . constructors
+
+typeOfConstructor :: DataDeclaration' v a -> Int -> Maybe (AnnotatedType v a)
+typeOfConstructor dd i = constructorTypes dd `atMay` i
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
 constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
-bindBuiltins :: Var v => [(v, Reference)] -> DataDeclaration' v a -> DataDeclaration' v a
-bindBuiltins typeEnv (DataDeclaration a bound constructors) =
-  DataDeclaration a bound (third (Type.bindBuiltins typeEnv) <$> constructors)
+constructorVars :: DataDeclaration' v a -> [v]
+constructorVars dd = fst <$> constructors dd
+
+constructorNames :: Var v => DataDeclaration' v a -> [Text]
+constructorNames dd = Var.name <$> constructorVars dd
+
+bindBuiltins :: Var v => Names -> DataDeclaration' v a -> DataDeclaration' v a
+bindBuiltins names (DataDeclaration a bound constructors) =
+  DataDeclaration a bound (third (Names.bindType names) <$> constructors)
+
+dependencies :: Ord v => DataDeclaration' v a -> Set Reference
+dependencies dd =
+  Set.unions (Type.dependencies <$> constructorTypes dd)
 
 third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
+
+-- implementation of dataDeclToNames and effectDeclToNames
+toNames0
+  :: Var v
+  => v
+  -> Reference
+  -> (Reference -> Int -> Referent)
+  -> DataDeclaration' v a
+  -> Names
+toNames0 typeSymbol r f dd =
+  let
+    names (ctor, i) =
+      let name = Var.qualifiedName ctor
+      in  Names.fromTerms [(name, f r i)] <> Names.fromPatterns [(name, (r, i))]
+  in  foldMap names (constructorVars dd `zip` [0 ..])
+        <> Names.fromTypesV [(typeSymbol, r)]
+
+dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
+
+effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Referent.Req $ toDataDecl ed
+
+dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
+dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
+
+effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names
+effectDeclToNames' (v,(r,d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
 
 newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
-} deriving (Show)
+} deriving (Show,Functor)
 
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
@@ -134,20 +227,15 @@ fromABT (ABT.AbsN' bound (
 fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0 :: (Eq v, Var v)
-          => Map v (DataDeclaration' v ()) -> [(v, Reference, DataDeclaration' v ())]
-hashDecls0 decls =
-  reverse . snd . foldl f ([], []) $ components abts
-  where
-    f (m, newDecls) cycle =
-      let substed = second (ABT.substs m) <$> cycle
-          hs = second Reference.Derived <$> hash substed
-          newM = second toRef <$> hs
-          joined = intersectionWith (,) (Map.fromList hs) (Map.fromList substed)
-      in (newM ++ m,
-          [(v, r, fromABT d) | (v, (r, d)) <- Map.toList joined] ++ newDecls)
-    abts = second toABT <$> Map.toList decls
-    toRef = ABT.tm . Type . Type.Ref
+hashDecls0
+  :: (Eq v, Var v)
+  => Map v (DataDeclaration' v ())
+  -> [(v, Reference)]
+hashDecls0 decls = let
+  abts  = toABT <$> decls
+  ref r = ABT.tm (Type (Type.Ref r))
+  cs = Reference.hashComponents ref abts
+  in [(v,r) | (v, (r,_)) <- Map.toList cs ]
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
@@ -155,13 +243,23 @@ hashDecls0 decls =
 --   data List a = Nil | Cons a (List a)
 --   becomes something like
 --   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
-hashDecls :: (Eq v, Var v)
-          => Map v (DataDeclaration' v a)
-          -> [(v, Reference, DataDeclaration' v a)]
-hashDecls decls = [(v,r,dd) | (v,r,_) <- hs, Just dd <- [Map.lookup v decls']]
-  where hs = hashDecls0 (void <$> decls)
-        decls' = bindDecls decls varToRef
-        varToRef = [(v,r) | (v,r,_) <- hs ]
+hashDecls
+  :: (Eq v, Var v)
+  => Map v (DataDeclaration' v a)
+  -> [(v, Reference, DataDeclaration' v a)]
+hashDecls decls =
+  let varToRef = hashDecls0 (void <$> decls)
+      decls'   = bindDecls decls (Names.fromTypesV varToRef)
+  in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
-bindDecls :: Var v => Map v (DataDeclaration' v a) -> [(v, Reference)] -> Map v (DataDeclaration' v a)
-bindDecls decls refs = bindBuiltins refs <$> decls
+bindDecls
+  :: Var v
+  => Map v (DataDeclaration' v a)
+  -> Names
+  -> Map v (DataDeclaration' v a)
+bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
+ where
+  -- normalize the order of the constructors based on a hash of their types
+  sortCtors dd =
+    DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
+  hash3 (_, _, typ) = ABT.hash typ :: Hash

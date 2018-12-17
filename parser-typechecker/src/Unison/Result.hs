@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -5,22 +7,26 @@
 
 module Unison.Result where
 
-import           Control.Monad
-import           Control.Monad.Fail (MonadFail(..))
-import           Control.Monad.Trans ( lift )
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Writer (Writer, runWriter, MonadWriter(..))
-import qualified Data.Foldable as Foldable
+import           Control.Monad.Except           ( ExceptT(..) )
+import           Data.Functor.Identity
+import qualified Control.Monad.Fail            as Fail
+import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
+import           Control.Monad.Writer           ( WriterT(..)
+                                                , runWriterT
+                                                , MonadWriter(..)
+                                                )
 import           Data.Maybe
-import           Data.Sequence ( Seq )
-import qualified Data.Sequence as Seq
-import qualified Unison.Parser as Parser
-import           Unison.Paths ( Path )
-import           Unison.Term ( AnnotatedTerm )
-import qualified Unison.Typechecker.Context as Context
+import           Data.Sequence                  ( Seq )
+import           Unison.Names                   ( Name )
+import qualified Unison.Parser                 as Parser
+import           Unison.Paths                   ( Path )
+import           Unison.Term                    ( AnnotatedTerm )
+import qualified Unison.Typechecker.Context    as Context
+import           Control.Error.Util             ( note)
 
-data Result note a = Result { notes :: Seq note, result :: Maybe a }
-  deriving Show
+type Result notes = ResultT notes Identity
+
+type ResultT notes f = MaybeT (WriterT notes f)
 
 type Term v loc = AnnotatedTerm v loc
 
@@ -28,59 +34,54 @@ data Note v loc
   = Parsing (Parser.Err v)
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
---  | UnknownReference Reference
-  | Typechecking (Context.Note v loc)
-  -- WithinLocals (Note v loc)
+  | TypeError (Context.ErrorNote v loc)
+  | TypeInfo (Context.InfoNote v loc)
+  | CompilerBug (CompilerBug v loc)
   deriving Show
 
-isSuccess :: Result note a -> Bool
-isSuccess r = isJust $ result r
+data CompilerBug v loc
+  = TopLevelComponentNotFound v (Term v loc)
+  | ResolvedNameNotFound v loc Name
+  deriving Show
 
-isFailure :: Result note a -> Bool
-isFailure r = isNothing $ result r
+result :: Result notes a -> Maybe a
+result (Result _ may) = may
 
-toMaybe :: Result note a -> Maybe a
-toMaybe = result
+pattern Result notes may = MaybeT (WriterT (Identity (may, notes)))
+{-# COMPLETE Result #-}
 
-toEither :: Result note a -> Either [note] a
-toEither r = case result r of
-  Nothing -> Left (Foldable.toList $ notes r)
-  Just a  -> Right a
+isSuccess :: Functor f => ResultT note f a -> f Bool
+isSuccess = (isJust . fst <$>) . runResultT
 
-fromParsing :: Either (Parser.Err v) a -> Result (Note v loc) a
-fromParsing (Left  e) = Result (pure $ Parsing e) Nothing
+isFailure :: Functor f => ResultT note f a -> f Bool
+isFailure = (isNothing . fst <$>) . runResultT
+
+toMaybe :: Functor f => ResultT note f a -> f (Maybe a)
+toMaybe = (fst <$>) . runResultT
+
+runResultT :: ResultT notes f a -> f (Maybe a, notes)
+runResultT = runWriterT . runMaybeT
+
+-- Returns the `Result` in the `f` functor.
+getResult :: Functor f => ResultT notes f a -> f (Result notes a)
+getResult r = uncurry (flip Result) <$> runResultT r
+
+toEither :: Functor f => ResultT notes f a -> ExceptT notes f a
+toEither r = ExceptT (fmap go $ runResultT r)
+  where go (may, notes) = note notes may
+
+tell1 :: Monad f => note -> ResultT (Seq note) f ()
+tell1 = tell . pure
+
+fromParsing
+  :: Monad f => Either (Parser.Err v) a -> ResultT (Seq (Note v loc)) f a
+fromParsing (Left e) = do
+  tell1 $ Parsing e
+  Fail.fail ""
 fromParsing (Right a) = pure a
 
-failNote :: (MonadWriter (Seq note) m, MonadFail m) => note -> m ()
-failNote note = do
-  tell $ Seq.singleton note
-  Control.Monad.Fail.fail ""
+tellAndFail :: Monad f => note -> ResultT (Seq note) f a
+tellAndFail note = tell1 note *> Fail.fail "Elegantly and responsibly"
 
-fromTrans :: MaybeT (Writer (Seq note)) a -> Result note a
-fromTrans (runWriter . runMaybeT -> (r, n)) = Result n r
-
-toTrans :: Result note a -> MaybeT (Writer (Seq note)) a
-toTrans (Result notes may) = do
-  lift $ tell notes
-  MaybeT (pure may)
-
-instance Functor (Result note) where
-  fmap = liftM
-
-instance Applicative (Result note) where
-  pure = return
-  (<*>) = ap
-
-instance Monad (Result note) where
-  return a = Result mempty (Just a)
-  Result notes Nothing >>= _f = Result notes Nothing
-  Result notes (Just a) >>= f = case f a of
-    Result notes2 b -> Result (notes `mappend` notes2) b
-
-instance (MonadWriter (Seq note)) (Result note) where
-  tell note = fromTrans $ tell note
-  listen (Result notes may) = Result notes ((,notes) <$> may)
-  pass = fromTrans . pass . toTrans
-
-instance MonadFail (Result note) where
-  fail _ = Result Seq.empty Nothing
+compilerBug :: Monad f => CompilerBug v loc -> ResultT (Seq (Note v loc)) f a
+compilerBug = tellAndFail . CompilerBug

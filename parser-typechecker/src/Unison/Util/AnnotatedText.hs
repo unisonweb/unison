@@ -1,48 +1,98 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE DeriveFoldable             #-}
+{-# LANGUAGE DeriveFunctor              #-}
+-- {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Unison.Util.AnnotatedText where
 
-import           Control.Arrow (second)
-import           Data.Foldable (asum, foldl')
-import           Data.Sequence (Seq)
-import           Data.Sequence (Seq ((:|>)))
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import           Data.String (IsString (..))
-import           Data.Void (Void)
-import           Safe (lastMay)
-import           Unison.Lexer (Line, Pos (..))
+import qualified Data.List as L
+import           Data.Foldable      (foldl')
+import qualified Data.Foldable      as Foldable
+import           Data.Map           (Map)
+import qualified Data.Map           as Map
+import           Data.Sequence      (Seq ((:|>), (:<|)))
+import qualified Data.Sequence      as Seq
+import           Data.String        (IsString (..))
+import           Safe               (headMay, lastMay)
+import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
-import           Unison.Util.Range (Range (..))
+import           Unison.Util.Range  (Range (..), inRange)
+import qualified Data.ListLike      as LL
 
-newtype AnnotatedDocument a = AnnotatedDocument (Seq (Section a))
+-- type AnnotatedText a = AnnotatedText (Maybe a)
 
-data Section a
-  = Text (AnnotatedText (Maybe a))
-  | Describe a
-  | Blockquote (AnnotatedExcerpt a)
-  deriving (Eq, Ord)
+newtype AnnotatedText a = AnnotatedText (Seq (String, Maybe a))
+  deriving (Functor, Foldable, Show)
 
-newtype AnnotatedText a = AnnotatedText (Seq (String, a)) deriving (Eq, Ord)
+instance Semigroup (AnnotatedText a) where
+  AnnotatedText (as :|> ("", _)) <> bs = AnnotatedText as <> bs
+  as <> AnnotatedText (("", _) :<| bs) = as <> AnnotatedText bs
+  AnnotatedText as <> AnnotatedText bs = AnnotatedText (as <> bs)
 
+instance Monoid (AnnotatedText a) where
+  mempty = AnnotatedText Seq.empty
+
+instance LL.FoldableLL (AnnotatedText a) Char where
+  foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at where
+    f' z (str, _) = L.foldl' f z str
+  foldl f z at = LL.foldl f z at
+  foldr f z (AnnotatedText at) = Foldable.foldr f' z at where
+    f' (str, _) z = L.foldr f z str
+
+instance LL.ListLike (AnnotatedText a) Char where
+  singleton ch = fromString [ch]
+  uncons (AnnotatedText at) = case at of
+    (s,a) :<| tl -> case L.uncons s of
+      Nothing -> LL.uncons (AnnotatedText tl)
+      Just (hd,s) -> Just (hd, AnnotatedText $ (s,a) :<| tl)
+    Seq.Empty -> Nothing
+  break f at = (LL.takeWhile (not . f) at, LL.dropWhile (not . f) at)
+  takeWhile f (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl -> let s' = L.takeWhile f s in
+      if length s' == length s then
+        AnnotatedText (pure (s,a)) <> LL.takeWhile f (AnnotatedText tl)
+      else
+        AnnotatedText (pure (s',a))
+  dropWhile f (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl -> case L.dropWhile f s of
+      [] -> LL.dropWhile f (AnnotatedText tl)
+      s  -> AnnotatedText $ (s,a) :<| tl
+  take n (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl ->
+      if n <= length s then AnnotatedText $ pure (take n s, a)
+      else AnnotatedText (pure (s,a)) <>
+           LL.take (n - length s) (AnnotatedText tl)
+  drop n (AnnotatedText at) = case at of
+    Seq.Empty -> AnnotatedText Seq.Empty
+    (s,a) :<| tl ->
+      if n <= length s then AnnotatedText $ pure (drop n s, a)
+      else LL.drop (n - length s) (AnnotatedText tl)
+  null (AnnotatedText at) = all (null . fst) at
+
+  -- Quoted text (indented, with source line numbers) with annotated portions.
 data AnnotatedExcerpt a = AnnotatedExcerpt
   { lineOffset  :: Line
   , text        :: String
-  , annotations :: Set (Range, a)
-  } deriving (Eq, Ord, Show)
+  , annotations :: Map Range a
+  } deriving (Functor)
 
-newtype Rendered a = Rendered { rawRender :: Seq String } deriving (Eq)
+annotate' :: Maybe b -> AnnotatedText a -> AnnotatedText b
+annotate' a (AnnotatedText at) =
+  AnnotatedText $ (\(s,_) -> (s, a)) <$> at
 
-sectionToDoc :: Section a -> AnnotatedDocument a
-sectionToDoc = AnnotatedDocument . pure
+deannotate :: AnnotatedText a -> AnnotatedText b
+deannotate at = annotate' Nothing at
 
-textToDoc :: AnnotatedText (Maybe a) -> AnnotatedDocument a
-textToDoc = AnnotatedDocument . pure . Text
-
-excerptToDoc :: AnnotatedExcerpt a -> AnnotatedDocument a
-excerptToDoc = AnnotatedDocument . pure . Blockquote
+annotate :: a -> AnnotatedText a -> AnnotatedText a
+annotate a (AnnotatedText at) =
+  AnnotatedText $ (\(s,_) -> (s,Just a)) <$> at
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (s,_))) =
@@ -52,31 +102,62 @@ trailingNewLine (AnnotatedText (init :|> (s,_))) =
          _         -> trailingNewLine (AnnotatedText init)
 trailingNewLine _ = False
 
-markup :: Ord a => AnnotatedExcerpt a -> Set (Range, a) -> AnnotatedExcerpt a
-markup a r = a { annotations = r `Set.union` annotations a }
+markup :: AnnotatedExcerpt a -> Map Range a -> AnnotatedExcerpt a
+markup a r = a { annotations = r `Map.union` annotations a }
 
-renderTextUnstyled :: AnnotatedText a -> Rendered Void
-renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
-  where go r (text, _) = r <> fromString text
+-- renderTextUnstyled :: AnnotatedText a -> Rendered Void
+-- renderTextUnstyled (AnnotatedText chunks) = foldl' go mempty chunks
+--   where go r (text, _) = r <> fromString text
 
-splitAndRender :: Ord a
-               => Int
-               -> (AnnotatedExcerpt a -> Rendered b)
-               -> AnnotatedExcerpt a -> Rendered b
-splitAndRender n f e = intercalateMap "    .\n" f $ snipWithContext n e
+textLength :: AnnotatedText a -> Int
+textLength (AnnotatedText chunks) = foldl' go 0 chunks
+  where go len (text, _a) = len + length text
 
-_deoffsetRange :: Line -> Range -> Range
-_deoffsetRange lineOffset (Range (Pos startLine startCol) (Pos endLine endCol)) =
-  Range (Pos (startLine - lineOffset + 1) startCol)
-        (Pos (endLine - lineOffset + 1) endCol)
+textEmpty :: AnnotatedText a -> Bool
+textEmpty = (==0) . textLength
 
--- | drops lines and replaces with "." if there are more than `n` unannotated
--- | lines in a row.
-snipWithContext :: Ord a => Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
+condensedExcerptToText :: Int -> AnnotatedExcerpt a -> AnnotatedText a
+condensedExcerptToText margin e =
+  intercalateMap "    .\n" excerptToText $ snipWithContext margin e
+
+excerptToText :: forall a. AnnotatedExcerpt a -> AnnotatedText a
+excerptToText e =
+  track (Pos line1 1) [] (Map.toList $ annotations e) (renderLineNumber line1) (text e)
+  where
+    line1 :: Int
+    line1 = lineOffset e
+    renderLineNumber :: Int -> AnnotatedText a
+    renderLineNumber n = fromString $ " " ++ spaces ++ sn ++ " | "
+      where sn = show n
+            spaces = replicate (lineNumberWidth - length sn) ' '
+            lineNumberWidth = 4
+
+    -- step through the source characters and annotations
+    track _ _ _ rendered "" = rendered
+    track _ _ _ rendered "\n" = rendered <> "\n"
+    track pos@(Pos line col) stack annotations rendered _input@(c:rest) =
+      let
+        (poppedAnnotations, remainingAnnotations) =  span (inRange pos . fst) annotations
+        -- drop any stack entries that will be closed after this char
+        -- and add new stack entries
+        stack' = foldl' pushColor stack0 poppedAnnotations
+          where pushColor s (Range _ end, style) = (style, end) : s
+                stack0 = dropWhile ((<=pos) . snd) stack
+        maybeColor = fst <$> headMay stack'
+        -- on new line, advance pos' vertically and set up line header
+        -- additions :: AnnotatedText (Maybe a)
+        pos' :: Pos
+        (additions, pos') =
+          if c == '\n'
+          then ("\n" <> renderLineNumber (line + 1), Pos (line + 1) 1)
+          else (annotate' maybeColor (fromString [c]), Pos line (col + 1))
+      in track pos' stack' remainingAnnotations (rendered <> additions) rest
+
+snipWithContext :: Int -> AnnotatedExcerpt a -> [AnnotatedExcerpt a]
 snipWithContext margin source =
   case foldl' whileWithinMargin
               (Nothing, mempty, mempty)
-              (Set.toList $ annotations source) of
+              (Map.toList $ annotations source) of
     (Nothing, _, _) -> []
     (Just (Range (Pos startLine' _) (Pos endLine' _)), group', rest') ->
       let dropLineCount = startLine' - lineOffset source
@@ -92,66 +173,27 @@ snipWithContext margin source =
     withinMargin (Range _start1 (Pos end1 _)) (Range (Pos start2 _) _end2) =
       end1 + margin >= start2
 
-    whileWithinMargin :: Ord a
-                      => (Maybe Range, Set (Range, a), Set (Range, a))
+    whileWithinMargin :: (Maybe Range, Map Range a, Map Range a)
                       -> (Range, a)
-                      -> (Maybe Range, Set (Range, a), Set (Range, a))
-    whileWithinMargin (r0, taken, rest) a@(r1,_) =
+                      -> (Maybe Range, Map Range a, Map Range a)
+    whileWithinMargin (r0, taken, rest) (r1,a1) =
       case r0 of
         Nothing -> -- haven't processed any annotations yet
-          (Just r1, Set.singleton a, mempty)
+          (Just r1, Map.singleton r1 a1, mempty)
         Just r0 ->
           -- if all annotations so far can be joined without .. separations
           if null rest
           -- if this one can be joined to the new region without .. separation
           then if withinMargin r0 r1
             -- add it to the first set and grow the compare region
-            then (Just $ r0 <> r1, Set.insert a taken, mempty)
+            then (Just $ r0 <> r1, Map.insert r1 a1 taken, mempty)
             -- otherwise add it to the second set
-            else (Just r0, taken, Set.singleton a)
+            else (Just r0, taken, Map.singleton r1 a1)
           -- once we've added to the second set, anything more goes there too
-          else (Just r0, taken, Set.insert a rest)
+          else (Just r0, taken, Map.insert r1 a1 rest)
 
-instance IsString (AnnotatedDocument a) where
-  fromString = AnnotatedDocument . pure . fromString
-
-instance IsString (Section a) where
-  fromString = Text . fromString
-
-instance IsString (AnnotatedText (Maybe a)) where
+instance IsString (AnnotatedText a) where
   fromString s = AnnotatedText . pure $ (s, Nothing)
 
-instance Ord a => IsString (AnnotatedExcerpt a) where
+instance IsString (AnnotatedExcerpt a) where
   fromString s = AnnotatedExcerpt 1 s mempty
-
-instance Semigroup (AnnotatedDocument a) where
-  (<>) = mappend
-
-instance Monoid (AnnotatedDocument a) where
-  mempty = AnnotatedDocument mempty
-  mappend (AnnotatedDocument chunks) (AnnotatedDocument chunks') =
-    AnnotatedDocument (chunks <> chunks')
-
-instance Semigroup (AnnotatedText a) where
-  (<>) = mappend
-
-instance Monoid (AnnotatedText a) where
-  mempty = AnnotatedText mempty
-  mappend (AnnotatedText chunks) (AnnotatedText chunks') =
-    AnnotatedText (chunks <> chunks')
-
-instance Functor AnnotatedText where
-  fmap f (AnnotatedText chunks) = AnnotatedText (second f <$> chunks)
-
-instance Show (Rendered a) where
-  show (Rendered chunks) = asum chunks
-
-instance Semigroup (Rendered a) where
-  (<>) = mappend
-
-instance Monoid (Rendered a) where
-  mempty = Rendered mempty
-  mappend (Rendered chunks) (Rendered chunks') = Rendered (chunks <> chunks')
-
-instance IsString (Rendered a) where
-  fromString s = Rendered (pure s)

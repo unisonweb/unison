@@ -1,6 +1,0 @@
-do Remote
-  r := Remote.race (Duration.seconds 15) [
-    do Remote pure (Debug.watch "race.winner1" 1),
-    do Remote Remote.sleep (Duration.seconds 10); pure (Debug.watch "race.winner2" 2)
-  ]
-  pure <| Debug.watch "result" r

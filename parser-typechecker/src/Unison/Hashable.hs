@@ -6,15 +6,16 @@ import Data.Int (Int64)
 import Data.Word (Word8, Word64)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import qualified Data.Map as Map
 
 data Token h
   = Tag !Word8
   | Bytes !ByteString
-  | Int64 !Int64
+  | Int !Int64
   | Text !Text
   | Double !Double
   | Hashed !h
-  | UInt64 !Word64
+  | Nat !Word64
 
 class Accumulate h where
   accumulate :: [Token h] -> h
@@ -35,6 +36,9 @@ instance Hashable a => Hashable [a] where
 
 instance (Hashable a, Hashable b) => Hashable (a,b) where
   tokens (a,b) = [accumulateToken a, accumulateToken b]
+
+instance (Hashable k, Hashable v) => Hashable (Map.Map k v) where
+  tokens = tokens . Map.toList
 
 class Functor f => Hashable1 f where
   -- | Produce a hash for an `f a`, given a hashing function for `a`.
@@ -78,10 +82,10 @@ instance Hashable ByteString where
   tokens bs = [Bytes bs]
 
 instance Hashable Word64 where
-  tokens w = [UInt64 w]
+  tokens w = [Nat w]
 
 instance Hashable Int64 where
-  tokens w = [Int64 w]
+  tokens w = [Int w]
 
 instance Hashable Bool where
   tokens b = [Tag . fromIntegral $ fromEnum b]

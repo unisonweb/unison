@@ -8,6 +8,7 @@ effect Console where
 
 fst x = case x of Pair.Pair a _ -> a
 
+--TODO type is wrongly being inferred (or at least displayed) as `Pair a (Pair a b) ->{} a`
 snd x = case x of Pair.Pair _ (Pair.Pair b _) -> b
 
 namespace Console where
@@ -27,20 +28,20 @@ namespace Console where
       State.set (drop 1 ins, outs)
       -- this really should typecheck but doesn't for some reason
       -- error is that `simulate` doesn't check against `Effect Console c -> r`,
-      -- but seems like that `r` should get instantiated as `{State (..)} c`. 
+      -- but seems like that `r` should get instantiated as `{State (..)} c`.
       handle simulate in k (at 0 ins)
     {Console.write t -> k} ->
       io = State.get
       ins = fst io
       outs = snd io
-      -- same deal here 
+      -- same deal here
       handle simulate in k (State.set (ins, cons t outs))
     {a} -> a
 
-(++) = concatenate
+(++) = (Text.++)
 
 handle Console.state ([],[]) in
-  handle Console.simulate in 
+  handle Console.simulate in
     use Console read write
     use Optional Some None
     write "What's your name?"

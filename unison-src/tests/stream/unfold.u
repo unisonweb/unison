@@ -1,7 +1,7 @@
-(+) = (Int64.+)
-(/) = (Int64./)
-(<) = (Int64.<)
-Stream.to-sequence
+(+) = (Int.+)
+(/) = (Int./)
+(<) = (Int.<)
+Stream.toSequence
   (Stream.take 5
     (Stream.unfold
       (b ->

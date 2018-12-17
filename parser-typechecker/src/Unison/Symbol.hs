@@ -8,10 +8,11 @@ import GHC.Generics
 import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Word (Word64)
 
-data Symbol = Symbol !Word Text deriving (Generic)
+data Symbol = Symbol !Word64 Text deriving (Generic)
 
-freshId :: Symbol -> Word
+freshId :: Symbol -> Word64
 freshId (Symbol id _) = id
 
 instance Var Symbol where
@@ -33,7 +34,7 @@ instance Ord Symbol where
   Symbol id1 name1 `compare` Symbol id2 name2 = (id1,name1) `compare` (id2,name2)
 instance Show Symbol where
   show (Symbol 0 n) = Text.unpack n
-  show (Symbol id n) = Text.unpack n ++ show id
+  show (Symbol id n) = Text.unpack n ++ "-" ++ show id
 
 symbol :: Text -> Symbol
 symbol n = Symbol 0 n

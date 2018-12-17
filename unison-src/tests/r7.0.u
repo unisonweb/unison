@@ -1,4 +1,4 @@
-r7 : UInt64
+r7 : Nat
 r7 = case () of
   () -> 1
 ()

@@ -1,16 +1,23 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Test.Common where
 
-import qualified Data.Map as Map
+import           Data.Functor.Identity (runIdentity)
+import           Data.Sequence (Seq)
+import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.PrintError as PrintError
-import           Unison.Result (Result,Note)
+import qualified Unison.PrettyPrintEnv as PPE
+import           Unison.Result (Result)
 import qualified Unison.Result as Result
+import           Unison.Result (Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Typechecker as Typechecker
+import           Unison.Var (Var)
+import           Unison.UnisonFile (TypecheckedUnisonFile')
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -18,26 +25,31 @@ type Type v = AnnotatedType v Ann
 tm :: String -> Term Symbol
 tm = B.tm
 
-file :: String -> Result (Note Symbol Ann) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
-file = FP.parseAndSynthesizeAsFile ""
+file
+  :: String
+  -> Result
+       (Seq (Note Symbol Ann))
+       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' Symbol Ann))
+file = parseAndSynthesizeAsFile ""
 
 t :: String -> Type Symbol
 t = B.t
 
 typechecks :: String -> Bool
-typechecks = Result.isSuccess . file
+typechecks = runIdentity . Result.isSuccess . file
 
-env :: Monad m => Typechecker.Env m Symbol Ann
-env = Typechecker.Env Intrinsic [] typeOf dd ed Map.empty where
-  typeOf r = error $ "no type for: " ++ show r
-  dd r = error $ "no data declaration for: " ++ show r
-  ed r = error $ "no effect declaration for: " ++ show r
+env :: Typechecker.Env Symbol Ann
+env = Typechecker.Env Intrinsic [] B.typeLookup mempty
 
-typechecks' :: Term Symbol -> Bool
-typechecks' term = Result.isSuccess $ Typechecker.synthesize env term
-
-check' :: Term Symbol -> Type Symbol -> Bool
-check' term typ = Result.isSuccess $ Typechecker.check env term typ
-
-check :: String -> String -> Bool
-check terms typs = check' (tm terms) (t typs)
+parseAndSynthesizeAsFile
+  :: Var v
+  => FilePath
+  -> String
+  -> Result (Seq (Note v Ann))
+            (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile' v Ann))
+parseAndSynthesizeAsFile filename s =
+  FP.parseAndSynthesizeFile
+    (\_deps -> pure B.typeLookup)
+    B.names
+    filename
+    (Text.pack s)

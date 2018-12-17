@@ -15,7 +15,7 @@ state s eff = case eff of
 modify : (s -> s) -> {State s} ()
 modify f = State.put (f State.get)
 
-increment : '{State UInt64} ()
+increment : '{State Nat} ()
 increment = '(modify ((+) 1))
 
 second : (a, b) -> b
@@ -26,7 +26,7 @@ first p = case p of (a,_) -> a
 
 ex : Text
 ex =
-  result : (UInt64, Text)
+  result : (Nat, Text)
   result = handle (state 10) in
     State.put (11 + 1)
     x = State.get

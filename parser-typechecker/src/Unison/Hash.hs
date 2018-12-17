@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.Hash (Hash, toBytes, base58, fromBase58, fromBytes, unsafeFromBase58) where
+module Unison.Hash (Hash, toBytes, base58, base58s, fromBase58, fromBytes, unsafeFromBase58) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (doubleBE, word64BE, int64BE, toLazyByteString)
@@ -21,7 +21,10 @@ import qualified Data.Text as Text
 newtype Hash = Hash { toBytes :: ByteString } deriving (Eq,Ord,Generic)
 
 instance Show Hash where
-  show h = take 8 $ Text.unpack (base58 h)
+  show h = take 999 $ Text.unpack (base58 h)
+
+instance H.Hashable Hash where
+  tokens h = [H.Bytes (toBytes h)]
 
 fromBytesImpl :: ByteString -> Hash
 fromBytesImpl = fromBytes
@@ -35,8 +38,8 @@ instance H.Accumulate Hash where
     go acc tokens = CH.hashUpdates acc $ (tokens >>= toBS)
     toBS (H.Tag b) = [B.singleton b]
     toBS (H.Bytes bs) = [encodeLength (B.length $ bs), bs]
-    toBS (H.Int64 i) = BL.toChunks . toLazyByteString . int64BE $ i
-    toBS (H.UInt64 i) = BL.toChunks . toLazyByteString . word64BE $ i
+    toBS (H.Int i) = BL.toChunks . toLazyByteString . int64BE $ i
+    toBS (H.Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
     toBS (H.Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
     toBS (H.Text txt) =
       let tbytes = encodeUtf8 txt
@@ -51,6 +54,10 @@ instance H.Accumulate Hash where
 -- | Return the base58 encoding of this 'Hash'
 base58 :: Hash -> Text
 base58 (Hash h) = decodeUtf8 (Base58.encodeBase58 Base58.bitcoinAlphabet h)
+
+base58s :: Hash -> String
+base58s = Text.unpack . base58
+
 
 -- | Produce a 'Hash' from a base58-encoded version of its binary representation
 fromBase58 :: Text -> Maybe Hash

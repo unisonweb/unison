@@ -1,3 +1,7 @@
+# Unison
+.unison/
+.unisonHistory
+
 # Haskell
 dist
 cabal-dev
@@ -9,17 +13,16 @@ cabal-dev
 *.un~
 **/cache/**
 **/build/**
-store
-codestore
-codebase
 tags
 unison-src/.loaded
-**cabal.sandbox.config
+**/cabal.sandbox.config
 .cabal-sandbox/**
 blockstore
 blockstore.leveldb
 target
 htags
+scala-tags
+haskell-tags
 
 # Stack
 .stack-work
@@ -31,5 +34,6 @@ htags
 # Misc
 *~
 .DS_Store
-.virthualenv
+.virtualenv
 .vagrant
+.bloop

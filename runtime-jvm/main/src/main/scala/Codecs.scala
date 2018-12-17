@@ -6,6 +6,9 @@ import Term.Term
 import Term.F._
 import annotation.switch
 
+/**
+ * A codec for runtime values.
+ */
 object Codecs {
 
   sealed trait Node {
@@ -180,9 +183,9 @@ object Codecs {
         => sink putByte 27; encode(e.decompile)
       case UnboxedType.Boolean
         => sink putByte 28
-      case UnboxedType.Int64
+      case UnboxedType.Int
         => sink putByte 29
-      case UnboxedType.UInt64
+      case UnboxedType.Nat
         => sink putByte 30
       case UnboxedType.Float
         => sink putByte 31
@@ -268,8 +271,8 @@ object Codecs {
         val u = compilation.evalClosed(c,R,sp0,stackU,stackB)
         Value(u, R.boxed)
       case 28 => UnboxedType.Boolean
-      case 29 => UnboxedType.Int64
-      case 30 => UnboxedType.UInt64
+      case 29 => UnboxedType.Int
+      case 30 => UnboxedType.Nat
       case 31 => UnboxedType.Float
       case t => sys.error(s"unexpected tag byte $t during decoding")
     }
@@ -283,16 +286,18 @@ object Codecs {
 
   final def decodeId(source: Source): Id = (source.getByte: @switch) match {
     case 0 => Id.Builtin(source.getString)
-    case 1 => Id.HashRef(Hash(source.getFramed))
+    case 1 => Id.HashRef(Id.H(Hash(source.getFramed), source.getVarLong, source.getVarLong))
   }
 
   final def encodeId(id: Id, sink: Sink): Unit = id match {
     case Id.Builtin(name) =>
       sink putByte 0
       sink putString name.toString
-    case Id.HashRef(h) =>
+    case Id.HashRef(Id.H(h, i, n)) =>
       sink putByte 1
       sink putFramed h.bytes
+      sink putVarLong i
+      sink putVarLong n
   }
 
   final def decodeConstructorArities(source: Source): List[(Id, List[Int])] =
@@ -311,15 +316,15 @@ object Codecs {
   final def decodeUnboxedType(source: Source): UnboxedType =
     (source.getByte: @switch) match {
       case 0 => UnboxedType.Boolean
-      case 1 => UnboxedType.Int64
-      case 2 => UnboxedType.UInt64
+      case 1 => UnboxedType.Int
+      case 2 => UnboxedType.Nat
       case 3 => UnboxedType.Float
     }
 
   final def encodeUnboxedType(t: UnboxedType, sink: Sink): Unit = t match {
     case UnboxedType.Boolean => sink.putByte(0)
-    case UnboxedType.Int64 => sink.putByte(1)
-    case UnboxedType.UInt64 => sink.putByte(2)
+    case UnboxedType.Int => sink.putByte(1)
+    case UnboxedType.Nat => sink.putByte(2)
     case UnboxedType.Float => sink.putByte(3)
   }
 
@@ -453,8 +458,8 @@ object Codecs {
         case 27 =>
           s"External $r"
         case 28 => "Boolean"
-        case 29 => "Int64"
-        case 30 => "UInt64"
+        case 29 => "Int"
+        case 30 => "Nat"
         case 31 => "Float"
         case 32 => s"SetRef ${bs.getVarLong} ${bs.getVarLong}"
       }

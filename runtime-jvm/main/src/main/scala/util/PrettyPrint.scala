@@ -100,7 +100,8 @@ object PrettyPrint {
   def semicolons(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> semicolon <> _).getOrElse(empty)
 
   val comma = Breakable(", ")
-  def commas(docs: Seq[PrettyPrint]): PrettyPrint = docs.reduceOption(_ <> comma <> _).getOrElse(empty)
+  def commas(docs: Seq[PrettyPrint]): PrettyPrint =
+    docs.reduceOption((d1,d2) => d1 <> comma <> d2.nest(", ")).getOrElse(empty)
 
   def prettyName(name: Name) = parenthesizeIf(isOperatorName(name.toString))(name.toString)
 
@@ -143,9 +144,10 @@ object PrettyPrint {
 
   def prettyId(typeId: Id, ctorId: ConstructorId): PrettyPrint = typeId match {
     case Id.Builtin(name) => prettyName(name) <> s"#${ctorId.toInt}"
-    case Id.HashRef(h) =>
+    case Id.HashRef(Id.H(h,i,n)) =>
       val hashString = Base58.encode(h.bytes).take(hashPrecision)
-      s"#$hashString#${ctorId.toInt}"
+      if (n == 1) s"#$hashString#${ctorId.toInt}"
+      else s"#${i}-$hashString#${ctorId.toInt}"
   }
 
   def distributeNames(patterns: Seq[Pattern], names: List[Name]): Seq[PrettyPrint] =
@@ -184,12 +186,12 @@ object PrettyPrint {
   def prettyTerm(t: Term): PrettyPrint = prettyTerm(t, 0)
 
   def prettyUnboxed(value: U, t: UnboxedType): PrettyPrint = t match {
-    case UnboxedType.Int64 =>
+    case UnboxedType.Int =>
       val i = unboxedToInt(value)
       if (i > 0) "+" + i.toString else i.toString
     case UnboxedType.Float => unboxedToDouble(value).toString
     case UnboxedType.Boolean => unboxedToBool(value).toString
-    case UnboxedType.UInt64 => toUnsignedString(unboxedToLong(value))
+    case UnboxedType.Nat => toUnsignedString(unboxedToLong(value))
   }
 
   def prettyTerm(t: Term, precedence: Int): PrettyPrint = t match {
@@ -243,7 +245,7 @@ object PrettyPrint {
         Term.Var(prettyId(typeId, ctorId).renderUnbroken)(
           fields.map(_.decompile):_*), precedence)
     case Term.Text(txt) => '"' + Text.toString(txt) + '"'
-    case Term.Sequence(seq) => "[" <> commas(seq.map(prettyTerm).toList) <> "]"
+    case Term.Sequence(seq) => "[ " <> commas(seq.map(prettyTerm).toList) <> " ]"
     case t => t.toString
   }
 
