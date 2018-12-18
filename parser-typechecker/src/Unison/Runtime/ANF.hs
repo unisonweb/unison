@@ -21,6 +21,7 @@ import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 
 newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
+
 -- Replace all lambdas with free variables with closed lambdas.
 -- Works by adding a parameter for each free variable. These
 -- synthetic parameters are added before the existing lambda params.
@@ -30,14 +31,16 @@ newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 -- call sites of the lambda.
 --
 -- The transformation is shallow and doesn't look inside lambdas.
-lambdaLift :: (Ord v, Semigroup a) => AnnotatedTerm v a -> AnnotatedTerm v a
-lambdaLift t = ABT.visitPure go t where
+lambdaLift :: (Var v, Semigroup a) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
+lambdaLift liftVar t = ABT.visitPure go t where
   go t@(LamsNamed' vs body) = Just $ let
     fvs = ABT.freeVars t
+    fvsLifted = [ (v, liftVar v) | v <- toList fvs ]
     a = ABT.annotation t
+    subs = [(v, var a v') | (v,v') <- fvsLifted ]
     in if Set.null fvs then lam' a vs body -- `lambdaLift body` would make transform deep
-       else apps' (lam' a (toList fvs ++ vs) body)
-                  (var a <$> toList fvs)
+       else apps' (lam' a (map snd fvsLifted ++ vs) (ABT.substs subs body))
+                  (snd <$> subs)
   go _ = Nothing
 
 optimize :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
@@ -80,11 +83,11 @@ isLeaf (Nat' _) = True
 isLeaf (Boolean' _) = True
 isLeaf _ = False
 
-fromTerm' :: (Semigroup a, Var v) => AnnotatedTerm v a -> AnnotatedTerm v a
-fromTerm' t = term (fromTerm t)
+fromTerm' :: (Semigroup a, Var v) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
+fromTerm' liftVar t = term (fromTerm liftVar t)
 
-fromTerm :: forall a v . (Semigroup a, Var v) => AnnotatedTerm v a -> ANF v a
-fromTerm t = ANF_ (go $ lambdaLift t) where
+fromTerm :: forall a v . (Semigroup a, Var v) => (v -> v) -> AnnotatedTerm v a -> ANF v a
+fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   ann = ABT.annotation
   isRef (Ref' _) = True
   isRef _ = False
@@ -132,4 +135,3 @@ fromTerm t = ANF_ (go $ lambdaLift t) where
   go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
   go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
   go e = e
-

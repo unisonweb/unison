@@ -15,6 +15,7 @@ import Data.Word (Word64)
 import Debug.Trace
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -22,11 +23,19 @@ import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
+import qualified Unison.Var as Var
 
 type Pos = Word64
 type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
+
+type IsIndirect = Bool
+
+data SymbolC =
+  SymbolC { isIndirect :: Bool
+          , underlyingSymbol :: Symbol
+          } deriving Show
 
 -- Values, in normal form
 data V
@@ -34,6 +43,7 @@ data V
   | Lam Arity (Either R.Reference (Term Symbol)) IR
   | Data R.Reference ConstructorId [V]
   | Sequence (Vector V)
+  | Indirect Int Symbol V -- the inner `V` here is lazy
   | Pure V
   | Requested Req
   | Cont IR
@@ -114,7 +124,7 @@ freeVars bound t =
 -- recompiling a function that is being partially applied)
 compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
 compile0 env bound t = case freeVars bound t of
-  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' t))
+  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' id t))
       | otherwise    -> error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
   go t = case t of
@@ -283,3 +293,21 @@ builtins = Map.fromList $
       -- , ("Debug.watch", "Text -> a -> a")
       ]
   ]
+
+-- boring instances
+
+instance Eq SymbolC where
+  SymbolC _ s == SymbolC _ s2 = s == s2
+
+instance Ord SymbolC where
+  SymbolC _ s `compare` SymbolC _ s2 = s `compare` s2
+
+instance Var SymbolC where
+  named s = SymbolC False (Var.named s)
+  rename t (SymbolC i s) = SymbolC i (Var.rename t s)
+  name (SymbolC _ s) = Var.name s
+  clear (SymbolC _ s) = SymbolC False (Var.clear s)
+  qualifiedName (SymbolC _ s) = Var.qualifiedName s
+  freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
+  freshIn vs (SymbolC i s) =
+    SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)

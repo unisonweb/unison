@@ -245,7 +245,7 @@ prettyTerm t = let
   in TermPrinter.pretty' (Just 80) ppEnv t
 
 parseANF :: String -> Term Symbol
-parseANF s = ANF.fromTerm' . Term.unannotate $ B.tm s
+parseANF s = ANF.fromTerm' id . Term.unannotate $ B.tm s
 
 parseANFPretty :: String -> String
 parseANFPretty s = prettyTerm (parseANF s)
