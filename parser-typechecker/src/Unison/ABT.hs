@@ -126,7 +126,7 @@ annotateBound'' t = go [] t where
     Tm f -> tm' a (go env <$> f)
     Var v -> annotatedVar a v
 
--- | Return the list of all variables bound by this ABT
+-- | Return the set of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
 bound t = Set.fromList (bound' t)
 

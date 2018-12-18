@@ -157,7 +157,7 @@ Release.toBranch = ... -- trivial, just promoting a to `Causal (Conflicted a)`
 
 A couple notes:
 
-* The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically changes in a `Branch`.
+* The `Typing` indicates whether the replacement `Code` is the same type as the old `Code`, a subtype of it, or a different type. This is useful for knowing how far we can automatically apply changes in a `Branch`.
 * The `Edit` type produces a `Conflict` when merged, though with more structured edits (*e.g.*, in the case of the `SwapArguments` data constructor), even more could be done here.
 * A common workflow will be grabbing a release and then applying it to a branch you have in progress. There are some choices about how you do this:
   * You can `sequence` the release into your branch, either before or after your existing changes. If you `sequence` the release _before_ your changes, then any edits to the same `Code` will keep your version. Etc.
