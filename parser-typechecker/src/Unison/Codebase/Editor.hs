@@ -133,6 +133,8 @@ data Output v
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
   | Evaluated Names ([(Text, Term v ())], Term v ())
+  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
+  | FileChangeEvent SourceName Text
   deriving (Show)
 
 data Command i v a where
@@ -153,7 +155,9 @@ data Command i v a where
 
   -- Evaluate a UnisonFile and return the result and the result of
   -- any watched expressions (which are just labeled with `Text`)
-  Evaluate :: UF.UnisonFile v Ann -> Command i v ([(Text, Term v ())], Term v ())
+  Evaluate :: Branch
+           -> UF.UnisonFile v Ann
+           -> Command i v ([(Text, Term v ())], Term v ())
 
   -- Load definitions from codebase:
   -- option 1:
@@ -287,7 +291,9 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       addToBranch codebase branchName branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
-    Evaluate unisonFile               -> Runtime.evaluate rt unisonFile codebase
+    Evaluate branch unisonFile -> do
+      selfContained <- Codebase.makeSelfContained codebase branch unisonFile
+      Runtime.evaluate rt selfContained codebase
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
