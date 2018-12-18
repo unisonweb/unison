@@ -25,8 +25,8 @@ import           System.Directory                 (createDirectoryIfMissing,
                                                    doesDirectoryExist,
                                                    listDirectory, removeFile)
 import           System.FilePath                  (FilePath, takeBaseName,
-                                                   takeDirectory, takeFileName,
-                                                   (</>))
+                                                   takeDirectory, takeExtension,
+                                                   takeFileName, (</>))
 import qualified Unison.Builtin                   as Builtin
 import           Unison.Codebase                  (Codebase (Codebase),
                                                    Err (InvalidBranchFile))
@@ -88,10 +88,9 @@ branchFromDirectory dir = do
         []  -> Nothing
         bos -> Just (mconcat bos)
 
--- todo: change this to use System.FilePath.takeExtension
 filesInPathMatchingSuffix :: FilePath -> String -> IO [FilePath]
 filesInPathMatchingSuffix path suffix = doesDirectoryExist path >>= \ok ->
-  if ok then fmap (path </>) <$> (filter (suffix `isSuffixOf`) <$> listDirectory path)
+  if ok then fmap (path </>) <$> (filter (((==) suffix) . takeExtension) <$> listDirectory path)
   else pure []
 
 isValidBranchDirectory :: FilePath -> IO Bool
