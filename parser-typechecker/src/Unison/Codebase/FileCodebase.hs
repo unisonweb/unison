@@ -83,19 +83,19 @@ branchFromDirectory dir = do
   case exists of
     False -> pure Nothing
     True -> do
-      bos <- traverse branchFromFile' =<< filesInPathMatchingSuffix dir ".ubf"
+      bos <- traverse branchFromFile' =<< filesInPathMatchingExtension dir ".ubf"
       pure $ case catMaybes bos of
         []  -> Nothing
         bos -> Just (mconcat bos)
 
-filesInPathMatchingSuffix :: FilePath -> String -> IO [FilePath]
-filesInPathMatchingSuffix path suffix = doesDirectoryExist path >>= \ok ->
+filesInPathMatchingExtension :: FilePath -> String -> IO [FilePath]
+filesInPathMatchingExtension path suffix = doesDirectoryExist path >>= \ok ->
   if ok then fmap (path </>) <$> (filter (((==) suffix) . takeExtension) <$> listDirectory path)
   else pure []
 
 isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
-  not . null <$> filesInPathMatchingSuffix path ".ubf"
+  not . null <$> filesInPathMatchingExtension path ".ubf"
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path (Reference.Id h i n) = path </> "terms" </> (addComponentId i n (Hash.base58s h)) </> "compiled.ub"
@@ -153,7 +153,7 @@ codebase1 builtinTypeAnnotation
     let newBranchHash = Hash.base58s . Branch.toHash $ branch
     (match, nonmatch) <-
       partition (\s -> newBranchHash == takeBaseName s) <$>
-         filesInPathMatchingSuffix (branchPath path name) ".ubf"
+         filesInPathMatchingExtension (branchPath path name) ".ubf"
     let
       isBefore :: Branch -> FilePath -> IO Bool
       isBefore b ubf = maybe False (`Branch.before` b) <$> branchFromFile' ubf
