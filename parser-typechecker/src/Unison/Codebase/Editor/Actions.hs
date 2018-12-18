@@ -69,7 +69,7 @@ loop s = Free.unfold' go s
               [ err | Result.TypeError err <- toList notes ]
             Just unisonFile -> do
               e <- Free.eval (Evaluate $ UF.discardTypes' unisonFile)
-              Free.eval (Notify (Evaluated e))
+              Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
               updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI st qs ->

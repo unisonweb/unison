@@ -132,7 +132,7 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated ([(Text, Term v ())], Term v ())
+  | Evaluated Names ([(Text, Term v ())], Term v ())
   deriving (Show)
 
 data Command i v a where

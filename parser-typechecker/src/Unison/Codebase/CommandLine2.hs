@@ -247,6 +247,8 @@ notifyUser dir o = do
             intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
               . map Result.TypeError
       putStrLn . showNote $ notes
+    Evaluated names (watches, _term) -> do
+      traverse_ (uncurry $ Watch.watchPrinter names) watches
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -262,7 +264,6 @@ notifyUser dir o = do
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
-    _ -> putStrLn $ show o
 
   where
     renderFileName = P.group . P.blue . fromString
