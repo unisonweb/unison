@@ -25,6 +25,7 @@ import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
                                                 )
+import qualified System.Console.Terminal.Size  as TerminalSize
 import           System.FSNotify                ( Event(Added, Modified)
                                                 , watchTree
                                                 , withManager
@@ -105,9 +106,9 @@ watchPrinter names label term = do
   let lead = const ' ' <$> "      | > "
   -- weird that this doesn't incorporate the previous constant somehow
   let arr = "          ⧩"
-  -- todo: replace 80 with some number calculated from the terminal width
-  -- e.g. http://hackage.haskell.org/package/terminal-size
-  let tm = TermPrinter.pretty' (Just 80) (PPE.fromNames names) term
+  terminal  <- TerminalSize.size :: IO (Maybe (TerminalSize.Window Int)) 
+  let width = maybe 80 TerminalSize.width terminal
+  let tm = TermPrinter.pretty' (Just width) (PPE.fromNames names) term
   let tm2 = tm >>= \case
        '\n' -> '\n' : lead
        c -> pure c
