@@ -16,6 +16,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
+                                                , AddOutput(..)
                                                 )
 import           Unison.Names                   ( Name
                                                 , NameTarget
@@ -130,9 +131,14 @@ loop s = Free.unfold' go s
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
           Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) ->
-            let uf = UF.typecheckedUnisonFile datas effects tlcs
-            in  Free.eval (Add currentBranchName currentBranch uf)
-                  >>= (respond . AddOutput)
+            let uf' = UF.typecheckedUnisonFile datas effects tlcs
+            in
+              do
+                addo <- Free.eval $ Add currentBranchName currentBranch uf'
+                Free.eval . Notify $ AddOutput addo
+                pure . Right $ LoopState (updatedBranch addo)
+                                         currentBranchName
+                                         uf
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName       -> switchBranch branchName
