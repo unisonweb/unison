@@ -89,8 +89,8 @@ branchFromDirectory dir = do
         bos -> Just (mconcat bos)
 
 filesInPathMatchingExtension :: FilePath -> String -> IO [FilePath]
-filesInPathMatchingExtension path suffix = doesDirectoryExist path >>= \ok ->
-  if ok then fmap (path </>) <$> (filter (((==) suffix) . takeExtension) <$> listDirectory path)
+filesInPathMatchingExtension path extension = doesDirectoryExist path >>= \ok ->
+  if ok then fmap (path </>) <$> (filter (((==) extension) . takeExtension) <$> listDirectory path)
   else pure []
 
 isValidBranchDirectory :: FilePath -> IO Bool
