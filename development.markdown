@@ -38,7 +38,7 @@ Do `scala -version` to check it's worked.
 Bloop is a scala build server, that keeps a scala compiler instance 'hot' and waiting to do its job as part of the unison compiler backend.  You need to have it installed and running.
 
 * First install python 2 if you don't have it already, because otherwise bloop will fail to start.
-* Then see the [bloop install doc](https://scalacenter.github.io/bloop/docs/installation/).  
+* Then see the [bloop install doc](https://scalacenter.github.io/bloop/setup).  
   * Do the systemd automatic startup stuff which that page mentions.  
   * Then manually start the service, and check its status.
 * If it's not already there, then add the bloop executable location (e.g. ~/.bloop) to your PATH.
