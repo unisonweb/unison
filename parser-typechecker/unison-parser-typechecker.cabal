@@ -42,6 +42,9 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CommandLine
+    Unison.Codebase.CommandLine2
+    Unison.Codebase.Editor
+    Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
@@ -65,10 +68,10 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
-    Unison.PrettyPrint
     Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
+    Unison.Referent
     Unison.Result
     Unison.Runtime.ANF
     Unison.Runtime.IR
@@ -95,10 +98,11 @@ library
     Unison.Util.AnnotatedText
     Unison.Util.ColorText
     Unison.Util.Components
+    Unison.Util.Free
     Unison.Util.Logger
     Unison.Util.Menu
     Unison.Util.Monoid
-    Unison.Util.PrettyPrint
+    Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation
     Unison.Util.TQueue
@@ -120,10 +124,12 @@ library
     directory,
     errors,
     edit-distance,
+    extra,
     filepath,
     free,
     fsnotify,
     hashable,
+    haskeline,
     io-streams,
     lens,
     ListLike,
@@ -139,6 +145,7 @@ library
     safe,
     stm,
     strings,
+    terminal-size,
     text,
     time,
     transformers,
@@ -172,9 +179,9 @@ executable bootstrap
     vector,
     unison-parser-typechecker
 
-executable watcher
+executable unison
   main-is: Main.hs
-  hs-source-dirs: watcher
+  hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
@@ -191,9 +198,19 @@ executable haskellruntimetest
     text,
     unison-parser-typechecker
 
-executable unison
+executable prettyprintdemo
   main-is: Main.hs
-  hs-source-dirs: unison
+  hs-source-dirs: prettyprintdemo
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    text,
+    unison-parser-typechecker
+
+executable unisonold
+  main-is: Main.hs
+  hs-source-dirs: unisonold
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
@@ -211,6 +228,7 @@ executable tests
     Unison.Test.FileParser
     Unison.Test.Lexer
     Unison.Test.Range
+    Unison.Test.RemainingWork
     Unison.Test.TermParser
     Unison.Test.TermPrinter
     Unison.Test.Type
@@ -228,6 +246,7 @@ executable tests
     filepath,
     filemanip,
     megaparsec,
+    mtl,
     raw-strings-qq,
     text,
     transformers,

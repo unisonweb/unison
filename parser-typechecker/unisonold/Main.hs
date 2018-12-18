@@ -3,11 +3,15 @@
 
 module Main where
 
-import           Control.Monad                  ( when )
+import           Data.Char                      ( toLower )
 import           Safe                           ( headMay )
 import           System.Environment             ( getArgs )
+import           System.IO                      ( BufferMode(NoBuffering)
+                                                , hSetBuffering
+                                                , stdout
+                                                )
 import qualified Unison.Codebase               as Codebase
-import qualified Unison.Codebase.CommandLine2  as CommandLine
+import qualified Unison.Codebase.CommandLine   as CommandLine
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import           Unison.Codebase.Runtime.JVM    ( javaRuntime )
 import qualified Unison.Codebase.Serialization as S
@@ -20,24 +24,30 @@ import           Unison.Parser                  ( Ann(External) )
 main :: IO ()
 main = do
   args <- getArgs
-  -- hSetBuffering stdout NoBuffering -- cool
-  let codebasePath  = ".unison"
+  hSetBuffering stdout NoBuffering -- cool
+  let codebasePath      = ".unison"
       initialBranchName = "master"
       scratchFilePath   = "."
       theCodebase =
         FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
-      launch = CommandLine.main
-        scratchFilePath
-        initialBranchName
-        (headMay args)
-        (javaRuntime getSymbol 42441)
-        theCodebase
+      launch = CommandLine.main scratchFilePath
+                                initialBranchName
+                                (headMay args)
+                                (javaRuntime getSymbol 42441)
+                                theCodebase
   exists <- FileCodebase.exists codebasePath
-  when (not exists) $ do
-    putStrLn $ "☝️  No codebase exists here so I'm initializing one in: " <> codebasePath
-    FileCodebase.initialize codebasePath
-    Codebase.initialize theCodebase
-  launch
+  case exists of
+    True  -> launch
+    False -> do
+      putStr
+        "I can't find a Unison codebase here, would you like to create one? [y/n] "
+      line <- getLine
+      case words (map toLower line) of
+        ('y' : _) : _ -> do
+          FileCodebase.initialize codebasePath
+          Codebase.initialize theCodebase
+          launch
+        _ -> pure ()
 
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())

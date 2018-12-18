@@ -81,8 +81,7 @@ match = do
   start <- reserved "case"
   scrutinee <- term
   _ <- openBlockWith "of"
-  -- TODO: Produce a nice error message for empty match list
-  cases <- sepBy1 semi matchCase
+  cases <- sepBy1 semi matchCase P.<?> "at least one case in case/of"
   _ <- closeBlock
   pure $ Term.match (ann start <> ann (last cases)) scrutinee cases
 

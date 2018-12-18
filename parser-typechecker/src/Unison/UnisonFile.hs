@@ -17,9 +17,11 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
-import           Unison.Names           (Names, Referent)
+import           Unison.Names           (Names)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
+import           Unison.Referent        (Referent)
+import qualified Unison.Referent        as Referent
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
@@ -53,6 +55,10 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   typ :: AnnotatedType v a
 } deriving Show
 
+discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
+  TypecheckedUnisonFile_ datas effects components
+
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: Var v => UnisonFile v a -> Names -> Set Reference
 dependencies uf ns = directReferences <>
@@ -68,7 +74,7 @@ dependencies uf ns = directReferences <>
         -- if the name or unqualified name is in Term.freeVars,
         -- include the reference
     freeTermVarRefs =
-      [ Names.referentToReference referent
+      [ Referent.toReference referent
       | (name, referent) <- Map.toList $ Names.termNames ns
       , Var.named name `Set.member` Term.freeVars tm
         || Var.unqualified (Var.named name) `Set.member` Term.freeVars tm
@@ -117,9 +123,9 @@ hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Names.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Names.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 hashTerms ::
@@ -145,6 +151,17 @@ bindBuiltins names (UnisonFile d e t) =
     (second (DD.bindBuiltins names) <$> d)
     (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
     (Names.bindTerm names t)
+
+filterVars
+  :: Var v
+  => Set v
+  -> Set v
+  -> TypecheckedUnisonFile v a
+  -> TypecheckedUnisonFile v a
+filterVars types terms file = TypecheckedUnisonFile_
+  (dataDeclarations' file `Map.restrictKeys` types)
+  (effectDeclarations' file `Map.restrictKeys` types)
+  (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form

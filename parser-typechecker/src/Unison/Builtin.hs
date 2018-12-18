@@ -39,7 +39,7 @@ showParseError :: Var v
                => String
                -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
                -> String
-showParseError s = show . Color.renderText . prettyParseError s
+showParseError s = Color.toANSI . prettyParseError s
 
 t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .
@@ -132,12 +132,14 @@ builtins0 = Map.fromList $
       , ("Int.is-odd", "Int -> Boolean")
       , ("Int.signum", "Int -> Int")
       , ("Int.negate", "Int -> Int")
+      , ("Int.truncate0", "Int -> Nat")
 
       , ("Nat.+", "Nat -> Nat -> Nat")
       , ("Nat.drop", "Nat -> Nat -> Nat")
       , ("Nat.sub", "Nat -> Nat -> Int")
       , ("Nat.*", "Nat -> Nat -> Nat")
       , ("Nat./", "Nat -> Nat -> Nat")
+      , ("Nat.mod", "Nat -> Nat -> Nat")
       , ("Nat.<", "Nat -> Nat -> Boolean")
       , ("Nat.>", "Nat -> Nat -> Boolean")
       , ("Nat.<=", "Nat -> Nat -> Boolean")
@@ -156,6 +158,7 @@ builtins0 = Map.fromList $
       , ("Float.<=", "Float -> Float -> Boolean")
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
+      , ("Float.floor", "Float -> Float -> Int")
 
       , ("Boolean.not", "Boolean -> Boolean")
 

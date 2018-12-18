@@ -12,11 +12,10 @@ import           Data.Map         (Map)
 import qualified Data.Map         as Map
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
-import           Data.Word        (Word64)
-import           Unison.Hashable  (Hashable)
-import qualified Unison.Hashable  as H
 import           Unison.Reference (pattern Builtin, Reference)
-import           Unison.Term      (AnnotatedTerm, AnnotatedTerm2)
+import qualified Unison.Referent  as Referent
+import           Unison.Referent  (Referent)
+import           Unison.Term      (AnnotatedTerm)
 import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
@@ -34,33 +33,13 @@ data Names = Names
   , typeNames    :: Map Name Reference
   }
 
--- | The referent of a name
-data Referent = Ref Reference | Req Reference Int | Con Reference Int
-  deriving (Show, Ord, Eq)
+data NameTarget = TermName | TypeName | PatternName deriving (Show)
 
-instance Hashable Referent where
-  tokens (Ref r) = [H.Tag 0] ++ H.tokens r
-  tokens (Req r i) = [H.Tag 1] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
-  tokens (Con r i) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
-
-referentToTerm :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-referentToTerm a = \case
-  Ref r -> Term.ref a r
-  Req r i -> Term.request a r i
-  Con r i -> Term.constructor a r i
-
-termToReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
-termToReferent t = case t of
-  Term.Ref' r           -> Just $ Ref r
-  Term.Request' r i     -> Just $ Req r i
-  Term.Constructor' r i -> Just $ Con r i
-  _                     -> Nothing
-
-referentToReference :: Referent -> Reference
-referentToReference = \case
-  Ref r -> r
-  Req r _i -> r
-  Con r _i -> r
+renderNameTarget :: NameTarget -> String
+renderNameTarget = \case
+  TermName -> "term"
+  TypeName -> "type"
+  PatternName -> "pattern"
 
 instance Show Names where
   -- really barebones, just to see what names are present
@@ -70,7 +49,7 @@ instance Show Names where
     "types: " ++ show (ts)
 
 lookupTerm :: Ord v => a -> Names -> Name -> Maybe (AnnotatedTerm v a)
-lookupTerm a ns n = referentToTerm a <$> Map.lookup n (termNames ns)
+lookupTerm a ns n = Term.fromReferent a <$> Map.lookup n (termNames ns)
 
 lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
@@ -80,7 +59,7 @@ fromPatterns vs = mempty { patternNames = Map.fromList vs }
 
 fromBuiltins :: [Reference] -> Names
 fromBuiltins rs =
-  mempty { termNames = Map.fromList [ (name, Ref r) | r@(Builtin name) <- rs ] }
+  mempty { termNames = Map.fromList [ (name, Referent.Ref r) | r@(Builtin name) <- rs ] }
 
 fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = mempty { termNames = Map.fromList ts }
@@ -113,7 +92,7 @@ bindTerm
 bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
  where
   termBuiltins =
-    [ (Var.named v, referentToTerm () e) | (v, e) <- Map.toList (termNames ns) ]
+    [ (Var.named v, Term.fromReferent() e) | (v, e) <- Map.toList (termNames ns) ]
   typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Var.named v, t) | (v, t) <- Map.toList (typeNames ns) ]
 

@@ -31,6 +31,7 @@ data Causal e
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
   -- The merge operation `<>` flattens and normalizes for order
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (Causal e) }
+  deriving (Show)
 
 pattern ConsN conss tail <- (uncons -> Just (conss,tail))
 

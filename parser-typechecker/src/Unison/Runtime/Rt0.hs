@@ -25,7 +25,6 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
-import qualified Unison.Util.PrettyPrint as PP
 
 newtype Machine = Machine [V] -- a stack of values
 
@@ -243,12 +242,10 @@ parseAndNormalize env s = let
 prettyTerm :: Term Symbol -> String
 prettyTerm t = let
   ppEnv = PrettyPrintEnv.fromNames B.names
-  in PP.render 80 (TermPrinter.pretty ppEnv 0 t)
+  in TermPrinter.pretty' (Just 80) ppEnv t
 
 parseANF :: String -> Term Symbol
 parseANF s = ANF.fromTerm' . Term.unannotate $ B.tm s
 
 parseANFPretty :: String -> String
 parseANFPretty s = prettyTerm (parseANF s)
-
-
