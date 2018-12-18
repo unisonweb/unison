@@ -56,19 +56,24 @@ loop s = Free.unfold' go s
         then switchBranch currentBranchName
         else pure (Right s)
       Left (UnisonFileChanged sourceName text) -> do
+        Free.eval (Notify $ FileChangeEvent sourceName text)
         Result notes r <- Free.eval (Typecheck currentBranch sourceName text)
         case r of
           -- Parsing failed
-          Nothing ->
-            respond $ ParseErrors [ err | Result.Parsing err <- toList notes ]
+          Nothing -> respond
+            $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
           Just (errorEnv, r) -> case r of
             -- Typing failed
             Nothing -> respond $ TypeErrors
+              text
               errorEnv
               [ err | Result.TypeError err <- toList notes ]
+            -- A unison file has changed
             Just unisonFile -> do
-              e <- Free.eval (Evaluate $ UF.discardTypes' unisonFile)
-              Free.eval (Notify (Evaluated e))
+              Free.eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+              e <- Free.eval
+                (Evaluate currentBranch $ UF.discardTypes' unisonFile)
+              Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
               updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI st qs ->

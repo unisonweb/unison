@@ -55,7 +55,13 @@ import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Watch         as Watch
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
+import           Unison.PrintError              ( prettyParseError
+                                                , renderNoteAsANSI
+                                                , prettyTypecheckedFile
+                                                )
+import qualified Unison.Result                 as Result
 import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.TQueue             ( TQueue )
@@ -66,12 +72,14 @@ import qualified Unison.Var                    as Var
 import qualified System.Console.Haskeline      as Line
 import           System.Directory               ( canonicalizePath )
 import qualified System.Console.Terminal.Size  as Terminal
+import qualified System.Console.ANSI           as Console
+import           System.Random                  ( randomRIO )
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
   -- note - even if user's terminal is huge, we restrict available width since
   -- it's hard to read code or text that's super wide.
-  width <- fromMaybe 80 . fmap Terminal.width <$> Terminal.size
+  width <- fromMaybe 80 . fmap (min 100 . Terminal.width) <$> Terminal.size
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
@@ -233,6 +241,17 @@ notifyUser dir o = do
              <> collMsg
              <> dupeTypeRefMsg
              <> dupeRefMsg
+    ParseErrors src es -> do
+      Console.setTitle "Unison ☹︎"
+      traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
+    TypeErrors src ppenv notes -> do
+      Console.setTitle "Unison ☹︎"
+      let showNote =
+            intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+              . map Result.TypeError
+      putStrLn . showNote $ notes
+    Evaluated names (watches, _term) -> do
+      traverse_ (uncurry $ Watch.watchPrinter names) watches
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
           patterns = R.dom $ Branch.patternNamespace branch
@@ -248,11 +267,30 @@ notifyUser dir o = do
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
-    _ -> putStrLn $ show o
-
-  where
-    renderFileName = P.group . P.blue . fromString
-    fromVar = P.text . Var.name
+    FileChangeEvent _sourceName _src -> do
+      Console.clearScreen
+      Console.setCursorPosition 0 0
+    Typechecked sourceName errorEnv unisonFile -> do
+      Console.setTitle "Unison ☺︎"
+      let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
+      n <- randomRIO (0, length emoticons - 1)
+      let uf         = UF.discardTerm unisonFile
+          defs       = prettyTypecheckedFile uf errorEnv
+          prettyDefs = CT.toANSI defs
+      when (not $ null defs)
+        .  putStrLn
+        $  "✅ "
+        ++ [emoticons !! n]
+        ++ "  Found and typechecked the following definitions in "
+        ++ (Text.unpack sourceName)
+        ++ ":\n"
+      putStrLn prettyDefs
+      putStrLn $
+          "👀  Now evaluating any watch expressions (lines starting with `>`)"
+        <> " ...\n"
+ where
+  renderFileName = P.group . P.blue . fromString
+  fromVar        = P.text . Var.name
 
 
 allow :: FilePath -> Bool
