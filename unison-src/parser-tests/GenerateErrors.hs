@@ -29,7 +29,7 @@ processFile f = do
   let res = P.parseFile f content B.names
   case res of
     Left err ->
-      let prettyErr = B.showParseError f (err :: Err Symbol)
+      let prettyErr = B.showParseError content (err :: Err Symbol)
       in writeFile (errorFileName f) prettyErr
     Right _  -> putStrLn $
       "Error: " ++ f ++ " parses successfully but none of the files in this directory should parse"
