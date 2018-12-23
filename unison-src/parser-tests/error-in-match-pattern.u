@@ -1,4 +1,0 @@
-foo n = case n of
-    if -> 3
-    _    -> 2
-
