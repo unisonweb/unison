@@ -1,0 +1,3 @@
+foo n = case n of
+
+bar = 3
