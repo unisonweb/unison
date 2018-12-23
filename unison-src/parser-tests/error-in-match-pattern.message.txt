@@ -1,4 +1,4 @@
 error-in-match-pattern.u:2:5:
 unexpected if
-expecting at least one case in case/of
+expecting (, blank, false, symbol, or true
     2 |     if -> 3
