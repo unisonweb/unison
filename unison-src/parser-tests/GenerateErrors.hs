@@ -28,10 +28,10 @@ processFile f = do
   content <- Text.unpack <$> readFile f
   let res = P.parseFile f content B.names
   case res of
-    (Left err) ->
-      let prettyErr = B.showParseError "" (err :: Err Symbol)
+    Left err ->
+      let prettyErr = B.showParseError f (err :: Err Symbol)
       in writeFile (errorFileName f) prettyErr
-    (Right _)  -> putStrLn $
+    Right _  -> putStrLn $
       "Error: " ++ f ++ " parses successfully but none of the files in this directory should parse"
 
 main :: IO ()
