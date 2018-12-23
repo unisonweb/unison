@@ -9,7 +9,10 @@ import           System.IO                ( putStrLn )
 import qualified Unison.Builtin           as B
 import           Unison.Parser            ( Err )
 import qualified Unison.Parsers           as P
+import           Unison.PrintError        ( prettyParseError )
 import           Unison.Symbol            ( Symbol )
+import qualified Unison.Util.ColorText    as Color
+import           Unison.Var               ( Var )
 
 
 unisonFilesInDir :: FilePath -> IO [String]
@@ -23,14 +26,22 @@ unisonFilesInCurrDir = getCurrentDirectory >>= unisonFilesInDir
 errorFileName :: String -> String
 errorFileName n = dropExtension n ++ ".message.txt"
 
+emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
+emitAsPlainTextTo src e f = writeFile f plainErr
+  where plainErr = Color.toPlain $ prettyParseError src e
+
+-- TODO: Figure out how to use the first argument to showParseError correctly
+printError :: Var v => String -> Err v -> IO ()
+printError src e = putStrLn $ B.showParseError src e
+
 processFile :: FilePath -> IO ()
 processFile f = do
   content <- Text.unpack <$> readFile f
   let res = P.parseFile f content B.names
   case res of
-    Left err ->
-      let prettyErr = B.showParseError content (err :: Err Symbol)
-      in writeFile (errorFileName f) prettyErr
+    Left err -> do
+      emitAsPlainTextTo content (err :: Err Symbol) (errorFileName f)
+      printError content err
     Right _  -> putStrLn $
       "Error: " ++ f ++ " parses successfully but none of the files in this directory should parse"
 
