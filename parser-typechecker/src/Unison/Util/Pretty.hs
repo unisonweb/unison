@@ -3,16 +3,19 @@
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Unison.Util.Pretty (
-   Pretty,
+   Pretty, Pretty0, Prettyish,
    bulleted,
    -- breakable
    column2,
    commas,
    oxfordCommas,
    dashed,
+   external,
    flatMap,
+   fromPretty0,
    group,
    hang',
    hang,
@@ -71,14 +74,82 @@ import qualified Data.Text                     as Text
 
 type Width = Int
 
+{- A typeclass to overload various combinators in this file. -}
+class Prettyish p where
+  orElse :: p s -> p s -> p s
+  group :: p s -> p s
+  wrap_ :: Seq (p s) -> p s
+  column2 :: (LL.ListLike s Char, IsString s) => [(p s, p s)] -> p s
+  indentAfterNewline :: (LL.ListLike s Char, IsString s) => p s -> p s -> p s
+
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
 
 instance Functor Pretty where
   fmap f (Pretty d o) = Pretty d (mapLit f $ fmap (fmap f) o)
 
 data F s r
-  = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
+  = Empty | OrElse r r | Group r | Lit s | Wrap (Seq r) | Append (Seq r)
   deriving (Show, Foldable, Traversable, Functor)
+
+instance Prettyish Pretty where
+  orElse p1 p2 = Pretty (delta p1) (OrElse p1 p2)
+  wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
+  group p = Pretty (delta p) (Group p)
+  indentAfterNewline by p = flatMap f p
+   where
+    f s0 = case LL.break (== '\n') s0 of
+      (hd, s) -> if LL.null s
+        then lit s0
+        -- use `take` and `drop` to preserve annotations or
+        -- or other extra info attached to the original `s`
+        else lit (LL.take (LL.length hd) s0) <> "\n" <> by <> f (LL.drop 1 s)
+  column2 rows = lines (group <$> alignedRows)
+   where
+    maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+    alignedRows =
+      [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
+      | (col0, col1) <- rows
+      ]
+
+data Pretty0 e s
+  = Empty0 | OrElse0 (Pretty0 e s) (Pretty0 e s) | Group0 (Pretty0 e s) | External0 e | Lit0 s
+  | Wrap0 (Seq (Pretty0 e s)) | Append0 (Seq (Pretty0 e s))
+  | TwoColumn0 [(Pretty0 e s, Pretty0 e s)]
+  | IndentAfterNewline0 (Pretty0 e s) (Pretty0 e s)
+
+instance Semigroup (Pretty0 e s) where (<>) = mappend
+
+instance Monoid (Pretty0 e s) where
+  mempty = Empty0
+  mappend (Append0 ps) (Append0 ps2) = Append0 (ps <> ps2)
+  mappend (Append0 ps) p = Append0 (ps <> pure p)
+  mappend p (Append0 ps) = Append0 (pure p <> ps)
+  mappend p p2 = Append0 (pure p <> pure p2)
+
+instance Prettyish (Pretty0 e) where
+  orElse = OrElse0
+  group = Group0
+  wrap_ = Wrap0
+  column2 = TwoColumn0
+  indentAfterNewline = IndentAfterNewline0
+
+instance IsString s => IsString (Pretty0 e s) where
+  fromString s = Lit0 (fromString s)
+
+external :: e -> Pretty0 e s
+external = External0
+
+fromPretty0 :: (LL.ListLike s Char, IsString s) => (e -> Pretty s) -> Pretty0 e s -> Pretty s
+fromPretty0 renderE p = case p of
+  Empty0 -> mempty
+  Lit0 s -> lit s
+  OrElse0 p1 p2 -> fromPretty0 renderE p1 `orElse` fromPretty0 renderE p2
+  Group0 p -> group $ fromPretty0 renderE p
+  External0 e -> renderE e
+  Append0 ps -> foldMap (fromPretty0 renderE) ps
+  Wrap0 ps -> wrap $ foldMap (fromPretty0 renderE) ps
+  IndentAfterNewline0 by p -> indentAfterNewline (fromPretty0 renderE by) (fromPretty0 renderE p)
+  TwoColumn0 ps -> column2 [ (fromPretty0 renderE l, fromPretty0 renderE r) | (l,r) <- ps ]
 
 mapLit :: (s -> t) -> F s r -> F t r
 mapLit f (Lit s) = Lit (f s)
@@ -93,9 +164,6 @@ lit s = lit' (foldMap chDelta $ LL.toList s) s
 
 lit' :: Delta -> s -> Pretty s
 lit' d s = Pretty d (Lit s)
-
-orElse :: Pretty s -> Pretty s -> Pretty s
-orElse p1 p2 = Pretty (delta p1) (OrElse p1 p2)
 
 orElses :: [Pretty s] -> Pretty s
 orElses [] = mempty
@@ -122,12 +190,6 @@ wrap p = wrapImpl (toLeaves [p]) where
   wordify s0 = let s = LL.dropWhile isSpace s0 in
     if LL.null s then []
     else case LL.break isSpace s of (word1, s) -> lit word1 : wordify s
-
-wrap_ :: Seq (Pretty s) -> Pretty s
-wrap_ ps = Pretty (foldMap delta ps) (Wrap ps)
-
-group :: Pretty s -> Pretty s
-group p = Pretty (delta p) (Group p)
 
 toANSI :: Width -> Pretty CT.ColorText -> String
 toANSI avail p = CT.toANSI (render avail p)
@@ -260,16 +322,6 @@ rightPad n p =
   let rem = n - preferredWidth p
   in  if rem > 0 then p <> fromString (replicate rem ' ') else p
 
-column2
-  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> alignedRows)
- where
-  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
-  alignedRows =
-    [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
-    | (col0, col1) <- rows
-    ]
-
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
 
@@ -313,17 +365,6 @@ indentNAfterNewline
   :: (LL.ListLike s Char, IsString s) => Width -> Pretty s -> Pretty s
 indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
 
-indentAfterNewline
-  :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-indentAfterNewline by p = flatMap f p
- where
-  f s0 = case LL.break (== '\n') s0 of
-    (hd, s) -> if LL.null s
-      then lit s0
-      -- use `take` and `drop` to preserve annotations or
-      -- or other extra info attached to the original `s`
-      else lit (LL.take (LL.length hd) s0) <> "\n" <> by <> f (LL.drop 1 s)
-
 instance IsString s => IsString (Pretty s) where
   fromString s = lit' (foldMap chDelta s) (fromString s)
 
@@ -337,6 +378,14 @@ instance Monoid (Pretty s) where
       (_, Append ps2) -> pure p1 <> ps2
       (_,_) -> pure p1 <> pure p2
 
+-- `Delta` represents a shape of a plain text output, equipped with a monoid for
+-- combining deltas (even multi-line deltas) accurately. It's used to represent
+-- the "preferred" dimensions of pretty document in order to make formatting
+-- decisions about whether a doc can fit in the available width.
+--
+-- `line` is the difference in starting and ending line number
+-- `col` is the number of characters output on the last line
+-- `maxCol` is the maximum column of any line produced by the document
 data Delta =
   Delta { line :: !Int, col :: !Int, maxCol :: !Int }
   deriving (Eq,Ord,Show)
@@ -344,6 +393,8 @@ data Delta =
 instance Semigroup Delta where (<>) = mappend
 instance Monoid Delta where
   mempty = Delta 0 0 0
+  -- If the right delta has no linebreak (if it's line delta is 0),
+  -- then we just add to the column of the left delta
   mappend (Delta l c mc) (Delta 0 c2 mc2) =
     Delta l (c + c2) (mc `max` mc2 `max` (c + c2))
   mappend (Delta l _ mc) (Delta l2 c2 mc2) = Delta (l + l2) c2 (mc `max` mc2)
