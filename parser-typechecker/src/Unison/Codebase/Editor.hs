@@ -1,10 +1,14 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 
 module Unison.Codebase.Editor where
 
+import           Control.Monad                  ( forM_, when)
 import           Control.Monad.Extra            ( ifM )
+import           Data.Bifunctor                 ( second )
+import qualified Data.Map                      as Map
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text
@@ -26,7 +30,7 @@ import           Unison.Names                   ( Name
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference, pattern DerivedId )
 import           Unison.Result                  ( Note
                                                 , Result
                                                 )
@@ -208,34 +212,52 @@ data Command i v a where
 
 addToBranch
   :: (Var v, Monad m)
-  => Codebase m v a
+  => Codebase m v Ann
   -> BranchName
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (AddOutput v)
-addToBranch codebase branchName branch unisonFile =
-  let
-    branchUpdate = Branch.fromTypecheckedFile unisonFile
-    collisions   = Branch.collisions branchUpdate branch
-    duplicates   = Branch.duplicates branchUpdate branch
-    -- old references with new names
-    dupeRefs     = Branch.refCollisions branchUpdate branch
-    diffNames    = Branch.differentNames dupeRefs branch
-    successes    = Branch.ours
-      $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
-    mkOutput x =
-      uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
-  in
-    do
-      updated <-
-        Codebase.mergeBranch codebase branchName
+addToBranch codebase branchName branch unisonFile
+  = let
+      branchUpdate = Branch.fromTypecheckedFile unisonFile
+      collisions   = Branch.collisions branchUpdate branch
+      duplicates   = Branch.duplicates branchUpdate branch
+      -- old references with new names
+      dupeRefs     = Branch.refCollisions branchUpdate branch
+      diffNames    = Branch.differentNames dupeRefs branch
+      successes    = Branch.ours
+        $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
+      mkOutput x =
+        uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
+      allTypeDecls =
+        (second Left <$> UF.effectDeclarations' unisonFile)
+          `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
+      hashedTerms = UF.hashTerms unisonFile
+    in
+      do
+        forM_ (Map.toList allTypeDecls)
+          $ \(_, (r@(DerivedId id), dd)) ->
+            when (Branch.contains successes r) $
+              Codebase.putTypeDeclaration codebase id dd
+        forM_ (Map.toList hashedTerms)
+          $ \(_, (r@(DerivedId id), tm, typ)) ->
+            when (Branch.contains successes r) $
+            -- Discard all line/column info when adding to the codebase
+            Codebase.putTerm
+              codebase
+              id
+              (Term.amap (const Parser.External) tm)
+              typ
+        updated <- Codebase.mergeBranch
+          codebase
+          branchName
           (Branch.append (successes <> dupeRefs) branch)
-      pure $ Added unisonFile
-                   updated
-                   (mkOutput successes)
-                   (mkOutput duplicates)
-                   (mkOutput collisions)
-                   diffNames
+        pure $ Added unisonFile
+                     updated
+                     (mkOutput successes)
+                     (mkOutput duplicates)
+                     (mkOutput collisions)
+                     diffNames
 typecheck
   :: (Monad m, Var v)
   => Codebase m v Ann
