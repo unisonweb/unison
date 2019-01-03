@@ -81,8 +81,6 @@ data AddOutput v
           }
           deriving (Show)
 
-data SearchType = Exact | Fuzzy deriving (Show)
-
 data Input
   -- high-level manipulation of names
   = AliasUnconflictedI NameTarget Name Name
@@ -113,10 +111,11 @@ data Input
   -- other
   | AddI -- [Name]
   | ListBranchesI
-  | SearchByNameI SearchType [String]
+  | SearchByNameI [String]
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
+  | ShowDefinitionI [String]
   | QuitI
   deriving (Show)
 
@@ -130,7 +129,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfTerms Branch SearchType [String] [(Name, Referent, Maybe (Type v Ann))]
+  | ListOfTerms Branch [String] [(Name, Referent, Maybe (Type v Ann))]
   | AddOutput (AddOutput v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -206,7 +205,6 @@ data Command i v a where
 
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
-              -> SearchType
               -> [String]
               -> Command i v [(Name, Referent, Maybe (Type v Ann))]
 
@@ -322,5 +320,5 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
     GetConflicts branch               -> pure $ Branch.conflicts' branch
     SwitchBranch branch branchName    -> branchChange branch branchName
-    SearchTerms branch _searchType queries ->
+    SearchTerms branch queries ->
       Codebase.fuzzyFindTerms codebase branch queries

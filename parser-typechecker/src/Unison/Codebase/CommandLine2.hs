@@ -157,7 +157,7 @@ notifyUser dir o = do
               then P.bold ("* " <> P.text n)
               else "  " <> P.text n
           in  intercalateMap "\n" go (sort branches)
-    ListOfTerms branch _ _ terms ->
+    ListOfTerms branch _ terms ->
       let ppe  = Branch.prettyPrintEnv1 branch
           sigs = (\(name, _, typ) -> (name, typ)) <$> terms
       in  putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
@@ -404,7 +404,7 @@ validInputs = validPatterns
         "add"
         []
         []
-        (  "`add` adds to the codebase all the definitions from "
+        ( P.wrap $ "`add` adds to the codebase all the definitions from "
         <> "the most recently typechecked file."
         )
         (\ws -> if not $ null ws
@@ -431,7 +431,7 @@ validInputs = validPatterns
         "fork"
         []
         [(False, branchArg)]
-        (  "`fork foo` creates the branch 'foo' "
+        (  P.wrap $ "`fork foo` creates the branch 'foo' "
         <> "as a fork of the current branch."
         )
         (\case
@@ -443,7 +443,7 @@ validInputs = validPatterns
       , InputPattern
         "list"
         ["ls"]
-        [(False, definitionQueryArg)]
+        [(True, definitionQueryArg)]
         (P.column2 [
           ("`list`", P.wrap $ "shows all definitions in the current branch."),
           ("`list foo`", P.wrap $ "shows all definitions with a name similar"
@@ -451,18 +451,24 @@ validInputs = validPatterns
           ("`list foo bar`", P.wrap $ "shows all definitions with a name similar"
                                    <> "to 'foo' or 'bar' in the current branch.")]
         )
-        (pure . SearchByNameI Editor.Fuzzy)
+        (pure . SearchByNameI)
       , InputPattern
         "merge"
         []
         [(False, branchArg)]
-        ("`merge foo` merges the branch 'foo' into the current branch.")
+        (P.wrap "`merge foo` merges the branch 'foo' into the current branch.")
         (\case
           [b] -> pure . MergeBranchI $ Text.pack b
           _ -> Left . warn . P.wrap $
             "Use `merge foo` to merge the branch 'foo'" <>
             "into the current branch."
         )
+      , InputPattern
+        "view"
+        []
+        [(False, definitionQueryArg)]
+        (P.wrap "`view foo` prints the definition of `foo`.")
+        (pure . ShowDefinitionI)
       , quit
       ]
 
@@ -488,14 +494,19 @@ autoComplete q ss = fixup $
        then [ c { Line.replacement = q } | c <- cs ]
        else cs
 
-parseInput :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
+parseInput
+  :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of
-  [] -> Left ""
+  []             -> Left ""
   command : args -> case Map.lookup command patterns of
     Just pat -> parse pat args
-    Nothing -> Left . warn . P.wrap $
-      "I don't know how to " <> P.group (fromString command) <>
-      ". Type `help` or `?` to get help."
+    Nothing ->
+      Left
+        .  warn
+        .  P.wrap
+        $  "I don't know how to "
+        <> P.group (fromString command <> ".")
+        <> "Type `help` or `?` to get help."
 
 prompt :: String
 prompt = "> "

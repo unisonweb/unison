@@ -9,7 +9,6 @@ module Unison.Codebase where
 
 import           Control.Monad                  ( foldM
                                                 , forM
-                                                , join
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
@@ -22,7 +21,6 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( fromString )
 import qualified Data.Text                     as Text
-import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
                                                 , levenshteinDistance
                                                 )
@@ -109,6 +107,22 @@ listReferences code branch refs = do
   -- todo: type decls also
   pure (PP.render 80 termsPP)
 
+fuzzyFindTerms' :: Branch -> [String] -> [(Name, Referent)]
+fuzzyFindTerms' branch query =
+  let
+    termNames =
+      Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
+    matchingTerms :: [String]
+    matchingTerms = if null query
+      then termNames
+      else query >>= \q -> sortedApproximateMatches q termNames
+    refsForName :: String -> [Referent]
+    refsForName name =
+      Set.toList $ Branch.termsNamed (Text.pack name) branch
+  in
+    matchingTerms
+      >>= \name -> (Text.pack name, ) <$> refsForName name
+
 fuzzyFindTerms
   :: forall m v a
   .  (Var v, Monad m)
@@ -117,20 +131,11 @@ fuzzyFindTerms
   -> [String]
   -> m [(Name, Referent, Maybe (Type v a))]
 fuzzyFindTerms codebase branch query =
-  let termNames =
-        Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
-      matchingTerms :: [String]
-      matchingTerms = if null query
-        then termNames
-        else query >>= \q -> sortedApproximateMatches q termNames
-      refsForName :: String -> [Reference]
-      refsForName name =
-        [r | Ref r <- Set.toList $ Branch.termsNamed (Text.pack name) branch]
-      tripleForRef :: String -> Reference -> m (Name, Referent, Maybe (Type v a))
-      tripleForRef name ref =
-        (Text.pack name, Ref ref, ) <$> getTypeOfTerm codebase ref
-  in  fmap join . for matchingTerms $ \name ->
-        for (refsForName name) $ tripleForRef name
+  let found = fuzzyFindTerms' branch query
+      tripleForRef name ref@(Referent.Ref r) =
+        (name, ref, ) <$> getTypeOfTerm codebase r
+      tripleForRef _ _ = error "todo"
+  in  traverse (uncurry tripleForRef) found
 
 fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
 fuzzyFindTypes branch query =
