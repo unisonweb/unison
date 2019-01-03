@@ -81,6 +81,11 @@ loop s = Free.unfold' go s
           withBranch currentBranchName respond $ \branch ->
             Free.eval (SearchTerms branch st qs)
               >>= (respond . ListOfTerms branch st qs)
+          -- todo: search types and patterns too
+
+        -- SearchByNameI st qs ->
+        --     Free.eval (SearchTerms currentBranch st qs)
+        --       >>= (respond . ListOfTerms currentBranch st qs)
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"
@@ -135,6 +140,7 @@ loop s = Free.unfold' go s
             in
               do
                 addo <- Free.eval $ Add currentBranchName currentBranch uf'
+                -- addo <- mergeBranch currentBranchName respond success (updatedBranch addo)
                 Free.eval . Notify $ AddOutput addo
                 pure . Right $ LoopState (updatedBranch addo)
                                          currentBranchName
@@ -294,4 +300,3 @@ updateBranch
   -> Action i v
 updateBranch respond success branchName f =
   withBranch branchName respond $ mergeBranch branchName respond success . f
-

@@ -218,6 +218,7 @@ addToBranch codebase branchName branch unisonFile =
     branchUpdate = Branch.fromTypecheckedFile unisonFile
     collisions   = Branch.collisions branchUpdate branch
     duplicates   = Branch.duplicates branchUpdate branch
+    -- old references with new names
     dupeRefs     = Branch.refCollisions branchUpdate branch
     diffNames    = Branch.differentNames dupeRefs branch
     successes    = Branch.ours
@@ -228,9 +229,7 @@ addToBranch codebase branchName branch unisonFile =
     do
       updated <-
         Codebase.mergeBranch codebase branchName
-        .  Branch.one
-        $  successes
-        <> dupeRefs
+          (Branch.append (successes <> dupeRefs) branch)
       pure $ Added unisonFile
                    updated
                    (mkOutput successes)
@@ -303,4 +302,3 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch _searchType queries ->
       Codebase.fuzzyFindTerms codebase branch queries
-
