@@ -126,7 +126,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfTerms Branch SearchType [String] [(Name, Referent, Type v Ann)]
+  | ListOfTerms Branch SearchType [String] [(Name, Referent, Maybe (Type v Ann))]
   | AddOutput (AddOutput v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -204,7 +204,7 @@ data Command i v a where
   SearchTerms :: Branch
               -> SearchType
               -> [String]
-              -> Command i v [(Name, Referent, Type v Ann)]
+              -> Command i v [(Name, Referent, Maybe (Type v Ann))]
 
 addToBranch
   :: (Var v, Monad m)

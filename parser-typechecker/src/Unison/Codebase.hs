@@ -95,9 +95,9 @@ listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
 listReferences code branch refs = do
   let ppe = Branch.prettyPrintEnv1 branch
-  terms <- fmap catMaybes . forM refs $ \r -> do
+  terms <- forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
-    pure $ fmap (PPE.termName ppe (Referent.Ref r), ) otyp
+    pure $ (PPE.termName ppe (Referent.Ref r), otyp)
   let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
       typeRefs  = filter (`Set.member` typeRefs0) refs
   _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
@@ -110,7 +110,8 @@ listReferences code branch refs = do
   pure (PP.render 80 termsPP)
 
 fuzzyFindTerms
-  :: (Var v, Monad m)
+  :: forall m v a
+  .  (Var v, Monad m)
   => Codebase m v a
   -> Branch
   -> [String]
@@ -118,18 +119,18 @@ fuzzyFindTerms
 fuzzyFindTerms codebase branch query =
   let termNames =
         Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
+      matchingTerms :: [String]
       matchingTerms = if null query
         then termNames
         else query >>= \q -> sortedApproximateMatches q termNames
+      refsForName :: String -> [Reference]
+      refsForName name =
+        [r | Ref r <- Set.toList $ Branch.termsNamed (Text.pack name) branch]
+      tripleForRef :: String -> Reference -> m (Name, Referent, Maybe (Type v a))
+      tripleForRef name ref =
+        (Text.pack name, Ref ref, ) <$> getTypeOfTerm codebase ref
   in  fmap join . for matchingTerms $ \name ->
-        fmap join . for
-            [ r
-            | Ref r <- Set.toList
-              $ Branch.termsNamed (Text.pack name) branch
-            ]
-          $ \ref ->
-              fmap (Text.pack name, Ref ref, )
-                <$> getTypeOfTerm codebase ref
+        for (refsForName name) $ tripleForRef name
 
 fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
 fuzzyFindTypes branch query =
