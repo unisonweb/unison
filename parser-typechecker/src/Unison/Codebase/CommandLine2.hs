@@ -7,6 +7,7 @@
 
 module Unison.Codebase.CommandLine2 where
 
+-- import Debug.Trace
 import           Data.String                    ( fromString
                                                 , IsString
                                                 )
@@ -385,6 +386,9 @@ validInputs = validPatterns
     branches <- Codebase.branches codebase
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
+  definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
+    let names = Text.unpack <$> toList (Branch.allNames (Branch.head b))
+    pure $ autoComplete q names
   quit = InputPattern
     "quit"
     ["exit"]
@@ -439,7 +443,7 @@ validInputs = validPatterns
       , InputPattern
         "list"
         ["ls"]
-        []
+        [(False, definitionQueryArg)]
         (P.column2 [
           ("`list`", P.wrap $ "shows all definitions in the current branch."),
           ("`list foo`", P.wrap $ "shows all definitions with a name similar"
@@ -466,7 +470,23 @@ completion :: String -> Line.Completion
 completion s = Line.Completion s s True
 
 autoComplete :: String -> [String] -> [Line.Completion]
-autoComplete q ss = completion <$> Codebase.sortedApproximateMatches q ss
+autoComplete q ss = fixup $
+  completion <$> (id $ Codebase.sortedApproximateMatches q ss)
+  where
+  -- workaround for https://github.com/judah/haskeline/issues/100
+  -- if the common prefix of all the completions is smaller than
+  -- the query, we make all the replacements equal to the query,
+  -- which will preserve what the user has typed
+  fixup [] = []
+  fixup [c] = [c]
+  fixup cs@(h:t) = let
+    commonPrefix (h1:t1) (h2:t2) | h1 == h2 = h1 : commonPrefix t1 t2
+    commonPrefix _ _ = ""
+    overallCommonPrefix =
+      foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
+    in if length overallCommonPrefix < length q
+       then [ c { Line.replacement = q } | c <- cs ]
+       else cs
 
 parseInput :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of
