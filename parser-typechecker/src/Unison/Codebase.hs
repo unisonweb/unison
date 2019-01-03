@@ -114,7 +114,7 @@ fuzzyFindTerms
   => Codebase m v a
   -> Branch
   -> [String]
-  -> m [(Name, Referent, Type v a)]
+  -> m [(Name, Referent, Maybe (Type v a))]
 fuzzyFindTerms codebase branch query =
   let termNames =
         Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
@@ -129,7 +129,6 @@ fuzzyFindTerms codebase branch query =
             ]
           $ \ref ->
               fmap (Text.pack name, Ref ref, )
-                .   toList
                 <$> getTypeOfTerm codebase ref
 
 fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
