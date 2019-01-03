@@ -112,6 +112,10 @@ fromNames names = Branch0 terms pats types R.empty R.empty
   pats  = R.fromList . Map.toList $ Names.patternNames names
   types = R.fromList . Map.toList $ Names.typeNames names
 
+contains :: Branch0 -> Reference -> Bool
+contains b r = R.memberRan (Referent.Ref r) (termNamespace b)
+  || R.memberRan r (typeNamespace b)
+
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
   uncurry diff' $ join bimap (Causal.head . unbranch) (ours, theirs)
