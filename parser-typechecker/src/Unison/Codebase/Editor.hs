@@ -208,6 +208,16 @@ data Command i v a where
               -> [String]
               -> Command i v [(Name, Referent, Maybe (Type v Ann))]
 
+  -- Return a list of types whose names match the given queries.
+  SearchTypes :: Branch
+              -> [String]
+              -> Command i v [(Name, Reference)] -- todo: can add Kind later
+
+  -- Return a list of patterns whose names match the given queries.
+  SearchPatterns :: Branch
+                 -> [String]
+                 -> Command i v [(Name, Reference, Int)]
+
 addToBranch
   :: (Var v, Monad m)
   => Codebase m v Ann
@@ -321,4 +331,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     GetConflicts branch               -> pure $ Branch.conflicts' branch
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
-      Codebase.fuzzyFindTerms codebase branch queries
+      Codebase.fuzzyFindTermTypes codebase branch queries
+    SearchTypes _branch _queries      -> error "todo"
+    SearchPatterns _branch _queries   -> error "todo"

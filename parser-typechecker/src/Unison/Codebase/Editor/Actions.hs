@@ -77,10 +77,10 @@ loop s = Free.unfold' go s
               Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
               updateUnisonFile unisonFile
       Right input -> case input of
-        -- todo: search types and patterns too
         SearchByNameI qs ->
           Free.eval (SearchTerms currentBranch qs)
             >>= (respond . ListOfTerms currentBranch qs)
+            -- todo: search types and patterns too
         ShowDefinitionI _qs -> error "todo"
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"

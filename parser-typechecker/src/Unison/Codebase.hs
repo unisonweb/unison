@@ -46,7 +46,7 @@ import           Unison.Typechecker.TypeLookup  ( Decl
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText      ( AnnotatedText )
-import           Unison.Util.ColorText          ( Color )
+import           Unison.Util.ColorText          ( Color, ColorText )
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
 import qualified Unison.Var                    as Var
@@ -134,14 +134,14 @@ fuzzyFindTerms' branch query =
     matchingTerms
       >>= \name -> (Text.pack name, ) <$> refsForName name
 
-fuzzyFindTerms
+fuzzyFindTermTypes
   :: forall m v a
   .  (Var v, Monad m)
   => Codebase m v a
   -> Branch
   -> [String]
   -> m [(Name, Referent, Maybe (Type v a))]
-fuzzyFindTerms codebase branch query =
+fuzzyFindTermTypes codebase branch query =
   let found = fuzzyFindTerms' branch query
       tripleForRef name ref = (name, ref, ) <$> case ref of
         Referent.Ref r -> getTypeOfTerm codebase r
@@ -149,8 +149,8 @@ fuzzyFindTerms codebase branch query =
         Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 
-fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
-fuzzyFindTypes branch query =
+fuzzyFindTypes' :: Branch -> [String] -> [(Name, Reference)]
+fuzzyFindTypes' branch query =
   let typeNames =
         Text.unpack <$> toList (Branch.allTypeNames $ Branch.head branch)
       matchingTypes = if null query
@@ -159,6 +159,31 @@ fuzzyFindTypes branch query =
   in  matchingTypes >>= \name ->
         (Text.pack name, )
           <$> (Set.toList $ Branch.typesNamed (Text.pack name) branch)
+
+prettySources :: (Monad m, Var v)
+              => Codebase m v a
+              -> [(Name, Referent)] -- terms requested by name, including ctors
+              -> [(Name, Reference)] -- types requested by name
+              -> [(Name, Reference, Int)] -- patterns requested by name
+              -> m (Pretty ColorText)
+prettySources _codebase terms _types _pats =
+  let _termReferences :: [(Name, Reference)]
+      _termReferences = [ (name, r) | (name, Referent.Ref r) <- terms ]
+      reqTypes :: [(Name, Reference, Int)]
+      reqTypes = [ (name, r, cid) | (name, Referent.Req r cid) <- terms ]
+      conTypes :: [(Name, Reference, Int)]
+      conTypes = [ (name, r, cid) | (name, Referent.Con r cid) <- terms ]
+      _allCtorLike = conTypes <> reqTypes
+      _allTypes :: [Reference]
+      _allTypes = Set.toList . Set.fromList $
+        [ r | (_, r, _) <- _allCtorLike ]
+          <> [ r | (_, r) <- _types ]
+          <> [ r | (_, r, _) <- _pats ]
+  in error "todo"
+
+
+prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
+prettyTypeSource = error "todo"
 
 
 listReferencesMatching
