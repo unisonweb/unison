@@ -72,6 +72,17 @@ data Codebase m v a =
            , branchUpdates      :: m (m (), m (Set Name))
            }
 
+getTypeOfConstructor ::
+  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  maybeDecl <- getTypeDeclaration codebase r
+  pure $ case maybeDecl of
+    Nothing -> Nothing
+    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+getTypeOfConstructor _ r cid =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
+
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.
 typecheckingEnvironment
@@ -132,9 +143,10 @@ fuzzyFindTerms
   -> m [(Name, Referent, Maybe (Type v a))]
 fuzzyFindTerms codebase branch query =
   let found = fuzzyFindTerms' branch query
-      tripleForRef name ref@(Referent.Ref r) =
-        (name, ref, ) <$> getTypeOfTerm codebase r
-      tripleForRef _ _ = error "todo"
+      tripleForRef name ref = (name, ref, ) <$> case ref of
+        Referent.Ref r -> getTypeOfTerm codebase r
+        Referent.Req r cid -> getTypeOfConstructor codebase r cid
+        Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 
 fuzzyFindTypes :: Branch -> [String] -> [(Name, Reference)]
