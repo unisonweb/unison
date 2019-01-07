@@ -84,6 +84,7 @@ notifyUser dir o = do
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
+    DisplayDefinitions _ _ _ -> error ""
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
       putPrettyLn $ P.lines

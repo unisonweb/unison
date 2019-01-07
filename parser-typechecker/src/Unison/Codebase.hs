@@ -160,28 +160,6 @@ fuzzyFindTypes' branch query =
         (Text.pack name, )
           <$> (Set.toList $ Branch.typesNamed (Text.pack name) branch)
 
-prettySources :: (Monad m, Var v)
-              => Codebase m v a
-              -> [(Name, Referent)] -- terms requested by name, including ctors
-              -> [(Name, Reference)] -- types requested by name
-              -> [(Name, Reference, Int)] -- patterns requested by name
-              -> m (Pretty ColorText)
-prettySources _codebase terms _types _pats =
-  let _termReferences :: [(Name, Reference)]
-      _termReferences = [ (name, r) | (name, Referent.Ref r) <- terms ]
-      reqTypes :: [(Name, Reference, Int)]
-      reqTypes = [ (name, r, cid) | (name, Referent.Req r cid) <- terms ]
-      conTypes :: [(Name, Reference, Int)]
-      conTypes = [ (name, r, cid) | (name, Referent.Con r cid) <- terms ]
-      _allCtorLike = conTypes <> reqTypes
-      _allTypes :: [Reference]
-      _allTypes = Set.toList . Set.fromList $
-        [ r | (_, r, _) <- _allCtorLike ]
-          <> [ r | (_, r) <- _types ]
-          <> [ r | (_, r, _) <- _pats ]
-  in error "todo"
-
-
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
 prettyTypeSource = error "todo"
 

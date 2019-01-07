@@ -21,7 +21,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
--- import           Unison.DataDeclaration     (DataDeclaration', EffectDeclaration')
+import           Unison.DataDeclaration         (DataDeclaration')
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
                                                 , Names
@@ -35,7 +35,8 @@ import           Unison.Result                  ( Note
                                                 , Result
                                                 )
 import qualified Unison.Result                 as Result
-import           Unison.Referent (Referent)
+import           Unison.Referent                ( Referent )
+import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
@@ -89,14 +90,11 @@ data Input
   -- low-level manipulation of names
   | AddTermNameI Referent Name
   | AddTypeNameI Reference Name
-  | AddPatternNameI Reference Int Name
   | RemoveTermNameI Referent Name
   | RemoveTypeNameI Reference Name
-  | RemovePatternNameI Reference Int Name
   -- resolving naming conflicts
   | ChooseTermForNameI Referent Name
   | ChooseTypeForNameI Reference Name
-  | ChoosePatternForNameI Reference Int Name
   -- create and remove update directives
   | ListAllUpdatesI
     -- update a term or type, error if it would produce a conflict
@@ -138,6 +136,11 @@ data Output v
   | Evaluated Names ([(Text, Term v ())], Term v ())
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
+  | DisplayDefinitions Branch
+                       [(Name, Term v Ann)]
+                       [(DataDeclaration' v Ann,
+                         Maybe Name,
+                         [(Int, Name, ConstructorSort)])]
   deriving (Show)
 
 data Command i v a where
@@ -213,10 +216,9 @@ data Command i v a where
               -> [String]
               -> Command i v [(Name, Reference)] -- todo: can add Kind later
 
-  -- Return a list of patterns whose names match the given queries.
-  SearchPatterns :: Branch
-                 -> [String]
-                 -> Command i v [(Name, Reference, Int)]
+  LoadTerm :: Reference -> Command i v (Term v Ann)
+
+  LoadType :: Reference -> Command i v (DataDeclaration' v Ann)
 
 addToBranch
   :: (Var v, Monad m)
@@ -298,6 +300,24 @@ mergeBranch codebase branch branchName = ifM
   (Codebase.mergeBranch codebase branchName branch *> pure True)
   (pure False)
 
+data ConstructorSort = Data | Effect deriving (Eq, Ord, Show)
+
+collateReferences
+  :: [(Name, Referent)] -- terms requested, including ctors
+  -> [(Name, Reference)] -- types requested
+  -> ( [(Name, Reference)]
+     , [(Reference, Maybe Name, [(Int, Name, ConstructorSort)])]
+     )
+collateReferences terms types =
+  let terms' = [ (n, r) | (n, Referent.Ref r) <- terms ]
+      types' = (\(n, r) -> (r, Just n, go r)) <$> types
+      go r = foldr (f r) [] terms
+      f r' (n, r) ts = case r of
+        Referent.Con r i | r == r' -> (i, n, Data) : ts
+        Referent.Req r i | r == r' -> (i, n, Effect) : ts
+        _                          -> ts
+  in  (terms', types')
+
 commandLine
   :: forall i v a
    . Var v
@@ -332,5 +352,8 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
       Codebase.fuzzyFindTermTypes codebase branch queries
-    SearchTypes _branch _queries      -> error "todo"
-    SearchPatterns _branch _queries   -> error "todo"
+    SearchTypes branch queries ->
+      pure $ Codebase.fuzzyFindTypes' branch queries
+    LoadTerm _ -> error "todo"
+    LoadType _ -> error "todo"
+

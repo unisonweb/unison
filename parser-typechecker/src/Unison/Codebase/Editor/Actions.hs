@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -8,6 +9,7 @@ module Unison.Codebase.Editor.Actions where
 
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList )
+import           Data.Traversable               ( for )
 import qualified Data.Set as Set
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
@@ -17,6 +19,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Output(..)
                                                 , Event(..)
                                                 , AddOutput(..)
+                                                , collateReferences
                                                 )
 import           Unison.Names                   ( Name
                                                 , NameTarget
@@ -81,7 +84,15 @@ loop s = Free.unfold' go s
           Free.eval (SearchTerms currentBranch qs)
             >>= (respond . ListOfTerms currentBranch qs)
             -- todo: search types and patterns too
-        ShowDefinitionI _qs -> error "todo"
+        ShowDefinitionI qs -> do
+          terms <- Free.eval $ SearchTerms currentBranch qs
+          types <- Free.eval $ SearchTypes currentBranch qs
+          let terms'                         = [ (n, r) | (n, r, _) <- terms ]
+              (collatedTerms, collatedTypes) = collateReferences terms' types
+          loadedTerms <- for collatedTerms (traverse $ Free.eval . LoadTerm)
+          loadedTypes <- for collatedTypes
+            $ \(r, n, ctors) -> (, n, ctors) <$> Free.eval (LoadType r)
+          respond $ DisplayDefinitions currentBranch loadedTerms loadedTypes
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"
@@ -93,26 +104,18 @@ loop s = Free.unfold' go s
           addTermName currentBranchName respond success r name
         AddTypeNameI r name ->
           addTypeName currentBranchName respond success r name
-        AddPatternNameI r i name ->
-          addPatternName currentBranchName respond success r i name
         RemoveTermNameI r name ->
           updateBranch respond success currentBranchName
             $ Branch.deleteTermName r name
         RemoveTypeNameI r name ->
           updateBranch respond success currentBranchName
             $ Branch.deleteTypeName r name
-        RemovePatternNameI r i name ->
-          updateBranch respond success currentBranchName
-            $ Branch.deletePatternName r i name
         ChooseTermForNameI r name ->
           unnameAll currentBranchName respond Names.TermName name
             $ addTermName currentBranchName respond success r name
         ChooseTypeForNameI r name ->
           unnameAll currentBranchName respond Names.TypeName name
             $ addTypeName currentBranchName respond success r name
-        ChoosePatternForNameI r i name ->
-          unnameAll currentBranchName respond Names.PatternName name
-            $ addPatternName currentBranchName respond success r i name
         AliasUnconflictedI nameTarget existingName newName -> aliasUnconflicted
           currentBranchName
           respond
