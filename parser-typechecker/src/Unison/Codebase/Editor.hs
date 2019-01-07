@@ -8,6 +8,7 @@ module Unison.Codebase.Editor where
 import           Control.Monad                  ( forM_, when)
 import           Control.Monad.Extra            ( ifM )
 import           Data.Bifunctor                 ( second )
+import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
@@ -118,7 +119,7 @@ data Input
   | QuitI
   deriving (Show)
 
-data DisplayThing a = BuiltinThing | MissingThing | RegularThing a
+data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
 
 data Output v
@@ -140,9 +141,9 @@ data Output v
   | Evaluated Names ([(Text, Term v ())], Term v ())
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
-  | DisplayDefinitions Branch
-                       [(Name, DisplayThing (Term v Ann))]
-                       [(DisplayThing (Decl v Ann), Maybe Name, [(Int, Name)])]
+  | DisplayDefinitions PPE.PrettyPrintEnv
+                       [(Reference, DisplayThing (Term v Ann))]
+                       [(Reference, DisplayThing (Decl v Ann))]
   deriving (Show)
 
 data Command i v a where
@@ -302,19 +303,19 @@ mergeBranch codebase branch branchName = ifM
   (Codebase.mergeBranch codebase branchName branch *> pure True)
   (pure False)
 
+-- Returns terms and types, respectively. For terms that are
+-- constructors, turns them into their data types.
 collateReferences
-  :: [(Name, Referent)] -- terms requested, including ctors
-  -> [(Name, Reference)] -- types requested
-  -> ([(Name, Reference)], [(Reference, Maybe Name, [(Int, Name)])])
+  :: [Referent] -- terms requested, including ctors
+  -> [Reference] -- types requested
+  -> ([Reference], [Reference])
 collateReferences terms types =
-  let terms' = [ (n, r) | (n, Referent.Ref r) <- terms ]
-      types' = (\(n, r) -> (r, Just n, go r)) <$> types
-      go r = foldr (f r) [] terms
-      f r' (n, r) ts = case r of
-        Referent.Con r i | r == r' -> (i, n) : ts
-        Referent.Req r i | r == r' -> (i, n) : ts
-        _                          -> ts
-  in  (terms', types')
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = terms >>= \case
+        Referent.Con r _ -> [r]
+        Referent.Req r _ -> [r]
+        _                -> []
+  in  (terms', nubOrd $ types' <> types)
 
 commandLine
   :: forall i v a

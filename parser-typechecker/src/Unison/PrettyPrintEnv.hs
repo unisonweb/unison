@@ -53,6 +53,14 @@ instance Monoid PrettyPrintEnv where
       (\r i -> Map.unionWith (+) (patterns e1 r i) (patterns e2 r i))
       (\r -> Map.unionWith (+) (types e1 r) (types e2 r))
 
+-- Left-biased union of environments
+unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
+unionLeft e1 e2 = PrettyPrintEnv
+  (\r -> prefer (terms e1 r) (terms e2 r))
+  (\r i -> prefer (patterns e1 r i) (patterns e2 r i))
+  (\r -> prefer (types e1 r) (types e2 r))
+  where prefer h1 h2 = if sum (Map.elems h1) > 0 then h1 else h2
+
 adjust :: (Word -> Word) -> PrettyPrintEnv -> PrettyPrintEnv
 adjust by e = PrettyPrintEnv
   (\r -> by <$> terms e r)

@@ -1,80 +1,62 @@
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Unison.Codebase.CommandLine2 where
 
 -- import Debug.Trace
-import           Data.String                    ( fromString
-                                                , IsString
-                                                )
-import qualified Unison.Util.ColorText         as CT
-import           Control.Exception              ( finally )
-import           Control.Monad.Trans            ( lift )
-import           Data.Foldable                  ( traverse_
-                                                , toList
-                                                )
+import           Control.Concurrent             (forkIO, killThread)
+import qualified Control.Concurrent.Async       as Async
+import           Control.Concurrent.STM         (atomically)
+import           Control.Exception              (finally)
+import           Control.Monad                  (forever, when)
+import           Control.Monad.IO.Class         (MonadIO, liftIO)
+import           Control.Monad.Trans            (lift)
+import           Data.Foldable                  (toList, traverse_)
 import           Data.IORef
-import           Data.List                      ( isSuffixOf
-                                                , sort
-                                                , intercalate
-                                                )
-import           Data.Maybe                     ( listToMaybe
-                                                , fromMaybe
-                                                )
-import qualified Data.Map                      as Map
-import           Data.Map                       ( Map )
-import qualified Data.Text                     as Text
-import           Control.Concurrent             ( forkIO
-                                                , killThread
-                                                )
-import qualified Control.Concurrent.Async      as Async
-import           Control.Concurrent.STM         ( atomically )
-import           Control.Monad                  ( forever
-                                                , when
-                                                )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
-import           Unison.Codebase                ( Codebase )
-import qualified Unison.Codebase               as Codebase
-import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Branch         ( Branch )
-import           Unison.Codebase.Editor         ( Output(..)
-                                                , BranchName
-                                                , Event(..)
-                                                , Input(..)
-                                                )
-import qualified Unison.Codebase.Editor        as Editor
-import qualified Unison.Codebase.Editor.Actions
-                                               as Actions
-import           Unison.Codebase.Runtime        ( Runtime )
-import qualified Unison.Codebase.Runtime       as Runtime
-import qualified Unison.Codebase.Watch         as Watch
-import qualified Unison.Names                  as Names
-import           Unison.Parser                  ( Ann )
-import           Unison.PrintError              ( prettyParseError
-                                                , renderNoteAsANSI
-                                                , prettyTypecheckedFile
-                                                )
-import qualified Unison.Result                 as Result
-import qualified Unison.TypePrinter            as TypePrinter
-import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Pretty            as P
-import qualified Unison.Util.Relation          as R
-import           Unison.Util.TQueue             ( TQueue )
-import qualified Unison.Util.TQueue            as Q
-import           Unison.Util.Monoid             ( intercalateMap )
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified System.Console.Haskeline      as Line
-import           System.Directory               ( canonicalizePath )
-import qualified System.Console.Terminal.Size  as Terminal
-import qualified System.Console.ANSI           as Console
-import           System.Random                  ( randomRIO )
+import           Data.List                      (intercalate, isSuffixOf, sort)
+import           Data.Map                       (Map)
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe, listToMaybe)
+import           Data.String                    (IsString, fromString)
+import qualified Data.Text                      as Text
+import qualified System.Console.ANSI            as Console
+import qualified System.Console.Haskeline       as Line
+import qualified System.Console.Terminal.Size   as Terminal
+import           System.Directory               (canonicalizePath)
+import           System.Random                  (randomRIO)
+import           Unison.Codebase                (Codebase)
+import qualified Unison.Codebase                as Codebase
+import           Unison.Codebase.Branch         (Branch)
+import qualified Unison.Codebase.Branch         as Branch
+import           Unison.Codebase.Editor         (BranchName, DisplayThing (..),
+                                                 Event (..), Input (..),
+                                                 Output (..))
+import qualified Unison.Codebase.Editor         as Editor
+import qualified Unison.Codebase.Editor.Actions as Actions
+import           Unison.Codebase.Runtime        (Runtime)
+import qualified Unison.Codebase.Runtime        as Runtime
+import qualified Unison.Codebase.Watch          as Watch
+import qualified Unison.Names                   as Names
+import           Unison.Parser                  (Ann)
+import qualified Unison.PrettyPrintEnv          as PPE
+import           Unison.PrintError              (prettyParseError,
+                                                 prettyTypecheckedFile,
+                                                 renderNoteAsANSI)
+import qualified Unison.Result                  as Result
+import qualified Unison.TypePrinter             as TypePrinter
+import qualified Unison.UnisonFile              as UF
+import qualified Unison.Util.ColorText          as CT
+import           Unison.Util.Monoid             (intercalateMap)
+import qualified Unison.Util.Pretty             as P
+import qualified Unison.Util.Relation           as R
+import           Unison.Util.TQueue             (TQueue)
+import qualified Unison.Util.TQueue             as Q
+import           Unison.Var                     (Var)
+import qualified Unison.Var                     as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
@@ -84,7 +66,16 @@ notifyUser dir o = do
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
-    DisplayDefinitions _ _ _ -> error ""
+    DisplayDefinitions branch terms types ->
+      let ppe = PPE.fromTermNames [ (n, tm) | (n, RegularThing tm) <- terms]
+      in for terms $ \(n, dt) ->
+          case dt of
+            MissingThing r ->
+              P.wrap ("The name " <> n <> " is assigned to the "
+                      <> "reference " <> show r <> ", which is missing from the codebase.")
+                      <> P.newline <> tip "You might need to repair the codebase manually."
+            BuiltinThing -> P.wrap (n <> " is built-in.")
+            RegularThing tm -> undefined
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
       putPrettyLn $ P.lines
@@ -340,10 +331,10 @@ type IsOptional = Bool
 
 data InputPattern = InputPattern
   { patternName :: String
-  , aliases :: [String]
-  , args :: [(IsOptional, ArgumentType)]
-  , help :: P.Pretty CT.ColorText
-  , parse :: [String] -> Either (P.Pretty CT.ColorText) Input
+  , aliases     :: [String]
+  , args        :: [(IsOptional, ArgumentType)]
+  , help        :: P.Pretty CT.ColorText
+  , parse       :: [String] -> Either (P.Pretty CT.ColorText) Input
   }
 
 data ArgumentType = ArgumentType
@@ -488,7 +479,7 @@ autoComplete q ss = fixup $
   fixup [c] = [c]
   fixup cs@(h:t) = let
     commonPrefix (h1:t1) (h2:t2) | h1 == h2 = h1 : commonPrefix t1 t2
-    commonPrefix _ _ = ""
+    commonPrefix _ _             = ""
     overallCommonPrefix =
       foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
     in if length overallCommonPrefix < length q

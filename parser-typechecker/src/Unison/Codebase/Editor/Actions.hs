@@ -10,6 +10,7 @@ module Unison.Codebase.Editor.Actions where
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList )
 import           Data.Traversable               ( for )
+import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
@@ -27,6 +28,7 @@ import           Unison.Names                   ( Name
                                                 )
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
+import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                (Referent)
@@ -89,18 +91,24 @@ loop s = Free.unfold' go s
         ShowDefinitionI qs -> do
           terms <- Free.eval $ SearchTerms currentBranch qs
           types <- Free.eval $ SearchTypes currentBranch qs
-          let terms'                         = [ (n, r) | (n, r, _) <- terms ]
-              (collatedTerms, collatedTypes) = collateReferences terms' types
-          loadedTerms <- for collatedTerms . traverse $ \r -> case r of
+          let terms' = [ (n, r) | (n, r, _) <- terms ]
+              (collatedTerms, collatedTypes) =
+                collateReferences (snd <$> terms') (snd <$> types)
+          loadedTerms <- for collatedTerms $ \r -> case r of
             Reference.DerivedId i ->
-              maybe MissingThing RegularThing <$> (Free.eval $ LoadTerm i)
-            _ -> pure BuiltinThing
-          loadedTypes <- for collatedTypes $ \(r, n, ctors) -> case r of
+              (r, ) . maybe (MissingThing i) RegularThing <$> Free.eval
+                (LoadTerm i)
+            _ -> pure (r, BuiltinThing)
+          loadedTypes <- for collatedTypes $ \r -> case r of
             Reference.DerivedId i ->
-              (, n, ctors) . maybe MissingThing RegularThing <$> Free.eval
+              (r, ) . maybe (MissingThing i) RegularThing <$> Free.eval
                 (LoadType i)
-            _ -> pure (BuiltinThing, n, ctors)
-          respond $ DisplayDefinitions currentBranch loadedTerms loadedTypes
+            _ -> pure (r, BuiltinThing)
+          let ppe =
+                PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
+                  `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
+                  `PPE.unionLeft` Branch.prettyPrintEnv [currentBranch]
+          respond $ DisplayDefinitions ppe loadedTerms loadedTypes
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"
