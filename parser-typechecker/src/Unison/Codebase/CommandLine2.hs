@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -47,7 +48,9 @@ import           Unison.PrintError              (prettyParseError,
                                                  prettyTypecheckedFile,
                                                  renderNoteAsANSI)
 import qualified Unison.Result                  as Result
+import qualified Unison.Referent                as Referent
 import qualified Unison.TypePrinter             as TypePrinter
+import qualified Unison.TermPrinter             as TermPrinter
 import qualified Unison.UnisonFile              as UF
 import qualified Unison.Util.ColorText          as CT
 import           Unison.Util.Monoid             (intercalateMap)
@@ -66,16 +69,32 @@ notifyUser dir o = do
   let putPrettyLn = putStrLn . P.toANSI width
   case o of
     Success _    -> putStrLn "Done."
-    DisplayDefinitions branch terms types ->
-      let ppe = PPE.fromTermNames [ (n, tm) | (n, RegularThing tm) <- terms]
-      in for terms $ \(n, dt) ->
-          case dt of
-            MissingThing r ->
-              P.wrap ("The name " <> n <> " is assigned to the "
-                      <> "reference " <> show r <> ", which is missing from the codebase.")
-                      <> P.newline <> tip "You might need to repair the codebase manually."
-            BuiltinThing -> P.wrap (n <> " is built-in.")
-            RegularThing tm -> undefined
+    DisplayDefinitions ppe terms types -> let
+      prettyTerms = map go terms
+      go (r, dt) =
+        let n = PPE.termName ppe (Referent.Ref r) in
+        case dt of
+          MissingThing r -> missing n r
+          BuiltinThing -> builtin n
+          RegularThing tm -> P.map fromString $
+            TermPrinter.prettyBinding ppe (Var.named n) tm
+      prettyTypes = map go2 types
+      builtin n = P.wrap $ "--" <> P.text n <> " is built-in."
+      missing n r = P.wrap (
+        "-- The name " <> P.text n <> " is assigned to the "
+        <> "reference " <> fromString (show r ++ ",")
+        <> "which is missing from the codebase.")
+        <> P.newline
+        <> tip "You might need to repair the codebase manually."
+      go2 (r, dt) =
+        let n = PPE.typeName ppe r in
+        case dt of
+          MissingThing r -> missing n r
+          BuiltinThing -> builtin n
+          RegularThing decl -> case decl of
+            Left _ability -> P.bold "ability " <> P.text n <> " -- todo"
+            Right _d -> P.bold "type " <> P.text n <> " -- todo"
+      in putPrettyLn $ P.sep "\n\n" (prettyTerms <> prettyTypes)
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
       putPrettyLn $ P.lines
