@@ -19,6 +19,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Output(..)
                                                 , Event(..)
                                                 , AddOutput(..)
+                                                , DisplayThing(..)
                                                 , collateReferences
                                                 )
 import           Unison.Names                   ( Name
@@ -27,6 +28,7 @@ import           Unison.Names                   ( Name
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
 import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
 import           Unison.Referent                (Referent)
 import           Unison.Result                  (pattern Result)
 import qualified Unison.Result                 as Result
@@ -89,9 +91,15 @@ loop s = Free.unfold' go s
           types <- Free.eval $ SearchTypes currentBranch qs
           let terms'                         = [ (n, r) | (n, r, _) <- terms ]
               (collatedTerms, collatedTypes) = collateReferences terms' types
-          loadedTerms <- for collatedTerms (traverse $ Free.eval . LoadTerm)
-          loadedTypes <- for collatedTypes
-            $ \(r, n, ctors) -> (, n, ctors) <$> Free.eval (LoadType r)
+          loadedTerms <- for collatedTerms . traverse $ \r -> case r of
+            Reference.DerivedId i ->
+              maybe MissingThing RegularThing <$> (Free.eval $ LoadTerm i)
+            _ -> pure BuiltinThing
+          loadedTypes <- for collatedTypes $ \(r, n, ctors) -> case r of
+            Reference.DerivedId i ->
+              (, n, ctors) . maybe MissingThing RegularThing <$> Free.eval
+                (LoadType i)
+            _ -> pure (BuiltinThing, n, ctors)
           respond $ DisplayDefinitions currentBranch loadedTerms loadedTypes
         UpdateTermI _old _new          -> error "todo"
         UpdateTypeI _old _new          -> error "todo"

@@ -21,7 +21,6 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.DataDeclaration         (DataDeclaration')
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
                                                 , Names
@@ -31,6 +30,7 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference, pattern DerivedId )
+import qualified Unison.Reference              as Reference
 import           Unison.Result                  ( Note
                                                 , Result
                                                 )
@@ -42,6 +42,7 @@ import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker.Context    as Context
+import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
@@ -117,6 +118,9 @@ data Input
   | QuitI
   deriving (Show)
 
+data DisplayThing a = BuiltinThing | MissingThing | RegularThing a
+  deriving (Eq, Ord, Show)
+
 data Output v
   = Success Input
   | NoUnisonFile
@@ -137,10 +141,8 @@ data Output v
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions Branch
-                       [(Name, Term v Ann)]
-                       [(DataDeclaration' v Ann,
-                         Maybe Name,
-                         [(Int, Name, ConstructorSort)])]
+                       [(Name, DisplayThing (Term v Ann))]
+                       [(DisplayThing (Decl v Ann), Maybe Name, [(Int, Name)])]
   deriving (Show)
 
 data Command i v a where
@@ -216,9 +218,9 @@ data Command i v a where
               -> [String]
               -> Command i v [(Name, Reference)] -- todo: can add Kind later
 
-  LoadTerm :: Reference -> Command i v (Term v Ann)
+  LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
-  LoadType :: Reference -> Command i v (DataDeclaration' v Ann)
+  LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
 addToBranch
   :: (Var v, Monad m)
@@ -300,21 +302,17 @@ mergeBranch codebase branch branchName = ifM
   (Codebase.mergeBranch codebase branchName branch *> pure True)
   (pure False)
 
-data ConstructorSort = Data | Effect deriving (Eq, Ord, Show)
-
 collateReferences
   :: [(Name, Referent)] -- terms requested, including ctors
   -> [(Name, Reference)] -- types requested
-  -> ( [(Name, Reference)]
-     , [(Reference, Maybe Name, [(Int, Name, ConstructorSort)])]
-     )
+  -> ([(Name, Reference)], [(Reference, Maybe Name, [(Int, Name)])])
 collateReferences terms types =
   let terms' = [ (n, r) | (n, Referent.Ref r) <- terms ]
       types' = (\(n, r) -> (r, Just n, go r)) <$> types
       go r = foldr (f r) [] terms
       f r' (n, r) ts = case r of
-        Referent.Con r i | r == r' -> (i, n, Data) : ts
-        Referent.Req r i | r == r' -> (i, n, Effect) : ts
+        Referent.Con r i | r == r' -> (i, n) : ts
+        Referent.Req r i | r == r' -> (i, n) : ts
         _                          -> ts
   in  (terms', types')
 
@@ -354,6 +352,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       Codebase.fuzzyFindTermTypes codebase branch queries
     SearchTypes branch queries ->
       pure $ Codebase.fuzzyFindTypes' branch queries
-    LoadTerm _ -> error "todo"
-    LoadType _ -> error "todo"
+    LoadTerm r -> Codebase.getTerm codebase r
+    LoadType r -> Codebase.getTypeDeclaration codebase r
 
