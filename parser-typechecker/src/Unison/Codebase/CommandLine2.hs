@@ -24,6 +24,7 @@ import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
+import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
 import qualified System.Console.ANSI            as Console
 import qualified System.Console.Haskeline       as Line
@@ -120,13 +121,40 @@ notifyUser dir o = do
         $  "I don't know of a branch named "
         <> P.red (P.text branchName)
         <> "."
-    RenameOutput _oldName _newName _result ->
-      error $ "I tried to rename <oldName> to <newName> and here is the <result>."
-      -- do
-      -- when (not . null $ renamedSuccessfully result) $
-      --   (putPrettyLn . P.wrap)
-      --   ("I renamed the " <> P.oxfordCommas (fromText . Names.renderNameTarget <$> renamedSuccessfully result) <> " from " <> P.text oldName <> " to " <> P.text newName <> ".")
-
+-- data RenameResult = RenameResult
+--   { oldNameConflicted :: Set NameTarget
+--   , newNameAlreadyExists :: Set NameTarget
+--   , renamedSuccessfully :: Set NameTarget
+--   } deriving (Eq, Ord, Show)
+    RenameOutput oldName newName r -> do
+      when (not . Set.null $ Editor.renamedSuccessfully r) $
+        putPrettyLn . emojiNote "👍" . P.wrap
+          $ "I renamed the"
+          <> ns (Editor.renamedSuccessfully r)
+          <> P.blue (P.text oldName)
+          <> "to" <> P.green (P.text (newName <> "."))
+      when (not . Set.null $ Editor.oldNameConflicted r) $ do
+        putPrettyLn . warn . P.wrap
+          $ "I couldn't rename the"
+          <> ns (Editor.oldNameConflicted r)
+          <> P.blue (P.text oldName)
+          <> "to" <> P.green (P.text newName)
+          <> "because of conflicts."
+        putPrettyLn . tip $ "Use `todo` to view more information on conflicts and remaining work."
+      when (not . Set.null $ Editor.newNameAlreadyExists r) $ do
+        putPrettyLn . warn . P.wrap
+          $ "I couldn't rename" <> P.blue (P.text oldName)
+          <> "to" <> P.green (P.text newName)
+          <> "because the "
+          <> ns (Editor.newNameAlreadyExists r)
+          <> "already exist(s)."
+        putStrLn ""
+        putPrettyLn . tip
+          $ "Use" <> P.group ("`rename " <> P.text newName <> " <newname>`")
+          <> "to make" <> P.text newName <> "available."
+      where
+        ns targets = P.oxfordCommas $
+          map (fromString . Names.renderNameTarget) (toList targets)
     UnknownName branchName nameTarget name ->
       putPrettyLn
         .  warn
@@ -385,10 +413,13 @@ tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
 tip s = P.column2 [(P.bold "Tip:", P.wrap s)]
 
 warn :: IsString s => P.Pretty s -> P.Pretty s
-warn s = P.group "⚠️  " <> s
+warn s = emojiNote "⚠️" s
+
+emojiNote :: IsString s => String -> P.Pretty s -> P.Pretty s
+emojiNote lead s = P.group (fromString lead <> "  ") <> s
 
 nothingTodo :: IsString s => P.Pretty s -> P.Pretty s
-nothingTodo s = P.group "😶  " <> s
+nothingTodo s = emojiNote "😶" s
 
 type IsOptional = Bool
 

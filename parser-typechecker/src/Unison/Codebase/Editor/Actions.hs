@@ -259,9 +259,11 @@ renameUnconflicted branchName respond respondNewBranch
         Names.TypeName ->
           rename nameTarget Branch.typesNamed Branch.renameType branch
     -- the RenameOutput action and setting the loop state
-    in if (not . null . renamedSuccessfully) result
-       then respond $ RenameOutput oldName newName result
-       else respondNewBranch (RenameOutput oldName newName result) branch'
+    in
+      if (not . null . renamedSuccessfully) result then
+        let success = respondNewBranch (RenameOutput oldName newName result) branch'
+        in mergeBranch branchName respond success branch'
+      else respond $ RenameOutput oldName newName result
 
  where
   rename
