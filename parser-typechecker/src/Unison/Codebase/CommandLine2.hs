@@ -19,7 +19,7 @@ import           Control.Monad.Trans            (lift)
 import           Data.Foldable                  (toList, traverse_)
 import           Data.IORef
 import           Data.List                      (intercalate, isSuffixOf, sort)
-import           Data.List.Extra                (nubOrd)
+import           Data.List.Extra                (nubOrdOn)
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe, listToMaybe)
@@ -181,10 +181,10 @@ notifyUser dir o = do
               Referent.Ref (Reference.Builtin _) -> [(name,r)]
               _ -> []
             _ -> []
-          missingTypes = nubOrd $
-             [ (name, show r) | (name, _, MissingThing r) <- types ] <>
-             [ (name, show r) | (name, Referent.Con r _, Nothing) <- terms] <>
-             [ (name, show r) | (name, Referent.Req r _, Nothing) <- terms]
+          missingTypes = nubOrdOn snd $
+             [ (name, Reference.DerivedPrivate_ r) | (name, _, MissingThing r) <- types ] <>
+             [ (name, r) | (name, Referent.Con r _, Nothing) <- terms] <>
+             [ (name, r) | (name, Referent.Req r _, Nothing) <- terms]
           typeResults = map go types
           go (name, _, displayDecl) = case displayDecl of
             BuiltinThing -> P.wrap $
@@ -206,7 +206,7 @@ notifyUser dir o = do
         when (not $ null missingTypes) . putPrettyLn $
           warn "The search returned the following types which weren't found in the codebase:" <>
                 P.newline <>
-                P.column2 [ (P.text name, fromString ref)
+                P.column2 [ (P.text name, fromString (show ref))
                           | (name, ref) <- missingTypes ]
 
     AddOutput a -> case a of
