@@ -33,13 +33,13 @@ data Names = Names
   , typeNames    :: Map Name Reference
   }
 
-data NameTarget = TermName | TypeName | PatternName deriving (Show)
+data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
 
 renderNameTarget :: NameTarget -> String
 renderNameTarget = \case
   TermName -> "term"
   TypeName -> "type"
-  PatternName -> "pattern"
+  -- PatternName -> "pattern"
 
 instance Show Names where
   -- really barebones, just to see what names are present

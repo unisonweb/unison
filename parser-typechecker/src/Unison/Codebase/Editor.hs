@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 
 module Unison.Codebase.Editor where
 
@@ -87,7 +88,7 @@ data AddOutput v
 data Input
   -- high-level manipulation of names
   = AliasUnconflictedI NameTarget Name Name
-  | RenameUnconflictedI NameTarget Name Name
+  | RenameUnconflictedI Name Name
   | UnnameAllI NameTarget Name
   -- low-level manipulation of names
   | AddTermNameI Referent Name
@@ -126,10 +127,12 @@ data Output v
   = Success Input
   | NoUnisonFile
   | UnknownBranch BranchName
-  | UnknownName BranchName NameTarget Name
-  | NameAlreadyExists BranchName NameTarget Name
-  -- `name` refers to more than one `nameTarget`
-  | ConflictedName BranchName NameTarget Name
+  | RenameOutput Name Name RenameResult
+    -- todo: probably remove these eventually
+    | UnknownName BranchName NameTarget Name
+    | NameAlreadyExists BranchName NameTarget Name
+    -- `name` refers to more than one `nameTarget`
+    | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch
@@ -147,6 +150,19 @@ data Output v
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
   deriving (Show)
+
+data RenameResult = RenameResult
+  { oldNameConflicted :: Set NameTarget
+  , newNameAlreadyExists :: Set NameTarget
+  , renamedSuccessfully :: Set NameTarget
+  } deriving (Eq, Ord, Show)
+
+instance Semigroup RenameResult where
+  (<>) = mappend
+instance Monoid RenameResult where
+  mempty = RenameResult mempty mempty mempty
+  RenameResult a1 a2 a3 `mappend` RenameResult b1 b2 b3 =
+    RenameResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
 
 data Command i v a where
   Input :: Command i v i

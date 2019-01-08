@@ -8,10 +8,11 @@
 module Unison.Codebase.Editor.Actions where
 
 import           Control.Monad.Extra            ( ifM )
-import           Data.Foldable                  ( toList )
+import           Data.Foldable                  ( foldl', toList )
 import           Data.Traversable               ( for )
 import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
+import           Data.Set (Set)
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
@@ -21,6 +22,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Event(..)
                                                 , AddOutput(..)
                                                 , DisplayThing(..)
+                                                , RenameResult(RenameResult,renamedSuccessfully)
                                                 , collateReferences
                                                 )
 import           Unison.Names                   ( Name
@@ -146,13 +148,13 @@ loop s = Free.unfold' go s
           existingName
           newName
           success
-        RenameUnconflictedI nameTarget oldName newName -> renameUnconflicted
+        RenameUnconflictedI oldName newName -> renameUnconflicted
           currentBranchName
           respond
-          nameTarget
+          respondNewBranch
+          (Set.fromList [Names.TermName, Names.TypeName])
           oldName
           newName
-          success
         UnnameAllI nameTarget name ->
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
@@ -183,6 +185,11 @@ loop s = Free.unfold' go s
    where
     respond :: Output v -> Action i v
     respond output = Free.eval (Notify output) >> pure (Right s)
+    respondNewBranch :: Output v -> Branch -> Action i v
+    respondNewBranch output newBranch =
+      respond output
+        >> pure (Right (LoopState newBranch currentBranchName uf))
+
     switchBranch branchName = do
       branch <- Free.eval $ LoadBranch branchName
       case branch of
@@ -203,7 +210,10 @@ loop s = Free.unfold' go s
       pure . Right . LoopState currentBranch currentBranchName . Just
     quit = pure $ Left ()
 
-withBranch :: BranchName -> (Output v -> Action i v) -> (Branch -> Action i v) -> Action i v
+withBranch :: BranchName
+           -> (Output v -> Action i v)
+           -> (Branch -> Action i v)
+           -> Action i v
 withBranch branchName respond f = do
   branch <- Free.eval $ LoadBranch branchName
   case branch of
@@ -215,7 +225,7 @@ aliasUnconflicted branchName respond nameTarget existingName newName success =
   withBranch branchName respond $ case nameTarget of
     Names.TermName -> alias Branch.termsNamed Branch.addTermName
     Names.TypeName -> alias Branch.typesNamed Branch.addTypeName
-    Names.PatternName -> alias Branch.patternsNamed (uncurry Branch.addPatternName)
+    -- Names.PatternName -> alias Branch.patternsNamed (uncurry Branch.addPatternName)
   where
     alias :: Foldable f
           => (Name -> Branch -> f a)
@@ -234,30 +244,54 @@ renameUnconflicted
   :: forall i v
    . BranchName
   -> (Output v -> Action i v)
-  -> NameTarget
+  -> (Output v -> Branch -> Action i v)
+  -> Set NameTarget
   -> Name
   -> Name
   -> Action i v
-  -> Action i v
-renameUnconflicted branchName respond nameTarget oldName newName success =
-  withBranch branchName respond $ case nameTarget of
-    Names.TermName    -> rename Branch.termsNamed Branch.renameTerm
-    Names.TypeName    -> rename Branch.typesNamed Branch.renameType
-    Names.PatternName -> rename Branch.patternsNamed Branch.renamePattern
+renameUnconflicted branchName respond respondNewBranch
+                   nameTargets oldName newName =
+  withBranch branchName respond $ \branch -> let
+    (branch', result) = foldl' go (branch, mempty) nameTargets where
+      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+        Names.TermName ->
+          rename nameTarget Branch.termsNamed Branch.renameTerm branch
+        Names.TypeName ->
+          rename nameTarget Branch.typesNamed Branch.renameType branch
+    -- the RenameOutput action and setting the loop state
+    in if (not . null . renamedSuccessfully) result
+       then respond $ RenameOutput oldName newName result
+       else respondNewBranch (RenameOutput oldName newName result) branch'
+
  where
   rename
     :: Foldable f
-    => (Name -> Branch -> f a)
+    => NameTarget
+    -> (Name -> Branch -> f a)
     -> (Name -> Name -> Branch -> Branch)
     -> Branch
-    -> Action i v
-  rename named rename' branch = if (not . null) (named newName branch)
-    then respond (NameAlreadyExists branchName nameTarget newName)
-    else case toList (named oldName branch) of
-      [_] -> mergeBranch branchName respond success
-        $ rename' oldName newName branch
-      [] -> respond (UnknownName branchName nameTarget oldName)
-      _  -> respond (ConflictedName branchName nameTarget oldName)
+    -> (Branch, RenameResult)
+  rename nameTarget named rename' branch =
+    let
+      oldNameMatchCount = length . named oldName $ branch
+      newNameExists = (not . null) (named newName branch)
+    in if (oldNameMatchCount == 1 && not newNameExists)
+       then
+        (rename' oldName newName branch,
+          RenameResult mempty mempty (Set.singleton nameTarget))
+       else
+        (branch, RenameResult
+          (if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty)
+          (if newNameExists then Set.singleton nameTarget else mempty)
+          mempty)
+    --
+    -- then RenameResult mempty
+    -- respond (NameAlreadyExists branchName nameTarget newName)
+    -- else case toList (named oldName branch) of
+    --   [_] -> mergeBranch branchName respond success
+    --     $ rename' oldName newName branch
+    --   [] -> respond (UnknownName branchName nameTarget oldName)
+    --   _  -> respond (ConflictedName branchName nameTarget oldName)
 
 unnameAll :: forall i v
           . BranchName
@@ -270,7 +304,7 @@ unnameAll branchName respond nameTarget name success =
   updateBranch respond success branchName $ case nameTarget of
     Names.TermName -> Branch.deleteTermsNamed name
     Names.TypeName -> Branch.deleteTypesNamed name
-    Names.PatternName -> Branch.deletePatternsNamed name
+    -- Names.PatternName -> Branch.deletePatternsNamed name
 
 addTermName
   :: BranchName

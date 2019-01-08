@@ -120,6 +120,13 @@ notifyUser dir o = do
         $  "I don't know of a branch named "
         <> P.red (P.text branchName)
         <> "."
+    RenameOutput _oldName _newName _result ->
+      error $ "I tried to rename <oldName> to <newName> and here is the <result>."
+      -- do
+      -- when (not . null $ renamedSuccessfully result) $
+      --   (putPrettyLn . P.wrap)
+      --   ("I renamed the " <> P.oxfordCommas (fromText . Names.renderNameTarget <$> renamedSuccessfully result) <> " from " <> P.text oldName <> " to " <> P.text newName <> ".")
+
     UnknownName branchName nameTarget name ->
       putPrettyLn
         .  warn
@@ -437,6 +444,7 @@ validInputs = validPatterns
   definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
     let names = Text.unpack <$> toList (Branch.allNames (Branch.head b))
     pure $ autoComplete q names
+  noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
   quit = InputPattern
     "quit"
     ["exit"]
@@ -517,6 +525,18 @@ validInputs = validPatterns
         [(False, definitionQueryArg)]
         (P.wrap "`view foo` prints the definition of `foo`.")
         (pure . ShowDefinitionI)
+      , InputPattern
+        "rename"
+        ["mv"]
+        [(False, definitionQueryArg), (False, noCompletions)]
+        (P.wrap "`rename foo bar` renames `foo` to `bar`.")
+        (\case
+          [oldName, newName] ->
+            Right $ RenameUnconflictedI (Text.pack oldName)
+                                       (Text.pack newName)
+          _ -> Left . warn $ P.wrap
+            "`rename` takes two arguments, like `rename oldname newname`."
+        )
       , quit
       ]
 
