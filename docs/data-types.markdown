@@ -19,6 +19,16 @@ Nominal types are to be used for things like "days of the week". Structural type
 
 That's it for now.
 
-## Other ideas
+## Other ideas and notes
+
+Possibly for later:
+
+* _opaque/whatever_ - a newtype with some privileged functions that can treat it as a type alias instead of newtype
+* _algebraic_ - defined by a set of laws (Monoid, Semilattice, etc) Question around how those laws are encoded
+
+Other notes:
+
+* Want a nice story for refactoring: e.g. if I have a conversion from T1 to T2, that can be applied automatically everywhere T1 is in positive position. T2 -> T1 will cover where T1 is in negative position; isomorphism will cover both.
+* Want a nice story for discovery of existing types to limit fragmentation.
 
 TODO: link to past discussions w/ @atacratic.
