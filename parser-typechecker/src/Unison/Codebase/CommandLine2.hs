@@ -121,40 +121,10 @@ notifyUser dir o = do
         $  "I don't know of a branch named "
         <> P.red (P.text branchName)
         <> "."
--- data RenameResult = RenameResult
---   { oldNameConflicted :: Set NameTarget
---   , newNameAlreadyExists :: Set NameTarget
---   , renamedSuccessfully :: Set NameTarget
---   } deriving (Eq, Ord, Show)
     RenameOutput oldName newName r -> do
-      when (not . Set.null $ Editor.renamedSuccessfully r) $
-        putPrettyLn . emojiNote "👍" . P.wrap
-          $ "I renamed the"
-          <> ns (Editor.renamedSuccessfully r)
-          <> P.blue (P.text oldName)
-          <> "to" <> P.green (P.text (newName <> "."))
-      when (not . Set.null $ Editor.oldNameConflicted r) $ do
-        putPrettyLn . warn . P.wrap
-          $ "I couldn't rename the"
-          <> ns (Editor.oldNameConflicted r)
-          <> P.blue (P.text oldName)
-          <> "to" <> P.green (P.text newName)
-          <> "because of conflicts."
-        putPrettyLn . tip $ "Use `todo` to view more information on conflicts and remaining work."
-      when (not . Set.null $ Editor.newNameAlreadyExists r) $ do
-        putPrettyLn . warn . P.wrap
-          $ "I couldn't rename" <> P.blue (P.text oldName)
-          <> "to" <> P.green (P.text newName)
-          <> "because the "
-          <> ns (Editor.newNameAlreadyExists r)
-          <> "already exist(s)."
-        putStrLn ""
-        putPrettyLn . tip
-          $ "Use" <> P.group ("`rename " <> P.text newName <> " <newname>`")
-          <> "to make" <> P.text newName <> "available."
-      where
-        ns targets = P.oxfordCommas $
-          map (fromString . Names.renderNameTarget) (toList targets)
+      nameChange "rename" "renamed" oldName newName r
+    AliasOutput existingName newName r -> do
+      nameChange "alias" "aliased" existingName newName r
     UnknownName branchName nameTarget name ->
       putPrettyLn
         .  warn
@@ -375,6 +345,36 @@ notifyUser dir o = do
  where
   renderFileName = P.group . P.blue . fromString
   fromVar        = P.text . Var.name
+  nameChange cmd pastTenseCmd oldName newName r = do
+    when (not . Set.null $ Editor.changedSuccessfully r) $
+      putPrettyLn . emojiNote "👍" . P.wrap
+        $ "I" <> pastTenseCmd <> "the"
+        <> ns (Editor.changedSuccessfully r)
+        <> P.blue (P.text oldName)
+        <> "to" <> P.green (P.text (newName <> "."))
+    when (not . Set.null $ Editor.oldNameConflicted r) $ do
+      putPrettyLn . warn . P.wrap
+        $ "I couldn't" <> cmd <> "the"
+        <> ns (Editor.oldNameConflicted r)
+        <> P.blue (P.text oldName)
+        <> "to" <> P.green (P.text newName)
+        <> "because of conflicts."
+      putPrettyLn . tip $ "Use `todo` to view more information on conflicts and remaining work."
+    when (not . Set.null $ Editor.newNameAlreadyExists r) $ do
+      putPrettyLn . warn . P.wrap
+        $ "I couldn't" <> cmd <> P.blue (P.text oldName)
+        <> "to" <> P.green (P.text newName)
+        <> "because the "
+        <> ns (Editor.newNameAlreadyExists r)
+        <> "already exist(s)."
+      putStrLn ""
+      putPrettyLn . tip
+        $ "Use" <> P.group ("`rename " <> P.text newName <> " <newname>`")
+        <> "to make" <> P.text newName <> "available."
+    where
+      ns targets = P.oxfordCommas $
+        map (fromString . Names.renderNameTarget) (toList targets)
+
 
 
 allow :: FilePath -> Bool
@@ -563,13 +563,30 @@ validInputs = validPatterns
         (P.wrap "`rename foo bar` renames `foo` to `bar`.")
         (\case
           [oldName, newName] ->
-            Right $ RenameUnconflictedI (Text.pack oldName)
-                                       (Text.pack newName)
+            Right $ RenameUnconflictedI
+              allTargets
+              (Text.pack oldName)
+              (Text.pack newName)
           _ -> Left . warn $ P.wrap
             "`rename` takes two arguments, like `rename oldname newname`."
         )
+      , InputPattern
+        "alias"
+        ["cp"]
+        [(False, definitionQueryArg), (False, noCompletions)]
+        (P.wrap "`alias foo bar` introduces `bar` with the same definition as `foo`.")
+        (\case
+          [oldName, newName] ->
+            Right $ AliasUnconflictedI
+              allTargets
+              (Text.pack oldName)
+              (Text.pack newName)
+          _ -> Left . warn $ P.wrap
+            "`alias` takes two arguments, like `alias oldname newname`."
+        )
       , quit
       ]
+  allTargets = Set.fromList [Names.TermName, Names.TypeName]
 
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True

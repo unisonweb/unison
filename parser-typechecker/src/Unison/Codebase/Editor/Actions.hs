@@ -22,7 +22,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Event(..)
                                                 , AddOutput(..)
                                                 , DisplayThing(..)
-                                                , RenameResult(RenameResult,renamedSuccessfully)
+                                                , NameChangeResult(NameChangeResult,changedSuccessfully)
                                                 , collateReferences
                                                 )
 import           Unison.Names                   ( Name
@@ -141,20 +141,22 @@ loop s = Free.unfold' go s
         ChooseTypeForNameI r name ->
           unnameAll currentBranchName respond Names.TypeName name
             $ addTypeName currentBranchName respond success r name
-        AliasUnconflictedI nameTarget existingName newName -> aliasUnconflicted
-          currentBranchName
-          respond
-          nameTarget
-          existingName
-          newName
-          success
-        RenameUnconflictedI oldName newName -> renameUnconflicted
-          currentBranchName
-          respond
-          respondNewBranch
-          (Set.fromList [Names.TermName, Names.TypeName])
-          oldName
-          newName
+        AliasUnconflictedI targets existingName newName ->
+          aliasUnconflicted
+            currentBranchName
+            respond
+            respondNewBranch
+            targets
+            existingName
+            newName
+        RenameUnconflictedI targets oldName newName ->
+          renameUnconflicted
+            currentBranchName
+            respond
+            respondNewBranch
+            targets
+            oldName
+            newName
         UnnameAllI nameTarget name ->
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
@@ -220,25 +222,53 @@ withBranch branchName respond f = do
     Nothing     -> respond $ UnknownBranch branchName
     Just branch -> f branch
 
-aliasUnconflicted :: forall i v. BranchName -> (Output v -> Action i v) -> NameTarget -> Name -> Name -> Action i v -> Action i v
-aliasUnconflicted branchName respond nameTarget existingName newName success =
-  withBranch branchName respond $ case nameTarget of
-    Names.TermName -> alias Branch.termsNamed Branch.addTermName
-    Names.TypeName -> alias Branch.typesNamed Branch.addTypeName
-    -- Names.PatternName -> alias Branch.patternsNamed (uncurry Branch.addPatternName)
-  where
-    alias :: Foldable f
-          => (Name -> Branch -> f a)
-          -> (a -> Name -> Branch -> Branch)
-          -> Branch
-          -> Action i v
-    alias named alias' branch =
-      if (not . null) (named newName branch)
-      then respond (NameAlreadyExists branchName nameTarget newName)
-      else case toList (named existingName branch) of
-        [t] -> mergeBranch branchName respond success $ alias' t newName branch
-        [] -> respond (UnknownName branchName nameTarget existingName)
-        _ -> respond (ConflictedName branchName nameTarget existingName)
+aliasUnconflicted
+  :: forall i v
+   . BranchName
+  -> (Output v -> Action i v)
+  -> (Output v -> Branch -> Action i v)
+  -> Set NameTarget
+  -> Name
+  -> Name
+  -> Action i v
+aliasUnconflicted branchName respond respondNewBranch
+                   nameTargets oldName newName =
+  withBranch branchName respond $ \branch -> let
+    (branch', result) = foldl' go (branch, mempty) nameTargets where
+      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+        Names.TermName ->
+          alias nameTarget Branch.termsNamed Branch.addTermName branch
+        Names.TypeName ->
+          alias nameTarget Branch.typesNamed Branch.addTypeName branch
+    -- the RenameOutput action and setting the loop state
+    in
+      if (not . null . changedSuccessfully) result then
+        let success = respondNewBranch (AliasOutput oldName newName result) branch'
+        in mergeBranch branchName respond success branch'
+      else respond $ AliasOutput oldName newName result
+
+ where
+  alias
+    :: Foldable f
+    => NameTarget
+    -> (Name -> Branch -> f a)
+    -> (a -> Name -> Branch -> Branch)
+    -> Branch
+    -> (Branch, NameChangeResult)
+  alias nameTarget named alias' branch =
+    let
+      oldMatches = toList . named oldName $ branch
+      oldNameMatchCount = length oldMatches
+      newNameExists = (not . null) (named newName branch)
+    in case oldMatches of
+         [oldMatch] | not newNameExists ->
+            (alias' oldMatch newName branch,
+          NameChangeResult mempty mempty (Set.singleton nameTarget))
+         _ -> (branch, NameChangeResult a b mempty) where
+           a = if oldNameMatchCount > 1 then Set.singleton nameTarget
+               else mempty
+           b = if newNameExists then Set.singleton nameTarget
+               else mempty
 
 renameUnconflicted
   :: forall i v
@@ -260,7 +290,7 @@ renameUnconflicted branchName respond respondNewBranch
           rename nameTarget Branch.typesNamed Branch.renameType branch
     -- the RenameOutput action and setting the loop state
     in
-      if (not . null . renamedSuccessfully) result then
+      if (not . null . changedSuccessfully) result then
         let success = respondNewBranch (RenameOutput oldName newName result) branch'
         in mergeBranch branchName respond success branch'
       else respond $ RenameOutput oldName newName result
@@ -272,7 +302,7 @@ renameUnconflicted branchName respond respondNewBranch
     -> (Name -> Branch -> f a)
     -> (Name -> Name -> Branch -> Branch)
     -> Branch
-    -> (Branch, RenameResult)
+    -> (Branch, NameChangeResult)
   rename nameTarget named rename' branch =
     let
       oldNameMatchCount = length . named oldName $ branch
@@ -280,20 +310,12 @@ renameUnconflicted branchName respond respondNewBranch
     in if (oldNameMatchCount == 1 && not newNameExists)
        then
         (rename' oldName newName branch,
-          RenameResult mempty mempty (Set.singleton nameTarget))
+          NameChangeResult mempty mempty (Set.singleton nameTarget))
        else
-        (branch, RenameResult
+        (branch, NameChangeResult
           (if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty)
           (if newNameExists then Set.singleton nameTarget else mempty)
           mempty)
-    --
-    -- then RenameResult mempty
-    -- respond (NameAlreadyExists branchName nameTarget newName)
-    -- else case toList (named oldName branch) of
-    --   [_] -> mergeBranch branchName respond success
-    --     $ rename' oldName newName branch
-    --   [] -> respond (UnknownName branchName nameTarget oldName)
-    --   _  -> respond (ConflictedName branchName nameTarget oldName)
 
 unnameAll :: forall i v
           . BranchName

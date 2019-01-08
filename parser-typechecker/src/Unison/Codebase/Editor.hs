@@ -87,8 +87,8 @@ data AddOutput v
 
 data Input
   -- high-level manipulation of names
-  = AliasUnconflictedI NameTarget Name Name
-  | RenameUnconflictedI Name Name
+  = AliasUnconflictedI (Set NameTarget) Name Name
+  | RenameUnconflictedI (Set NameTarget) Name Name
   | UnnameAllI NameTarget Name
   -- low-level manipulation of names
   | AddTermNameI Referent Name
@@ -127,7 +127,8 @@ data Output v
   = Success Input
   | NoUnisonFile
   | UnknownBranch BranchName
-  | RenameOutput Name Name RenameResult
+  | RenameOutput Name Name NameChangeResult
+  | AliasOutput Name Name NameChangeResult
     -- todo: probably remove these eventually
     | UnknownName BranchName NameTarget Name
     | NameAlreadyExists BranchName NameTarget Name
@@ -151,18 +152,17 @@ data Output v
                        [(Reference, DisplayThing (Decl v Ann))]
   deriving (Show)
 
-data RenameResult = RenameResult
+data NameChangeResult = NameChangeResult
   { oldNameConflicted :: Set NameTarget
   , newNameAlreadyExists :: Set NameTarget
-  , renamedSuccessfully :: Set NameTarget
+  , changedSuccessfully :: Set NameTarget
   } deriving (Eq, Ord, Show)
 
-instance Semigroup RenameResult where
-  (<>) = mappend
-instance Monoid RenameResult where
-  mempty = RenameResult mempty mempty mempty
-  RenameResult a1 a2 a3 `mappend` RenameResult b1 b2 b3 =
-    RenameResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
+instance Semigroup NameChangeResult where (<>) = mappend
+instance Monoid NameChangeResult where
+  mempty = NameChangeResult mempty mempty mempty
+  NameChangeResult a1 a2 a3 `mappend` NameChangeResult b1 b2 b3 =
+    NameChangeResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
 
 data Command i v a where
   Input :: Command i v i
