@@ -113,13 +113,10 @@ pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(Name, Maybe (AnnotatedType v a))]
+  -> [(Name, AnnotatedType v a)]
   -> Pretty String
 prettySignatures env ts = PP.column2
   [ (PP.text name, ":" <> prettyType typ)
   | (name, typ) <- ts
   ]
-  where prettyType = \case
-          -- todo: Switch to Pretty ColorText and make this red.
-          Nothing -> PP.hang "" "💥 I couldn't load this type."
-          Just typ -> PP.hang "" (pretty env (-1) typ)
+  where prettyType typ = PP.hang "" (pretty env (-1) typ)

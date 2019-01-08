@@ -104,9 +104,10 @@ listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
 listReferences code branch refs = do
   let ppe = Branch.prettyPrintEnv1 branch
-  terms <- forM refs $ \r -> do
+  terms0 <- forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
     pure $ (PPE.termName ppe (Referent.Ref r), otyp)
+  let terms = [ (name, t) | (name, Just t) <- terms0 ] 
   let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
       typeRefs  = filter (`Set.member` typeRefs0) refs
   _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of

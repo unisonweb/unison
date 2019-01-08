@@ -84,10 +84,17 @@ loop s = Free.unfold' go s
               Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
               updateUnisonFile unisonFile
       Right input -> case input of
-        SearchByNameI qs ->
-          Free.eval (SearchTerms currentBranch qs)
-            >>= (respond . ListOfTerms currentBranch qs)
-            -- todo: search types and patterns too
+        SearchByNameI qs -> do
+          terms <- Free.eval $ SearchTerms currentBranch qs
+          types <- Free.eval $ SearchTypes currentBranch qs
+          types' <- let
+            go (name, ref) = case ref of
+              Reference.DerivedId id ->
+                (name, ref, ) . maybe (MissingThing id) RegularThing
+                <$> Free.eval (LoadType id)
+              _ -> pure (name, ref, BuiltinThing)
+            in traverse go types
+          respond $ ListOfDefinitions currentBranch terms types'
         ShowDefinitionI qs -> do
           terms <- Free.eval $ SearchTerms currentBranch qs
           types <- Free.eval $ SearchTypes currentBranch qs

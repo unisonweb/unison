@@ -19,6 +19,7 @@ import           Control.Monad.Trans            (lift)
 import           Data.Foldable                  (toList, traverse_)
 import           Data.IORef
 import           Data.List                      (intercalate, isSuffixOf, sort)
+import           Data.List.Extra                (nubOrd)
 import           Data.Map                       (Map)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe, listToMaybe)
@@ -49,6 +50,7 @@ import           Unison.PrintError              (prettyParseError,
                                                  renderNoteAsANSI)
 import qualified Unison.Result                  as Result
 import qualified Unison.Referent                as Referent
+import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
 import qualified Unison.TermPrinter             as TermPrinter
 import qualified Unison.UnisonFile              as UF
@@ -168,10 +170,45 @@ notifyUser dir o = do
               then P.bold ("* " <> P.text n)
               else "  " <> P.text n
           in  intercalateMap "\n" go (sort branches)
-    ListOfTerms branch _ terms ->
+    ListOfDefinitions branch terms types ->
       let ppe  = Branch.prettyPrintEnv1 branch
-          sigs = (\(name, _, typ) -> (name, typ)) <$> terms
-      in  putPrettyLn $ fromString <$> TypePrinter.prettySignatures ppe sigs
+          sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
+          sigs = [(name,t) | (name, Just t) <- sigs0 ]
+          termsWithMissingTypes =
+             [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
+          impossible = terms >>= \case
+            (name, r, Nothing) -> case r of
+              Referent.Ref (Reference.Builtin _) -> [(name,r)]
+              _ -> []
+            _ -> []
+          missingTypes = nubOrd $
+             [ (name, show r) | (name, _, MissingThing r) <- types ] <>
+             [ (name, show r) | (name, Referent.Con r _, Nothing) <- terms] <>
+             [ (name, show r) | (name, Referent.Req r _, Nothing) <- terms]
+          typeResults = map go types
+          go (name, _, displayDecl) = case displayDecl of
+            BuiltinThing -> P.wrap $
+              P.bold "type" <> P.text name <> "(built-in)"
+            MissingThing _ -> mempty -- these are collected above
+            RegularThing decl -> case decl of
+              Left _ability -> P.bold "ability " <> P.text name
+              Right _d -> P.bold "type " <> P.text name
+      in do
+        putPrettyLn $ P.lines typeResults
+        putPrettyLn $
+          fromString <$> TypePrinter.prettySignatures ppe sigs
+        when (not $ null impossible) . error $ "Compiler bug, these referents are missing types: " <> show impossible
+        when (not $ null termsWithMissingTypes) . putPrettyLn $
+          warn "The search returned the following terms for which the type signature is corrupted or missing:" <>
+                P.newline <>
+                P.column2 [ (P.text name, fromString (show ref))
+                          | (name, ref) <- termsWithMissingTypes ]
+        when (not $ null missingTypes) . putPrettyLn $
+          warn "The search returned the following types which weren't found in the codebase:" <>
+                P.newline <>
+                P.column2 [ (P.text name, fromString ref)
+                          | (name, ref) <- missingTypes ]
+
     AddOutput a -> case a of
       Editor.NothingToAdd -> notifyUser dir (NoUnisonFile @v)
       Editor.Added _ofile _branch adds dupes colls refcolls

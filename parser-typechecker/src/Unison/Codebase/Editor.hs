@@ -132,7 +132,9 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfTerms Branch [String] [(Name, Referent, Maybe (Type v Ann))]
+  | ListOfDefinitions Branch
+      [(Name, Referent, Maybe (Type v Ann))]
+      [(Name, Reference, DisplayThing (Decl v Ann))]
   | AddOutput (AddOutput v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -355,4 +357,3 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       pure $ Codebase.fuzzyFindTypes' branch queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
-
