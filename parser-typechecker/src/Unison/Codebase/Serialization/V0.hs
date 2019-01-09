@@ -33,6 +33,7 @@ import           Data.Word                      ( Word64 )
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
+import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Causal         ( Causal )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -485,20 +486,28 @@ getTypeEdit = getWord8 >>= \case
   t -> unknownTag "TypeEdit" t
 
 putBranch :: MonadPut m => Branch -> m ()
-putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
-  putRelation termNamespace putText putReferent
-  putRelation patternNamespace putText (putPair' putReference putLength)
-  putRelation typeNamespace putText putReference
-  putRelation editedTerms putReference putTermEdit
-  putRelation editedTypes putReference putTypeEdit
+putBranch (Branch b) = putCausal b $ \b -> do
+  putRelation (Branch.termNamespace b) putText putReferent
+  putRelation (Branch.typeNamespace b) putText putReference
+  putRelation (Branch.oldTermNamespace b) putText putReferent
+  putRelation (Branch.oldTypeNamespace b) putText putReference
+  putRelation (Branch.editedTerms b) putReference putTermEdit
+  putRelation (Branch.editedTypes b) putReference putTypeEdit
+
+getNamespace :: MonadGet m => m Branch.Namespace
+getNamespace =
+  Branch.Namespace
+    <$> getRelation getText getReferent
+    <*> getRelation getText getReference
 
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal
-  (Branch0 <$> getRelation getText getReferent
-           <*> getRelation getText (getPair getReference getLength)
-           <*> getRelation getText getReference
-           <*> getRelation getReference getTermEdit
-           <*> getRelation getReference getTypeEdit)
+  (   Branch0
+  <$> getNamespace
+  <*> getNamespace
+  <*> getRelation getReference getTermEdit
+  <*> getRelation getReference getTypeEdit
+  )
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

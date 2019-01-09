@@ -35,38 +35,50 @@ ops =
 
 branch1 :: Branch0
 branch1 = Branch0
-  (Relation.fromList
-      [("foo", Ref (Builtin "foo"))
-      ,("bar", Ref (Builtin "bar"))
-      ,("ping", Ref (Builtin "ping"))
-      ,("pong", Ref (Builtin "pong"))])
+  (Branch.Namespace
+    (Relation.fromList
+      [ ("foo" , Ref (Builtin "foo"))
+      , ("bar" , Ref (Builtin "bar"))
+      , ("ping", Ref (Builtin "ping"))
+      , ("pong", Ref (Builtin "pong"))
+      ]
+    )
+    (Relation.singleton "Int" (Builtin "Int"))
+  )
   mempty
-  (Relation.singleton "Int" (Builtin "Int"))
   mempty
   mempty
 
 nameConflict :: Branch0
 nameConflict = Branch0
-  (Relation.fromList
-      [("foo", Ref (Builtin "foo"))
-      ,("bar", Ref (Builtin "bar"))
-      ,("bar", Ref (Builtin "bar'"))
-      ,("ping", Ref (Builtin "ping"))
-      ,("pong", Ref (Builtin "pong"))])
+  (Branch.Namespace
+    (Relation.fromList
+      [ ("foo" , Ref (Builtin "foo"))
+      , ("bar" , Ref (Builtin "bar"))
+      , ("bar" , Ref (Builtin "bar'"))
+      , ("ping", Ref (Builtin "ping"))
+      , ("pong", Ref (Builtin "pong"))
+      ]
+    )
+    (Relation.singleton "Int" (Builtin "Int"))
+  )
   mempty
-  (Relation.singleton "Int" (Builtin "Int"))
   mempty
   mempty
 
 edit1 :: Branch0
 edit1 = Branch0
-  (Relation.fromList
-      [("foo", Ref (Builtin "foo"))
-      ,("bar", Ref (Builtin "bar"))
-      ,("ping", Ref (Builtin "ping"))
-      ,("pong", Ref (Builtin "pong"))])
+  (Branch.Namespace
+    (Relation.fromList
+      [ ("foo" , Ref (Builtin "foo"))
+      , ("bar" , Ref (Builtin "bar"))
+      , ("ping", Ref (Builtin "ping"))
+      , ("pong", Ref (Builtin "pong"))
+      ]
+    )
+    (Relation.singleton "Int" (Builtin "Int"))
+  )
   mempty
-  (Relation.singleton "Int" (Builtin "Int"))
   (Relation.singleton (Builtin "baz") (Replace (Builtin "baz'") Same))
   mempty
 

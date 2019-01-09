@@ -585,7 +585,6 @@ replaceTerm old new typ (Branch b) = Branch $ Causal.step go b
  where
   old' = Referent.Ref old
   new' = Referent.Ref new
-  edit = TermEdit.Replace new typ
   go b =
     over editedTermsL (R.insert old (TermEdit.Replace new typ))
       . over (namespaceL . terms)    (R.replaceRan old' new')
