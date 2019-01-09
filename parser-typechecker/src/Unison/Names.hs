@@ -29,7 +29,6 @@ unqualified = last . Text.splitOn "."
 
 data Names = Names
   { termNames    :: Map Name Referent
-  , patternNames :: Map Name (Reference, Int)
   , typeNames    :: Map Name Reference
   }
 
@@ -43,9 +42,8 @@ renderNameTarget = \case
 
 instance Show Names where
   -- really barebones, just to see what names are present
-  show (Names es ps ts) =
+  show (Names es ts) =
     "terms: " ++ show (es) ++ "\n" ++
-    "patterns: " ++ show (ps) ++ "\n" ++
     "types: " ++ show (ts)
 
 lookupTerm :: Ord v => a -> Names -> Name -> Maybe (AnnotatedTerm v a)
@@ -53,9 +51,6 @@ lookupTerm a ns n = Term.fromReferent a <$> Map.lookup n (termNames ns)
 
 lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
-
-fromPatterns :: [(Name,(Reference,Int))] -> Names
-fromPatterns vs = mempty { patternNames = Map.fromList vs }
 
 fromBuiltins :: [Reference] -> Names
 fromBuiltins rs =
@@ -66,13 +61,13 @@ fromTerms ts = mempty { termNames = Map.fromList ts }
 
 fromTypesV :: Var v => [(v, Reference)] -> Names
 fromTypesV env =
-  Names mempty mempty . Map.fromList $ fmap (first $ Var.name) env
+  Names mempty . Map.fromList $ fmap (first $ Var.name) env
 
 fromTypes :: [(Name, Reference)] -> Names
-fromTypes env = Names mempty mempty $ Map.fromList env
+fromTypes env = Names mempty $ Map.fromList env
 
 filterTypes :: (Name -> Bool) -> Names -> Names
-filterTypes f (Names {..}) = Names termNames patternNames m2
+filterTypes f (Names {..}) = Names termNames m2
   where
   m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
 
@@ -80,7 +75,10 @@ patternNameds :: Names -> String -> Maybe (Reference, Int)
 patternNameds ns s = patternNamed ns (Text.pack s)
 
 patternNamed :: Names -> Name -> Maybe (Reference, Int)
-patternNamed ns n = Map.lookup n (patternNames ns)
+patternNamed ns n = Map.lookup n (termNames ns) >>= \case
+  Referent.Req r cid -> Just (r, cid)
+  Referent.Con r cid -> Just (r, cid)
+  _ -> Nothing
 
 bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
 bindType ns t = Type.bindBuiltins typeNames' t
@@ -110,15 +108,14 @@ importing shortToLongName0 (Names {..}) = let
     (Var.name v, Var.name v2) | (v,v2) <- shortToLongName0 ]
   terms' = foldl' go termNames shortToLongName
   types' = foldl' go typeNames shortToLongName
-  patterns' = foldl' go patternNames shortToLongName
-  in Names terms' patterns' types'
+  in Names terms' types'
 
 instance Semigroup Names where (<>) = mappend
 
 instance Monoid Names where
-  mempty = Names mempty mempty mempty
-  Names e1 p1 t1 `mappend` Names e2 p2 t2 =
-    Names (e1 `unionL` e2) (p1 `unionL` p2) (t1 `unionL` t2)
+  mempty = Names mempty mempty
+  Names e1 t1 `mappend` Names e2 t2 =
+    Names (e1 `unionL` e2) (t1 `unionL` t2)
     where
       unionL :: forall k v. Ord k => Map k v -> Map k v -> Map k v
       unionL = Map.unionWith const

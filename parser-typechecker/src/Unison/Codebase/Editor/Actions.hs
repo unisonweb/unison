@@ -350,17 +350,6 @@ addTypeName
 addTypeName branchName respond success r name =
   updateBranch respond success branchName (Branch.addTypeName r name)
 
-addPatternName
-  :: BranchName
-  -> (Output v -> Action i v)
-  -> Action i v
-  -> Reference
-  -> Int
-  -> Name
-  -> Action i v
-addPatternName branchName respond success r i name =
-  updateBranch respond success branchName (Branch.addPatternName r i name)
-
 mergeBranch
   :: BranchName
   -> (Output v -> Action i v)
