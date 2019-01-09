@@ -308,14 +308,10 @@ notifyUser dir o = do
       traverse_ (uncurry $ Watch.watchPrinter names) watches
     DisplayConflicts branch -> do
       let terms    = R.dom $ Branch.termNamespace branch
-          patterns = R.dom $ Branch.patternNamespace branch
           types    = R.dom $ Branch.typeNamespace branch
       when (not $ null terms) $ do
         putStrLn "🙅 These terms have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) terms
-      when (not $ null patterns) $ do
-        putStrLn "🙅 These patterns have conflicts: "
-        traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) patterns
       when (not $ null types) $ do
         putStrLn "🙅 These types have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types

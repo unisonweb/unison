@@ -8,6 +8,7 @@ module Unison.Test.FileParser where
   import qualified Unison.Parser as Parser
   import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
   import qualified Unison.Reference as R
+  import qualified Unison.Referent as Referent
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
   import qualified Unison.Names as Names
@@ -53,9 +54,10 @@ module Unison.Test.FileParser where
   test = test1
 
   builtins :: Names
-  builtins = Names.fromPatterns [
-    ("Pair", (R.Builtin "Pair", 0)),
-    ("State.set", (R.Builtin "State", 0))]
+  builtins = Names.fromTerms
+    [ ("Pair"     , Referent.Con (R.Builtin "Pair") 0)
+    , ("State.set", Referent.Req (R.Builtin "State") 0)
+    ]
 
   parses :: String -> Test ()
   parses s = scope s $ do

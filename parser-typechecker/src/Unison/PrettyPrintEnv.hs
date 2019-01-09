@@ -18,8 +18,6 @@ type Histogram = Map Name Word
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
   terms :: Referent -> Histogram,
-  -- names for constructors that appear as patterns
-  patterns :: Reference -> Int -> Histogram,
   -- names for types
   types :: Reference -> Histogram }
 
@@ -28,43 +26,35 @@ instance Show PrettyPrintEnv where
 
 fromNames :: Names -> PrettyPrintEnv
 fromNames ns =
-  let
-    terms = Map.fromList
-      [ (r, n) | (n, r) <- Map.toList (Names.termNames ns) ]
-    patterns = Map.fromList
-      [ ((r, i), n) | (n, (r, i)) <- Map.toList (Names.patternNames ns) ]
-    types = Map.fromList [ (r, n) | (n, r) <- Map.toList (Names.typeNames ns) ]
-    hist :: Ord k => Map k Name -> k -> Histogram
-    hist m k = maybe mempty (\n -> Map.fromList [(n, 1)]) $ Map.lookup k m
-  in
-    PrettyPrintEnv (hist terms)
-                   (curry $ hist patterns)
-                   (hist types)
+  let terms =
+        Map.fromList [ (r, n) | (n, r) <- Map.toList (Names.termNames ns) ]
+      types =
+        Map.fromList [ (r, n) | (n, r) <- Map.toList (Names.typeNames ns) ]
+      hist :: Ord k => Map k Name -> k -> Histogram
+      hist m k = maybe mempty (\n -> Map.fromList [(n, 1)]) $ Map.lookup k m
+  in  PrettyPrintEnv (hist terms) (hist types)
 
 -- The monoid sums corresponding histograms
 
 instance Semigroup PrettyPrintEnv where (<>) = mappend
 
 instance Monoid PrettyPrintEnv where
-  mempty = PrettyPrintEnv (const mempty) (\_ _ -> mempty) (const mempty)
+  mempty = PrettyPrintEnv (const mempty) (const mempty)
   mappend e1 e2 =
     PrettyPrintEnv
       (\r -> Map.unionWith (+) (terms e1 r) (terms e2 r))
-      (\r i -> Map.unionWith (+) (patterns e1 r i) (patterns e2 r i))
       (\r -> Map.unionWith (+) (types e1 r) (types e2 r))
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
 unionLeft e1 e2 = PrettyPrintEnv
   (\r -> prefer (terms e1 r) (terms e2 r))
-  (\r i -> prefer (patterns e1 r i) (patterns e2 r i))
   (\r -> prefer (types e1 r) (types e2 r))
   where prefer h1 h2 = if sum (Map.elems h1) > 0 then h1 else h2
 
 adjust :: (Word -> Word) -> PrettyPrintEnv -> PrettyPrintEnv
 adjust by e = PrettyPrintEnv
   (\r -> by <$> terms e r)
-  (\r i -> by <$> patterns e r i)
   (\r -> by <$> types e r)
 
 scale :: Word -> PrettyPrintEnv -> PrettyPrintEnv
@@ -99,8 +89,7 @@ fromConstructorNames ctors reqs = let
   in mempty { terms = \r -> case r of
                 Referent.Con r i -> toH $ Map.lookup (r,i) cs
                 Referent.Req r i -> toH $ Map.lookup (r,i) rs
-                _ -> mempty
-            , patterns = \r i -> toH $ Map.lookup (r,i) (cs `Map.union` rs) }
+                _ -> mempty }
 
 -- These functions pick out the most common name and fall back
 -- to showing the `Reference` if no names are available
@@ -118,7 +107,11 @@ requestName :: PrettyPrintEnv -> Reference -> Int -> Name
 requestName env r cid = pickNameCid r cid (terms env (Referent.Req r cid))
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> Name
-patternName env r cid = pickNameCid r cid (patterns env r cid)
+patternName env r cid = pickNameCid r cid histo
+ where
+  histo = Map.unionWith (+)
+                        (terms env (Referent.Con r cid))
+                        (terms env (Referent.Req r cid))
 
 pickName :: Reference -> Histogram -> Name
 pickName r h = case argmax snd (Map.toList h) of
