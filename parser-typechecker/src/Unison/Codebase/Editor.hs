@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
@@ -63,27 +64,28 @@ type TypecheckingResult v =
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
-data AddOutputComponent v =
-  AddOutputComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+data FileChangeComponent v =
+  FileChangeComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
   deriving (Show)
 
-data AddOutput v
-  = NothingToAdd
-  | Added {
-          -- The file that we tried to add from
-            originalFile :: UF.TypecheckedUnisonFile v Ann
-          -- The branch after adding everything
-          , updatedBranch :: Branch
-          -- Previously existed only in the file; now added to the codebase.
-          , successful :: AddOutputComponent v
-          -- Exists in the branch and the file, with the same name and contents.
-          , duplicates :: AddOutputComponent v
-          -- Has a colliding name but a different definition than the codebase.
-          , collisions :: AddOutputComponent v
-          -- Already defined in the branch, but with a different name.
-          , duplicateReferents :: Branch.RefCollisions
-          }
-          deriving (Show)
+data FileChange v = FileChange {
+  -- The file that we tried to add from
+    originalFile :: UF.TypecheckedUnisonFile v Ann
+  -- The branch after adding everything
+  , updatedBranch :: Branch
+  -- Previously existed only in the file; now added to the codebase.
+  , successful :: FileChangeComponent v
+  -- Exists in the branch and the file, with the same name and contents.
+  , duplicates :: FileChangeComponent v
+  -- Not added to codebase due to the name already existing
+  -- in the branch with a different definition.
+  , collisions :: FileChangeComponent v
+  -- Names that already exist in the branch, but whose definitions
+  -- in `originalFile` are treated as updates.
+  , updates :: FileChangeComponent v
+  -- Already defined in the branch, but with a different name.
+  , duplicateReferents :: Branch.RefCollisions
+  } deriving (Show)
 
 data Input
   -- high-level manipulation of names
@@ -137,7 +139,7 @@ data Output v
   | ListOfDefinitions Branch
       [(Name, Referent, Maybe (Type v Ann))]
       [(Name, Reference, DisplayThing (Decl v Ann))]
-  | AddOutput (AddOutput v)
+  | FileChangeOutput (FileChange v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -168,12 +170,18 @@ data Command i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
 
-  -- This doesn't actually write to the codebase.
+  -- This doesn't actually write the branch to the codebase,
+  -- only the definitions from the file.
   -- It reads from the codebase and does some branch munging.
   -- Call `MergeBranch` after to actually save your work.
   Add :: Branch
       -> UF.TypecheckedUnisonFile v Ann
-      -> Command i v (AddOutput v)
+      -> Command i v (FileChange v)
+
+  -- Like `Add`, but treats name collisions as updates.
+  Update :: Branch
+         -> UF.TypecheckedUnisonFile v Ann
+         -> Command i v (FileChange v)
 
   Typecheck :: Branch
             -> SourceName
@@ -207,7 +215,7 @@ data Command i v a where
   -- Switches the app state to the given branch.
   SwitchBranch :: Branch -> BranchName -> Command i v ()
 
-  -- Returns `Nothing` if a branch by that name already exists.
+  -- Returns `False` if a branch by that name already exists.
   NewBranch :: BranchName -> Command i v Bool
 
   -- Create a new branch which is a copy of the given branch, and assign the
@@ -241,12 +249,26 @@ data Command i v a where
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
+-- todo: generalize this wrt to handling of collisions
+fileToBranch
+  :: (Var v, Monad m)
+  -- Function for handling
+  -- Receives (successes, collisions)
+  -- Returns (successes, collisions, updates)
+  => (Branch0 -> Branch0 -> (Branch0, Branch0, Branch0))
+  -> Codebase m v Ann
+  -> Branch
+  -> UF.TypecheckedUnisonFile v Ann
+  -> m (FileChange v)
+fileToBranch _handleCollisions _codebase _branch _unisonFile =
+  error "todo - generalized implementation of `addToBranch`"
+
 addToBranch
   :: (Var v, Monad m)
   => Codebase m v Ann
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
-  -> m (AddOutput v)
+  -> m (FileChange v)
 addToBranch codebase branch unisonFile
   = let
       branchUpdate = Branch.fromTypecheckedFile unisonFile
@@ -258,7 +280,7 @@ addToBranch codebase branch unisonFile
       successes    = Branch.ours
         $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
       mkOutput x =
-        uncurry AddOutputComponent $ Branch.intersectWithFile x unisonFile
+        uncurry FileChangeComponent $ Branch.intersectWithFile x unisonFile
       allTypeDecls =
         (second Left <$> UF.effectDeclarations' unisonFile)
           `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
@@ -275,12 +297,14 @@ addToBranch codebase branch unisonFile
             id
             (Term.amap (const Parser.External) tm)
             typ
-        pure $ Added unisonFile
+        pure $ FileChange unisonFile
                      (Branch.append (successes <> dupeRefs) branch)
                      (mkOutput successes)
                      (mkOutput duplicates)
                      (mkOutput collisions)
+                     (FileChangeComponent mempty mempty)
                      diffNames
+
 typecheck
   :: (Monad m, Var v)
   => Codebase m v Ann
@@ -347,6 +371,10 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Notify output -> notifyUser output
     Add branch unisonFile ->
       addToBranch codebase branch unisonFile
+    Update branch unisonFile ->
+      -- collisions are treated as updates, and are successes
+      fileToBranch (\successes collisions -> (successes <> collisions, mempty, collisions))
+                    codebase branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do

@@ -22,7 +22,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
-                                                , AddOutput(..)
+                                                , FileChange(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult(NameChangeResult,changedSuccessfully)
                                                 , collateReferences
@@ -164,18 +164,17 @@ loop s = Free.unfold' go s
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
             addo <- Free.eval $ Add currentBranch uf'
             doMerge currentBranchName (updatedBranch addo)
-            Free.eval . Notify $ AddOutput addo
-            pure . Right $ LoopState (updatedBranch addo) currentBranchName uf
+            Free.eval . Notify $ FileChangeOutput addo
+            pure . Right $ LoopState (updatedBranch addo) currentBranchName Nothing
         UpdateI -> case uf of
           Nothing -> respond NoUnisonFile
           Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
-            addo          <- Free.eval $ Add currentBranch uf'
-            updatedBranch <- Free.eval
-              $ Update currentBranchName (updatedBranch addo) (collisions addo)
-            doMerge currentBranchName updatedBranch
-            Free.eval $ Notify somethingsomething
-            pure . Right $ LoopState updatedBranch currentBranchName uf
+            updateo <- Free.eval $ Update currentBranch uf'
+            let branch' = updatedBranch updateo
+            doMerge currentBranchName branch'
+            Free.eval . Notify $ FileChangeOutput updateo
+            pure . Right $ LoopState branch' currentBranchName Nothing
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName       -> switchBranch branchName
@@ -193,7 +192,7 @@ loop s = Free.unfold' go s
     doMerge branchName b = do
       updated <- doMerge0 branchName b
       when (not updated) $ do
-        Free.eval $ NewBranch branchName
+        _ <- Free.eval $ NewBranch branchName
         updated <- doMerge0 branchName b
         when (not updated) (disappearingBranchBomb branchName)
     doMerge0 = (Free.eval .) . MergeBranch

@@ -214,13 +214,12 @@ notifyUser dir o = do
                 P.column2 [ (P.text name, fromString (show ref))
                           | (name, ref) <- missingTypes ]
 
-    AddOutput a -> case a of
-      Editor.NothingToAdd -> notifyUser dir (NoUnisonFile @v)
-      Editor.Added _ofile _branch adds dupes colls refcolls
+    FileChangeOutput a -> case a of
+      Editor.FileChange _ofile _branch adds dupes colls _updates refcolls
         -> let
-             Editor.AddOutputComponent addedTypes    addedTerms    = adds
-             Editor.AddOutputComponent dupeTypes     dupeTerms     = dupes
-             Editor.AddOutputComponent collidedTypes collidedTerms = colls
+             Editor.FileChangeComponent addedTypes    addedTerms    = adds
+             Editor.FileChangeComponent dupeTypes     dupeTerms     = dupes
+             Editor.FileChangeComponent collidedTypes collidedTerms = colls
              addMsg = if not (null addedTypes && null addedTerms)
                then
                  "✓  OK, I added these definitions: "
