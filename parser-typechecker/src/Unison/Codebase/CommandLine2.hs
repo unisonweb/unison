@@ -461,8 +461,7 @@ validInputs = validPatterns
     (\case
       []    -> Left $ intercalateMap "\n\n" showPatternHelp validPatterns
       [cmd] -> case Map.lookup cmd commandMap of
-        Nothing ->
-          Left . warn $ "I don't know of that command. Try `help`."
+        Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`."
     )
@@ -476,7 +475,7 @@ validInputs = validPatterns
     let names = Text.unpack <$> toList (Branch.allNames (Branch.head b))
     pure $ autoComplete q names
   noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
-  quit = InputPattern
+  quit          = InputPattern
     "quit"
     ["exit"]
     []
@@ -491,7 +490,8 @@ validInputs = validPatterns
         "add"
         []
         []
-        ( P.wrap $ "`add` adds to the codebase all the definitions from "
+        (  P.wrap
+        $  "`add` adds to the codebase all the definitions from "
         <> "the most recently typechecked file."
         )
         (\ws -> if not $ null ws
@@ -502,41 +502,59 @@ validInputs = validPatterns
         "branch"
         []
         [(True, branchArg)]
-        (P.column2 [("`branch`", P.wrap "lists all branches in the codebase.")
-                   ,("`branch foo`", P.wrap $ "switches to the branch named 'foo', "
-                                  <> "creating it first if it doesn't exist.")]
+        (P.column2
+          [ ("`branch`", P.wrap "lists all branches in the codebase.")
+          , ( "`branch foo`"
+            , P.wrap
+            $  "switches to the branch named 'foo', "
+            <> "creating it first if it doesn't exist."
+            )
+          ]
         )
         (\case
           []  -> pure ListBranchesI
           [b] -> pure . SwitchBranchI $ Text.pack b
           _ ->
-            Left . warn . P.wrap $
-              "Use `branch` to list all branches " <>
-              "or `branch foo` to switch to or create the branch 'foo'."
+            Left
+              .  warn
+              .  P.wrap
+              $  "Use `branch` to list all branches "
+              <> "or `branch foo` to switch to or create the branch 'foo'."
         )
       , InputPattern
         "fork"
         []
         [(False, branchArg)]
-        (  P.wrap $ "`fork foo` creates the branch 'foo' "
+        (  P.wrap
+        $  "`fork foo` creates the branch 'foo' "
         <> "as a fork of the current branch."
         )
         (\case
           [b] -> pure . ForkBranchI $ Text.pack b
-          _ -> Left . warn . P.wrap $
-            "Use `fork foo` to create the branch 'foo'" <>
-            "from the current branch."
+          _ ->
+            Left
+              .  warn
+              .  P.wrap
+              $  "Use `fork foo` to create the branch 'foo'"
+              <> "from the current branch."
         )
       , InputPattern
         "list"
         ["ls"]
         [(True, definitionQueryArg)]
-        (P.column2 [
-          ("`list`", P.wrap $ "shows all definitions in the current branch."),
-          ("`list foo`", P.wrap $ "shows all definitions with a name similar"
-                               <> "to 'foo' in the current branch."),
-          ("`list foo bar`", P.wrap $ "shows all definitions with a name similar"
-                                   <> "to 'foo' or 'bar' in the current branch.")]
+        (P.column2
+          [ ("`list`", P.wrap $ "shows all definitions in the current branch.")
+          , ( "`list foo`"
+            , P.wrap
+            $  "shows all definitions with a name similar"
+            <> "to 'foo' in the current branch."
+            )
+          , ( "`list foo bar`"
+            , P.wrap
+            $  "shows all definitions with a name similar"
+            <> "to 'foo' or 'bar' in the current branch."
+            )
+          ]
         )
         (pure . SearchByNameI)
       , InputPattern
@@ -546,27 +564,28 @@ validInputs = validPatterns
         (P.wrap "`merge foo` merges the branch 'foo' into the current branch.")
         (\case
           [b] -> pure . MergeBranchI $ Text.pack b
-          _ -> Left . warn . P.wrap $
-            "Use `merge foo` to merge the branch 'foo'" <>
-            "into the current branch."
+          _ ->
+            Left
+              .  warn
+              .  P.wrap
+              $  "Use `merge foo` to merge the branch 'foo'"
+              <> "into the current branch."
         )
-      , InputPattern
-        "view"
-        []
-        [(False, definitionQueryArg)]
-        (P.wrap "`view foo` prints the definition of `foo`.")
-        (pure . ShowDefinitionI)
+      , InputPattern "view"
+                     []
+                     [(False, definitionQueryArg)]
+                     (P.wrap "`view foo` prints the definition of `foo`.")
+                     (pure . ShowDefinitionI)
       , InputPattern
         "rename"
         ["mv"]
         [(False, definitionQueryArg), (False, noCompletions)]
         (P.wrap "`rename foo bar` renames `foo` to `bar`.")
         (\case
-          [oldName, newName] ->
-            Right $ RenameUnconflictedI
-              allTargets
-              (Text.pack oldName)
-              (Text.pack newName)
+          [oldName, newName] -> Right $ RenameUnconflictedI
+            allTargets
+            (Text.pack oldName)
+            (Text.pack newName)
           _ -> Left . warn $ P.wrap
             "`rename` takes two arguments, like `rename oldname newname`."
         )
@@ -574,15 +593,31 @@ validInputs = validPatterns
         "alias"
         ["cp"]
         [(False, definitionQueryArg), (False, noCompletions)]
-        (P.wrap "`alias foo bar` introduces `bar` with the same definition as `foo`.")
+        (P.wrap
+          "`alias foo bar` introduces `bar` with the same definition as `foo`."
+        )
         (\case
-          [oldName, newName] ->
-            Right $ AliasUnconflictedI
-              allTargets
-              (Text.pack oldName)
-              (Text.pack newName)
+          [oldName, newName] -> Right $ AliasUnconflictedI
+            allTargets
+            (Text.pack oldName)
+            (Text.pack newName)
           _ -> Left . warn $ P.wrap
             "`alias` takes two arguments, like `alias oldname newname`."
+        )
+      , InputPattern
+        "update"
+        []
+        []
+        -- TODO: Say something about the structured refactoring session here.
+        (  P.wrap
+        $  "`update` works like `add`, except "
+        <> "if a definition in the file "
+        <> "has the same name as an existing definition, the name gets updated "
+        <> "to point to the new definition."
+        )
+        (\ws -> if not $ null ws
+          then Left $ warn "`update` doesn't take any arguments."
+          else pure UpdateI
         )
       , quit
       ]

@@ -7,8 +7,10 @@
 
 module Unison.Codebase.Editor.Actions where
 
+import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( foldl', toList )
+import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
 import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
@@ -87,15 +89,16 @@ loop s = Free.unfold' go s
               updateUnisonFile unisonFile
       Right input -> case input of
         SearchByNameI qs -> do
-          terms <- Free.eval $ SearchTerms currentBranch qs
-          types <- Free.eval $ SearchTypes currentBranch qs
-          types' <- let
-            go (name, ref) = case ref of
-              Reference.DerivedId id ->
-                (name, ref, ) . maybe (MissingThing id) RegularThing
-                <$> Free.eval (LoadType id)
-              _ -> pure (name, ref, BuiltinThing)
-            in traverse go types
+          terms  <- Free.eval $ SearchTerms currentBranch qs
+          types  <- Free.eval $ SearchTypes currentBranch qs
+          types' <-
+            let go (name, ref) = case ref of
+                  Reference.DerivedId id ->
+                    (name, ref, )
+                      .   maybe (MissingThing id) RegularThing
+                      <$> Free.eval (LoadType id)
+                  _ -> pure (name, ref, BuiltinThing)
+            in  traverse go types
           respond $ ListOfDefinitions currentBranch terms types'
         ShowDefinitionI qs -> do
           terms <- Free.eval $ SearchTerms currentBranch qs
@@ -118,8 +121,6 @@ loop s = Free.unfold' go s
                   `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
                   `PPE.unionLeft` Branch.prettyPrintEnv [currentBranch]
           respond $ DisplayDefinitions ppe loadedTerms loadedTypes
-        UpdateTermI _old _new          -> error "todo"
-        UpdateTypeI _old _new          -> error "todo"
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
@@ -141,36 +142,40 @@ loop s = Free.unfold' go s
         ChooseTypeForNameI r name ->
           unnameAll currentBranchName respond Names.TypeName name
             $ addTypeName currentBranchName respond success r name
-        AliasUnconflictedI targets existingName newName ->
-          aliasUnconflicted
-            currentBranchName
-            respond
-            respondNewBranch
-            targets
-            existingName
-            newName
-        RenameUnconflictedI targets oldName newName ->
-          renameUnconflicted
-            currentBranchName
-            respond
-            respondNewBranch
-            targets
-            oldName
-            newName
+        AliasUnconflictedI targets existingName newName -> aliasUnconflicted
+          currentBranchName
+          respond
+          respondNewBranch
+          targets
+          existingName
+          newName
+        RenameUnconflictedI targets oldName newName -> renameUnconflicted
+          currentBranchName
+          respond
+          respondNewBranch
+          targets
+          oldName
+          newName
         UnnameAllI nameTarget name ->
           unnameAll currentBranchName respond nameTarget name success
         AddI -> case uf of
           Nothing -> respond NoUnisonFile
-          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) ->
+          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
-            in
-              do
-                addo <- Free.eval $ Add currentBranchName currentBranch uf'
-                -- addo <- mergeBranch currentBranchName respond success (updatedBranch addo)
-                Free.eval . Notify $ AddOutput addo
-                pure . Right $ LoopState (updatedBranch addo)
-                                         currentBranchName
-                                         uf
+            addo <- Free.eval $ Add currentBranch uf'
+            doMerge currentBranchName (updatedBranch addo)
+            Free.eval . Notify $ AddOutput addo
+            pure . Right $ LoopState (updatedBranch addo) currentBranchName uf
+        UpdateI -> case uf of
+          Nothing -> respond NoUnisonFile
+          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
+            let uf' = UF.typecheckedUnisonFile datas effects tlcs
+            addo          <- Free.eval $ Add currentBranch uf'
+            updatedBranch <- Free.eval
+              $ Update currentBranchName (updatedBranch addo) (collisions addo)
+            doMerge currentBranchName updatedBranch
+            Free.eval $ Notify somethingsomething
+            pure . Right $ LoopState updatedBranch currentBranchName uf
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName       -> switchBranch branchName
@@ -185,12 +190,24 @@ loop s = Free.unfold' go s
         success       = respond $ Success input
         outputSuccess = Free.eval . Notify $ Success input
    where
+    doMerge branchName b = do
+      updated <- doMerge0 branchName b
+      when (not updated) $ do
+        Free.eval $ NewBranch branchName
+        updated <- doMerge0 branchName b
+        when (not updated) (disappearingBranchBomb branchName)
+    doMerge0 = (Free.eval .) . MergeBranch
+    disappearingBranchBomb branchName =
+      error
+        $  "The branch named "
+        <> Text.unpack branchName
+        <> " disappeared from storage. "
+        <> "I tried to put it back, but couldn't. Everybody panic!"
     respond :: Output v -> Action i v
     respond output = Free.eval (Notify output) >> pure (Right s)
     respondNewBranch :: Output v -> Branch -> Action i v
     respondNewBranch output newBranch =
-      respond output
-        >> pure (Right (LoopState newBranch currentBranchName uf))
+      respond output >> pure (Right (LoopState newBranch currentBranchName uf))
 
     switchBranch branchName = do
       branch <- Free.eval $ LoadBranch branchName

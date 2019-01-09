@@ -100,10 +100,7 @@ data Input
   | ChooseTypeForNameI Reference Name
   -- create and remove update directives
   | ListAllUpdatesI
-    -- update a term or type, error if it would produce a conflict
-  | UpdateTermI Referent Referent
-  | UpdateTypeI Reference Reference
-    -- clear updates for a term or type
+  -- clear updates for a term or type
   | RemoveAllTermUpdatesI Referent
   | RemoveAllTypeUpdatesI Reference
   -- resolve update conflicts
@@ -111,6 +108,7 @@ data Input
   | ChooseUpdateForTypeI Reference Reference
   -- other
   | AddI -- [Name]
+  | UpdateI
   | ListBranchesI
   | SearchByNameI [String]
   | SwitchBranchI BranchName
@@ -129,11 +127,11 @@ data Output v
   | UnknownBranch BranchName
   | RenameOutput Name Name NameChangeResult
   | AliasOutput Name Name NameChangeResult
-    -- todo: probably remove these eventually
-    | UnknownName BranchName NameTarget Name
-    | NameAlreadyExists BranchName NameTarget Name
-    -- `name` refers to more than one `nameTarget`
-    | ConflictedName BranchName NameTarget Name
+  -- todo: probably remove these eventually
+  | UnknownName BranchName NameTarget Name
+  | NameAlreadyExists BranchName NameTarget Name
+  -- `name` refers to more than one `nameTarget`
+  | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch
@@ -170,8 +168,10 @@ data Command i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command i v ()
 
-  Add :: BranchName
-      -> Branch
+  -- This doesn't actually write to the codebase.
+  -- It reads from the codebase and does some branch munging.
+  -- Call `MergeBranch` after to actually save your work.
+  Add :: Branch
       -> UF.TypecheckedUnisonFile v Ann
       -> Command i v (AddOutput v)
 
@@ -244,11 +244,10 @@ data Command i v a where
 addToBranch
   :: (Var v, Monad m)
   => Codebase m v Ann
-  -> BranchName
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (AddOutput v)
-addToBranch codebase branchName branch unisonFile
+addToBranch codebase branch unisonFile
   = let
       branchUpdate = Branch.fromTypecheckedFile unisonFile
       collisions   = Branch.collisions branchUpdate branch
@@ -266,25 +265,18 @@ addToBranch codebase branchName branch unisonFile
       hashedTerms = UF.hashTerms unisonFile
     in
       do
-        forM_ (Map.toList allTypeDecls)
-          $ \(_, (r@(DerivedId id), dd)) ->
-            when (Branch.contains successes r) $
-              Codebase.putTypeDeclaration codebase id dd
-        forM_ (Map.toList hashedTerms)
-          $ \(_, (r@(DerivedId id), tm, typ)) ->
-            when (Branch.contains successes r) $
-            -- Discard all line/column info when adding to the codebase
-            Codebase.putTerm
-              codebase
-              id
-              (Term.amap (const Parser.External) tm)
-              typ
-        updated <- Codebase.mergeBranch
-          codebase
-          branchName
-          (Branch.append (successes <> dupeRefs) branch)
+        forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
+          when (Branch.contains successes r)
+            $ Codebase.putTypeDeclaration codebase id dd
+        forM_ (Map.toList hashedTerms) $ \(_, (r@(DerivedId id), tm, typ)) ->
+          -- Discard all line/column info when adding to the codebase
+          when (Branch.contains successes r) $ Codebase.putTerm
+            codebase
+            id
+            (Term.amap (const Parser.External) tm)
+            typ
         pure $ Added unisonFile
-                     updated
+                     (Branch.append (successes <> dupeRefs) branch)
                      (mkOutput successes)
                      (mkOutput duplicates)
                      (mkOutput collisions)
@@ -353,8 +345,8 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     -- Wait until we get either user input or a unison file update
     Input         -> awaitInput
     Notify output -> notifyUser output
-    Add branchName branch unisonFile ->
-      addToBranch codebase branchName branch unisonFile
+    Add branch unisonFile ->
+      addToBranch codebase branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
