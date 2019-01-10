@@ -2,7 +2,6 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE DoAndIfThenElse   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 

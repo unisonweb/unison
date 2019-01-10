@@ -1,5 +1,4 @@
 {-# Language OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Unison.Test.TermPrinter where
 
