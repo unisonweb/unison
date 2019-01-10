@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, TupleSections #-}
+{-# Language ScopedTypeVariables #-}
 
 module Unison.FileParser where
 

@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Unison.Test.TypePrinter where
 
 import EasyTest

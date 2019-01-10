@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE LambdaCase          #-}
