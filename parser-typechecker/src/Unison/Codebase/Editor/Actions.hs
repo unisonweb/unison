@@ -22,11 +22,12 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
-                                                , FileChange(..)
+                                                , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult(NameChangeResult,changedSuccessfully)
                                                 , collateReferences
                                                 )
+import qualified Unison.Codebase.Editor         as Editor
 import           Unison.Names                   ( Name
                                                 , NameTarget
                                                 )
@@ -158,23 +159,18 @@ loop s = Free.unfold' go s
           newName
         UnnameAllI nameTarget name ->
           unnameAll currentBranchName respond nameTarget name success
-        AddI -> case uf of
+        SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
-            addo <- Free.eval $ Add currentBranch uf'
-            doMerge currentBranchName (updatedBranch addo)
-            Free.eval . Notify $ FileChangeOutput addo
-            pure . Right $ LoopState (updatedBranch addo) currentBranchName Nothing
-        UpdateI -> case uf of
-          Nothing -> respond NoUnisonFile
-          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
-            let uf' = UF.typecheckedUnisonFile datas effects tlcs
-            updateo <- Free.eval $ Update currentBranch uf'
+                collisionHandler =
+                  if allowUpdates then Editor.updateCollisionHandler
+                  else Editor.addCollisionHandler
+            updateo <- Free.eval $ SlurpFile collisionHandler currentBranch uf'
             let branch' = updatedBranch updateo
             doMerge currentBranchName branch'
-            Free.eval . Notify $ FileChangeOutput updateo
-            pure . Right $ LoopState branch' currentBranchName Nothing
+            Free.eval . Notify $ SlurpOutput updateo
+            pure . Right $ LoopState branch' currentBranchName uf
         ListBranchesI ->
           Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
         SwitchBranchI branchName       -> switchBranch branchName

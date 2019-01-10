@@ -64,25 +64,28 @@ type TypecheckingResult v =
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
-data FileChangeComponent v =
-  FileChangeComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+data SlurpComponent v =
+  SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
   deriving (Show)
 
-data FileChange v = FileChange {
+data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
   -- The branch after adding everything
   , updatedBranch :: Branch
   -- Previously existed only in the file; now added to the codebase.
-  , successful :: FileChangeComponent v
+  , successful :: SlurpComponent v
   -- Exists in the branch and the file, with the same name and contents.
-  , duplicates :: FileChangeComponent v
+  , duplicates :: SlurpComponent v
   -- Not added to codebase due to the name already existing
   -- in the branch with a different definition.
-  , collisions :: FileChangeComponent v
+  , collisions :: SlurpComponent v
+  -- Not added to codebase due to the name existing
+  -- in the branch with a conflict (two or more definitions).
+  , conflicted :: SlurpComponent v
   -- Names that already exist in the branch, but whose definitions
   -- in `originalFile` are treated as updates.
-  , updates :: FileChangeComponent v
+  , updates :: SlurpComponent v
   -- Already defined in the branch, but with a different name.
   , duplicateReferents :: Branch.RefCollisions
   } deriving (Show)
@@ -109,8 +112,7 @@ data Input
   | ChooseUpdateForTermI Referent Referent
   | ChooseUpdateForTypeI Reference Reference
   -- other
-  | AddI -- [Name]
-  | UpdateI
+  | SlurpFileI AllowUpdates
   | ListBranchesI
   | SearchByNameI [String]
   | SwitchBranchI BranchName
@@ -119,6 +121,9 @@ data Input
   | ShowDefinitionI [String]
   | QuitI
   deriving (Show)
+
+-- Whether or not updates are allowed during file slurping
+type AllowUpdates = Bool
 
 data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
@@ -139,7 +144,7 @@ data Output v
   | ListOfDefinitions Branch
       [(Name, Referent, Maybe (Type v Ann))]
       [(Name, Reference, DisplayThing (Decl v Ann))]
-  | FileChangeOutput (FileChange v)
+  | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
@@ -164,6 +169,19 @@ instance Monoid NameChangeResult where
   NameChangeResult a1 a2 a3 `mappend` NameChangeResult b1 b2 b3 =
     NameChangeResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
 
+-- Function for handling name collisions during a file slurp into the codebase.
+-- Receives (successes, collisions)
+-- Returns (successes, collisions, updates)
+type CollisionHandler = Branch0 -> Branch0 -> (Branch0, Branch0, Branch0)
+
+-- All collisions get treated as updates and are added to successful.
+updateCollisionHandler :: CollisionHandler
+updateCollisionHandler ok collided = (ok <> collided, mempty, collided)
+
+-- All collisions get left alone and are not added to successes.
+addCollisionHandler :: CollisionHandler
+addCollisionHandler ok collided = (ok, collided, mempty)
+
 data Command i v a where
   Input :: Command i v i
 
@@ -174,14 +192,11 @@ data Command i v a where
   -- only the definitions from the file.
   -- It reads from the codebase and does some branch munging.
   -- Call `MergeBranch` after to actually save your work.
-  Add :: Branch
-      -> UF.TypecheckedUnisonFile v Ann
-      -> Command i v (FileChange v)
-
-  -- Like `Add`, but treats name collisions as updates.
-  Update :: Branch
-         -> UF.TypecheckedUnisonFile v Ann
-         -> Command i v (FileChange v)
+  SlurpFile
+    :: CollisionHandler
+    -> Branch
+    -> UF.TypecheckedUnisonFile v Ann
+    -> Command i v (SlurpResult v)
 
   Typecheck :: Branch
             -> SourceName
@@ -252,58 +267,49 @@ data Command i v a where
 -- todo: generalize this wrt to handling of collisions
 fileToBranch
   :: (Var v, Monad m)
-  -- Function for handling
-  -- Receives (successes, collisions)
-  -- Returns (successes, collisions, updates)
-  => (Branch0 -> Branch0 -> (Branch0, Branch0, Branch0))
+  => CollisionHandler
   -> Codebase m v Ann
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
-  -> m (FileChange v)
-fileToBranch _handleCollisions _codebase _branch _unisonFile =
-  error "todo - generalized implementation of `addToBranch`"
-
-addToBranch
-  :: (Var v, Monad m)
-  => Codebase m v Ann
-  -> Branch
-  -> UF.TypecheckedUnisonFile v Ann
-  -> m (FileChange v)
-addToBranch codebase branch unisonFile
-  = let
-      branchUpdate = Branch.fromTypecheckedFile unisonFile
-      collisions   = Branch.collisions branchUpdate branch
-      duplicates   = Branch.duplicates branchUpdate branch
-      -- old references with new names
-      dupeRefs     = Branch.refCollisions branchUpdate branch
-      diffNames    = Branch.differentNames dupeRefs branch
-      successes    = Branch.ours
-        $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
-      mkOutput x =
-        uncurry FileChangeComponent $ Branch.intersectWithFile x unisonFile
-      allTypeDecls =
-        (second Left <$> UF.effectDeclarations' unisonFile)
-          `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
-      hashedTerms = UF.hashTerms unisonFile
-    in
-      do
-        forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
-          when (Branch.contains successes r)
-            $ Codebase.putTypeDeclaration codebase id dd
-        forM_ (Map.toList hashedTerms) $ \(_, (r@(DerivedId id), tm, typ)) ->
-          -- Discard all line/column info when adding to the codebase
-          when (Branch.contains successes r) $ Codebase.putTerm
-            codebase
-            id
-            (Term.amap (const Parser.External) tm)
-            typ
-        pure $ FileChange unisonFile
-                     (Branch.append (successes <> dupeRefs) branch)
-                     (mkOutput successes)
-                     (mkOutput duplicates)
-                     (mkOutput collisions)
-                     (FileChangeComponent mempty mempty)
-                     diffNames
+  -> m (SlurpResult v)
+fileToBranch handleCollisions codebase branch unisonFile = let
+  branchUpdate = Branch.fromTypecheckedFile unisonFile
+  collisions0   = Branch.collisions branchUpdate branch
+  duplicates   = Branch.duplicates branchUpdate branch
+  -- old references with new names
+  dupeRefs     = Branch.refCollisions branchUpdate branch
+  diffNames    = Branch.differentNames dupeRefs branch
+  successes0    = Branch.ours
+    $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
+  (successes, collisions, updates) = handleCollisions successes0 collisions0
+  mkOutput x =
+    uncurry SlurpComponent $ Branch.intersectWithFile x unisonFile
+  allTypeDecls =
+    (second Left <$> UF.effectDeclarations' unisonFile)
+      `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
+  hashedTerms = UF.hashTerms unisonFile
+  in do
+    forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
+      when (successes `Branch.contains` r || updates `Branch.contains` r)
+        $ Codebase.putTypeDeclaration codebase id dd
+    forM_ (Map.toList hashedTerms) $ \(_, (r@(DerivedId id), tm, typ)) ->
+      -- Discard all line/column info when adding to the codebase
+      when (successes `Branch.contains` r || updates `Branch.contains` r) $
+        Codebase.putTerm
+          codebase
+          id
+          (Term.amap (const Parser.External) tm)
+          typ
+    -- TODO: make sure it's a noop when updating a definition w/ name conflict
+    pure $ SlurpResult unisonFile
+       -- Fix this to actually construct the right branch
+       (Branch.append (successes <> dupeRefs) branch)
+       (mkOutput successes)
+       (mkOutput duplicates)
+       (mkOutput collisions)
+       _conflicts
+       (mkOutput updates)
+       diffNames
 
 typecheck
   :: (Monad m, Var v)
@@ -369,12 +375,8 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     -- Wait until we get either user input or a unison file update
     Input         -> awaitInput
     Notify output -> notifyUser output
-    Add branch unisonFile ->
-      addToBranch codebase branch unisonFile
-    Update branch unisonFile ->
-      -- collisions are treated as updates, and are successes
-      fileToBranch (\successes collisions -> (successes <> collisions, mempty, collisions))
-                    codebase branch unisonFile
+    SlurpFile handler branch unisonFile ->
+      fileToBranch handler codebase branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do

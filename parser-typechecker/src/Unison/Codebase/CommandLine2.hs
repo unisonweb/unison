@@ -214,86 +214,78 @@ notifyUser dir o = do
                 P.column2 [ (P.text name, fromString (show ref))
                           | (name, ref) <- missingTypes ]
 
-    FileChangeOutput a -> case a of
-      Editor.FileChange _ofile _branch adds dupes colls _updates refcolls
-        -> let
-             Editor.FileChangeComponent addedTypes    addedTerms    = adds
-             Editor.FileChangeComponent dupeTypes     dupeTerms     = dupes
-             Editor.FileChangeComponent collidedTypes collidedTerms = colls
-             addMsg = if not (null addedTypes && null addedTerms)
-               then
-                 "✓  OK, I added these definitions: "
-                 <> P.newline
-                 <> P.bulleted (fromVar <$> toList addedTypes)
-                 <> P.bulleted (fromVar <$> toList addedTerms)
-                 <> P.newline
-               else ""
-             dupeMsg = if not (null dupeTypes && null dupeTerms)
-               then
-                 P.wrap
-                   (  "\128111\8205\9794\65039  I skipped these definitions"
-                   <> " because they already exist in the current branch: "
-                   )
-                 <> P.lines
-                      [ P.bulleted (fromVar <$> toList dupeTypes)
-                      , P.bulleted (fromVar <$> toList dupeTerms)
-                      ]
-                 <> P.newline
-               else ""
-             collMsg =
-               ( P.lines
-                 . fmap
-                     (\x ->
-                       warn
-                         .  P.wrap
-                         $  "The name "
-                         <> P.blue x
-                         <> " already has another definition "
-                         <> "in the current branch."
+    SlurpOutput (Editor.SlurpResult _ofile _branch adds dupes colls _updates refcolls) -> let
+      Editor.SlurpComponent addedTypes    addedTerms    = adds
+      Editor.SlurpComponent dupeTypes     dupeTerms     = dupes
+      Editor.SlurpComponent collidedTypes collidedTerms = colls
+      addMsg = if not (null addedTypes && null addedTerms)
+        then
+          "✓  OK, I added these definitions: "
+          <> P.newline
+          <> P.bulleted (fromVar <$> toList addedTypes)
+          <> P.bulleted (fromVar <$> toList addedTerms)
+          <> P.newline
+        else ""
+      dupeMsg = if not (null dupeTypes && null dupeTerms)
+        then
+          P.wrap
+            (  "\128111\8205\9794\65039  I skipped these definitions"
+            <> " because they already exist in the current branch: "
+            )
+          <> P.lines
+               [ P.bulleted (fromVar <$> toList dupeTypes)
+               , P.bulleted (fromVar <$> toList dupeTerms)
+               ]
+          <> P.newline
+        else ""
+      collMsg =
+        ( P.lines
+          . fmap
+              (\x ->
+                warn
+                  .  P.wrap
+                  $  "The name "
+                  <> P.blue x
+                  <> " already has another definition "
+                  <> "in the current branch."
+              )
+          . toList
+          $ (  (fromVar <$> toList collidedTypes)
+            <> (fromVar <$> toList collidedTerms)
+            )
+          )
+          <> if not (null collidedTypes && null collidedTerms)
+             then
+               P.newline
+             else
+               ""
+      nameCollMsg kind collsOfThatKind =
+        P.lines
+          . fmap
+              (\(k, v) ->
+                warn
+                  .  P.wrap
+                  $  "The "
+                  <> kind
+                  <> " you added as "
+                  <> P.blue (P.text k)
+                  <> " already exists with "
+                  <> (if length v > 1
+                       then "different names. "
+                       else "a different name. "
                      )
-                 . toList
-                 $ (  (fromVar <$> toList collidedTypes)
-                   <> (fromVar <$> toList collidedTerms)
-                   )
-                 )
-                 <> if not (null collidedTypes && null collidedTerms)
-                    then
-                      P.newline
-                    else
-                      ""
-             nameCollMsg kind collsOfThatKind =
-               P.lines
-                 . fmap
-                     (\(k, v) ->
-                       warn
-                         .  P.wrap
-                         $  "The "
-                         <> kind
-                         <> " you added as "
-                         <> P.blue (P.text k)
-                         <> " already exists with "
-                         <> (if length v > 1
-                              then "different names. "
-                              else "a different name. "
-                            )
-                         <> "It's defined as "
-                         <> P.oxfordCommas (P.green . P.text <$> toList v)
-                         <> ". I've added "
-                         <> P.blue (P.text k)
-                         <> " as a new name for it."
-                     )
-                 . Map.toList
-                 . R.domain
-                 $ collsOfThatKind refcolls
-             dupeRefMsg     = nameCollMsg "term" Branch.termCollisions
-             dupeTypeRefMsg = nameCollMsg "type" Branch.typeCollisions
-           in
-             putPrettyLn
-             $  addMsg
-             <> dupeMsg
-             <> collMsg
-             <> dupeTypeRefMsg
-             <> dupeRefMsg
+                  <> "It's defined as "
+                  <> P.oxfordCommas (P.green . P.text <$> toList v)
+                  <> ". I've added "
+                  <> P.blue (P.text k)
+                  <> " as a new name for it."
+              )
+          . Map.toList
+          . R.domain
+          $ collsOfThatKind refcolls
+      dupeRefMsg     = nameCollMsg "term" Branch.termCollisions
+      dupeTypeRefMsg = nameCollMsg "type" Branch.typeCollisions
+      in putPrettyLn $ addMsg <> dupeMsg <> collMsg <> dupeTypeRefMsg <> dupeRefMsg
     ParseErrors src es -> do
       Console.setTitle "Unison ☹︎"
       traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
@@ -495,7 +487,7 @@ validInputs = validPatterns
         )
         (\ws -> if not $ null ws
           then Left $ warn "`add` doesn't take any arguments."
-          else pure AddI
+          else pure $ SlurpFileI False
         )
       , InputPattern
         "branch"
@@ -616,7 +608,7 @@ validInputs = validPatterns
         )
         (\ws -> if not $ null ws
           then Left $ warn "`update` doesn't take any arguments."
-          else pure UpdateI
+          else pure $ SlurpFileI True
         )
       , quit
       ]
