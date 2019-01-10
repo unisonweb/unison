@@ -114,10 +114,8 @@ toNames0
   -> DataDeclaration' v a
   -> Names
 toNames0 typeSymbol r f dd =
-  let
-    names (ctor, i) =
-      let name = Var.qualifiedName ctor
-      in  Names.fromTerms [(name, f r i)] <> Names.fromPatterns [(name, (r, i))]
+  let names (ctor, i) =
+        let name = Var.qualifiedName ctor in Names.fromTerms [(name, f r i)]
   in  foldMap names (constructorVars dd `zip` [0 ..])
         <> Names.fromTypesV [(typeSymbol, r)]
 

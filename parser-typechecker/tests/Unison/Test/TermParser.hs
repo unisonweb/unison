@@ -13,6 +13,7 @@ import           Unison.Parser
 import qualified Unison.Parsers as Ps
 import           Unison.PrintError (renderParseErrorAsANSI)
 import qualified Unison.Reference as R
+import qualified Unison.Referent as Referent
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
 import qualified Unison.Names as Names
@@ -179,9 +180,9 @@ unitTests =
    s = symbolyId
 
 builtins :: Names
-builtins = Names.fromPatterns
-  [("Pair", (R.Builtin "Pair", 0)),
-   ("State.set", (R.Builtin "State", 0))]
+builtins = Names.fromTerms
+  [("Pair", Referent.Con (R.Builtin "Pair") 0),
+   ("State.set", Referent.Req (R.Builtin "State") 0)]
 
 parses :: String -> Test ()
 parses = parseWith TP.term
