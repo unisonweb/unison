@@ -176,7 +176,7 @@ notifyUser dir o = do
               else "  " <> P.text n
           in  intercalateMap "\n" go (sort branches)
     ListOfDefinitions branch terms types ->
-      let ppe  = Branch.prettyPrintEnv1 branch
+      let ppe  = Branch.prettyPrintEnv1 (Branch.head branch)
           sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
           sigs = [(name,t) | (name, Just t) <- sigs0 ]
           termsWithMissingTypes =
@@ -214,7 +214,8 @@ notifyUser dir o = do
                 P.column2 [ (P.text name, fromString (show ref))
                           | (name, ref) <- missingTypes ]
 
-    SlurpOutput (Editor.SlurpResult _ofile _branch adds dupes colls _updates refcolls) -> let
+    SlurpOutput (Editor.SlurpResult _ofile _branch adds dupes colls _conflicts _updates _ctorCollisions refcolls) -> let
+      -- TODO - update this to say something about conflicts and updates
       Editor.SlurpComponent addedTypes    addedTerms    = adds
       Editor.SlurpComponent dupeTypes     dupeTerms     = dupes
       Editor.SlurpComponent collidedTypes collidedTerms = colls

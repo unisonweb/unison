@@ -31,6 +31,7 @@ module Unison.Typechecker.Context
   , lookupAnn
   , lookupSolved
   , apply
+  , isEqual
   , isSubtype
   , Suggestion(..)
   , isExact
@@ -1518,6 +1519,11 @@ isSubtype
   :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
 isSubtype builtinLoc t1 t2 =
   run builtinLoc [] Map.empty Map.empty (isSubtype' t1 t2)
+
+isEqual
+  :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
+isEqual builtinLoc t1 t2 =
+  (&&) <$> isSubtype builtinLoc t1 t2 <*> isSubtype builtinLoc t2 t1
 
 instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of

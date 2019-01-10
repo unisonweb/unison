@@ -158,6 +158,16 @@ synthesize env t = let
     (Term.vtmap TypeVar.Universal t)
   in tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
 
+isSubtype :: Var v => Type v loc -> Type v loc -> Bool
+isSubtype t1 t2 = case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
+  Context.Result es _ ob -> case ob of
+    Nothing -> error $ "some errors occurred during subtype checking " ++ show es
+    Just b -> b
+  where tvar = ABT.vmap TypeVar.Universal
+
+isEqual :: Var v => Type v loc -> Type v loc -> Bool
+isEqual t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
+
 type TDNR f v loc a =
   StateT (Term v loc) (ResultT (Notes v loc) f) a
 

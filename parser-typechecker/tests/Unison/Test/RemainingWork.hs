@@ -90,4 +90,4 @@ test = scope "remainingwork" . tests $ [
 
 remaining' :: Branch0 -> Set RemainingWork
 remaining' b = runIdentity $
-  Branch.remaining ops (Branch.modify (const b) Branch.empty)
+  Branch.remaining ops b

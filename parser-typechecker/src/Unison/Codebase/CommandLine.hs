@@ -223,7 +223,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             putStrLn prettyDefs
             putStrLn
               "👀  Now evaluating any watch expressions (lines starting with `>`) ...\n"
-            selfContainedFile <- Codebase.makeSelfContained codebase branch $ UF.discardTypes' unisonFile
+            selfContainedFile <- Codebase.makeSelfContained codebase (Branch.head branch) $ UF.discardTypes' unisonFile
             (watchExpressions, _term) <-
               RT.evaluate runtime selfContainedFile codebase
             uncurry (Watch.watchPrinter names) `traverse_` watchExpressions
@@ -277,7 +277,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
             go branch name
           Just _ -> do
             let branchUpdate = Branch.fromTypecheckedFile typecheckedFile
-                collisions   = Branch.nameCollisions branchUpdate branch
+                collisions   = Branch.nameCollisions branchUpdate (Branch.head branch)
                 -- todo: collisions should really be collisions `Branch.subtract` branch,
                 -- since if the names have a matching hash that's fine
             if collisions /= mempty
@@ -358,7 +358,7 @@ main dir currentBranchName initialFile startRuntime codebase = do
 
     viewDefinitions :: Branch -> Name -> [String] -> IO ()
     viewDefinitions branch name args = do
-      prettys <- traverse (\q -> Codebase.prettyBindingsQ codebase q branch)
+      prettys <- traverse (\q -> Codebase.prettyBindingsQ codebase q (Branch.head branch))
                           args
       putStrLn . PP.render 80 $ PP.linesSpaced prettys
       go branch name
@@ -420,8 +420,8 @@ main dir currentBranchName initialFile startRuntime codebase = do
         -- rename a term/type/... in the current branch
         ["rename", from, to]
           -> let
-               terms = Branch.termsNamed (pack from) branch
-               types = Branch.typesNamed (pack from) branch
+               terms = Branch.termsNamed (pack from) (Branch.head branch)
+               types = Branch.typesNamed (pack from) (Branch.head branch)
                renameTerm branch = do
                  let branch' = Branch.renameTerm (pack from) (pack to) branch
                  mergeBranchAndShowDiff codebase name branch'

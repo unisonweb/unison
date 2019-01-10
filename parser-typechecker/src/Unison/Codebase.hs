@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Codebase where
 
@@ -26,7 +27,7 @@ import           Text.EditDistance              ( defaultEditCosts
                                                 )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch         ( Branch )
+import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Names                   ( Name )
@@ -101,14 +102,14 @@ typecheckingEnvironment code t = do
   pure $ TL.TypeLookup termTypes datas effects
 
 listReferences
-  :: (Var v, Monad m) => Codebase m v a -> Branch -> [Reference] -> m String
+  :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
 listReferences code branch refs = do
   let ppe = Branch.prettyPrintEnv1 branch
   terms0 <- forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
     pure $ (PPE.termName ppe (Referent.Ref r), otyp)
-  let terms = [ (name, t) | (name, Just t) <- terms0 ] 
-  let typeRefs0 = Branch.allNamedTypes (Branch.head branch)
+  let terms = [ (name, t) | (name, Just t) <- terms0 ]
+  let typeRefs0 = Branch.allNamedTypes branch
       typeRefs  = filter (`Set.member` typeRefs0) refs
   _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
     Reference.DerivedId id -> do
@@ -130,7 +131,7 @@ fuzzyFindTerms' branch query =
       else query >>= \q -> sortedApproximateMatches q termNames
     refsForName :: String -> [Referent]
     refsForName name =
-      Set.toList $ Branch.termsNamed (Text.pack name) branch
+      Set.toList $ Branch.termsNamed (Text.pack name) (Branch.head branch)
   in
     matchingTerms
       >>= \name -> (Text.pack name, ) <$> refsForName name
@@ -151,9 +152,9 @@ fuzzyFindTermTypes codebase branch query =
   in  traverse (uncurry tripleForRef) found
 
 fuzzyFindTypes' :: Branch -> [String] -> [(Name, Reference)]
-fuzzyFindTypes' branch query =
+fuzzyFindTypes' (Branch.head -> branch) query =
   let typeNames =
-        Text.unpack <$> toList (Branch.allTypeNames $ Branch.head branch)
+        Text.unpack <$> toList (Branch.allTypeNames branch)
       matchingTypes = if null query
         then typeNames
         else query >>= \q -> sortedApproximateMatches q typeNames
@@ -167,10 +168,10 @@ prettyTypeSource = error "todo"
 
 listReferencesMatching
   :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
-listReferencesMatching code b query = do
+listReferencesMatching code (Branch.head -> b) query = do
   let
-    termNames     = Text.unpack <$> toList (Branch.allTermNames (Branch.head b))
-    typeNames     = Text.unpack <$> toList (Branch.allTypeNames (Branch.head b))
+    termNames     = Text.unpack <$> toList (Branch.allTermNames b)
+    typeNames     = Text.unpack <$> toList (Branch.allTypeNames b)
     matchingTerms = if null query
       then termNames
       else query >>= \q -> sortedApproximateMatches q termNames
@@ -213,7 +214,7 @@ prettyBinding
   => Codebase m v a
   -> Name
   -> Referent
-  -> Branch
+  -> Branch0
   -> m (Maybe (Pretty String))
 prettyBinding _ _ (Referent.Ref (Reference.Builtin _)) _ = pure Nothing
 prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
@@ -238,7 +239,7 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(Name,Referent)] -> Branch -> m (Pretty String)
+  => Codebase m v a -> [(Name,Referent)] -> Branch0 -> m (Pretty String)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
@@ -248,10 +249,10 @@ prettyBindingsQ
   :: (Var.Var v, Monad m)
   => Codebase m v a
   -> String
-  -> Branch
+  -> Branch0
   -> m (Pretty String)
 prettyBindingsQ cb query b =
-  let possible = Branch.allTermNames (Branch.head b)
+  let possible = Branch.allTermNames b
       matches =
         sortedApproximateMatches query (Text.unpack <$> toList possible)
       str = fromString
@@ -332,7 +333,7 @@ transitiveDependencies code seen0 r = if Set.member r seen0
 makeSelfContained
   :: (Monad m, Var v)
   => Codebase m v a
-  -> Branch
+  -> Branch0
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do

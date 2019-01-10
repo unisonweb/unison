@@ -7,13 +7,17 @@
 
 module Unison.Codebase.Editor where
 
-import           Control.Monad                  ( forM_, when)
+import           Control.Monad                  ( forM_, when, foldM)
 import           Control.Monad.Extra            ( ifM )
+import Data.Foldable (toList)
 import           Data.Bifunctor                 ( second )
+import           Data.List                      ( foldl' )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
+import Data.Map (Map)
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
+import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
@@ -41,15 +45,18 @@ import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Codebase.Runtime       as Runtime
+import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
+import qualified Unison.Var as Var
 
 data Event
   = UnisonFileChanged SourceName Text
@@ -86,6 +93,10 @@ data SlurpResult v = SlurpResult {
   -- Names that already exist in the branch, but whose definitions
   -- in `originalFile` are treated as updates.
   , updates :: SlurpComponent v
+  -- Names of terms in `originalFile` that couldn't be updated because
+  -- they refer to existing constructors. (User should instead do a find/replace,
+  -- a constructor rename, or refactor the type that the name comes from).
+  , collidingConstructors :: Map v Referent
   -- Already defined in the branch, but with a different name.
   , duplicateReferents :: Branch.RefCollisions
   } deriving (Show)
@@ -170,17 +181,17 @@ instance Monoid NameChangeResult where
     NameChangeResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
 
 -- Function for handling name collisions during a file slurp into the codebase.
--- Receives (successes, collisions)
--- Returns (successes, collisions, updates)
-type CollisionHandler = Branch0 -> Branch0 -> (Branch0, Branch0, Branch0)
+-- Receives (collisions)
+-- Returns (collisions, updates)
+type CollisionHandler = Branch0 -> (Branch0, Branch0)
 
 -- All collisions get treated as updates and are added to successful.
 updateCollisionHandler :: CollisionHandler
-updateCollisionHandler ok collided = (ok <> collided, mempty, collided)
+updateCollisionHandler collided = (mempty, collided)
 
 -- All collisions get left alone and are not added to successes.
 addCollisionHandler :: CollisionHandler
-addCollisionHandler ok collided = (ok, collided, mempty)
+addCollisionHandler collided = (collided, mempty)
 
 data Command i v a where
   Input :: Command i v i
@@ -273,15 +284,17 @@ fileToBranch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (SlurpResult v)
 fileToBranch handleCollisions codebase branch unisonFile = let
+  branch0 = Branch.head branch
   branchUpdate = Branch.fromTypecheckedFile unisonFile
-  collisions0   = Branch.collisions branchUpdate branch
-  duplicates   = Branch.duplicates branchUpdate branch
+  collisions0   = Branch.unconflictedCollisions branchUpdate branch0
+  duplicates   = Branch.duplicates branchUpdate branch0
+  conflicts = Branch.conflicts' branch0
   -- old references with new names
-  dupeRefs     = Branch.refCollisions branchUpdate branch
-  diffNames    = Branch.differentNames dupeRefs branch
-  successes0    = Branch.ours
-    $ Branch.diff' branchUpdate (collisions <> duplicates <> dupeRefs)
-  (successes, collisions, updates) = handleCollisions successes0 collisions0
+  dupeRefs     = Branch.refCollisions branchUpdate branch0
+  diffNames    = Branch.differentNames dupeRefs branch0
+  successes    = Branch.ours
+    $ Branch.diff' branchUpdate (collisions0 <> duplicates <> dupeRefs)
+  (collisions, updates) = handleCollisions collisions0
   mkOutput x =
     uncurry SlurpComponent $ Branch.intersectWithFile x unisonFile
   allTypeDecls =
@@ -289,6 +302,12 @@ fileToBranch handleCollisions codebase branch unisonFile = let
       `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
   hashedTerms = UF.hashTerms unisonFile
   in do
+  -- 1. update Branch.collisions to make it only include things with 0 conflicts currently, but which would conflict if an additional definition was added
+  -- 2. create Branch.conflicts to include things with name conflicts currently
+  -- 3. fold over implicatedTypes of updates with Branch.updateType
+  -- 4. fold over implicatedTerms of updates with Branch.updateTerm and getTyping
+  -- 5. Causal.step the result of 3+4
+  -- 6. MergeBranch at some point (done)
     forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
       when (successes `Branch.contains` r || updates `Branch.contains` r)
         $ Codebase.putTypeDeclaration codebase id dd
@@ -300,15 +319,48 @@ fileToBranch handleCollisions codebase branch unisonFile = let
           id
           (Term.amap (const Parser.External) tm)
           typ
+
+    let updatesOut = mkOutput updates
+        b1 = foldl' go1 branch0 (Map.toList allTypeDecls)
+        go1 b0 (v, (ref, _)) =
+          if Set.member v (implicatedTypes updatesOut) then
+            case toList (Branch.typesNamed (Var.name v) b0) of
+              [oldref] -> Branch.replaceType oldref ref b0
+              wat -> error $
+                "Panic - updates contains a type with conflicts " ++
+                show wat
+          else b0
+        go2 (cctors, b0) (v, (r, _, typ)) =
+          if Set.member v (implicatedTerms updatesOut) then
+            case toList (Branch.termsNamed (Var.name v) b0) of
+              [Referent.Ref oldref] -> getTyping oldref typ >>= \typing -> pure $
+                (cctors, Branch.replaceTerm oldref r typing b0)
+              [oldref] -> pure (Map.insert v oldref cctors, b0)
+              wat -> error $
+                "Panic - updates contains a term with conflicts " ++
+                show wat
+          else pure (cctors, b0)
+
+        getTyping oldTerm newType = do
+          oldTypeo <- Codebase.getTypeOfTerm codebase oldTerm
+          pure $ case oldTypeo of
+            Just oldType ->
+              if Typechecker.isEqual oldType newType then TermEdit.Same
+              else if Typechecker.isSubtype newType oldType then TermEdit.Subtype
+              else TermEdit.Different
+            Nothing -> error $ "Tried to replace " ++ show oldTerm
+                    ++ " but its type wasn't found in the codebase. Panic!"
+
+    (collidingCtors, b2) <- foldM go2 (Map.empty, b1) (Map.toList hashedTerms)
     -- TODO: make sure it's a noop when updating a definition w/ name conflict
     pure $ SlurpResult unisonFile
-       -- Fix this to actually construct the right branch
-       (Branch.append (successes <> dupeRefs) branch)
+       (Branch.append (successes <> dupeRefs <> b2) branch)
        (mkOutput successes)
        (mkOutput duplicates)
        (mkOutput collisions)
-       _conflicts
-       (mkOutput updates)
+       (mkOutput conflicts)
+       updatesOut
+       collidingCtors
        diffNames
 
 typecheck
@@ -380,14 +432,15 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
-      selfContained <- Codebase.makeSelfContained codebase branch unisonFile
+      selfContained <- Codebase.makeSelfContained codebase (Branch.head branch) unisonFile
       Runtime.evaluate rt selfContained codebase
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
-    GetConflicts branch               -> pure $ Branch.conflicts' branch
+    GetConflicts branch               ->
+      pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
       Codebase.fuzzyFindTermTypes codebase branch queries

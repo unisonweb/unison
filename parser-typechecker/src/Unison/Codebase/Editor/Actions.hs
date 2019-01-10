@@ -15,7 +15,7 @@ import           Data.Traversable               ( for )
 import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Data.Set (Set)
-import           Unison.Codebase.Branch         ( Branch )
+import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
@@ -120,7 +120,7 @@ loop s = Free.unfold' go s
           let ppe =
                 PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                   `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                  `PPE.unionLeft` Branch.prettyPrintEnv [currentBranch]
+                  `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head currentBranch]
           respond $ DisplayDefinitions ppe loadedTerms loadedTypes
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
@@ -263,15 +263,15 @@ aliasUnconflicted branchName respond respondNewBranch
   alias
     :: Foldable f
     => NameTarget
-    -> (Name -> Branch -> f a)
+    -> (Name -> Branch0 -> f a)
     -> (a -> Name -> Branch -> Branch)
     -> Branch
     -> (Branch, NameChangeResult)
   alias nameTarget named alias' branch =
     let
-      oldMatches = toList . named oldName $ branch
+      oldMatches = toList . named oldName $ Branch.head branch
       oldNameMatchCount = length oldMatches
-      newNameExists = (not . null) (named newName branch)
+      newNameExists = (not . null) (named newName $ Branch.head branch)
     in case oldMatches of
          [oldMatch] | not newNameExists ->
             (alias' oldMatch newName branch,
@@ -311,14 +311,14 @@ renameUnconflicted branchName respond respondNewBranch
   rename
     :: Foldable f
     => NameTarget
-    -> (Name -> Branch -> f a)
+    -> (Name -> Branch0 -> f a)
     -> (Name -> Name -> Branch -> Branch)
     -> Branch
     -> (Branch, NameChangeResult)
   rename nameTarget named rename' branch =
     let
-      oldNameMatchCount = length . named oldName $ branch
-      newNameExists = (not . null) (named newName branch)
+      oldNameMatchCount = length . named oldName $ Branch.head branch
+      newNameExists = (not . null) (named newName $ Branch.head branch)
     in if (oldNameMatchCount == 1 && not newNameExists)
        then
         (rename' oldName newName branch,

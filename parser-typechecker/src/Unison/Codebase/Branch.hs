@@ -243,39 +243,39 @@ allTermNames = R.dom . termNamespace
 allTypeNames :: Branch0 -> Set Name
 allTypeNames b0 = R.dom (typeNamespace b0)
 
-hasTermNamed :: Name -> Branch -> Bool
+hasTermNamed :: Name -> Branch0 -> Bool
 hasTermNamed n b = not . null $ termsNamed n b
 
-hasTypeNamed :: Name -> Branch -> Bool
+hasTypeNamed :: Name -> Branch0 -> Bool
 hasTypeNamed n b = not . null $ typesNamed n b
 
-termsNamed :: Name -> Branch -> Set Referent
-termsNamed name = R.lookupDom name . termNamespace . Causal.head . unbranch
+termsNamed :: Name -> Branch0 -> Set Referent
+termsNamed name = R.lookupDom name . termNamespace
 
-typesNamed :: Name -> Branch -> Set Reference
-typesNamed name = R.lookupDom name . typeNamespace . Causal.head . unbranch
+typesNamed :: Name -> Branch0 -> Set Reference
+typesNamed name = R.lookupDom name . typeNamespace
 
-namesForTerm :: Referent -> Branch -> Set Name
-namesForTerm ref = R.lookupRan ref . termNamespace . Causal.head . unbranch
+namesForTerm :: Referent -> Branch0 -> Set Name
+namesForTerm ref = R.lookupRan ref . termNamespace
 
-namesForType :: Reference -> Branch -> Set Name
-namesForType ref = R.lookupRan ref . typeNamespace . Causal.head . unbranch
+namesForType :: Reference -> Branch0 -> Set Name
+namesForType ref = R.lookupRan ref . typeNamespace
 
-prettyPrintEnv1 :: Branch -> PrettyPrintEnv
+prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
   terms r = multiset $ namesForTerm r b
   types r = multiset $ namesForType r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
 
-prettyPrintEnv :: [Branch] -> PrettyPrintEnv
+prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
 prettyPrintEnv = foldMap prettyPrintEnv1
 
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
 
 -- Use e.g. by `conflicts termNamespace branch`
-conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a (Set b)
-conflicts f = conflicts' . f . Causal.head . unbranch where
+conflicts :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a (Set b)
+conflicts f = conflicts' . f where
   conflicts' :: Ord a => Relation a b -> Map a (Set b)
   conflicts' r =
     -- iterate over the domain, looking for ranges with size > 1
@@ -285,7 +285,7 @@ conflicts f = conflicts' . f . Causal.head . unbranch where
         let bs = R.lookupDom a r
         in if Set.size bs > 1 then Map.insert a bs m else m
 
-conflicts' :: Branch -> Branch0
+conflicts' :: Branch0 -> Branch0
 conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        (Namespace (c oldTermNamespace) (c oldTypeNamespace))
                        (c editedTerms)
@@ -294,8 +294,8 @@ conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
 
 
 -- Use as `resolved editedTerms branch`
-resolved :: Ord a => (Branch0 -> Relation a b) -> Branch -> Map a b
-resolved f = resolved' . f . Causal.head . unbranch where
+resolved :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a b
+resolved f = resolved' . f where
   resolved' :: Ord a => Relation a b -> Map a b
   resolved' r = foldl' go Map.empty (R.dom r) where
     go m a =
@@ -319,8 +319,8 @@ data RemainingWork
   | ObsoleteType Reference (Set (Reference, TypeEdit))
   deriving (Eq, Ord, Show)
 
-remaining :: forall m. Monad m => ReferenceOps m -> Branch -> m (Set RemainingWork)
-remaining ops b@(Branch (Causal.head -> b0)) = do
+remaining :: forall m. Monad m => ReferenceOps m -> Branch0 -> m (Set RemainingWork)
+remaining ops b = do
 -- If any of r's dependencies have been updated, r should be updated.
 -- Alternatively: If `a` has been edited, then all of a's dependents
 -- should be edited. (Maybe a warning if they are updated to something
@@ -347,7 +347,7 @@ remaining ops b@(Branch (Causal.head -> b0)) = do
           termEdits = resolved editedTerms b
           transitiveDependents :: Reference -> m (Set Reference)
           transitiveDependents r = transitiveClosure1 (dependents ops) r
-          isEdited r = R.memberDom r (editedTerms b0)
+          isEdited r = R.memberDom r (editedTerms b)
           uneditedTransitiveDependents :: Reference -> m [Reference]
           uneditedTransitiveDependents r =
             filter (not . isEdited) . toList <$> transitiveDependents r
@@ -395,11 +395,11 @@ remaining ops b@(Branch (Causal.head -> b0)) = do
             go2 (termWorkAcc, typeWorkAcc) referent =
               termOrTypeOp ops referent
                 (pure $
-                  if not $ R.memberDom referent (editedTerms b0)
+                  if not $ R.memberDom referent (editedTerms b)
                   then (termWorkAcc <> singleRight referent oldRef edit, typeWorkAcc)
                   else (termWorkAcc, typeWorkAcc))
                 (pure $
-                  if not $ R.memberDom referent (editedTypes b0)
+                  if not $ R.memberDom referent (editedTypes b)
                   then (termWorkAcc, typeWorkAcc <> single referent oldRef edit)
                   else (termWorkAcc, typeWorkAcc))
 
@@ -413,42 +413,43 @@ head :: Branch -> Branch0
 head (Branch b) = Causal.head b
 
 -- Returns the subset of `b0` whose names collide with elements of `b`
-nameCollisions :: Branch0 -> Branch -> Branch0
-nameCollisions b0 b = go b0 (head b)
- where
-  go b1 b2 = Branch0 (intersectNames (namespace b1) (namespace b2))
-                     (intersectNames (oldNamespace b1) (oldNamespace b2))
-                     R.empty
-                     R.empty
+nameCollisions :: Branch0 -> Branch0 -> Branch0
+nameCollisions b1 b2 =
+  Branch0 (intersectNames (namespace b1) (namespace b2))
+          (intersectNames (oldNamespace b1) (oldNamespace b2))
+          R.empty
+          R.empty
 
 -- Returns names occurring in both branches that also have the same referent.
-duplicates :: Branch0 -> Branch -> Branch0
-duplicates b0 b = go b0 (head b)
+duplicates :: Branch0 -> Branch0 -> Branch0
+duplicates b1 b2 =
+  Branch0
+    (Namespace (R.fromSet . Set.intersection (terms b1) $ terms b2)
+               (R.fromSet . Set.intersection (types b1) $ types b2))
+    (Namespace (R.fromSet . Set.intersection (oldTerms b1) $ oldTerms b2)
+               (R.fromSet . Set.intersection (oldTypes b1) $ oldTypes b2))
+    R.empty
+    R.empty
  where
   terms    = R.toSet . termNamespace
   types    = R.toSet . typeNamespace
   oldTerms = R.toSet . oldTermNamespace
   oldTypes = R.toSet . oldTypeNamespace
-  go b1 b2 = Branch0
-    (Namespace (R.fromSet . Set.intersection (terms b1) $ terms b2)
-               (R.fromSet . Set.intersection (types b1) $ types b2)
-    )
-    (Namespace (R.fromSet . Set.intersection (oldTerms b1) $ oldTerms b2)
-               (R.fromSet . Set.intersection (oldTypes b1) $ oldTypes b2)
-    )
-    R.empty
-    R.empty
 
 -- Returns the subset of `b0` whose names collide with elements of `b`
 -- (and don't have the same referent).
-collisions :: Branch0 -> Branch -> Branch0
+collisions :: Branch0 -> Branch0 -> Branch0
 collisions b0 b = ours $ nameCollisions b0 b `diff'` duplicates b0 b
 
+-- Like `collisions` but removes anything that's in a conflicted state
+unconflictedCollisions :: Branch0 -> Branch0 -> Branch0
+unconflictedCollisions b1 b2 = ours $
+  collisions b1 b2 `diff'` (conflicts' b1 <> conflicts' b2)
+
 -- Returns the references that have different names in `a` vs `b`
-differentNames :: Branch0 -> Branch -> RefCollisions
+differentNames :: Branch0 -> Branch0 -> RefCollisions
 differentNames a b = RefCollisions collTerms collTypes
  where
-  hb = head b
   colls f b =
     R.fromMultimap
       . fmap
@@ -457,12 +458,12 @@ differentNames a b = RefCollisions collTerms collTypes
           )
       . R.domain
       . f
-  collTerms = colls termNamespace hb a
-  collTypes = colls typeNamespace hb a
+  collTerms = colls termNamespace b a
+  collTypes = colls typeNamespace b a
 
 -- Returns the subset of `b0` whose referents collide with elements of `b`
-refCollisions :: Branch0 -> Branch -> Branch0
-refCollisions b0 b = ours . diff' (go b0 $ head b) $ duplicates b0 b
+refCollisions :: Branch0 -> Branch0 -> Branch0
+refCollisions b0 b = ours . diff' (go b0 b) $ duplicates b0 b
  where
   -- `set R.<| rel` filters `rel` to contain tuples whose first elem is in `set`
   go b1 b2 = Branch0 (intersectRefs (namespace b1) (namespace b2))
@@ -565,14 +566,12 @@ data ReferenceOps m = ReferenceOps
 -- foo' -> Replace foo'' *optional
 -- bar' -> Replace bar'' *optional
 
-replaceType :: Reference -> Reference -> Branch -> Branch
-replaceType old new (Branch b) = Branch $ Causal.step go b
- where
-  go b =
-    over editedTypesL (R.insert old (TypeEdit.Replace new))
-      . over (namespaceL . types)    (R.replaceRan old new)
-      . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
-      $ b
+replaceType :: Reference -> Reference -> Branch0 -> Branch0
+replaceType old new b =
+  over editedTypesL (R.insert old (TypeEdit.Replace new))
+  . over (namespaceL . types)    (R.replaceRan old new)
+  . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
+  $ b
 
 -- insertNames :: Monad m
 --             => ReferenceOps m
@@ -580,16 +579,15 @@ replaceType old new (Branch b) = Branch $ Causal.step go b
 --             -> Reference -> m (Relation Reference Name)
 -- insertNames ops m r = foldl' (flip $ R.insert r) m <$> name ops r
 
-replaceTerm :: Reference -> Reference -> Typing -> Branch -> Branch
-replaceTerm old new typ (Branch b) = Branch $ Causal.step go b
+replaceTerm :: Reference -> Reference -> Typing -> Branch0 -> Branch0
+replaceTerm old new typ b =
+ over editedTermsL (R.insert old (TermEdit.Replace new typ))
+   . over (namespaceL . terms)    (R.replaceRan old' new')
+   . over (oldNamespaceL . terms) (R.union (termNamespace b R.|> [old']))
+   $ b
  where
   old' = Referent.Ref old
   new' = Referent.Ref new
-  go b =
-    over editedTermsL (R.insert old (TermEdit.Replace new typ))
-      . over (namespaceL . terms)    (R.replaceRan old' new')
-      . over (oldNamespaceL . terms) (R.union (termNamespace b R.|> [old']))
-      $ b
 
 -- If any `as` aren't in `b`, then delete them from `c` as well.  Kind of sad.
 deleteOrphans
