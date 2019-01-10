@@ -2,6 +2,7 @@ module Unison.Typechecker.TypeLookup where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Unison.Kind
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
@@ -19,6 +20,9 @@ data TypeLookup v a =
              , dataDecls :: Map Reference (DataDeclaration v a)
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
+
+-- Used for kind checking
+type KindLookup v a = Map Reference (Kind v a)
 
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
