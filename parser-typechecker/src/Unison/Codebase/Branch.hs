@@ -10,7 +10,7 @@
 
 module Unison.Codebase.Branch where
 
--- import Unison.Codebase.NameEdit (NameEdit)
+-- import Debug.Trace
 import           Control.Lens
 import           Control.Monad            (foldM, join)
 import           Data.Bifunctor           (bimap)
@@ -20,7 +20,7 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
-import           Prelude                  hiding (head)
+import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
 import           Unison.Codebase.TermEdit (TermEdit, Typing)
@@ -179,6 +179,9 @@ contains :: Branch0 -> Reference -> Bool
 contains b r =
   R.memberRan (Referent.Ref r) (termNamespace b)
     || R.memberRan r (typeNamespace b)
+
+subtract :: Branch0 -> Branch0 -> Branch0
+subtract b1 b2 = ours $ diff' b1 b2
 
 diff :: Branch -> Branch -> Diff
 diff ours theirs =
@@ -439,12 +442,13 @@ duplicates b1 b2 =
 -- Returns the subset of `b0` whose names collide with elements of `b`
 -- (and don't have the same referent).
 collisions :: Branch0 -> Branch0 -> Branch0
-collisions b0 b = ours $ nameCollisions b0 b `diff'` duplicates b0 b
+collisions b0 b = nameCollisions b0 b `subtract` duplicates b0 b
 
 -- Like `collisions` but removes anything that's in a conflicted state
 unconflictedCollisions :: Branch0 -> Branch0 -> Branch0
-unconflictedCollisions b1 b2 = ours $
-  collisions b1 b2 `diff'` (conflicts' b1 <> conflicts' b2)
+unconflictedCollisions b1 b2 =
+  collisions (b1 `subtract` conflicts' b1)
+             (b2 `subtract` conflicts' b2)
 
 -- Returns the references that have different names in `a` vs `b`
 differentNames :: Branch0 -> Branch0 -> RefCollisions
@@ -463,7 +467,7 @@ differentNames a b = RefCollisions collTerms collTypes
 
 -- Returns the subset of `b0` whose referents collide with elements of `b`
 refCollisions :: Branch0 -> Branch0 -> Branch0
-refCollisions b0 b = ours . diff' (go b0 b) $ duplicates b0 b
+refCollisions b0 b = go b0 b `subtract` duplicates b0 b
  where
   -- `set R.<| rel` filters `rel` to contain tuples whose first elem is in `set`
   go b1 b2 = Branch0 (intersectRefs (namespace b1) (namespace b2))

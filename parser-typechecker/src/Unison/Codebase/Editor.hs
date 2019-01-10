@@ -7,6 +7,7 @@
 
 module Unison.Codebase.Editor where
 
+-- import Debug.Trace
 import           Control.Monad                  ( forM_, when, foldM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -286,7 +287,7 @@ fileToBranch
 fileToBranch handleCollisions codebase branch unisonFile = let
   branch0 = Branch.head branch
   branchUpdate = Branch.fromTypecheckedFile unisonFile
-  collisions0   = Branch.unconflictedCollisions branchUpdate branch0
+  collisions0  = Branch.unconflictedCollisions branchUpdate branch0
   duplicates   = Branch.duplicates branchUpdate branch0
   conflicts = Branch.conflicts' branch0
   -- old references with new names
