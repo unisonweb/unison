@@ -293,8 +293,8 @@ fileToBranch handleCollisions codebase branch unisonFile = let
   -- old references with new names
   dupeRefs     = Branch.refCollisions branchUpdate branch0
   diffNames    = Branch.differentNames dupeRefs branch0
-  successes    = Branch.ours
-    $ Branch.diff' branchUpdate (collisions0 <> duplicates <> dupeRefs)
+  successes    = branchUpdate `Branch.subtract` 
+                    (collisions0 <> duplicates <> dupeRefs)
   (collisions, updates) = handleCollisions collisions0
   mkOutput x =
     uncurry SlurpComponent $ Branch.intersectWithFile x unisonFile

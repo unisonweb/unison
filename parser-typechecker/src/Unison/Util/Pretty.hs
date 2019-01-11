@@ -6,6 +6,7 @@
 
 module Unison.Util.Pretty (
    Pretty,
+   ColorText,
    bulleted,
    -- breakable
    column2,
@@ -70,6 +71,7 @@ import qualified Data.Sequence                 as Seq
 import qualified Data.Text                     as Text
 
 type Width = Int
+type ColorText = CT.ColorText
 
 data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
 

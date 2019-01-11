@@ -4,6 +4,7 @@
 
 module Unison.UnisonFile where
 
+import           Control.Applicative    ((<|>))
 import           Control.Exception      (assert)
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
@@ -54,6 +55,11 @@ data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
   topLevelTerm :: AnnotatedTerm v a,
   typ :: AnnotatedType v a
 } deriving Show
+
+getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
+getDecl' uf v =
+  (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
+  (Left . snd <$> Map.lookup v (effectDeclarations' uf))
 
 discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =

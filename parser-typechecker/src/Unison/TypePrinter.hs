@@ -1,21 +1,22 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.TypePrinter where
 
-import qualified Data.Text                     as Text
-import           Data.Maybe                     ( isJust )
-import           Unison.Names                   ( Name )
-import           Unison.Reference               ( pattern Builtin )
+import           Data.Maybe            (isJust)
+import           Data.String           (fromString)
+import qualified Data.Text             as Text
+import           Unison.Names          (Name)
+import           Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import           Unison.Reference      (pattern Builtin)
 import           Unison.Type
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.Util.Pretty            as PP
-import Unison.Util.Pretty (Pretty)
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
-import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
+import           Unison.Util.Pretty    (ColorText, Pretty)
+import qualified Unison.Util.Pretty    as PP
+import           Unison.Var            (Var)
+import qualified Unison.Var            as Var
 
 {- Explanation of precedence handling
 
@@ -113,9 +114,15 @@ prettySignatures
   :: Var v
   => PrettyPrintEnv
   -> [(Name, AnnotatedType v a)]
-  -> Pretty String
+  -> Pretty ColorText
 prettySignatures env ts = PP.column2
-  [ (PP.text name, ":" <> prettyType typ)
+  [ (PP.text name, ":" <> PP.map fromString (prettyType typ))
   | (name, typ) <- ts
   ]
   where prettyType typ = PP.hang "" (pretty env (-1) typ)
+
+prettyDataHeader :: Name -> Pretty ColorText
+prettyDataHeader name = PP.bold "type " <> PP.text name
+
+prettyEffectHeader :: Name -> Pretty ColorText
+prettyEffectHeader name = PP.bold "ability " <> PP.text name
