@@ -379,7 +379,7 @@ notifyUser dir o = do
 
       ctorCollMsg = if not (null ctorCollisions)
         then
-          warn "I couldn't update these definitions because the names are currently assigned to constructors:"
+          warn "I can't update these definitions because the names are currently assigned to constructors:"
           <> P.newline
           <> P.newline
           <> P.indentN 2

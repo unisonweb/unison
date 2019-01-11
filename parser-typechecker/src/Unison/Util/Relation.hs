@@ -175,7 +175,11 @@ memberDom x r = isJust $ lookupDom' x r
 memberRan :: Ord b => b -> Relation a b -> Bool
 memberRan y r = isJust $ lookupRan' y r
 
+filterDom :: (Ord a, Ord b) => (a -> Bool) -> Relation a b -> Relation a b
+filterDom f r = S.filter f (dom r) <| r
 
+filterRan :: (Ord a, Ord b) => (b -> Bool) -> Relation a b -> Relation a b
+filterRan f r = r |> S.filter f (ran r)
 
 -- |
 -- True if the relation @r@ is the 'empty' relation.
