@@ -287,13 +287,18 @@ fileToBranch
 fileToBranch handleCollisions codebase branch unisonFile = let
   branch0 = Branch.head branch
   branchUpdate = Branch.fromTypecheckedFile unisonFile
+  -- name already exists in the branch, with one, different definition
   collisions0  = Branch.unconflictedCollisions branchUpdate branch0
+  -- same name, same def (already added)
   duplicates   = Branch.duplicates branchUpdate branch0
+  -- names already conflicted in the branch
   conflicts = Branch.conflicts' branch0
-  -- old references with new names
+  -- existing references with new names (potential aliases)
   dupeRefs     = Branch.refCollisions branchUpdate branch0
+  -- names corresponding to dupeRefs
   diffNames    = Branch.differentNames dupeRefs branch0
-  successes    = branchUpdate `Branch.subtract` 
+  -- added
+  successes    = branchUpdate `Branch.subtract`
                     (collisions0 <> duplicates <> dupeRefs)
   (collisions, updates) = handleCollisions collisions0
   mkOutput x =
@@ -355,7 +360,7 @@ fileToBranch handleCollisions codebase branch unisonFile = let
     (collidingCtors, b2) <- foldM go2 (Map.empty, b1) (Map.toList hashedTerms)
     -- TODO: make sure it's a noop when updating a definition w/ name conflict
     pure $ SlurpResult unisonFile
-       (Branch.append (successes <> dupeRefs <> b2) branch)
+       (Branch.append (successes <> updates <> b2) branch)
        (mkOutput successes)
        (mkOutput duplicates)
        (mkOutput collisions)

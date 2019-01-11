@@ -274,10 +274,11 @@ notifyUser dir o = do
           <> P.newline
           <> P.indentN 2 (
             P.lines (prettyDeclHeader <$> toList collidedTypes)
-            <> TypePrinter.prettySignatures ppe (filterTermTypes collidedTerms))
-          <> P.newline
-          <> P.newline
-          <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the one in your .u file.")
+            <> TypePrinter.prettySignatures ppe (filterTermTypes collidedTerms)
+            <> P.newline
+            <> P.newline
+            <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the one in your .u file.")
+            )
           <> P.newline
           <> P.newline
         else ""
@@ -302,10 +303,10 @@ notifyUser dir o = do
           <> P.indentN 2 (
             P.lines (prettyDeclHeader <$> toList conflictedTypes)
             <> TypePrinter.prettySignatures ppe (filterTermTypes conflictedTerms)
+            <> P.newline
+            <> P.newline
+            <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
           )
-          <> P.newline
-          <> P.newline
-          <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
           <> P.newline
           <> P.newline
         else ""
@@ -342,10 +343,10 @@ notifyUser dir o = do
                     Map.toList . R.domain . Branch.termCollisions $ refcolls
                 , (name, typ) <- filterTermTypes [Var.named newName]
                 ]
-          )
-          <> P.newline
-          <> P.newline
-          <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
+            <> P.newline
+            <> P.newline
+            <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
+            )
           <> P.newline
           <> P.newline
         else ""
@@ -386,10 +387,11 @@ notifyUser dir o = do
               [ (P.text $ Var.name v
                 , "is a constructor for " <>
                     P.text (PPE.typeName ppe (Referent.toReference r)))
-              | (v, r) <- Map.toList ctorCollisions ])
+              | (v, r) <- Map.toList ctorCollisions ]
           <> P.newline
           <> P.newline
           <> tip "You can `rename` these constructors to free up the names for your new definitions."
+          )
           <> P.newline
           <> P.newline
         else ""
