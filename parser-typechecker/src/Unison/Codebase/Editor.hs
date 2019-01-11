@@ -7,7 +7,8 @@
 
 module Unison.Codebase.Editor where
 
--- import Debug.Trace
+import Debug.Trace
+import           Control.Lens                   ( over )
 import           Control.Monad                  ( forM_, when, foldM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -56,6 +57,7 @@ import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
 import qualified Unison.Var as Var
 
@@ -307,6 +309,17 @@ fileToBranch handleCollisions codebase branch unisonFile = let
     (second Left <$> UF.effectDeclarations' unisonFile)
       `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
   hashedTerms = UF.hashTerms unisonFile
+  isConstructor = \case
+    Referent.Ref _ -> False
+    Referent.Con _ _ -> True
+    Referent.Req _ _ -> True
+  -- remove Req/Con entries from namespace; no changes to oldNamespace
+  stripConstructors :: Branch0 -> Branch0
+  stripConstructors =
+    over (Branch.namespaceL . Branch.terms) (Relation.filterRan isConstructor)
+  constructorsOnly =
+    over (Branch.namespaceL . Branch.terms) (Relation.filterRan (not . isConstructor))
+
   in do
   -- 1. update Branch.collisions to make it only include things with 0 conflicts currently, but which would conflict if an additional definition was added
   -- 2. create Branch.conflicts to include things with name conflicts currently
@@ -326,7 +339,15 @@ fileToBranch handleCollisions codebase branch unisonFile = let
           (Term.amap (const Parser.External) tm)
           typ
 
-    let updatesOut = mkOutput updates
+    let
+        -- don't try to update constructors
+        updatesOut = mkOutput updates
+        strippedUpdatesOut = stripConstructors updates
+        -- strippedCollisions is non-constructor terms that already exist
+        strippedCollisions = stripConstructors collisions
+        -- constructor terms that already exist are taken from here in go2
+        antiStrippedCollisions = traceShowId . traceShow "antiStrippedCollisions" . mkOutput . constructorsOnly .
+          traceShowId . traceShow "collisions" $ collisions
         b1 = foldl' go1 branch0 (Map.toList allTypeDecls)
         go1 b0 (v, (ref, _)) =
           if Set.member v (implicatedTypes updatesOut) then
@@ -337,7 +358,8 @@ fileToBranch handleCollisions codebase branch unisonFile = let
                 show wat
           else b0
         go2 (cctors, b0) (v, (r, _, typ)) =
-          if Set.member v (implicatedTerms updatesOut) then
+          if Set.member v (implicatedTerms updatesOut)
+          || Set.member v (implicatedTerms antiStrippedCollisions) then
             case toList (Branch.termsNamed (Var.name v) b0) of
               [Referent.Ref oldref] -> getTyping oldref typ >>= \typing -> pure $
                 (cctors, Branch.replaceTerm oldref r typing b0)
@@ -363,7 +385,7 @@ fileToBranch handleCollisions codebase branch unisonFile = let
        (Branch.append (successes <> updates <> b2) branch)
        (mkOutput successes)
        (mkOutput duplicates)
-       (mkOutput collisions)
+       (mkOutput strippedCollisions)
        (mkOutput conflicts)
        updatesOut
        collidingCtors
