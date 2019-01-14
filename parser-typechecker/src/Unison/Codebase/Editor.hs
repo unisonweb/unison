@@ -278,7 +278,27 @@ data Command i v a where
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
--- todo: generalize this wrt to handling of collisions
+data Outcome
+  -- New definition that was added to the branch
+  = Added
+  -- A name collision that was treated as a replacement
+  | Updated
+  -- Skipped because it already exist in the branch (with same name)
+  | AlreadyExists
+  -- Skipped because it already exist in the branch (with different name(s))
+  | RequiresAlias [v]
+  -- Skipped terms because they share a name with existing constructor
+  | ConstructorCollision1
+  -- Skipped types because one of their constructors collides with an existing term
+  | ConstructorCollision2
+  -- Skipped because one of its dependencies couldn't be added / doesn't already exist in branch
+  | CouldntAddDependency
+
+outcomes :: Branch0
+        -> UF.TypecheckedUnisonFile v Ann
+        -> [(Either Reference Reference, Outcome)]
+outcomes b = error "todo"
+
 fileToBranch
   :: (Var v, Monad m)
   => CollisionHandler
