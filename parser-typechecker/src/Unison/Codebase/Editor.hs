@@ -304,12 +304,12 @@ data Outcome
   -- or doesn't already exist in branch
   | CouldntAddDependencies (Set Reference)
 
-okOutcome :: Outcome -> Bool
-okOutcome o = case o of
-  Added -> True
-  Updated -> True
+blocksDependent :: Outcome -> Bool
+blocksDependent = \case
+  Added -> False
+  Updated -> False
   AlreadyExists -> False
-  _ -> False
+  _ -> True
 
 outcomes :: Var v
          => CollisionHandler
@@ -378,16 +378,27 @@ removeTransitive
 removeTransitive dependencies outcomes0 = let
   ref r = either id id r
   -- `Set Reference` that have been removed
-  removed0 = Set.fromList [ ref r | (r, o) <- outcomes0, not (okOutcome o) ]
-  trim removedAlready cur = let
-    cur' = map go cur
-    go (r, o) = let
-      removedDeps = Set.intersection removedAlready (R.lookupDom (ref r) dependencies)
-      in if not (okOutcome o) || Set.null removedDeps then (r, o)
-         else (r, CouldntAddDependencies removedDeps)
-    removed = Set.fromList [ ref r | (r, o) <- cur', not (okOutcome o) ]
-    in if Set.size removed == Set.size removedAlready then cur
-       else trim removed cur'
+  removed0 = Set.fromList [ ref r | (r, o) <- outcomes0, blocksDependent o ]
+  trim :: Set Reference
+       -> [(Either Reference Reference, Outcome)]
+       -> [(Either Reference Reference, Outcome)]
+  trim removedAlready outcomes = let
+    outcomes' = map stepOutcome outcomes
+    stepOutcome (r, o) =
+      let
+        -- dependencies of r which have already been marked for removal
+        removedDeps =
+          Set.intersection removedAlready (R.lookupDom (ref r) dependencies)
+      in
+        -- if r's outcome is already a sort of failure, then keep that outcome
+        if blocksDependent o then (r, o)
+        -- or if none of r's dependencies are removed, then don't change r's outcome
+        else if Set.null removedDeps then (r, o)
+        -- else some of r's deps block r
+        else (r, CouldntAddDependencies removedDeps)
+    removed = Set.fromList [ ref r | (r, o) <- outcomes', blocksDependent o ]
+    in if Set.size removed == Set.size removedAlready then outcomes
+       else trim removed outcomes'
   in trim removed0 outcomes0
 
 fileToBranch

@@ -27,4 +27,4 @@ transitiveClosure1 :: forall m a. (Monad m, Ord a)
 transitiveClosure1 f a = transitiveClosure f (Set.singleton a)
 
 transitiveClosure1' :: Ord a => (a -> Set a) -> a -> Set a
-transitiveClosure1' f a = runIdentity $ transitiveClosure1 (pure.f) a
+transitiveClosure1' f a = runIdentity $ transitiveClosure1 (pure . f) a
