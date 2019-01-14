@@ -109,6 +109,12 @@ termNamespace = view $ namespaceL . terms
 typeNamespace :: Branch0 -> Relation Name Reference
 typeNamespace = view $ namespaceL . types
 
+allTerms :: Branch0 -> Set Referent
+allTerms = R.ran . termNamespace
+
+allTypes :: Branch0 -> Set Reference
+allTypes = R.ran . typeNamespace
+
 intersectNames :: Namespace -> Namespace -> Namespace
 intersectNames n1 n2 = Namespace terms types
  where

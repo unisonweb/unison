@@ -11,17 +11,22 @@ module Unison.Codebase where
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 )
+import           Control.Monad.State
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
                                                 )
+import           Data.Function                  ( on )
 import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes )
+import           Data.Maybe                     ( catMaybes
+                                                , isJust
+                                                )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( fromString )
 import qualified Data.Text                     as Text
+import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
                                                 , levenshteinDistance
                                                 )
@@ -50,6 +55,7 @@ import           Unison.Util.AnnotatedText      ( AnnotatedText )
 import           Unison.Util.ColorText          ( Color, ColorText )
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
+import qualified Unison.Util.Relation          as R
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 
@@ -393,3 +399,53 @@ branchExists codebase name = elem name <$> branches codebase
 
 builtinBranch :: Branch
 builtinBranch = Branch.append (Branch.fromNames Builtin.names) mempty
+
+-- Predicate of Relation a b here is "a depends on b".
+-- Dependents are in the domain and dependencies in the range.
+type DependencyGraph = R.Relation Reference Reference
+
+dependencyGraph
+  :: (Ord v, Monad m) => Codebase m v a -> Branch0 -> m DependencyGraph
+dependencyGraph c b = do
+  termDeps <-
+    for [ r | Reference.DerivedId r <- Referent.toReference <$> toList terms ]
+      $ \r -> do
+          mayTerm <- getTerm c r
+          case mayTerm of
+            Nothing -> fail $ "Missing term reference " <> show r
+            Just t  -> pure (Reference.DerivedId r, Term.dependencies t)
+  typeDeps <- for [ r | Reference.DerivedId r <- toList types ] $ \r -> do
+    mayType <- getTypeDeclaration c r
+    case mayType of
+      Nothing -> fail $ "Missing type reference " <> show r
+      Just t  -> pure
+        (Reference.DerivedId r, DD.dependencies . either DD.toDataDecl id $ t)
+  pure $ on R.union (R.fromMultimap . Map.fromList) termDeps typeDeps
+ where
+  terms = Branch.allTerms b
+  types = Branch.allTypes b
+
+  -- do
+  --   mayTerm <- getTerm r
+  --   case mayTerm of
+  --     Just t -> pure $ Term.dependencies t
+  --     Nothing -> do
+  --       mayDecl <- getTypeDeclaration r
+  --       case mayDecl of
+  --         Just decl -> pure $ DD.dependencies (either DD.toDataDecl id)
+  --         Nothing -> pure $ Set.empty
+
+referenceOps
+  :: MonadState DependencyGraph m
+  => Codebase m v a
+  -> Branch.ReferenceOps m
+referenceOps c = Branch.ReferenceOps isTerm isType dependencies dependents
+ where
+  isTerm (Reference.DerivedId r) = fmap isJust $ getTerm c r
+  isTerm _                       = pure False
+  isType (Reference.DerivedId r) = fmap isJust $ getTypeDeclaration c r
+  isType _                       = pure False
+  dependencies = (<$> get) . R.lookupDom
+  dependents   = (<$> get) . R.lookupRan
+
+

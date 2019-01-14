@@ -180,6 +180,7 @@ loop s = Free.unfold' go s
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
           $ \branch -> mergeBranch currentBranchName respond success branch
+        TodoI -> undefined
         QuitI -> quit
        where
         success       = respond $ Success input

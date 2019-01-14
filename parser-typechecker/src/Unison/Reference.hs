@@ -46,7 +46,7 @@ instance Show Id where
 
 pattern Builtin t = Builtin_ t
 pattern Derived h n i <- DerivedPrivate_ (Id h n i)
-pattern DerivedId id <- DerivedPrivate_ id
+pattern DerivedId id = DerivedPrivate_ id
 
 type Pos = Word64
 type Size = Word64

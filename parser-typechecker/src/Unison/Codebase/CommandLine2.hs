@@ -531,15 +531,15 @@ validInputs = validPatterns
         ["ls"]
         [(True, definitionQueryArg)]
         (P.column2
-          [ ("`list`", P.wrap $ "shows all definitions in the current branch.")
+          [ ("`list`", P.wrap $ "lists all definitions in the current branch.")
           , ( "`list foo`"
             , P.wrap
-            $  "shows all definitions with a name similar"
+            $  "lists all definitions with a name similar"
             <> "to 'foo' in the current branch."
             )
           , ( "`list foo bar`"
             , P.wrap
-            $  "shows all definitions with a name similar"
+            $  "lists all definitions with a name similar"
             <> "to 'foo' or 'bar' in the current branch."
             )
           ]
@@ -596,17 +596,29 @@ validInputs = validPatterns
         "update"
         []
         []
-        -- TODO: Say something about the structured refactoring session here.
         (  P.wrap
         $  "`update` works like `add`, except "
         <> "if a definition in the file "
         <> "has the same name as an existing definition, the name gets updated "
-        <> "to point to the new definition."
+        <> "to point to the new definition. "
+        <> "If the old definition has any dependents, `update` will add "
+        <> "those dependents to a refactoring session."
         )
         (\ws -> if not $ null ws
           then Left $ warn "`update` doesn't take any arguments."
           else pure $ SlurpFileI True
         )
+      , InputPattern
+        "todo"
+        []
+        []
+        (P.wrap
+        $ "`todo` lists the work remaining in the current branch " <>
+          "to complete an ongoing refactoring."
+        )
+        (\ws -> if not $ null ws
+                   then Left $ warn "`todo` doesn't take any arguments."
+                   else pure $ TodoI)
       , quit
       ]
   allTargets = Set.fromList [Names.TermName, Names.TypeName]

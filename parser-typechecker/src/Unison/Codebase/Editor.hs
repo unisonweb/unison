@@ -131,6 +131,7 @@ data Input
   | ForkBranchI BranchName
   | MergeBranchI BranchName
   | ShowDefinitionI [String]
+  | TodoI
   | QuitI
   deriving (Show)
 
@@ -164,6 +165,7 @@ data Output v
   | Evaluated Names ([(Text, Term v ())], Term v ())
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
+  | TodoOutput
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
@@ -260,7 +262,8 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- RemainingWork :: Branch -> Command i v [RemainingWork]
+  -- List work remaining in the current branch to complete a refactoring.
+  RemainingWork :: Branch -> Command i v (Set Branch.RemainingWork)
 
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
@@ -433,15 +436,16 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
-      selfContained <- Codebase.makeSelfContained codebase (Branch.head branch) unisonFile
+      selfContained <- Codebase.makeSelfContained codebase
+                                                  (Branch.head branch)
+                                                  unisonFile
       Runtime.evaluate rt selfContained codebase
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
-    GetConflicts branch               ->
-      pure $ Branch.conflicts' (Branch.head branch)
+    GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
       Codebase.fuzzyFindTermTypes codebase branch queries
@@ -449,3 +453,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       pure $ Codebase.fuzzyFindTypes' branch queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
+    RemainingWork b ->
+      Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
+
