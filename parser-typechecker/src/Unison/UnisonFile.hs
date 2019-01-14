@@ -73,6 +73,7 @@ discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
 dependencies' :: Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
 dependencies' file = let
   _terms = hashTerms file
+  -- implement using Term.dependencies and Type.dependencies
   in error "todo"
 
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.

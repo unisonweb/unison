@@ -336,25 +336,27 @@ outcomes okToUpdate b file = let
           else (r0, Updated)
       -- It's a type
       Left _ -> let
-        referents = Set.unions $ map (`Branch.termsNamed` b) ctorNames
+        ctorNameCollisions :: Set Referent
+        ctorNameCollisions = Set.unions $
+          map (`Branch.termsNamed` b) ctorNames
         in case toList $ Branch.typesNamed n b of
           [] -> -- no type name collisions
-            if null referents then (r0, Added) -- and no term collisions
-            else (r0, ConstructorExistingTermCollision $ toList referents)
-          refs ->
-            if not (okToUpdate n) then (r0, CouldntUpdate)
-            else if length refs > 1 then (r0, CouldntUpdateConflicted)
-            else let
-              hasSameName r = Set.member n (Branch.namesForType r b)
-              collided = toList referents >>= \r2 -> case r2 of
-                Referent.Ref _ -> [r2]
-                -- note - it doesn't count as a collision if the type names
-                -- match, as the constructors of that type will all be moved
-                -- to oldNames
-                Referent.Req r cid -> if hasSameName r then [] else [r2]
-                Referent.Con r cid -> if hasSameName r then [] else [r2]
-              in if null collided then (r0, Updated)
-                 else (r0, ConstructorExistingTermCollision collided)
+            if null ctorNameCollisions
+            then (r0, Added) -- and no term collisions
+            else (r0, ConstructorExistingTermCollision $ toList ctorNameCollisions)
+          refs | not (okToUpdate n) -> (r0, CouldntUpdate)
+          [oldref] -> let
+            conflicted = toList ctorNameCollisions >>= \r2 -> case r2 of
+              Referent.Ref _ -> [r2]
+              -- note - it doesn't count as a collision if the name
+              -- collision is on a ctor of the type we're replacing
+              -- of the type we will be replacing
+              Referent.Req r cid -> if r == oldref then [] else [r2]
+              Referent.Con r cid -> if r == oldref then [] else [r2]
+            in if null conflicted then (r0, Updated)
+               else (r0, ConstructorExistingTermCollision conflicted)
+          otherwise -> (r0, CouldntUpdateConflicted) -- come back to this
+
   outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
   termOutcome (v, (r, _, _)) = outcome0 (Var.name v) (Right r) []
   outcomes0types
@@ -375,6 +377,7 @@ removeTransitive
   -> [(Either Reference Reference, Outcome)]
 removeTransitive dependencies outcomes0 = let
   ref r = either id id r
+  -- `Set Reference` that have been removed
   removed0 = Set.fromList [ ref r | (r, o) <- outcomes0, not (okOutcome o) ]
   trim removedAlready cur = let
     cur' = map go cur
@@ -383,9 +386,8 @@ removeTransitive dependencies outcomes0 = let
       in if not (okOutcome o) || Set.null removedDeps then (r, o)
          else (r, CouldntAddDependencies removedDeps)
     removed = Set.fromList [ ref r | (r, o) <- cur', not (okOutcome o) ]
-    newlyRemoved = removed `Set.difference` newlyRemoved
-    in if Set.null newlyRemoved then cur
-       else trim (removedAlready <> newlyRemoved) cur'
+    in if Set.size removed == Set.size removedAlready then cur
+       else trim removed cur'
   in trim removed0 outcomes0
 
 fileToBranch
