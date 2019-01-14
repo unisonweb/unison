@@ -13,6 +13,11 @@ data Referent = Ref Reference | Req Reference Int | Con Reference Int
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
 
+isConstructor :: Referent -> Bool
+isConstructor (Con _ _) = True
+isConstructor (Req _ _) = True
+isConstructor _ = False
+
 toReference :: Referent -> Reference
 toReference = \case
   Ref r -> r
