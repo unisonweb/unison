@@ -26,6 +26,7 @@ import qualified Unison.Referent        as Referent
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
+import           Unison.Util.Relation   (Relation)
 import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -64,6 +65,15 @@ getDecl' uf v =
 discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
   TypecheckedUnisonFile_ datas effects components
+
+-- Returns a relation for the dependencies of this file. The domain is
+-- the dependent, and the range is its dependencies, thus:
+-- `R.lookupDom r (dependencies file)` returns the set of dependencies
+-- of the reference `r`.
+dependencies' :: Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
+dependencies' file = let
+  _terms = hashTerms file
+  in error "todo"
 
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: Var v => UnisonFile v a -> Names -> Set Reference

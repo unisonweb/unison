@@ -350,7 +350,7 @@ outcomes okToUpdate b file = let
                 Referent.Ref _ -> [r2]
                 -- note - it doesn't count as a collision if the type names
                 -- match, as the constructors of that type will all be moved
-                -- to oldNames 
+                -- to oldNames
                 Referent.Req r cid -> if hasSameName r then [] else [r2]
                 Referent.Con r cid -> if hasSameName r then [] else [r2]
               in if null collided then (r0, Updated)
@@ -364,7 +364,7 @@ outcomes okToUpdate b file = let
   ctorNames v r (Left e) = Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
   ctorNames v r (Right dd) = Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
   outcomes0 = outcomes0terms ++ outcomes0types
-  in removeTransitive (error "todo - compute dependencies") outcomes0
+  in removeTransitive (UF.dependencies' file) outcomes0
 
 -- Converts outcomes to CouldntAddDependencies if it is a successful outcome
 -- which depends (directly or indirectly) on a Reference with an unsuccessful
