@@ -1,8 +1,13 @@
-{-# Language TupleSections #-}
+{-# Language FlexibleContexts #-}
+{-# Language PartialTypeSignatures #-}
 {-# Language OverloadedStrings #-}
+{-# Language StrictData #-}
+{-# Language TupleSections #-}
 
 module Unison.Runtime.IR where
 
+import Control.Concurrent.Supply (Supply)
+import Control.Monad.State (MonadState, get, put)
 import Data.Foldable
 import Data.Functor (void)
 import Data.Int (Int64)
@@ -12,10 +17,10 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
-import Debug.Trace
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Var (Var)
+import qualified Control.Concurrent.Supply as Supply
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -30,20 +35,24 @@ type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
 
-type IsIndirect = Bool
-
 data SymbolC =
-  SymbolC { isIndirect :: Bool
+  SymbolC { isLazy :: Bool
           , underlyingSymbol :: Symbol
           } deriving Show
+
+makeLazy :: SymbolC -> SymbolC
+makeLazy s = s { isLazy = True }
+
+toSymbolC :: Symbol -> SymbolC
+toSymbolC s = SymbolC False s
 
 -- Values, in normal form
 data V
   = I Int64 | F Double | N Word64 | B Bool | T Text
-  | Lam Arity (Either R.Reference (Term Symbol)) IR
+  | Lam Arity (Either R.Reference (Term SymbolC)) IR
   | Data R.Reference ConstructorId [V]
   | Sequence (Vector V)
-  | Indirect Int Symbol V -- the inner `V` here is lazy
+  | Lazy Int Symbol ~V -- the inner `V` here is lazy
   | Pure V
   | Requested Req
   | Cont IR
@@ -62,11 +71,12 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z = Slot Pos | Val V deriving (Eq)
+data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
 
 -- Computations - evaluation reduces these to values
 data IR
   = Var Pos
+  | LazyVar Pos
   -- Ints
   | AddI Z Z | SubI Z Z | MultI Z Z | DivI Z Z
   | GtI Z Z | LtI Z Z | GtEqI Z Z | LtEqI Z Z | EqI Z Z
@@ -112,37 +122,38 @@ wrapHandler :: V -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
 compile :: (R.Reference -> IR) -> Term Symbol -> IR
-compile env t = traceShowId $ compile0 env [] t
+compile env t = compile0 env [] (Term.vmap toSymbolC t)
 
-freeVars :: [(Symbol,a)] -> Term Symbol -> Set Symbol
+freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =
   ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
+
+fresh :: MonadState Supply m => m Int
+fresh = do
+  s <- get
+  let (i, s2) = Supply.freshId s
+  put s2
+  pure i
 
 -- Main compilation function - converts an arbitrary term to an `IR`.
 -- Takes a way of resolving `Reference`s and an environment of variables,
 -- some of which may already be precompiled to `V`s. (This occurs when
 -- recompiling a function that is being partially applied)
-compile0 :: (R.Reference -> IR) -> [(Symbol, Maybe V)] -> Term Symbol -> IR
-compile0 env bound t = case freeVars bound t of
-  fvs | Set.null fvs -> go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' id t))
-      | otherwise    -> error $ "can't compile a term with free variables: " ++ show (toList fvs)
+compile0 :: (R.Reference -> IR) -> [(SymbolC, Maybe V)] -> Term SymbolC -> IR
+compile0 env bound t =
+  if Set.null fvs then
+    go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
+  else
+    error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
+  fvs = freeVars bound t
   go t = case t of
     Term.And' x y -> And (ind "and" t x) (go y)
+    -- TODO:
+    --  2. update Rt0 to deal with extra Supply parameter
     Term.LamsNamed' vs body ->
       V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body)))
     Term.Or' x y -> Or (ind "or" t x) (go y)
-    Term.If' cond ifT ifF -> If (ind "cond" t cond) (go ifT) (go ifF)
-    Term.Int' n -> V (I n)
-    Term.Nat' n -> V (N n)
-    Term.Float' n -> V (F n)
-    Term.Boolean' b -> V (B b)
-    Term.Text' t -> V (T t)
-    Term.Ref' r -> env r
-    Term.Var' v -> case compileVar 0 v (ABT.annotation t) of
-      Slot i -> Var i
-      Val v -> V v
-    Term.Let1Named' _ b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
     Term.Constructor' r cid -> V (Data r cid mempty)
     Term.Request' r cid -> Request r cid mempty
@@ -159,14 +170,17 @@ compile0 env bound t = case freeVars bound t of
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
-        if v == v' then maybe (Slot i) Val o
+        if v == v' then case o of
+          Nothing | isLazy v  -> LazySlot i
+                  | otherwise -> Slot i
+          Just v -> Val v
         else if isJust o then compileVar i v tl
         else compileVar (i + 1) v tl
       unknown v = error $ "free variable during compilation: " ++ show v
       ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
       ind msg _t e = case go e of
         V v -> Val v
-        _ -> error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
+        e -> error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
@@ -181,7 +195,7 @@ compile0 env bound t = case freeVars bound t of
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: V -> Maybe (Term Symbol)
+decompile :: V -> Maybe (Term SymbolC)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -190,12 +204,14 @@ decompile v = case v of
   T t -> pure $ Term.text () t
   Lam _ f _ -> pure $ case f of Left r -> Term.ref() r; Right f -> f
   Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
-  Sequence vs -> Term.vector' () <$> (traverse decompile vs)
+  Sequence vs -> Term.vector' () <$> traverse decompile vs
   Pure _ -> Nothing
   Requested _ -> Nothing
   Cont _ -> Nothing
+  Lazy _ _ _ -> error "IR todo - decompile Lazy"
 
 instance Show Z where
+  show (LazySlot i) = "'#" ++ show i
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
 

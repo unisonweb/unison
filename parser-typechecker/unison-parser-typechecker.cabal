@@ -119,6 +119,7 @@ library
     bytestring,
     containers,
     comonad,
+    concurrent-supply,
     cryptonite,
     data-memocombinators,
     directory,

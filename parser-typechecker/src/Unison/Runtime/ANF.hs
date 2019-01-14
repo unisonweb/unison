@@ -19,6 +19,7 @@ import qualified Data.Text as Text
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
+import Unison.Typechecker.Components (minimize')
 
 newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 
@@ -30,7 +31,8 @@ newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 -- can be done as a purely local transformation, without updating any
 -- call sites of the lambda.
 --
--- The transformation is shallow and doesn't look inside lambdas.
+-- The transformation is shallow and doesn't transform the body of
+-- lambdas it finds inside of `t`.
 lambdaLift :: (Var v, Semigroup a) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
 lambdaLift liftVar t = ABT.visitPure go t where
   go t@(LamsNamed' vs body) = Just $ let
@@ -86,8 +88,14 @@ isLeaf _ = False
 fromTerm' :: (Semigroup a, Var v) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
 fromTerm' liftVar t = term (fromTerm liftVar t)
 
+minimizeCyclesOrCrash :: Var v => AnnotatedTerm v a -> AnnotatedTerm v a
+minimizeCyclesOrCrash t = case minimize' t of
+  Right t -> t
+  Left e -> error $ "tried to minimize let rec with duplicate definitions: "
+                 ++ show (fst <$> toList e)
+
 fromTerm :: forall a v . (Semigroup a, Var v) => (v -> v) -> AnnotatedTerm v a -> ANF v a
-fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
+fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar (minimizeCyclesOrCrash t)) where
   ann = ABT.annotation
   isRef (Ref' _) = True
   isRef _ = False

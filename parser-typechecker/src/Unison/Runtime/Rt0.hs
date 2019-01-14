@@ -224,7 +224,7 @@ normalize env t =
         RRequest e -> Requested e
         RDone a -> a
         e -> error $ show e
-  in decompile v
+  in Term.vmap underlyingSymbol <$> decompile v
 
 parseAndNormalize' :: String -> String
 parseAndNormalize' s = parseAndNormalize env s
