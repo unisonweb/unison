@@ -52,8 +52,10 @@ import           Unison.Util.Relation          (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
@@ -449,7 +451,20 @@ fileToBranch handleCollisions codebase branch uf = do
           , Branch.addTermName (Referent.Ref r) (Var.name v) b )
       Updated -> do
         let result' = result { updates = updates result <> sc r v }
-        pure (result', error "todo - finish writing update")
+        case r of
+          Left (r', _) -> case toList (Branch.typesNamed (Var.name v) b0) of
+            [r0] -> pure (result', Branch.replaceType r0 r' b)
+            _ -> error "Panic. Tried to replace a type that's conflicted."
+          Right r' -> case toList (Branch.termsNamed (Var.name v) b0) of
+            [Referent.Ref r0] -> do
+              Just type1 <- Codebase.getTypeOfTerm codebase r0
+              let Just (_, _, type2) = Map.lookup r' termsByRef
+              let typing =
+                    if Typechecker.isEqual type1 type2 then TermEdit.Same
+                    else if Typechecker.isSubtype type2 type1 then TermEdit.Subtype
+                    else TermEdit.Different
+              pure (result', Branch.replaceTerm r0 r' typing b)
+            _ -> error $ "Panic. Tried to replace a term that's conflicted." ++ show v
       AlreadyExists -> pure (result { duplicates = duplicates result <> sc r v }, b)
       CouldntUpdate -> pure (result { collisions = collisions result <> sc r v }, b)
       CouldntUpdateConflicted ->

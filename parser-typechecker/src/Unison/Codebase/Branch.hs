@@ -591,11 +591,16 @@ data ReferenceOps m = ReferenceOps
 -- bar' -> Replace bar'' *optional
 
 replaceType :: Reference -> Reference -> Branch0 -> Branch0
-replaceType old new b =
-  over editedTypesL (R.insert old (TypeEdit.Replace new))
+replaceType old new b
+  = over editedTypesL (R.insert old (TypeEdit.Replace new))
   . over (namespaceL . types)    (R.replaceRan old new)
   . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
+  -- todo: some stuff to move constructors of old type to oldNamespace
   $ b
+  where
+    --ctors i = let
+    --  cnames = namesForTerm (Referent.Con r i) b
+    --  if Set.null cnames then error "todo"
 
 -- insertNames :: Monad m
 --             => ReferenceOps m
