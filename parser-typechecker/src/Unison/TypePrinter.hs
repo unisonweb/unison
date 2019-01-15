@@ -110,16 +110,23 @@ pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (-1) t
 pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
+prettySignatures'
+  :: Var v => PrettyPrintEnv
+  -> [(Name, AnnotatedType v a)]
+  -> [Pretty ColorText]
+prettySignatures' env ts = PP.align
+  [ (PP.text name, ":" <> PP.map fromString (prettyType typ))
+  | (name, typ) <- ts
+  ]
+  where prettyType typ = PP.hang "" (pretty env (-1) typ)
+
 prettySignatures
   :: Var v
   => PrettyPrintEnv
   -> [(Name, AnnotatedType v a)]
   -> Pretty ColorText
-prettySignatures env ts = PP.column2
-  [ (PP.text name, ":" <> PP.map fromString (prettyType typ))
-  | (name, typ) <- ts
-  ]
-  where prettyType typ = PP.hang "" (pretty env (-1) typ)
+prettySignatures env ts = PP.lines $
+  PP.group <$> prettySignatures' env ts
 
 prettyDataHeader :: Name -> Pretty ColorText
 prettyDataHeader name = PP.bold "type " <> PP.text name

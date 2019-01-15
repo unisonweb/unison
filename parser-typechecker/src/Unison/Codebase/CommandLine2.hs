@@ -237,17 +237,22 @@ notifyUser dir o = do
         then
           emojiNote "✅" "I added these definitions:"
           <> "\n\n" <> P.indentN 2
-            (P.lines (prettyDeclHeader <$> toList addedTypes)
-             <> TypePrinter.prettySignatures ppe (filterTermTypes addedTerms))
+            (P.lines (
+              (prettyDeclHeader <$> toList addedTypes) ++
+              TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
+            )
           <> "\n\n"
         else ""
       updateMsg = if not (null updatedTypes && null updatedTerms)
         then
           emojiNote "✅" "I updated these definitions:"
           -- todo: show the partial hash too?
-          <> "\n\n" <> P.indentN 2
-            (P.lines (prettyDeclHeader <$> toList updatedTypes)
-             <> TypePrinter.prettySignatures ppe (filterTermTypes updatedTerms))
+          <> "\n\n"
+          <> P.indentN 2 (
+              P.lines (
+                (prettyDeclHeader <$> toList updatedTypes) ++
+                TypePrinter.prettySignatures' ppe (filterTermTypes updatedTerms))
+             )
           <> "\n\n"
           -- todo "You probably have a bunch more work to do."
         else ""
@@ -255,8 +260,10 @@ notifyUser dir o = do
         then
           emojiNote "☑️" "I skipped these definitions because they have already been added:" <> "\n\n" <>
           P.indentN 2 (
-            P.lines (prettyDeclHeader <$> toList dupeTypes)
-            <> TypePrinter.prettySignatures ppe (filterTermTypes dupeTerms))
+            P.lines (
+              (prettyDeclHeader <$> toList dupeTypes) ++
+              TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
+          )
           <> "\n\n"
         else ""
       collMsg =
@@ -266,8 +273,7 @@ notifyUser dir o = do
           P.indentN 2 (
             P.lines (prettyDeclHeader <$> toList collidedTypes)
             <> TypePrinter.prettySignatures ppe (filterTermTypes collidedTerms)
-            <> P.newline
-            <> P.newline
+            <> "\n\n"
             <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
             )
           <> "\n\n"

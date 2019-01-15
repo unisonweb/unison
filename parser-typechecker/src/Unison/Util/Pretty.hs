@@ -7,6 +7,7 @@
 module Unison.Util.Pretty (
    Pretty,
    ColorText,
+   align,
    bulleted,
    -- breakable
    column2,
@@ -264,11 +265,22 @@ rightPad n p =
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> alignedRows)
+column2 rows = lines (group <$> align rows)
+
+align :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s)]
+  -> [Pretty s]
+align rows = uncurry (<>) <$> align' rows
+
+align'
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s)]
+  -> [(Pretty s, Pretty s)]
+align' rows = alignedRows
  where
   maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
   alignedRows =
-    [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
+    [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
     | (col0, col1) <- rows
     ]
 

@@ -594,6 +594,7 @@ replaceType :: Reference -> Reference -> Branch0 -> Branch0
 replaceType old new b
   = over editedTypesL (R.insert old (TypeEdit.Replace new))
   . over (namespaceL . types)    (R.replaceRan old new)
+  . over (namespaceL . terms)    (R.filterRan (not . isMatch))
   . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
   . over (oldNamespaceL . terms) (R.union (R.filterRan isMatch (termNamespace b)))
   $ b
