@@ -305,8 +305,6 @@ notifyUser dir o = do
           <> "\n\n"
         else ""
 
-      -- the aliases ones
-      -- todo: give a tip using real examples
       aliasingMsg =
         if not (R.null (Branch.termCollisions (E.needsAlias s))
                 && R.null (Branch.typeCollisions (E.needsAlias s)))
@@ -322,12 +320,13 @@ notifyUser dir o = do
           P.indentN 2 (
             P.column2
             -- ("type Optional", "aka " ++ commas existingNames)
+            -- todo: something is wrong here: only one oldName is being shown, instead of all
               [(prettyDeclHeader $ Var.named newName,
                 "aka " <> P.commas (P.text <$> toList oldNames)) |
                 (newName, oldNames) <-
                   Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ]
-            <> if not . R.null . Branch.typeCollisions $ (E.needsAlias s)
-               then P.newline else ""
+            <> (if not . R.null . Branch.typeCollisions $ (E.needsAlias s)
+               then P.newline else "")
             <> TypePrinter.prettySignatures ppe
                 -- foo, foo2, fasdf : a -> b -> c
                 [ (intercalateMap ", " id (name : toList oldNames), typ)
