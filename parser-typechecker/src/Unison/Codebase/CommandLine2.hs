@@ -40,7 +40,7 @@ import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Editor         (BranchName, DisplayThing (..),
                                                  Event (..), Input (..),
                                                  Output (..))
-import qualified Unison.Codebase.Editor         as Editor
+import qualified Unison.Codebase.Editor         as E
 import qualified Unison.Codebase.Editor.Actions as Actions
 import           Unison.Codebase.Runtime        (Runtime)
 import qualified Unison.Codebase.Runtime        as Runtime
@@ -215,72 +215,62 @@ notifyUser dir o = do
                 P.column2 [ (P.text name, fromString (show ref))
                           | (name, ref) <- missingTypes ]
 
-    SlurpOutput (Editor.SlurpResult ofile branch adds dupes colls conflicts updates ctorCollisions refcolls) -> let
-      Editor.SlurpComponent addedTypes addedTerms = adds
-      Editor.SlurpComponent dupeTypes dupeTerms = dupes
-      Editor.SlurpComponent collidedTypes collidedTerms = colls
-      Editor.SlurpComponent conflictedTypes conflictedTerms = conflicts
-      Editor.SlurpComponent updatedTypes updatedTerms = updates
+    SlurpOutput s -> let
+      branch = E.updatedBranch s
+      file = E.originalFile s
+      E.SlurpComponent addedTypes addedTerms = E.adds s
+      E.SlurpComponent dupeTypes dupeTerms = E.duplicates s
+      E.SlurpComponent collidedTypes collidedTerms = E.collisions s
+      E.SlurpComponent conflictedTypes conflictedTerms = E.conflicts s
+      E.SlurpComponent updatedTypes updatedTerms = E.updates s
       termTypesFromFile =
-        Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents ofile) ]
+        Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents file) ]
       ppe = Branch.prettyPrintEnv1 (Branch.head branch)
       filterTermTypes vs =
         [ (Var.name v,t) | v <- toList vs
                 , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
-      prettyDeclHeader v = case UF.getDecl' ofile v of
+      prettyDeclHeader v = case UF.getDecl' file v of
         Just (Left _) -> TypePrinter.prettyEffectHeader (Var.name v)
         Just (Right _) -> TypePrinter.prettyDataHeader (Var.name v)
         Nothing -> error "Wat."
       addMsg = if not (null addedTypes && null addedTerms)
         then
           emojiNote "✅" "I added these definitions:"
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2
-              (P.lines (prettyDeclHeader <$> toList addedTypes)
-               <> TypePrinter.prettySignatures ppe (filterTermTypes addedTerms))
-          <> P.newline
-          <> P.newline
+          <> "\n\n" <> P.indentN 2
+            (P.lines (prettyDeclHeader <$> toList addedTypes)
+             <> TypePrinter.prettySignatures ppe (filterTermTypes addedTerms))
+          <> "\n\n"
         else ""
       updateMsg = if not (null updatedTypes && null updatedTerms)
         then
           emojiNote "✅" "I updated these definitions:"
           -- todo: show the partial hash too?
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2
-              (P.lines (prettyDeclHeader <$> toList updatedTypes)
-               <> TypePrinter.prettySignatures ppe (filterTermTypes updatedTerms))
-          <> P.newline
-          <> P.newline
+          <> "\n\n" <> P.indentN 2
+            (P.lines (prettyDeclHeader <$> toList updatedTypes)
+             <> TypePrinter.prettySignatures ppe (filterTermTypes updatedTerms))
+          <> "\n\n"
           -- todo "You probably have a bunch more work to do."
         else ""
       dupeMsg = if not (null dupeTypes && null dupeTerms)
         then
-          emojiNote "☑️" "I skipped these definitions because they have already been added:"
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2 (
-              P.lines (prettyDeclHeader <$> toList dupeTypes)
-              <> TypePrinter.prettySignatures ppe (filterTermTypes dupeTerms))
-          <> P.newline
-          <> P.newline
+          emojiNote "☑️" "I skipped these definitions because they have already been added:" <> "\n\n" <>
+          P.indentN 2 (
+            P.lines (prettyDeclHeader <$> toList dupeTypes)
+            <> TypePrinter.prettySignatures ppe (filterTermTypes dupeTerms))
+          <> "\n\n"
         else ""
       collMsg =
         if not (null collidedTypes && null collidedTerms)
         then
-          warn "I skipped these definitions because the names already exist, but with different definitions:"
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2 (
+          warn "I skipped these definitions because the names already exist, but with different definitions:" <> "\n\n" <>
+          P.indentN 2 (
             P.lines (prettyDeclHeader <$> toList collidedTypes)
             <> TypePrinter.prettySignatures ppe (filterTermTypes collidedTerms)
             <> P.newline
             <> P.newline
-            <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the one in your .u file.")
+            <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
             )
-          <> P.newline
-          <> P.newline
+          <> "\n\n"
         else ""
       conflictMsg =
         if not (null conflictedTypes && null conflictedTerms)
@@ -297,109 +287,105 @@ notifyUser dir o = do
               sampleNewName' = P.group (sampleNewName <> "`")
               sampleName' = P.group (sampleName <>"`")
               sampleName'' = P.group ("`" <> sampleName <>"`") in
-          warn "I didn't try to update these definitions because the names are conflicted in the current branch (i.e. already associated with multiple definitions):"
+          warn "I didn't try to update these definitions because the names are conflicted (already associated with multiple definitions):"
           <> P.newline
           <> P.newline
           <> P.indentN 2 (
             P.lines (prettyDeclHeader <$> toList conflictedTypes)
             <> TypePrinter.prettySignatures ppe (filterTermTypes conflictedTerms)
-            <> P.newline
-            <> P.newline
+            <> "\n\n"
             <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
           )
-          <> P.newline
-          <> P.newline
+          <> "\n\n"
         else ""
 
       -- the aliases ones
       -- todo: give a tip using real examples
       aliasingMsg =
-        if not (R.null (Branch.termCollisions refcolls)
-                && R.null (Branch.typeCollisions refcolls))
+        if not (R.null (Branch.termCollisions (E.needsAlias s))
+                && R.null (Branch.typeCollisions (E.needsAlias s)))
         then
           let f = listToMaybe . Map.toList . R.domain
               Just (sampleName0, sampleExistingName0) =
-                (f . Branch.typeCollisions) refcolls <|>
-                (f . Branch.termCollisions) refcolls
+                (f . Branch.typeCollisions) (E.needsAlias s) <|>
+                (f . Branch.termCollisions) (E.needsAlias s)
               sampleNewName' = P.group (P.text sampleName0 <> "`")
               sampleOldName = P.text . head . toList $ sampleExistingName0 in
 
-          warn "I skipped these definitions because they already exist with other names:"
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2 (
+          warn "I skipped these definitions because they already exist with other names:" <> "\n\n" <>
+          P.indentN 2 (
             P.column2
             -- ("type Optional", "aka " ++ commas existingNames)
               [(prettyDeclHeader $ Var.named newName,
                 "aka " <> P.commas (P.text <$> toList oldNames)) |
                 (newName, oldNames) <-
-                  Map.toList . R.domain . Branch.typeCollisions $ refcolls ]
-            <> if not . R.null . Branch.typeCollisions $ refcolls
+                  Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ]
+            <> if not . R.null . Branch.typeCollisions $ (E.needsAlias s)
                then P.newline else ""
             <> TypePrinter.prettySignatures ppe
                 -- foo, foo2, fasdf : a -> b -> c
                 [ (intercalateMap ", " id (name : toList oldNames), typ)
                 | (newName, oldNames) <-
-                    Map.toList . R.domain . Branch.termCollisions $ refcolls
+                    Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
                 , (name, typ) <- filterTermTypes [Var.named newName]
                 ]
-            <> P.newline
-            <> P.newline
+            <> "\n\n"
             <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
             )
-          <> P.newline
-          <> P.newline
+          <> "\n\n"
         else ""
-      _nameCollMsg kind collsOfThatKind =
-        P.lines
-          . fmap
-              (\(k, v) ->
-                warn
-                  .  P.wrap
-                  $  "The "
-                  <> kind
-                  <> " you added as "
-                  <> P.blue (P.text k)
-                  <> " already exists with "
-                  <> (if length v > 1
-                       then "different names. "
-                       else "a different name. "
-                     )
-                  <> "It's defined as "
-                  <> P.oxfordCommas (P.green . P.text <$> toList v)
-                  <> ". I've added "
-                  <> P.blue (P.text k)
-                  <> " as a new name for it."
-              )
-          . Map.toList
-          . R.domain
-          $ collsOfThatKind refcolls
-      _dupeRefMsg     = _nameCollMsg "term" Branch.termCollisions
-      _dupeTypeRefMsg = _nameCollMsg "type" Branch.typeCollisions
-
-      ctorCollMsg = if not (null ctorCollisions)
+      termExistingCtorCollisions = E.termExistingConstructorCollisions s
+      termExistingCtorMsg =
+        if not (null termExistingCtorCollisions)
         then
-          warn "I can't update these definitions because the names are currently assigned to constructors:"
-          <> P.newline
-          <> P.newline
-          <> P.indentN 2
-          (P.column2
-              [ (P.text $ Var.name v
-                , "is a constructor for " <>
-                    P.text (PPE.typeName ppe (Referent.toReference r)))
-              | (v, r) <- Map.toList ctorCollisions ]
-          <> P.newline
-          <> P.newline
-          <> tip "You can `rename` these constructors to free up the names for your new definitions."
-          )
-          <> P.newline
-          <> P.newline
+          warn "I can't update these term definitions because the names are currently assigned to constructors:" <> "\n\n" <>
+            P.indentN 2
+              (P.column2
+                [ (P.text $ Var.name v
+                  , "is a constructor for " <>
+                      P.text (PPE.typeName ppe (Referent.toReference r)))
+                | (v, r) <- Map.toList termExistingCtorCollisions ]
+              <> "\n\n"
+              <> tip "You can `rename` these constructors to free up the names for your new definitions."
+              )
+          <> "\n\n"
         else ""
+      ctorExistingTermCollisions = E.constructorExistingTermCollisions s
+      commaRefs rs = P.wrap $ P.commas (map go rs) where
+        go r = P.text (PPE.termName ppe r)
+      ctorExistingTermMsg =
+        if not (null ctorExistingTermCollisions)
+        then
+          warn "I can't update these type definitions because one or more of the constructor names matches an existing term:" <> "\n\n" <>
+            P.indentN 2 (
+              P.column2 [
+                (P.text $ Var.name v, "has name collisions for: " <> commaRefs rs)
+                | (v, rs) <- Map.toList ctorExistingTermCollisions ]
+              <> "\n\n"
+              <> tip "You can `rename` existing definitions to free up the names for your new definitions."
+              )
+          <> "\n\n"
+        else ""
+      blockedTerms = E.termsWithBlockedDependencies s
+      blockedTypes = E.typesWithBlockedDependencies s
+      blockedDependenciesMsg =
+        if Map.null blockedTerms && Map.null blockedTypes then ""
+        else
+          warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n" <>
+          P.indentN 2 (
+            P.lines [
+              P.bold "Skipped types:" `P.hang`
+              P.commas (map (P.text . Var.name) (Map.keys blockedTypes)),
+              P.bold "Skipped terms:" `P.hang`
+              P.commas (map (P.text . Var.name) (Map.keys blockedTerms)) ]
+          )
+          <> "\n\n"
       in putPrettyLn $
           addMsg <> updateMsg <>
           dupeMsg <> collMsg <>
-          conflictMsg <> aliasingMsg <> ctorCollMsg
-          -- dupeTypeRefMsg <> dupeRefMsg
+          conflictMsg <> aliasingMsg <>
+          termExistingCtorMsg <> ctorExistingTermMsg <>
+          blockedDependenciesMsg
     ParseErrors src es -> do
       Console.setTitle "Unison ☹︎"
       traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
@@ -446,26 +432,26 @@ notifyUser dir o = do
  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
-    when (not . Set.null $ Editor.changedSuccessfully r) $
+    when (not . Set.null $ E.changedSuccessfully r) $
       putPrettyLn . emojiNote "👍"
         $ "I" <> pastTenseCmd <> "the"
-        <> ns (Editor.changedSuccessfully r)
+        <> ns (E.changedSuccessfully r)
         <> P.blue (P.text oldName)
         <> "to" <> P.green (P.text (newName <> "."))
-    when (not . Set.null $ Editor.oldNameConflicted r) $ do
+    when (not . Set.null $ E.oldNameConflicted r) $ do
       putPrettyLn . warn . P.wrap
         $ "I couldn't" <> cmd <> "the"
-        <> ns (Editor.oldNameConflicted r)
+        <> ns (E.oldNameConflicted r)
         <> P.blue (P.text oldName)
         <> "to" <> P.green (P.text newName)
         <> "because of conflicts."
       putPrettyLn . tip $ "Use `todo` to view more information on conflicts and remaining work."
-    when (not . Set.null $ Editor.newNameAlreadyExists r) $ do
+    when (not . Set.null $ E.newNameAlreadyExists r) $ do
       putPrettyLn . warn . P.wrap
         $ "I couldn't" <> cmd <> P.blue (P.text oldName)
         <> "to" <> P.green (P.text newName)
         <> "because the "
-        <> ns (Editor.newNameAlreadyExists r)
+        <> ns (E.newNameAlreadyExists r)
         <> "already exist(s)."
       putStrLn ""
       putPrettyLn . tip
@@ -850,7 +836,7 @@ main dir currentBranchName _initialFile startRuntime codebase = do
           cancelFileSystemWatch
           cancelWatchBranchUpdates
     (`finally` cleanup)
-      $ Editor.commandLine awaitInput
+      $ E.commandLine awaitInput
                            runtime
                            (\b bn -> writeIORef branchRef (b, bn))
                            (notifyUser dir)
