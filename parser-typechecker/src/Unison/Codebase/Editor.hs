@@ -12,7 +12,7 @@ import           Control.Lens                   ( over )
 import           Control.Monad                  ( forM_, when, foldM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
-import           Data.Bifunctor                 ( second )
+import           Data.Bifunctor                 ( bimap, second )
 import           Data.List                      ( foldl' )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
@@ -82,6 +82,13 @@ data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
   deriving (Show)
 
+instance Ord v => Semigroup (SlurpComponent v) where
+  (<>) = mappend
+instance Ord v => Monoid (SlurpComponent v) where
+  mempty = SlurpComponent mempty mempty
+  c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
+                                   (implicatedTerms c1 <> implicatedTerms c2)
+
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
@@ -103,9 +110,12 @@ data SlurpResult v = SlurpResult {
   -- Names of terms in `originalFile` that couldn't be updated because
   -- they refer to existing constructors. (User should instead do a find/replace,
   -- a constructor rename, or refactor the type that the name comes from).
-  , collidingConstructors :: Map v Referent
+  , termExistingConstructorCollisions :: Map v Referent
+  , constructorExistingTermCollisions :: Map v [Referent]
   -- Already defined in the branch, but with a different name.
   , duplicateReferents :: Branch.RefCollisions
+  , termsWithBlockedDependencies :: Map v (Set (Either Reference Reference))
+  , typesWithBlockedDependencies :: Map v (Set Reference)
   } deriving (Show)
 
 data Input
@@ -401,14 +411,83 @@ removeTransitive dependencies outcomes0 = let
        else trim removed outcomes'
   in trim removed0 outcomes0
 
+
+foldOutcomes :: forall m v . (Var v, Monad m)
+             => Codebase m v Ann
+             -> UF.TypecheckedUnisonFile v Ann
+             -> Branch
+             -> [(v, Either Reference Reference, Outcome)]
+             -> m (SlurpResult v)
+foldOutcomes codebase uf b outcomes = do
+  (result, b0) <- foldM f ((SlurpResult uf b mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty), Branch.head b) outcomes
+  pure (result { updatedBranch = Branch.append b0 b })
+  where
+  f (result, b0) (v, r, o) = error "todo"
+
+  -- SlurpResult uf
+  --             (_updatedBranch :: Branch)
+  --             (_added :: SlurpComponent v)
+  --             (_duplicates :: SlurpComponent v)
+
 fileToBranch
-  :: (Var v, Monad m)
+  :: forall m v
+  .  (Var v, Monad m)
   => CollisionHandler
   -> Codebase m v Ann
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (SlurpResult v)
-fileToBranch handleCollisions codebase branch unisonFile = error "todo"
+fileToBranch handleCollisions codebase branch uf = do
+  let
+  forM_ outcomes0 $ \(r, o) ->
+    case o of
+      Added -> writeDefinition r
+      Updated -> writeDefinition r
+      _ -> pure ()
+  foldOutcomes codebase uf branch outcomes0
+  where
+    b0 = Branch.head branch
+    outcomes0 = outcomes handleCollisions b0 uf
+    -- need to lookup the names of each reference
+    outcomesMap = Map.fromList outcomes0
+    declsByRef :: Map Reference (Name, Decl v Ann)
+    declsByRef = error "todo"
+    -- Map.fromList $ mconcat
+    --   [ fmap (second Right) . Map.elems $ UF.dataDeclarations' uf
+    --   , fmap (second Left) . Map.elems $ UF.effectDeclarations' uf
+    --   ]
+    termsByRef = Map.fromList
+      [ (r, (Var.name v, tm, typ))
+      | (v, (r, tm, typ)) <- Map.toList $ UF.hashTerms uf]
+    prepTerm = Term.amap (const Parser.External)
+    prepDecl :: Decl v Ann -> Decl v Ann
+    prepDecl = bimap ex ex
+    ex :: Functor f => f a -> f Ann
+    ex = fmap (const Parser.External)
+    writeDefinition = \case
+      Left typeRef@(DerivedId d) -> let
+        Just (_, dd) = Map.lookup typeRef declsByRef
+        in Codebase.putTypeDeclaration codebase d (prepDecl dd)
+      Right termRef@(DerivedId d) -> let
+        Just (_, tm, typ) = Map.lookup termRef termsByRef
+        in Codebase.putTerm codebase d (prepTerm tm) (ex typ)
+
+
+  --   forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
+  --     when (successes `Branch.contains` r || updates `Branch.contains` r)
+  --       $ Codebase.putTypeDeclaration codebase id dd
+  --   forM_ (Map.toList hashedTerms) $ \(_, (r@(DerivedId id), tm, typ)) ->
+  --     -- Discard all line/column info when adding to the codebase
+  --     when (successes `Branch.contains` r || updates `Branch.contains` r) $
+  --       Codebase.putTerm
+  --         codebase
+  --         id
+  --         (Term.amap (const Parser.External) tm)
+  --         typ
+
+
+-- error "todo"
+
   -- let
   -- branch0 = Branch.head branch
   -- branchUpdate = Branch.fromTypecheckedFile unisonFile

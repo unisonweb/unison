@@ -102,6 +102,13 @@ data RefCollisions =
                 , typeCollisions :: Relation Name Name
                 } deriving (Eq, Show)
 
+instance Semigroup RefCollisions where
+  (<>) = mappend
+instance Monoid RefCollisions where
+  mempty = RefCollisions mempty mempty
+  mappend r1 r2 = RefCollisions (termCollisions r1 <> termCollisions r2)
+                                (typeCollisions r1 <> typeCollisions r2)
+
 termNamespace :: Branch0 -> Relation Name Referent
 termNamespace = view $ namespaceL . terms
 

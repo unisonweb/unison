@@ -83,16 +83,7 @@ dependencies' file = let
           fmap (second toDataDecl) (effectDeclarations' file )
   termDeps = foldl' f Relation.empty $ toList terms
   allDeps = foldl' g termDeps $ toList decls
-  -- Question: do we want to include deps of an inferred type?
-  --   Arya: I think the answer is either "yes" or "doesn't matter"
-  --   Paul: I think it doesn't matter (gives same results either way?), but
-  --         in general the type of any top level binding is part of its deps,
-  --         since other definitions will depend on that type.
-  --
-  --         It probably gives the same results unless the annotation is like:
-  --         `(x -> x) : Foo -> Foo` which refines the type and creates a
-  --         dependency on the `Foo` type.
-  f acc (r, tm, tp) = acc <> termDeps <> typeDeps -- remove typeDeps if "no"
+  f acc (r, tm, tp) = acc <> termDeps <> typeDeps
     where termDeps =
             Relation.fromList [ (r, dep) | dep <- toList (Term.dependencies tm)]
           typeDeps =
