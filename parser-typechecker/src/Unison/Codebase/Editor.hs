@@ -411,24 +411,6 @@ removeTransitive dependencies outcomes0 = let
        else trim removed outcomes'
   in trim removed0 outcomes0
 
-
-foldOutcomes :: forall m v . (Var v, Monad m)
-             => Codebase m v Ann
-             -> UF.TypecheckedUnisonFile v Ann
-             -> Branch
-             -> [(v, Either Reference Reference, Outcome)]
-             -> m (SlurpResult v)
-foldOutcomes codebase uf b outcomes = do
-  (result, b0) <- foldM f ((SlurpResult uf b mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty), Branch.head b) outcomes
-  pure (result { updatedBranch = Branch.append b0 b })
-  where
-  f (result, b0) (v, r, o) = error "todo"
-
-  -- SlurpResult uf
-  --             (_updatedBranch :: Branch)
-  --             (_added :: SlurpComponent v)
-  --             (_duplicates :: SlurpComponent v)
-
 fileToBranch
   :: forall m v
   .  (Var v, Monad m)
@@ -465,14 +447,13 @@ fileToBranch handleCollisions codebase branch uf = do
       --
     outcomesMap = Map.fromList outcomes0
     declsByRef :: Map Reference (v, Decl v Ann)
-    declsByRef = error "todo"
-    -- Map.fromList $ mconcat
-    --   [ fmap (second Right) . Map.elems $ UF.dataDeclarations' uf
-    --   , fmap (second Left) . Map.elems $ UF.effectDeclarations' uf
-    --   ]
+    declsByRef = Map.fromList $
+      [ (r, (v, d)) | (v, (r,d)) <- mconcat [
+          Map.toList . fmap (second Right) $ UF.dataDeclarations' uf
+        , Map.toList . fmap (second Left) $ UF.effectDeclarations' uf ]]
     termsByRef = Map.fromList
       [ (r, (v, tm, typ))
-      | (v, (r, tm, typ)) <- Map.toList $ UF.hashTerms uf]
+      | (v, (r, tm, typ)) <- Map.toList $ UF.hashTerms uf ]
     prepTerm = Term.amap (const Parser.External)
     prepDecl :: Decl v Ann -> Decl v Ann
     prepDecl = bimap ex ex
