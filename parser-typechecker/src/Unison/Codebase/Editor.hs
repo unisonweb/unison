@@ -452,8 +452,8 @@ fileToBranch handleCollisions codebase branch uf = do
       Updated -> do
         let result' = result { updates = updates result <> sc r v }
         case r of
-          Left (r', _) -> case toList (Branch.typesNamed (Var.name v) b0) of
-            [r0] -> pure (result', Branch.replaceType r0 r' b)
+          Left (r', dd) -> case toList (Branch.typesNamed (Var.name v) b0) of
+            [r0] -> pure (result', Branch.fromDeclaration v r dd <> Branch.replaceType r0 r' b)
             _ -> error "Panic. Tried to replace a type that's conflicted."
           Right r' -> case toList (Branch.termsNamed (Var.name v) b0) of
             [Referent.Ref r0] -> do
@@ -463,7 +463,8 @@ fileToBranch handleCollisions codebase branch uf = do
                     if Typechecker.isEqual type1 type2 then TermEdit.Same
                     else if Typechecker.isSubtype type2 type1 then TermEdit.Subtype
                     else TermEdit.Different
-              pure (result', Branch.replaceTerm r0 r' typing b)
+              pure (result', Branch.addTermName (Referent.Ref r) (Var.name v) $
+                             Branch.replaceTerm r0 r' typing b)
             _ -> error $ "Panic. Tried to replace a term that's conflicted." ++ show v
       AlreadyExists -> pure (result { duplicates = duplicates result <> sc r v }, b)
       CouldntUpdate -> pure (result { collisions = collisions result <> sc r v }, b)
