@@ -595,12 +595,13 @@ replaceType old new b
   = over editedTypesL (R.insert old (TypeEdit.Replace new))
   . over (namespaceL . types)    (R.replaceRan old new)
   . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
-  -- todo: some stuff to move constructors of old type to oldNamespace
+  . over (oldNamespaceL . terms) (R.union (R.filterRan isMatch (termNamespace b)))
   $ b
   where
-    --ctors i = let
-    --  cnames = namesForTerm (Referent.Con r i) b
-    --  if Set.null cnames then error "todo"
+    isMatch r = case r of
+      Referent.Con r _ -> r == old
+      Referent.Req r _ -> r == old
+      _ -> False
 
 -- insertNames :: Monad m
 --             => ReferenceOps m
