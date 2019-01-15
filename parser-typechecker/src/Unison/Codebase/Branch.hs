@@ -25,6 +25,7 @@ import           Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import           Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Unison.DataDeclaration as DD
 import           Unison.Hash              (Hash)
 import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
@@ -181,6 +182,13 @@ fromNames names = Branch0 (Namespace terms types) mempty R.empty R.empty
   terms = R.fromList . Map.toList $ Names.termNames names
   types = R.fromList . Map.toList $ Names.typeNames names
 
+fromDeclaration :: Var v
+  => v -> Reference -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
+  -> Branch0
+fromDeclaration v r e = fromNames $ case e of
+  Left e -> DD.effectDeclToNames v r e
+  Right d -> DD.dataDeclToNames v r d
+
 contains :: Branch0 -> Reference -> Bool
 contains b r =
   R.memberRan (Referent.Ref r) (termNamespace b)
@@ -260,6 +268,9 @@ hasTypeNamed n b = not . null $ typesNamed n b
 
 termsNamed :: Name -> Branch0 -> Set Referent
 termsNamed name = R.lookupDom name . termNamespace
+
+constructorsNamed :: Name -> Branch0 -> Set Referent
+constructorsNamed n b = Set.filter Referent.isConstructor (termsNamed n b)
 
 typesNamed :: Name -> Branch0 -> Set Reference
 typesNamed name = R.lookupDom name . typeNamespace
@@ -542,6 +553,9 @@ modify f (Branch b) = Branch $ Causal.step f b
 append :: Branch0 -> Branch -> Branch
 append b0 = modify (<> b0)
 
+cons :: Branch0 -> Branch -> Branch
+cons b0 = modify (const b0)
+
 instance Semigroup Branch where
   (<>) = mappend
 
@@ -660,39 +674,29 @@ termOrTypeOp ops r ifTerm ifType = do
   else if isType then ifType
   else fail $ "neither term nor type: " ++ show r
 
-addTermName :: Referent -> Name -> Branch -> Branch
-addTermName r new (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.insert new r
+addTermName :: Referent -> Name -> Branch0 -> Branch0
+addTermName r new = over (namespaceL . terms) $ R.insert new r
 
-addTypeName :: Reference -> Name -> Branch -> Branch
-addTypeName r new (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.insert new r
+addTypeName :: Reference -> Name -> Branch0 -> Branch0
+addTypeName r new = over (namespaceL . types) $ R.insert new r
 
-renameType :: Name -> Name -> Branch -> Branch
-renameType old new (Branch b) = Branch
-  $ Causal.stepIf (R.memberDom old . typeNamespace) go b
-  where go = over (namespaceL . types) $ R.replaceDom old new
+renameType :: Name -> Name -> Branch0 -> Branch0
+renameType old new = over (namespaceL . types) $ R.replaceDom old new
 
-renameTerm :: Name -> Name -> Branch -> Branch
-renameTerm old new (Branch b) =
-  Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
-    go = over (namespaceL . terms) $ R.replaceDom old new
+renameTerm :: Name -> Name -> Branch0 -> Branch0
+renameTerm old new = over (namespaceL . terms) $ R.replaceDom old new
 
-deleteTermName :: Referent -> Name -> Branch -> Branch
-deleteTermName r name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.delete name r
+deleteTermName :: Referent -> Name -> Branch0 -> Branch0
+deleteTermName r name = over (namespaceL . terms) $ R.delete name r
 
-deleteTypeName :: Reference -> Name -> Branch -> Branch
-deleteTypeName r name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.delete name r
+deleteTypeName :: Reference -> Name -> Branch0 -> Branch0
+deleteTypeName r name = over (namespaceL . types) $ R.delete name r
 
-deleteTermsNamed :: Name -> Branch -> Branch
-deleteTermsNamed name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.deleteDom name
+deleteTermsNamed :: Name -> Branch0 -> Branch0
+deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
 
-deleteTypesNamed :: Name -> Branch -> Branch
-deleteTypesNamed name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.deleteDom name
+deleteTypesNamed :: Name -> Branch0 -> Branch0
+deleteTypesNamed name = over (namespaceL . types) $ R.deleteDom name
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
