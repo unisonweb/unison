@@ -71,7 +71,7 @@ notifyUser dir o = do
   -- note - even if user's terminal is huge, we restrict available width since
   -- it's hard to read code or text that's super wide.
   width <- fromMaybe 80 . fmap (min 100 . Terminal.width) <$> Terminal.size
-  let putPrettyLn = putStrLn . P.toANSI width
+  let putPrettyLn = putStrLn . P.toANSI width . P.border 2
   case o of
     Success _    -> putStrLn "Done."
     DisplayDefinitions ppe terms types -> let
@@ -201,8 +201,8 @@ notifyUser dir o = do
               Left _ability -> TypePrinter.prettyEffectHeader name
               Right _d -> TypePrinter.prettyDataHeader name
       in do
-        putPrettyLn $ P.lines typeResults
-        putPrettyLn $ TypePrinter.prettySignatures ppe sigs
+        putPrettyLn . P.lines $ typeResults ++
+                                TypePrinter.prettySignatures' ppe sigs
         when (not $ null impossible) . error $ "Compiler bug, these referents are missing types: " <> show impossible
         when (not $ null termsWithMissingTypes) . putPrettyLn $
           warn "The search returned the following terms for which the type signature is corrupted or missing:" <>
@@ -439,31 +439,30 @@ notifyUser dir o = do
  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
-    when (not . Set.null $ E.changedSuccessfully r) $
-      putPrettyLn . emojiNote "👍"
+    when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn $
+      emojiNote "👍"
         $ "I" <> pastTenseCmd <> "the"
         <> ns (E.changedSuccessfully r)
         <> P.blue (P.text oldName)
         <> "to" <> P.green (P.text (newName <> "."))
-    when (not . Set.null $ E.oldNameConflicted r) $ do
-      putPrettyLn . warn . P.wrap
-        $ "I couldn't" <> cmd <> "the"
-        <> ns (E.oldNameConflicted r)
-        <> P.blue (P.text oldName)
-        <> "to" <> P.green (P.text newName)
-        <> "because of conflicts."
-      putPrettyLn . tip $ "Use `todo` to view more information on conflicts and remaining work."
-    when (not . Set.null $ E.newNameAlreadyExists r) $ do
-      putPrettyLn . warn . P.wrap
-        $ "I couldn't" <> cmd <> P.blue (P.text oldName)
-        <> "to" <> P.green (P.text newName)
-        <> "because the "
-        <> ns (E.newNameAlreadyExists r)
-        <> "already exist(s)."
-      putStrLn ""
-      putPrettyLn . tip
-        $ "Use" <> P.group ("`rename " <> P.text newName <> " <newname>`")
-        <> "to make" <> P.text newName <> "available."
+    when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn $
+      (warn $ "I couldn't" <> cmd <> "the"
+           <> ns (E.oldNameConflicted r)
+           <> P.blue (P.text oldName)
+           <> "to" <> P.green (P.text newName)
+           <> "because of conflicts.")
+      <> "\n\n"
+      <> tip "Use `todo` to view more information on conflicts and remaining work."
+    when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn $
+      (warn $ "I couldn't" <> cmd <> P.blue (P.text oldName)
+           <> "to" <> P.green (P.text newName)
+           <> "because the "
+           <> ns (E.newNameAlreadyExists r)
+           <> "already exist(s).")
+      <> "\n\n"
+      <> tip
+         ("Use" <> P.group ("`rename " <> P.text newName <> " <newname>`") <>
+           "to make" <> P.text newName <> "available.")
     where
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
@@ -764,7 +763,7 @@ prompt = "> "
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
-  putStrLn . P.toANSI width $ p
+  putStrLn . P.toANSI width $ P.border 2 p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =
@@ -778,7 +777,8 @@ getUserInput
   -> BranchName
   -> m Input
 getUserInput patterns codebase branch branchName = Line.runInputT settings $ do
-  line <- Line.getInputLine $ Text.unpack branchName <> prompt
+  line <- Line.getInputLine $
+    P.toANSI 80 (P.green (P.text branchName <> fromString prompt))
   case line of
     Nothing -> pure QuitI
     Just l  -> case parseInput patterns $ words l of

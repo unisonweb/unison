@@ -55,7 +55,8 @@ module Unison.Util.Pretty (
    toPlain,
    wrap,
    wrapString,
-   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
+   border
   ) where
 
 import           Data.Char                      ( isSpace )
@@ -391,6 +392,9 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+
+border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
+border n p = "\n" <> indentN n p <> "\n"
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)
