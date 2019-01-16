@@ -77,6 +77,8 @@ data Codebase m v a =
            -- or creates a new branch if there's no branch with that name
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
+
+           , dependents :: Reference.Id -> m (Set Reference.Id)
            }
 
 getTypeOfConstructor ::
@@ -425,27 +427,20 @@ dependencyGraph c b = do
   terms = Branch.allTerms b
   types = Branch.allTypes b
 
-  -- do
-  --   mayTerm <- getTerm r
-  --   case mayTerm of
-  --     Just t -> pure $ Term.dependencies t
-  --     Nothing -> do
-  --       mayDecl <- getTypeDeclaration r
-  --       case mayDecl of
-  --         Just decl -> pure $ DD.dependencies (either DD.toDataDecl id)
-  --         Nothing -> pure $ Set.empty
+isTerm :: Functor m => Codebase m v a -> Reference.Id -> m Bool
+isTerm = ((isJust <$>) .) . getTerm
 
-referenceOps
-  :: MonadState DependencyGraph m
-  => Codebase m v a
-  -> Branch.ReferenceOps m
-referenceOps c = Branch.ReferenceOps isTerm isType dependencies dependents
- where
-  isTerm (Reference.DerivedId r) = fmap isJust $ getTerm c r
-  isTerm _                       = pure False
-  isType (Reference.DerivedId r) = fmap isJust $ getTypeDeclaration c r
-  isType _                       = pure False
-  dependencies = (<$> get) . R.lookupDom
-  dependents   = (<$> get) . R.lookupRan
+isType :: Functor m => Codebase m v a -> Reference.Id -> m Bool
+isType = ((isJust <$>) .) . getTerm
+
+-- referenceOps :: Codebase m v a -> Branch.ReferenceOps m
+-- referenceOps c = Branch.ReferenceOps isTerm' isType' dependencies dependents
+--  where
+--   isTerm' (Reference.DerivedId r) = isTerm c r
+--   isTerm' _                       = pure False
+--   isType' (Reference.DerivedId r) = isType c r
+--   isType' _                       = pure False
+--   dependencies = (<$> get) . R.lookupDom
+--   dependents   = (<$> get) . R.lookupRan
 
 

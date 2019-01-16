@@ -169,7 +169,22 @@ data Output v
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
+  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v)
   deriving (Show)
+
+type Score = Int
+
+data TodoOutput v
+  = TodoOutput_ {
+      todoScore :: Int,
+      todoFrontier ::
+        ( [(Name, Reference, Maybe (Type v Ann))]
+        , [(Name, Reference, DisplayThing (Decl v Ann))]),
+      todoFrontierDependents ::
+        ( [(Score, Name, Reference, Maybe (Type v Ann))]
+        , [(Score, Name, Reference, DisplayThing (Decl v Ann))]),
+      todoConflicts :: Branch0
+    } deriving (Show)
 
 data NameChangeResult = NameChangeResult
   { oldNameConflicted :: Set NameTarget

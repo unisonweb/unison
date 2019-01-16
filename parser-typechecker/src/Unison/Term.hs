@@ -570,12 +570,14 @@ isVarKindInfo t = case t of
   Var' v | (Var.kind v) == "info" -> True
   _ -> False
 
+-- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies t =
   dependencies' t
     <> referencedDataDeclarations t
     <> referencedEffectDeclarations t
 
+-- Dependencies including only term references (no types or effects)
 dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
  where
