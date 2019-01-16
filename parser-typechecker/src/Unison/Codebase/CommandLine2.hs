@@ -271,8 +271,9 @@ notifyUser dir o = do
         then
           warn "I skipped these definitions because the names already exist, but with different definitions:" <> "\n\n" <>
           P.indentN 2 (
-            P.lines (prettyDeclHeader <$> toList collidedTypes)
-            <> TypePrinter.prettySignatures ppe (filterTermTypes collidedTerms)
+            P.lines (
+              (prettyDeclHeader <$> toList collidedTypes) ++
+              TypePrinter.prettySignatures' ppe (filterTermTypes collidedTerms))
             <> "\n\n"
             <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
             )
@@ -379,6 +380,7 @@ notifyUser dir o = do
           warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n" <>
           P.indentN 2 (
             P.lines [
+              -- todo: format it like the other stuff
               P.bold "Skipped types:" `P.hang`
               P.commas (map (P.text . Var.name) (Map.keys blockedTypes)),
               P.bold "Skipped terms:" `P.hang`

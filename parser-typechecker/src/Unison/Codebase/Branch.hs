@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -18,6 +19,7 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
+import qualified Data.Text                as Text
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
@@ -32,6 +34,7 @@ import qualified Unison.Hashable          as H
 import           Unison.Names             (Name, Names (..))
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
@@ -281,10 +284,25 @@ namesForTerm ref = R.lookupRan ref . termNamespace
 namesForType :: Reference -> Branch0 -> Set Name
 namesForType ref = R.lookupRan ref . typeNamespace
 
+oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
+oldNamesForTerm numHashChars ref
+  = Set.map (<> Text.pack (Referent.showShort numHashChars ref))
+  . R.lookupRan ref
+  . (view $ oldNamespaceL . terms)
+
+oldNamesForType :: Int -> Reference -> Branch0 -> Set Name
+oldNamesForType numHashChars ref
+  = Set.map (<> Text.pack (Reference.showShort numHashChars ref))
+  . R.lookupRan ref
+  . (view $ oldNamespaceL . types)
+
 prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
-  terms r = multiset $ namesForTerm r b
-  types r = multiset $ namesForType r b
+  numHashChars = 5 -- todo: compute from the branch0
+  or :: Set a -> Set a -> Set a
+  or s1 s2 = if Set.null s1 then s2 else s1
+  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm numHashChars r b
+  types r = multiset $ namesForType r b `or` oldNamesForType numHashChars r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
 
 prettyPrintEnv :: [Branch0] -> PrettyPrintEnv

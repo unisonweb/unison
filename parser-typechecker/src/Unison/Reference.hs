@@ -12,7 +12,8 @@ module Unison.Reference
    components,
    hashComponents,
    groupByComponent,
-   componentFor) where
+   componentFor,
+   showShort) where
 
 import GHC.Generics
 import Data.Maybe (fromJust)
@@ -89,6 +90,10 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
     insert m (k, r) =
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
     done m = sortOn snd <$> toList m
+
+showShort :: Int -> Reference -> String
+showShort _ (Builtin_ t) = Text.unpack t
+showShort numHashChars (DerivedPrivate_ id) = "#" <> take numHashChars (show id)
 
 instance Show Reference where
   show (Builtin_ t) = Text.unpack t
