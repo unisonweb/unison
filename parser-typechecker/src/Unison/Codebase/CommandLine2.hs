@@ -9,6 +9,7 @@
 module Unison.Codebase.CommandLine2 where
 
 -- import Debug.Trace
+import Data.Maybe (catMaybes)
 import           Control.Applicative            ((<|>))
 import           Control.Concurrent             (forkIO, killThread)
 import qualified Control.Concurrent.Async       as Async
@@ -234,17 +235,16 @@ notifyUser dir o = do
         Just (Right _) -> TypePrinter.prettyDataHeader (Var.name v)
         Nothing -> error "Wat."
       addMsg = if not (null addedTypes && null addedTerms)
-        then
+        then Just $
           emojiNote "✅" "I added these definitions:"
           <> "\n\n" <> P.indentN 2
             (P.lines (
               (prettyDeclHeader <$> toList addedTypes) ++
               TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
             )
-          <> "\n\n"
-        else ""
+        else Nothing
       updateMsg = if not (null updatedTypes && null updatedTerms)
-        then
+        then Just $
           emojiNote "✅" "I updated these definitions:"
           -- todo: show the partial hash too?
           <> "\n\n"
@@ -253,22 +253,20 @@ notifyUser dir o = do
                 (prettyDeclHeader <$> toList updatedTypes) ++
                 TypePrinter.prettySignatures' ppe (filterTermTypes updatedTerms))
              )
-          <> "\n\n"
           -- todo "You probably have a bunch more work to do."
-        else ""
+        else Nothing
       dupeMsg = if not (null dupeTypes && null dupeTerms)
-        then
+        then Just $
           emojiNote "☑️" "I skipped these definitions because they have already been added:" <> "\n\n" <>
           P.indentN 2 (
             P.lines (
               (prettyDeclHeader <$> toList dupeTypes) ++
               TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
           )
-          <> "\n\n"
-        else ""
+        else Nothing
       collMsg =
         if not (null collidedTypes && null collidedTerms)
-        then
+        then Just $
           warn "I skipped these definitions because the names already exist, but with different definitions:" <> "\n\n" <>
           P.indentN 2 (
             P.lines (
@@ -277,11 +275,10 @@ notifyUser dir o = do
             <> "\n\n"
             <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
             )
-          <> "\n\n"
-        else ""
+        else Nothing
       conflictMsg =
         if not (null conflictedTypes && null conflictedTerms)
-        then
+        then Just $
           let sampleName =
                 P.text . head . fmap Var.name . toList $
                   (conflictedTypes <> conflictedTerms)
@@ -304,13 +301,12 @@ notifyUser dir o = do
             <> "\n\n"
             <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
           )
-          <> "\n\n"
-        else ""
+        else Nothing
 
       aliasingMsg =
         if not (R.null (Branch.termCollisions (E.needsAlias s))
                 && R.null (Branch.typeCollisions (E.needsAlias s)))
-        then
+        then Just $
           let f = listToMaybe . Map.toList . R.domain
               Just (sampleName0, sampleExistingName0) =
                 (f . Branch.typeCollisions) (E.needsAlias s) <|>
@@ -339,12 +335,11 @@ notifyUser dir o = do
             <> "\n\n"
             <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
             )
-          <> "\n\n"
-        else ""
+        else Nothing
       termExistingCtorCollisions = E.termExistingConstructorCollisions s
       termExistingCtorMsg =
         if not (null termExistingCtorCollisions)
-        then
+        then Just $
           warn "I can't update these term definitions because the names are currently assigned to constructors:" <> "\n\n" <>
             P.indentN 2
               (P.column2
@@ -355,14 +350,13 @@ notifyUser dir o = do
               <> "\n\n"
               <> tip "You can `rename` these constructors to free up the names for your new definitions."
               )
-          <> "\n\n"
-        else ""
+        else Nothing
       ctorExistingTermCollisions = E.constructorExistingTermCollisions s
       commaRefs rs = P.wrap $ P.commas (map go rs) where
         go r = P.text (PPE.termName ppe r)
       ctorExistingTermMsg =
         if not (null ctorExistingTermCollisions)
-        then
+        then Just $
           warn "I can't update these type definitions because one or more of the constructor names matches an existing term:" <> "\n\n" <>
             P.indentN 2 (
               P.column2 [
@@ -371,13 +365,12 @@ notifyUser dir o = do
               <> "\n\n"
               <> tip "You can `rename` existing definitions to free up the names for your new definitions."
               )
-          <> "\n\n"
-        else ""
+        else Nothing
       blockedTerms = Map.keys (E.termsWithBlockedDependencies s)
       blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
       blockedDependenciesMsg =
-        if null blockedTerms && null blockedTypes then ""
-        else
+        if null blockedTerms && null blockedTypes then Nothing
+        else Just $
           warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n"
           <> P.indentN 2 (
               P.lines (
@@ -385,13 +378,10 @@ notifyUser dir o = do
                 TypePrinter.prettySignatures' ppe (filterTermTypes blockedTerms)
               )
              )
-          <> "\n\n"
-      in putPrettyLn $
-          addMsg <> updateMsg <>
-          dupeMsg <> collMsg <>
-          conflictMsg <> aliasingMsg <>
-          termExistingCtorMsg <> ctorExistingTermMsg <>
-          blockedDependenciesMsg
+      in putPrettyLn . P.sep "\n\n" . catMaybes $ [
+          addMsg, updateMsg, dupeMsg, collMsg,
+          conflictMsg, aliasingMsg, termExistingCtorMsg,
+          ctorExistingTermMsg, blockedDependenciesMsg ]
     ParseErrors src es -> do
       Console.setTitle "Unison ☹︎"
       traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
