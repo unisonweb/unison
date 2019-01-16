@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedLists     #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -14,11 +15,11 @@ import           Control.Lens
 import           Control.Monad            (foldM, join)
 import           Data.Bifunctor           (bimap)
 import           Data.Foldable
-import           Data.Functor.Identity    (runIdentity)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
+import qualified Data.Text                as Text
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
@@ -26,17 +27,20 @@ import           Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import           Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
+import qualified Unison.DataDeclaration as DD
 import           Unison.Hash              (Hash)
 import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
 import           Unison.Names             (Name, Names (..))
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
 import           Unison.Util.Relation     (Relation)
 import qualified Unison.Util.Relation     as R
+import           Unison.Util.TransitiveClosure (transitiveClosure, transitiveClosure1)
 import           Unison.PrettyPrintEnv    (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv    as PPE
 import           Unison.Var               (Var)
@@ -101,6 +105,13 @@ data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name
                 , typeCollisions :: Relation Name Name
                 } deriving (Eq, Show)
+
+instance Semigroup RefCollisions where
+  (<>) = mappend
+instance Monoid RefCollisions where
+  mempty = RefCollisions mempty mempty
+  mappend r1 r2 = RefCollisions (termCollisions r1 <> termCollisions r2)
+                                (typeCollisions r1 <> typeCollisions r2)
 
 termNamespace :: Branch0 -> Relation Name Referent
 termNamespace = view $ namespaceL . terms
@@ -173,6 +184,13 @@ fromNames names = Branch0 (Namespace terms types) mempty R.empty R.empty
  where
   terms = R.fromList . Map.toList $ Names.termNames names
   types = R.fromList . Map.toList $ Names.typeNames names
+
+fromDeclaration :: Var v
+  => v -> Reference -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
+  -> Branch0
+fromDeclaration v r e = fromNames $ case e of
+  Left e -> DD.effectDeclToNames v r e
+  Right d -> DD.dataDeclToNames v r d
 
 contains :: Branch0 -> Reference -> Bool
 contains b r =
@@ -254,6 +272,9 @@ hasTypeNamed n b = not . null $ typesNamed n b
 termsNamed :: Name -> Branch0 -> Set Referent
 termsNamed name = R.lookupDom name . termNamespace
 
+constructorsNamed :: Name -> Branch0 -> Set Referent
+constructorsNamed n b = Set.filter Referent.isConstructor (termsNamed n b)
+
 typesNamed :: Name -> Branch0 -> Set Reference
 typesNamed name = R.lookupDom name . typeNamespace
 
@@ -263,10 +284,25 @@ namesForTerm ref = R.lookupRan ref . termNamespace
 namesForType :: Reference -> Branch0 -> Set Name
 namesForType ref = R.lookupRan ref . typeNamespace
 
+oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
+oldNamesForTerm numHashChars ref
+  = Set.map (<> Text.pack (Referent.showShort numHashChars ref))
+  . R.lookupRan ref
+  . (view $ oldNamespaceL . terms)
+
+oldNamesForType :: Int -> Reference -> Branch0 -> Set Name
+oldNamesForType numHashChars ref
+  = Set.map (<> Text.pack (Reference.showShort numHashChars ref))
+  . R.lookupRan ref
+  . (view $ oldNamespaceL . types)
+
 prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
-  terms r = multiset $ namesForTerm r b
-  types r = multiset $ namesForType r b
+  numHashChars = 5 -- todo: compute from the branch0
+  or :: Set a -> Set a -> Set a
+  or s1 s2 = if Set.null s1 then s2 else s1
+  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm numHashChars r b
+  types r = multiset $ namesForType r b `or` oldNamesForType numHashChars r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
 
 prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
@@ -535,6 +571,9 @@ modify f (Branch b) = Branch $ Causal.step f b
 append :: Branch0 -> Branch -> Branch
 append b0 = modify (<> b0)
 
+cons :: Branch0 -> Branch -> Branch
+cons b0 = modify (const b0)
+
 instance Semigroup Branch where
   (<>) = mappend
 
@@ -570,11 +609,18 @@ data ReferenceOps m = ReferenceOps
 -- bar' -> Replace bar'' *optional
 
 replaceType :: Reference -> Reference -> Branch0 -> Branch0
-replaceType old new b =
-  over editedTypesL (R.insert old (TypeEdit.Replace new))
+replaceType old new b
+  = over editedTypesL (R.insert old (TypeEdit.Replace new))
   . over (namespaceL . types)    (R.replaceRan old new)
+  . over (namespaceL . terms)    (R.filterRan (not . isMatch))
   . over (oldNamespaceL . types) (R.union (typeNamespace b R.|> [old]))
+  . over (oldNamespaceL . terms) (R.union (R.filterRan isMatch (termNamespace b)))
   $ b
+  where
+    isMatch r = case r of
+      Referent.Con r _ -> r == old
+      Referent.Req r _ -> r == old
+      _ -> False
 
 -- insertNames :: Monad m
 --             => ReferenceOps m
@@ -607,28 +653,6 @@ codebase ops (Branch (Causal.head -> b@Branch0 {..})) =
         ((map snd (R.toList $ editedTerms b) >>= TermEdit.referents)) ++
         ((map snd (R.toList $ editedTypes b) >>= TypeEdit.references))
   in transitiveClosure (dependencies ops) initial
-
-transitiveClosure :: forall m a. (Monad m, Ord a)
-                  => (a -> m (Set a))
-                  -> Set a
-                  -> m (Set a)
-transitiveClosure getDependencies open =
-  let go :: Set a -> [a] -> m (Set a)
-      go closed [] = pure closed
-      go closed (h:t) =
-        if Set.member h closed
-          then go closed t
-        else do
-          deps <- getDependencies h
-          go (Set.insert h closed) (toList deps ++ t)
-  in go Set.empty (toList open)
-
-transitiveClosure1 :: forall m a. (Monad m, Ord a)
-                   => (a -> m (Set a)) -> a -> m (Set a)
-transitiveClosure1 f a = transitiveClosure f (Set.singleton a)
-
-transitiveClosure1' :: Ord a => (a -> Set a) -> a -> Set a
-transitiveClosure1' f a = runIdentity $ transitiveClosure1 (pure.f) a
 
 deprecateTerm :: Reference -> Branch -> Branch
 deprecateTerm old (Branch b) = Branch $ Causal.step go b
@@ -675,39 +699,29 @@ termOrTypeOp ops r ifTerm ifType = do
   else if isType then ifType
   else fail $ "neither term nor type: " ++ show r
 
-addTermName :: Referent -> Name -> Branch -> Branch
-addTermName r new (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.insert new r
+addTermName :: Referent -> Name -> Branch0 -> Branch0
+addTermName r new = over (namespaceL . terms) $ R.insert new r
 
-addTypeName :: Reference -> Name -> Branch -> Branch
-addTypeName r new (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.insert new r
+addTypeName :: Reference -> Name -> Branch0 -> Branch0
+addTypeName r new = over (namespaceL . types) $ R.insert new r
 
-renameType :: Name -> Name -> Branch -> Branch
-renameType old new (Branch b) = Branch
-  $ Causal.stepIf (R.memberDom old . typeNamespace) go b
-  where go = over (namespaceL . types) $ R.replaceDom old new
+renameType :: Name -> Name -> Branch0 -> Branch0
+renameType old new = over (namespaceL . types) $ R.replaceDom old new
 
-renameTerm :: Name -> Name -> Branch -> Branch
-renameTerm old new (Branch b) =
-  Branch $ Causal.stepIf (R.memberDom old . termNamespace) go b where
-    go = over (namespaceL . terms) $ R.replaceDom old new
+renameTerm :: Name -> Name -> Branch0 -> Branch0
+renameTerm old new = over (namespaceL . terms) $ R.replaceDom old new
 
-deleteTermName :: Referent -> Name -> Branch -> Branch
-deleteTermName r name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.delete name r
+deleteTermName :: Referent -> Name -> Branch0 -> Branch0
+deleteTermName r name = over (namespaceL . terms) $ R.delete name r
 
-deleteTypeName :: Reference -> Name -> Branch -> Branch
-deleteTypeName r name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.delete name r
+deleteTypeName :: Reference -> Name -> Branch0 -> Branch0
+deleteTypeName r name = over (namespaceL . types) $ R.delete name r
 
-deleteTermsNamed :: Name -> Branch -> Branch
-deleteTermsNamed name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . terms) $ R.deleteDom name
+deleteTermsNamed :: Name -> Branch0 -> Branch0
+deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
 
-deleteTypesNamed :: Name -> Branch -> Branch
-deleteTypesNamed name (Branch b) = Branch $ Causal.step go b where
-  go = over (namespaceL . types) $ R.deleteDom name
+deleteTypesNamed :: Name -> Branch0 -> Branch0
+deleteTypesNamed name = over (namespaceL . types) $ R.deleteDom name
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
@@ -719,4 +733,3 @@ toNames b' = Names terms types
   termRefs = Map.fromList . R.toList $ termNamespace b
   types    = Map.fromList . R.toList $ typeNamespace b
   terms    = termRefs
-

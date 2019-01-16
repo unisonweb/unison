@@ -7,8 +7,11 @@
 module Unison.Util.Pretty (
    Pretty,
    ColorText,
+   align,
    bulleted,
    -- breakable
+   callout,
+   warnCallout, fatalCallout, okCallout,
    column2,
    commas,
    oxfordCommas,
@@ -54,7 +57,8 @@ module Unison.Util.Pretty (
    toPlain,
    wrap,
    wrapString,
-   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold
+   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
+   border
   ) where
 
 import           Data.Char                      ( isSpace )
@@ -264,11 +268,22 @@ rightPad n p =
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
-column2 rows = lines (group <$> alignedRows)
+column2 rows = lines (group <$> align rows)
+
+align :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s)]
+  -> [Pretty s]
+align rows = uncurry (<>) <$> align' rows
+
+align'
+  :: (LL.ListLike s Char, IsString s)
+  => [(Pretty s, Pretty s)]
+  -> [(Pretty s, Pretty s)]
+align' rows = alignedRows
  where
   maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
   alignedRows =
-    [ rightPad maxWidth col0 <> indentNAfterNewline maxWidth col1
+    [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
     | (col0, col1) <- rows
     ]
 
@@ -379,6 +394,19 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+
+border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
+border n p = "\n" <> indentN n p <> "\n"
+
+callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+callout header p =
+  lines ["┌\n" <> indent ("│  ") (header <> "\n\n" <> p), "└"]
+
+warnCallout, fatalCallout, okCallout
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+warnCallout = callout "⚠️"
+fatalCallout = callout "❗️"
+okCallout = callout "✅"
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)

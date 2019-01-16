@@ -8,6 +8,7 @@ import           Control.Applicative    ((<|>))
 import           Control.Exception      (assert)
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
+import           Data.Foldable          (toList, foldl')
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
 import           Data.Maybe             (catMaybes)
@@ -26,6 +27,9 @@ import qualified Unison.Referent        as Referent
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
+import qualified Unison.Type            as Type
+import           Unison.Util.Relation   (Relation)
+import qualified Unison.Util.Relation   as Relation
 import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -64,6 +68,32 @@ getDecl' uf v =
 discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
 discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
   TypecheckedUnisonFile_ datas effects components
+
+-- Returns a relation for the dependencies of this file. The domain is
+-- the dependent, and the range is its dependencies, thus:
+-- `R.lookupDom r (dependencies file)` returns the set of dependencies
+-- of the reference `r`.
+dependencies' ::
+  forall v a. Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
+dependencies' file = let
+  terms :: Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
+  terms = hashTerms file
+  decls :: Map v (Reference, DataDeclaration' v a)
+  decls = dataDeclarations' file <>
+          fmap (second toDataDecl) (effectDeclarations' file )
+  termDeps = foldl' f Relation.empty $ toList terms
+  allDeps = foldl' g termDeps $ toList decls
+  f acc (r, tm, tp) = acc <> termDeps <> typeDeps
+    where termDeps =
+            Relation.fromList [ (r, dep) | dep <- toList (Term.dependencies tm)]
+          typeDeps =
+            Relation.fromList [ (r, dep) | dep <- toList (Type.dependencies tp)]
+  g acc (r, decl) = acc <> ctorDeps
+    where ctorDeps =
+            Relation.fromList [ (r, dep) | (_, _, tp) <- DD.constructors' decl
+                                         , dep <- toList (Type.dependencies tp)
+                                         ]
+  in allDeps
 
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
 dependencies :: Var v => UnisonFile v a -> Names -> Set Reference

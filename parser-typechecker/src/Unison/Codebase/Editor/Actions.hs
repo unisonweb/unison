@@ -132,10 +132,10 @@ loop s = Free.unfold' go s
           addTypeName currentBranchName respond success r name
         RemoveTermNameI r name ->
           updateBranch respond success currentBranchName
-            $ Branch.deleteTermName r name
+            $ Branch.modify (Branch.deleteTermName r name)
         RemoveTypeNameI r name ->
           updateBranch respond success currentBranchName
-            $ Branch.deleteTypeName r name
+            $ Branch.modify (Branch.deleteTypeName r name)
         ChooseTermForNameI r name ->
           unnameAll currentBranchName respond Names.TermName name
             $ addTermName currentBranchName respond success r name
@@ -263,7 +263,7 @@ aliasUnconflicted branchName respond respondNewBranch
     :: Foldable f
     => NameTarget
     -> (Name -> Branch0 -> f a)
-    -> (a -> Name -> Branch -> Branch)
+    -> (a -> Name -> Branch0 -> Branch0)
     -> Branch
     -> (Branch, NameChangeResult)
   alias nameTarget named alias' branch =
@@ -273,7 +273,7 @@ aliasUnconflicted branchName respond respondNewBranch
       newNameExists = (not . null) (named newName $ Branch.head branch)
     in case oldMatches of
          [oldMatch] | not newNameExists ->
-            (alias' oldMatch newName branch,
+            (Branch.modify (alias' oldMatch newName) branch,
           NameChangeResult mempty mempty (Set.singleton nameTarget))
          _ -> (branch, NameChangeResult a b mempty) where
            a = if oldNameMatchCount > 1 then Set.singleton nameTarget
@@ -311,7 +311,7 @@ renameUnconflicted branchName respond respondNewBranch
     :: Foldable f
     => NameTarget
     -> (Name -> Branch0 -> f a)
-    -> (Name -> Name -> Branch -> Branch)
+    -> (Name -> Name -> Branch0 -> Branch0)
     -> Branch
     -> (Branch, NameChangeResult)
   rename nameTarget named rename' branch =
@@ -320,7 +320,7 @@ renameUnconflicted branchName respond respondNewBranch
       newNameExists = (not . null) (named newName $ Branch.head branch)
     in if (oldNameMatchCount == 1 && not newNameExists)
        then
-        (rename' oldName newName branch,
+        (Branch.modify (rename' oldName newName) branch,
           NameChangeResult mempty mempty (Set.singleton nameTarget))
        else
         (branch, NameChangeResult
@@ -337,9 +337,8 @@ unnameAll :: forall i v
           -> Action i v
 unnameAll branchName respond nameTarget name success =
   updateBranch respond success branchName $ case nameTarget of
-    Names.TermName -> Branch.deleteTermsNamed name
-    Names.TypeName -> Branch.deleteTypesNamed name
-    -- Names.PatternName -> Branch.deletePatternsNamed name
+    Names.TermName -> Branch.modify (Branch.deleteTermsNamed name)
+    Names.TypeName -> Branch.modify (Branch.deleteTypesNamed name)
 
 addTermName
   :: BranchName
@@ -349,7 +348,7 @@ addTermName
   -> Name
   -> Action i v
 addTermName branchName respond success r name =
-  updateBranch respond success branchName (Branch.addTermName r name)
+  updateBranch respond success branchName (Branch.modify (Branch.addTermName r name))
 
 addTypeName
   :: BranchName
@@ -359,7 +358,7 @@ addTypeName
   -> Name
   -> Action i v
 addTypeName branchName respond success r name =
-  updateBranch respond success branchName (Branch.addTypeName r name)
+  updateBranch respond success branchName (Branch.modify (Branch.addTypeName r name))
 
 mergeBranch
   :: BranchName

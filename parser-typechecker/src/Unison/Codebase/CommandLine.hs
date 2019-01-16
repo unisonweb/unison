@@ -422,10 +422,10 @@ main dir currentBranchName initialFile startRuntime codebase = do
                terms = Branch.termsNamed (pack from) (Branch.head branch)
                types = Branch.typesNamed (pack from) (Branch.head branch)
                renameTerm branch = do
-                 let branch' = Branch.renameTerm (pack from) (pack to) branch
+                 let branch' = Branch.modify (Branch.renameTerm (pack from) (pack to)) branch
                  mergeBranchAndShowDiff codebase name branch'
                renameType branch = do
-                 let branch' = Branch.renameType (pack from) (pack to) branch
+                 let branch' = Branch.modify (Branch.renameType (pack from) (pack to)) branch
                  mergeBranchAndShowDiff codebase name branch'
                go' b = go b name
              in

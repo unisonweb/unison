@@ -1,18 +1,19 @@
+{-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Codebase.Editor where
 
 -- import Debug.Trace
-import           Control.Monad                  ( forM_, when, foldM)
+import           Control.Monad                  ( forM_, foldM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
-import           Data.Bifunctor                 ( second )
-import           Data.List                      ( foldl' )
+import           Data.Bifunctor                 ( bimap, second )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
 import Data.Map (Map)
@@ -29,11 +30,13 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.Names                   ( Name
                                                 , Names
                                                 , NameTarget
                                                 )
+import qualified Unison.Names as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -45,9 +48,11 @@ import           Unison.Result                  ( Note
 import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
+import           Unison.Util.Relation          (Relation)
+import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
-import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
@@ -76,13 +81,20 @@ data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
   deriving (Show)
 
+instance Ord v => Semigroup (SlurpComponent v) where
+  (<>) = mappend
+instance Ord v => Monoid (SlurpComponent v) where
+  mempty = SlurpComponent mempty mempty
+  c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
+                                   (implicatedTerms c1 <> implicatedTerms c2)
+
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
   -- The branch after adding everything
   , updatedBranch :: Branch
   -- Previously existed only in the file; now added to the codebase.
-  , successful :: SlurpComponent v
+  , adds :: SlurpComponent v
   -- Exists in the branch and the file, with the same name and contents.
   , duplicates :: SlurpComponent v
   -- Not added to codebase due to the name already existing
@@ -90,16 +102,19 @@ data SlurpResult v = SlurpResult {
   , collisions :: SlurpComponent v
   -- Not added to codebase due to the name existing
   -- in the branch with a conflict (two or more definitions).
-  , conflicted :: SlurpComponent v
+  , conflicts :: SlurpComponent v
   -- Names that already exist in the branch, but whose definitions
   -- in `originalFile` are treated as updates.
   , updates :: SlurpComponent v
   -- Names of terms in `originalFile` that couldn't be updated because
   -- they refer to existing constructors. (User should instead do a find/replace,
   -- a constructor rename, or refactor the type that the name comes from).
-  , collidingConstructors :: Map v Referent
+  , termExistingConstructorCollisions :: Map v Referent
+  , constructorExistingTermCollisions :: Map v [Referent]
   -- Already defined in the branch, but with a different name.
-  , duplicateReferents :: Branch.RefCollisions
+  , needsAlias :: Branch.RefCollisions
+  , termsWithBlockedDependencies :: Map v (Set Reference)
+  , typesWithBlockedDependencies :: Map v (Set Reference)
   } deriving (Show)
 
 data Input
@@ -167,7 +182,22 @@ data Output v
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
+  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v)
   deriving (Show)
+
+type Score = Int
+
+data TodoOutput v
+  = TodoOutput_ {
+      todoScore :: Int,
+      todoFrontier ::
+        ( [(Name, Reference, Maybe (Type v Ann))]
+        , [(Name, Reference, DisplayThing (Decl v Ann))]),
+      todoFrontierDependents ::
+        ( [(Score, Name, Reference, Maybe (Type v Ann))]
+        , [(Score, Name, Reference, DisplayThing (Decl v Ann))]),
+      todoConflicts :: Branch0
+    } deriving (Show)
 
 data NameChangeResult = NameChangeResult
   { oldNameConflicted :: Set NameTarget
@@ -182,17 +212,17 @@ instance Monoid NameChangeResult where
     NameChangeResult (a1 <> b1) (a2 <> b2) (a3 <> b3)
 
 -- Function for handling name collisions during a file slurp into the codebase.
--- Receives (collisions)
--- Returns (collisions, updates)
-type CollisionHandler = Branch0 -> (Branch0, Branch0)
+-- Returns `True` if the given symbol may be treated as an update.
+type OkToUpdate = Bool
+type CollisionHandler = Name -> OkToUpdate
 
 -- All collisions get treated as updates and are added to successful.
 updateCollisionHandler :: CollisionHandler
-updateCollisionHandler collided = (mempty, collided)
+updateCollisionHandler = const True
 
 -- All collisions get left alone and are not added to successes.
 addCollisionHandler :: CollisionHandler
-addCollisionHandler collided = (collided, mempty)
+addCollisionHandler = const False
 
 data Command i v a where
   Input :: Command i v i
@@ -276,98 +306,228 @@ data Command i v a where
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
--- todo: generalize this wrt to handling of collisions
+data Outcome
+  -- New definition that was added to the branch
+  = Added
+  -- A name collision that was treated as a replacement
+  | Updated
+  -- A name collision that couldn't be treated as a replacement (use `update`)
+  | CouldntUpdate
+  -- A name that couldn't be updated because it's currently conflicted
+  | CouldntUpdateConflicted
+  -- Skipped because it already exist in the branch (with same name)
+  | AlreadyExists
+  -- Skipped because it already exist in the branch (with different name(s))
+  | RequiresAlias [Name]
+  -- Skipped terms because they share a name with existing constructor
+  | TermExistingConstructorCollision
+  -- Skipped types because one or more constructors collides with an existing term
+  -- (This could include the constructors of another type)
+  | ConstructorExistingTermCollision [Referent]
+  -- Skipped because at least 1 of its dependencies couldn't be added
+  -- or doesn't already exist in branch
+  | CouldntAddDependencies (Set Reference)
+
+blocksDependent :: Outcome -> Bool
+blocksDependent = \case
+  Added -> False
+  Updated -> False
+  AlreadyExists -> False
+  RequiresAlias _ -> False
+  _ -> True
+
+outcomes :: Var v
+         => CollisionHandler
+         -> Branch0
+         -> UF.TypecheckedUnisonFile v Ann
+         -> [(Either Reference Reference, Outcome)]
+outcomes okToUpdate b file = let
+  namesForTermOrType r b =
+    Branch.namesForType r b <> Branch.namesForTerm (Referent.Ref r) b
+  outcome0 n r0 ctorNames = let r = either id id r0 in
+    if Branch.contains b r then -- Already exists
+      case toList $ namesForTermOrType r b of
+        -- note: this will only return names from appropriate namespace
+        ns | n `elem` ns -> (r0, AlreadyExists)
+           | otherwise   -> (r0, RequiresAlias ns)
+    else case r0 of -- this doesn't exist in the branch
+      -- It's a term
+      Right _ -> case toList $ Branch.termsNamed n b of
+        [] -> (r0, Added)
+        referents ->
+          if not (okToUpdate n) then (r0, CouldntUpdate)
+          else if length referents > 1 then (r0, CouldntUpdateConflicted)
+          else if any Referent.isConstructor referents then (r0, TermExistingConstructorCollision)
+          else (r0, Updated)
+      -- It's a type
+      Left _ -> let
+        ctorNameCollisions :: Set Referent
+        ctorNameCollisions = Set.unions $
+          map (`Branch.termsNamed` b) ctorNames
+        in case toList $ Branch.typesNamed n b of
+          [] -> -- no type name collisions
+            if null ctorNameCollisions
+            then (r0, Added) -- and no term collisions
+            else (r0, ConstructorExistingTermCollision $ toList ctorNameCollisions)
+          _refs | not (okToUpdate n) -> (r0, CouldntUpdate)
+          [oldref] -> let
+            conflicted = toList ctorNameCollisions >>= \r2 -> case r2 of
+              Referent.Ref _ -> [r2]
+              -- note - it doesn't count as a collision if the name
+              -- collision is on a ctor of the type we're replacing
+              -- of the type we will be replacing
+              Referent.Req r _ -> if r == oldref then [] else [r2]
+              Referent.Con r _ -> if r == oldref then [] else [r2]
+            in if null conflicted then (r0, Updated)
+               else (r0, ConstructorExistingTermCollision conflicted)
+          _otherwise -> (r0, CouldntUpdateConflicted) -- come back to this
+
+  outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
+  termOutcome (v, (r, _, _)) = outcome0 (Var.name v) (Right r) []
+  outcomes0types
+     = map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
+    ++ map typeOutcome (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
+  typeOutcome (v, (r, dd)) = outcome0 (Var.name v) (Left r) $ ctorNames v r dd
+  ctorNames v r (Left e) = Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
+  ctorNames v r (Right dd) = Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
+  outcomes0 = outcomes0terms ++ outcomes0types
+  in removeTransitive (UF.dependencies' file) outcomes0
+
+-- Converts outcomes to CouldntAddDependencies if it is a successful outcome
+-- which depends (directly or indirectly) on a Reference with an unsuccessful
+-- outcome.
+removeTransitive
+  :: Relation Reference Reference
+  -> [(Either Reference Reference, Outcome)]
+  -> [(Either Reference Reference, Outcome)]
+removeTransitive dependencies outcomes0 = let
+  ref r = either id id r
+  -- `Set Reference` that have been removed
+  removed0 = Set.fromList [ ref r | (r, o) <- outcomes0, blocksDependent o ]
+  trim :: Set Reference
+       -> [(Either Reference Reference, Outcome)]
+       -> [(Either Reference Reference, Outcome)]
+  trim removedAlready outcomes = let
+    outcomes' = map stepOutcome outcomes
+    stepOutcome (r, o) =
+      let
+        -- dependencies of r which have already been marked for removal
+        removedDeps =
+          Set.intersection removedAlready (R.lookupDom (ref r) dependencies)
+      in
+        -- if r's outcome is already a sort of failure, then keep that outcome
+        if blocksDependent o then (r, o)
+        -- or if none of r's dependencies are removed, then don't change r's outcome
+        else if Set.null removedDeps then (r, o)
+        -- else some of r's deps block r
+        else (r, CouldntAddDependencies removedDeps)
+    removed = Set.fromList [ ref r | (r, o) <- outcomes', blocksDependent o ]
+    in if Set.size removed == Set.size removedAlready then outcomes
+       else trim removed outcomes'
+  in trim removed0 outcomes0
+
 fileToBranch
-  :: (Var v, Monad m)
+  :: forall m v
+  .  (Var v, Monad m)
   => CollisionHandler
   -> Codebase m v Ann
   -> Branch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (SlurpResult v)
-fileToBranch handleCollisions codebase branch unisonFile = let
-  branch0 = Branch.head branch
-  branchUpdate = Branch.fromTypecheckedFile unisonFile
-  -- name already exists in the branch, with one, different definition
-  collisions0  = Branch.unconflictedCollisions branchUpdate branch0
-  -- same name, same def (already added)
-  duplicates   = Branch.duplicates branchUpdate branch0
-  -- names already conflicted in the branch
-  conflicts = Branch.conflicts' branch0
-  -- existing references with new names (potential aliases)
-  dupeRefs     = Branch.refCollisions branchUpdate branch0
-  -- names corresponding to dupeRefs
-  diffNames    = Branch.differentNames dupeRefs branch0
-  -- added
-  successes    = branchUpdate `Branch.subtract`
-                    (collisions0 <> duplicates <> dupeRefs)
-  (collisions, updates) = handleCollisions collisions0
-  mkOutput x =
-    uncurry SlurpComponent $ Branch.intersectWithFile x unisonFile
-  allTypeDecls =
-    (second Left <$> UF.effectDeclarations' unisonFile)
-      `Map.union` (second Right <$> UF.dataDeclarations' unisonFile)
-  hashedTerms = UF.hashTerms unisonFile
-  in do
-  -- 1. update Branch.collisions to make it only include things with 0 conflicts currently, but which would conflict if an additional definition was added
-  -- 2. create Branch.conflicts to include things with name conflicts currently
-  -- 3. fold over implicatedTypes of updates with Branch.updateType
-  -- 4. fold over implicatedTerms of updates with Branch.updateTerm and getTyping
-  -- 5. Causal.step the result of 3+4
-  -- 6. MergeBranch at some point (done)
-    forM_ (Map.toList allTypeDecls) $ \(_, (r@(DerivedId id), dd)) ->
-      when (successes `Branch.contains` r || updates `Branch.contains` r)
-        $ Codebase.putTypeDeclaration codebase id dd
-    forM_ (Map.toList hashedTerms) $ \(_, (r@(DerivedId id), tm, typ)) ->
-      -- Discard all line/column info when adding to the codebase
-      when (successes `Branch.contains` r || updates `Branch.contains` r) $
-        Codebase.putTerm
-          codebase
-          id
-          (Term.amap (const Parser.External) tm)
-          typ
-
-    let updatesOut = mkOutput updates
-        b1 = foldl' go1 branch0 (Map.toList allTypeDecls)
-        go1 b0 (v, (ref, _)) =
-          if Set.member v (implicatedTypes updatesOut) then
-            case toList (Branch.typesNamed (Var.name v) b0) of
-              [oldref] -> Branch.replaceType oldref ref b0
-              wat -> error $
-                "Panic - updates contains a type with conflicts " ++
-                show wat
-          else b0
-        go2 (cctors, b0) (v, (r, _, typ)) =
-          if Set.member v (implicatedTerms updatesOut) then
-            case toList (Branch.termsNamed (Var.name v) b0) of
-              [Referent.Ref oldref] -> getTyping oldref typ >>= \typing -> pure $
-                (cctors, Branch.replaceTerm oldref r typing b0)
-              [oldref] -> pure (Map.insert v oldref cctors, b0)
-              wat -> error $
-                "Panic - updates contains a term with conflicts " ++
-                show wat
-          else pure (cctors, b0)
-
-        getTyping oldTerm newType = do
-          oldTypeo <- Codebase.getTypeOfTerm codebase oldTerm
-          pure $ case oldTypeo of
-            Just oldType ->
-              if Typechecker.isEqual oldType newType then TermEdit.Same
-              else if Typechecker.isSubtype newType oldType then TermEdit.Subtype
-              else TermEdit.Different
-            Nothing -> error $ "Tried to replace " ++ show oldTerm
-                    ++ " but its type wasn't found in the codebase. Panic!"
-
-    (collidingCtors, b2) <- foldM go2 (Map.empty, b1) (Map.toList hashedTerms)
-    -- TODO: make sure it's a noop when updating a definition w/ name conflict
-    pure $ SlurpResult unisonFile
-       (Branch.append (successes <> updates <> b2) branch)
-       (mkOutput successes)
-       (mkOutput duplicates)
-       (mkOutput collisions)
-       (mkOutput conflicts)
-       updatesOut
-       collidingCtors
-       diffNames
+fileToBranch handleCollisions codebase branch uf = do
+  forM_ outcomes0 $ \(r, o) ->
+    case o of
+      Added -> writeDefinition r
+      Updated -> writeDefinition r
+      _ -> pure ()
+  (result, b0) <- foldM addOutcome
+    (SlurpResult uf branch mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty, Branch.head branch) outcomes'
+  pure $ result { updatedBranch = Branch.cons b0 branch }
+  where
+    b0 = Branch.head branch
+    outcomes0 = outcomes handleCollisions b0 uf
+    outcomes' = map addV outcomes0 where
+      addV (r, o) = case r of
+        Left tr -> case Map.lookup tr declsByRef of
+          Nothing -> error "Panic. Unknown type in fileToBranch."
+          Just (v, dd) -> (v, bimap (,dd) id r, o)
+        Right er -> case Map.lookup er termsByRef of
+          Nothing -> error "Panic. Unknown term in fileToBranch"
+          Just (v, _, _) -> (v, Right er, o)
+    sc r v = case r of
+      Left _ -> SlurpComponent (Set.singleton v) mempty
+      Right _ -> SlurpComponent mempty (Set.singleton v)
+    addOutcome (result, b) (v, r, o) = case o of
+      Added -> pure $ case r of
+        Left (r, dd) ->
+          ( result { adds = adds result <> SlurpComponent (Set.singleton v) mempty }
+          , Branch.fromDeclaration v r dd <> b )
+        Right r ->
+          ( result { adds = adds result <> SlurpComponent mempty (Set.singleton v) }
+          , Branch.addTermName (Referent.Ref r) (Var.name v) b )
+      Updated -> do
+        let result' = result { updates = updates result <> sc r v }
+        case r of
+          Left (r', dd) -> case toList (Branch.typesNamed (Var.name v) b0) of
+            [r0] -> pure (result', Branch.fromDeclaration v r' dd <> Branch.replaceType r0 r' b)
+            _ -> error "Panic. Tried to replace a type that's conflicted."
+          Right r' -> case toList (Branch.termsNamed (Var.name v) b0) of
+            [Referent.Ref r0] -> do
+              Just type1 <- Codebase.getTypeOfTerm codebase r0
+              let Just (_, _, type2) = Map.lookup r' termsByRef
+              let typing =
+                    if Typechecker.isEqual type1 type2 then TermEdit.Same
+                    else if Typechecker.isSubtype type2 type1 then TermEdit.Subtype
+                    else TermEdit.Different
+              pure (result', Branch.addTermName (Referent.Ref r') (Var.name v) $
+                             Branch.replaceTerm r0 r' typing b)
+            _ -> error $ "Panic. Tried to replace a term that's conflicted." ++ show v
+      AlreadyExists -> pure (result { duplicates = duplicates result <> sc r v }, b)
+      CouldntUpdate -> pure (result { collisions = collisions result <> sc r v }, b)
+      CouldntUpdateConflicted ->
+        pure (result { conflicts = conflicts result <> sc r v }, b)
+      RequiresAlias ns -> let
+        rcs = case r of
+          Left _ -> Branch.RefCollisions mempty (R.fromList $ (Var.name v,) <$> ns)
+          Right _ -> Branch.RefCollisions (R.fromList $ (Var.name v,) <$> ns) mempty
+        in pure (result { needsAlias = needsAlias result <> rcs }, b)
+      TermExistingConstructorCollision ->
+        pure (result {
+          termExistingConstructorCollisions =
+            termExistingConstructorCollisions result <>
+            pick (toList $ Branch.constructorsNamed (Var.name v) b0) }, b)
+        where
+          pick [] = error "Panic. Incorrectly determined a conflict."
+          pick (h:_) = Map.fromList [(v, h)]
+      ConstructorExistingTermCollision rs ->
+        pure (result { constructorExistingTermCollisions = constructorExistingTermCollisions result <> Map.fromList [(v, rs)] }, b)
+      CouldntAddDependencies rs -> case r of
+        Left _ -> pure (result { typesWithBlockedDependencies =
+          typesWithBlockedDependencies result <> Map.fromList [(v, rs)] }, b)
+        Right _ -> pure (
+          result { termsWithBlockedDependencies = termsWithBlockedDependencies result <>
+                   Map.fromList [(v, rs)] }, b)
+    declsByRef :: Map Reference (v, Decl v Ann)
+    declsByRef = Map.fromList $
+      [ (r, (v, d)) | (v, (r,d)) <- mconcat [
+          Map.toList . fmap (second Right) $ UF.dataDeclarations' uf
+        , Map.toList . fmap (second Left) $ UF.effectDeclarations' uf ]]
+    termsByRef = Map.fromList
+      [ (r, (v, tm, typ))
+      | (v, (r, tm, typ)) <- Map.toList $ UF.hashTerms uf ]
+    prepTerm = Term.amap (const Parser.External)
+    prepDecl :: Decl v Ann -> Decl v Ann
+    prepDecl = bimap ex ex
+    ex :: Functor f => f a -> f Ann
+    ex = fmap (const Parser.External)
+    writeDefinition = \case
+      Left typeRef@(DerivedId d) -> let
+        Just (_, dd) = Map.lookup typeRef declsByRef
+        in Codebase.putTypeDeclaration codebase d (prepDecl dd)
+      Right termRef@(DerivedId d) -> let
+        Just (_, tm, typ) = Map.lookup termRef termsByRef
+        in Codebase.putTerm codebase d (prepTerm tm) (ex typ)
+      r -> error $ "Panic. Hashing produced a builtin Reference: " ++ show r
 
 typecheck
   :: (Monad m, Var v)
