@@ -224,7 +224,9 @@ notifyUser dir o = do
       E.SlurpComponent updatedTypes updatedTerms = E.updates s
       termTypesFromFile =
         Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents file) ]
-      ppe = Branch.prettyPrintEnv1 (Branch.head branch)
+      ppe =
+        Branch.prettyPrintEnv1 (Branch.head branch) `PPE.unionLeft`
+        Branch.prettyPrintEnv1 (Branch.fromTypecheckedFile file)
       filterTermTypes vs =
         [ (Var.name v,t) | v <- toList vs
                 , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
@@ -372,14 +374,14 @@ notifyUser dir o = do
       blockedDependenciesMsg =
         if null blockedTerms && null blockedTypes then Nothing
         else Just . P.warnCallout $
-          P.wrap ("I also skipped the following definitions due to a" <> P.bold "transitive dependency on a skipped definition" <> "mentioned above:") <> "\n\n"
+          P.wrap ("I also skipped these definitions with a" <> P.bold "transitive dependency on a skipped definition" <> "mentioned above:") <> "\n\n"
           <> P.indentN 2 (
               P.lines (
                 (prettyDeclHeader <$> toList blockedTypes) ++
                 TypePrinter.prettySignatures' ppe (filterTermTypes blockedTerms)
               )
              )
-      in putPrettyLn . P.sep "\n\n" . catMaybes $ [
+      in putPrettyLn . P.sep "\n" . catMaybes $ [
           addMsg, updateMsg, dupeMsg, collMsg,
           conflictMsg, aliasingMsg, termExistingCtorMsg,
           ctorExistingTermMsg, blockedDependenciesMsg ]
