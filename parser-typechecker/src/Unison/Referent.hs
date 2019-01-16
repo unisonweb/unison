@@ -31,6 +31,12 @@ toReference = \case
   Req r _i -> r
   Con r _i -> r
 
+toTypeReference :: Referent -> Maybe Reference
+toTypeReference = \case
+  Req r _i -> Just r
+  Con r _i -> Just r
+  _ -> Nothing
+
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r
   tokens (Req r i) = [H.Tag 1] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)

@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Codebase.CommandLine2 where
 
@@ -180,17 +181,14 @@ notifyUser dir o = do
       let ppe  = Branch.prettyPrintEnv1 (Branch.head branch)
           sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
           sigs = [(name,t) | (name, Just t) <- sigs0 ]
-          termsWithMissingTypes =
-             [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
-          impossible = terms >>= \case
-            (name, r, Nothing) -> case r of
-              Referent.Ref (Reference.Builtin _) -> [(name,r)]
-              _ -> []
+          impossible = terms >>= \(name, r, _) -> case r of
+            Referent.Ref (Reference.Builtin _) -> [(name,r)]
             _ -> []
+          termsWithMissingTypes =
+            [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
           missingTypes = nubOrdOn snd $
-             [ (name, Reference.DerivedPrivate_ r) | (name, _, MissingThing r) <- types ] <>
-             [ (name, r) | (name, Referent.Con r _, Nothing) <- terms] <>
-             [ (name, r) | (name, Referent.Req r _, Nothing) <- terms]
+            [ (name, Reference.DerivedPrivate_ r) | (name, _, MissingThing r) <- types ] <>
+            [ (name, r) | (name, Referent.toTypeReference -> Just r, Nothing) <- terms]
           typeResults = map go types
           go (name, _, displayDecl) = case displayDecl of
             BuiltinThing -> P.wrap $
@@ -200,21 +198,13 @@ notifyUser dir o = do
               Left _ability -> TypePrinter.prettyEffectHeader name
               Right _d -> TypePrinter.prettyDataHeader name
       in do
-        putPrettyLn . P.lines $ typeResults ++
-                                TypePrinter.prettySignatures' ppe sigs
+        putPrettyLn . P.lines $
+          typeResults ++ TypePrinter.prettySignatures' ppe sigs ++
+          formatMissingStuff termsWithMissingTypes missingTypes
         when (not $ null impossible) . error $ "Compiler bug, these referents are missing types: " <> show impossible
-        when (not $ null termsWithMissingTypes) . putPrettyLn $
-          warn "The search returned the following terms for which the type signature is corrupted or missing:" <>
-                P.newline <>
-                P.column2 [ (P.text name, fromString (show ref))
-                          | (name, ref) <- termsWithMissingTypes ]
-        when (not $ null missingTypes) . putPrettyLn $
-          warn "The search returned the following types which weren't found in the codebase:" <>
-                P.newline <>
-                P.column2 [ (P.text name, fromString (show ref))
-                          | (name, ref) <- missingTypes ]
 
     SlurpOutput s -> let
+      -- todo: move this to a separate function
       branch = E.updatedBranch s
       file = E.originalFile s
       E.SlurpComponent addedTypes addedTerms = E.adds s
@@ -426,7 +416,22 @@ notifyUser dir o = do
       putStrLn $
           "👀  Now evaluating any watch expressions (lines starting with `>`)"
         <> " ...\n"
-    TodoOutput _ppe _todoOutput -> error "todo"
+    TodoOutput _ppe todo ->
+      if E.todoScore todo == 0
+      then putPrettyLn . emojiNote "✅" $ "No conflicts or edits in progress."
+      else do
+        let (frontierTerms, frontierTypes) = E.todoFrontier todo
+            corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
+            corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
+        putPrettyLn . P.callout "🚧" . P.lines . join $ [
+          [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+                  <> "transitive dependents left to upgrade."
+                  <> "Your edit frontier is the dependents of these definitions:")],
+          [""],
+          -- todo: format frontier and frontier dependents
+          formatMissingStuff corruptTerms corruptTypes
+         ]
+
  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
@@ -457,7 +462,18 @@ notifyUser dir o = do
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
 
-
+  formatMissingStuff :: (Show a, Show b)
+    => [(Names.Name, a)] -> [(Names.Name, b)] -> [P.Pretty P.ColorText]
+  formatMissingStuff terms types = catMaybes [
+    (if null terms then Nothing else Just . P.fatalCallout $
+      P.wrap "The following terms have a missing or corrupted type signature:"
+      <> "\n\n"
+      <> P.column2 [ (P.text name, fromString (show ref)) | (name, ref) <- terms ]),
+    (if null types then Nothing else Just . P.fatalCallout $
+      P.wrap "The following types weren't found in the codebase:"
+      <> "\n\n"
+      <> P.column2 [ (P.text name, fromString (show ref)) | (name, ref) <- types ])
+    ]
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
