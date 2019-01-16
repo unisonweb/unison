@@ -434,6 +434,7 @@ notifyUser dir o = do
       putStrLn $
           "👀  Now evaluating any watch expressions (lines starting with `>`)"
         <> " ...\n"
+    TodoOutput _ppe _todoOutput -> error "todo"
  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
