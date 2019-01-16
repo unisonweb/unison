@@ -373,20 +373,18 @@ notifyUser dir o = do
               )
           <> "\n\n"
         else ""
-      blockedTerms = E.termsWithBlockedDependencies s
-      blockedTypes = E.typesWithBlockedDependencies s
+      blockedTerms = Map.keys (E.termsWithBlockedDependencies s)
+      blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
       blockedDependenciesMsg =
-        if Map.null blockedTerms && Map.null blockedTypes then ""
+        if null blockedTerms && null blockedTypes then ""
         else
-          warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n" <>
-          P.indentN 2 (
-            P.lines [
-              -- todo: format it like the other stuff
-              P.bold "Skipped types:" `P.hang`
-              P.commas (map (P.text . Var.name) (Map.keys blockedTypes)),
-              P.bold "Skipped terms:" `P.hang`
-              P.commas (map (P.text . Var.name) (Map.keys blockedTerms)) ]
-          )
+          warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n"
+          <> P.indentN 2 (
+              P.lines (
+                (prettyDeclHeader <$> toList blockedTypes) ++
+                TypePrinter.prettySignatures' ppe (filterTermTypes blockedTerms)
+              )
+             )
           <> "\n\n"
       in putPrettyLn $
           addMsg <> updateMsg <>
