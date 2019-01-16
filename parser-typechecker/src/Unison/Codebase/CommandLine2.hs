@@ -273,9 +273,9 @@ notifyUser dir o = do
             P.lines (
               (prettyDeclHeader <$> toList collidedTypes) ++
               TypePrinter.prettySignatures' ppe (filterTermTypes collidedTerms))
+            )
             <> "\n\n"
             <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
-            )
         else Nothing
       conflictMsg =
         if not (null conflictedTypes && null conflictedTerms)
@@ -301,9 +301,8 @@ notifyUser dir o = do
             P.lines (
               (prettyDeclHeader <$> toList conflictedTypes) ++
               TypePrinter.prettySignatures' ppe (filterTermTypes conflictedTerms))
-            <> "\n\n"
+          ) <> "\n\n"
             <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
-          )
         else Nothing
 
       aliasingMsg =
@@ -319,25 +318,24 @@ notifyUser dir o = do
 
           P.wrap ("I skipped these definitions because they already" <> P.bold "exist with other names:") <> "\n\n" <>
           P.indentN 2 (
-            P.column2
+            P.lines . join $ [
+              P.align
             -- ("type Optional", "aka " ++ commas existingNames)
             -- todo: something is wrong here: only one oldName is being shown, instead of all
               [(prettyDeclHeader $ Var.named newName,
                 "aka " <> P.commas (P.text <$> toList oldNames)) |
                 (newName, oldNames) <-
-                  Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ]
-            <> (if not . R.null . Branch.typeCollisions $ (E.needsAlias s)
-               then P.newline else "")
-            <> TypePrinter.prettySignatures ppe
+                  Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ],
+            TypePrinter.prettySignatures' ppe
                 -- foo, foo2, fasdf : a -> b -> c
                 [ (intercalateMap ", " id (name : toList oldNames), typ)
                 | (newName, oldNames) <-
                     Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
                 , (name, typ) <- filterTermTypes [Var.named newName]
                 ]
+            ])
             <> "\n\n"
             <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
-            )
         else Nothing
       termExistingCtorCollisions = E.termExistingConstructorCollisions s
       termExistingCtorMsg =
@@ -350,9 +348,9 @@ notifyUser dir o = do
                   , "is a constructor for " <>
                       P.text (PPE.typeName ppe (Referent.toReference r)))
                 | (v, r) <- Map.toList termExistingCtorCollisions ]
+              )
               <> "\n\n"
               <> tip "You can `rename` these constructors to free up the names for your new definitions."
-              )
         else Nothing
       ctorExistingTermCollisions = E.constructorExistingTermCollisions s
       commaRefs rs = P.wrap $ P.commas (map go rs) where
@@ -365,9 +363,9 @@ notifyUser dir o = do
               P.column2 [
                 (P.text $ Var.name v, "has name collisions for: " <> commaRefs rs)
                 | (v, rs) <- Map.toList ctorExistingTermCollisions ]
+              )
               <> "\n\n"
               <> tip "You can `rename` existing definitions to free up the names for your new definitions."
-              )
         else Nothing
       blockedTerms = Map.keys (E.termsWithBlockedDependencies s)
       blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
