@@ -103,12 +103,10 @@ notifyUser dir o = do
       in putPrettyLn $ P.sep "\n\n" (prettyTerms <> prettyTypes)
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
-      putPrettyLn $ P.lines
-        [ nothingTodo $ P.wrap "There's nothing for me to add right now."
+      putPrettyLn . P.callout "😶" $ P.lines
+        [ P.wrap "There's nothing for me to add right now."
         , ""
-        , P.column2 [(P.bold "Hint:", msg dir')]
-        , ""
-        ]
+        , P.column2 [(P.bold "Hint:", msg dir')] ]
      where
       msg dir =
         P.wrap
@@ -162,9 +160,9 @@ notifyUser dir o = do
         <> P.blue (P.text branchName)
         <> "."
     BranchAlreadyExists b ->
-      putPrettyLn
-        $  warn
-             (P.wrap $ "There's already a branch called " <> P.text b <> ".\n\n")
+      putPrettyLn . P.warnCallout
+        $  P.wrap ("There's already a branch called " <> P.group (P.text b <> "."))
+        <> "\n\n"
         <> (  tip
            $  "You can switch to that branch via"
            <> backtick ("branch " <> P.text b)
@@ -235,8 +233,8 @@ notifyUser dir o = do
         Just (Right _) -> TypePrinter.prettyDataHeader (Var.name v)
         Nothing -> error "Wat."
       addMsg = if not (null addedTypes && null addedTerms)
-        then Just $
-          emojiNote "✅" "I added these definitions:"
+        then Just . P.okCallout $
+          P.wrap ("I" <> P.bold "added" <> "these definitions:")
           <> "\n\n" <> P.indentN 2
             (P.lines (
               (prettyDeclHeader <$> toList addedTypes) ++
@@ -244,8 +242,8 @@ notifyUser dir o = do
             )
         else Nothing
       updateMsg = if not (null updatedTypes && null updatedTerms)
-        then Just $
-          emojiNote "✅" "I updated these definitions:"
+        then Just . P.okCallout $
+          P.wrap ("I" <> P.bold "updated" <> "these definitions:")
           -- todo: show the partial hash too?
           <> "\n\n"
           <> P.indentN 2 (
@@ -256,18 +254,19 @@ notifyUser dir o = do
           -- todo "You probably have a bunch more work to do."
         else Nothing
       dupeMsg = if not (null dupeTypes && null dupeTerms)
-        then Just $
-          emojiNote "☑️" "I skipped these definitions because they have already been added:" <> "\n\n" <>
-          P.indentN 2 (
-            P.lines (
-              (prettyDeclHeader <$> toList dupeTypes) ++
-              TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
-          )
+        then Just . P.callout "☑️" $
+          P.wrap ("I skipped these definitions because they have" <> P.bold "already been added:")
+          <> "\n\n"
+          <> P.indentN 2 (
+              P.lines (
+                (prettyDeclHeader <$> toList dupeTypes) ++
+                TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
+            )
         else Nothing
       collMsg =
         if not (null collidedTypes && null collidedTerms)
-        then Just $
-          warn "I skipped these definitions because the names already exist, but with different definitions:" <> "\n\n" <>
+        then Just . P.warnCallout $
+          P.wrap ("I skipped these definitions because the" <> P.bold "names already exist," <> "but with different definitions:") <> "\n\n" <>
           P.indentN 2 (
             P.lines (
               (prettyDeclHeader <$> toList collidedTypes) ++
@@ -278,7 +277,7 @@ notifyUser dir o = do
         else Nothing
       conflictMsg =
         if not (null conflictedTypes && null conflictedTerms)
-        then Just $
+        then Just . P.warnCallout $
           let sampleName =
                 P.text . head . fmap Var.name . toList $
                   (conflictedTypes <> conflictedTerms)
@@ -291,7 +290,9 @@ notifyUser dir o = do
               sampleNewName' = P.group (sampleNewName <> "`")
               sampleName' = P.group (sampleName <>"`")
               sampleName'' = P.group ("`" <> sampleName <>"`") in
-          warn "I didn't try to update these definitions because the names are conflicted (already associated with multiple definitions):"
+          P.wrap ("I didn't try to update these definitions because the names are" <>
+                  P.bold "conflicted" <>
+                  "(already associated with multiple definitions):")
           <> P.newline
           <> P.newline
           <> P.indentN 2 (
@@ -306,7 +307,7 @@ notifyUser dir o = do
       aliasingMsg =
         if not (R.null (Branch.termCollisions (E.needsAlias s))
                 && R.null (Branch.typeCollisions (E.needsAlias s)))
-        then Just $
+        then Just . P.warnCallout $
           let f = listToMaybe . Map.toList . R.domain
               Just (sampleName0, sampleExistingName0) =
                 (f . Branch.typeCollisions) (E.needsAlias s) <|>
@@ -314,7 +315,7 @@ notifyUser dir o = do
               sampleNewName' = P.group (P.text sampleName0 <> "`")
               sampleOldName = P.text . head . toList $ sampleExistingName0 in
 
-          warn "I skipped these definitions because they already exist with other names:" <> "\n\n" <>
+          P.wrap ("I skipped these definitions because they already" <> P.bold "exist with other names:") <> "\n\n" <>
           P.indentN 2 (
             P.column2
             -- ("type Optional", "aka " ++ commas existingNames)
@@ -339,8 +340,8 @@ notifyUser dir o = do
       termExistingCtorCollisions = E.termExistingConstructorCollisions s
       termExistingCtorMsg =
         if not (null termExistingCtorCollisions)
-        then Just $
-          warn "I can't update these term definitions because the names are currently assigned to constructors:" <> "\n\n" <>
+        then Just . P.warnCallout $
+          P.wrap ("I can't update these terms because the" <> P.bold "names are currently assigned to constructors:") <> "\n\n" <>
             P.indentN 2
               (P.column2
                 [ (P.text $ Var.name v
@@ -356,8 +357,8 @@ notifyUser dir o = do
         go r = P.text (PPE.termName ppe r)
       ctorExistingTermMsg =
         if not (null ctorExistingTermCollisions)
-        then Just $
-          warn "I can't update these type definitions because one or more of the constructor names matches an existing term:" <> "\n\n" <>
+        then Just . P.warnCallout $
+          P.wrap ("I can't update these types because one or more of the" <> P.bold "constructor names matches an existing term:") <> "\n\n" <>
             P.indentN 2 (
               P.column2 [
                 (P.text $ Var.name v, "has name collisions for: " <> commaRefs rs)
@@ -370,8 +371,8 @@ notifyUser dir o = do
       blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
       blockedDependenciesMsg =
         if null blockedTerms && null blockedTypes then Nothing
-        else Just $
-          warn "I also skipped the following definitions due to a transitive dependency on one of the skipped definitions mentioned above:" <> "\n\n"
+        else Just . P.warnCallout $
+          P.wrap ("I also skipped the following definitions due to a" <> P.bold "transitive dependency on a skipped definition" <> "mentioned above:") <> "\n\n"
           <> P.indentN 2 (
               P.lines (
                 (prettyDeclHeader <$> toList blockedTypes) ++
@@ -429,22 +430,21 @@ notifyUser dir o = do
  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
-    when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn $
-      emojiNote "👍"
-        $ "I" <> pastTenseCmd <> "the"
+    when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
+      P.wrap $ "I" <> pastTenseCmd <> "the"
         <> ns (E.changedSuccessfully r)
         <> P.blue (P.text oldName)
         <> "to" <> P.green (P.text (newName <> "."))
-    when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn $
-      (warn $ "I couldn't" <> cmd <> "the"
+    when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
+      (P.wrap $ "I couldn't" <> cmd <> "the"
            <> ns (E.oldNameConflicted r)
            <> P.blue (P.text oldName)
            <> "to" <> P.green (P.text newName)
            <> "because of conflicts.")
       <> "\n\n"
       <> tip "Use `todo` to view more information on conflicts and remaining work."
-    when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn $
-      (warn $ "I couldn't" <> cmd <> P.blue (P.text oldName)
+    when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
+      (P.wrap $ "I couldn't" <> cmd <> P.blue (P.text oldName)
            <> "to" <> P.green (P.text newName)
            <> "because the "
            <> ns (E.newNameAlreadyExists r)
@@ -504,7 +504,7 @@ bigproblem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 bigproblem = emojiNote "‼️"
 
 emojiNote :: (ListLike s Char, IsString s) => String -> P.Pretty s -> P.Pretty s
-emojiNote lead s = P.group (fromString lead <> "  ") <> P.wrap s
+emojiNote lead s = P.group (fromString lead) <> "\n" <> P.wrap s
 
 nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 nothingTodo s = emojiNote "😶" s
@@ -674,7 +674,7 @@ validInputs = validPatterns
             allTargets
             (Text.pack oldName)
             (Text.pack newName)
-          _ -> Left . warn $ P.wrap
+          _ -> Left . P.warnCallout $ P.wrap
             "`rename` takes two arguments, like `rename oldname newname`."
         )
       , InputPattern

@@ -10,6 +10,8 @@ module Unison.Util.Pretty (
    align,
    bulleted,
    -- breakable
+   callout,
+   warnCallout, fatalCallout, okCallout,
    column2,
    commas,
    oxfordCommas,
@@ -395,6 +397,16 @@ bold = map CT.bold
 
 border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
 border n p = "\n" <> indentN n p <> "\n"
+
+callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
+callout header p =
+  lines ["┌\n" <> indent ("│  ") (header <> "\n\n" <> p), "└"]
+
+warnCallout, fatalCallout, okCallout
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+warnCallout = callout "⚠️"
+fatalCallout = callout "❗️"
+okCallout = callout "✅"
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)
