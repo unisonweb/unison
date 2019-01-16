@@ -298,8 +298,9 @@ notifyUser dir o = do
           <> P.newline
           <> P.newline
           <> P.indentN 2 (
-            P.lines (prettyDeclHeader <$> toList conflictedTypes)
-            <> TypePrinter.prettySignatures ppe (filterTermTypes conflictedTerms)
+            P.lines (
+              (prettyDeclHeader <$> toList conflictedTypes) ++
+              TypePrinter.prettySignatures' ppe (filterTermTypes conflictedTerms))
             <> "\n\n"
             <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
           )
