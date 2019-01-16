@@ -21,12 +21,12 @@ import           Control.Monad.IO.Class         ( MonadIO
 import           Control.Monad.STM              ( atomically )
 import qualified Data.Bytes.Get                as Get
 import qualified Data.ByteString               as BS
-import           Data.Foldable                  ( traverse_ )
+import           Data.Foldable                  ( traverse_, toList )
 import           Data.List                      ( isSuffixOf
                                                 , partition
                                                 )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes )
+import           Data.Maybe                     ( catMaybes, isJust )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
@@ -36,7 +36,6 @@ import           System.Directory               ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 , listDirectory
                                                 , removeFile
-                                                , writeFile
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -60,6 +59,7 @@ import qualified Unison.Codebase.Serialization.V0
 import qualified Unison.Codebase.Watch         as Watch
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
+import qualified Unison.Term                   as Term
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
@@ -126,6 +126,7 @@ isValidBranchDirectory path =
 
 termDir, declDir :: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
+declDir path r = path </> "types" </> componentId r
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -135,7 +136,7 @@ declPath path r = declDir path r </> "compiled.ub"
 componentId :: Reference.Id -> String
 componentId (Reference.Id h 0 1) = Hash.base58s h
 componentId (Reference.Id h i n) =
-  show i <> "-" <> show n <> "-" <> Hash.base58 h
+  show i <> "-" <> show n <> "-" <> Hash.base58s h
 
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
@@ -147,6 +148,8 @@ touchDependentFile :: Reference.Id -> FilePath -> IO ()
 touchDependentFile dependent fp = do
   createDirectoryIfMissing True (fp </> "dependents")
   writeFile (fp </> "dependents" </> componentId dependent) ""
+
+parseHash = undefined
 
 -- todo: builtin data decls (optional, unit, pair) should just have a regular
 -- hash-based reference, rather than being Reference.Builtin
@@ -162,8 +165,10 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         let declDependencies = Term.referencedDataDeclarations e
               <> Term.referencedEffectDeclarations e
         -- Add the term as a dependent of its dependencies
-        traverse_ (touchDependentFile h . termDir path) $ Term.dependencies' e
-        traverse_ (touchDependentFile h . declDir path) $ declDependencies
+        traverse_ (touchDependentFile h . termDir path)
+          $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
+        traverse_ (touchDependentFile h . declDir path)
+          $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
       getTypeOfTerm r = case r of
         (Reference.Builtin _) ->
           pure
@@ -220,7 +225,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
 
       dependents :: Reference.Id -> IO (Set Reference.Id)
       dependents id = do
-        b  <- isTerm id
+        b  <- isJust <$> getTerm id
         ls <-
           listDirectory
           $   (if b then termDir else declDir) path id
@@ -257,5 +262,6 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                mergeBranch
                branchUpdates
                dependents
+
 ubfPathToName :: FilePath -> Name
 ubfPathToName = Text.pack . takeFileName . takeDirectory
