@@ -333,6 +333,7 @@ blocksDependent = \case
   Added -> False
   Updated -> False
   AlreadyExists -> False
+  RequiresAlias _ -> False
   _ -> True
 
 outcomes :: Var v
