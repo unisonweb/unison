@@ -159,7 +159,7 @@ unForalls t = go t []
         go body vs = Just(reverse vs, body)
 
 unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-unTuple t = case t of 
+unTuple t = case t of
   Apps' (Ref' PairRef) [fst, snd] -> (fst :) <$> unTuple snd
   Ref' UnitRef -> Just []
   _ -> Nothing

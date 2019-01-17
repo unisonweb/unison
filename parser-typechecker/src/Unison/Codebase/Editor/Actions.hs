@@ -116,6 +116,8 @@ loop s = Free.unfold' go s
               (r, ) . maybe (MissingThing i) RegularThing <$> Free.eval
                 (LoadType i)
             _ -> pure (r, BuiltinThing)
+          -- makes sure that the user search terms get used as the names
+          -- in the pretty-printer
           let ppe =
                 PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                   `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
@@ -179,7 +181,8 @@ loop s = Free.unfold' go s
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
           $ \branch -> mergeBranch currentBranchName respond success branch
-        TodoI -> undefined
+        TodoI ->
+          Free.eval (Todo currentBranch) >>= respond . TodoOutput currentBranch
         QuitI -> quit
        where
         success       = respond $ Success input

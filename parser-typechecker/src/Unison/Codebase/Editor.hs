@@ -183,7 +183,7 @@ data Output v
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
-  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v)
+  | TodoOutput Branch (TodoOutput v)
   deriving (Show)
 
 type Score = Int
@@ -307,6 +307,8 @@ data Command i v a where
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+
+  Todo :: Branch -> Command i v (TodoOutput v)
 
 data Outcome
   -- New definition that was added to the branch
@@ -619,4 +621,11 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadType r -> Codebase.getTypeDeclaration codebase r
     RemainingWork b ->
       Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
+    Todo b -> doTodo b codebase
+
+doTodo :: Branch -> Codebase m v a -> m (TodoOutput v)
+doTodo b c = undefined b c
+
+frontier :: Branch -> Codebase m v a -> m (Set Reference)
+frontier = undefined
 
