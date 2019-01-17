@@ -25,6 +25,7 @@ import           Data.Foldable                  ( traverse_, toList )
 import           Data.List                      ( isSuffixOf
                                                 , partition
                                                 )
+import           Data.List.Split                ( splitOn )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( catMaybes, isJust )
 import           Data.Set                       ( Set )
@@ -44,6 +45,7 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
+import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
@@ -59,6 +61,7 @@ import qualified Unison.Codebase.Serialization.V0
 import qualified Unison.Codebase.Watch         as Watch
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
+import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
@@ -124,9 +127,13 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingExtension path ".ubf"
 
-termDir, declDir :: FilePath -> Reference.Id -> FilePath
+termDir, declDir:: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
+
+builtinTermDir, builtinDeclDir :: FilePath -> Name -> FilePath
+builtinTermDir path name =
+  path </> "terms" </> "_builtin" </> Hash.base58s name
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -136,7 +143,7 @@ declPath path r = declDir path r </> "compiled.ub"
 componentId :: Reference.Id -> String
 componentId (Reference.Id h 0 1) = Hash.base58s h
 componentId (Reference.Id h i n) =
-  show i <> "-" <> show n <> "-" <> Hash.base58s h
+  Hash.base58s h <> "-" <> show i <> "-" <> show n
 
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
@@ -149,7 +156,16 @@ touchDependentFile dependent fp = do
   createDirectoryIfMissing True (fp </> "dependents")
   writeFile (fp </> "dependents" </> componentId dependent) ""
 
-parseHash = undefined
+parseHash :: String -> Maybe Reference.Id
+parseHash s = case splitOn "-" s of
+  [h]       -> makeId h 0 1
+  [h, i, n] -> do
+    x <- readMaybe i
+    y <- readMaybe n
+    makeId h x y
+  _ -> Nothing
+ where
+  makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase58 (Text.pack h)
 
 -- todo: builtin data decls (optional, unit, pair) should just have a regular
 -- hash-based reference, rather than being Reference.Builtin
@@ -223,14 +239,23 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         overwriteBranch name newBranch
         pure newBranch
 
-      dependents :: Reference.Id -> IO (Set Reference.Id)
-      dependents id = do
-        b  <- isJust <$> getTerm id
-        ls <-
-          listDirectory
-          $   (if b then termDir else declDir) path id
-          </> "dependents"
+      dependents :: Reference -> IO (Set Reference.Id)
+      dependents r = do
+        e  <- doesDirectoryExist dir
+        ls <- listDirectory dir </> "dependents"
         pure . Set.fromList $ ls >>= (toList . parseHash)
+       where
+        dir = case r of
+          Reference.Builtin name ->
+            (if Builtin.isBuiltinTerm name
+                then builtinTermDir
+                else builtinDeclDir
+              )
+              path
+              name
+          Reference.DerivedId id -> do
+            b <- isJust <$> getTerm id
+            pure $ (if b then termDir else declDir) path id
 
       branchUpdates :: IO (IO (), IO (Set Name))
       branchUpdates = do

@@ -65,10 +65,19 @@ names0 :: Names
 names0 = Names.fromTypes builtinTypes
 
 names :: Names
-names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol)
-     <> Names.fromTypes builtinTypes
-     <> foldMap (DD.dataDeclToNames' @Symbol) builtinDataDecls
-     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
+names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol) <> allTypeNames
+
+allTypeNames :: Names
+allTypeNames =
+  Names.fromTypes builtinTypes
+    <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
+    <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
+
+isBuiltinTerm :: Name -> Bool
+isBuiltinTerm n = Map.member n $ Names.termNames names
+
+isBuiltinType :: Name -> Bool
+isBuiltinType n = Map.member n $ Names.typeNames names
 
 typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =

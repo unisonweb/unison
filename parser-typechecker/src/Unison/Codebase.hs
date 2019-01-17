@@ -21,6 +21,7 @@ import           Data.List
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( catMaybes
                                                 , isJust
+                                                , fromMaybe
                                                 )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
@@ -78,7 +79,7 @@ data Codebase m v a =
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
 
-           , dependents :: Reference.Id -> m (Set Reference.Id)
+           , dependents :: Reference -> m (Set Reference)
            }
 
 getTypeOfConstructor ::
@@ -433,14 +434,17 @@ isTerm = ((isJust <$>) .) . getTerm
 isType :: Functor m => Codebase m v a -> Reference.Id -> m Bool
 isType = ((isJust <$>) .) . getTerm
 
--- referenceOps :: Codebase m v a -> Branch.ReferenceOps m
--- referenceOps c = Branch.ReferenceOps isTerm' isType' dependencies dependents
---  where
---   isTerm' (Reference.DerivedId r) = isTerm c r
---   isTerm' _                       = pure False
---   isType' (Reference.DerivedId r) = isType c r
---   isType' _                       = pure False
---   dependencies = (<$> get) . R.lookupDom
---   dependents   = (<$> get) . R.lookupRan
-
+referenceOps
+  :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m
+referenceOps c = Branch.ReferenceOps isTerm' isType' dependencies dependents'
+ where
+  isTerm' (Reference.DerivedId r) = isTerm c r
+  isTerm' _                       = pure False
+  isType' (Reference.DerivedId r) = isType c r
+  isType' _                       = pure False
+  dependencies r = case r of
+    Reference.DerivedId r ->
+      fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
+    _ -> pure Set.empty
+  dependents' = dependents c
 

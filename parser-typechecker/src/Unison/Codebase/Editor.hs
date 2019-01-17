@@ -165,7 +165,6 @@ data Output v
   | Evaluated Names ([(Text, Term v ())], Term v ())
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
-  | TodoOutput
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]

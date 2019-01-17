@@ -136,6 +136,7 @@ library
     prelude-extras,
     random,
     safe,
+    split,
     stm,
     strings,
     terminal-size,
