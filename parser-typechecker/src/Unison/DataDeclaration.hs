@@ -2,7 +2,6 @@
 {-# Language DeriveFunctor #-}
 {-# Language DeriveFoldable #-}
 {-# Language DeriveTraversable #-}
-{-# Language DeriveGeneric #-}
 {-# Language OverloadedStrings #-}
 
 module Unison.DataDeclaration where

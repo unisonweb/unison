@@ -1,5 +1,4 @@
 -- Based on: http://semantic-domain.blogspot.com/2015/03/abstract-binding-trees.html
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}

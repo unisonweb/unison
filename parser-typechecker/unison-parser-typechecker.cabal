@@ -101,6 +101,7 @@ library
     Unison.Util.Range
     Unison.Util.Relation
     Unison.Util.TQueue
+    Unison.Util.TransitiveClosure
     Unison.Var
 
   build-depends:

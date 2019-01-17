@@ -1,6 +1,5 @@
 {-# Language ScopedTypeVariables #-}
 {-# Language DeriveGeneric #-}
-{-# Language ViewPatterns #-}
 
 module Unison.Paths where
 

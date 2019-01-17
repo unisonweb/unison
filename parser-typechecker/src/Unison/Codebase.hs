@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -110,25 +109,6 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-listReferences
-  :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
-listReferences code branch refs = do
-  let ppe = Branch.prettyPrintEnv1 branch
-  terms0 <- forM refs $ \r -> do
-    otyp <- getTypeOfTerm code r
-    pure $ (PPE.termName ppe (Referent.Ref r), otyp)
-  let terms = [ (name, t) | (name, Just t) <- terms0 ]
-  let typeRefs0 = Branch.allNamedTypes branch
-      typeRefs  = filter (`Set.member` typeRefs0) refs
-  _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
-    Reference.DerivedId id -> do
-      d <- getTypeDeclaration code id
-      pure $ fmap (PPE.typeName ppe r, ) d
-    _ -> pure Nothing
-  let termsPP = TypePrinter.prettySignatures ppe (sortOn fst terms)
-  -- todo: type decls also
-  pure (PP.render 80 termsPP)
-
 fuzzyFindTerms' :: Branch -> [String] -> [(Name, Referent)]
 fuzzyFindTerms' branch query =
   let
@@ -194,6 +174,25 @@ listReferencesMatching code (Branch.head -> b) query = do
   listReferences code
                  b
                  (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
+
+listReferences
+  :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
+listReferences code branch refs = do
+  let ppe = Branch.prettyPrintEnv1 branch
+  terms0 <- forM refs $ \r -> do
+    otyp <- getTypeOfTerm code r
+    pure $ (PPE.termName ppe (Referent.Ref r), otyp)
+  let terms = [ (name, t) | (name, Just t) <- terms0 ]
+  let typeRefs0 = Branch.allNamedTypes branch
+      typeRefs  = filter (`Set.member` typeRefs0) refs
+  _decls <- fmap catMaybes . forM typeRefs $ \r -> case r of
+    Reference.DerivedId id -> do
+      d <- getTypeDeclaration code id
+      pure $ fmap (PPE.typeName ppe r, ) d
+    _ -> pure Nothing
+  let termsPP = TypePrinter.prettySignatures ppe (sortOn fst terms)
+  -- todo: type decls also
+  pure (PP.toPlain 80 termsPP)
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
