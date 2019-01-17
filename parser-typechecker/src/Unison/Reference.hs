@@ -46,8 +46,10 @@ instance Show Id where
   show (Id h i _) = show h <> "-" <> show i
 
 pattern Builtin t = Builtin_ t
-pattern Derived h n i <- DerivedPrivate_ (Id h n i)
+pattern Derived h n i = DerivedPrivate_ (Id h n i)
 pattern DerivedId id = DerivedPrivate_ id
+{-# COMPLETE Derived, Builtin #-}
+{-# COMPLETE DerivedId, Builtin #-}
 
 type Pos = Word64
 type Size = Word64

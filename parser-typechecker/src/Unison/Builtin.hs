@@ -5,29 +5,35 @@
 {-# LANGUAGE TypeApplications #-}
 module Unison.Builtin where
 
-import           Control.Arrow (first)
-import qualified Data.Map as Map
-import qualified Text.Megaparsec.Error as MPE
-import qualified Unison.ABT as ABT
-import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.FileParser as FileParser
-import qualified Unison.Lexer as L
-import           Unison.Parser (Ann(..))
-import qualified Unison.Parser as Parser
-import           Unison.PrintError (prettyParseError)
-import qualified Unison.Reference as R
-import           Unison.Symbol (Symbol)
-import qualified Unison.Term as Term
-import qualified Unison.TermParser as TermParser
-import           Unison.Type (AnnotatedType)
-import qualified Unison.Type as Type
-import qualified Unison.TypeParser as TypeParser
-import qualified Unison.Util.ColorText as Color
-import           Unison.Var (Var)
-import qualified Unison.Var as Var
-import Unison.Names (Names, Name)
-import qualified Unison.Names as Names
+import           Control.Arrow                  ( first )
+import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import qualified Text.Megaparsec.Error         as MPE
+import qualified Unison.ABT                    as ABT
+import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , EffectDeclaration'
+                                                )
+import qualified Unison.DataDeclaration        as DD
+import qualified Unison.FileParser             as FileParser
+import qualified Unison.Lexer                  as L
+import           Unison.Parser                  ( Ann(..) )
+import qualified Unison.Parser                 as Parser
+import           Unison.PrintError              ( prettyParseError )
+import qualified Unison.Reference              as R
+import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Term                   as Term
+import qualified Unison.TermParser             as TermParser
+import           Unison.Type                    ( AnnotatedType )
+import qualified Unison.Type                   as Type
+import qualified Unison.TypeParser             as TypeParser
+import qualified Unison.Util.ColorText         as Color
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
+import           Unison.Names                   ( Names
+                                                , Name
+                                                )
+import qualified Unison.Names                  as Names
 import qualified Unison.Typechecker.TypeLookup as TL
 
 type Term v = Term.AnnotatedTerm v Ann
@@ -122,6 +128,10 @@ builtinEffectDecls = []
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
+
+-- TODO
+dependents :: R.Reference -> Set R.Reference
+dependents = const Set.empty
 
 builtins0 :: Var v => Map.Map R.Reference (Type v)
 builtins0 = Map.fromList $

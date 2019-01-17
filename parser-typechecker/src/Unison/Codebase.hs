@@ -10,7 +10,6 @@ module Unison.Codebase where
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 )
-import           Control.Monad.State
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
@@ -78,7 +77,7 @@ data Codebase m v a =
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
 
-           , dependents :: Reference -> m (Set Reference)
+           , dependentsImpl :: Reference -> m (Set Reference.Id)
            }
 
 getTypeOfConstructor ::
@@ -432,6 +431,12 @@ isTerm = ((isJust <$>) .) . getTerm
 
 isType :: Functor m => Codebase m v a -> Reference.Id -> m Bool
 isType = ((isJust <$>) .) . getTerm
+
+dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+dependents c r =
+  Set.union (Builtin.dependents r)
+    .   Set.map Reference.DerivedId
+    <$> dependentsImpl c r
 
 referenceOps
   :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m

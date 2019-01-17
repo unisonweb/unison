@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -32,7 +33,7 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Word                      ( Word64 )
+import           Data.Text.Encoding             ( encodeUtf8, decodeUtf8 )
 import           System.Directory               ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 , listDirectory
@@ -49,8 +50,6 @@ import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
-                                                , isTerm
-                                                , isType
                                                 )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
@@ -131,9 +130,17 @@ termDir, declDir:: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
 
-builtinTermDir, builtinDeclDir :: FilePath -> Name -> FilePath
+encodeName :: Name -> FilePath
+encodeName = Hash.base58s . Hash.fromBytes . encodeUtf8
+
+decodeName :: FilePath -> Maybe Name
+decodeName p = decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+
+builtinTermDir, builtinTypeDir :: FilePath -> Name -> FilePath
 builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> Hash.base58s name
+  path </> "terms" </> "_builtin" </> encodeName name
+builtinTypeDir path name =
+  path </> "types" </> "_builtin" </> encodeName name
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -241,15 +248,18 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
 
       dependents :: Reference -> IO (Set Reference.Id)
       dependents r = do
-        e  <- doesDirectoryExist dir
-        ls <- listDirectory dir </> "dependents"
-        pure . Set.fromList $ ls >>= (toList . parseHash)
+        d  <- dir
+        e  <- doesDirectoryExist d
+        if e then do
+              ls <- listDirectory (d </> "dependents")
+              pure . Set.fromList $ ls >>= (toList . parseHash)
+        else pure Set.empty
        where
         dir = case r of
           Reference.Builtin name ->
-            (if Builtin.isBuiltinTerm name
+            pure $ (if Builtin.isBuiltinTerm name
                 then builtinTermDir
-                else builtinDeclDir
+                else builtinTypeDir
               )
               path
               name
