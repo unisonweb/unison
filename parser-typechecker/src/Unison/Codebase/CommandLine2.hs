@@ -189,14 +189,7 @@ notifyUser dir o = do
           missingTypes = nubOrdOn snd $
             [ (name, Reference.DerivedPrivate_ r) | (name, _, MissingThing r) <- types ] <>
             [ (name, r) | (name, Referent.toTypeReference -> Just r, Nothing) <- terms]
-          typeResults = map go types
-          go (name, _, displayDecl) = case displayDecl of
-            BuiltinThing -> P.wrap $
-              TypePrinter.prettyDataHeader name <> "(built-in)"
-            MissingThing _ -> mempty -- these are collected above
-            RegularThing decl -> case decl of
-              Left _ability -> TypePrinter.prettyEffectHeader name
-              Right _d -> TypePrinter.prettyDataHeader name
+          typeResults = map prettyDeclTriple types
       in do
         putPrettyLn . P.lines $
           typeResults ++ TypePrinter.prettySignatures' ppe sigs ++
@@ -416,24 +409,39 @@ notifyUser dir o = do
       putStrLn $
           "👀  Now evaluating any watch expressions (lines starting with `>`)"
         <> " ...\n"
-    TodoOutput _ppe todo ->
+    TodoOutput ppe todo ->
       if E.todoScore todo == 0
       then putPrettyLn . emojiNote "✅" $ "No conflicts or edits in progress."
       else do
         let (frontierTerms, frontierTypes) = E.todoFrontier todo
             corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
             corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
+            goodTerms = [ (name, typ) | (name, _, Just typ) <- frontierTerms ]
+
         putPrettyLn . P.callout "🚧" . P.lines . join $ [
           [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
                   <> "transitive dependents left to upgrade."
                   <> "Your edit frontier is the dependents of these definitions:")],
           [""],
-          -- todo: format frontier and frontier dependents
+          [P.indentN 2 . P.lines $ (
+              (prettyDeclTriple <$> toList frontierTypes) ++
+              TypePrinter.prettySignatures' ppe goodTerms
+           )],
+          [P.wrap ("I recommend working on them in the following order:")],
+           -- todo: format frontier dependents
           formatMissingStuff corruptTerms corruptTypes
          ]
 
  where
   renderFileName = P.group . P.blue . fromString
+  prettyDeclTriple (name, _, displayDecl) = case displayDecl of
+    BuiltinThing -> P.wrap $
+      TypePrinter.prettyDataHeader name <> "(built-in)"
+    MissingThing _ -> mempty -- these need to be handled elsewhere
+    RegularThing decl -> case decl of
+      Left _ability -> TypePrinter.prettyEffectHeader name
+      Right _d -> TypePrinter.prettyDataHeader name
+
   nameChange cmd pastTenseCmd oldName newName r = do
     when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
       P.wrap $ "I" <> pastTenseCmd <> "the"
