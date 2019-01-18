@@ -439,11 +439,14 @@ fileToBranch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (SlurpResult v)
 fileToBranch handleCollisions codebase branch uf = do
+  -- Write out all the successful outcomes to the codebase
   forM_ outcomes0 $ \(r, o) ->
     case o of
       Added -> writeDefinition r
       Updated -> writeDefinition r
       _ -> pure ()
+  -- Accumulate the final slurp result and the updated Branch,
+  -- by folding over the outcomes.
   (result, b0) <- foldM addOutcome
     (SlurpResult uf branch mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty, Branch.head branch) outcomes'
   pure $ result { updatedBranch = Branch.cons b0 branch }
@@ -458,9 +461,12 @@ fileToBranch handleCollisions codebase branch uf = do
         Right er -> case Map.lookup er termsByRef of
           Nothing -> error "Panic. Unknown term in fileToBranch"
           Just (v, _, _) -> (v, Right er, o)
+    -- converts a term or type reference, r, to a SlurpComponent
     sc r v = case r of
       Left _ -> SlurpComponent (Set.singleton v) mempty
       Right _ -> SlurpComponent mempty (Set.singleton v)
+    -- The folding function: state is the SlurpResult and the accumulated Branch0,
+    -- And each outcome is used to update this state.
     addOutcome (result, b) (v, r, o) = case o of
       Added -> pure $ case r of
         Left (r, dd) ->
