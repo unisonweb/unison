@@ -10,7 +10,9 @@
 module Unison.Codebase.Editor where
 
 -- import Debug.Trace
-import           Control.Monad                  ( forM_, foldM)
+
+import Data.List (foldl')
+import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
 import           Data.Bifunctor                 ( bimap, second )
@@ -183,20 +185,20 @@ data Output v
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
-  | TodoOutput Branch (TodoOutput v)
+  | TodoOutput Branch (TodoOutput v Ann)
   deriving (Show)
 
 type Score = Int
 
-data TodoOutput v
+data TodoOutput v a
   = TodoOutput_ {
       todoScore :: Int,
       todoFrontier ::
-        ( [(Name, Reference, Maybe (Type v Ann))]
-        , [(Name, Reference, DisplayThing (Decl v Ann))]),
+        ( [(Name, Reference, Maybe (Type v a))]
+        , [(Name, Reference, DisplayThing (Decl v a))]),
       todoFrontierDependents ::
-        ( [(Score, Name, Reference, Maybe (Type v Ann))]
-        , [(Score, Name, Reference, DisplayThing (Decl v Ann))]),
+        ( [(Score, Name, Reference, Maybe (Type v a))]
+        , [(Score, Name, Reference, DisplayThing (Decl v a))]),
       todoConflicts :: Branch0
     } deriving (Show)
 
@@ -308,7 +310,7 @@ data Command i v a where
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
-  Todo :: Branch -> Command i v (TodoOutput v)
+  Todo :: Branch -> Command i v (TodoOutput v Ann)
 
 data Outcome
   -- New definition that was added to the branch
@@ -629,12 +631,49 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
     Todo b -> doTodo codebase (Branch.head b)
 
-doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v)
+doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do
   f <- frontier (Codebase.dependents code) b
   let dirty = R.dom f
       frontier = R.ran f
-  error "todo"
+      ppe = Branch.prettyPrintEnv1 b
+  (frontierTerms, frontierTypes) <- loadDefinitions code frontier
+  (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
+  scoreFn <- error "todo"
+  let
+    addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
+    addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
+    frontierTermsNamed = addTermNames frontierTerms
+    frontierTypesNamed = addTypeNames frontierTypes
+    dirtyTermsNamed =
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
+    dirtyTypesNamed =
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+    overallScore = foldl' (+) 0 (map scoreFn $ toList frontier)
+  pure $
+    TodoOutput_
+      overallScore
+      (frontierTermsNamed, frontierTypesNamed)
+      (dirtyTermsNamed, dirtyTypesNamed)
+      (error "compute conflicts :: Branch0 from b")
+
+loadDefinitions :: Monad m => Codebase m v a -> Set Reference
+                -> m ( [(Reference, Maybe (Type v a))],
+                       [(Reference, DisplayThing (Decl v a))] )
+loadDefinitions code refs = do
+  termRefs <- filterM (Codebase.isTerm code) (toList refs)
+  terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm code r
+  typeRefs <- filterM (Codebase.isType code) (toList refs)
+  types <- forM typeRefs $ \r -> do
+    case r of
+      Reference.Builtin _ -> pure (r, BuiltinThing)
+      Reference.DerivedId id -> do
+        decl <- Codebase.getTypeDeclaration code id
+        case decl of
+          Nothing -> pure (r, MissingThing id)
+          Just d -> pure (r, RegularThing d)
+      _ -> error $ "unpossible " ++ show r
+  pure (terms, types)
 
 -- (f, d) when d is "dirty" (needs update),
 --             f is in the frontier,
