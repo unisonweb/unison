@@ -650,6 +650,7 @@ doTodo code b = do
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
     dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+    -- todo: revisit, think about this
     overallScore = foldl' (+) 0 (map scoreFn $ toList frontier)
   pure $
     TodoOutput_

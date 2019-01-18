@@ -181,8 +181,10 @@ notifyUser dir o = do
       let ppe  = Branch.prettyPrintEnv1 (Branch.head branch)
           sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
           sigs = [(name,t) | (name, Just t) <- sigs0 ]
-          impossible = terms >>= \(name, r, _) -> case r of
-            Referent.Ref (Reference.Builtin _) -> [(name,r)]
+          impossible = terms >>= \case
+            (name, r, Nothing) -> case r of
+              Referent.Ref (Reference.Builtin _) -> [(name,r)]
+              _ -> []
             _ -> []
           termsWithMissingTypes =
             [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
