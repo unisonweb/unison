@@ -629,6 +629,11 @@ doTodo c b = undefined c b
 -- (f, d) when d is "dirty" (needs update),
 --             f is in the frontier,
 --         and d depends of f
+-- a ⋖ b = a depends on b (with no intermediate dependencies)
+-- dirty(D) ∧ frontier(F) <=> not(edited(D)) ∧ edited(F) ∧ D ⋖ F
+--
+-- The range of this relation is the frontier, and the domain is
+-- the set of dirty references.
 frontier :: forall m . Monad m
          => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
          -> Branch0
@@ -640,5 +645,5 @@ frontier getDependents b = let
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents) <$> getDependents ref
   in do
-    dependentOf <- foldM addDependents R.empty edited
-    pure $ R.filterRan (not . flip Set.member edited) dependentOf
+    dependsOn <- foldM addDependents R.empty edited
+    pure $ R.filterRan (not . flip Set.member edited) dependsOn
