@@ -136,12 +136,16 @@ toSymbol _ = error "unpossible"
 -- mention that type.
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r =
-  if r `elem` map snd builtinTypes then
+  if r `Set.member` allReferencedTypes then
     Set.fromList [
       k | (k, t) <- Map.toList (builtins0 @ Symbol)
         , r `Set.member` Type.dependencies t ]
   else
     Set.empty
+
+allReferencedTypes :: Set R.Reference
+allReferencedTypes =
+  Set.unions (Type.dependencies <$> Map.elems (builtins0 @Symbol))
 
 builtins0 :: Var v => Map.Map R.Reference (Type v)
 builtins0 = Map.fromList $

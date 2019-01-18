@@ -633,6 +633,7 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do
+  -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)
   f <- frontier (Codebase.dependents code) b
   let dirty = R.dom f
       frontier = R.ran f
@@ -696,5 +697,6 @@ frontier getDependents b = let
   addDependents dependents ref =
     (\ds -> R.insertManyDom ds ref dependents) <$> getDependents ref
   in do
+    -- (r,r2) ∈ dependsOn if r depends on r2
     dependsOn <- foldM addDependents R.empty edited
-    pure $ R.filterRan (not . flip Set.member edited) dependsOn
+    pure $ R.filterDom (not . flip Set.member edited) dependsOn

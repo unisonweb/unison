@@ -34,8 +34,10 @@ import qualified Data.Map                      as Map
 data Relation a b  = Relation { domain ::  M.Map a (Set b)
                               , range  ::  M.Map b (Set a)
                               }
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
+instance (Show a, Show b) => Show (Relation a b) where
+  show = show . toList
 
 -- * Functions about relations
 

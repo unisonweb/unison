@@ -414,7 +414,7 @@ notifyUser dir o = do
     TodoOutput branch todo ->
       let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
       if E.todoScore todo == 0
-      then putPrettyLn . emojiNote "✅" $ "No conflicts or edits in progress."
+      then putPrettyLn . P.okCallout $ "No conflicts or edits in progress."
       else do
         let (frontierTerms, frontierTypes) = E.todoFrontier todo
             (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
@@ -424,13 +424,14 @@ notifyUser dir o = do
 
         putPrettyLn . P.callout "🚧" . P.lines . join $ [
           [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
-                  <> "transitive dependents left to upgrade."
+                  <> "transitive dependent(s) left to upgrade."
                   <> "Your edit frontier is the dependents of these definitions:")],
           [""],
           [P.indentN 2 . P.lines $ (
               (prettyDeclTriple <$> toList frontierTypes) ++
               TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
            )],
+          [""],
           [P.wrap "I recommend working on them in the following order:"],
           [""],
           [P.indentN 2 . P.lines $

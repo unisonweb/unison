@@ -249,7 +249,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
       dependents :: Reference -> IO (Set Reference.Id)
       dependents r = do
         d  <- dir
-        e  <- doesDirectoryExist d
+        e  <- doesDirectoryExist (d </> "dependents")
         if e then do
               ls <- listDirectory (d </> "dependents")
               pure . Set.fromList $ ls >>= (toList . parseHash)
