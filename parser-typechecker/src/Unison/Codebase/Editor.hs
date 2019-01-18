@@ -629,8 +629,12 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
     Todo b -> doTodo codebase (Branch.head b)
 
-doTodo :: Codebase m v a -> Branch0 -> m (TodoOutput v)
-doTodo c b = undefined c b
+doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v)
+doTodo code b = do
+  f <- frontier (Codebase.dependents code) b
+  let dirty = R.dom f
+      frontier = R.ran f
+  error "todo"
 
 -- (f, d) when d is "dirty" (needs update),
 --             f is in the frontier,

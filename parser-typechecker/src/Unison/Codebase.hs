@@ -426,26 +426,25 @@ dependencyGraph c b = do
   terms = Branch.allTerms b
   types = Branch.allTypes b
 
-isTerm :: Functor m => Codebase m v a -> Reference.Id -> m Bool
-isTerm = ((isJust <$>) .) . getTerm
+isTerm :: Functor m => Codebase m v a -> Reference -> m Bool
+isTerm code = fmap isJust . getTypeOfTerm code
 
-isType :: Functor m => Codebase m v a -> Reference.Id -> m Bool
-isType = ((isJust <$>) .) . getTerm
+isType :: Applicative m => Codebase m v a -> Reference -> m Bool
+isType c r = case r of
+  Reference.Builtin b -> pure (b `Set.member` Builtin.builtinTypeNames)
+  Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+  _ -> error "impossible"
 
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r =
-  Set.union (Builtin.dependents r)
-    .   Set.map Reference.DerivedId
-    <$> dependentsImpl c r
+dependents c r
+    = Set.union (Builtin.builtinTypeDependents r)
+    . Set.map Reference.DerivedId
+  <$> dependentsImpl c r
 
 referenceOps
   :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m
-referenceOps c = Branch.ReferenceOps isTerm' isType' dependencies dependents'
+referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependents'
  where
-  isTerm' (Reference.DerivedId r) = isTerm c r
-  isTerm' _                       = pure False
-  isType' (Reference.DerivedId r) = isType c r
-  isType' _                       = pure False
   dependencies r = case r of
     Reference.DerivedId r ->
       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r

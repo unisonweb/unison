@@ -102,6 +102,9 @@ builtinTerms =
 builtinTypesV :: Var v => [(v, R.Reference)]
 builtinTypesV = first (Var.named) <$> builtinTypes
 
+builtinTypeNames :: Set Name
+builtinTypeNames = Set.fromList (map fst builtinTypes)
+
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = (,) <*> R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
@@ -129,9 +132,16 @@ toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
--- TODO
-dependents :: R.Reference -> Set R.Reference
-dependents = const Set.empty
+-- The dependents of a builtin type is the set of builtin terms which
+-- mention that type.
+builtinTypeDependents :: R.Reference -> Set R.Reference
+builtinTypeDependents r =
+  if r `elem` map snd builtinTypes then
+    Set.fromList [
+      k | (k, t) <- Map.toList (builtins0 @ Symbol)
+        , r `Set.member` Type.dependencies t ]
+  else
+    Set.empty
 
 builtins0 :: Var v => Map.Map R.Reference (Type v)
 builtins0 = Map.fromList $
