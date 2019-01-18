@@ -415,9 +415,10 @@ notifyUser dir o = do
       then putPrettyLn . emojiNote "✅" $ "No conflicts or edits in progress."
       else do
         let (frontierTerms, frontierTypes) = E.todoFrontier todo
+            (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
             corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
             corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
-            goodTerms = [ (name, typ) | (name, _, Just typ) <- frontierTerms ]
+            goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
 
         putPrettyLn . P.callout "🚧" . P.lines . join $ [
           [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
@@ -426,10 +427,15 @@ notifyUser dir o = do
           [""],
           [P.indentN 2 . P.lines $ (
               (prettyDeclTriple <$> toList frontierTypes) ++
-              TypePrinter.prettySignatures' ppe goodTerms
+              TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
            )],
-          [P.wrap ("I recommend working on them in the following order:")],
-           -- todo: format frontier dependents
+          [P.wrap "I recommend working on them in the following order:"],
+          [""],
+          [P.indentN 2 . P.lines $
+            let unscore (_score,a,b,c) = (a,b,c)
+            in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+               (TypePrinter.prettySignatures' ppe (goodTerms $ unscore <$> dirtyTerms))
+          ],
           formatMissingStuff corruptTerms corruptTypes
          ]
 

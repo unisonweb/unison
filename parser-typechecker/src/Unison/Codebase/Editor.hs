@@ -11,7 +11,7 @@ module Unison.Codebase.Editor where
 
 -- import Debug.Trace
 
-import Data.List (foldl')
+import Data.List (foldl', sortOn)
 import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -639,15 +639,16 @@ doTodo code b = do
       ppe = Branch.prettyPrintEnv1 b
   (frontierTerms, frontierTypes) <- loadDefinitions code frontier
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
-  scoreFn <- pure $ const 1 -- todo: come up with something sensible
+  -- todo: something more intelligent here?
+  scoreFn <- pure $ const 1
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
     frontierTermsNamed = addTermNames frontierTerms
     frontierTypesNamed = addTypeNames frontierTypes
-    dirtyTermsNamed =
+    dirtyTermsNamed = sortOn (\(s,_,_,_) -> s) $
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-    dirtyTypesNamed =
+    dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
     overallScore = foldl' (+) 0 (map scoreFn $ toList frontier)
   pure $
