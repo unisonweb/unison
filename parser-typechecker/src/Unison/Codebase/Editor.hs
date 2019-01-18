@@ -679,7 +679,7 @@ loadDefinitions code refs = do
 --             f is in the frontier,
 --         and d depends of f
 -- a ⋖ b = a depends on b (with no intermediate dependencies)
--- dirty(D) ∧ frontier(F) <=> not(edited(D)) ∧ edited(F) ∧ D ⋖ F
+-- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
 --
 -- The range of this relation is the frontier, and the domain is
 -- the set of dirty references.
