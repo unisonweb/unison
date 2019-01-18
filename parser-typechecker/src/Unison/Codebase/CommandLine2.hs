@@ -409,7 +409,8 @@ notifyUser dir o = do
       putStrLn $
           "👀  Now evaluating any watch expressions (lines starting with `>`)"
         <> " ...\n"
-    TodoOutput ppe todo ->
+    TodoOutput branch todo ->
+      let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
       if E.todoScore todo == 0
       then putPrettyLn . emojiNote "✅" $ "No conflicts or edits in progress."
       else do
