@@ -639,7 +639,7 @@ doTodo code b = do
       ppe = Branch.prettyPrintEnv1 b
   (frontierTerms, frontierTypes) <- loadDefinitions code frontier
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
-  scoreFn <- error "todo"
+  scoreFn <- pure $ const 1 -- todo: come up with something sensible
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
@@ -655,7 +655,7 @@ doTodo code b = do
       overallScore
       (frontierTermsNamed, frontierTypesNamed)
       (dirtyTermsNamed, dirtyTypesNamed)
-      (error "compute conflicts :: Branch0 from b")
+      (Branch.conflicts' b)
 
 loadDefinitions :: Monad m => Codebase m v a -> Set Reference
                 -> m ( [(Reference, Maybe (Type v a))],
