@@ -621,11 +621,24 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadType r -> Codebase.getTypeDeclaration codebase r
     RemainingWork b ->
       Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
-    Todo b -> doTodo b codebase
+    Todo b -> doTodo codebase (Branch.head b)
 
-doTodo :: Branch -> Codebase m v a -> m (TodoOutput v)
-doTodo b c = undefined b c
+doTodo :: Codebase m v a -> Branch0 -> m (TodoOutput v)
+doTodo c b = undefined c b
 
-frontier :: Branch -> Codebase m v a -> m (Set Reference)
-frontier = undefined
-
+-- (f, d) when d is "dirty" (needs update),
+--             f is in the frontier,
+--         and d depends of f
+frontier :: forall m . Monad m
+         => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+         -> Branch0
+         -> m (Relation Reference Reference)
+frontier getDependents b = let
+  edited :: Set Reference
+  edited = R.dom (Branch.editedTerms b) <> R.dom (Branch.editedTypes b)
+  addDependents :: Relation Reference Reference -> Reference -> m (Relation Reference Reference)
+  addDependents dependents ref =
+    (\ds -> R.insertManyDom ds ref dependents) <$> getDependents ref
+  in do
+    dependentOf <- foldM addDependents R.empty edited
+    pure $ R.filterRan (not . flip Set.member edited) dependentOf

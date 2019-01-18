@@ -1,6 +1,7 @@
 module Unison.Util.Relation where
 
 import           Prelude                 hiding ( null )
+import           Data.Bifunctor                 ( first, second )
 import           Data.Foldable                  ( foldl' )
 import qualified Data.Map                      as M
 import           Data.Set                       ( Set )
@@ -343,6 +344,14 @@ deleteRan b r = foldl' (\r a -> delete a b r) r $ lookupRan b r
 deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
 deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
 
+-- aka first
+mapDom :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b
+mapDom f = fromList . fmap (first f) . toList
+
+-- aka second
+mapRan :: (Ord a, Ord b, Ord b') => (b -> b') -> Relation a b -> Relation a b'
+mapRan f = fromList . fmap (second f) . toList
+
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
 
@@ -352,6 +361,13 @@ fromMultimap m =
 
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
+
+swap :: Relation a b -> Relation b a
+swap (Relation a b) = Relation b a
+
+bimap :: (Ord a, Ord b, Ord c, Ord d)
+      => (a -> c) -> (b -> d) -> Relation a b -> Relation c d
+bimap f g = fromList . fmap (\(a,b) -> (f a, g b)) . toList
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty

@@ -266,6 +266,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
           Reference.DerivedId id -> do
             b <- isJust <$> getTerm id
             pure $ (if b then termDir else declDir) path id
+          _ -> error "impossible: these patterns should be enough"
 
       branchUpdates :: IO (IO (), IO (Set Name))
       branchUpdates = do
