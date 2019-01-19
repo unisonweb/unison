@@ -72,11 +72,11 @@ notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = do
   -- note - even if user's terminal is huge, we restrict available width since
   -- it's hard to read code or text that's super wide.
-  width <- fromMaybe 80 . fmap (min 100 . Terminal.width) <$> Terminal.size
+  width <- fromMaybe 80 . fmap (max 100 . Terminal.width) <$> Terminal.size
   let putPrettyLn = putStrLn . P.toANSI width . P.border 2
   case o of
     Success _    -> putStrLn "Done."
-    DisplayDefinitions ppe terms types -> let
+    DisplayDefinitions outputLoc ppe terms types -> let
       prettyTerms = map go terms
       go (r, dt) =
         let n = PPE.termName ppe (Referent.Ref r) in
@@ -101,7 +101,11 @@ notifyUser dir o = do
           RegularThing decl -> case decl of
             Left _ability -> TypePrinter.prettyEffectHeader n <> " -- todo"
             Right _d -> TypePrinter.prettyDataHeader n <> " -- todo"
-      in putPrettyLn $ P.sep "\n\n" (prettyTerms <> prettyTypes)
+      out = P.sep "\n\n" (prettyTypes <> prettyTerms)
+      in
+        case outputLoc of
+           Nothing -> putPrettyLn out
+           Just path -> error "todo - prepend out to the top of path, creating the file if it doesn't exist"
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
       putPrettyLn . P.callout "😶" $ P.lines
@@ -661,17 +665,17 @@ validInputs = validPatterns
               <> "from the current branch."
         )
       , InputPattern
-        "list"
-        ["ls"]
+        "find"
+        ["ls","list"]
         [(True, definitionQueryArg)]
         (P.column2
-          [ ("`list`", P.wrap $ "lists all definitions in the current branch.")
-          , ( "`list foo`"
+          [ ("`find`", P.wrap $ "lists all definitions in the current branch.")
+          , ( "`find foo`"
             , P.wrap
             $  "lists all definitions with a name similar"
             <> "to 'foo' in the current branch."
             )
-          , ( "`list foo bar`"
+          , ( "`find foo bar`"
             , P.wrap
             $  "lists all definitions with a name similar"
             <> "to 'foo' or 'bar' in the current branch."
@@ -697,7 +701,25 @@ validInputs = validPatterns
                      []
                      [(False, definitionQueryArg)]
                      (P.wrap "`view foo` prints the definition of `foo`.")
-                     (pure . ShowDefinitionI)
+                     (pure . ShowDefinitionI E.ConsoleLocation)
+      , InputPattern "edit"
+                     []
+                     [(False, definitionQueryArg)]
+                     (P.wrap "`edit foo` prepends the definition of `foo` to the top of the most recently saved file.")
+                     (pure . ShowDefinitionI E.LatestFileLocation)
+      , InputPattern
+        "rename"
+        ["mv"]
+        [(False, definitionQueryArg), (False, noCompletions)]
+        (P.wrap "`rename foo bar` renames `foo` to `bar`.")
+        (\case
+          [oldName, newName] -> Right $ RenameUnconflictedI
+            allTargets
+            (Text.pack oldName)
+            (Text.pack newName)
+          _ -> Left . P.warnCallout $ P.wrap
+            "`rename` takes two arguments, like `rename oldname newname`."
+        )
       , InputPattern
         "rename"
         ["mv"]

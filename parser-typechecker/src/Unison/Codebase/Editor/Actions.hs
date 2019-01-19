@@ -6,6 +6,7 @@
 
 module Unison.Codebase.Editor.Actions where
 
+import Control.Applicative
 import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( foldl', toList )
@@ -47,7 +48,7 @@ import qualified Unison.Codebase as Codebase
 type Action i v = Free (Command i v) (Either () (LoopState v))
 
 data LoopState v
-  = LoopState Branch BranchName (Maybe (UF.TypecheckedUnisonFile' v Ann))
+  = LoopState Branch BranchName (Maybe (FilePath, UF.TypecheckedUnisonFile' v Ann))
 
 loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing
@@ -86,7 +87,7 @@ loop s = Free.unfold' go s
               e <- Free.eval
                 (Evaluate currentBranch $ UF.discardTypes' unisonFile)
               Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
-              updateUnisonFile unisonFile
+              updateUnisonFile (Text.unpack sourceName) unisonFile
       Right input -> case input of
         SearchByNameI qs -> do
           terms  <- Free.eval $ SearchTerms currentBranch qs
@@ -100,7 +101,7 @@ loop s = Free.unfold' go s
                   _ -> pure (name, ref, BuiltinThing)
             in  traverse go types
           respond $ ListOfDefinitions currentBranch terms types'
-        ShowDefinitionI qs -> do
+        ShowDefinitionI outputLoc qs -> do
           terms <- Free.eval $ SearchTerms currentBranch qs
           types <- Free.eval $ SearchTypes currentBranch qs
           let terms' = [ (n, r) | (n, r, _) <- terms ]
@@ -122,7 +123,12 @@ loop s = Free.unfold' go s
                 PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                   `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
                   `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head currentBranch]
-          respond $ DisplayDefinitions ppe loadedTerms loadedTypes
+              loc = case outputLoc of
+                Editor.ConsoleLocation -> Nothing
+                Editor.FileLocation path -> Just path
+                Editor.LatestFileLocation ->
+                  fmap fst uf <|> Just (Text.unpack currentBranchName <> ".u")
+          respond $ DisplayDefinitions loc ppe loadedTerms loadedTypes
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
@@ -162,7 +168,7 @@ loop s = Free.unfold' go s
           unnameAll currentBranchName respond nameTarget name success
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
-          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
+          Just (_, UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
                 collisionHandler =
                   if allowUpdates then Editor.updateCollisionHandler
@@ -221,10 +227,11 @@ loop s = Free.unfold' go s
     updateUnisonFile
       :: forall f v
        . Applicative f
-      => UF.TypecheckedUnisonFile' v Ann
+      => FilePath
+      -> UF.TypecheckedUnisonFile' v Ann
       -> f (Either () (LoopState v))
-    updateUnisonFile =
-      pure . Right . LoopState currentBranch currentBranchName . Just
+    updateUnisonFile path uf =
+      pure . Right $ LoopState currentBranch currentBranchName (Just (path,uf))
     quit = pure $ Left ()
 
 withBranch :: BranchName

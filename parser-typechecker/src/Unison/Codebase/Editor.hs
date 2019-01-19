@@ -147,10 +147,18 @@ data Input
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
-  | ShowDefinitionI [String]
+  | ShowDefinitionI OutputLocation [String]
   | TodoI
   | QuitI
   deriving (Show)
+
+-- Some commands, like `view`, can dump output to either console or a file.
+data OutputLocation
+  = ConsoleLocation
+  | LatestFileLocation
+  | FileLocation FilePath deriving Show
+  -- ClipboardLocation
+
 
 -- Whether or not updates are allowed during file slurping
 type AllowUpdates = Bool
@@ -182,7 +190,7 @@ data Output v
   | Evaluated Names ([(Text, Term v ())], Term v ())
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
   | FileChangeEvent SourceName Text
-  | DisplayDefinitions PPE.PrettyPrintEnv
+  | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
   | TodoOutput Branch (TodoOutput v Ann)
