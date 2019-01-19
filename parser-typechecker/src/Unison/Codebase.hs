@@ -441,6 +441,15 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
+transitiveDependents :: Monad m => Codebase m v a -> Set Reference -> m (Set Reference)
+transitiveDependents c rs = go Set.empty (toList rs) where
+  go seen [] = pure seen
+  go seen (r:rs) =
+    if Set.member r seen then go seen rs
+    else do
+      ds <- dependents c r
+      go (Set.insert r seen) (toList ds <> rs)
+
 referenceOps
   :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m
 referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependents'
@@ -450,4 +459,3 @@ referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependen
       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
     _ -> pure Set.empty
   dependents' = dependents c
-

@@ -11,7 +11,7 @@ module Unison.Codebase.Editor where
 
 -- import Debug.Trace
 
-import Data.List (foldl', sortOn)
+import Data.List (sortOn)
 import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -642,6 +642,7 @@ doTodo code b = do
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
   -- todo: something more intelligent here?
   scoreFn <- pure $ const 1
+  remainingTransitive <- Codebase.transitiveDependents code frontier
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
@@ -651,11 +652,9 @@ doTodo code b = do
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
     dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
-    -- todo: revisit, think about this
-    overallScore = foldl' (+) 0 (map scoreFn $ toList frontier)
   pure $
     TodoOutput_
-      overallScore
+      (Set.size remainingTransitive)
       (frontierTermsNamed, frontierTypesNamed)
       (dirtyTermsNamed, dirtyTypesNamed)
       (Branch.conflicts' b)
