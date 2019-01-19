@@ -159,7 +159,7 @@ unForalls t = go t []
         go body vs = Just(reverse vs, body)
 
 unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-unTuple t = case t of 
+unTuple t = case t of
   Apps' (Ref' PairRef) [fst, snd] -> (fst :) <$> unTuple snd
   Ref' UnitRef -> Just []
   _ -> Nothing
@@ -188,9 +188,6 @@ isArrow _ = False
 
 -- some smart constructors
 
-vector :: Ord v => a -> AnnotatedType v a
-vector a = builtin a "Sequence"
-
 --vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
 --vectorOf a t = vector `app` t
 
@@ -214,26 +211,38 @@ unit = flip ref unitRef
 pair = flip ref pairRef
 optional = flip ref optionalRef
 
+intRef, natRef, floatRef, booleanRef, textRef, streamRef, vectorRef :: Reference
+intRef = Reference.Builtin "Int"
+natRef = Reference.Builtin "Nat"
+floatRef = Reference.Builtin "Float"
+booleanRef = Reference.Builtin "Boolean"
+textRef = Reference.Builtin "Text"
+streamRef = Reference.Builtin "Stream"
+vectorRef = Reference.Builtin "Sequence"
+
 builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
 
 int :: Ord v => a -> AnnotatedType v a
-int a = builtin a "Int"
+int a = ref a $ intRef
 
 nat :: Ord v => a -> AnnotatedType v a
-nat a = builtin a "Nat"
+nat a = ref a $ natRef
 
 float :: Ord v => a -> AnnotatedType v a
-float a = builtin a "Float"
+float a = ref a $ floatRef
 
 boolean :: Ord v => a -> AnnotatedType v a
-boolean a = builtin a "Boolean"
+boolean a = ref a $ booleanRef
 
 text :: Ord v => a -> AnnotatedType v a
-text a = builtin a "Text"
+text a = ref a $ textRef
 
 stream :: Ord v => a -> AnnotatedType v a
-stream a = builtin a "Stream"
+stream a = ref a $ streamRef
+
+vector :: Ord v => a -> AnnotatedType v a
+vector a = ref a $ vectorRef
 
 app :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 app a f arg = ABT.tm' a (App f arg)

@@ -4,6 +4,7 @@
 module Unison.Codebase.Runtime.JVM where
 
 import           Control.Applicative
+import           Control.Monad.IO.Class         ( MonadIO, liftIO )
 import           Control.Monad.State            ( evalStateT )
 import           Data.Bytes.Get                 ( getWord8
                                                 , runGetS
@@ -29,11 +30,11 @@ import           Unison.Term                    ( Term )
 import           Unison.UnisonFile              ( UnisonFile )
 import           Unison.Var                     ( Var )
 
-javaRuntime :: Var v => (forall g. MonadGet g => g v) -> Int -> IO (Runtime v)
+javaRuntime :: (Var v, MonadIO m) => (forall g. MonadGet g => g v) -> Int -> m (Runtime v)
 javaRuntime getv suggestedPort = do
-  (listeningSocket, port) <- choosePortAndListen suggestedPort
-  (killme, input, output) <- connectToRuntime listeningSocket port
-  pure $ Runtime killme (feedme getv input output)
+  (listeningSocket, port) <- liftIO $ choosePortAndListen suggestedPort
+  (killme, input, output) <- liftIO $ connectToRuntime listeningSocket port
+  pure $ Runtime (liftIO killme) (feedme getv input output)
  where
     processWatches getv acc = do
       marker <- getWord8
@@ -47,14 +48,14 @@ javaRuntime getv suggestedPort = do
           pure $ (reverse acc, term)
         x -> fail $ "Unexpected byte in JVM output: " ++ show x
     feedme
-      :: forall v a b. Var v
+      :: forall v a b m. (Var v, MonadIO m)
       => (forall g. MonadGet g => g v)
       -> InputStream ByteString
       -> OutputStream ByteString
       -> UnisonFile v a
-      -> Codebase IO v b
-      -> IO ([(Text, Term v)], Term v)
-    feedme getv input output unisonFile _codebase = do
+      -> Codebase m v b
+      -> m ([(Text, Term v)], Term v)
+    feedme getv input output unisonFile _codebase = liftIO $ do
       -- todo: runtime should be able to request more terms/types/arities by hash
       let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
       Streams.write (Just bs) output

@@ -122,13 +122,14 @@ dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
 dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
-effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r Referent.Req $ toDataDecl ed
+effectDeclToNames typeSymbol r ed =
+  toNames0 typeSymbol r Referent.Req $ toDataDecl ed
 
 dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
 
 effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names
-effectDeclToNames' (v,(r,d)) = effectDeclToNames v r d
+effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
 
@@ -139,7 +140,8 @@ newtype EffectDeclaration' v a = EffectDeclaration {
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
-mkEffectDecl' :: a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
+mkEffectDecl'
+  :: a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
 mkEffectDecl' a b cs = EffectDeclaration (DataDeclaration a b cs)
 
 mkEffectDecl :: [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
@@ -154,10 +156,6 @@ mkDataDecl b cs = mkDataDecl' () b $ map (\(v,t) -> ((),v,t)) cs
 constructorArities :: DataDeclaration' v a -> [Int]
 constructorArities (DataDeclaration _a _bound ctors) =
   Type.arity . (\(_,_,t) -> t) <$> ctors
-
--- type List a = Nil | Cons a (List a)
--- cycle (abs "List" (LetRec [abs "a" (cycle (absChain ["Nil","Cons"] (Constructors [List a, a -> List a -> List a])))] "List"))
--- absChain [a] (cycle ())"List")
 
 data F a
   = Type (Type.F a)
@@ -197,12 +195,12 @@ hash recursiveDecls = zip (fst <$> recursiveDecls) hashes where
   hashes = ABT.hash <$> toLetRec recursiveDecls
 
 toLetRec :: Ord v => [(v, ABT.Term F v ())] -> [ABT.Term F v ()]
-toLetRec decls =
-  do1 <$> vs
-  where
-    (vs, decls') = unzip decls
-    -- we duplicate this letrec once (`do1`) for each of the mutually recursive types
-    do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
+toLetRec decls = do1 <$> vs
+ where
+  (vs, decls') = unzip decls
+  -- we duplicate this letrec once (`do1`)
+  -- for each of the mutually recursive types
+  do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
 
 unsafeUnwrapType :: (Var v) => ABT.Term F v a -> AnnotatedType v a
 unsafeUnwrapType typ = ABT.transform f typ
@@ -210,29 +208,29 @@ unsafeUnwrapType typ = ABT.transform f typ
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
 toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
-toABT dd =
-  ABT.absChain (bound dd) (ABT.cycle (ABT.absChain (fst <$> constructors dd)
-                                                   (ABT.tm $ Constructors stuff)))
+toABT dd = ABT.absChain
+  (bound dd)
+  (ABT.cycle
+    (ABT.absChain (fst <$> constructors dd) (ABT.tm $ Constructors stuff))
+  )
   where stuff = ABT.transform Type . snd <$> constructors dd
 
 fromABT :: Var v => ABT.Term F v () -> DataDeclaration' v ()
-fromABT (ABT.AbsN' bound (
-           ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
-  DataDeclaration ()
+fromABT (ABT.AbsN' bound (ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
+  DataDeclaration
+    ()
     bound
-    [((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff]
-fromABT a = error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
+    [ ((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff ]
+fromABT a =
+  error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
-hashDecls0
-  :: (Eq v, Var v)
-  => Map v (DataDeclaration' v ())
-  -> [(v, Reference)]
-hashDecls0 decls = let
-  abts  = toABT <$> decls
-  ref r = ABT.tm (Type (Type.Ref r))
-  cs = Reference.hashComponents ref abts
-  in [(v,r) | (v, (r,_)) <- Map.toList cs ]
+hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]
+hashDecls0 decls =
+  let abts = toABT <$> decls
+      ref r = ABT.tm (Type (Type.Ref r))
+      cs = Reference.hashComponents ref abts
+  in  [ (v, r) | (v, (r, _)) <- Map.toList cs ]
 
 -- | compute the hashes of these user defined types and update any free vars
 --   corresponding to these decls with the resulting hashes
@@ -260,3 +258,4 @@ bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
   sortCtors dd =
     DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
   hash3 (_, _, typ) = ABT.hash typ :: Hash
+

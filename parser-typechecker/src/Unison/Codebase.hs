@@ -14,13 +14,18 @@ import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
                                                 )
+import           Data.Function                  ( on )
 import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes )
+import           Data.Maybe                     ( catMaybes
+                                                , isJust
+                                                , fromMaybe
+                                                )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( fromString )
 import qualified Data.Text                     as Text
+import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
                                                 , levenshteinDistance
                                                 )
@@ -49,6 +54,7 @@ import           Unison.Util.AnnotatedText      ( AnnotatedText )
 import           Unison.Util.ColorText          ( Color, ColorText )
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
+import qualified Unison.Util.Relation          as R
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 
@@ -70,6 +76,8 @@ data Codebase m v a =
            -- or creates a new branch if there's no branch with that name
            , mergeBranch        :: Name -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set Name))
+
+           , dependentsImpl :: Reference -> m (Set Reference.Id)
            }
 
 getTypeOfConstructor ::
@@ -392,3 +400,62 @@ branchExists codebase name = elem name <$> branches codebase
 
 builtinBranch :: Branch
 builtinBranch = Branch.append (Branch.fromNames Builtin.names) mempty
+
+-- Predicate of Relation a b here is "a depends on b".
+-- Dependents are in the domain and dependencies in the range.
+type DependencyGraph = R.Relation Reference Reference
+
+dependencyGraph
+  :: (Ord v, Monad m) => Codebase m v a -> Branch0 -> m DependencyGraph
+dependencyGraph c b = do
+  termDeps <-
+    for [ r | Reference.DerivedId r <- Referent.toReference <$> toList terms ]
+      $ \r -> do
+          mayTerm <- getTerm c r
+          case mayTerm of
+            Nothing -> fail $ "Missing term reference " <> show r
+            Just t  -> pure (Reference.DerivedId r, Term.dependencies t)
+  typeDeps <- for [ r | Reference.DerivedId r <- toList types ] $ \r -> do
+    mayType <- getTypeDeclaration c r
+    case mayType of
+      Nothing -> fail $ "Missing type reference " <> show r
+      Just t  -> pure
+        (Reference.DerivedId r, DD.dependencies . either DD.toDataDecl id $ t)
+  pure $ on R.union (R.fromMultimap . Map.fromList) termDeps typeDeps
+ where
+  terms = Branch.allTerms b
+  types = Branch.allTypes b
+
+isTerm :: Functor m => Codebase m v a -> Reference -> m Bool
+isTerm code = fmap isJust . getTypeOfTerm code
+
+isType :: Applicative m => Codebase m v a -> Reference -> m Bool
+isType c r = case r of
+  Reference.Builtin b -> pure (b `Set.member` Builtin.builtinTypeNames)
+  Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+  _ -> error "impossible"
+
+dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+dependents c r
+    = Set.union (Builtin.builtinTypeDependents r)
+    . Set.map Reference.DerivedId
+  <$> dependentsImpl c r
+
+transitiveDependents :: Monad m => Codebase m v a -> Set Reference -> m (Set Reference)
+transitiveDependents c rs = go Set.empty (toList rs) where
+  go seen [] = pure seen
+  go seen (r:rs) =
+    if Set.member r seen then go seen rs
+    else do
+      ds <- dependents c r
+      go (Set.insert r seen) (toList ds <> rs)
+
+referenceOps
+  :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m
+referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependents'
+ where
+  dependencies r = case r of
+    Reference.DerivedId r ->
+      fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
+    _ -> pure Set.empty
+  dependents' = dependents c

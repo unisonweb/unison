@@ -10,7 +10,9 @@
 module Unison.Codebase.Editor where
 
 -- import Debug.Trace
-import           Control.Monad                  ( forM_, foldM)
+
+import Data.List (sortOn)
+import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
 import           Data.Bifunctor                 ( bimap, second )
@@ -146,6 +148,7 @@ data Input
   | ForkBranchI BranchName
   | MergeBranchI BranchName
   | ShowDefinitionI [String]
+  | TodoI
   | QuitI
   deriving (Show)
 
@@ -182,20 +185,20 @@ data Output v
   | DisplayDefinitions PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
-  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v)
+  | TodoOutput Branch (TodoOutput v Ann)
   deriving (Show)
 
 type Score = Int
 
-data TodoOutput v
+data TodoOutput v a
   = TodoOutput_ {
       todoScore :: Int,
       todoFrontier ::
-        ( [(Name, Reference, Maybe (Type v Ann))]
-        , [(Name, Reference, DisplayThing (Decl v Ann))]),
+        ( [(Name, Reference, Maybe (Type v a))]
+        , [(Name, Reference, DisplayThing (Decl v a))]),
       todoFrontierDependents ::
-        ( [(Score, Name, Reference, Maybe (Type v Ann))]
-        , [(Score, Name, Reference, DisplayThing (Decl v Ann))]),
+        ( [(Score, Name, Reference, Maybe (Type v a))]
+        , [(Score, Name, Reference, DisplayThing (Decl v a))]),
       todoConflicts :: Branch0
     } deriving (Show)
 
@@ -290,7 +293,8 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- RemainingWork :: Branch -> Command i v [RemainingWork]
+  -- List work remaining in the current branch to complete a refactoring.
+  RemainingWork :: Branch -> Command i v (Set Branch.RemainingWork)
 
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
@@ -305,6 +309,8 @@ data Command i v a where
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+
+  Todo :: Branch -> Command i v (TodoOutput v Ann)
 
 data Outcome
   -- New definition that was added to the branch
@@ -435,11 +441,14 @@ fileToBranch
   -> UF.TypecheckedUnisonFile v Ann
   -> m (SlurpResult v)
 fileToBranch handleCollisions codebase branch uf = do
+  -- Write out all the successful outcomes to the codebase
   forM_ outcomes0 $ \(r, o) ->
     case o of
       Added -> writeDefinition r
       Updated -> writeDefinition r
       _ -> pure ()
+  -- Accumulate the final slurp result and the updated Branch,
+  -- by folding over the outcomes.
   (result, b0) <- foldM addOutcome
     (SlurpResult uf branch mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty, Branch.head branch) outcomes'
   pure $ result { updatedBranch = Branch.cons b0 branch }
@@ -454,9 +463,12 @@ fileToBranch handleCollisions codebase branch uf = do
         Right er -> case Map.lookup er termsByRef of
           Nothing -> error "Panic. Unknown term in fileToBranch"
           Just (v, _, _) -> (v, Right er, o)
+    -- converts a term or type reference, r, to a SlurpComponent
     sc r v = case r of
       Left _ -> SlurpComponent (Set.singleton v) mempty
       Right _ -> SlurpComponent mempty (Set.singleton v)
+    -- The folding function: state is the SlurpResult and the accumulated Branch0,
+    -- And each outcome is used to update this state.
     addOutcome (result, b) (v, r, o) = case o of
       Added -> pure $ case r of
         Left (r, dd) ->
@@ -598,15 +610,16 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
-      selfContained <- Codebase.makeSelfContained codebase (Branch.head branch) unisonFile
+      selfContained <- Codebase.makeSelfContained codebase
+                                                  (Branch.head branch)
+                                                  unisonFile
       Runtime.evaluate rt selfContained codebase
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
-    GetConflicts branch               ->
-      pure $ Branch.conflicts' (Branch.head branch)
+    GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
       Codebase.fuzzyFindTermTypes codebase branch queries
@@ -614,3 +627,75 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       pure $ Codebase.fuzzyFindTypes' branch queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
+    RemainingWork b ->
+      Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
+    Todo b -> doTodo codebase (Branch.head b)
+
+doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
+doTodo code b = do
+  -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)
+  f <- frontier (Codebase.dependents code) b
+  let dirty = R.dom f
+      frontier = R.ran f
+      ppe = Branch.prettyPrintEnv1 b
+  (frontierTerms, frontierTypes) <- loadDefinitions code frontier
+  (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
+  -- todo: something more intelligent here?
+  scoreFn <- pure $ const 1
+  remainingTransitive <- Codebase.transitiveDependents code frontier
+  let
+    addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
+    addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
+    frontierTermsNamed = addTermNames frontierTerms
+    frontierTypesNamed = addTypeNames frontierTypes
+    dirtyTermsNamed = sortOn (\(s,_,_,_) -> s) $
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
+    dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+  pure $
+    TodoOutput_
+      (Set.size remainingTransitive)
+      (frontierTermsNamed, frontierTypesNamed)
+      (dirtyTermsNamed, dirtyTypesNamed)
+      (Branch.conflicts' b)
+
+loadDefinitions :: Monad m => Codebase m v a -> Set Reference
+                -> m ( [(Reference, Maybe (Type v a))],
+                       [(Reference, DisplayThing (Decl v a))] )
+loadDefinitions code refs = do
+  termRefs <- filterM (Codebase.isTerm code) (toList refs)
+  terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm code r
+  typeRefs <- filterM (Codebase.isType code) (toList refs)
+  types <- forM typeRefs $ \r -> do
+    case r of
+      Reference.Builtin _ -> pure (r, BuiltinThing)
+      Reference.DerivedId id -> do
+        decl <- Codebase.getTypeDeclaration code id
+        case decl of
+          Nothing -> pure (r, MissingThing id)
+          Just d -> pure (r, RegularThing d)
+      _ -> error $ "unpossible " ++ show r
+  pure (terms, types)
+
+-- (f, d) when d is "dirty" (needs update),
+--             f is in the frontier,
+--         and d depends of f
+-- a ⋖ b = a depends on b (with no intermediate dependencies)
+-- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
+--
+-- The range of this relation is the frontier, and the domain is
+-- the set of dirty references.
+frontier :: forall m . Monad m
+         => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+         -> Branch0
+         -> m (Relation Reference Reference)
+frontier getDependents b = let
+  edited :: Set Reference
+  edited = R.dom (Branch.editedTerms b) <> R.dom (Branch.editedTypes b)
+  addDependents :: Relation Reference Reference -> Reference -> m (Relation Reference Reference)
+  addDependents dependents ref =
+    (\ds -> R.insertManyDom ds ref dependents) <$> getDependents ref
+  in do
+    -- (r,r2) ∈ dependsOn if r depends on r2
+    dependsOn <- foldM addDependents R.empty edited
+    pure $ R.filterDom (not . flip Set.member edited) dependsOn

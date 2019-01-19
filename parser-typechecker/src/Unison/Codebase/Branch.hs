@@ -119,6 +119,12 @@ termNamespace = view $ namespaceL . terms
 typeNamespace :: Branch0 -> Relation Name Reference
 typeNamespace = view $ namespaceL . types
 
+allTerms :: Branch0 -> Set Referent
+allTerms = R.ran . termNamespace
+
+allTypes :: Branch0 -> Set Reference
+allTypes = R.ran . typeNamespace
+
 intersectNames :: Namespace -> Namespace -> Namespace
 intersectNames n1 n2 = Namespace terms types
  where
@@ -357,89 +363,117 @@ data RemainingWork
   | ObsoleteType Reference (Set (Reference, TypeEdit))
   deriving (Eq, Ord, Show)
 
-remaining :: forall m. Monad m => ReferenceOps m -> Branch0 -> m (Set RemainingWork)
+remaining
+  :: forall m . Monad m => ReferenceOps m -> Branch0 -> m (Set RemainingWork)
 remaining ops b = do
--- If any of r's dependencies have been updated, r should be updated.
--- Alternatively: If `a` has been edited, then all of a's dependents
--- should be edited. (Maybe a warning if they are updated to something
--- that still uses `a`.)
+  -- If any of r's dependencies have been updated, r should be updated.
+  -- Alternatively: If `a` has been edited, then all of a's dependents
+  -- should be edited. (Maybe a warning if they are updated to something
+  -- that still uses `a`.)
   -- map from updated term to dependent + termedit
-  (obsoleteTerms, obsoleteTypes) <- wrangleUpdatedTypes ops =<< wrangleUpdatedTerms
-  pure . Set.fromList $
-    (uncurry TermNameConflict <$> Map.toList (conflicts termNamespace b)) ++
-    (uncurry TypeNameConflict <$> Map.toList (conflicts typeNamespace b)) ++
-    (uncurry TermEditConflict <$> Map.toList (conflicts editedTerms b)) ++
-    (uncurry TypeEditConflict <$> Map.toList (conflicts editedTypes b)) ++
-    (uncurry ObsoleteTerm <$> Map.toList obsoleteTerms) ++
-    (uncurry ObsoleteType <$> Map.toList obsoleteTypes)
-  where                    -- referent -> (oldreference, edit)
-    wrangleUpdatedTerms :: m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
-    wrangleUpdatedTerms =
-      -- 1. filter the edits to find the ones that are resolved (not conflicted)
-      -- 2. for each resolved (oldref,edit) pair,
-      -- 2b.  look up the referents of that oldref.
-      -- 2c.  if the referent is unedited, add it to the work:
-      -- 2c(i).  add it to the term work list if it's a term ref,
-      -- 2c(ii). only terms can depend on terms, so it's a term ref.
-      let termEdits :: Map Reference TermEdit -- oldreference, edit
-          termEdits = resolved editedTerms b
-          transitiveDependents :: Reference -> m (Set Reference)
-          transitiveDependents r = transitiveClosure1 (dependents ops) r
-          isEdited r = R.memberDom r (editedTerms b)
-          uneditedTransitiveDependents :: Reference -> m [Reference]
-          uneditedTransitiveDependents r =
-            filter (not . isEdited) . toList <$> transitiveDependents r
-          asSingleton :: Reference -> TermEdit -> Reference -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
-          asSingleton oldRef edit referent = Map.singleton referent (Set.singleton (oldRef, Left edit))
-          workFromEdit :: (Reference, TermEdit) -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
-          workFromEdit (oldRef, edit) =
-            mconcat . fmap (asSingleton oldRef edit) <$> uneditedTransitiveDependents oldRef
-      in fmap mconcat (traverse workFromEdit $ Map.toList termEdits)
+  (obsoleteTerms, obsoleteTypes) <-
+    wrangleUpdatedTypes ops =<< wrangleUpdatedTerms
+  pure
+    .  Set.fromList
+    $  (uncurry TermNameConflict <$> Map.toList (conflicts termNamespace b))
+    ++ (uncurry TypeNameConflict <$> Map.toList (conflicts typeNamespace b))
+    ++ (uncurry TermEditConflict <$> Map.toList (conflicts editedTerms b))
+    ++ (uncurry TypeEditConflict <$> Map.toList (conflicts editedTypes b))
+    ++ (uncurry ObsoleteTerm <$> Map.toList obsoleteTerms)
+    ++ (uncurry ObsoleteType <$> Map.toList obsoleteTypes)
+ where                    -- referent -> (oldreference, edit)
+  wrangleUpdatedTerms
+    :: m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
+  wrangleUpdatedTerms =
+    -- 1. filter the edits to find the ones that are resolved (not conflicted)
+    -- 2. for each resolved (oldref,edit) pair,
+    -- 2b.  look up the referents of that oldref.
+    -- 2c.  if the referent is unedited, add it to the work:
+    -- 2c(i).  add it to the term work list if it's a term ref,
+    -- 2c(ii). only terms can depend on terms, so it's a term ref.
+    let termEdits :: Map Reference TermEdit -- oldreference, edit
+        termEdits = resolved editedTerms b
+        transitiveDependents :: Reference -> m (Set Reference)
+        transitiveDependents r = transitiveClosure1 (dependents ops) r
+        isEdited r = R.memberDom r (editedTerms b)
+        uneditedTransitiveDependents :: Reference -> m [Reference]
+        uneditedTransitiveDependents r =
+          filter (not . isEdited) . toList <$> transitiveDependents r
+        asSingleton
+          :: Reference
+          -> TermEdit
+          -> Reference
+          -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
+        asSingleton oldRef edit referent =
+          Map.singleton referent (Set.singleton (oldRef, Left edit))
+        workFromEdit
+          :: (Reference, TermEdit)
+          -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit)))
+        workFromEdit (oldRef, edit) =
+          mconcat
+            .   fmap (asSingleton oldRef edit)
+            <$> uneditedTransitiveDependents oldRef
+    in  fmap mconcat (traverse workFromEdit $ Map.toList termEdits)
 
-    wrangleUpdatedTypes ::
-      Monad m => ReferenceOps m
-              -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
-              -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
-                   ,Map Reference (Set (Reference, TypeEdit)))
-    wrangleUpdatedTypes ops initialTermEdits =
-      -- 1. filter the edits to find the ones that are resolved (not conflicted)
-      -- 2. for each resolved (oldref,edit) pair,
-      -- 2b.  look up the referents of that oldref.
-      -- 2c.  if the referent is unedited, add it to the work:
-      -- 2c(i).  add it to the term work list if it's a term ref,
-      -- 2c(ii). add it to the type work list if it's a type ref
-      foldM go (initialTermEdits, Map.empty) (Map.toList typeEdits)
-      where
-        typeEdits :: Map Reference TypeEdit -- oldreference, edit
-        typeEdits = resolved editedTypes b
-        go :: Monad m
-           => (Map Reference (Set (Reference, Either TermEdit TypeEdit))
-                ,Map Reference (Set (Reference, TypeEdit)))
-           -> (Reference, TypeEdit)
-           -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
-                ,Map Reference (Set (Reference, TypeEdit)))
-        go (termWork, typeWork) (oldRef, edit) =
-          foldM go2 (termWork, typeWork) =<<
-                    (transitiveClosure1 (dependents ops) oldRef) where
-            single referent oldRef edit =
-              Map.singleton referent (Set.singleton (oldRef, edit))
-            singleRight referent oldRef edit =
-              Map.singleton referent (Set.singleton (oldRef, Right edit))
-            go2 :: (Map Reference (Set (Reference, Either TermEdit TypeEdit))
-                   ,Map Reference (Set (Reference, TypeEdit)))
-                -> Reference
-                -> m (Map Reference (Set (Reference, Either TermEdit TypeEdit))
-                     ,Map Reference (Set (Reference, TypeEdit)))
-            go2 (termWorkAcc, typeWorkAcc) referent =
-              termOrTypeOp ops referent
-                (pure $
-                  if not $ R.memberDom referent (editedTerms b)
-                  then (termWorkAcc <> singleRight referent oldRef edit, typeWorkAcc)
-                  else (termWorkAcc, typeWorkAcc))
-                (pure $
-                  if not $ R.memberDom referent (editedTypes b)
-                  then (termWorkAcc, typeWorkAcc <> single referent oldRef edit)
-                  else (termWorkAcc, typeWorkAcc))
+  -- 1. filter the edits to find the ones that are resolved (not conflicted)
+  -- 2. for each resolved (oldref,edit) pair,
+  -- 2b.  look up the referents of that oldref.
+  -- 2c.  if the referent is unedited, add it to the work:
+  -- 2c(i).  add it to the term work list if it's a term ref,
+  -- 2c(ii). add it to the type work list if it's a type ref
+  wrangleUpdatedTypes
+    :: Monad m
+    => ReferenceOps m
+    -> Map Reference (Set (Reference, Either TermEdit TypeEdit))
+    -> m
+         ( Map Reference (Set (Reference, Either TermEdit TypeEdit))
+         , Map Reference (Set (Reference, TypeEdit))
+         )
+  wrangleUpdatedTypes ops initialTermEdits = foldM
+    go
+    (initialTermEdits, Map.empty)
+    (Map.toList typeEdits)
+   where
+    typeEdits :: Map Reference TypeEdit -- oldreference, edit
+    typeEdits = resolved editedTypes b
+    go
+      :: Monad m
+      => ( Map Reference (Set (Reference, Either TermEdit TypeEdit))
+         , Map Reference (Set (Reference, TypeEdit))
+         )
+      -> (Reference, TypeEdit)
+      -> m
+           ( Map Reference (Set (Reference, Either TermEdit TypeEdit))
+           , Map Reference (Set (Reference, TypeEdit))
+           )
+    go (termWork, typeWork) (oldRef, edit) =
+      foldM go2 (termWork, typeWork)
+        =<< (transitiveClosure1 (dependents ops) oldRef)
+     where
+      single referent oldRef edit =
+        Map.singleton referent (Set.singleton (oldRef, edit))
+      singleRight referent oldRef edit =
+        Map.singleton referent (Set.singleton (oldRef, Right edit))
+      go2
+        :: ( Map Reference (Set (Reference, Either TermEdit TypeEdit))
+           , Map Reference (Set (Reference, TypeEdit))
+           )
+        -> Reference
+        -> m
+             ( Map Reference (Set (Reference, Either TermEdit TypeEdit))
+             , Map Reference (Set (Reference, TypeEdit))
+             )
+      go2 (termWorkAcc, typeWorkAcc) referent = termOrTypeOp
+        ops
+        referent
+        (pure $ if not $ R.memberDom referent (editedTerms b)
+          then (termWorkAcc <> singleRight referent oldRef edit, typeWorkAcc)
+          else (termWorkAcc, typeWorkAcc)
+        )
+        (pure $ if not $ R.memberDom referent (editedTypes b)
+          then (termWorkAcc, typeWorkAcc <> single referent oldRef edit)
+          else (termWorkAcc, typeWorkAcc)
+        )
 
 empty :: Branch
 empty = Branch (Causal.one mempty)
