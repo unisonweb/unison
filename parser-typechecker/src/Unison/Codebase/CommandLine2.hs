@@ -11,6 +11,7 @@ module Unison.Codebase.CommandLine2 where
 
 -- import Debug.Trace
 import Data.Maybe (catMaybes)
+import Prelude hiding (readFile, writeFile)
 import           Control.Applicative            ((<|>))
 import           Control.Concurrent             (forkIO, killThread)
 import qualified Control.Concurrent.Async       as Async
@@ -30,11 +31,11 @@ import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
+import Data.Text.IO (readFile, writeFile)
 import qualified System.Console.ANSI            as Console
 import qualified System.Console.Haskeline       as Line
 import qualified System.Console.Terminal.Size   as Terminal
-import           System.Directory               (canonicalizePath)
-import           System.Random                  (randomRIO)
+import           System.Directory               (canonicalizePath, doesFileExist)
 import           Unison.Codebase                (Codebase)
 import qualified Unison.Codebase                as Codebase
 import           Unison.Codebase.Branch         (Branch)
@@ -105,7 +106,26 @@ notifyUser dir o = do
       in
         case outputLoc of
            Nothing -> putPrettyLn out
-           Just path -> error "todo - prepend out to the top of path, creating the file if it doesn't exist"
+           Just path -> do
+             path' <- canonicalizePath path
+             exists <- doesFileExist path'
+             existingContents <-
+               if exists then readFile path'
+               else pure ""
+             writeFile path' . Text.pack . P.toPlain 80 $
+               P.lines [ out, ""
+                       , "---- " <> "Anything below this line is ignored by Unison."
+                       , "", P.text existingContents ]
+             putPrettyLn . P.callout "☝️" $
+               P.lines [
+                 P.wrap $ "I added these definitions to the top of " <> fromString path',
+                 "",
+                 P.indentN 2 out,
+                 "",
+                 P.wrap $
+                   "You can edit them there, then do `update` to replace the" <>
+                   "definitions currently in this branch."
+               ]
     NoUnisonFile -> do
       dir' <- canonicalizePath dir
       putPrettyLn . P.callout "😶" $ P.lines
@@ -394,27 +414,28 @@ notifyUser dir o = do
         traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
       -- TODO: Present conflicting TermEdits and TypeEdits
       -- if we ever allow users to edit hashes directly.
-    FileChangeEvent _sourceName _src -> do
-      Console.clearScreen
-      Console.setCursorPosition 0 0
+    FileChangeEvent _sourceName _src -> pure ()
+      -- do
+      -- Console.clearScreen
+      -- Console.setCursorPosition 0 0
     Typechecked sourceName errorEnv unisonFile -> do
       Console.setTitle "Unison ☺︎"
-      let emoticons = "🌸🌺🌹🌻🌼🌷🌵🌴🍄🌲"
-      n <- randomRIO (0, length emoticons - 1)
       let uf         = UF.discardTerm unisonFile
           defs       = prettyTypecheckedFile uf errorEnv
-          prettyDefs = CT.toANSI defs
-      when (not $ null defs)
-        .  putStrLn
-        $  "✅ "
-        ++ [emoticons !! n]
-        ++ "  Found and typechecked the following definitions in "
-        ++ (Text.unpack sourceName)
-        ++ ":\n"
-      putStrLn prettyDefs
-      putStrLn $
-          "👀  Now evaluating any watch expressions (lines starting with `>`)"
-        <> " ...\n"
+      when (not $ null defs) . putPrettyLn . P.lines $ [
+        P.okCallout $
+          P.lines [
+            P.wrap (
+              "I found and" <> P.bold "typechecked" <> "these definitions in " <>
+              P.group (P.text sourceName <> ":")
+            ),
+            "",
+            P.lit defs,
+            P.wrap $
+              "Now evaluating any watch expressions (lines starting with `>`)"
+              <> "..."
+          ]
+       ]
     TodoOutput branch todo ->
       let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
       if E.todoScore todo == 0
