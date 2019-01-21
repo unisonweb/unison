@@ -17,6 +17,7 @@ import           Network.Socket
 import           System.IO.Streams              ( InputStream
                                                 , OutputStream
                                                 )
+import           System.Directory               ( findExecutable)
 import qualified System.IO.Streams             as Streams
 import qualified System.IO.Streams.ByteString  as BSS
 import qualified System.IO.Streams.Network     as N
@@ -88,7 +89,11 @@ javaRuntime getv suggestedPort = do
       let cmd = "scala"
           args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes",
                   "org.unisonweb.BootstrapStream", show port]
-      (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
-      (socket, _address) <- accept listenSock -- accept a connection and handle it
-      (input, output) <- N.socketToStreams socket
-      pure (P.terminateProcess ph, input, output)
+      exe <- findExecutable cmd
+      case exe of
+        Just _ -> do
+          (_,_,_,ph) <- P.createProcess (P.proc cmd args) { P.cwd = Just "." }
+          (socket, _address) <- accept listenSock -- accept a connection and handle it
+          (input, output) <- N.socketToStreams socket
+          pure (P.terminateProcess ph, input, output)
+        Nothing -> fail $ cmd ++ " executable not found, Unison needs a matching scala version available on the path"
