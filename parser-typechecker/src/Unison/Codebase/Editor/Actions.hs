@@ -10,6 +10,7 @@ import Control.Applicative
 import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( foldl', toList )
+import Data.Maybe (fromMaybe)
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
 import           Data.Tuple                     ( swap )
@@ -48,10 +49,19 @@ import qualified Unison.Codebase as Codebase
 type Action i v = Free (Command i v) (Either () (LoopState v))
 
 data LoopState v
-  = LoopState Branch BranchName (Maybe (FilePath, UF.TypecheckedUnisonFile' v Ann))
+  = LoopState
+      { currentBranch :: Branch
+      , currentBranchName :: BranchName
+      -- The file name last modified, and whether to skip the next file
+      -- change event for that path (we skip file changes if the file has
+      -- just been modified programmatically)
+      , latestFile :: Maybe (FilePath, SkipNextUpdate)
+      , latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile' v Ann) }
+
+type SkipNextUpdate = Bool
 
 loopState0 :: Branch -> BranchName -> LoopState v
-loopState0 b bn = LoopState b bn Nothing
+loopState0 b bn = LoopState b bn Nothing Nothing
 
 startLoop
   :: Var v => Branch -> BranchName -> Free (Command (Either Event Input) v) ()
@@ -62,36 +72,42 @@ loop
 loop s = Free.unfold' go s
  where
   go :: forall v . Var v => LoopState v -> Action (Either Event Input) v
-  go s@(LoopState currentBranch currentBranchName uf) = do
+  go s = do
+    let uf = latestTypecheckedFile s
     e <- Free.eval Input
     case e of
-      Left (UnisonBranchChanged names) -> if Set.member currentBranchName names
-        then switchBranch currentBranchName
+      Left (UnisonBranchChanged names) -> if Set.member (currentBranchName s) names
+        then switchBranch (currentBranchName s)
         else pure (Right s)
-      Left (UnisonFileChanged sourceName text) -> do
-        Free.eval (Notify $ FileChangeEvent sourceName text)
-        Result notes r <- Free.eval (Typecheck currentBranch sourceName text)
-        case r of
-          -- Parsing failed
-          Nothing -> respond
-            $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (errorEnv, r) -> case r of
-            -- Typing failed
-            Nothing -> respond $ TypeErrors
-              text
-              errorEnv
-              [ err | Result.TypeError err <- toList notes ]
-            -- A unison file has changed
-            Just unisonFile -> do
-              Free.eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-              e <- Free.eval
-                (Evaluate currentBranch $ UF.discardTypes' unisonFile)
-              Free.eval . Notify $ Evaluated (Branch.toNames currentBranch) e
-              updateUnisonFile (Text.unpack sourceName) unisonFile
+      Left (UnisonFileChanged sourceName text) ->
+        if fromMaybe False . fmap snd $ latestFile s
+        -- We skip this update if it was programmatically generated
+        then pure . Right $ s { latestFile = fmap (const False) <$> latestFile s }
+        else do
+          Free.eval (Notify $ FileChangeEvent sourceName text)
+          Result notes r <- Free.eval (Typecheck (currentBranch s) sourceName text)
+          case r of
+            -- Parsing failed
+            Nothing -> respond
+              $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
+            Just (errorEnv, r) -> case r of
+              -- Typing failed
+              Nothing -> respond $ TypeErrors
+                text
+                errorEnv
+                [ err | Result.TypeError err <- toList notes ]
+              -- A unison file has changed
+              Just unisonFile -> do
+                Free.eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+                e <- Free.eval
+                  (Evaluate (currentBranch s) $ UF.discardTypes' unisonFile)
+                Free.eval . Notify $ Evaluated (Branch.toNames $ currentBranch s) e
+                pure . Right $ s { latestFile = Just (Text.unpack sourceName, False)
+                                 , latestTypecheckedFile = Just unisonFile }
       Right input -> case input of
         SearchByNameI qs -> do
-          terms  <- Free.eval $ SearchTerms currentBranch qs
-          types  <- Free.eval $ SearchTypes currentBranch qs
+          terms  <- Free.eval $ SearchTerms (currentBranch s) qs
+          types  <- Free.eval $ SearchTypes (currentBranch s) qs
           types' <-
             let go (name, ref) = case ref of
                   Reference.DerivedId id ->
@@ -100,10 +116,10 @@ loop s = Free.unfold' go s
                       <$> Free.eval (LoadType id)
                   _ -> pure (name, ref, BuiltinThing)
             in  traverse go types
-          respond $ ListOfDefinitions currentBranch terms types'
+          respond $ ListOfDefinitions (currentBranch s) terms types'
         ShowDefinitionI outputLoc qs -> do
-          terms <- Free.eval $ SearchTerms currentBranch qs
-          types <- Free.eval $ SearchTypes currentBranch qs
+          terms <- Free.eval $ SearchTerms (currentBranch s) qs
+          types <- Free.eval $ SearchTypes (currentBranch s) qs
           let terms' = [ (n, r) | (n, r, _) <- terms ]
               (collatedTerms, collatedTypes) =
                 collateReferences (snd <$> terms') (snd <$> types)
@@ -122,73 +138,78 @@ loop s = Free.unfold' go s
           let ppe =
                 PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                   `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                  `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head currentBranch]
+                  `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head $ currentBranch s]
               loc = case outputLoc of
                 Editor.ConsoleLocation -> Nothing
                 Editor.FileLocation path -> Just path
                 Editor.LatestFileLocation ->
-                  fmap fst uf <|> Just (Text.unpack currentBranchName <> ".u")
-          respond $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+                  fmap fst (latestFile s) <|> Just (Text.unpack (currentBranchName s) <> ".u")
+          do
+            Free.eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+            -- We set latestFile to be programmatically generated, if we
+            -- are viewing these definitions to a file - this will skip the
+            -- next update for that file (which will happen immediately)
+            pure $ Right (s { latestFile = (,True) <$> loc })
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
         ChooseUpdateForTypeI _old _new -> error "todo"
         ListAllUpdatesI                -> error "todo"
         AddTermNameI r name ->
-          addTermName currentBranchName respond success r name
+          addTermName (currentBranchName s) respond success r name
         AddTypeNameI r name ->
-          addTypeName currentBranchName respond success r name
+          addTypeName (currentBranchName s) respond success r name
         RemoveTermNameI r name ->
-          updateBranch respond success currentBranchName
+          updateBranch respond success (currentBranchName s)
             $ Branch.modify (Branch.deleteTermName r name)
         RemoveTypeNameI r name ->
-          updateBranch respond success currentBranchName
+          updateBranch respond success (currentBranchName s)
             $ Branch.modify (Branch.deleteTypeName r name)
         ChooseTermForNameI r name ->
-          unnameAll currentBranchName respond Names.TermName name
-            $ addTermName currentBranchName respond success r name
+          unnameAll (currentBranchName s) respond Names.TermName name
+            $ addTermName (currentBranchName s) respond success r name
         ChooseTypeForNameI r name ->
-          unnameAll currentBranchName respond Names.TypeName name
-            $ addTypeName currentBranchName respond success r name
+          unnameAll (currentBranchName s) respond Names.TypeName name
+            $ addTypeName (currentBranchName s) respond success r name
         AliasUnconflictedI targets existingName newName -> aliasUnconflicted
-          currentBranchName
+          (currentBranchName s)
           respond
           respondNewBranch
           targets
           existingName
           newName
         RenameUnconflictedI targets oldName newName -> renameUnconflicted
-          currentBranchName
+          (currentBranchName s)
           respond
           respondNewBranch
           targets
           oldName
           newName
         UnnameAllI nameTarget name ->
-          unnameAll currentBranchName respond nameTarget name success
+          unnameAll (currentBranchName s) respond nameTarget name success
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
-          Just (_, UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
+          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
             let uf' = UF.typecheckedUnisonFile datas effects tlcs
                 collisionHandler =
                   if allowUpdates then Editor.updateCollisionHandler
                   else Editor.addCollisionHandler
-            updateo <- Free.eval $ SlurpFile collisionHandler currentBranch uf'
+            updateo <- Free.eval $ SlurpFile collisionHandler (currentBranch s) uf'
             let branch' = updatedBranch updateo
-            doMerge currentBranchName branch'
+            doMerge (currentBranchName s) branch'
             Free.eval . Notify $ SlurpOutput updateo
-            pure . Right $ LoopState branch' currentBranchName uf
+            pure . Right $ s { currentBranch = branch' }
         ListBranchesI ->
-          Free.eval ListBranches >>= respond . ListOfBranches currentBranchName
+          Free.eval ListBranches >>= respond . ListOfBranches (currentBranchName s)
         SwitchBranchI branchName       -> switchBranch branchName
         ForkBranchI   targetBranchName -> ifM
-          (Free.eval $ ForkBranch currentBranch targetBranchName)
+          (Free.eval $ ForkBranch (currentBranch s) targetBranchName)
           (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
-          $ \branch -> mergeBranch currentBranchName respond success branch
+          $ \branch -> mergeBranch (currentBranchName s) respond success branch
         TodoI ->
-          Free.eval (Todo currentBranch) >>= respond . TodoOutput currentBranch
+          Free.eval (Todo (currentBranch s)) >>= respond . TodoOutput (currentBranch s)
         QuitI -> quit
        where
         success       = respond $ Success input
@@ -211,7 +232,7 @@ loop s = Free.unfold' go s
     respond output = Free.eval (Notify output) >> pure (Right s)
     respondNewBranch :: Output v -> Branch -> Action i v
     respondNewBranch output newBranch =
-      respond output >> pure (Right (LoopState newBranch currentBranchName uf))
+      respond output >> pure (Right $ s { currentBranch = newBranch })
 
     switchBranch branchName = do
       branch <- Free.eval $ LoadBranch branchName
@@ -220,18 +241,10 @@ loop s = Free.unfold' go s
           let newBranch = Codebase.builtinBranch
           Free.eval $ SwitchBranch newBranch branchName
           _ <- Free.eval $ NewBranch branchName
-          pure . Right $ LoopState newBranch branchName uf
+          pure . Right $ s { currentBranch = newBranch, currentBranchName = branchName }
         Just branch -> do
           Free.eval $ SwitchBranch branch branchName
-          pure . Right $ LoopState branch branchName uf
-    updateUnisonFile
-      :: forall f v
-       . Applicative f
-      => FilePath
-      -> UF.TypecheckedUnisonFile' v Ann
-      -> f (Either () (LoopState v))
-    updateUnisonFile path uf =
-      pure . Right $ LoopState currentBranch currentBranchName (Just (path,uf))
+          pure . Right $ s { currentBranch = branch, currentBranchName = branchName }
     quit = pure $ Left ()
 
 withBranch :: BranchName
