@@ -11,11 +11,13 @@ import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( foldl', toList )
 import Data.Maybe (fromMaybe)
+import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
 import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Data.Set (Set)
+import qualified Unison.ABT as ABT
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
@@ -38,7 +40,9 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                (Referent)
+import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
+import qualified Unison.Term as Term
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -121,12 +125,19 @@ loop s = Free.unfold' go s
           terms <- Free.eval $ SearchTerms (currentBranch s) qs
           types <- Free.eval $ SearchTypes (currentBranch s) qs
           let terms' = [ (n, r) | (n, r, _) <- terms ]
+              termTypes = Map.fromList [ (r, t) | (_, Referent.Ref r, Just t) <- terms ]
               (collatedTerms, collatedTypes) =
                 collateReferences (snd <$> terms') (snd <$> types)
           loadedTerms <- for collatedTerms $ \r -> case r of
-            Reference.DerivedId i ->
-              (r, ) . maybe (MissingThing i) RegularThing <$> Free.eval
-                (LoadTerm i)
+            Reference.DerivedId i -> do
+              tm <- Free.eval (LoadTerm i)
+              -- We add a type annotation to the term using if it doesn't
+              -- already have one that the user provided
+              pure . (r,) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+                Nothing -> MissingThing i
+                Just (tm, typ) -> case tm of
+                  Term.Ann' _ _ -> RegularThing tm
+                  _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
             _ -> pure (r, BuiltinThing)
           loadedTypes <- for collatedTypes $ \r -> case r of
             Reference.DerivedId i ->
