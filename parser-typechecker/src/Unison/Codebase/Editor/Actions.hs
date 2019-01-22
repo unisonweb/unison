@@ -196,7 +196,13 @@ loop s = Free.unfold' go s
                   else Editor.addCollisionHandler
             updateo <- Free.eval $ SlurpFile collisionHandler (currentBranch s) uf'
             let branch' = updatedBranch updateo
-            doMerge (currentBranchName s) branch'
+            -- Don't bother doing anything if the branch is unchanged by the slurping
+            when (branch' /= currentBranch s) $ do
+              -- This order is important - we tell the app state about the
+              -- branch change before doing the merge, so it knows to ignore
+              -- the file system event that is triggered by `doMerge`
+              Free.eval $ SwitchBranch branch' (currentBranchName s)
+              doMerge (currentBranchName s) branch'
             Free.eval . Notify $ SlurpOutput updateo
             pure . Right $ s { currentBranch = branch' }
         ListBranchesI ->

@@ -600,7 +600,11 @@ intersectWithFile branch file =
 
 
 modify :: (Branch0 -> Branch0) -> Branch -> Branch
-modify f (Branch b) = Branch $ Causal.step f b
+modify f b@(Branch causal) = let
+  b0 = head b
+  b1 = f b0
+  in if b1 == b0 then b
+     else Branch $ Causal.cons b1 causal
 
 append :: Branch0 -> Branch -> Branch
 append b0 = modify (<> b0)

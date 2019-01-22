@@ -516,9 +516,6 @@ notifyUser dir o = case o of
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
 
--- TODO: Return all of these thread IDs so we can throw async exceptions at
--- them when we need to quit.
-
 watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do
   (cancel, watcher) <- Watch.watchDirectory dir allow
@@ -527,13 +524,19 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-watchBranchUpdates :: TQueue Event -> Codebase IO v a -> IO (IO ())
-watchBranchUpdates q codebase = do
+watchBranchUpdates :: IO (Branch, BranchName) -> TQueue Event -> Codebase IO v a -> IO (IO ())
+watchBranchUpdates currentBranch q codebase = do
   (cancelExternalBranchUpdates, externalBranchUpdates) <-
     Codebase.branchUpdates codebase
   thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
-    atomically . Q.enqueue q . UnisonBranchChanged $ updatedBranches
+    (b, bname) <- currentBranch
+    b' <- Codebase.getBranch codebase bname
+    -- We only issue the event if the branch is different than what's already
+    -- in memory. This skips over file events triggered by saving to disk what's
+    -- already in memory.
+    when (b' /= Just b) $
+      atomically . Q.enqueue q . UnisonBranchChanged $ updatedBranches
   pure (cancelExternalBranchUpdates >> killThread thread)
 
 warnNote :: String -> String
@@ -899,7 +902,7 @@ main dir currentBranchName _initialFile startRuntime codebase = do
     runtime                  <- startRuntime
     branchRef                <- newIORef (currentBranch, currentBranchName)
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates eventQueue codebase
+    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef branchRef) eventQueue codebase
     let patternMap =
           Map.fromList
             $   validInputs
