@@ -115,10 +115,10 @@ prettySignatures'
   -> [(Name, AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
-  [ (PP.text name, ":" <> PP.map fromString (prettyType typ))
+  [ (PP.text name, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
+                   (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
   | (name, typ) <- ts
   ]
-  where prettyType typ = PP.hang "" (pretty env (-1) typ)
 
 prettySignatures
   :: Var v
