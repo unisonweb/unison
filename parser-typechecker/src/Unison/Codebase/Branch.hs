@@ -530,6 +530,7 @@ data ReferenceOps m = ReferenceOps
 -- bar' -> Replace bar'' *optional
 
 replaceType :: Reference -> Reference -> Branch0 -> Branch0
+replaceType old new b | old == new = b
 replaceType old new b
   = over editedTypesL (R.insert old (TypeEdit.Replace new))
   . over (namespaceL . types)    (R.replaceRan old new)
@@ -550,6 +551,7 @@ replaceType old new b
 -- insertNames ops m r = foldl' (flip $ R.insert r) m <$> name ops r
 
 replaceTerm :: Reference -> Reference -> Typing -> Branch0 -> Branch0
+replaceTerm old new _typ b | old == new = b
 replaceTerm old new typ b =
  over editedTermsL (R.insert old (TermEdit.Replace new typ))
    . over (namespaceL . terms)    (R.replaceRan old' new')
@@ -558,6 +560,12 @@ replaceTerm old new typ b =
  where
   old' = Referent.Ref old
   new' = Referent.Ref new
+
+unreplaceTerm :: Reference -> Reference -> Branch0 -> Branch0
+unreplaceTerm _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
+
+unreplaceType :: Reference -> Reference -> Branch0 -> Branch0
+unreplaceType _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
 
 -- If any `as` aren't in `b`, then delete them from `c` as well.  Kind of sad.
 deleteOrphans
