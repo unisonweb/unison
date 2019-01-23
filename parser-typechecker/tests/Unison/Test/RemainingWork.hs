@@ -3,16 +3,16 @@
 
 module Unison.Test.RemainingWork where
 
-import           Control.Monad.Identity (Identity, runIdentity)
-import           EasyTest
+import           Control.Monad.Identity (Identity)
+-- import           EasyTest
 import           Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import           Data.Set (Set)
+-- import           Data.Set (Set)
 import           Unison.Reference (pattern Builtin)
 import           Unison.Referent (Referent(Ref))
 import qualified Unison.Codebase.Branch as Branch
-import           Unison.Codebase.Branch (Branch0(..), ReferenceOps(..), RemainingWork(..))
+import           Unison.Codebase.Branch (Branch0(..), ReferenceOps(..))
 import qualified Unison.Util.Relation as Relation
 import           Unison.Codebase.TermEdit (TermEdit(Replace), Typing(Same))
 
@@ -83,11 +83,11 @@ edit1 = Branch0
   mempty
 
 
-test :: Test ()
-test = scope "remainingwork" . tests $ [
-    scope "branch1" . expect $ remaining' branch1 == Set.empty
-  ]
-
-remaining' :: Branch0 -> Set RemainingWork
-remaining' b = runIdentity $
-  Branch.remaining ops b
+-- test :: Test ()
+-- test = scope "remainingwork" . tests $ [
+--     scope "branch1" . expect $ remaining' branch1 == Set.empty
+--   ]
+--
+-- remaining' :: Branch0 -> Set RemainingWork
+-- remaining' b = runIdentity $
+--   Branch.remaining ops b

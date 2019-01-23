@@ -308,6 +308,7 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
   go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
 -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
+-- todo: add some tests on this guy?
 transitiveDependencies
   :: (Monad m, Var v)
   => Codebase m v a

@@ -433,7 +433,7 @@ notifyUser dir o = case o of
      ]
   TodoOutput branch todo ->
     let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
-    if E.todoScore todo == 0
+    if E.todoScore todo == 0 && E.todoConflicts todo == mempty
     then putPrettyLn . P.okCallout $ "No conflicts or edits in progress."
     else do
       let (frontierTerms, frontierTypes) = E.todoFrontier todo
@@ -441,26 +441,44 @@ notifyUser dir o = case o of
           corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
           corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
           goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
-
-      putPrettyLn . P.callout "🚧" . P.lines . join $ [
-        [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
-                <> "transitive dependent(s) left to upgrade."
-                <> "Your edit frontier is the dependents of these definitions:")],
-        [""],
-        [P.indentN 2 . P.lines $ (
-            (prettyDeclTriple <$> toList frontierTypes) ++
-            TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
-         )],
-        [""],
-        [P.wrap "I recommend working on them in the following order:"],
-        [""],
-        [P.indentN 2 . P.lines $
-          let unscore (_score,a,b,c) = (a,b,c)
-          in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-             (TypePrinter.prettySignatures' ppe (goodTerms $ unscore <$> dirtyTerms))
-        ],
-        formatMissingStuff corruptTerms corruptTypes
-       ]
+      putPrettyLn . P.lines $
+        (if (E.todoConflicts todo == mempty) then [] else [
+          let c = E.todoConflicts todo
+              conflictedTypeNames = Branch.allTypeNames c
+              conflictedTermNames = Branch.allTermNames c
+          in
+            P.callout "❓" $ P.lines . join $ [
+              [P.wrap ("The branch contains some names with conflicting definitions.")],
+              [""],
+              [P.lines . join $ [
+                if null conflictedTypeNames then []
+                else [P.hang "Types:" (P.oxfordCommas (P.text <$> toList conflictedTypeNames))],
+                if null conflictedTermNames then []
+                else [P.hang "Terms:" (P.oxfordCommas (P.text <$> toList conflictedTermNames))]
+              ]]
+            ]
+        ]) ++
+        (if E.todoScore todo == 0 then [] else
+        [ P.callout "🚧" . P.lines . join $ [
+          [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+                  <> "transitive dependent(s) left to upgrade."
+                  <> "Your edit frontier is the dependents of these definitions:")],
+          [""],
+          [P.indentN 2 . P.lines $ (
+              (prettyDeclTriple <$> toList frontierTypes) ++
+              TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+           )],
+          [""],
+          [P.wrap "I recommend working on them in the following order:"],
+          [""],
+          [P.indentN 2 . P.lines $
+            let unscore (_score,a,b,c) = (a,b,c)
+            in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+               (TypePrinter.prettySignatures' ppe (goodTerms $ unscore <$> dirtyTerms))
+          ],
+          formatMissingStuff corruptTerms corruptTypes
+         ]
+        ])
 
  where
   renderFileName = P.group . P.blue . fromString

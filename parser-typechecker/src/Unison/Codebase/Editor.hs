@@ -301,9 +301,6 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- List work remaining in the current branch to complete a refactoring.
-  RemainingWork :: Branch -> Command i v (Set Branch.RemainingWork)
-
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
               -> [String]
@@ -636,8 +633,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       pure $ Codebase.fuzzyFindTypes' branch queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
-    RemainingWork b ->
-      Branch.remaining (Codebase.referenceOps codebase) (Branch.head b)
     Todo b -> doTodo codebase (Branch.head b)
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
