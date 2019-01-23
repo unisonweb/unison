@@ -440,6 +440,7 @@ removeTransitive dependencies outcomes0 = let
        else trim removed outcomes'
   in trim removed0 outcomes0
 
+-- Handles add/update command for a typechecked file
 fileToBranch
   :: forall m v
   .  (Var v, Monad m)
@@ -650,7 +651,7 @@ doTodo code b = do
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
   -- todo: something more intelligent here?
   scoreFn <- pure $ const 1
-  remainingTransitive <- Codebase.transitiveDependents code frontier
+  remainingTransitive <- Codebase.frontierTransitiveDependents code b frontier
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
@@ -702,7 +703,8 @@ frontier getDependents b = let
   edited = R.dom (Branch.editedTerms b) <> R.dom (Branch.editedTypes b)
   addDependents :: Relation Reference Reference -> Reference -> m (Relation Reference Reference)
   addDependents dependents ref =
-    (\ds -> R.insertManyDom ds ref dependents) <$> getDependents ref
+    (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Branch.contains b)
+      <$> getDependents ref
   in do
     -- (r,r2) ∈ dependsOn if r depends on r2
     dependsOn <- foldM addDependents R.empty edited

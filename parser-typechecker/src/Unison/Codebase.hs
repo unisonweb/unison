@@ -55,6 +55,7 @@ import           Unison.Util.ColorText          ( Color, ColorText )
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
 import qualified Unison.Util.Relation          as R
+import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 
@@ -306,6 +307,7 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
         Nothing -> pure mempty
   go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
+-- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
 transitiveDependencies
   :: (Monad m, Var v)
   => Codebase m v a
@@ -441,14 +443,14 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
-transitiveDependents :: Monad m => Codebase m v a -> Set Reference -> m (Set Reference)
-transitiveDependents c rs = go Set.empty (toList rs) where
-  go seen [] = pure seen
-  go seen (r:rs) =
-    if Set.member r seen then go seen rs
-    else do
-      ds <- dependents c r
-      go (Set.insert r seen) (toList ds <> rs)
+
+frontierTransitiveDependents ::
+  Monad m => Codebase m v a -> Branch0 -> Set Reference -> m (Set Reference)
+frontierTransitiveDependents c b rs = do
+  let branchDependents r = Set.filter (Branch.contains b) <$> dependents c r
+  tdeps <- transitiveClosure branchDependents rs
+  -- we don't want the frontier in the result
+  pure $ tdeps `Set.difference` rs
 
 referenceOps
   :: (Ord v, Applicative m) => Codebase m v a -> Branch.ReferenceOps m
