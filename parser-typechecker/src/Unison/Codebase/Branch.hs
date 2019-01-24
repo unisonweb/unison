@@ -352,6 +352,17 @@ resolveNamedTermConflict old new typ b = let
   addName b name = addTermName (Referent.Ref new) name b
   in foldl' addName b'' (namesForTerm (Referent.Ref new) b)
 
+-- Like resolveNamedTermConflict, but for types
+resolveNamedTypeConflict :: Reference -> Reference -> Branch0 -> Branch0
+resolveNamedTypeConflict old new b = let
+  b' = resolveTypeConflict old new b
+  edits = R.lookupDom old (editedTypes b)
+  names = typeNamespace b R.|> Set.fromList (toList edits >>= TypeEdit.references)
+  b'' = foldl' del b' (R.toList names)
+    where del b (name, referent) = deleteTypeName referent name b
+  addName b name = addTypeName new name b
+  in foldl' addName b'' (namesForType new b)
+
 -- Use as `resolved editedTerms branch`
 resolved :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a b
 resolved f = resolved' . f where
