@@ -324,6 +324,14 @@ before b b2 = unbranch b `Causal.before` unbranch b2
 conflicts'' :: (Ord a, Ord b) => Relation a b -> Relation a b
 conflicts'' r = R.filterDom ((>1). length . flip R.lookupDom r) r
 
+-- Returns the list of edit conflicts, for both terms and types
+editConflicts :: Branch0 -> [Either (Reference, Set TypeEdit) (Reference, Set TermEdit) ]
+editConflicts b = let
+  termConflicts = conflicts'' (editedTerms b)
+  typeConflicts = conflicts'' (editedTypes b)
+  in [ Left (r, ts) | (r, ts) <- Map.toList (R.domain typeConflicts) ] ++
+     [ Right (r, es) | (r, es) <- Map.toList (R.domain termConflicts) ]
+
 conflicts' :: Branch0 -> Branch0
 conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        mempty

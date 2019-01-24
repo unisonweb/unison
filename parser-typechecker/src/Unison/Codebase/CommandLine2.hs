@@ -444,10 +444,13 @@ notifyUser dir o = case o of
       putPrettyLn . P.lines $
         (if (E.todoConflicts todo == mempty) then [] else [
           let c = E.todoConflicts todo
+              -- TODO: a bit more munging to remove name conflicts that are
+              -- also edit conflicts - edit conflicts take priority
               conflictedTypeNames = Branch.allTypeNames c
               conflictedTermNames = Branch.allTermNames c
           in
             P.callout "❓" $ P.lines . join $ [
+              renderEditConflicts ppe (Branch.head branch),
               [P.wrap ("The branch contains some names with conflicting definitions.")],
               [""],
               [P.lines . join $ [
@@ -481,6 +484,29 @@ notifyUser dir o = case o of
         ])
 
  where
+  renderEditConflicts ppe (Branch.editConflicts -> cs@(e:_)) = [
+    P.wrap $ "These" <> P.bold "definitions were edited differently"
+          <> "in branches that have been merged into this branch."
+          <> "You'll have to tell me what to use as the new definition:",
+    "",
+    P.lines (formatConflict <$> cs),
+    "",
+    tip $ "Use " <> P.group ("`view" <> P.sep " " (map name cs) <> "`")
+       <> "to view these definitions and"
+       <> P.group ("`resolve-edit " <> name e <> "<replacement>")
+       <> "to pick a replacement."
+    ]
+    where
+      name (Left (r,_)) = P.text (PPE.typeName ppe r)
+      name (Right (r,_)) = P.text (PPE.termName ppe (Referent.Ref r))
+      formatTypeEdits _es = error "was replaced with x, y, z, and also deprecated, some oxford commas"
+      formatTermEdits _es = error "was replaced with x, y, z, and also deprecated"
+      formatConflict e@(Left (_, edits)) =
+        "The type " <> P.bold (name e) <> formatTypeEdits (toList edits)
+      formatConflict e@(Right (_, edits)) =
+        P.bold (name e) <> " " <> formatTermEdits edits
+  renderEditConflicts _ppe _ = []
+
   renderFileName = P.group . P.blue . fromString
   prettyDeclTriple (name, _, displayDecl) = case displayDecl of
     BuiltinThing -> P.wrap $
