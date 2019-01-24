@@ -593,14 +593,20 @@ unreplace r1 r2 = unreplaceTerm r1 r2 . unreplaceType r1 r2
 -- To do this doesn't require a scan of the full relation,
 -- just a tweak to the range for `old`.
 unreplaceTerm :: Reference -> Reference -> Branch0 -> Branch0
-unreplaceTerm _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
+unreplaceTerm old new = over editedTermsL $ R.deleteRanWhere p old
+ where
+  p (TermEdit.Replace r _) = r == new
+  p _                      = False
 
 -- `unreplaceType old new` removes the type edit `old -> new`
 -- from the branch, or noops if there's no such edit.
 -- To do this doesn't require a scan of the full relation,
 -- just a tweak to the range for `old`.
 unreplaceType :: Reference -> Reference -> Branch0 -> Branch0
-unreplaceType _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
+unreplaceType old new = over editedTypesL $ R.deleteRanWhere p old
+ where
+  p (TypeEdit.Replace r) = r == new
+  p _                    = False
 
 -- If any `as` aren't in `b`, then delete them from `c` as well.  Kind of sad.
 deleteOrphans

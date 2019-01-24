@@ -340,11 +340,27 @@ replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
   foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)
 
+updateDom :: (Ord a, Ord b) => (a -> a) -> b -> Relation a b -> Relation a b
+updateDom f b r =
+  foldl' (\r a -> insert (f a) b $ delete a b r) r (lookupRan b r)
+
+updateRan :: (Ord a, Ord b) => (b -> b) -> a -> Relation a b -> Relation a b
+updateRan f a r =
+  foldl' (\r b -> insert a (f b) $ delete a b r) r (lookupDom a r)
+
 deleteRan :: (Ord a, Ord b) => b -> Relation a b -> Relation a b
 deleteRan b r = foldl' (\r a -> delete a b r) r $ lookupRan b r
 
 deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
 deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
+
+deleteRanWhere :: (Ord a, Ord b) => (b -> Bool) -> a -> Relation a b -> Relation a b
+deleteRanWhere f a r =
+  foldl' (\r b -> if f b then delete a b r else r) r (lookupDom a r)
+
+deleteDomWhere :: (Ord a, Ord b) => (a -> Bool) -> b -> Relation a b -> Relation a b
+deleteDomWhere f b r =
+  foldl' (\r a -> if f a then delete a b r else r) r (lookupRan b r)
 
 -- aka first
 mapDom :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b
