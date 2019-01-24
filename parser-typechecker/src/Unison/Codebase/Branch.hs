@@ -331,6 +331,26 @@ conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        (c editedTypes)
   where c f = conflicts'' . f $ b
 
+-- resolveTermEditConflict main entry point - handles edit and maybe also corresponding naming conflicts
+resolveNamedTermConflict :: Reference -> Reference -> Typing -> Branch0 -> Branch0
+resolveNamedTermConflict old new typ b = let
+  -- b' has an appropriately munged edit graph with no edit conflicts for `old`
+  -- BUT it may still have name conflicts
+  b' = resolveTermConflict old new typ b
+  -- We only want to do name fixups for a definition that is a conflicted
+  -- edit target of `old`, not unrelated stuff with a colliding name
+  edits :: Set TermEdit
+  edits = R.lookupDom old (editedTerms b)
+  -- things in the current namespace that are targets of edit to `old`
+  names :: Relation Name Referent
+  names = termNamespace b R.|> Set.fromList (toList edits >>= refs)
+    where refs = fmap Referent.Ref . TermEdit.references
+  -- We delete all the old names for conflicted edit targets
+  b'' = foldl' del b' (R.toList names)
+    where del b (name, referent) = deleteTermName referent name b
+  -- Then pick names for `new` by copying over names for `new` in `b`.
+  addName b name = addTermName (Referent.Ref new) name b
+  in foldl' addName b'' (namesForTerm (Referent.Ref new) b)
 
 -- Use as `resolved editedTerms branch`
 resolved :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a b
@@ -614,7 +634,7 @@ codebase ops (Branch (Causal.head -> b@Branch0 {..})) =
   let initial = Set.fromList $
         (Referent.toReference . snd <$> R.toList (termNamespace b)) ++
         (snd <$> R.toList (typeNamespace b)) ++
-        ((map snd (R.toList $ editedTerms b) >>= TermEdit.referents)) ++
+        ((map snd (R.toList $ editedTerms b) >>= TermEdit.references)) ++
         ((map snd (R.toList $ editedTypes b) >>= TypeEdit.references))
   in transitiveClosure (dependencies ops) initial
 
@@ -664,10 +684,14 @@ termOrTypeOp ops r ifTerm ifType = do
   else fail $ "neither term nor type: " ++ show r
 
 addTermName :: Referent -> Name -> Branch0 -> Branch0
-addTermName r new = over (namespaceL . terms) $ R.insert new r
+addTermName r new
+  = over (namespaceL . terms) (R.insert new r)
+  . over (oldNamespaceL . terms) (R.delete new r)
 
 addTypeName :: Reference -> Name -> Branch0 -> Branch0
-addTypeName r new = over (namespaceL . types) $ R.insert new r
+addTypeName r new
+  = over (namespaceL . types) (R.insert new r)
+  . over (oldNamespaceL . types) (R.delete new r)
 
 renameType :: Name -> Name -> Branch0 -> Branch0
 renameType old new = over (namespaceL . types) $ R.replaceDom old new
@@ -675,11 +699,22 @@ renameType old new = over (namespaceL . types) $ R.replaceDom old new
 renameTerm :: Name -> Name -> Branch0 -> Branch0
 renameTerm old new = over (namespaceL . terms) $ R.replaceDom old new
 
+-- Remove a name and move it to old namespace, if it exists
 deleteTermName :: Referent -> Name -> Branch0 -> Branch0
-deleteTermName r name = over (namespaceL . terms) $ R.delete name r
+deleteTermName r name b | R.member name r (termNamespace b)
+  = over (oldNamespaceL . terms) (R.insert name r)
+  . over (namespaceL . terms) (R.delete name r)
+  $ b
+deleteTermName _ _ b = b
 
+-- Remove a name and move it to old namespace, if it exists
 deleteTypeName :: Reference -> Name -> Branch0 -> Branch0
-deleteTypeName r name = over (namespaceL . types) $ R.delete name r
+deleteTypeName r name b | R.member name r (typeNamespace b)
+  = over (oldNamespaceL . types) (R.insert name r)
+  . over (namespaceL . types) (R.delete name r)
+  $ b
+deleteTypeName _ _ b = b
+-- deleteTypeName r name = over (namespaceL . types) $ R.delete name r
 
 deleteTermsNamed :: Name -> Branch0 -> Branch0
 deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
