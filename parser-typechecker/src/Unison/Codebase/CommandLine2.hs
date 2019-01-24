@@ -452,9 +452,9 @@ notifyUser dir o = case o of
               [""],
               [P.lines . join $ [
                 if null conflictedTypeNames then []
-                else [P.hang "Types:" (P.oxfordCommas (P.text <$> toList conflictedTypeNames))],
+                else [P.hang "Types:" (P.commas (P.text <$> toList conflictedTypeNames))],
                 if null conflictedTermNames then []
-                else [P.hang "Terms:" (P.oxfordCommas (P.text <$> toList conflictedTermNames))]
+                else [P.hang "Terms:" (P.commas (P.text <$> toList conflictedTermNames))]
               ]]
             ]
         ]) ++
@@ -530,6 +530,36 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> P.column2 [ (P.text name, fromString (show ref)) | (name, ref) <- types ])
     ]
+
+{-
+  These definitions were updated in separate branches that have been merged into this branch; as a result, I'm not sure which definition to use as the canonical replacement:
+
+    type Foo#asd was replaced with: Foo, Bar#s92, and Baz
+    id#3ff       was replaced with: id, unsafeId
+
+  Tip: Use `view Foo Bar#s92 Baz` to view these candidates` and `resolve-update Foo#asd <replacement>` to select one.
+
+  [Moreover, ] these names have conflicting definitions as a result of a merge:
+    Types: Bar
+    Terms: cat, dog
+
+  Tip: Use `view cat` to see the conflicting definitions, and some combination of `rename` and `replace` to resolve the conflict.
+
+  ----
+  conflict situations
+  a) multiple edits to a definition
+    1) the new definitions share the same name
+    2) the new definitions have distinct names
+  b) multiple definitions to a name
+    - suppress if coinciding with a1)
+-}
+data WrangledEditConflicts = WrangledEditConflicts
+  {                               -- `Nothing` means Deprecation
+    conflictedUpgrades :: Map Reference (Set (Maybe Reference))
+  , 
+  }
+wrangleEditConflicts :: Branch0 -> (Map Reference (Set Reference), Set Name)
+
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
