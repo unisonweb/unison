@@ -553,12 +553,11 @@ notifyUser dir o = case o of
   b) multiple definitions to a name
     - suppress if coinciding with a1)
 -}
-data WrangledEditConflicts = WrangledEditConflicts
-  {                               -- `Nothing` means Deprecation
-    conflictedUpgrades :: Map Reference (Set (Maybe Reference))
-  , 
-  }
-wrangleEditConflicts :: Branch0 -> (Map Reference (Set Reference), Set Name)
+-- data WrangledEditConflicts = WrangledEditConflicts
+--   {                               -- `Nothing` means Deprecation
+--     conflictedUpgrades :: R.Relation Map Reference (Set (Maybe Reference))
+--   }
+-- wrangleEditConflicts :: Branch0 -> (Map Reference (Set Reference), Set Name)
 
 
 allow :: FilePath -> Bool
