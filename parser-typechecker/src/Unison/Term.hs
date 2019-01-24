@@ -639,6 +639,8 @@ referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p
 
 updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
 updateDependencies u tm = ABT.rebuildUp go tm where
+  -- todo: this function might need tweaking if we ever allow type replacements
+  -- would need to look inside pattern matching and constructor calls
   go (Ref r) = Ref (Map.findWithDefault r r u)
   go f = f
 

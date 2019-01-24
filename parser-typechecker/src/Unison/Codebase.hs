@@ -444,6 +444,61 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
+propagate :: Monad m => Codebase m v a -> Branch0 -> m Branch0
+propagate code b = do
+  fs <- R.ran <$> frontier code b
+  propagate' code fs b
+
+-- For any `Reference` in the frontier which has a type edit, do no propagation.
+-- (for now, until we have a richer type edit algebra).
+--
+-- For any `Reference` in the frontier which has an unconflicted, type-preserving
+-- term edit, `old -> new`, replace `old` with `new` in dependents of the
+-- frontier, and call `propagate'` recursively on the new frontier.
+--
+-- If the term is `Typing.Same`, the dependents don't need to be typechecked.
+-- If the term is `Typing.Subtype`, and the dependent only has inferred type,
+-- it should be re-typechecked, and the new inferred type should be used.
+--
+-- This will create a whole bunch of new terms in the codebase and move the
+-- names onto those new terms. Uses `Term.updateDependencies` to perform
+-- the substitutions.
+propagate' :: Codebase m v a -> Set Reference -> Branch0 -> m Branch0
+propagate' _code _frontier _b =
+  -- Implementation should batch together all the term updates based on the
+  -- current frontier
+  error "todo - propagate'"
+
+
+-- The range of the returned relation is the frontier, and the domain is
+-- the set of dirty references.
+frontier :: Monad m => Codebase m v a -> Branch0 -> m (R.Relation Reference Reference)
+frontier code = frontier' (dependents code)
+
+-- (d, f) when d is "dirty" (needs update),
+--             f is in the frontier,
+--         and d depends of f
+-- a ⋖ b = a depends on b (with no intermediate dependencies)
+-- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
+--
+-- The range of this relation is the frontier, and the domain is
+-- the set of dirty references.
+frontier' :: forall m . Monad m
+         => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+         -> Branch0
+         -> m (R.Relation Reference Reference)
+frontier' getDependents b = let
+  edited :: Set Reference
+  edited = R.dom (Branch.editedTerms b) <> R.dom (Branch.editedTypes b)
+  addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
+  addDependents dependents ref =
+    (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Branch.contains b)
+      <$> getDependents ref
+  in do
+    -- (r,r2) ∈ dependsOn if r depends on r2
+    dependsOn <- foldM addDependents R.empty edited
+    -- todo: document this implementation better
+    pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 frontierTransitiveDependents ::
   Monad m => Codebase m v a -> Branch0 -> Set Reference -> m (Set Reference)

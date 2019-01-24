@@ -561,9 +561,44 @@ replaceTerm old new typ b =
   old' = Referent.Ref old
   new' = Referent.Ref new
 
+
+-- This resolves term edit edits for `old` in favor of winner, restoring
+-- `old` to an unconflicted state (produces a tree rooted at `winner`).
+--
+-- If `winner` is equal to the target of one of the edits with a source
+-- of `old`, the other arrow(s) from `old` are `unreplaced`.
+--
+-- If `winner` is equal to a new `Reference` which isn't the target of any edit
+-- with a source of `old`, then all the existing arrows leaving `old` are
+-- redirected to point to `winner`.
+--
+-- This can be defined in terms of `replaceTerm` and `unreplaceTerm`.
+resolveTermConflict :: Reference -> Reference -> Typing -> Branch0 -> Branch0
+resolveTermConflict _old _winner _winnerTyping _b =
+  error "todo - resolveTermConflict"
+
+-- Like `resolveTermConflict`, but for types.
+resolveTypeConflict :: Reference -> Reference -> Branch0 -> Branch0
+resolveTypeConflict _old _winner _b =
+  error "todo - resolveTypeConflict"
+
+-- Does both `unreplaceTerm` and `unreplaceType`. This is fine since
+-- term and type references are guaranteed to be distinct.
+unreplace :: Reference -> Reference -> Branch0 -> Branch0
+unreplace r1 r2 = unreplaceTerm r1 r2 . unreplaceType r1 r2
+
+-- `unreplaceTerm old new` removes the term edit `old -> new`
+-- from the branch, or noops if there's no such edit.
+--
+-- To do this doesn't require a scan of the full relation,
+-- just a tweak to the range for `old`.
 unreplaceTerm :: Reference -> Reference -> Branch0 -> Branch0
 unreplaceTerm _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
 
+-- `unreplaceType old new` removes the type edit `old -> new`
+-- from the branch, or noops if there's no such edit.
+-- To do this doesn't require a scan of the full relation,
+-- just a tweak to the range for `old`.
 unreplaceType :: Reference -> Reference -> Branch0 -> Branch0
 unreplaceType _old _new _b = error "todo - some relation operations to remove this efficiently just by looking at set for old and filtering"
 

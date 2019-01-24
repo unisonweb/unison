@@ -638,7 +638,7 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do
   -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)
-  f <- frontier (Codebase.dependents code) b
+  f <- Codebase.frontier code b
   let dirty = R.dom f
       frontier = R.ran f
       ppe = Branch.prettyPrintEnv1 b
@@ -681,26 +681,3 @@ loadDefinitions code refs = do
       _ -> error $ "unpossible " ++ show r
   pure (terms, types)
 
--- (f, d) when d is "dirty" (needs update),
---             f is in the frontier,
---         and d depends of f
--- a ⋖ b = a depends on b (with no intermediate dependencies)
--- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
---
--- The range of this relation is the frontier, and the domain is
--- the set of dirty references.
-frontier :: forall m . Monad m
-         => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
-         -> Branch0
-         -> m (Relation Reference Reference)
-frontier getDependents b = let
-  edited :: Set Reference
-  edited = R.dom (Branch.editedTerms b) <> R.dom (Branch.editedTypes b)
-  addDependents :: Relation Reference Reference -> Reference -> m (Relation Reference Reference)
-  addDependents dependents ref =
-    (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Branch.contains b)
-      <$> getDependents ref
-  in do
-    -- (r,r2) ∈ dependsOn if r depends on r2
-    dependsOn <- foldM addDependents R.empty edited
-    pure $ R.filterDom (not . flip Set.member edited) dependsOn
