@@ -451,25 +451,10 @@ notifyUser dir o = case o of
               c' = Branch.nameOnlyConflicts c
               conflictedTypeNames = Branch.allTypeNames c'
               conflictedTermNames = Branch.allTermNames c'
-              conflictedNames = toList (conflictedTermNames <> conflictedTypeNames)
           in
-            P.callout "❓" $ P.sep "\n\n" . join $ [
+            P.lines . join $ [
               renderEditConflicts ppe (Branch.head branch),
-              if Set.null conflictedTypeNames then []
-              else [
-                P.wrap ("These" <> P.bold "types have conflicted definitions:")
-                `P.hang` P.commas (P.text <$> toList conflictedTypeNames)
-              ],
-              if Set.null conflictedTermNames then []
-              else [
-                P.wrap ("These" <> P.bold "terms have conflicted definitions:")
-                `P.hang` P.commas (P.text <$> toList conflictedTermNames)
-              ],
-              if Set.null conflictedTermNames && Set.null conflictedTypeNames
-              then []
-              else [tip $ "Use " <> P.group ("`view " <> P.sep " " (P.text <$> take 3 conflictedNames) <> "`")
-                       <> "to see the conflicting defintions, then use `rename`"
-                       <> "and/or `replace` to resolve the conflicts."]
+              renderNameConflicts conflictedTypeNames conflictedTermNames
             ]
         ]) ++
         (if E.todoScore todo == 0 then [] else
@@ -495,30 +480,54 @@ notifyUser dir o = case o of
         ])
 
  where
-  renderEditConflicts ppe (Branch.editConflicts -> cs@(e:_)) = [
+  renderNameConflicts conflictedTypeNames conflictedTermNames =
+    if null allNames then []
+    else [
+      P.callout "❓" . P.sep "\n\n" . join $ [
+        if Set.null conflictedTypeNames then []
+        else [
+          P.wrap ("These" <> P.bold "types have conflicting definitions:")
+          `P.hang` P.commas (P.blue . P.text <$> toList conflictedTypeNames)
+        ],
+        if Set.null conflictedTermNames then []
+        else [
+          P.wrap ("These" <> P.bold "terms have conflicting definitions:")
+            `P.hang` P.commas (P.blue . P.text <$> toList conflictedTermNames)
+        ],
+        [tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
+            <> P.group ("`view " <> P.sep " " (P.text <$> take 3 allNames) <> "`")
+            <> "to see the conflicting defintions, then use `rename`"
+            <> "and/or `replace` to resolve the conflicts."]
+      ]
+    ]
+    where
+      allNames = toList (conflictedTermNames <> conflictedTypeNames)
+
+  renderEditConflicts ppe (Branch.editConflicts -> cs@(e:_)) = [P.callout "❓" . P.sep "\n\n" $ [
     P.wrap $ "These" <> P.bold "definitions were edited differently"
           <> "in branches that have been merged into this branch."
           <> "You'll have to tell me what to use as the new definition:",
     P.indentN 2 (P.lines (formatConflict <$> cs)),
-    tip $ P.group ("`resolve-edit " <> name e <> " <replacement>")
-          <> "to pick a replacement." -- todo: eventually something with `edit`
-    ]
+    tip $ "Use" <>
+      P.group ("`resolve-edit " <> name e <> " <replacement>")
+      <> "to pick a replacement." -- todo: eventually something with `edit`
+    ]]
     where
-      name (Left (r,_)) = P.text (PPE.typeName ppe r)
-      name (Right (r,_)) = P.text (PPE.termName ppe (Referent.Ref r))
+      name (Left (r,_)) = P.name P.bold (PPE.typeName ppe r)
+      name (Right (r,_)) = P.name P.bold (PPE.termName ppe (Referent.Ref r))
       formatTypeEdits es = P.wrap $ mconcat [
         "was",
         if TypeEdit.Deprecate `elem` es
         then "deprecated and also replaced with"
         else "replaced with",
-        P.oxfordCommas [ P.text (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
+        P.oxfordCommas [ P.name P.bold (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
         ]
       formatTermEdits es = P.wrap $ mconcat [
         "was",
         if TermEdit.Deprecate `elem` es
         then "deprecated and also replaced with"
         else "replaced with",
-        P.oxfordCommas [ P.text (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
+        P.oxfordCommas [ P.name P.bold (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
         ]
       formatConflict e@(Left (_, edits)) =
         "The type " <> name e <> formatTypeEdits (toList edits)
@@ -612,7 +621,7 @@ backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
 backtickEOS s = P.group ("`" <> s <> "`.")
 
 tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
-tip s = P.column2 [(P.bold "Tip:", P.wrap s)]
+tip s = P.column2 [("Tip:", P.wrap s)]
 
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 warn s = emojiNote "⚠️" s
