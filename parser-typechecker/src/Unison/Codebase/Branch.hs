@@ -285,10 +285,35 @@ typesNamed :: Name -> Branch0 -> Set Reference
 typesNamed name = R.lookupDom name . typeNamespace
 
 namesForTerm :: Referent -> Branch0 -> Set Name
-namesForTerm ref = R.lookupRan ref . termNamespace
+namesForTerm ref b = let
+  ns = (termNamespace b) :: Relation Name Referent
+  hashLen = numHashChars b
+  names = (R.lookupRan ref ns) :: Set Name
+  referents = (names R.<| termNamespace b) :: Relation Name Referent
+  f n = Map.findWithDefault (error "hashQualifyTermName likely busted") ref
+          $ hashQualifyTermName hashLen n (R.lookupDom n referents)
+  in Set.map f names
 
 namesForType :: Reference -> Branch0 -> Set Name
-namesForType ref = R.lookupRan ref . typeNamespace
+namesForType ref b = let
+  ns = (typeNamespace b) :: Relation Name Reference
+  hashLen = numHashChars b
+  names = (R.lookupRan ref ns) :: Set Name
+  references = (names R.<| typeNamespace b)
+  f n = Map.findWithDefault (error "hashQualifyTypeName likely busted") ref
+          $ hashQualifyTypeName hashLen n (R.lookupDom n references)
+  in Set.map f names
+
+hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Name
+hashQualifyTermName numHashChars n rs =
+  Map.fromList
+    [ (r, n <> Text.pack (Referent.showShort numHashChars r)) | r <- toList rs ]
+
+hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Name
+hashQualifyTypeName numHashChars n rs =
+  Map.fromList
+    [ (r, n <> Text.pack (Reference.showShort numHashChars r)) | r <- toList rs ]
+
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
 oldNamesForTerm numHashChars ref
@@ -302,13 +327,16 @@ oldNamesForType numHashChars ref
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
+numHashChars :: Branch0 -> Int
+numHashChars = const 8 -- todo: use trie to find depth of branching
+
 prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
-  numHashChars = 5 -- todo: compute from the branch0
+  hashLen = numHashChars b
   or :: Set a -> Set a -> Set a
   or s1 s2 = if Set.null s1 then s2 else s1
-  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm numHashChars r b
-  types r = multiset $ namesForType r b `or` oldNamesForType numHashChars r b
+  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm hashLen r b
+  types r = multiset $ namesForType r b `or` oldNamesForType hashLen r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
 
 prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
