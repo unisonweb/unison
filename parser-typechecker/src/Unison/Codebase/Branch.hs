@@ -90,7 +90,7 @@ data Branch0 =
           -- oldNamespace contains historic names for hashes
           , _oldNamespaceL :: Namespace
           , _editedTermsL :: Relation Reference TermEdit
-          , _editedTypesL      :: Relation Reference TypeEdit
+          , _editedTypesL :: Relation Reference TypeEdit
           } deriving (Eq, Show)
 
 makeLenses ''Branch0
@@ -561,26 +561,28 @@ replaceTerm old new typ b =
   old' = Referent.Ref old
   new' = Referent.Ref new
 
-
--- This resolves term edit edits for `old` in favor of winner, restoring
--- `old` to an unconflicted state (produces a tree rooted at `winner`).
---
--- If `winner` is equal to the target of one of the edits with a source
--- of `old`, the other arrow(s) from `old` are `unreplaced`.
---
--- If `winner` is equal to a new `Reference` which isn't the target of any edit
--- with a source of `old`, then all the existing arrows leaving `old` are
--- redirected to point to `winner`.
---
--- This can be defined in terms of `replaceTerm` and `unreplaceTerm`.
-resolveTermConflict :: Reference -> Reference -> Typing -> Branch0 -> Branch0
-resolveTermConflict _old _winner _winnerTyping _b =
-  error "todo - resolveTermConflict"
+-- This resolves term edit conflicts for `old`, restoring it to an unconflicted
+-- state such that:
+-- 1. There is only one edit of `old` (it's changed to `new`).
+-- 2. Every hash that `old` was changed to is now changed to `new`.
+resolveTermConflict :: Reference -> TermEdit -> Branch0 -> Branch0
+resolveTermConflict old new b = set
+  editedTermsL
+  (R.insertManyDom (toList . TermEdit.toReference =<< updates) new stripped)
+  b
+ where
+  updates  = Set.toList . R.lookupDom old $ editedTerms b
+  stripped = R.insert old new . R.deleteDom old $ editedTerms b
 
 -- Like `resolveTermConflict`, but for types.
-resolveTypeConflict :: Reference -> Reference -> Branch0 -> Branch0
-resolveTypeConflict _old _winner _b =
-  error "todo - resolveTypeConflict"
+resolveTypeConflict :: Reference -> TypeEdit -> Branch0 -> Branch0
+resolveTypeConflict old new b = set
+  editedTypesL
+  (R.insertManyDom (toList . TypeEdit.toReference =<< updates) new stripped)
+  b
+ where
+  updates  = Set.toList . R.lookupDom old $ editedTypes b
+  stripped = R.insert old new . R.deleteDom old $ editedTypes b
 
 -- Does both `unreplaceTerm` and `unreplaceType`. This is fine since
 -- term and type references are guaranteed to be distinct.
