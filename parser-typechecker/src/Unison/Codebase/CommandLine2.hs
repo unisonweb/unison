@@ -504,7 +504,6 @@ notifyUser dir o = case o of
           <> "to pick a replacement." -- todo: eventually something with `edit`
     ]
     where
-      editTargets  =
       name (Left (r,_)) = P.text (PPE.typeName ppe r)
       name (Right (r,_)) = P.text (PPE.termName ppe (Referent.Ref r))
       formatTypeEdits es = P.wrap $ mconcat [
