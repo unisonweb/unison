@@ -59,6 +59,8 @@ import qualified Unison.Referent                as Referent
 import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
 import qualified Unison.TermPrinter             as TermPrinter
+import qualified Unison.Codebase.TypeEdit       as TypeEdit
+import qualified Unison.Codebase.TermEdit       as TermEdit
 import qualified Unison.UnisonFile              as UF
 import qualified Unison.Util.ColorText          as CT
 import           Unison.Util.Monoid             (intercalateMap)
@@ -444,18 +446,15 @@ notifyUser dir o = case o of
       putPrettyLn . P.lines $
         (if (E.todoConflicts todo == mempty) then [] else [
           let c = E.todoConflicts todo
-              conflictedTypeNames = Branch.allTypeNames c
-              conflictedTermNames = Branch.allTermNames c
+              -- If a conflict is both an edit and a name conflict, we show it
+              -- under the edit conflicts section
+              c' = Branch.nameOnlyConflicts c
+              conflictedTypeNames = Branch.allTypeNames c'
+              conflictedTermNames = Branch.allTermNames c'
           in
-            P.callout "❓" $ P.lines . join $ [
-              [P.wrap ("The branch contains some names with conflicting definitions.")],
-              [""],
-              [P.lines . join $ [
-                if null conflictedTypeNames then []
-                else [P.hang "Types:" (P.oxfordCommas (P.text <$> toList conflictedTypeNames))],
-                if null conflictedTermNames then []
-                else [P.hang "Terms:" (P.oxfordCommas (P.text <$> toList conflictedTermNames))]
-              ]]
+            P.lines . join $ [
+              renderEditConflicts ppe (Branch.head branch),
+              renderNameConflicts conflictedTypeNames conflictedTermNames
             ]
         ]) ++
         (if E.todoScore todo == 0 then [] else
@@ -481,6 +480,61 @@ notifyUser dir o = case o of
         ])
 
  where
+  renderNameConflicts conflictedTypeNames conflictedTermNames =
+    if null allNames then []
+    else [
+      P.callout "❓" . P.sep "\n\n" . join $ [
+        if Set.null conflictedTypeNames then []
+        else [
+          P.wrap ("These" <> P.bold "types have conflicting definitions:")
+          `P.hang` P.commas (P.blue . P.text <$> toList conflictedTypeNames)
+        ],
+        if Set.null conflictedTermNames then []
+        else [
+          P.wrap ("These" <> P.bold "terms have conflicting definitions:")
+            `P.hang` P.commas (P.blue . P.text <$> toList conflictedTermNames)
+        ],
+        [tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
+            <> P.group ("`view " <> P.sep " " (P.text <$> take 3 allNames) <> "`")
+            <> "to see the conflicting defintions, then use `rename`"
+            <> "and/or `replace` to resolve the conflicts."]
+      ]
+    ]
+    where
+      allNames = toList (conflictedTermNames <> conflictedTypeNames)
+
+  renderEditConflicts ppe (Branch.editConflicts -> cs@(e:_)) = [P.callout "❓" . P.sep "\n\n" $ [
+    P.wrap $ "These" <> P.bold "definitions were edited differently"
+          <> "in branches that have been merged into this branch."
+          <> "You'll have to tell me what to use as the new definition:",
+    P.indentN 2 (P.lines (formatConflict <$> cs)),
+    tip $ "Use" <>
+      P.group ("`resolve-edit " <> name e <> " <replacement>")
+      <> "to pick a replacement." -- todo: eventually something with `edit`
+    ]]
+    where
+      name (Left (r,_)) = P.name P.bold (PPE.typeName ppe r)
+      name (Right (r,_)) = P.name P.bold (PPE.termName ppe (Referent.Ref r))
+      formatTypeEdits es = P.wrap $ mconcat [
+        "was",
+        if TypeEdit.Deprecate `elem` es
+        then "deprecated and also replaced with"
+        else "replaced with",
+        P.oxfordCommas [ P.name P.bold (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
+        ]
+      formatTermEdits es = P.wrap $ mconcat [
+        "was",
+        if TermEdit.Deprecate `elem` es
+        then "deprecated and also replaced with"
+        else "replaced with",
+        P.oxfordCommas [ P.name P.bold (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
+        ]
+      formatConflict e@(Left (_, edits)) =
+        "The type " <> name e <> formatTypeEdits (toList edits)
+      formatConflict e@(Right (_, edits)) =
+        "The term " <> name e <> " " <> formatTermEdits edits
+  renderEditConflicts _ppe _ = []
+
   renderFileName = P.group . P.blue . fromString
   prettyDeclTriple (name, _, displayDecl) = case displayDecl of
     BuiltinThing -> P.wrap $
@@ -567,7 +621,7 @@ backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
 backtickEOS s = P.group ("`" <> s <> "`.")
 
 tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
-tip s = P.column2 [(P.bold "Tip:", P.wrap s)]
+tip s = P.column2 [("Tip:", P.wrap s)]
 
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 warn s = emojiNote "⚠️" s

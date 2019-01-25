@@ -92,7 +92,7 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
     done m = sortOn snd <$> toList m
 
 showShort :: Int -> Reference -> String
-showShort _ (Builtin_ t) = Text.unpack t
+showShort _ (Builtin_ t) = "##" <> Text.unpack t
 showShort numHashChars (DerivedPrivate_ id) = "#" <> take numHashChars (show id)
 
 instance Show Reference where

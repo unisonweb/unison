@@ -285,10 +285,36 @@ typesNamed :: Name -> Branch0 -> Set Reference
 typesNamed name = R.lookupDom name . typeNamespace
 
 namesForTerm :: Referent -> Branch0 -> Set Name
-namesForTerm ref = R.lookupRan ref . termNamespace
+namesForTerm ref b = let
+  ns = (termNamespace b) :: Relation Name Referent
+  hashLen = numHashChars b
+  names = (R.lookupRan ref ns) :: Set Name
+  referents = (names R.<| termNamespace b) :: Relation Name Referent
+  f n = Map.findWithDefault (error "hashQualifyTermName likely busted") ref
+          $ hashQualifyTermName hashLen n (R.lookupDom n referents)
+  in Set.map f names
 
 namesForType :: Reference -> Branch0 -> Set Name
-namesForType ref = R.lookupRan ref . typeNamespace
+namesForType ref b = let
+  ns = (typeNamespace b) :: Relation Name Reference
+  hashLen = numHashChars b
+  names = (R.lookupRan ref ns) :: Set Name
+  references = (names R.<| typeNamespace b)
+  f n = Map.findWithDefault (error "hashQualifyTypeName likely busted") ref
+          $ hashQualifyTypeName hashLen n (R.lookupDom n references)
+  in Set.map f names
+
+hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Name
+hashQualifyTermName numHashChars n rs =
+  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
+  else Map.fromList [ (r, n <> Text.pack (Referent.showShort numHashChars r))
+                    | r <- toList rs ]
+
+hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Name
+hashQualifyTypeName numHashChars n rs =
+  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
+  else Map.fromList [ (r, n <> Text.pack (Reference.showShort numHashChars r))
+                    | r <- toList rs ]
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
 oldNamesForTerm numHashChars ref
@@ -302,13 +328,16 @@ oldNamesForType numHashChars ref
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
+numHashChars :: Branch0 -> Int
+numHashChars = const 3 -- todo: use trie to find depth of branching
+
 prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
-  numHashChars = 5 -- todo: compute from the branch0
+  hashLen = numHashChars b
   or :: Set a -> Set a -> Set a
   or s1 s2 = if Set.null s1 then s2 else s1
-  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm numHashChars r b
-  types r = multiset $ namesForType r b `or` oldNamesForType numHashChars r b
+  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm hashLen r b
+  types r = multiset $ namesForType r b `or` oldNamesForType hashLen r b
   multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
 
 prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
@@ -324,6 +353,33 @@ before b b2 = unbranch b `Causal.before` unbranch b2
 conflicts'' :: (Ord a, Ord b) => Relation a b -> Relation a b
 conflicts'' r = R.filterDom ((>1). length . flip R.lookupDom r) r
 
+-- Returns the list of edit conflicts, for both terms and types
+editConflicts :: Branch0 -> [Either (Reference, Set TypeEdit) (Reference, Set TermEdit) ]
+editConflicts b = let
+  termConflicts = conflicts'' (editedTerms b)
+  typeConflicts = conflicts'' (editedTypes b)
+  in [ Left (r, ts) | (r, ts) <- Map.toList (R.domain typeConflicts) ] ++
+     [ Right (r, es) | (r, es) <- Map.toList (R.domain termConflicts) ]
+
+-- Returns the set of all references which are the target of a conflicted edit.
+conflictedEditTargets :: Branch0 -> Set Reference
+conflictedEditTargets b = let
+  go (Left (_, ts)) = Set.fromList (toList ts >>= TypeEdit.references)
+  go (Right (_, ts)) = Set.fromList (toList ts >>= TermEdit.references)
+  in Set.unions (go <$> editConflicts b)
+
+-- Given a conflicted branch, b, removes all the name conflicts which are
+-- also edit conflicts.
+nameOnlyConflicts :: Branch0 -> Branch0
+nameOnlyConflicts b
+  = over (namespaceL . terms) (R.filterRan (not . isCT))
+  . over (namespaceL . types) (R.filterRan (`Set.notMember` ets))
+  $ b
+  where
+    isCT (Referent.Ref r) = r `Set.member` ets
+    isCT _ = False
+    ets = conflictedEditTargets b
+
 conflicts' :: Branch0 -> Branch0
 conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        mempty
@@ -331,6 +387,45 @@ conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        (c editedTypes)
   where c f = conflicts'' . f $ b
 
+-- resolveTermEditConflict main entry point - handles edit and maybe also corresponding naming conflicts
+resolveNamedTermConflict :: Reference -> TermEdit -> Branch0 -> Branch0
+resolveNamedTermConflict old new b = let
+  -- b' has an appropriately munged edit graph with no edit conflicts for `old`
+  -- BUT it may still have name conflicts
+  b' = resolveTermConflict old new b
+  -- We only want to do name fixups for a definition that is a conflicted
+  -- edit target of `old`, not unrelated stuff with a colliding name
+  edits :: Set TermEdit
+  edits = R.lookupDom old (editedTerms b)
+  -- things in the current namespace that are targets of edit to `old`
+  names :: Relation Name Referent
+  names = termNamespace b R.|> Set.fromList (toList edits >>= refs)
+    where refs = fmap Referent.Ref . TermEdit.references
+  -- We delete all the old names for conflicted edit targets
+  b'' = foldl' del b' (R.toList names)
+    where del b (name, referent) = deleteTermName referent name b
+  -- Then pick names for `new` by copying over names for `new` in `b`.
+  addName b name = case TermEdit.toReference new of
+    Just new -> addTermName (Referent.Ref new) name b
+    Nothing -> b
+  in case TermEdit.toReference new of
+    Nothing -> b''
+    Just new -> foldl' addName b'' (namesForTerm (Referent.Ref new) b)
+
+-- Like resolveNamedTermConflict, but for types
+resolveNamedTypeConflict :: Reference -> TypeEdit -> Branch0 -> Branch0
+resolveNamedTypeConflict old new b = let
+  b' = resolveTypeConflict old new b
+  edits = R.lookupDom old (editedTypes b)
+  names = typeNamespace b R.|> Set.fromList (toList edits >>= TypeEdit.references)
+  b'' = foldl' del b' (R.toList names)
+    where del b (name, referent) = deleteTypeName referent name b
+  addName b name = case TypeEdit.toReference new of
+    Nothing -> b
+    Just new -> addTypeName new name b
+  in case TypeEdit.toReference new of
+    Nothing -> b''
+    Just new -> foldl' addName b'' (namesForType new b)
 
 -- Use as `resolved editedTerms branch`
 resolved :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a b
@@ -622,7 +717,7 @@ codebase ops (Branch (Causal.head -> b@Branch0 {..})) =
   let initial = Set.fromList $
         (Referent.toReference . snd <$> R.toList (termNamespace b)) ++
         (snd <$> R.toList (typeNamespace b)) ++
-        ((map snd (R.toList $ editedTerms b) >>= TermEdit.referents)) ++
+        ((map snd (R.toList $ editedTerms b) >>= TermEdit.references)) ++
         ((map snd (R.toList $ editedTypes b) >>= TypeEdit.references))
   in transitiveClosure (dependencies ops) initial
 
@@ -672,10 +767,14 @@ termOrTypeOp ops r ifTerm ifType = do
   else fail $ "neither term nor type: " ++ show r
 
 addTermName :: Referent -> Name -> Branch0 -> Branch0
-addTermName r new = over (namespaceL . terms) $ R.insert new r
+addTermName r new
+  = over (namespaceL . terms) (R.insert new r)
+  . over (oldNamespaceL . terms) (R.delete new r)
 
 addTypeName :: Reference -> Name -> Branch0 -> Branch0
-addTypeName r new = over (namespaceL . types) $ R.insert new r
+addTypeName r new
+  = over (namespaceL . types) (R.insert new r)
+  . over (oldNamespaceL . types) (R.delete new r)
 
 renameType :: Name -> Name -> Branch0 -> Branch0
 renameType old new = over (namespaceL . types) $ R.replaceDom old new
@@ -683,11 +782,22 @@ renameType old new = over (namespaceL . types) $ R.replaceDom old new
 renameTerm :: Name -> Name -> Branch0 -> Branch0
 renameTerm old new = over (namespaceL . terms) $ R.replaceDom old new
 
+-- Remove a name and move it to old namespace, if it exists
 deleteTermName :: Referent -> Name -> Branch0 -> Branch0
-deleteTermName r name = over (namespaceL . terms) $ R.delete name r
+deleteTermName r name b | R.member name r (termNamespace b)
+  = over (oldNamespaceL . terms) (R.insert name r)
+  . over (namespaceL . terms) (R.delete name r)
+  $ b
+deleteTermName _ _ b = b
 
+-- Remove a name and move it to old namespace, if it exists
 deleteTypeName :: Reference -> Name -> Branch0 -> Branch0
-deleteTypeName r name = over (namespaceL . types) $ R.delete name r
+deleteTypeName r name b | R.member name r (typeNamespace b)
+  = over (oldNamespaceL . types) (R.insert name r)
+  . over (namespaceL . types) (R.delete name r)
+  $ b
+deleteTypeName _ _ b = b
+-- deleteTypeName r name = over (namespaceL . types) $ R.delete name r
 
 deleteTermsNamed :: Name -> Branch0 -> Branch0
 deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
