@@ -388,11 +388,11 @@ conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
   where c f = conflicts'' . f $ b
 
 -- resolveTermEditConflict main entry point - handles edit and maybe also corresponding naming conflicts
-resolveNamedTermConflict :: Reference -> Reference -> Typing -> Branch0 -> Branch0
-resolveNamedTermConflict old new typ b = let
+resolveNamedTermConflict :: Reference -> TermEdit -> Branch0 -> Branch0
+resolveNamedTermConflict old new b = let
   -- b' has an appropriately munged edit graph with no edit conflicts for `old`
   -- BUT it may still have name conflicts
-  b' = resolveTermConflict old new typ b
+  b' = resolveTermConflict old new b
   -- We only want to do name fixups for a definition that is a conflicted
   -- edit target of `old`, not unrelated stuff with a colliding name
   edits :: Set TermEdit
@@ -405,19 +405,27 @@ resolveNamedTermConflict old new typ b = let
   b'' = foldl' del b' (R.toList names)
     where del b (name, referent) = deleteTermName referent name b
   -- Then pick names for `new` by copying over names for `new` in `b`.
-  addName b name = addTermName (Referent.Ref new) name b
-  in foldl' addName b'' (namesForTerm (Referent.Ref new) b)
+  addName b name = case TermEdit.toReference new of
+    Just new -> addTermName (Referent.Ref new) name b
+    Nothing -> b
+  in case TermEdit.toReference new of
+    Nothing -> b''
+    Just new -> foldl' addName b'' (namesForTerm (Referent.Ref new) b)
 
 -- Like resolveNamedTermConflict, but for types
-resolveNamedTypeConflict :: Reference -> Reference -> Branch0 -> Branch0
+resolveNamedTypeConflict :: Reference -> TypeEdit -> Branch0 -> Branch0
 resolveNamedTypeConflict old new b = let
   b' = resolveTypeConflict old new b
   edits = R.lookupDom old (editedTypes b)
   names = typeNamespace b R.|> Set.fromList (toList edits >>= TypeEdit.references)
   b'' = foldl' del b' (R.toList names)
     where del b (name, referent) = deleteTypeName referent name b
-  addName b name = addTypeName new name b
-  in foldl' addName b'' (namesForType new b)
+  addName b name = case TypeEdit.toReference new of
+    Nothing -> b
+    Just new -> addTypeName new name b
+  in case TypeEdit.toReference new of
+    Nothing -> b''
+    Just new -> foldl' addName b'' (namesForType new b)
 
 -- Use as `resolved editedTerms branch`
 resolved :: Ord a => (Branch0 -> Relation a b) -> Branch0 -> Map a b
