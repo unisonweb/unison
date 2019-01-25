@@ -457,12 +457,12 @@ notifyUser dir o = case o of
               renderEditConflicts ppe (Branch.head branch),
               if Set.null conflictedTypeNames then []
               else [
-                P.wrap ("These" <> P.bold "types have conflicted definitions" <> ":")
+                P.wrap ("These" <> P.bold "types have conflicted definitions:")
                 `P.hang` P.commas (P.text <$> toList conflictedTypeNames)
               ],
               if Set.null conflictedTermNames then []
               else [
-                P.wrap ("These" <> P.bold "terms have conflicted definitions" <> ":")
+                P.wrap ("These" <> P.bold "terms have conflicted definitions:")
                 `P.hang` P.commas (P.text <$> toList conflictedTermNames)
               ],
               if Set.null conflictedTermNames && Set.null conflictedTypeNames
@@ -499,15 +499,12 @@ notifyUser dir o = case o of
     P.wrap $ "These" <> P.bold "definitions were edited differently"
           <> "in branches that have been merged into this branch."
           <> "You'll have to tell me what to use as the new definition:",
-    "",
-    P.lines (formatConflict <$> cs),
-    "",
-    tip $ "Use " <> P.group ("`view " <> P.sep " " (map name cs) <> "`")
-       <> "to view these definitions and"
-       <> P.group ("`resolve-edit " <> name e <> "<replacement>")
-       <> "to pick a replacement."
+    P.indentN 2 (P.lines (formatConflict <$> cs)),
+    tip $ P.group ("`resolve-edit " <> name e <> " <replacement>")
+          <> "to pick a replacement." -- todo: eventually something with `edit`
     ]
     where
+      editTargets  =
       name (Left (r,_)) = P.text (PPE.typeName ppe r)
       name (Right (r,_)) = P.text (PPE.termName ppe (Referent.Ref r))
       formatTypeEdits es = P.wrap $ mconcat [
@@ -525,9 +522,9 @@ notifyUser dir o = case o of
         P.oxfordCommas [ P.text (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
         ]
       formatConflict e@(Left (_, edits)) =
-        "The type " <> P.bold (name e) <> formatTypeEdits (toList edits)
+        "The type " <> name e <> formatTypeEdits (toList edits)
       formatConflict e@(Right (_, edits)) =
-        "The term " <> P.bold (name e) <> " " <> formatTermEdits edits
+        "The term " <> name e <> " " <> formatTermEdits edits
   renderEditConflicts _ppe _ = []
 
   renderFileName = P.group . P.blue . fromString

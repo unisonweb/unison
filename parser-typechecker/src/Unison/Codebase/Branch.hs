@@ -306,14 +306,15 @@ namesForType ref b = let
 
 hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Name
 hashQualifyTermName numHashChars n rs =
-  Map.fromList
-    [ (r, n <> Text.pack (Referent.showShort numHashChars r)) | r <- toList rs ]
+  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
+  else Map.fromList [ (r, n <> Text.pack (Referent.showShort numHashChars r))
+                    | r <- toList rs ]
 
 hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Name
 hashQualifyTypeName numHashChars n rs =
-  Map.fromList
-    [ (r, n <> Text.pack (Reference.showShort numHashChars r)) | r <- toList rs ]
-
+  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
+  else Map.fromList [ (r, n <> Text.pack (Reference.showShort numHashChars r))
+                    | r <- toList rs ]
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
 oldNamesForTerm numHashChars ref
@@ -328,7 +329,7 @@ oldNamesForType numHashChars ref
   . (view $ oldNamespaceL . types)
 
 numHashChars :: Branch0 -> Int
-numHashChars = const 8 -- todo: use trie to find depth of branching
+numHashChars = const 3 -- todo: use trie to find depth of branching
 
 prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
 prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
