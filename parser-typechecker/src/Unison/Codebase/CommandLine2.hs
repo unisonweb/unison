@@ -59,6 +59,8 @@ import qualified Unison.Referent                as Referent
 import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
 import qualified Unison.TermPrinter             as TermPrinter
+import qualified Unison.Codebase.TypeEdit       as TypeEdit
+import qualified Unison.Codebase.TermEdit       as TermEdit
 import qualified Unison.UnisonFile              as UF
 import qualified Unison.Util.ColorText          as CT
 import           Unison.Util.Monoid             (intercalateMap)
@@ -444,21 +446,30 @@ notifyUser dir o = case o of
       putPrettyLn . P.lines $
         (if (E.todoConflicts todo == mempty) then [] else [
           let c = E.todoConflicts todo
-              -- TODO: a bit more munging to remove name conflicts that are
-              -- also edit conflicts - edit conflicts take priority
-              conflictedTypeNames = Branch.allTypeNames c
-              conflictedTermNames = Branch.allTermNames c
+              -- If a conflict is both an edit and a name conflict, we show it
+              -- under the edit conflicts section
+              c' = Branch.nameOnlyConflicts c
+              conflictedTypeNames = Branch.allTypeNames c'
+              conflictedTermNames = Branch.allTermNames c'
+              conflictedNames = toList (conflictedTermNames <> conflictedTypeNames)
           in
-            P.callout "❓" $ P.lines . join $ [
+            P.callout "❓" $ P.sep "\n\n" . join $ [
               renderEditConflicts ppe (Branch.head branch),
-              [P.wrap ("The branch contains some names with conflicting definitions.")],
-              [""],
-              [P.lines . join $ [
-                if null conflictedTypeNames then []
-                else [P.hang "Types:" (P.commas (P.text <$> toList conflictedTypeNames))],
-                if null conflictedTermNames then []
-                else [P.hang "Terms:" (P.commas (P.text <$> toList conflictedTermNames))]
-              ]]
+              if Set.null conflictedTypeNames then []
+              else [
+                P.wrap ("These" <> P.bold "types have conflicted definitions" <> ":")
+                `P.hang` P.commas (P.text <$> toList conflictedTypeNames)
+              ],
+              if Set.null conflictedTermNames then []
+              else [
+                P.wrap ("These" <> P.bold "terms have conflicted definitions" <> ":")
+                `P.hang` P.commas (P.text <$> toList conflictedTermNames)
+              ],
+              if Set.null conflictedTermNames && Set.null conflictedTypeNames
+              then []
+              else [tip $ "Use " <> P.group ("`view " <> P.sep " " (P.text <$> take 3 conflictedNames) <> "`")
+                       <> "to see the conflicting defintions, then use `rename`"
+                       <> "and/or `replace` to resolve the conflicts."]
             ]
         ]) ++
         (if E.todoScore todo == 0 then [] else
@@ -499,12 +510,24 @@ notifyUser dir o = case o of
     where
       name (Left (r,_)) = P.text (PPE.typeName ppe r)
       name (Right (r,_)) = P.text (PPE.termName ppe (Referent.Ref r))
-      formatTypeEdits _es = error "was replaced with x, y, z, and also deprecated, some oxford commas"
-      formatTermEdits _es = error "was replaced with x, y, z, and also deprecated"
+      formatTypeEdits es = P.wrap $ mconcat [
+        "was",
+        if TypeEdit.Deprecate `elem` es
+        then "deprecated and also replaced with"
+        else "replaced with",
+        P.oxfordCommas [ P.text (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
+        ]
+      formatTermEdits es = P.wrap $ mconcat [
+        "was",
+        if TermEdit.Deprecate `elem` es
+        then "deprecated and also replaced with"
+        else "replaced with",
+        P.oxfordCommas [ P.text (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
+        ]
       formatConflict e@(Left (_, edits)) =
         "The type " <> P.bold (name e) <> formatTypeEdits (toList edits)
       formatConflict e@(Right (_, edits)) =
-        P.bold (name e) <> " " <> formatTermEdits edits
+        "The term " <> P.bold (name e) <> " " <> formatTermEdits edits
   renderEditConflicts _ppe _ = []
 
   renderFileName = P.group . P.blue . fromString

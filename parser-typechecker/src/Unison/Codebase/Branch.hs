@@ -332,6 +332,25 @@ editConflicts b = let
   in [ Left (r, ts) | (r, ts) <- Map.toList (R.domain typeConflicts) ] ++
      [ Right (r, es) | (r, es) <- Map.toList (R.domain termConflicts) ]
 
+-- Returns the set of all references which are the target of a conflicted edit.
+conflictedEditTargets :: Branch0 -> Set Reference
+conflictedEditTargets b = let
+  go (Left (_, ts)) = Set.fromList (toList ts >>= TypeEdit.references)
+  go (Right (_, ts)) = Set.fromList (toList ts >>= TermEdit.references)
+  in Set.unions (go <$> editConflicts b)
+
+-- Given a conflicted branch, b, removes all the name conflicts which are
+-- also edit conflicts.
+nameOnlyConflicts :: Branch0 -> Branch0
+nameOnlyConflicts b
+  = over (namespaceL . terms) (R.filterRan (not . isCT))
+  . over (namespaceL . types) (R.filterRan (`Set.notMember` ets))
+  $ b
+  where
+    isCT (Referent.Ref r) = r `Set.member` ets
+    isCT _ = False
+    ets = conflictedEditTargets b
+
 conflicts' :: Branch0 -> Branch0
 conflicts' b = Branch0 (Namespace (c termNamespace) (c typeNamespace))
                        mempty
