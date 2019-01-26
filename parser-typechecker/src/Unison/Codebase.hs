@@ -497,7 +497,7 @@ frontier' getDependents b = let
   in do
     -- (r,r2) ∈ dependsOn if r depends on r2
     dependsOn <- foldM addDependents R.empty edited
-    -- todo: document this implementation better
+    -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
     pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 frontierTransitiveDependents ::
