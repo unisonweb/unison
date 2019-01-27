@@ -30,7 +30,6 @@ emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
 emitAsPlainTextTo src e f = writeFile f plainErr
   where plainErr = Color.toPlain $ prettyParseError src e
 
--- TODO: Figure out how to use the first argument to showParseError correctly
 printError :: Var v => String -> Err v -> IO ()
 printError src e = putStrLn $ B.showParseError src e
 
