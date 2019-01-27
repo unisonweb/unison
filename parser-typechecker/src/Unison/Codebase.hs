@@ -25,6 +25,7 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( fromString )
 import qualified Data.Text                     as Text
+import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
                                                 , levenshteinDistance
@@ -109,21 +110,19 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-fuzzyFindTerms' :: Branch -> [String] -> [(Name, Referent)]
-fuzzyFindTerms' branch query =
+fuzzyFindTerms' :: Branch -> [String] -> [(Text, Referent)]
+fuzzyFindTerms' (Branch.head -> branch) query =
   let
-    termNames =
-      Text.unpack <$> toList (Branch.allTermNames $ Branch.head branch)
+    termNames = Text.unpack <$> toList (Branch.allTermNames branch)
     matchingTerms :: [String]
     matchingTerms = if null query
       then termNames
       else query >>= \q -> sortedApproximateMatches q termNames
     refsForName :: String -> [Referent]
-    refsForName name =
-      Set.toList $ Branch.termsNamed (Text.pack name) (Branch.head branch)
-  in
-    matchingTerms
-      >>= \name -> (Text.pack name, ) <$> refsForName name
+    refsForName (Text.pack -> name) = Set.toList $ Branch.termsNamed name branch
+    makePair (Text.pack -> name) r =
+      (Branch.hashQualifiedTermName branch name r, r)
+  in matchingTerms >>= \name -> makePair name <$> refsForName name
 
 fuzzyFindTermTypes
   :: forall m v a
@@ -131,7 +130,7 @@ fuzzyFindTermTypes
   => Codebase m v a
   -> Branch
   -> [String]
-  -> m [(Name, Referent, Maybe (Type v a))]
+  -> m [(Text, Referent, Maybe (Type v a))]
 fuzzyFindTermTypes codebase branch query =
   let found = fuzzyFindTerms' branch query
       tripleForRef name ref = (name, ref, ) <$> case ref of
@@ -140,16 +139,18 @@ fuzzyFindTermTypes codebase branch query =
         Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 
-fuzzyFindTypes' :: Branch -> [String] -> [(Name, Reference)]
+fuzzyFindTypes' :: Branch -> [String] -> [(Text, Reference)]
 fuzzyFindTypes' (Branch.head -> branch) query =
-  let typeNames =
-        Text.unpack <$> toList (Branch.allTypeNames branch)
-      matchingTypes = if null query
-        then typeNames
-        else query >>= \q -> sortedApproximateMatches q typeNames
-  in  matchingTypes >>= \name ->
-        (Text.pack name, )
-          <$> (Set.toList $ Branch.typesNamed (Text.pack name) branch)
+  let
+    typeNames =
+      Text.unpack <$> toList (Branch.allTypeNames branch)
+    matchingTypes = if null query
+      then typeNames
+      else query >>= \q -> sortedApproximateMatches q typeNames
+    refsForName (Text.pack -> name) = Set.toList $ Branch.typesNamed name branch
+    makePair (Text.pack -> name) r =
+      (Branch.hashQualifiedTypeName branch name r, r)
+  in matchingTypes >>= \name -> makePair name <$> refsForName name
 
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
 prettyTypeSource = error "todo"
