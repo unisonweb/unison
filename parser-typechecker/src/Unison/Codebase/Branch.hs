@@ -20,6 +20,7 @@ import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
 import qualified Data.Text                as Text
+import           Data.Text                (Text)
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
@@ -304,17 +305,33 @@ namesForType ref b = let
           $ hashQualifyTypeName hashLen n (R.lookupDom n references)
   in Set.map f names
 
-hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Name
+hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Text
 hashQualifyTermName numHashChars n rs =
   if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
   else Map.fromList [ (r, n <> Text.pack (Referent.showShort numHashChars r))
                     | r <- toList rs ]
 
-hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Name
+hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Text
 hashQualifyTypeName numHashChars n rs =
   if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
   else Map.fromList [ (r, n <> Text.pack (Reference.showShort numHashChars r))
                     | r <- toList rs ]
+
+-- Get the appropriately hash-qualified version of a name for term.
+-- Should be the same as the input name if the branch is unconflicted.
+hashQualifiedTermName :: Branch0 -> Name -> Referent -> Text
+hashQualifiedTermName b n r =
+  if (> 1) . length . R.lookupDom n . termNamespace $ b then
+    -- name is conflicted
+    n <> Text.pack (Referent.showShort (numHashChars b) r)
+  else n
+
+hashQualifiedTypeName :: Branch0 -> Name -> Reference -> Text
+hashQualifiedTypeName b n r =
+  if (> 1) . length . R.lookupDom n . typeNamespace $ b then
+    -- name is conflicted
+    n <> Text.pack (Reference.showShort (numHashChars b) r)
+  else n
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
 oldNamesForTerm numHashChars ref
