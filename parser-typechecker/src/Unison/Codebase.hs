@@ -7,8 +7,12 @@
 
 module Unison.Codebase where
 
+import           Data.Bifunctor                 ( second
+                                                , bimap
+                                                )
 import           Control.Monad                  ( foldM
                                                 , forM
+                                                , join
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
@@ -34,6 +38,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Names                   ( Name )
 import           Unison.Parser                  ( Ann )
@@ -464,11 +469,39 @@ propagate code b = do
 -- This will create a whole bunch of new terms in the codebase and move the
 -- names onto those new terms. Uses `Term.updateDependencies` to perform
 -- the substitutions.
+
 propagate' :: Codebase m v a -> Set Reference -> Branch0 -> m Branch0
-propagate' _code _frontier _b =
-  -- Implementation should batch together all the term updates based on the
-  -- current frontier
-  error "todo - propagate'"
+propagate' code frontier b = go edits b =<< dirty
+ where
+  dirty  = Set.unions <$> traverse (dependents code) (Set.toList frontier)
+  refOps = referenceOps code
+  edits =
+    Map.fromList
+      .    R.toList
+      .    R.filterRan (TermEdit.isTypePreserving)
+      $    frontier
+      R.<| Branch.editedTerms b
+  go edits b dirty = case dirty of
+    [] -> pure b
+    (r@(Reference.DerivedId id) : rs) -> do
+      deps <- Set.toList <$> Branch.dependencies refOps r
+      let tedits = [ tedit | d <- deps, tedit <- toList (Map.lookup d edits) ]
+      case tedits of
+        [] -> go edits b rs
+        ts -> do
+          mtm <- getTerm code id
+          tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+          tpm <- getTypeOfTerm r
+          tp  <- maybe (fail $ "Missing type for term " <> show r) pure tpm
+          let
+            tm' = Term.updateDependencies
+              (Map.mapMaybe TermEdit.toReference edits)
+              tm
+          let tp' = case maximum ts of
+                TermEdit.Subtype -> error "do some typechecking"
+                _                -> tp
+          putTerm newHash tm' tp'
+
 
 
 -- The range of the returned relation is the frontier, and the domain is
@@ -516,5 +549,5 @@ referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependen
   dependencies r = case r of
     Reference.DerivedId r ->
       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
-    _ -> pure Set.empty
+    Reference.Builtin _ -> pure $ R.lookupDom r Builtin.builtinDependencies
   dependents' = dependents c

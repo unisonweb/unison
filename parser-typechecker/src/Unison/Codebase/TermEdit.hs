@@ -29,3 +29,14 @@ instance Hashable TermEdit where
 toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r
 toReference Deprecate     = Nothing
+
+isTypePreserving :: TermEdit -> Bool
+isTypePreserving e = case e of
+  Replace _ Same -> True
+  Replace _ Subtype -> True
+  _ -> False
+
+isSame :: TermEdit -> Bool
+isSame e = case e of
+  Replace _ Same -> True
+  _              -> False
