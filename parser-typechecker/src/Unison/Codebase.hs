@@ -7,12 +7,15 @@
 
 module Unison.Codebase where
 
-import           Data.Bifunctor                 ( second
-                                                , bimap
-                                                )
+import           Control.Lens
+import           Control.Lens.Tuple
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 , join
+                                                )
+import           Data.Bifunctor                 ( second
+                                                , bimap
+                                                , first
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
@@ -21,6 +24,7 @@ import           Data.Foldable                  ( toList
 import           Data.Function                  ( on )
 import           Data.List
 import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
 import           Data.Maybe                     ( catMaybes
                                                 , isJust
                                                 , fromMaybe
@@ -39,6 +43,7 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.TermEdit      as TermEdit
+import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Names                   ( Name )
 import           Unison.Parser                  ( Ann )
@@ -201,6 +206,9 @@ listReferences code branch refs = do
   pure (PP.toPlain 80 termsPP)
 
 data Err = InvalidBranchFile FilePath String deriving Show
+
+putTermComponent :: (Monad m, Ord v) => Codebase m v a -> Map v (Reference, Term v a) -> m ()
+putTermComponent = undefined
 
 putTypeDeclaration
   :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
@@ -450,6 +458,21 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
+-- Turns a cycle of references into a term with free vars that we can hash
+abstractComponent
+  :: Codebase m v a
+  -> Reference
+  -> m
+       ( Either
+           (Map v (Reference, Type v a))
+           (Map v (Reference, Term v a, Type v a))
+       )
+abstractComponent code ref = undefined
+              -- mtm <- getTerm code id
+              -- tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+              -- tpm <- getTypeOfTerm code r
+              -- tp  <- maybe (fail $ "Missing type for term " <> show r) pure tpm
+
 propagate :: Monad m => Codebase m v a -> Branch0 -> m Branch0
 propagate code b = do
   fs <- R.ran <$> frontier code b
@@ -470,10 +493,12 @@ propagate code b = do
 -- names onto those new terms. Uses `Term.updateDependencies` to perform
 -- the substitutions.
 
-propagate' :: Codebase m v a -> Set Reference -> Branch0 -> m Branch0
+propagate'
+  :: forall m v a . Codebase m v a -> Set Reference -> Branch0 -> m Branch0
 propagate' code frontier b = go edits b =<< dirty
  where
-  dirty  = Set.unions <$> traverse (dependents code) (Set.toList frontier)
+  dirty =
+    Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
   refOps = referenceOps code
   edits =
     Map.fromList
@@ -481,27 +506,32 @@ propagate' code frontier b = go edits b =<< dirty
       .    R.filterRan (TermEdit.isTypePreserving)
       $    frontier
       R.<| Branch.editedTerms b
+  update edits =
+    Term.updateDependencies (Map.mapMaybe TermEdit.toReference edits)
+  go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0
   go edits b dirty = case dirty of
     [] -> pure b
     (r@(Reference.DerivedId id) : rs) -> do
-      deps <- Set.toList <$> Branch.dependencies refOps r
-      let tedits = [ tedit | d <- deps, tedit <- toList (Map.lookup d edits) ]
-      case tedits of
-        [] -> go edits b rs
-        ts -> do
-          mtm <- getTerm code id
-          tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-          tpm <- getTypeOfTerm r
-          tp  <- maybe (fail $ "Missing type for term " <> show r) pure tpm
+      comp <- abstractComponent code r
+      case comp of
+        Left  _     -> go edits b rs
+        Right terms -> do
           let
-            tm' = Term.updateDependencies
-              (Map.mapMaybe TermEdit.toReference edits)
-              tm
-          let tp' = case maximum ts of
-                TermEdit.Subtype -> error "do some typechecking"
-                _                -> tp
-          putTerm newHash tm' tp'
-
+            deps =
+              toList $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
+            updatedTerms       = over _2 (update edits) <$> terms
+            updatedHashedTerms = Term.hashComponents (view _2 <$> updatedTerms)
+            p (_, _, typ) (hash, tm) = (hash, tm, typ)
+            newTerms = Map.intersectionWith p updatedTerms updatedHashedTerms
+            tedits =
+              [ tedit | d <- deps, tedit <- toList (Map.lookup d edits) ]
+            allSame = all TermEdit.isSame tedits
+          case tedits of
+            [] -> go edits b rs
+            ts -> if allSame then do
+                             putTermComponent code newTerms
+                             go (Map.union edits )
+                  else error "todo"
 
 
 -- The range of the returned relation is the frontier, and the domain is

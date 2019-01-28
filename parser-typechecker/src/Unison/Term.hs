@@ -637,12 +637,14 @@ referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p
     Writer.tell [id] *> traverse_ go args *> go k
   go _ = pure ()
 
-updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
-updateDependencies u tm = ABT.rebuildUp go tm where
+updateDependencies
+  :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a
+updateDependencies u tm = ABT.rebuildUp go tm
+ where
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
   go (Ref r) = Ref (Map.findWithDefault r r u)
-  go f = f
+  go f       = f
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body

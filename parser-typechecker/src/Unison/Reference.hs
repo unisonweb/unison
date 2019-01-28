@@ -54,10 +54,13 @@ type Size = Word64
 
 newtype Component = Component { members :: Set Reference }
 
+-- Gives the component (dependency cycle) that the reference is a part of
 componentFor :: Reference -> Component
-componentFor b@(Builtin_ _) = Component (Set.singleton b)
-componentFor (DerivedPrivate_ (Id h _ n)) =
-  Component (Set.fromList [ DerivedPrivate_ (Id h i n) | i <- take (fromIntegral n) [0..]])
+componentFor b@(Builtin_        _         ) = Component (Set.singleton b)
+componentFor (  DerivedPrivate_ (Id h _ n)) = Component
+  (Set.fromList
+    [ DerivedPrivate_ (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
+  )
 
 derivedBase58 :: Text -> Pos -> Size -> Reference
 derivedBase58 b58 i n = DerivedPrivate_ (Id (fromJust h) i n)
