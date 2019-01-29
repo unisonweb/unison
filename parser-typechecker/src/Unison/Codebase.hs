@@ -486,8 +486,7 @@ unhashComponent
   => Codebase m v a
   -> Branch0
   -> Reference
-  -> m (Either (Map v (Reference, Type v a))
-               (Map v (Reference, Term v a, Type v a)))
+  -> m (Maybe (Map v (Reference, Term v a, Type v a)))
 unhashComponent code b ref = do
   let component = Reference.members $ Reference.componentFor ref
       ppe = Branch.prettyPrintEnv1 b
@@ -509,9 +508,8 @@ unhashComponent code b ref = do
         let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
             dropType (r,tm,_tp) = (r,tm)
         in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
-    Right . unhash . Map.fromList <$> traverse termInfo (toList component)
-  else if isType then
-    error "todo - unhashComponent for types"
+    Just . unhash . Map.fromList <$> traverse termInfo (toList component)
+  else if isType then pure Nothing
   else fail $ "Invalid reference: " <> show ref
 
 propagate :: (Monad m, Var v, Ord a, Monoid a) => Codebase m v a -> Branch0 -> m Branch0
@@ -562,8 +560,8 @@ propagate' code frontier b = go edits b =<< dirty
                                     && Branch.contains b r -> do
       comp <- unhashComponent code b r
       case comp of
-        Left  _     -> go edits b rs
-        Right terms -> do
+        Nothing -> go edits b rs
+        Just terms -> do
           let
             deps = toList
               $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
