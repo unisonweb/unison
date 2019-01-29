@@ -55,6 +55,7 @@ import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Typechecker            as Typechecker
+import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl
                                                 , TypeLookup(TypeLookup)
                                                 )
@@ -594,11 +595,9 @@ propagate' code frontier b = go edits b =<< dirty
                 then pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
                 else do
                   -- We need to redo typechecking to figure out the typing
-                  file <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
+                  retypechecked <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
                   pure $ let
-                    retypechecked = Map.fromList [ (v, (tm, typ)) |
-                      (v,tm,typ) <- join $ UF.topLevelComponents file ]
-                    go (ref, _tm, typ) (_tm', typ')
+                    go (ref, _tm, typ) typ'
                       | Typechecker.isEqual typ typ' =
                           TermEdit.Replace ref TermEdit.Same
                       | Typechecker.isSubtype typ' typ =
@@ -622,14 +621,16 @@ propagate' code frontier b = go edits b =<< dirty
 typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
                => Codebase m v a
                -> [(v, Term v a)]
-               -> m (UF.TypecheckedUnisonFile v a)
+               -> m (Map v (Type v a))
 typecheckTerms code bindings = do
   let tm = Term.letRec' True bindings $ Term.unit mempty
   env <- typecheckingEnvironment' code tm
   (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
   case o of
     Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
-    Just _ -> undefined notes
+    Just _ -> pure $
+      Map.fromList [ (v, typ) | Context.TopLevelComponent c <- toList (Typechecker.infos notes)
+                              , (v, typ, _) <- c ]
 
 -- The range of the returned relation is the frontier, and the domain is
 -- the set of dirty references.
