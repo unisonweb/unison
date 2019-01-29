@@ -624,6 +624,7 @@ typecheckTerms code bindings = do
   let tm = Term.letRec' True bindings $ Term.unit mempty
   env <- typecheckingEnvironment' code tm
   (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
+  -- todo: assert that the output map has a type for all variables in the input
   case o of
     Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
     Just _ -> pure $
