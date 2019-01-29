@@ -652,6 +652,20 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
+-- This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables
+unhashComponent :: Var v
+                => Map v (Reference, AnnotatedTerm v a)
+                -> Map v (Reference, AnnotatedTerm v a)
+unhashComponent m = let
+  refToVar = Map.fromList [ (r, v) | (v, (r,_)) <- Map.toList m ]
+  unhash1 e = ABT.rebuildUp' go e where
+    go e@(Ref' r) = case Map.lookup r refToVar of
+      Nothing -> e
+      Just v -> var (ABT.annotation e) v
+    go e = e
+  in Map.fromList [ (v, (r, unhash1 e)) | (v, (r,e)) <- Map.toList m ]
+
 hashComponents
   :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
 hashComponents m = Reference.hashComponents (\r -> ref () r) m

@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -9,7 +10,6 @@ module Unison.Codebase where
 
 import           Control.Lens
 import           Control.Monad                  ( foldM
-                                                , filterM
                                                 , forM
                                                 )
 import           Data.Char                      ( toLower )
@@ -456,25 +456,40 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
--- Turns a cycle of references into a term with free vars that we can hash
+-- Turns a cycle of references into a term with free vars that we can edit
+-- and hash again.
 unhashComponent
-  :: Monad m
+  :: forall m v a . (Monad m, Var v)
   => Codebase m v a
+  -> Branch0
   -> Reference
-  -> m
-       ( Either
-           (Map v (Reference, Type v a))
-           (Map v (Reference, Term v a, Type v a))
-       )
-unhashComponent code ref = do
-  let component = Reference.componentFor ref
-  _terms <- filterM (isTerm code) $ toList (Reference.members component)
-  _types <- filterM (isType code) $ toList (Reference.members component)
-  undefined
-              -- mtm <- getTerm code id
-              -- tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-              -- tpm <- getTypeOfTerm code r
-              -- tp  <- maybe (fail $ "Missing type for term " <> show r) pure tpm
+  -> m (Either (Map v (Reference, Type v a))
+               (Map v (Reference, Term v a, Type v a)))
+unhashComponent code b ref = do
+  let component = Reference.members $ Reference.componentFor ref
+      ppe = Branch.prettyPrintEnv1 b
+  isTerm <- isTerm code ref
+  isType <- isType code ref
+  if isTerm then do
+    let
+      termInfo :: Reference -> m (v, (Reference, Term v a, Type v a))
+      termInfo termRef = do
+        tpm <- getTypeOfTerm code termRef
+        tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
+        case termRef of
+          Reference.DerivedId id -> do
+            mtm <- getTerm code id
+            tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+            pure (Var.named $ PPE.termName ppe (Referent.Ref termRef), (termRef, tm, tp))
+          _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
+      unhash m =
+        let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
+            dropType (r,tm,_tp) = (r,tm)
+        in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+    Right . unhash . Map.fromList <$> traverse termInfo (toList component)
+  else if isType then
+    error "todo - unhashComponent for types"
+  else fail $ "Invalid reference: " <> show ref
 
 propagate :: (Monad m, Var v) => Codebase m v a -> Branch0 -> m Branch0
 propagate code b = do
@@ -514,7 +529,7 @@ propagate' code frontier b = go edits b =<< dirty
   go edits b dirty = case dirty of
     [] -> pure b
     (r@(Reference.DerivedId _id) : rs) -> do
-      comp <- unhashComponent code r
+      comp <- unhashComponent code b r
       case comp of
         Left  _     -> go edits b rs
         Right terms -> do
