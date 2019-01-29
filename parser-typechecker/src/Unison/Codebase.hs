@@ -8,14 +8,9 @@
 module Unison.Codebase where
 
 import           Control.Lens
-import           Control.Lens.Tuple
 import           Control.Monad                  ( foldM
+                                                , filterM
                                                 , forM
-                                                , join
-                                                )
-import           Data.Bifunctor                 ( second
-                                                , bimap
-                                                , first
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
@@ -207,7 +202,10 @@ listReferences code branch refs = do
 
 data Err = InvalidBranchFile FilePath String deriving Show
 
-putTermComponent :: (Monad m, Ord v) => Codebase m v a -> Map v (Reference, Term v a) -> m ()
+putTermComponent :: (Monad m, Ord v)
+                 => Codebase m v a
+                 -> Map v (Reference, Term v a, Type v a)
+                 -> m ()
 putTermComponent = undefined
 
 putTypeDeclaration
@@ -459,21 +457,26 @@ dependents c r
   <$> dependentsImpl c r
 
 -- Turns a cycle of references into a term with free vars that we can hash
-abstractComponent
-  :: Codebase m v a
+unhashComponent
+  :: Monad m
+  => Codebase m v a
   -> Reference
   -> m
        ( Either
            (Map v (Reference, Type v a))
            (Map v (Reference, Term v a, Type v a))
        )
-abstractComponent code ref = undefined
+unhashComponent code ref = do
+  let component = Reference.componentFor ref
+  _terms <- filterM (isTerm code) $ toList (Reference.members component)
+  _types <- filterM (isType code) $ toList (Reference.members component)
+  undefined
               -- mtm <- getTerm code id
               -- tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
               -- tpm <- getTypeOfTerm code r
               -- tp  <- maybe (fail $ "Missing type for term " <> show r) pure tpm
 
-propagate :: Monad m => Codebase m v a -> Branch0 -> m Branch0
+propagate :: (Monad m, Var v) => Codebase m v a -> Branch0 -> m Branch0
 propagate code b = do
   fs <- R.ran <$> frontier code b
   propagate' code fs b
@@ -494,12 +497,11 @@ propagate code b = do
 -- the substitutions.
 
 propagate'
-  :: forall m v a . Codebase m v a -> Set Reference -> Branch0 -> m Branch0
+  :: forall m v a . (Monad m, Var v) => Codebase m v a -> Set Reference -> Branch0 -> m Branch0
 propagate' code frontier b = go edits b =<< dirty
  where
   dirty =
     Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
-  refOps = referenceOps code
   edits =
     Map.fromList
       .    R.toList
@@ -511,8 +513,8 @@ propagate' code frontier b = go edits b =<< dirty
   go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0
   go edits b dirty = case dirty of
     [] -> pure b
-    (r@(Reference.DerivedId id) : rs) -> do
-      comp <- abstractComponent code r
+    (r@(Reference.DerivedId _id) : rs) -> do
+      comp <- unhashComponent code r
       case comp of
         Left  _     -> go edits b rs
         Right terms -> do
@@ -528,10 +530,12 @@ propagate' code frontier b = go edits b =<< dirty
             allSame = all TermEdit.isSame tedits
           case tedits of
             [] -> go edits b rs
-            ts -> if allSame then do
-                             putTermComponent code newTerms
-                             go (Map.union edits )
+            _ -> if allSame then do
+                    putTermComponent code newTerms
+                    let b' = error "todo - update the branch with new definitions, moving names over"
+                    go (Map.union edits $ error "edits based on newTerms") b' rs
                   else error "todo"
+    (_:rs) -> go edits b rs
 
 
 -- The range of the returned relation is the frontier, and the domain is
@@ -579,5 +583,5 @@ referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependen
   dependencies r = case r of
     Reference.DerivedId r ->
       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
-    Reference.Builtin _ -> pure $ R.lookupDom r Builtin.builtinDependencies
+    _ -> pure $ R.lookupDom r Builtin.builtinDependencies
   dependents' = dependents c
