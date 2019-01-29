@@ -16,6 +16,7 @@ import           Control.Monad                  ( foldM
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
+                                                , forM_
                                                 )
 import           Data.Function                  ( on )
 import           Data.List
@@ -208,7 +209,9 @@ putTermComponent :: (Monad m, Ord v)
                  => Codebase m v a
                  -> Map v (Reference, Term v a, Type v a)
                  -> m ()
-putTermComponent = undefined
+putTermComponent code m = forM_ (toList m) $ \(ref, tm, typ) -> case ref of
+  Reference.DerivedId id -> putTerm code id tm typ
+  _ -> pure ()
 
 putTypeDeclaration
   :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
