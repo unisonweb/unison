@@ -561,8 +561,7 @@ propagate' code frontier b = go edits b =<< dirty
             updatedHashedTerms = Term.hashComponents (view _2 <$> updatedTerms)
             p (_, _, typ) (hash, tm) = (hash, tm, typ)
             newTerms = Map.intersectionWith p updatedTerms updatedHashedTerms
-            tedits =
-              [ tedit | d <- deps, tedit <- toList (Map.lookup d edits) ]
+            tedits = [ edit | d <- deps, edit <- toList (Map.lookup d edits) ]
             allSame = all TermEdit.isSame tedits
           case tedits of
             [] -> go edits b rs
@@ -577,30 +576,20 @@ propagate' code frontier b = go edits b =<< dirty
               let dirtyComponents = fmap fst . join $ Components.components
                     id
                     newDirtyWithDeps
-              if allSame
-                then
-                  let
-                    newEdits = Map.fromList . Map.elems $ Map.intersectionWith
-                      (,)
-                      (view _1 <$> terms)
-                      (view _1 <$> newTerms)
-                    b' =
-                      foldl'
-                          (\b (old, new) ->
-                            Branch.replaceTerm old new TermEdit.Same b
-                          )
-                          b
-                        $ Map.toList newEdits
-                  in
-                    go
-                      (Map.union
-                        edits
-                        (flip TermEdit.Replace TermEdit.Same <$> newEdits)
-                      )
-                      b'
-                      -- This order traverses the dependency graph depth-first
-                      (dirtyComponents ++ rs)
-                else error "todo"
+                  newEdits = Map.fromList . Map.elems $ Map.intersectionWith
+                    (,)
+                    (view _1 <$> terms)
+                    (view _1 <$> newTerms)
+              if allSame then let
+                replacements = (`TermEdit.Replace` TermEdit.Same) <$> newEdits
+                b' = let
+                  step b (old,new) = Branch.replaceTerm old new TermEdit.Same b
+                  in foldl' step b $ Map.toList newEdits where
+                -- This order traverses the dependency graph depth-first
+                in go (replacements <> edits) b' (dirtyComponents <> rs)
+              else
+                -- We need to redo typechecking to figure out the typing
+                error "todo"
     (_ : rs) -> go edits b rs
 
 
