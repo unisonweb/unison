@@ -49,6 +49,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
@@ -89,6 +90,7 @@ data Codebase m v a =
            , branchUpdates      :: m (m (), m (Set Name))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)
+           , builtinLoc :: a
            }
 
 getTypeOfConstructor ::
@@ -101,6 +103,10 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
+typecheckingEnvironment' :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
+typecheckingEnvironment' code term = do
+  tl <- typecheckingEnvironment code term
+  pure $ Typechecker.Env (builtinLoc code) [] tl mempty
 
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.
@@ -507,7 +513,7 @@ unhashComponent code b ref = do
     error "todo - unhashComponent for types"
   else fail $ "Invalid reference: " <> show ref
 
-propagate :: (Monad m, Var v) => Codebase m v a -> Branch0 -> m Branch0
+propagate :: (Monad m, Var v, Ord a, Monoid a) => Codebase m v a -> Branch0 -> m Branch0
 propagate code b = do
   fs <- R.ran <$> frontier code b
   propagate' code fs b
@@ -529,7 +535,7 @@ propagate code b = do
 
 propagate'
   :: forall m v a
-   . (Monad m, Var v)
+   . (Monad m, Var v, Ord a, Monoid a)
   => Codebase m v a
   -> Set Reference
   -> Branch0
@@ -588,26 +594,23 @@ propagate' code frontier b = go edits b =<< dirty
                 then pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
                 else do
                   -- We need to redo typechecking to figure out the typing
-                  e <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
-                  case e of
-                    Left err -> fail $ "A type error occurred while propagating"
-                                     ++ ". This should never happen.\n" ++ err
-                    Right file -> pure $ let
-                      retypechecked = Map.fromList [ (v, (tm, typ)) |
-                        (v,tm,typ) <- join $ UF.topLevelComponents file ]
-                      go (ref, _tm, typ) (_tm', typ')
-                        | Typechecker.isEqual typ typ' =
-                            TermEdit.Replace ref TermEdit.Same
-                        | Typechecker.isSubtype typ' typ =
-                            TermEdit.Replace ref TermEdit.Subtype
-                        | otherwise =
-                            error $ "replacement yielded a different type: "
-                                  ++ show (typ, typ')
-                      varToEdit :: Map v TermEdit
-                      varToEdit = Map.intersectionWith go updatedTerms retypechecked
-                      in Map.fromList .
-                         Map.elems $
-                         Map.intersectionWith (,) (view _1 <$> terms) varToEdit
+                  file <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
+                  pure $ let
+                    retypechecked = Map.fromList [ (v, (tm, typ)) |
+                      (v,tm,typ) <- join $ UF.topLevelComponents file ]
+                    go (ref, _tm, typ) (_tm', typ')
+                      | Typechecker.isEqual typ typ' =
+                          TermEdit.Replace ref TermEdit.Same
+                      | Typechecker.isSubtype typ' typ =
+                          TermEdit.Replace ref TermEdit.Subtype
+                      | otherwise =
+                          error $ "replacement yielded a different type: "
+                                ++ show (typ, typ')
+                    varToEdit :: Map v TermEdit
+                    varToEdit = Map.intersectionWith go updatedTerms retypechecked
+                    in Map.fromList .
+                       Map.elems $
+                       Map.intersectionWith (,) (view _1 <$> terms) varToEdit
               let b' = foldl' step b $ Map.toList replacements
                   step b (old, replacement) = case replacement of
                     TermEdit.Replace new typing -> Branch.replaceTerm old new typing b
@@ -616,8 +619,17 @@ propagate' code frontier b = go edits b =<< dirty
               go (replacements <> edits) b' (dirtyComponents <> rs)
     (_ : rs) -> go edits b rs
 
-typecheckTerms :: Monad m => Codebase m v a -> [(v, Term v a)] -> m (Either String (UF.TypecheckedUnisonFile v a))
-typecheckTerms bindings = undefined
+typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
+               => Codebase m v a
+               -> [(v, Term v a)]
+               -> m (UF.TypecheckedUnisonFile v a)
+typecheckTerms code bindings = do
+  let tm = Term.letRec' True bindings $ Term.unit mempty
+  env <- typecheckingEnvironment' code tm
+  (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
+  case o of
+    Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
+    Just _ -> undefined notes
 
 -- The range of the returned relation is the frontier, and the domain is
 -- the set of dirty references.

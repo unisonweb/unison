@@ -386,6 +386,18 @@ unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec isTop bs e))) =
   Just (isTop, ann, avs `zip` bs, e)
 unLetRecNamedAnnotated _ = Nothing
 
+letRec'
+  :: (Ord v, Monoid a)
+  => Bool
+  -> [(v, AnnotatedTerm' vt v a)]
+  -> AnnotatedTerm' vt v a
+  -> AnnotatedTerm' vt v a
+letRec' isTop bindings body =
+  letRec isTop
+    (foldMap (ABT.annotation . snd) bindings)
+    [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
+    body
+
 letRec
   :: Ord v
   => Bool
