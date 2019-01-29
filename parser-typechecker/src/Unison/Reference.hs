@@ -1,5 +1,7 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
+
 
 module Unison.Reference
   (Reference(DerivedPrivate_),
@@ -13,23 +15,24 @@ module Unison.Reference
    hashComponents,
    groupByComponent,
    componentFor,
+   unsafeFromText,
    showShort) where
 
-import GHC.Generics
-import Data.Maybe (fromJust)
-import Unison.Hashable as Hashable
-import qualified Data.Text as Text
-import qualified Unison.Hash as H
-import Data.Word (Word64)
-import Control.Monad (join)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Data.List
-import Data.Foldable (toList)
-import Data.Text (Text)
-import qualified Unison.ABT as ABT
-import qualified Unison.Var as Var
+import           Control.Monad   (join)
+import           Data.Foldable   (toList)
+import           Data.List
+import qualified Data.Map        as Map
+import           Data.Maybe      (fromJust)
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
+import           Data.Text       (Text)
+import qualified Data.Text       as Text
+import           Data.Word       (Word64)
+import           GHC.Generics
+import qualified Unison.ABT      as ABT
+import qualified Unison.Hash     as H
+import           Unison.Hashable as Hashable
+import qualified Unison.Var      as Var
 
 data Reference
   = Builtin_ Text.Text
@@ -43,7 +46,7 @@ data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 instance Show Id where
   show (Id h 0 1) = show h
-  show (Id h i _) = show h <> "-" <> show i
+  show (Id h i n) = show h <> "-" <> show i <> "-" <> show n
 
 pattern Builtin t = Builtin_ t
 pattern Derived h n i = DerivedPrivate_ (Id h n i)
@@ -63,6 +66,16 @@ derivedBase58 :: Text -> Pos -> Size -> Reference
 derivedBase58 b58 i n = DerivedPrivate_ (Id (fromJust h) i n)
   where
   h = H.fromBase58 b58
+
+-- Parses Asdf##Foo as Builtin Foo
+-- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
+unsafeFromText :: Text -> Reference
+unsafeFromText t = case Text.split (=='#') t of
+  [_, "", b] -> Builtin b
+  [_, h]     -> case Text.split (=='-') h of
+    [hash]            -> derivedBase58 hash 0 1
+    [hash, pos, size] -> derivedBase58 hash (read . Text.unpack $ pos)
+                                            (read . Text.unpack $ size)
 
 hashComponents ::
      (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)
@@ -96,8 +109,8 @@ showShort _ (Builtin_ t) = "##" <> Text.unpack t
 showShort numHashChars (DerivedPrivate_ id) = "#" <> take numHashChars (show id)
 
 instance Show Reference where
-  show (Builtin_ t) = Text.unpack t
-  show (DerivedPrivate_ id) = "#" <> show id
+  show (Builtin_ t)         = "##" <> Text.unpack t
+  show (DerivedPrivate_ id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin_ txt) = [Hashable.Tag 0, Hashable.Text txt]

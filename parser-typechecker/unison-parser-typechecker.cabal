@@ -59,8 +59,10 @@ library
     Unison.FileParsers
     Unison.Hash
     Unison.Hashable
+    Unison.HashQualified
     Unison.Kind
     Unison.Lexer
+    Unison.Name
     Unison.Names
     Unison.Parser
     Unison.Parsers

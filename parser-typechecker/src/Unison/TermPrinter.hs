@@ -16,13 +16,18 @@ import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN' )
 import qualified Unison.Blank                  as Blank
+import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import qualified Unison.Referent               as Referent
 import           Unison.Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
+import           Unison.TypePrinter             ( prettyHashQualified
+                                                , prettyHashQualified' )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Util.Monoid             ( intercalateMap )
@@ -121,9 +126,10 @@ pretty
   -> Pretty String
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
   = specialCases term $ \case
-    Var' v -> parenIfInfix (Var.nameStr v) ic . PP.text $ Var.name v
-    Ref' r -> parenIfInfix name ic $ l $ name
-      where name = Text.unpack (PrettyPrintEnv.termName n (Referent.Ref r))
+    Var' v -> parenIfInfix name ic . prettyHashQualified' $ name
+      where name = HQ.fromVar v
+    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
+      where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal) tm
@@ -142,8 +148,9 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     Text'    s  -> l $ show s
     Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i ->
-      l (Text.unpack (PrettyPrintEnv.constructorName n ref i))
-    Request' ref i -> l (Text.unpack (PrettyPrintEnv.requestName n ref i))
+      prettyHashQualified' $ PrettyPrintEnv.termName n (Referent.Con ref i)
+    Request' ref i ->
+      prettyHashQualified' $ PrettyPrintEnv.termName n (Referent.Req ref i)
     Handle' h body ->
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal) h)
@@ -214,6 +221,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
   commaList = sepList ("," <> PP.softbreak)
 
+  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm v a)] -> AnnotatedTerm v a -> Pretty String
   printLet sc bs e =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
@@ -222,7 +230,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty n (ac (-1) Normal) binding
-      else prettyBinding n v binding
+      else prettyBinding n (HQ.fromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> "let" `PP.hang` x
@@ -246,7 +254,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   binaryOpsPred :: Var v => AnnotatedTerm v a -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
-    Var' v | isSymbolic (Var.name v) -> True
+    Var' v | isSymbolic (HQ.fromVar v) -> True
     _ -> False
 
   nonForcePred :: AnnotatedTerm v a -> Bool
@@ -308,11 +316,11 @@ prettyPattern n p vs patt = case patt of
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref i [] ->
-    (PP.text (PrettyPrintEnv.patternName n ref i), vs)
+    (prettyHashQualified' (PrettyPrintEnv.patternName n ref i), vs)
   Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
-          $ PP.text (PrettyPrintEnv.patternName n ref i)
+          $ prettyHashQualified' (PrettyPrintEnv.patternName n ref i)
             `PP.hang` pats_printed
         , tail_vs)
   Pattern.As _ pat ->
@@ -325,7 +333,7 @@ prettyPattern n p vs patt = case patt of
   Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-    in  ("{" <> l (Text.unpack (PrettyPrintEnv.patternName n ref i))
+    in  ("{" <> prettyHashQualified' (PrettyPrintEnv.patternName n ref i)
              <> (intercalateMap " " id [pats_printed, "->", k_pat_printed]) <>
          "}"
         , eventual_tail)
@@ -355,30 +363,30 @@ a + b = ...
 
 -}
 prettyBinding
-  :: Var v => PrettyPrintEnv -> v -> AnnotatedTerm v a -> Pretty String
-prettyBinding n v term = go (symbolic && isBinary term) term where
+  :: Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
+prettyBinding env fname term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
-      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty n (-1) tp)),
-      PP.group (prettyBinding n v tm) ]
+      PP.group (renderName fname <> PP.hang " :" (TypePrinter.pretty env (-1) tp)),
+      PP.group (prettyBinding env fname tm) ]
     LamsNamedOpt' vs body -> PP.group $
-      PP.group (defnLhs v vs <> " =") `PP.hang`
-      pretty n (ac (-1) Block) body
+      PP.group (defnLhs fname vs <> " =") `PP.hang`
+      pretty env (ac (-1) Block) body
      where
     t -> l "error: " <> l (show t)
    where
-    defnLhs v vs = if infix'
+    defnLhs fname vs = if infix'
       then case vs of
         x : y : _ ->
           PP.sep " " [PP.text (Var.name x),
-                      PP.text (Var.name v),
+                      prettyHashQualified fname,
                       PP.text (Var.name y)]
         _ -> l "error"
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap (PP.text . Var.name) vs
-    renderName v = parenIfInfix (Var.nameStr v) NonInfix $ l (Var.nameStr v)
-  symbolic = isSymbolic (Var.name v)
+    renderName n = parenIfInfix n NonInfix $ prettyHashQualified n
+  symbolic = isSymbolic (HQ.fromVar v)
   isBinary = \case
     Ann'          tm _ -> isBinary tm
     LamsNamedOpt' vs _ -> length vs == 2
@@ -393,9 +401,9 @@ paren True  s = PP.group $ "(" <> s <> ")"
 paren False s = PP.group s
 
 parenIfInfix
-  :: String -> InfixContext -> Pretty String -> Pretty String
+  :: HQ.HashQualified -> InfixContext -> Pretty String -> Pretty String
 parenIfInfix name ic =
-  if isSymbolic (Text.pack name) && ic == NonInfix then paren True else id
+  if isSymbolic name && ic == NonInfix then paren True else id
 
 l :: String -> Pretty String
 l = PP.lit
@@ -406,8 +414,13 @@ l = PP.lit
 -- When we use imports in rendering, this will need revisiting, so that we can
 -- render say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId doesn't match
 -- 'foo.+', only '+'.
-isSymbolic :: Text.Text -> Bool
-isSymbolic name = case symbolyId $ Text.unpack $ name of
+isSymbolic :: HQ.HashQualified -> Bool
+isSymbolic (HQ.NameOnly name) = isSymbolic' name
+isSymbolic (HQ.HashQualified name _) = isSymbolic' name
+isSymbolic (HQ.HashOnly _) = False
+
+isSymbolic' :: Name -> Bool
+isSymbolic' name = case symbolyId . show $ name of
   Right _ -> True
   _       -> False
 

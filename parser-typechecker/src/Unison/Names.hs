@@ -10,9 +10,11 @@ import           Data.Bifunctor   (first)
 import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
-import           Data.Text        (Text)
+import           Data.String      (fromString)
 import qualified Data.Text        as Text
 import           Unison.Reference (pattern Builtin, Reference)
+import qualified Unison.Name      as Name
+import           Unison.Name      (Name)
 import qualified Unison.Referent  as Referent
 import           Unison.Referent  (Referent)
 import           Unison.Term      (AnnotatedTerm)
@@ -22,10 +24,8 @@ import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
 import qualified Unison.Var       as Var
 
-type Name = Text
-
 unqualified :: Name -> Name
-unqualified = last . Text.splitOn "."
+unqualified = Name.fromText . last . Text.splitOn "." . Name._toText
 
 data Names = Names
   { termNames    :: Map Name Referent
@@ -54,14 +54,15 @@ lookupType ns n = Map.lookup n (typeNames ns)
 
 fromBuiltins :: [Reference] -> Names
 fromBuiltins rs =
-  mempty { termNames = Map.fromList [ (name, Referent.Ref r) | r@(Builtin name) <- rs ] }
+  mempty { termNames = Map.fromList
+          [ (Name.fromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
 
 fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = mempty { termNames = Map.fromList ts }
 
 fromTypesV :: Var v => [(v, Reference)] -> Names
 fromTypesV env =
-  Names mempty . Map.fromList $ fmap (first $ Var.name) env
+  Names mempty . Map.fromList $ fmap (first $ Name.fromText . Var.name) env
 
 fromTypes :: [(Name, Reference)] -> Names
 fromTypes env = Names mempty $ Map.fromList env
@@ -72,7 +73,7 @@ filterTypes f (Names {..}) = Names termNames m2
   m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
 
 patternNameds :: Names -> String -> Maybe (Reference, Int)
-patternNameds ns s = patternNamed ns (Text.pack s)
+patternNameds ns s = patternNamed ns (fromString s)
 
 patternNamed :: Names -> Name -> Maybe (Reference, Int)
 patternNamed ns n = Map.lookup n (termNames ns) >>= \case
@@ -83,16 +84,16 @@ patternNamed ns n = Map.lookup n (termNames ns) >>= \case
 bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
 bindType ns t = Type.bindBuiltins typeNames' t
   where
-  typeNames' = [ (Var.named v, r) | (v, r) <- Map.toList $ typeNames ns ]
+  typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
 bindTerm
   :: forall v a . Var v => Names -> AnnotatedTerm v a -> AnnotatedTerm v a
 bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
  where
   termBuiltins =
-    [ (Var.named v, Term.fromReferent() e) | (v, e) <- Map.toList (termNames ns) ]
+    [ (Name.toVar v, Term.fromReferent() e) | (v, e) <- Map.toList (termNames ns) ]
   typeBuiltins :: [(v, Reference)]
-  typeBuiltins = [ (Var.named v, t) | (v, t) <- Map.toList (typeNames ns) ]
+  typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
 
 -- Given a mapping from name to qualified name, update a `PEnv`,
 -- so for instance if the input has [(Some, Optional.Some)],
@@ -105,7 +106,7 @@ importing shortToLongName0 (Names {..}) = let
     Nothing -> m
     Just v  -> Map.insert shortname v m
   shortToLongName = [
-    (Var.name v, Var.name v2) | (v,v2) <- shortToLongName0 ]
+    (Name.fromVar v, Name.fromVar v2) | (v,v2) <- shortToLongName0 ]
   terms' = foldl' go termNames shortToLongName
   types' = foldl' go typeNames shortToLongName
   in Names terms' types'

@@ -15,7 +15,7 @@ import           Control.Monad.Writer           ( WriterT(..)
                                                 )
 import           Data.Maybe
 import           Data.Sequence                  ( Seq )
-import           Unison.Names                   ( Name )
+import           Unison.Name                    ( Name )
 import qualified Unison.Parser                 as Parser
 import           Unison.Paths                   ( Path )
 import           Unison.Term                    ( AnnotatedTerm )

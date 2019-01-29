@@ -35,7 +35,9 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Names                   ( Name )
+import           Unison.HashQualified           ( HashQualified )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
@@ -64,6 +66,7 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
+type BranchName = Text
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -72,12 +75,12 @@ data Codebase m v a =
 
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
-           , branches           :: m [Name]
-           , getBranch          :: Name -> m (Maybe Branch)
+           , branches           :: m [BranchName]
+           , getBranch          :: BranchName -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
            -- or creates a new branch if there's no branch with that name
-           , mergeBranch        :: Name -> Branch -> m Branch
-           , branchUpdates      :: m (m (), m (Set Name))
+           , mergeBranch        :: BranchName -> Branch -> m Branch
+           , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)
            }
@@ -110,17 +113,18 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-fuzzyFindTerms' :: Branch -> [String] -> [(Text, Referent)]
+fuzzyFindTerms' :: Branch -> [String] -> [(HashQualified, Referent)]
 fuzzyFindTerms' (Branch.head -> branch) query =
   let
-    termNames = Text.unpack <$> toList (Branch.allTermNames branch)
+    termNames = Name.toString <$> toList (Branch.allTermNames branch)
     matchingTerms :: [String]
     matchingTerms = if null query
       then termNames
       else query >>= \q -> sortedApproximateMatches q termNames
     refsForName :: String -> [Referent]
-    refsForName (Text.pack -> name) = Set.toList $ Branch.termsNamed name branch
-    makePair (Text.pack -> name) r =
+    refsForName (Name.fromString -> name) =
+      Set.toList $ Branch.termsNamed name branch
+    makePair (Name.fromString -> name) r =
       (Branch.hashQualifiedTermName branch name r, r)
   in matchingTerms >>= \name -> makePair name <$> refsForName name
 
@@ -130,7 +134,7 @@ fuzzyFindTermTypes
   => Codebase m v a
   -> Branch
   -> [String]
-  -> m [(Text, Referent, Maybe (Type v a))]
+  -> m [(HashQualified, Referent, Maybe (Type v a))]
 fuzzyFindTermTypes codebase branch query =
   let found = fuzzyFindTerms' branch query
       tripleForRef name ref = (name, ref, ) <$> case ref of
@@ -139,17 +143,16 @@ fuzzyFindTermTypes codebase branch query =
         Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 
-fuzzyFindTypes' :: Branch -> [String] -> [(Text, Reference)]
+fuzzyFindTypes' :: Branch -> [String] -> [(HashQualified, Reference)]
 fuzzyFindTypes' (Branch.head -> branch) query =
   let
-    typeNames =
-      Text.unpack <$> toList (Branch.allTypeNames branch)
+    typeNames = toList (Branch.allTypeNames branch)
     matchingTypes = if null query
       then typeNames
-      else query >>= \q -> sortedApproximateMatches q typeNames
-    refsForName (Text.pack -> name) = Set.toList $ Branch.typesNamed name branch
-    makePair (Text.pack -> name) r =
-      (Branch.hashQualifiedTypeName branch name r, r)
+      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
+    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
+    refsForName name = Set.toList $ Branch.typesNamed name branch
+    makePair name r = (Branch.hashQualifiedTypeName branch name r, r)
   in matchingTypes >>= \name -> makePair name <$> refsForName name
 
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
@@ -160,18 +163,20 @@ listReferencesMatching
   :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
 listReferencesMatching code (Branch.head -> b) query = do
   let
-    termNames     = Text.unpack <$> toList (Branch.allTermNames b)
-    typeNames     = Text.unpack <$> toList (Branch.allTypeNames b)
+    termNames     = toList (Branch.allTermNames b)
+    typeNames     = toList (Branch.allTypeNames b)
     matchingTerms = if null query
       then termNames
-      else query >>= \q -> sortedApproximateMatches q termNames
+      else query >>= \q -> asStrings (sortedApproximateMatches q) termNames
     matchingTypes = if null query
       then typeNames
-      else query >>= \q -> sortedApproximateMatches q typeNames
+      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
     matchingTypeRefs = matchingTypes
-      >>= \name -> Set.toList (Branch.typesNamed (Text.pack name) b)
+      >>= \name -> Set.toList (Branch.typesNamed name b)
     matchingTermRefs = matchingTerms
-      >>= \name -> Set.toList (Branch.termsNamed (Text.pack name) b)
+      >>= \name -> Set.toList (Branch.termsNamed name b)
+    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
+
   listReferences code
                  b
                  (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
@@ -221,7 +226,7 @@ initialize c = do
 prettyBinding
   :: (Var.Var v, Monad m)
   => Codebase m v a
-  -> Name
+  -> HashQualified
   -> Referent
   -> Branch0
   -> m (Maybe (Pretty String))
@@ -232,10 +237,9 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
   go Nothing = pure Nothing
   go (Just tm) =
     let
--- We boost the `(r0,name)` association since if this is a recursive
+-- We force the `(r0,name)` association since if this is a recursive
 -- fn whose body also mentions `r`, want name to be the same as the binding.
-        ppEnv = Branch.prettyPrintEnv [b]
-          `mappend` PPE.scale 10 (PPE.fromTermNames [(r0, name)])
+        ppEnv = PPE.assignTermName r0 name $ Branch.prettyPrintEnv1 b
     in  case tm of
           Term.Ann' _ _ ->
             pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)

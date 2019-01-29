@@ -32,7 +32,8 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import           Unison.Names               (Name)
+-- import           Unison.Name                (Name)
+-- import qualified Unison.Name                as Name
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
@@ -46,6 +47,8 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 -- import           Debug.Trace
+
+type Name = Text
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc

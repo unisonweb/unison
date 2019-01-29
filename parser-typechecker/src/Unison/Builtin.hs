@@ -3,9 +3,11 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+
 module Unison.Builtin where
 
 import           Control.Arrow                  ( first )
+import           Control.Applicative            ( liftA2 )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
@@ -30,9 +32,9 @@ import qualified Unison.TypeParser             as TypeParser
 import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
-import           Unison.Names                   ( Names
-                                                , Name
-                                                )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Names                   ( Names )
 import qualified Unison.Names                  as Names
 import qualified Unison.Typechecker.TypeLookup as TL
 
@@ -100,13 +102,13 @@ builtinTerms =
     (r, typ) <- Map.toList builtins0 ]
 
 builtinTypesV :: Var v => [(v, R.Reference)]
-builtinTypesV = first (Var.named) <$> builtinTypes
+builtinTypesV = first (Name.toVar) <$> builtinTypes
 
 builtinTypeNames :: Set Name
 builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
-builtinTypes = (,) <*> R.Builtin <$>
+builtinTypes = liftA2 (,) Name.fromText R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
 
 -- | parse some builtin data types, and resolve their free variables using
