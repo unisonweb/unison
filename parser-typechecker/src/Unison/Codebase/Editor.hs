@@ -457,6 +457,8 @@ fileToBranch handleCollisions codebase branch uf = do
   -- by folding over the outcomes.
   (result, b0) <- foldM addOutcome
     (SlurpResult uf branch mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty, Branch.head branch) outcomes'
+  -- todo: be a little smarter about avoiding needless propagation
+  b0 <- Codebase.propagate codebase b0
   pure $ result { updatedBranch = Branch.cons b0 branch }
   where
     b0 = Branch.head branch

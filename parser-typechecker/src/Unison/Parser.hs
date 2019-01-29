@@ -49,10 +49,17 @@ data Ann
   | Ann { start :: L.Pos, end :: L.Pos }
   deriving (Eq, Ord, Show)
 
+instance Monoid Ann where
+  mempty = External
+  mappend = (<>)
+
 instance Semigroup Ann where
   Ann s1 _ <> Ann _ e2 = Ann s1 e2
-  x <> y = error $ "Compiler bug! Tried to combine terms annotated with ("
-                   ++ show x ++ ") and (" ++ show y ++ ")"
+  -- If we have a concrete location from a file, use it
+  External <> a = a
+  a <> External = a
+  Intrinsic <> a = a
+  a <> Intrinsic = a
 
 tokenToPair :: L.Token a -> (Ann, a)
 tokenToPair t = (ann t, L.payload t)
