@@ -53,6 +53,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.Typechecker            as Typechecker
 import           Unison.Typechecker.TypeLookup  ( Decl
                                                 , TypeLookup(TypeLookup)
                                                 )
@@ -549,7 +550,9 @@ propagate' code frontier b = go edits b =<< dirty
   go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0
   go edits b dirty = case dirty of
     [] -> pure b
-    (r@(Reference.DerivedId _id) : rs) | not (Map.member r edits) -> do
+    -- Skip over things already visited (in edits) and things not in the branch
+    r@(Reference.DerivedId _id) : rs | not (Map.member r edits)
+                                    && Branch.contains b r -> do
       comp <- unhashComponent code b r
       case comp of
         Left  _     -> go edits b rs
@@ -580,18 +583,41 @@ propagate' code frontier b = go edits b =<< dirty
                     (,)
                     (view _1 <$> terms)
                     (view _1 <$> newTerms)
-              if allSame then let
-                replacements = (`TermEdit.Replace` TermEdit.Same) <$> newEdits
-                b' = let
-                  step b (old,new) = Branch.replaceTerm old new TermEdit.Same b
-                  in foldl' step b $ Map.toList newEdits where
-                -- This order traverses the dependency graph depth-first
-                in go (replacements <> edits) b' (dirtyComponents <> rs)
-              else
-                -- We need to redo typechecking to figure out the typing
-                error "todo"
+              replacements <-
+                if allSame
+                then pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
+                else do
+                  -- We need to redo typechecking to figure out the typing
+                  e <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
+                  case e of
+                    Left err -> fail $ "A type error occurred while propagating"
+                                     ++ ". This should never happen.\n" ++ err
+                    Right file -> pure $ let
+                      retypechecked = Map.fromList [ (v, (tm, typ)) |
+                        (v,tm,typ) <- join $ UF.topLevelComponents file ]
+                      go (ref, _tm, typ) (_tm', typ')
+                        | Typechecker.isEqual typ typ' =
+                            TermEdit.Replace ref TermEdit.Same
+                        | Typechecker.isSubtype typ' typ =
+                            TermEdit.Replace ref TermEdit.Subtype
+                        | otherwise =
+                            error $ "replacement yielded a different type: "
+                                  ++ show (typ, typ')
+                      varToEdit :: Map v TermEdit
+                      varToEdit = Map.intersectionWith go updatedTerms retypechecked
+                      in Map.fromList .
+                         Map.elems $
+                         Map.intersectionWith (,) (view _1 <$> terms) varToEdit
+              let b' = foldl' step b $ Map.toList replacements
+                  step b (old, replacement) = case replacement of
+                    TermEdit.Replace new typing -> Branch.replaceTerm old new typing b
+                    _ -> b
+              -- This order traverses the dependency graph depth-first
+              go (replacements <> edits) b' (dirtyComponents <> rs)
     (_ : rs) -> go edits b rs
 
+typecheckTerms :: Monad m => Codebase m v a -> [(v, Term v a)] -> m (Either String (UF.TypecheckedUnisonFile v a))
+typecheckTerms bindings = undefined
 
 -- The range of the returned relation is the frontier, and the domain is
 -- the set of dirty references.
