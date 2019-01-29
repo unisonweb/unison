@@ -11,6 +11,7 @@ module Unison.Codebase where
 import           Control.Lens
 import           Control.Monad                  ( foldM
                                                 , forM
+                                                , join
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
@@ -58,6 +59,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText      ( AnnotatedText )
 import           Unison.Util.ColorText          ( Color, ColorText )
+import qualified Unison.Util.Components        as Components
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
 import qualified Unison.Util.Relation          as R
@@ -456,6 +458,16 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
+-- Gets the dependents of a whole component (cycle)
+componentDependents
+  :: Applicative m => Codebase m v a -> Reference -> m (Set Reference)
+componentDependents c r =
+  fmap Set.unions
+    . traverse (dependents c)
+    . toList
+    . Reference.members
+    $ Reference.componentFor r
+
 -- Turns a cycle of references into a term with free vars that we can edit
 -- and hash again.
 unhashComponent
@@ -512,9 +524,15 @@ propagate code b = do
 -- the substitutions.
 
 propagate'
-  :: forall m v a . (Monad m, Var v) => Codebase m v a -> Set Reference -> Branch0 -> m Branch0
+  :: forall m v a
+   . (Monad m, Var v)
+  => Codebase m v a
+  -> Set Reference
+  -> Branch0
+  -> m Branch0
 propagate' code frontier b = go edits b =<< dirty
  where
+  refOps = referenceOps code
   dirty =
     Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
   edits =
@@ -528,14 +546,14 @@ propagate' code frontier b = go edits b =<< dirty
   go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0
   go edits b dirty = case dirty of
     [] -> pure b
-    (r@(Reference.DerivedId _id) : rs) -> do
+    (r@(Reference.DerivedId _id) : rs) | not (Map.member r edits) -> do
       comp <- unhashComponent code b r
       case comp of
         Left  _     -> go edits b rs
         Right terms -> do
           let
-            deps =
-              toList $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
+            deps = toList
+              $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
             updatedTerms       = over _2 (update edits) <$> terms
             updatedHashedTerms = Term.hashComponents (view _2 <$> updatedTerms)
             p (_, _, typ) (hash, tm) = (hash, tm, typ)
@@ -545,12 +563,42 @@ propagate' code frontier b = go edits b =<< dirty
             allSame = all TermEdit.isSame tedits
           case tedits of
             [] -> go edits b rs
-            _ -> if allSame then do
-                    putTermComponent code newTerms
-                    let b' = error "todo - update the branch with new definitions, moving names over"
-                    go (Map.union edits $ error "edits based on newTerms") b' rs
-                  else error "todo"
-    (_:rs) -> go edits b rs
+            _  -> do
+              putTermComponent code newTerms
+              -- We need the new dirty list in dependency order
+              -- because we should visit all dependencies of X
+              -- before visiting X. This avoids updating X multiple times.
+              newDirty         <- toList <$> componentDependents code r
+              newDirtyWithDeps <- for newDirty
+                $ \r -> fmap (r, ) (Branch.dependencies refOps r)
+              let dirtyComponents = fmap fst . join $ Components.components
+                    id
+                    newDirtyWithDeps
+              if allSame
+                then
+                  let
+                    newEdits = Map.fromList . Map.elems $ Map.intersectionWith
+                      (,)
+                      (view _1 <$> terms)
+                      (view _1 <$> newTerms)
+                    b' =
+                      foldl'
+                          (\b (old, new) ->
+                            Branch.replaceTerm old new TermEdit.Same b
+                          )
+                          b
+                        $ Map.toList newEdits
+                  in
+                    go
+                      (Map.union
+                        edits
+                        (flip TermEdit.Replace TermEdit.Same <$> newEdits)
+                      )
+                      b'
+                      -- This order traverses the dependency graph depth-first
+                      (dirtyComponents ++ rs)
+                else error "todo"
+    (_ : rs) -> go edits b rs
 
 
 -- The range of the returned relation is the frontier, and the domain is
