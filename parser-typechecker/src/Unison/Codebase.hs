@@ -574,7 +574,6 @@ propagate' code frontier b = go edits b =<< dirty
           case tedits of
             [] -> go edits b rs
             _  -> do
-              putTermComponent code newTerms
               -- We need the new dirty list in dependency order
               -- because we should visit all dependencies of X
               -- before visiting X. This avoids updating X multiple times.
@@ -590,10 +589,18 @@ propagate' code frontier b = go edits b =<< dirty
                     (view _1 <$> newTerms)
               replacements <-
                 if allSame
-                then pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
+                then do
+                  putTermComponent code newTerms
+                  pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
                 else do
                   -- We need to redo typechecking to figure out the typing
-                  retypechecked <- typecheckTerms code [ (v, tm) | (v, (_, tm, _)) <- Map.toList updatedTerms ]
+                  retypechecked <-
+                    typecheckTerms code
+                                   [ (v, tm) | (v, (_, tm, _)) <-
+                                                 Map.toList updatedTerms ]
+                  let p (ref, tm, _) typ = (ref, tm, typ)
+                      newTerms' = Map.intersectionWith p newTerms retypechecked
+                  putTermComponent code newTerms'
                   pure $ let
                     go (ref, _tm, typ) typ'
                       | Typechecker.isEqual typ typ' =
@@ -604,7 +611,7 @@ propagate' code frontier b = go edits b =<< dirty
                           error $ "replacement yielded a different type: "
                                 ++ show (typ, typ')
                     varToEdit :: Map v TermEdit
-                    varToEdit = Map.intersectionWith go updatedTerms retypechecked
+                    varToEdit = Map.intersectionWith go newTerms retypechecked
                     in Map.fromList .
                        Map.elems $
                        Map.intersectionWith (,) (view _1 <$> terms) varToEdit
