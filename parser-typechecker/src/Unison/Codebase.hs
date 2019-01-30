@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -7,16 +8,20 @@
 
 module Unison.Codebase where
 
+import           Control.Lens
 import           Control.Monad                  ( foldM
                                                 , forM
+                                                , join
                                                 )
 import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
+                                                , forM_
                                                 )
 import           Data.Function                  ( on )
 import           Data.List
 import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
 import           Data.Maybe                     ( catMaybes
                                                 , isJust
                                                 , fromMaybe
@@ -34,6 +39,8 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Names                   ( Name )
 import           Unison.Parser                  ( Ann )
@@ -42,10 +49,13 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.Typechecker            as Typechecker
+import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl
                                                 , TypeLookup(TypeLookup)
                                                 )
@@ -53,6 +63,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText      ( AnnotatedText )
 import           Unison.Util.ColorText          ( Color, ColorText )
+import qualified Unison.Util.Components        as Components
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
 import qualified Unison.Util.Relation          as R
@@ -80,6 +91,7 @@ data Codebase m v a =
            , branchUpdates      :: m (m (), m (Set Name))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)
+           , builtinLoc :: a
            }
 
 getTypeOfConstructor ::
@@ -92,6 +104,10 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
+typecheckingEnvironment' :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
+typecheckingEnvironment' code term = do
+  tl <- typecheckingEnvironment code term
+  pure $ Typechecker.Env (builtinLoc code) [] tl mempty
 
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.
@@ -196,6 +212,14 @@ listReferences code branch refs = do
   pure (PP.toPlain 80 termsPP)
 
 data Err = InvalidBranchFile FilePath String deriving Show
+
+putTermComponent :: (Monad m, Ord v)
+                 => Codebase m v a
+                 -> Map v (Reference, Term v a, Type v a)
+                 -> m ()
+putTermComponent code m = forM_ (toList m) $ \(ref, tm, typ) -> case ref of
+  Reference.DerivedId id -> putTerm code id tm typ
+  _ -> pure ()
 
 putTypeDeclaration
   :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
@@ -445,7 +469,58 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
-propagate :: Monad m => Codebase m v a -> Branch0 -> m Branch0
+-- Gets the dependents of a whole component (cycle), topologically sorted,
+-- meaning that if X depends on Y, Y appears before X in this list.
+-- If X and Y depend on each other, they will appear adjacent in
+-- arbitrary order.
+componentDependents
+  :: (Monad m, Ord v) => Codebase m v a -> Reference -> m [Reference]
+componentDependents c r = do
+  dependents <-
+    fmap (toList . Set.unions)
+    . traverse (dependents c)
+    . toList
+    . Reference.members
+    $ Reference.componentFor r
+  withDependencies <- for dependents
+    $ \r -> fmap (r, ) $ Branch.dependencies refOps r
+  pure . fmap fst . join $ Components.components id withDependencies
+  where refOps = referenceOps c
+
+-- Turns a cycle of references into a term with free vars that we can edit
+-- and hash again.
+unhashComponent
+  :: forall m v a . (Monad m, Var v)
+  => Codebase m v a
+  -> Branch0
+  -> Reference
+  -> m (Maybe (Map v (Reference, Term v a, Type v a)))
+unhashComponent code b ref = do
+  let component = Reference.members $ Reference.componentFor ref
+      ppe = Branch.prettyPrintEnv1 b
+  isTerm <- isTerm code ref
+  isType <- isType code ref
+  if isTerm then do
+    let
+      termInfo :: Reference -> m (v, (Reference, Term v a, Type v a))
+      termInfo termRef = do
+        tpm <- getTypeOfTerm code termRef
+        tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
+        case termRef of
+          Reference.DerivedId id -> do
+            mtm <- getTerm code id
+            tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+            pure (Var.named $ PPE.termName ppe (Referent.Ref termRef), (termRef, tm, tp))
+          _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
+      unhash m =
+        let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
+            dropType (r,tm,_tp) = (r,tm)
+        in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+    Just . unhash . Map.fromList <$> traverse termInfo (toList component)
+  else if isType then pure Nothing
+  else fail $ "Invalid reference: " <> show ref
+
+propagate :: (Monad m, Var v, Ord a, Monoid a) => Codebase m v a -> Branch0 -> m Branch0
 propagate code b = do
   fs <- R.ran <$> frontier code b
   propagate' code fs b
@@ -464,12 +539,104 @@ propagate code b = do
 -- This will create a whole bunch of new terms in the codebase and move the
 -- names onto those new terms. Uses `Term.updateDependencies` to perform
 -- the substitutions.
-propagate' :: Codebase m v a -> Set Reference -> Branch0 -> m Branch0
-propagate' _code _frontier _b =
-  -- Implementation should batch together all the term updates based on the
-  -- current frontier
-  error "todo - propagate'"
 
+propagate'
+  :: forall m v a
+   . (Monad m, Var v, Ord a, Monoid a)
+  => Codebase m v a
+  -> Set Reference
+  -> Branch0
+  -> m Branch0
+propagate' code frontier b = go edits b =<< dirty
+ where
+  dirty =
+    Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
+  edits =
+    Map.fromList
+      .    R.toList
+      .    R.filterRan (TermEdit.isTypePreserving)
+      $    frontier
+      R.<| Branch.editedTerms b
+  update edits =
+    Term.updateDependencies (Map.mapMaybe TermEdit.toReference edits)
+  go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0
+  go edits b dirty = case dirty of
+    [] -> pure b
+    -- Skip over things already visited (in edits) and things not in the branch
+    r@(Reference.DerivedId _id) : rs | not (Map.member r edits)
+                                    && Branch.contains b r -> do
+      comp <- unhashComponent code b r
+      case comp of
+        Nothing -> go edits b rs
+        Just terms -> do
+          let
+            updatedTerms       = over _2 (update edits) <$> terms
+            updatedHashedTerms = Term.hashComponents (view _2 <$> updatedTerms)
+            p (_, _, typ) (hash, tm) = (hash, tm, typ)
+            newTerms = Map.intersectionWith p updatedTerms updatedHashedTerms
+            deps = toList
+              $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
+            tedits = [ edit | d <- deps, edit <- toList (Map.lookup d edits) ]
+            allSame = all TermEdit.isSame tedits
+          replacements <-
+            if allSame
+            then do
+              putTermComponent code newTerms
+              let newEdits = Map.fromList . Map.elems $ Map.intersectionWith
+                    (,)
+                    (view _1 <$> terms)
+                    (view _1 <$> newTerms)
+              pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
+            else do
+              -- We need to redo typechecking to figure out the typing
+              retypechecked <-
+                typecheckTerms code
+                               [ (v, tm) | (v, (_, tm, _)) <-
+                                             Map.toList updatedTerms ]
+              let p (ref, tm, _) typ = (ref, tm, typ)
+                  newTerms' = Map.intersectionWith p newTerms retypechecked
+              putTermComponent code newTerms'
+              pure $ let
+                go (ref, _tm, typ) typ'
+                  | Typechecker.isEqual typ typ' =
+                      TermEdit.Replace ref TermEdit.Same
+                  | Typechecker.isSubtype typ' typ =
+                      TermEdit.Replace ref TermEdit.Subtype
+                  | otherwise =
+                      error $ "replacement yielded a different type: "
+                            ++ show (typ, typ')
+                varToEdit :: Map v TermEdit
+                varToEdit = Map.intersectionWith go newTerms retypechecked
+                in Map.fromList .
+                   Map.elems $
+                   Map.intersectionWith (,) (view _1 <$> terms) varToEdit
+          case tedits of
+            [] -> go edits b rs
+            _  -> do
+              let b' = foldl' step b $ Map.toList replacements
+                  step b (old, replacement) = case replacement of
+                    TermEdit.Replace new typing ->
+                      Branch.replaceTerm old new typing b
+                    _ -> b
+              dirtyComponents <- componentDependents code r
+              -- This order traverses the dependency graph depth-first
+              go (replacements <> edits) b' (dirtyComponents <> rs)
+    (_ : rs) -> go edits b rs
+
+typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
+               => Codebase m v a
+               -> [(v, Term v a)]
+               -> m (Map v (Type v a))
+typecheckTerms code bindings = do
+  let tm = Term.letRec' True bindings $ Term.unit mempty
+  env <- typecheckingEnvironment' code tm
+  (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
+  -- todo: assert that the output map has a type for all variables in the input
+  case o of
+    Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
+    Just _ -> pure $
+      Map.fromList [ (v, typ) | Context.TopLevelComponent c <- toList (Typechecker.infos notes)
+                              , (v, typ, _) <- c ]
 
 -- The range of the returned relation is the frontier, and the domain is
 -- the set of dirty references.
@@ -516,5 +683,5 @@ referenceOps c = Branch.ReferenceOps (isTerm c) (isType c) dependencies dependen
   dependencies r = case r of
     Reference.DerivedId r ->
       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
-    _ -> pure Set.empty
+    _ -> pure $ R.lookupDom r Builtin.builtinDependencies
   dependents' = dependents c

@@ -149,6 +149,7 @@ data Input
   | MergeBranchI BranchName
   | ShowDefinitionI OutputLocation [String]
   | TodoI
+  | PropagateI
   | QuitI
   deriving (Show)
 
@@ -317,6 +318,8 @@ data Command i v a where
 
   Todo :: Branch -> Command i v (TodoOutput v Ann)
 
+  Propagate :: Branch -> Command i v Branch
+
 data Outcome
   -- New definition that was added to the branch
   = Added
@@ -457,6 +460,8 @@ fileToBranch handleCollisions codebase branch uf = do
   -- by folding over the outcomes.
   (result, b0) <- foldM addOutcome
     (SlurpResult uf branch mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty, Branch.head branch) outcomes'
+  -- todo: be a little smarter about avoiding needless propagation
+  b0 <- Codebase.propagate codebase b0
   pure $ result { updatedBranch = Branch.cons b0 branch }
   where
     b0 = Branch.head branch
@@ -634,6 +639,9 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
+    Propagate b -> do
+      b0 <- Codebase.propagate codebase (Branch.head b)
+      pure $ Branch.append b0 b
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do

@@ -224,9 +224,23 @@ loop s = Free.unfold' go s
           (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName -> withBranch inputBranchName respond
-          $ \branch -> mergeBranch (currentBranchName s) respond success branch
+          $ \branch -> do
+            let merged0 = branch <> currentBranch s
+            merged <- Free.eval $ Propagate merged0
+            ok <- Free.eval $ MergeBranch (currentBranchName s) merged
+            if ok then do
+              todo <- Free.eval (Todo merged)
+              _ <- success
+              _ <- respond $ TodoOutput merged todo
+              pure . Right $ s { currentBranch = merged }
+            else respond (UnknownBranch inputBranchName)
         TodoI ->
           Free.eval (Todo (currentBranch s)) >>= respond . TodoOutput (currentBranch s)
+        PropagateI -> do
+          b <- Free.eval (Propagate (currentBranch s))
+          _ <- Free.eval $ MergeBranch (currentBranchName s) b
+          _ <- success
+          pure . Right $ s { currentBranch = b }
         QuitI -> quit
        where
         success       = respond $ Success input

@@ -35,6 +35,7 @@ import           Unison.Names                   ( Names
                                                 )
 import qualified Unison.Names                  as Names
 import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.Util.Relation          as Rel
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -132,20 +133,18 @@ toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
 toSymbol _ = error "unpossible"
 
+-- Relation predicate: Domain depends on range.
+builtinDependencies :: Rel.Relation R.Reference R.Reference
+builtinDependencies =
+  Rel.fromMultimap (Type.dependencies <$> builtins0 @Symbol)
+
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
 builtinTypeDependents :: R.Reference -> Set R.Reference
-builtinTypeDependents r =
-  if r `Set.member` allReferencedTypes then
-    Set.fromList [
-      k | (k, t) <- Map.toList (builtins0 @ Symbol)
-        , r `Set.member` Type.dependencies t ]
-  else
-    Set.empty
+builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 
 allReferencedTypes :: Set R.Reference
-allReferencedTypes =
-  Set.unions (Type.dependencies <$> Map.elems (builtins0 @Symbol))
+allReferencedTypes = Rel.ran builtinDependencies
 
 builtins0 :: Var v => Map.Map R.Reference (Type v)
 builtins0 = Map.fromList $
