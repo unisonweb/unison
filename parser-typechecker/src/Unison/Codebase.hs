@@ -469,15 +469,23 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
--- Gets the dependents of a whole component (cycle)
+-- Gets the dependents of a whole component (cycle), topologically sorted,
+-- meaning that if X depends on Y, Y appears before X in this list.
+-- If X and Y depend on each other, they will appear adjacent in
+-- arbitrary order.
 componentDependents
-  :: Applicative m => Codebase m v a -> Reference -> m (Set Reference)
-componentDependents c r =
-  fmap Set.unions
+  :: (Monad m, Ord v) => Codebase m v a -> Reference -> m [Reference]
+componentDependents c r = do
+  dependents <-
+    fmap (toList . Set.unions)
     . traverse (dependents c)
     . toList
     . Reference.members
     $ Reference.componentFor r
+  withDependencies <- for dependents
+    $ \r -> fmap (r, ) $ Branch.dependencies refOps r
+  pure . fmap fst . join $ Components.components id withDependencies
+  where refOps = referenceOps c
 
 -- Turns a cycle of references into a term with free vars that we can edit
 -- and hash again.
@@ -541,7 +549,6 @@ propagate'
   -> m Branch0
 propagate' code frontier b = go edits b =<< dirty
  where
-  refOps = referenceOps code
   dirty =
     Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
   edits =
@@ -563,62 +570,55 @@ propagate' code frontier b = go edits b =<< dirty
         Nothing -> go edits b rs
         Just terms -> do
           let
-            deps = toList
-              $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
             updatedTerms       = over _2 (update edits) <$> terms
             updatedHashedTerms = Term.hashComponents (view _2 <$> updatedTerms)
             p (_, _, typ) (hash, tm) = (hash, tm, typ)
             newTerms = Map.intersectionWith p updatedTerms updatedHashedTerms
+            deps = toList
+              $ Set.unions (Term.dependencies . view _2 <$> Map.elems terms)
             tedits = [ edit | d <- deps, edit <- toList (Map.lookup d edits) ]
             allSame = all TermEdit.isSame tedits
-          case tedits of
-            [] -> go edits b rs
-            _  -> do
-              -- We need the new dirty list in dependency order
-              -- because we should visit all dependencies of X
-              -- before visiting X. This avoids updating X multiple times.
-              newDirty         <- toList <$> componentDependents code r
-              newDirtyWithDeps <- for newDirty
-                $ \r -> fmap (r, ) (Branch.dependencies refOps r)
-              let dirtyComponents = fmap fst . join $ Components.components
-                    id
-                    newDirtyWithDeps
-                  newEdits = Map.fromList . Map.elems $ Map.intersectionWith
+          replacements <-
+            if allSame
+            then do
+              putTermComponent code newTerms
+              let newEdits = Map.fromList . Map.elems $ Map.intersectionWith
                     (,)
                     (view _1 <$> terms)
                     (view _1 <$> newTerms)
-              replacements <-
-                if allSame
-                then do
-                  putTermComponent code newTerms
-                  pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
-                else do
-                  -- We need to redo typechecking to figure out the typing
-                  retypechecked <-
-                    typecheckTerms code
-                                   [ (v, tm) | (v, (_, tm, _)) <-
-                                                 Map.toList updatedTerms ]
-                  let p (ref, tm, _) typ = (ref, tm, typ)
-                      newTerms' = Map.intersectionWith p newTerms retypechecked
-                  putTermComponent code newTerms'
-                  pure $ let
-                    go (ref, _tm, typ) typ'
-                      | Typechecker.isEqual typ typ' =
-                          TermEdit.Replace ref TermEdit.Same
-                      | Typechecker.isSubtype typ' typ =
-                          TermEdit.Replace ref TermEdit.Subtype
-                      | otherwise =
-                          error $ "replacement yielded a different type: "
-                                ++ show (typ, typ')
-                    varToEdit :: Map v TermEdit
-                    varToEdit = Map.intersectionWith go newTerms retypechecked
-                    in Map.fromList .
-                       Map.elems $
-                       Map.intersectionWith (,) (view _1 <$> terms) varToEdit
+              pure $ (`TermEdit.Replace` TermEdit.Same) <$> newEdits
+            else do
+              -- We need to redo typechecking to figure out the typing
+              retypechecked <-
+                typecheckTerms code
+                               [ (v, tm) | (v, (_, tm, _)) <-
+                                             Map.toList updatedTerms ]
+              let p (ref, tm, _) typ = (ref, tm, typ)
+                  newTerms' = Map.intersectionWith p newTerms retypechecked
+              putTermComponent code newTerms'
+              pure $ let
+                go (ref, _tm, typ) typ'
+                  | Typechecker.isEqual typ typ' =
+                      TermEdit.Replace ref TermEdit.Same
+                  | Typechecker.isSubtype typ' typ =
+                      TermEdit.Replace ref TermEdit.Subtype
+                  | otherwise =
+                      error $ "replacement yielded a different type: "
+                            ++ show (typ, typ')
+                varToEdit :: Map v TermEdit
+                varToEdit = Map.intersectionWith go newTerms retypechecked
+                in Map.fromList .
+                   Map.elems $
+                   Map.intersectionWith (,) (view _1 <$> terms) varToEdit
+          case tedits of
+            [] -> go edits b rs
+            _  -> do
               let b' = foldl' step b $ Map.toList replacements
                   step b (old, replacement) = case replacement of
-                    TermEdit.Replace new typing -> Branch.replaceTerm old new typing b
+                    TermEdit.Replace new typing ->
+                      Branch.replaceTerm old new typing b
                     _ -> b
+              dirtyComponents <- componentDependents code r
               -- This order traverses the dependency graph depth-first
               go (replacements <> edits) b' (dirtyComponents <> rs)
     (_ : rs) -> go edits b rs
