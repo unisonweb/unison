@@ -149,6 +149,7 @@ data Input
   | MergeBranchI BranchName
   | ShowDefinitionI OutputLocation [String]
   | TodoI
+  | PropagateI
   | QuitI
   deriving (Show)
 
@@ -316,6 +317,8 @@ data Command i v a where
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
   Todo :: Branch -> Command i v (TodoOutput v Ann)
+
+  Propagate :: Branch -> Command i v Branch
 
 data Outcome
   -- New definition that was added to the branch
@@ -636,6 +639,9 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
+    Propagate b -> do
+      b0 <- Codebase.propagate codebase (Branch.head b)
+      pure $ Branch.append b0 b
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do

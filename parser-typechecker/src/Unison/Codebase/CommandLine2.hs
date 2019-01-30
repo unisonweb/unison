@@ -73,7 +73,8 @@ import qualified Unison.Var                     as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
-  Success _    -> putStrLn "Done."
+  Success (MergeBranchI _) -> putPrettyLn $ P.bold "Merged. " <> "Here's what's `todo` after the merge:"
+  Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe terms types -> let
     prettyTerms = map go terms
     go (r, dt) =
@@ -855,6 +856,14 @@ validInputs = validPatterns
           then Left $ warn "`update` doesn't take any arguments."
           else pure $ SlurpFileI True
         )
+      , InputPattern
+        "propagate"
+        []
+        []
+        (P.wrap $ "`propagate` rewrites any definitions that"
+               <> "depend on definitions with type-preserving edits to use"
+               <> "the updated versions of these dependencies.")
+        (const $ pure PropagateI)
       , InputPattern
         "todo"
         []
