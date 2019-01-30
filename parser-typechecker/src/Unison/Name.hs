@@ -1,4 +1,4 @@
-module Unison.Name (Name(..), fromText, toString, fromString, toVar, fromVar) where
+module Unison.Name (Name(..), unsafeFromText, toString, fromString, toVar, unsafeFromVar) where
 
 import           Data.String (IsString, fromString)
 import           Data.Text   (Text)
@@ -7,27 +7,27 @@ import qualified Unison.Hashable as H
 import           Unison.Var  (Var)
 import qualified Unison.Var  as Var
 
-newtype Name = Name { _toText :: Text } deriving (Eq, Ord)
+newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 
-fromText :: Text -> Name
-fromText t =
+unsafeFromText :: Text -> Name
+unsafeFromText t =
   if Text.any (=='#') t then error $ "not a name: " <> show t
   else Name t
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
 
-fromVar :: Var v => v -> Name
-fromVar = fromText . Var.name
+unsafeFromVar :: Var v => v -> Name
+unsafeFromVar = unsafeFromText . Var.name
 
 toString :: Name -> String
-toString = Text.unpack . _toText
+toString = Text.unpack . toText
 
 instance Show Name where
-  show = show . _toText
+  show = show . toText
 
 instance IsString Name where
-  fromString = fromText . Text.pack
+  fromString = unsafeFromText . Text.pack
 
 instance H.Hashable Name where
-  tokens s = [H.Text (_toText s)]
+  tokens s = [H.Text (toText s)]

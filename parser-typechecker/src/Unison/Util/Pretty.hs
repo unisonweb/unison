@@ -32,7 +32,6 @@ module Unison.Util.Pretty (
    lit,
    map,
    nest,
-   name,
    newline,
    numbered,
    orElse,
@@ -290,10 +289,6 @@ align' rows = alignedRows
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
-
-name :: (Pretty ColorText -> Pretty ColorText) -> Text -> Pretty ColorText
-name style t = case Text.span (/= '#') t of
-  (hd, tl) -> group $ style (text hd) <> text tl
 
 hang'
   :: (LL.ListLike s Char, IsString s)

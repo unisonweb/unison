@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase where
 
@@ -50,10 +51,12 @@ import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
+                                                , BranchName
                                                 )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Names                   ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Name                    ( Name )
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V0
                                                as V0
@@ -130,17 +133,19 @@ termDir, declDir:: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
 
-encodeName :: Name -> FilePath
-encodeName = Hash.base58s . Hash.fromBytes . encodeUtf8
+encodeBuiltinName :: Name -> FilePath
+encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8 . Name.toText
 
-decodeName :: FilePath -> Maybe Name
-decodeName p = decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+decodeBuiltinName :: FilePath -> Maybe Name
+decodeBuiltinName p =
+  Name.unsafeFromText . decodeUtf8 . Hash.toBytes <$>
+    Hash.fromBase58 (Text.pack p)
 
 builtinTermDir, builtinTypeDir :: FilePath -> Name -> FilePath
 builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> encodeName name
+  path </> "terms" </> "_builtin" </> encodeBuiltinName name
 builtinTypeDir path name =
-  path </> "types" </> "_builtin" </> encodeName name
+  path </> "types" </> "_builtin" </> encodeBuiltinName name
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -220,7 +225,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
 
       -- delete any leftover branch files "before" this one,
       -- and write this one if it doesn't already exist.
-      overwriteBranch :: Name -> Branch -> IO ()
+      overwriteBranch :: BranchName -> Branch -> IO ()
       overwriteBranch name branch = do
         let newBranchHash = Hash.base58s . Branch.toHash $ branch
         (match, nonmatch) <-
@@ -256,7 +261,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         else pure Set.empty
        where
         dir = case r of
-          Reference.Builtin name ->
+          Reference.Builtin (Name.unsafeFromText -> name) ->
             pure $ (if Builtin.isBuiltinTerm name
                 then builtinTermDir
                 else builtinTypeDir
@@ -268,7 +273,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
             pure $ (if b then termDir else declDir) path id
           _ -> error "impossible: these patterns should be enough"
 
-      branchUpdates :: IO (IO (), IO (Set Name))
+      branchUpdates :: IO (IO (), IO (Set BranchName))
       branchUpdates = do
         branchFileChanges      <- TQueue.newIO
         (cancelWatch, watcher) <- Watch.watchDirectory' (branchesPath path)
@@ -299,5 +304,5 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branchUpdates
                dependents
 
-ubfPathToName :: FilePath -> Name
+ubfPathToName :: FilePath -> BranchName
 ubfPathToName = Text.pack . takeFileName . takeDirectory

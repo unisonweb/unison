@@ -34,8 +34,10 @@ import           Unison.Codebase.Branch         ( Branch
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
-import           Unison.Names                   ( Name
-                                                , Names
+import           Unison.HashQualified           ( HashQualified )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Names                   ( Names
                                                 , NameTarget
                                                 )
 import qualified Unison.Names as Names
@@ -64,13 +66,12 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
-import qualified Unison.Var as Var
 
 data Event
   = UnisonFileChanged SourceName Text
-  | UnisonBranchChanged (Set Name)
+  | UnisonBranchChanged (Set BranchName)
 
-type BranchName = Name
+type BranchName = Text
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v =
@@ -180,8 +181,8 @@ data Output v
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch
-      [(Name, Referent, Maybe (Type v Ann))]
-      [(Name, Reference, DisplayThing (Decl v Ann))]
+      [(HashQualified, Referent, Maybe (Type v Ann))]
+      [(HashQualified, Reference, DisplayThing (Decl v Ann))]
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -202,11 +203,11 @@ data TodoOutput v a
   = TodoOutput_ {
       todoScore :: Int,
       todoFrontier ::
-        ( [(Name, Reference, Maybe (Type v a))]
-        , [(Name, Reference, DisplayThing (Decl v a))]),
+        ( [(HashQualified, Reference, Maybe (Type v a))]
+        , [(HashQualified, Reference, DisplayThing (Decl v a))]),
       todoFrontierDependents ::
-        ( [(Score, Name, Reference, Maybe (Type v a))]
-        , [(Score, Name, Reference, DisplayThing (Decl v a))]),
+        ( [(Score, HashQualified, Reference, Maybe (Type v a))]
+        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))]),
       todoConflicts :: Branch0
     } deriving (Show)
 
@@ -304,12 +305,12 @@ data Command i v a where
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
               -> [String]
-              -> Command i v [(Name, Referent, Maybe (Type v Ann))]
+              -> Command i v [(HashQualified, Referent, Maybe (Type v Ann))]
 
   -- Return a list of types whose names match the given queries.
   SearchTypes :: Branch
               -> [String]
-              -> Command i v [(Name, Reference)] -- todo: can add Kind later
+              -> Command i v [(HashQualified, Reference)] -- todo: can add Kind later
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
@@ -394,11 +395,11 @@ outcomes okToUpdate b file = let
           _otherwise -> (r0, CouldntUpdateConflicted) -- come back to this
 
   outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
-  termOutcome (v, (r, _, _)) = outcome0 (Var.name v) (Right r) []
+  termOutcome (v, (r, _, _)) = outcome0 (Name.unsafeFromVar v) (Right r) []
   outcomes0types
      = map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
     ++ map typeOutcome (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
-  typeOutcome (v, (r, dd)) = outcome0 (Var.name v) (Left r) $ ctorNames v r dd
+  typeOutcome (v, (r, dd)) = outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
   ctorNames v r (Left e) = Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
   ctorNames v r (Right dd) = Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
   outcomes0 = outcomes0terms ++ outcomes0types
@@ -482,14 +483,15 @@ fileToBranch handleCollisions codebase branch uf = do
           , Branch.fromDeclaration v r dd <> b )
         Right r ->
           ( result { adds = adds result <> SlurpComponent mempty (Set.singleton v) }
-          , Branch.addTermName (Referent.Ref r) (Var.name v) b )
+          , Branch.addTermName (Referent.Ref r) (Name.unsafeFromVar v) b )
       Updated -> do
         let result' = result { updates = updates result <> sc r v }
+            name = Name.unsafeFromVar v
         case r of
-          Left (r', dd) -> case toList (Branch.typesNamed (Var.name v) b0) of
+          Left (r', dd) -> case toList (Branch.typesNamed name b0) of
             [r0] -> pure (result', Branch.fromDeclaration v r' dd <> Branch.replaceType r0 r' b)
             _ -> error "Panic. Tried to replace a type that's conflicted."
-          Right r' -> case toList (Branch.termsNamed (Var.name v) b0) of
+          Right r' -> case toList (Branch.termsNamed name b0) of
             [Referent.Ref r0] -> do
               Just type1 <- Codebase.getTypeOfTerm codebase r0
               let Just (_, _, type2) = Map.lookup r' termsByRef
@@ -497,7 +499,7 @@ fileToBranch handleCollisions codebase branch uf = do
                     if Typechecker.isEqual type1 type2 then TermEdit.Same
                     else if Typechecker.isSubtype type2 type1 then TermEdit.Subtype
                     else TermEdit.Different
-              pure (result', Branch.addTermName (Referent.Ref r') (Var.name v) $
+              pure (result', Branch.addTermName (Referent.Ref r') name $
                              Branch.replaceTerm r0 r' typing b)
             _ -> error $ "Panic. Tried to replace a term that's conflicted." ++ show v
       AlreadyExists -> pure (result { duplicates = duplicates result <> sc r v }, b)
@@ -505,15 +507,16 @@ fileToBranch handleCollisions codebase branch uf = do
       CouldntUpdateConflicted ->
         pure (result { conflicts = conflicts result <> sc r v }, b)
       RequiresAlias ns -> let
+        name = Name.unsafeFromVar v
         rcs = case r of
-          Left _ -> Branch.RefCollisions mempty (R.fromList $ (Var.name v,) <$> ns)
-          Right _ -> Branch.RefCollisions (R.fromList $ (Var.name v,) <$> ns) mempty
+          Left _ -> Branch.RefCollisions mempty (R.fromList $ (name,) <$> ns)
+          Right _ -> Branch.RefCollisions (R.fromList $ (name,) <$> ns) mempty
         in pure (result { needsAlias = needsAlias result <> rcs }, b)
       TermExistingConstructorCollision ->
         pure (result {
           termExistingConstructorCollisions =
             termExistingConstructorCollisions result <>
-            pick (toList $ Branch.constructorsNamed (Var.name v) b0) }, b)
+            pick (toList $ Branch.constructorsNamed (Name.unsafeFromVar v) b0) }, b)
         where
           pick [] = error "Panic. Incorrectly determined a conflict."
           pick (h:_) = Map.fromList [(v, h)]
@@ -680,4 +683,3 @@ loadDefinitions code refs = do
           Just d -> pure (r, RegularThing d)
       _ -> error $ "unpossible " ++ show r
   pure (terms, types)
-

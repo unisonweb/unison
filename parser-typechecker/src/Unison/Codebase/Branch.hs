@@ -19,8 +19,6 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
-import qualified Data.Text                as Text
-import           Data.Text                (Text)
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
@@ -39,7 +37,6 @@ import           Unison.Names             (Names (..))
 import qualified Unison.Name              as Name
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
-import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
@@ -49,7 +46,6 @@ import           Unison.Util.TransitiveClosure (transitiveClosure)
 import           Unison.PrettyPrintEnv    (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv    as PPE
 import           Unison.Var               (Var)
-import qualified Unison.Var               as Var
 
 -- todo:
 -- probably should refactor Reference to include info about whether it
@@ -270,6 +266,9 @@ allNames = Set.union <$> allTermNames <*> allTypeNames
 
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
+
+allTermsHashQualified :: Branch0 -> Set (HashQualified)
+allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
 
 allTypeNames :: Branch0 -> Set Name
 allTypeNames b0 = R.dom (typeNamespace b0)
@@ -559,7 +558,7 @@ fromTypecheckedFile
   :: forall v a . Var v => UF.TypecheckedUnisonFile v a -> Branch0
 fromTypecheckedFile file =
   let
-    toName      = Name.fromVar
+    toName      = Name.unsafeFromVar
     hashedTerms = UF.hashTerms file
     ctors :: [(v, Referent)]
     ctors = Map.toList $ UF.hashConstructors file

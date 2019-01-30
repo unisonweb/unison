@@ -115,7 +115,7 @@ toNames0
   -> Names
 toNames0 typeSymbol r f dd =
   let names (ctor, i) =
-        let name = Name.fromVar ctor in Names.fromTerms [(name, f r i)]
+        let name = Name.unsafeFromVar ctor in Names.fromTerms [(name, f r i)]
   in  foldMap names (constructorVars dd `zip` [0 ..])
         <> Names.fromTypesV [(typeSymbol, r)]
 

@@ -7,12 +7,9 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Unison.Reference (Reference)
 import qualified Data.Map as Map
-import qualified Data.Text as Text
-import Data.Text (Text)
 import Unison.Name (Name)
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
-import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Referent (Referent)
@@ -64,36 +61,45 @@ assignTermName :: Referent -> HashQualified -> PrettyPrintEnv -> PrettyPrintEnv
 assignTermName r name env = PrettyPrintEnv terms' (types env)
   where terms' r' = if r' == r then Map.singleton name 1 else (terms env r)
 
-adjust :: (Word -> Word) -> PrettyPrintEnv -> PrettyPrintEnv
-adjust by e = PrettyPrintEnv
-  (\r -> by <$> terms e r)
-  (\r -> by <$> types e r)
-
-scale :: Word -> PrettyPrintEnv -> PrettyPrintEnv
-scale by = adjust (by *)
-
-incrementBy :: Word -> PrettyPrintEnv -> PrettyPrintEnv
-incrementBy by = adjust (by +)
+-- adjust :: (Word -> Word) -> PrettyPrintEnv -> PrettyPrintEnv
+-- adjust by e = PrettyPrintEnv
+--   (\r -> by <$> terms e r)
+--   (\r -> by <$> types e r)
+--
+-- scale :: Word -> PrettyPrintEnv -> PrettyPrintEnv
+-- scale by = adjust (by *)
+--
+-- incrementBy :: Word -> PrettyPrintEnv -> PrettyPrintEnv
+-- incrementBy by = adjust (by +)
 
 -- weightedSum :: [(Word,PrettyPrintEnv)] -> PrettyPrintEnv
 -- weightedSum envs = mconcat (uncurry scale <$> envs)
 
--- fromTypeNames :: [(Reference,Name)] -> PrettyPrintEnv
--- fromTypeNames types = let
+-- fromTypeNames' :: [(Reference,HashQualified)] -> PrettyPrintEnv
+-- fromTypeNames' types = let
 --   m = Map.fromList types
 --   toH Nothing = mempty
 --   toH (Just t) = Map.fromList [(t, 1)]
 --   in mempty { types = \r -> toH $ Map.lookup r m }
 
--- fromTermNames :: [(Referent,Name)] -> PrettyPrintEnv
+fromTypeNames :: [(Reference,Name)] -> PrettyPrintEnv
+fromTypeNames = error "todo"
+
+fromTypeNames' :: [(Reference,HashQualified)] -> PrettyPrintEnv
+fromTypeNames' = error "todo"
+
+-- fromTermNames :: [(Referent,HashQualified)] -> PrettyPrintEnv
 -- fromTermNames tms = let
 --   m = Map.fromList tms
 --   toH Nothing = mempty
 --   toH (Just n) = Map.fromList [(Name.toHashQualified n, 1)]
 --   in mempty { terms = \r -> toH $ Map.lookup r m }
-_fromTermNames :: [(Referent,Name)] -> PrettyPrintEnv
-_fromTermNames = error "todo"
--- Need to look
+
+fromTermNames :: [(Referent,Name)] -> PrettyPrintEnv
+fromTermNames = error "todo"
+
+fromTermNames' :: [(Referent,HashQualified)] -> PrettyPrintEnv
+fromTermNames' = error "todo"
 
 -- fromConstructorNames :: [((Reference,Int), Name)] -> [((Reference,Int), Name)] -> PrettyPrintEnv
 -- fromConstructorNames ctors reqs = let

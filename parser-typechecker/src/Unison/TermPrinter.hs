@@ -6,7 +6,6 @@ module Unison.TermPrinter where
 
 import           Control.Monad                  (join)
 import           Data.List
-import qualified Data.Text                     as Text
 import           Data.Foldable                  ( fold
                                                 )
 import           Data.Maybe                     ( fromMaybe
@@ -19,15 +18,13 @@ import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
+import           Unison.NamePrinter             ( prettyHashQualified )
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import qualified Unison.Referent               as Referent
 import           Unison.Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.TypePrinter             ( prettyHashQualified
-                                                , prettyHashQualified' )
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Util.Monoid             ( intercalateMap )
@@ -126,9 +123,9 @@ pretty
   -> Pretty String
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . prettyHashQualified' $ name
+    Var' v -> parenIfInfix name ic . prettyHashQualified $ name
       where name = HQ.fromVar v
-    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
+    Ref' r -> parenIfInfix name ic . prettyHashQualified $ name
       where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
@@ -148,9 +145,9 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     Text'    s  -> l $ show s
     Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i ->
-      prettyHashQualified' $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Request' ref i ->
-      prettyHashQualified' $ PrettyPrintEnv.termName n (Referent.Req ref i)
+      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Req ref i)
     Handle' h body ->
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal) h)
@@ -316,11 +313,11 @@ prettyPattern n p vs patt = case patt of
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref i [] ->
-    (prettyHashQualified' (PrettyPrintEnv.patternName n ref i), vs)
+    (prettyHashQualified (PrettyPrintEnv.patternName n ref i), vs)
   Pattern.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
-          $ prettyHashQualified' (PrettyPrintEnv.patternName n ref i)
+          $ prettyHashQualified (PrettyPrintEnv.patternName n ref i)
             `PP.hang` pats_printed
         , tail_vs)
   Pattern.As _ pat ->
@@ -333,7 +330,7 @@ prettyPattern n p vs patt = case patt of
   Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-    in  ("{" <> prettyHashQualified' (PrettyPrintEnv.patternName n ref i)
+    in  ("{" <> prettyHashQualified (PrettyPrintEnv.patternName n ref i)
              <> (intercalateMap " " id [pats_printed, "->", k_pat_printed]) <>
          "}"
         , eventual_tail)
@@ -364,36 +361,36 @@ a + b = ...
 -}
 prettyBinding
   :: Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
-prettyBinding env fname term = go (symbolic && isBinary term) term where
+prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
-      PP.group (renderName fname <> PP.hang " :" (TypePrinter.pretty env (-1) tp)),
-      PP.group (prettyBinding env fname tm) ]
+      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env (-1) tp)),
+      PP.group (prettyBinding env v tm) ]
     LamsNamedOpt' vs body -> PP.group $
-      PP.group (defnLhs fname vs <> " =") `PP.hang`
+      PP.group (defnLhs v vs <> " =") `PP.hang`
       pretty env (ac (-1) Block) body
      where
     t -> l "error: " <> l (show t)
    where
-    defnLhs fname vs = if infix'
+    defnLhs v vs = if infix'
       then case vs of
         x : y : _ ->
           PP.sep " " [PP.text (Var.name x),
-                      prettyHashQualified fname,
+                      prettyHashQualified v,
                       PP.text (Var.name y)]
         _ -> l "error"
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap (PP.text . Var.name) vs
     renderName n = parenIfInfix n NonInfix $ prettyHashQualified n
-  symbolic = isSymbolic (HQ.fromVar v)
+  symbolic = isSymbolic v
   isBinary = \case
     Ann'          tm _ -> isBinary tm
     LamsNamedOpt' vs _ -> length vs == 2
     _                  -> False -- unhittable
 
 prettyBinding'
-  :: Var v => Int -> PrettyPrintEnv -> v -> AnnotatedTerm v a -> String
+  :: Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> String
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 
 paren :: Bool -> Pretty String -> Pretty String

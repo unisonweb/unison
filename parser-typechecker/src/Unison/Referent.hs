@@ -24,6 +24,13 @@ showShort numHashChars r = case r of
   Con r cid -> R.showShort numHashChars r <> "#" <> show cid
   Req r cid -> R.showShort numHashChars r <> "#" <> show cid
 
+toString :: Referent -> String
+toString = \case
+  Ref r     -> show r
+  Con r cid -> show r <> "#" <> show cid
+  Req r cid -> show r <> "#" <> show cid
+
+
 isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True
 isConstructor (Req _ _) = True
@@ -50,9 +57,11 @@ unsafeFromText t = case Text.split (=='#') t of
     [hash]            -> R.derivedBase58 hash 0 1
     [hash, pos, size] -> R.derivedBase58 hash (read . Text.unpack $ pos)
                                               (read . Text.unpack $ size)
-  [_, h, cid] -> error . Text.unpack $
-                  "how can we parse a Referent as Con vs Req? " <> t
-  _ -> error . Text.unpack $ "couldn't parse a Referent from " <> t
+    _ -> bail
+  [_, _h, _cid] -> error . Text.unpack $
+                  "todo: how can we parse a Referent as Con vs Req? " <> t
+  _ -> bail
+  where bail = error . Text.unpack $ "couldn't parse a Referent from " <> t
 
 
 instance Hashable Referent where

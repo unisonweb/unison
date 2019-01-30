@@ -105,7 +105,7 @@ dependencies uf ns = directReferences <>
     tm = term uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
-      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.fromVar <$>
+      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
                   Set.toList (Term.freeTypeVars tm))
     -- foreach name in Names.termNames,
         -- if the name or unqualified name is in Term.freeVars,

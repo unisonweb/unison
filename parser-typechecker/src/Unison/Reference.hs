@@ -76,6 +76,10 @@ unsafeFromText t = case Text.split (=='#') t of
     [hash]            -> derivedBase58 hash 0 1
     [hash, pos, size] -> derivedBase58 hash (read . Text.unpack $ pos)
                                             (read . Text.unpack $ size)
+    _ -> bail
+  _ -> bail
+  where bail = error . Text.unpack $ "couldn't parse a Reference from " <> t
+
 
 hashComponents ::
      (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)

@@ -23,7 +23,8 @@ import qualified Unison.Blank               as Blank
 import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
-import           Unison.Names               (Name, Names)
+import qualified Unison.Name                as Name
+import           Unison.Names               (Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
@@ -50,6 +51,7 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
+type Name = Text
 
 -- move to Unison.Util.List
 -- prefers earlier copies
@@ -117,9 +119,10 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-         [ (Names.unqualified name,
+         [ (Names.unqualified' name,
             [Typechecker.NamedReference name typ (Right r)]) |
-           (name, r) <- Map.toList $ Names.termNames allTheNames,
+           (name', r) <- Map.toList $ Names.termNames allTheNames,
+           let name = Name.toText name',
            typ <- Foldable.toList $ TL.typeOfReferent lookupTypes  r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm

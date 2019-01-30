@@ -108,7 +108,7 @@ builtinTypeNames :: Set Name
 builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
-builtinTypes = liftA2 (,) Name.fromText R.Builtin <$>
+builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
 
 -- | parse some builtin data types, and resolve their free variables using

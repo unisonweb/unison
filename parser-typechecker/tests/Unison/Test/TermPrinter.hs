@@ -5,6 +5,7 @@ module Unison.Test.TermPrinter where
 import EasyTest
 import qualified Data.Text as Text
 import Unison.ABT (annotation)
+import qualified Unison.HashQualified as HQ
 import Unison.Term
 import Unison.TermPrinter
 import qualified Unison.Type as Type
@@ -69,7 +70,7 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = prettyBinding get_names var_v (input_term input_type)
+       prettied = prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied

@@ -21,6 +21,12 @@ data HashQualified
   = NameOnly Name | HashOnly Referent | HashQualified Name Text
   deriving (Eq, Ord)
 
+toName :: HashQualified -> Maybe Name
+toName = \case
+  NameOnly name -> Just name
+  HashQualified name _ -> Just name
+  HashOnly _ -> Nothing
+
 hashSeparator :: Text
 hashSeparator = "#"
 
@@ -32,14 +38,14 @@ fromText :: Text -> HashQualified
 fromText t =
   case Text.breakOn hashSeparator t of
     ("", "")     -> error "don't give me that"
-    (name, "")   -> NameOnly (Name.fromText name)
+    (name, "")   -> NameOnly (Name.unsafeFromText name)
     ("", hash)   -> HashOnly (Referent.unsafeFromText hash)
-    (name, hash) -> HashQualified (Name.fromText name) hash
+    (name, hash) -> HashQualified (Name.unsafeFromText name) hash
 
 toText :: HashQualified -> Text
 toText = \case
-  NameOnly name -> Name._toText name
-  HashQualified name hash -> Name._toText name <> hash
+  NameOnly name -> Name.toText name
+  HashQualified name hash -> Name.toText name <> hash
   HashOnly ref -> Text.pack (show ref)
 
 forReferent :: Referent -> Int -> Name -> HashQualified
@@ -62,8 +68,11 @@ fromName n = NameOnly n
 fromVar :: Var v => v -> HashQualified
 fromVar = fromText . Var.name
 
+toVar :: Var v => HashQualified -> v
+toVar = Var.named . toText
+
 instance IsString HashQualified where
   fromString = fromText . Text.pack
 
--- instance Show HashQualified where
---   show = Text.unpack . toText
+instance Show HashQualified where
+  show = Text.unpack . toText

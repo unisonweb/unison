@@ -48,7 +48,14 @@ import qualified Unison.Codebase.Editor.Actions as Actions
 import           Unison.Codebase.Runtime        (Runtime)
 import qualified Unison.Codebase.Runtime        as Runtime
 import qualified Unison.Codebase.Watch          as Watch
+import qualified Unison.HashQualified           as HQ
+import           Unison.Name                    (Name)
+import qualified Unison.Name                    as Name
 import qualified Unison.Names                   as Names
+import           Unison.NamePrinter             (prettyName,
+                                                 prettyHashQualified,
+                                                 styleHashQualified
+                                                )
 import           Unison.Parser                  (Ann)
 import qualified Unison.PrettyPrintEnv          as PPE
 import           Unison.PrintError              (prettyParseError,
@@ -82,11 +89,11 @@ notifyUser dir o = case o of
         MissingThing r -> missing n r
         BuiltinThing -> builtin n
         RegularThing tm -> P.map fromString $
-          TermPrinter.prettyBinding ppe (Var.named n) tm
+          TermPrinter.prettyBinding ppe n tm
     prettyTypes = map go2 types
-    builtin n = P.wrap $ "--" <> P.text n <> " is built-in."
+    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
     missing n r = P.wrap (
-      "-- The name " <> P.text n <> " is assigned to the "
+      "-- The name " <> prettyHashQualified n <> " is assigned to the "
       <> "reference " <> fromString (show r ++ ",")
       <> "which is missing from the codebase.")
       <> P.newline
@@ -155,7 +162,7 @@ notifyUser dir o = case o of
       $  "I don't know of any "
       <> fromString (Names.renderNameTarget nameTarget)
       <> " named "
-      <> P.red (P.text name)
+      <> P.red (prettyName name)
       <> " in the branch "
       <> P.blue (P.text branchName)
       <> "."
@@ -166,7 +173,7 @@ notifyUser dir o = case o of
       $  "There's already a "
       <> fromString (Names.renderNameTarget nameTarget)
       <> " named "
-      <> P.red (P.text name)
+      <> P.red (prettyName name)
       <> " in the branch "
       <> P.blue (P.text branchName)
       <> "."
@@ -175,7 +182,7 @@ notifyUser dir o = case o of
       .  warn
       .  P.wrap
       $  "The name "
-      <> P.red (P.text name)
+      <> P.red (prettyName name)
       <> " refers to more than one "
       <> fromString (Names.renderNameTarget nameTarget)
       <> " in the branch "
@@ -234,11 +241,11 @@ notifyUser dir o = case o of
       Branch.prettyPrintEnv1 (Branch.head branch) `PPE.unionLeft`
       Branch.prettyPrintEnv1 (Branch.fromTypecheckedFile file)
     filterTermTypes vs =
-      [ (Var.name v,t) | v <- toList vs
+      [ (HQ.fromVar v,t) | v <- toList vs
               , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
     prettyDeclHeader v = case UF.getDecl' file v of
-      Just (Left _) -> TypePrinter.prettyEffectHeader (Var.name v)
-      Just (Right _) -> TypePrinter.prettyDataHeader (Var.name v)
+      Just (Left _) -> TypePrinter.prettyEffectHeader (HQ.fromVar v)
+      Just (Right _) -> TypePrinter.prettyDataHeader (HQ.fromVar v)
       Nothing -> error "Wat."
     addMsg = if not (null addedTypes && null addedTerms)
       then Just . P.okCallout $
@@ -319,8 +326,8 @@ notifyUser dir o = case o of
             Just (sampleName0, sampleExistingName0) =
               (f . Branch.typeCollisions) (E.needsAlias s) <|>
               (f . Branch.termCollisions) (E.needsAlias s)
-            sampleNewName' = P.group (P.text sampleName0 <> "`")
-            sampleOldName = P.text . head . toList $ sampleExistingName0 in
+            sampleNewName' = P.group (prettyName sampleName0 <> "`")
+            sampleOldName = prettyName . head . toList $ sampleExistingName0 in
 
         P.wrap ("I skipped these definitions because they already" <> P.bold "exist with other names:") <> "\n\n" <>
         P.indentN 2 (
@@ -328,16 +335,17 @@ notifyUser dir o = case o of
             P.align
           -- ("type Optional", "aka " ++ commas existingNames)
           -- todo: something is wrong here: only one oldName is being shown, instead of all
-            [(prettyDeclHeader $ Var.named newName,
-              "aka " <> P.commas (P.text <$> toList oldNames)) |
+            [(prettyDeclHeader $ Name.toVar newName,
+              "aka " <> P.commas (prettyName <$> toList oldNames)) |
               (newName, oldNames) <-
                 Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ],
-          TypePrinter.prettySignatures' ppe
+          TypePrinter.prettySignaturesAlt' ppe
               -- foo, foo2, fasdf : a -> b -> c
-              [ (intercalateMap ", " id (name : toList oldNames), typ)
+              -- note: this shit vvvv is not a Name.
+              [ (name : fmap HQ.fromName (toList oldNames), typ)
               | (newName, oldNames) <-
                   Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
-              , (name, typ) <- filterTermTypes [Var.named newName]
+              , (name, typ) <- filterTermTypes [Name.toVar newName]
               ]
           ])
           <> "\n\n"
@@ -350,17 +358,17 @@ notifyUser dir o = case o of
         P.wrap ("I can't update these terms because the" <> P.bold "names are currently assigned to constructors:") <> "\n\n" <>
           P.indentN 2
             (P.column2
-              [ (P.text $ Var.name v
-                , "is a constructor for " <>
-                    P.text (PPE.typeName ppe (Referent.toReference r)))
+              [ (P.text $ Var.name v, "is a constructor for " <> go r)
               | (v, r) <- Map.toList termExistingCtorCollisions ]
             )
             <> "\n\n"
             <> tip "You can `rename` these constructors to free up the names for your new definitions."
       else Nothing
+      where
+        go r = prettyHashQualified (PPE.typeName ppe (Referent.toReference r))
     ctorExistingTermCollisions = E.constructorExistingTermCollisions s
     commaRefs rs = P.wrap $ P.commas (map go rs) where
-      go r = P.text (PPE.termName ppe r)
+      go r = prettyHashQualified (PPE.termName ppe r)
     ctorExistingTermMsg =
       if not (null ctorExistingTermCollisions)
       then Just . P.warnCallout $
@@ -405,10 +413,10 @@ notifyUser dir o = case o of
         types    = R.dom $ Branch.typeNamespace branch
     when (not $ null terms) $ do
       putStrLn "🙅 These terms have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) terms
+      traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) terms
     when (not $ null types) $ do
       putStrLn "🙅 These types have conflicts: "
-      traverse_ (\x -> putStrLn ("  " ++ Text.unpack x)) types
+      traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) types
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
   FileChangeEvent _sourceName _src -> pure ()
@@ -480,6 +488,7 @@ notifyUser dir o = case o of
         ])
 
  where
+  renderNameConflicts :: Set.Set Name -> Set.Set Name -> [P.Pretty CT.ColorText]
   renderNameConflicts conflictedTypeNames conflictedTermNames =
     if null allNames then []
     else [
@@ -487,15 +496,15 @@ notifyUser dir o = case o of
         if Set.null conflictedTypeNames then []
         else [
           P.wrap ("These" <> P.bold "types have conflicting definitions:")
-          `P.hang` P.commas (P.blue . P.text <$> toList conflictedTypeNames)
+          `P.hang` P.commas (P.blue . prettyName <$> toList conflictedTypeNames)
         ],
         if Set.null conflictedTermNames then []
         else [
           P.wrap ("These" <> P.bold "terms have conflicting definitions:")
-            `P.hang` P.commas (P.blue . P.text <$> toList conflictedTermNames)
+            `P.hang` P.commas (P.blue . prettyName <$> toList conflictedTermNames)
         ],
         [tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
-            <> P.group ("`view " <> P.sep " " (P.text <$> take 3 allNames) <> "`")
+            <> P.group ("`view " <> P.sep " " (prettyName <$> take 3 allNames) <> "`")
             <> "to see the conflicting defintions, then use `rename`"
             <> "and/or `replace` to resolve the conflicts."]
       ]
@@ -513,21 +522,21 @@ notifyUser dir o = case o of
       <> "to pick a replacement." -- todo: eventually something with `edit`
     ]]
     where
-      name (Left (r,_)) = P.name P.bold (PPE.typeName ppe r)
-      name (Right (r,_)) = P.name P.bold (PPE.termName ppe (Referent.Ref r))
+      name (Left (r,_)) = styleHashQualified P.bold (PPE.typeName ppe r)
+      name (Right (r,_)) = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
       formatTypeEdits es = P.wrap $ mconcat [
         "was",
         if TypeEdit.Deprecate `elem` es
         then "deprecated and also replaced with"
         else "replaced with",
-        P.oxfordCommas [ P.name P.bold (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
+        P.oxfordCommas [ styleHashQualified P.bold (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
         ]
       formatTermEdits es = P.wrap $ mconcat [
         "was",
         if TermEdit.Deprecate `elem` es
         then "deprecated and also replaced with"
         else "replaced with",
-        P.oxfordCommas [ P.name P.bold (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
+        P.oxfordCommas [ styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
         ]
       formatConflict e@(Left (_, edits)) =
         "The type " <> name e <> formatTypeEdits (toList edits)
@@ -548,41 +557,41 @@ notifyUser dir o = case o of
     when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
       P.wrap $ "I" <> pastTenseCmd <> "the"
         <> ns (E.changedSuccessfully r)
-        <> P.blue (P.text oldName)
-        <> "to" <> P.green (P.text (newName <> "."))
+        <> P.blue (prettyName oldName)
+        <> "to" <> P.green (prettyName newName) <> "."
     when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
       (P.wrap $ "I couldn't" <> cmd <> "the"
            <> ns (E.oldNameConflicted r)
-           <> P.blue (P.text oldName)
-           <> "to" <> P.green (P.text newName)
+           <> P.blue (prettyName oldName)
+           <> "to" <> P.green (prettyName newName)
            <> "because of conflicts.")
       <> "\n\n"
       <> tip "Use `todo` to view more information on conflicts and remaining work."
     when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
-      (P.wrap $ "I couldn't" <> cmd <> P.blue (P.text oldName)
-           <> "to" <> P.green (P.text newName)
+      (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
+           <> "to" <> P.green (prettyName newName)
            <> "because the "
            <> ns (E.newNameAlreadyExists r)
            <> "already exist(s).")
       <> "\n\n"
       <> tip
-         ("Use" <> P.group ("`rename " <> P.text newName <> " <newname>`") <>
-           "to make" <> P.text newName <> "available.")
+         ("Use" <> P.group ("`rename " <> prettyName newName <> " <newname>`") <>
+           "to make" <> prettyName newName <> "available.")
     where
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
 
-  formatMissingStuff :: (Show a, Show b)
-    => [(Names.Name, a)] -> [(Names.Name, b)] -> [P.Pretty P.ColorText]
+  formatMissingStuff :: (Show tm, Show typ)
+    => [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> [P.Pretty P.ColorText]
   formatMissingStuff terms types = catMaybes [
     (if null terms then Nothing else Just . P.fatalCallout $
       P.wrap "The following terms have a missing or corrupted type signature:"
       <> "\n\n"
-      <> P.column2 [ (P.text name, fromString (show ref)) | (name, ref) <- terms ]),
+      <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- terms ]),
     (if null types then Nothing else Just . P.fatalCallout $
       P.wrap "The following types weren't found in the codebase:"
       <> "\n\n"
-      <> P.column2 [ (P.text name, fromString (show ref)) | (name, ref) <- types ])
+      <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
     ]
 
 allow :: FilePath -> Bool
@@ -689,7 +698,7 @@ validInputs = validPatterns
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
   definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
-    let names = Text.unpack <$> toList (Branch.allNames (Branch.head b))
+    let names = Name.toString <$> toList (Branch.allNames (Branch.head b))
     pure $ autoComplete q names
   noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
   quit          = InputPattern
@@ -806,8 +815,8 @@ validInputs = validPatterns
         (\case
           [oldName, newName] -> Right $ RenameUnconflictedI
             allTargets
-            (Text.pack oldName)
-            (Text.pack newName)
+            (fromString oldName)
+            (fromString newName)
           _ -> Left . P.warnCallout $ P.wrap
             "`rename` takes two arguments, like `rename oldname newname`."
         )
@@ -819,8 +828,8 @@ validInputs = validPatterns
         (\case
           [oldName, newName] -> Right $ RenameUnconflictedI
             allTargets
-            (Text.pack oldName)
-            (Text.pack newName)
+            (fromString oldName)
+            (fromString newName)
           _ -> Left . P.warnCallout $ P.wrap
             "`rename` takes two arguments, like `rename oldname newname`."
         )
@@ -834,8 +843,8 @@ validInputs = validPatterns
         (\case
           [oldName, newName] -> Right $ AliasUnconflictedI
             allTargets
-            (Text.pack oldName)
-            (Text.pack newName)
+            (fromString oldName)
+            (fromString newName)
           _ -> Left . warn $ P.wrap
             "`alias` takes two arguments, like `alias oldname newname`."
         )

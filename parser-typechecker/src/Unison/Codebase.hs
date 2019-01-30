@@ -23,8 +23,6 @@ import           Data.Maybe                     ( catMaybes
                                                 )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.String                    ( fromString )
-import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
@@ -36,6 +34,7 @@ import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
+import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.Parser                  ( Ann )
@@ -242,49 +241,20 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
         ppEnv = PPE.assignTermName r0 name $ Branch.prettyPrintEnv1 b
     in  case tm of
           Term.Ann' _ _ ->
-            pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
+            pure $ Just (TermPrinter.prettyBinding ppEnv name tm)
           _ -> do
             Just typ <- getTypeOfTerm cb r1
             pure . Just $ TermPrinter.prettyBinding
               ppEnv
-              (Var.named name)
+              name
               (Term.ann (ABT.annotation tm) tm typ)
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(Name,Referent)] -> Branch0 -> m (Pretty String)
+  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty String)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
-
--- Search for and display bindings matching the given query
-prettyBindingsQ
-  :: (Var.Var v, Monad m)
-  => Codebase m v a
-  -> String
-  -> Branch0
-  -> m (Pretty String)
-prettyBindingsQ cb query b =
-  let possible = Branch.allTermNames b
-      matches =
-        sortedApproximateMatches query (Text.unpack <$> toList possible)
-      str = fromString
-      bs =
-        [ (name, r)
-        | name <- Text.pack <$> matches
-        , r    <- take 1 (toList $ Branch.termsNamed name b)
-        ]
-      go pp = if length matches > 5
-        then PP.linesSpaced
-          [ pp
-          , "... "
-          <> str (show (length matches - 5))
-          <> " more (use `> list "
-          <> str query
-          <> "` to see all matches)"
-          ]
-        else pp
-  in  go <$> prettyBindings cb (take 5 bs) b
 
 prettyListingQ
   :: (Var.Var v, Monad m)
@@ -361,18 +331,18 @@ makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
     _                           -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
-      fmap (r, Var.named (termName r), ) <$> getTerm code rid
+      fmap (r, HQ.toVar (termName r), ) <$> getTerm code rid
     _ -> pure Nothing
   let
     unref t = ABT.visitPure go t
      where
       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
-        Just (Term.var (ABT.annotation t) (Var.named $ termName r))
+        Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
       go _ = Nothing
     datas = Map.fromList
-      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [Var.named (typeName r)] ]
+      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
     effects = Map.fromList
-      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [Var.named (typeName r)] ]
+      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
     unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
     tm' = case tm of
@@ -403,7 +373,7 @@ sortedApproximateMatches q possible = trim (sortOn fst matches)
   trim ((_, h) : _) | h == q = [h]
   trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
-branchExists :: Functor m => Codebase m v a -> Name -> m Bool
+branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase
 
 builtinBranch :: Branch
@@ -439,7 +409,7 @@ isTerm code = fmap isJust . getTypeOfTerm code
 
 isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
-  Reference.Builtin b -> pure (b `Set.member` Builtin.builtinTypeNames)
+  Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
   _ -> error "impossible"
 

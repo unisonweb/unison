@@ -11,6 +11,7 @@ import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
 import           Data.String      (fromString)
+import           Data.Text        (Text)
 import qualified Data.Text        as Text
 import           Unison.Reference (pattern Builtin, Reference)
 import qualified Unison.Name      as Name
@@ -22,10 +23,12 @@ import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
-import qualified Unison.Var       as Var
 
 unqualified :: Name -> Name
-unqualified = Name.fromText . last . Text.splitOn "." . Name._toText
+unqualified = Name.unsafeFromText . unqualified' . Name.toText
+
+unqualified' :: Text -> Text
+unqualified' = last . Text.splitOn "."
 
 data Names = Names
   { termNames    :: Map Name Referent
@@ -55,14 +58,14 @@ lookupType ns n = Map.lookup n (typeNames ns)
 fromBuiltins :: [Reference] -> Names
 fromBuiltins rs =
   mempty { termNames = Map.fromList
-          [ (Name.fromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
+          [ (Name.unsafeFromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
 
 fromTerms :: [(Name, Referent)] -> Names
 fromTerms ts = mempty { termNames = Map.fromList ts }
 
 fromTypesV :: Var v => [(v, Reference)] -> Names
 fromTypesV env =
-  Names mempty . Map.fromList $ fmap (first $ Name.fromText . Var.name) env
+  Names mempty . Map.fromList $ fmap (first $ Name.unsafeFromVar) env
 
 fromTypes :: [(Name, Reference)] -> Names
 fromTypes env = Names mempty $ Map.fromList env
@@ -106,7 +109,7 @@ importing shortToLongName0 (Names {..}) = let
     Nothing -> m
     Just v  -> Map.insert shortname v m
   shortToLongName = [
-    (Name.fromVar v, Name.fromVar v2) | (v,v2) <- shortToLongName0 ]
+    (Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v,v2) <- shortToLongName0 ]
   terms' = foldl' go termNames shortToLongName
   types' = foldl' go typeNames shortToLongName
   in Names terms' types'

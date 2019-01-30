@@ -31,9 +31,8 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
-import           Unison.Names                   ( Name
-                                                , NameTarget
-                                                )
+import           Unison.Name                    ( Name )
+import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -147,9 +146,9 @@ loop s = Free.unfold' go s
           -- makes sure that the user search terms get used as the names
           -- in the pretty-printer
           let ppe =
-                PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
-                  `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                  `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head $ currentBranch s]
+                PPE.fromTermNames' [ (r, n) | (n, r, _) <- terms ]
+                  `PPE.unionLeft` PPE.fromTypeNames' (swap <$> types)
+                  `PPE.unionLeft` Branch.prettyPrintEnv1 (Branch.head $ currentBranch s)
               loc = case outputLoc of
                 Editor.ConsoleLocation -> Nothing
                 Editor.FileLocation path -> Just path

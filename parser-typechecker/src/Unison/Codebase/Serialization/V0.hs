@@ -497,10 +497,10 @@ putBranch (Branch b) = putCausal b $ \b -> do
   putRelation (Branch.editedTypes b) putReference putTypeEdit
 
 putName :: MonadPut m => Name -> m ()
-putName = putText . Name._toText
+putName = putText . Name.toText
 
 getName :: MonadGet m => m Name
-getName = Name.fromText <$> getText
+getName = Name.unsafeFromText <$> getText
 
 getNamespace :: MonadGet m => m Branch.Namespace
 getNamespace =
