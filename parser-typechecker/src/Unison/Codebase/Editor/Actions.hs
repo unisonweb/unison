@@ -146,8 +146,8 @@ loop s = Free.unfold' go s
           -- makes sure that the user search terms get used as the names
           -- in the pretty-printer
           let ppe =
-                PPE.fromTermNames' [ (r, n) | (n, r, _) <- terms ]
-                  `PPE.unionLeft` PPE.fromTypeNames' (swap <$> types)
+                PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
+                  `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
                   `PPE.unionLeft` Branch.prettyPrintEnv1 (Branch.head $ currentBranch s)
               loc = case outputLoc of
                 Editor.ConsoleLocation -> Nothing
