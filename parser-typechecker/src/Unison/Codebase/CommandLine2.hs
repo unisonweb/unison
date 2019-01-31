@@ -698,7 +698,7 @@ validInputs = validPatterns
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
   definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
-    let names = Name.toString <$> toList (Branch.allNames (Branch.head b))
+    let names = HQ.toString <$> toList (Branch.allNamesHashQualified (Branch.head b))
     pure $ autoComplete q names
   noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
   quit          = InputPattern

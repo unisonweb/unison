@@ -261,17 +261,21 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
-allNames :: Branch0 -> Set Name
-allNames = Set.union <$> allTermNames <*> allTypeNames
+allNamesHashQualified :: Branch0 -> Set HashQualified
+allNamesHashQualified b =
+  Set.union (allTermsHashQualified b) (allTypesHashQualified b)
 
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
-allTermsHashQualified :: Branch0 -> Set (HashQualified)
+allTermsHashQualified :: Branch0 -> Set HashQualified
 allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
 
 allTypeNames :: Branch0 -> Set Name
 allTypeNames b0 = R.dom (typeNamespace b0)
+
+allTypesHashQualified :: Branch0 -> Set HashQualified
+allTypesHashQualified b = foldMap (\r -> hashNamesForType r b) (allTypes b)
 
 hasTermNamed :: Name -> Branch0 -> Bool
 hasTermNamed n b = not . null $ termsNamed n b
