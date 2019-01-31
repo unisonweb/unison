@@ -320,6 +320,8 @@ data Command i v a where
 
   Propagate :: Branch -> Command i v Branch
 
+  Quit :: Command i v ()
+
 data Outcome
   -- New definition that was added to the branch
   = Added
@@ -642,6 +644,7 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Propagate b -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
+    Quit -> pure ()
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do

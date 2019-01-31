@@ -1,16 +1,27 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Unison.Codebase.Editor.Actions where
 
-import Control.Applicative
-import           Control.Monad                  ( when )
+import           Control.Applicative
+import           Control.Lens
+import           Control.Lens.TH                ( makeLenses )
+import           Control.Monad                  ( when, unless )
 import           Control.Monad.Extra            ( ifM )
-import           Data.Foldable                  ( foldl', toList )
-import Data.Maybe (fromMaybe)
+import           Control.Monad.State            ( StateT
+                                                , evalStateT
+                                                , get
+                                                )
+import           Control.Monad.Trans            ( lift )
+import           Control.Monad.Trans.Maybe      ( MaybeT, runMaybeT )
+import           Data.Foldable                  ( foldl'
+                                                , toList
+                                                )
+import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
@@ -18,7 +29,9 @@ import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.ABT as ABT
-import           Unison.Codebase.Branch         ( Branch, Branch0 )
+import           Unison.Codebase.Branch         ( Branch
+                                                , Branch0
+                                                )
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
@@ -27,7 +40,10 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Event(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
-                                                , NameChangeResult(NameChangeResult,changedSuccessfully)
+                                                , NameChangeResult
+                                                  ( NameChangeResult
+                                                  , changedSuccessfully
+                                                  )
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
@@ -50,19 +66,21 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase as Codebase
 
-type Action i v = Free (Command i v) (Either () (LoopState v))
+type Action i v = MaybeT (StateT (LoopState v) (Free (Command i v)))
 
 data LoopState v
   = LoopState
-      { currentBranch :: Branch
-      , currentBranchName :: BranchName
+      { _currentBranch :: Branch
+      , _currentBranchName :: BranchName
       -- The file name last modified, and whether to skip the next file
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
-      , latestFile :: Maybe (FilePath, SkipNextUpdate)
-      , latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile' v Ann) }
+      , _latestFile :: Maybe (FilePath, SkipNextUpdate)
+      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile' v Ann) }
 
 type SkipNextUpdate = Bool
+
+makeLenses ''LoopState
 
 loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing Nothing
@@ -73,246 +91,237 @@ startLoop = (loop .) . loopState0
 
 loop
   :: forall v . Var v => LoopState v -> Free (Command (Either Event Input) v) ()
-loop s = Free.unfold' go s
+loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> get))) s
  where
-  go :: forall v . Var v => LoopState v -> Action (Either Event Input) v
-  go s = do
-    let uf = latestTypecheckedFile s
-    e <- Free.eval Input
+  go :: forall v . Var v => Action (Either Event Input) v ()
+  go = do
+    uf                 <- use latestTypecheckedFile
+    currentBranchName' <- use currentBranchName
+    latestFile'        <- use latestFile
+    currentBranch'     <- use currentBranch
+    e                  <- eval Input
     case e of
-      Left (UnisonBranchChanged names) -> if Set.member (currentBranchName s) names
-        then switchBranch (currentBranchName s)
-        else pure (Right s)
+      Left (UnisonBranchChanged names) ->
+        when (Set.member currentBranchName' names)
+          $ switchBranch currentBranchName'
       Left (UnisonFileChanged sourceName text) ->
-        if fromMaybe False . fmap snd $ latestFile s
         -- We skip this update if it was programmatically generated
-        then pure . Right $ s { latestFile = fmap (const False) <$> latestFile s }
-        else do
-          Free.eval (Notify $ FileChangeEvent sourceName text)
-          Result notes r <- Free.eval (Typecheck (currentBranch s) sourceName text)
-          case r of
-            -- Parsing failed
-            Nothing -> respond
-              $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-            Just (errorEnv, r) -> case r of
-              -- Typing failed
-              Nothing -> respond $ TypeErrors
-                text
-                errorEnv
-                [ err | Result.TypeError err <- toList notes ]
-              -- A unison file has changed
-              Just unisonFile -> do
-                Free.eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-                e <- Free.eval
-                  (Evaluate (currentBranch s) $ UF.discardTypes' unisonFile)
-                Free.eval . Notify $ Evaluated (Branch.toNames $ currentBranch s) e
-                pure . Right $ s { latestFile = Just (Text.unpack sourceName, False)
-                                 , latestTypecheckedFile = Just unisonFile }
+        if fromMaybe False . fmap snd $ latestFile'
+          then modifying latestFile $ (fmap (const False) <$>)
+          else do
+            eval (Notify $ FileChangeEvent sourceName text)
+            Result notes r <- eval
+              (Typecheck (view currentBranch s) sourceName text)
+            case r of
+              -- Parsing failed
+              Nothing ->
+                respond $ ParseErrors
+                  text
+                  [ err | Result.Parsing err <- toList notes ]
+              Just (errorEnv, r) -> case r of
+                -- Typing failed
+                Nothing ->
+                  respond $ TypeErrors
+                    text
+                    errorEnv
+                    [ err | Result.TypeError err <- toList notes ]
+                -- A unison file has changed
+                Just unisonFile -> do
+                  eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+                  e <-
+                    eval
+                      ( Evaluate (view currentBranch s)
+                      $ UF.discardTypes' unisonFile
+                      )
+                  eval . Notify $ Evaluated (Branch.toNames currentBranch') e
+                  latestFile .= Just (Text.unpack sourceName, False)
+                  latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
         SearchByNameI qs -> do
-          terms  <- Free.eval $ SearchTerms (currentBranch s) qs
-          types  <- Free.eval $ SearchTypes (currentBranch s) qs
+          terms  <- eval $ SearchTerms currentBranch' qs
+          types  <- eval $ SearchTypes currentBranch' qs
           types' <-
-            let go (name, ref) = case ref of
-                  Reference.DerivedId id ->
-                    (name, ref, )
-                      .   maybe (MissingThing id) RegularThing
-                      <$> Free.eval (LoadType id)
-                  _ -> pure (name, ref, BuiltinThing)
+            let
+              go (name, ref) = case ref of
+                Reference.DerivedId id ->
+                  (name, ref, ) . maybe (MissingThing id) RegularThing <$> eval
+                    (LoadType id)
+                _ -> pure (name, ref, BuiltinThing)
             in  traverse go types
-          respond $ ListOfDefinitions (currentBranch s) terms types'
+          respond $ ListOfDefinitions currentBranch' terms types'
         ShowDefinitionI outputLoc qs -> do
-          terms <- Free.eval $ SearchTerms (currentBranch s) qs
-          types <- Free.eval $ SearchTypes (currentBranch s) qs
+          terms <- eval $ SearchTerms currentBranch' qs
+          types <- eval $ SearchTypes currentBranch' qs
           let terms' = [ (n, r) | (n, r, _) <- terms ]
-              termTypes = Map.fromList [ (r, t) | (_, Referent.Ref r, Just t) <- terms ]
+              termTypes =
+                Map.fromList [ (r, t) | (_, Referent.Ref r, Just t) <- terms ]
               (collatedTerms, collatedTypes) =
                 collateReferences (snd <$> terms') (snd <$> types)
           loadedTerms <- for collatedTerms $ \r -> case r of
             Reference.DerivedId i -> do
-              tm <- Free.eval (LoadTerm i)
+              tm <- eval (LoadTerm i)
               -- We add a type annotation to the term using if it doesn't
               -- already have one that the user provided
-              pure . (r,) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-                Nothing -> MissingThing i
+              pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+                Nothing        -> MissingThing i
                 Just (tm, typ) -> case tm of
                   Term.Ann' _ _ -> RegularThing tm
                   _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
             _ -> pure (r, BuiltinThing)
           loadedTypes <- for collatedTypes $ \r -> case r of
             Reference.DerivedId i ->
-              (r, ) . maybe (MissingThing i) RegularThing <$> Free.eval
-                (LoadType i)
+              (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
             _ -> pure (r, BuiltinThing)
           -- makes sure that the user search terms get used as the names
           -- in the pretty-printer
-          let ppe =
-                PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
-                  `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                  `PPE.unionLeft` Branch.prettyPrintEnv [Branch.head $ currentBranch s]
-              loc = case outputLoc of
-                Editor.ConsoleLocation -> Nothing
-                Editor.FileLocation path -> Just path
-                Editor.LatestFileLocation ->
-                  fmap fst (latestFile s) <|> Just (Text.unpack (currentBranchName s) <> ".u")
+          let
+            ppe =
+              PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
+                `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
+                `PPE.unionLeft` Branch.prettyPrintEnv
+                                  [Branch.head $ currentBranch']
+            loc = case outputLoc of
+              Editor.ConsoleLocation    -> Nothing
+              Editor.FileLocation path  -> Just path
+              Editor.LatestFileLocation -> fmap fst latestFile'
+                <|> Just (Text.unpack currentBranchName' <> ".u")
           do
-            Free.eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+            eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
             -- We set latestFile to be programmatically generated, if we
             -- are viewing these definitions to a file - this will skip the
             -- next update for that file (which will happen immediately)
-            pure $ Right (s { latestFile = (,True) <$> loc })
+            latestFile .= ((, True) <$> loc)
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
         ChooseUpdateForTermI _old _new -> error "todo"
         ChooseUpdateForTypeI _old _new -> error "todo"
         ListAllUpdatesI                -> error "todo"
-        AddTermNameI r name ->
-          addTermName (currentBranchName s) respond success r name
-        AddTypeNameI r name ->
-          addTypeName (currentBranchName s) respond success r name
+        AddTermNameI r name -> addTermName currentBranchName' success r name
+        AddTypeNameI r name -> addTypeName currentBranchName' success r name
         RemoveTermNameI r name ->
-          updateBranch respond success (currentBranchName s)
-            $ Branch.modify (Branch.deleteTermName r name)
+          updateBranch success currentBranchName'
+            . Branch.modify
+            $ Branch.deleteTermName r name
         RemoveTypeNameI r name ->
-          updateBranch respond success (currentBranchName s)
-            $ Branch.modify (Branch.deleteTypeName r name)
+          updateBranch success currentBranchName'
+            . Branch.modify
+            $ Branch.deleteTypeName r name
         ChooseTermForNameI r name ->
-          unnameAll (currentBranchName s) respond Names.TermName name
-            $ addTermName (currentBranchName s) respond success r name
+          unnameAll currentBranchName' Names.TermName name
+            $ addTermName currentBranchName' success r name
         ChooseTypeForNameI r name ->
-          unnameAll (currentBranchName s) respond Names.TypeName name
-            $ addTypeName (currentBranchName s) respond success r name
-        AliasUnconflictedI targets existingName newName -> aliasUnconflicted
-          (currentBranchName s)
-          respond
-          respondNewBranch
-          targets
-          existingName
-          newName
-        RenameUnconflictedI targets oldName newName -> renameUnconflicted
-          (currentBranchName s)
-          respond
-          respondNewBranch
-          targets
-          oldName
-          newName
+          unnameAll currentBranchName' Names.TypeName name
+            $ addTypeName currentBranchName' success r name
+        AliasUnconflictedI targets existingName newName ->
+          aliasUnconflicted currentBranchName' targets existingName newName
+        RenameUnconflictedI targets oldName newName ->
+          renameUnconflicted currentBranchName' targets oldName newName
         UnnameAllI nameTarget name ->
-          unnameAll (currentBranchName s) respond nameTarget name success
+          unnameAll currentBranchName' nameTarget name success
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
-            let uf' = UF.typecheckedUnisonFile datas effects tlcs
-                collisionHandler =
-                  if allowUpdates then Editor.updateCollisionHandler
+            let uf'              = UF.typecheckedUnisonFile datas effects tlcs
+                collisionHandler = if allowUpdates
+                  then Editor.updateCollisionHandler
                   else Editor.addCollisionHandler
-            updateo <- Free.eval $ SlurpFile collisionHandler (currentBranch s) uf'
+            updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
             let branch' = updatedBranch updateo
             -- Don't bother doing anything if the branch is unchanged by the slurping
-            when (branch' /= currentBranch s) $ do
+            when (branch' /= currentBranch') $ do
               -- This order is important - we tell the app state about the
               -- branch change before doing the merge, so it knows to ignore
               -- the file system event that is triggered by `doMerge`
-              Free.eval $ SwitchBranch branch' (currentBranchName s)
-              doMerge (currentBranchName s) branch'
-            Free.eval . Notify $ SlurpOutput updateo
-            pure . Right $ s { currentBranch = branch' }
+              eval $ SwitchBranch branch' currentBranchName'
+              doMerge currentBranchName' branch'
+            eval . Notify $ SlurpOutput updateo
+            currentBranch .= branch'
         ListBranchesI ->
-          Free.eval ListBranches >>= respond . ListOfBranches (currentBranchName s)
+          eval ListBranches >>= respond . ListOfBranches currentBranchName'
         SwitchBranchI branchName       -> switchBranch branchName
         ForkBranchI   targetBranchName -> ifM
-          (Free.eval $ ForkBranch (currentBranch s) targetBranchName)
+          (eval $ ForkBranch currentBranch' targetBranchName)
           (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
-        MergeBranchI inputBranchName -> withBranch inputBranchName respond
-          $ \branch -> do
-            let merged0 = branch <> currentBranch s
-            merged <- Free.eval $ Propagate merged0
-            ok <- Free.eval $ MergeBranch (currentBranchName s) merged
-            if ok then do
-              todo <- Free.eval (Todo merged)
-              _ <- success
-              _ <- respond $ TodoOutput merged todo
-              pure . Right $ s { currentBranch = merged }
-            else respond (UnknownBranch inputBranchName)
+        MergeBranchI inputBranchName ->
+          withBranch inputBranchName $ \branch -> do
+            let merged0 = branch <> currentBranch'
+            merged <- eval $ Propagate merged0
+            ok     <- eval $ MergeBranch currentBranchName' merged
+            if ok
+              then do
+                todo <- eval $ Todo merged
+                _    <- success
+                _    <- respond $ TodoOutput merged todo
+                currentBranch .= merged
+              else respond (UnknownBranch inputBranchName)
         TodoI ->
-          Free.eval (Todo (currentBranch s)) >>= respond . TodoOutput (currentBranch s)
+          eval (Todo currentBranch') >>= respond . TodoOutput currentBranch'
         PropagateI -> do
-          b <- Free.eval (Propagate (currentBranch s))
-          _ <- Free.eval $ MergeBranch (currentBranchName s) b
+          b <- eval . Propagate $ currentBranch'
+          _ <- eval $ MergeBranch currentBranchName' b
           _ <- success
-          pure . Right $ s { currentBranch = b }
+          currentBranch .= b
         QuitI -> quit
        where
         success       = respond $ Success input
-        outputSuccess = Free.eval . Notify $ Success input
+        outputSuccess = eval . Notify $ Success input
    where
     doMerge branchName b = do
       updated <- doMerge0 branchName b
       when (not updated) $ do
-        _ <- Free.eval $ NewBranch branchName
+        _       <- eval $ NewBranch branchName
         updated <- doMerge0 branchName b
         when (not updated) (disappearingBranchBomb branchName)
-    doMerge0 = (Free.eval .) . MergeBranch
+    doMerge0 = (eval .) . MergeBranch
     disappearingBranchBomb branchName =
       error
         $  "The branch named "
         <> Text.unpack branchName
         <> " disappeared from storage. "
         <> "I tried to put it back, but couldn't. Everybody panic!"
-    respond :: Output v -> Action i v
-    respond output = Free.eval (Notify output) >> pure (Right s)
-    respondNewBranch :: Output v -> Branch -> Action i v
-    respondNewBranch output newBranch =
-      respond output >> pure (Right $ s { currentBranch = newBranch })
-
     switchBranch branchName = do
-      branch <- Free.eval $ LoadBranch branchName
+      branch <- eval $ LoadBranch branchName
       case branch of
         Nothing -> do
           let newBranch = Codebase.builtinBranch
-          Free.eval $ SwitchBranch newBranch branchName
-          _ <- Free.eval $ NewBranch branchName
-          pure . Right $ s { currentBranch = newBranch, currentBranchName = branchName }
+          eval $ SwitchBranch newBranch branchName
+          _ <- eval $ NewBranch branchName
+          currentBranch .= newBranch
+          currentBranchName .= branchName
         Just branch -> do
-          Free.eval $ SwitchBranch branch branchName
-          pure . Right $ s { currentBranch = branch, currentBranchName = branchName }
-    quit = pure $ Left ()
+          eval $ SwitchBranch branch branchName
+          currentBranch .= branch
+          currentBranchName .= branchName
+    quit = eval Quit
 
-withBranch :: BranchName
-           -> (Output v -> Action i v)
-           -> (Branch -> Action i v)
-           -> Action i v
-withBranch branchName respond f = do
-  branch <- Free.eval $ LoadBranch branchName
-  case branch of
-    Nothing     -> respond $ UnknownBranch branchName
-    Just branch -> f branch
+eval :: Command i v a -> Action i v a
+eval = lift . lift . Free.eval
+
+loadBranch :: BranchName -> Action i v (Maybe Branch)
+loadBranch = eval . LoadBranch
+
+withBranch :: BranchName -> (Branch -> Action i v ()) -> Action i v ()
+withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
+
+respond :: Output v -> Action i v ()
+respond output = eval $ Notify output
 
 aliasUnconflicted
-  :: forall i v
-   . BranchName
-  -> (Output v -> Action i v)
-  -> (Output v -> Branch -> Action i v)
-  -> Set NameTarget
-  -> Name
-  -> Name
-  -> Action i v
-aliasUnconflicted branchName respond respondNewBranch
-                   nameTargets oldName newName =
-  withBranch branchName respond $ \branch -> let
-    (branch', result) = foldl' go (branch, mempty) nameTargets where
-      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-        Names.TermName ->
-          alias nameTarget Branch.termsNamed Branch.addTermName branch
-        Names.TypeName ->
-          alias nameTarget Branch.typesNamed Branch.addTypeName branch
-    -- the RenameOutput action and setting the loop state
-    in
-      if (not . null . changedSuccessfully) result then
-        let success = respondNewBranch (AliasOutput oldName newName result) branch'
-        in mergeBranch branchName respond success branch'
-      else respond $ AliasOutput oldName newName result
-
+  :: forall i v . BranchName -> Set NameTarget -> Name -> Name -> Action i v ()
+aliasUnconflicted branchName nameTargets oldName newName = do
+  withBranch branchName $ \branch ->
+    let (branch', result) = foldl' go (branch, mempty) nameTargets
+         where
+        go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+          Names.TermName ->
+            alias nameTarget Branch.termsNamed Branch.addTermName branch
+          Names.TypeName ->
+            alias nameTarget Branch.typesNamed Branch.addTypeName branch
+                            -- the RenameOutput action and setting the loop state
+    in  do
+          respond $ AliasOutput oldName newName result
+          unless (null $ changedSuccessfully result) $ currentBranch .= branch'
  where
   alias
     :: Foldable f
@@ -322,45 +331,34 @@ aliasUnconflicted branchName respond respondNewBranch
     -> Branch
     -> (Branch, NameChangeResult)
   alias nameTarget named alias' branch =
-    let
-      oldMatches = toList . named oldName $ Branch.head branch
-      oldNameMatchCount = length oldMatches
-      newNameExists = (not . null) (named newName $ Branch.head branch)
-    in case oldMatches of
-         [oldMatch] | not newNameExists ->
-            (Branch.modify (alias' oldMatch newName) branch,
-          NameChangeResult mempty mempty (Set.singleton nameTarget))
-         _ -> (branch, NameChangeResult a b mempty) where
-           a = if oldNameMatchCount > 1 then Set.singleton nameTarget
-               else mempty
-           b = if newNameExists then Set.singleton nameTarget
-               else mempty
+    let oldMatches        = toList . named oldName $ Branch.head branch
+        oldNameMatchCount = length oldMatches
+        newNameExists     = (not . null) (named newName $ Branch.head branch)
+    in  case oldMatches of
+          [oldMatch] | not newNameExists ->
+            ( Branch.modify (alias' oldMatch newName) branch
+            , NameChangeResult mempty mempty (Set.singleton nameTarget)
+            )
+          _ -> (branch, NameChangeResult a b mempty)
+           where
+            a =
+              if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty
+            b = if newNameExists then Set.singleton nameTarget else mempty
 
 renameUnconflicted
-  :: forall i v
-   . BranchName
-  -> (Output v -> Action i v)
-  -> (Output v -> Branch -> Action i v)
-  -> Set NameTarget
-  -> Name
-  -> Name
-  -> Action i v
-renameUnconflicted branchName respond respondNewBranch
-                   nameTargets oldName newName =
-  withBranch branchName respond $ \branch -> let
-    (branch', result) = foldl' go (branch, mempty) nameTargets where
-      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-        Names.TermName ->
-          rename nameTarget Branch.termsNamed Branch.renameTerm branch
-        Names.TypeName ->
-          rename nameTarget Branch.typesNamed Branch.renameType branch
-    -- the RenameOutput action and setting the loop state
-    in
-      if (not . null . changedSuccessfully) result then
-        let success = respondNewBranch (RenameOutput oldName newName result) branch'
-        in mergeBranch branchName respond success branch'
-      else respond $ RenameOutput oldName newName result
-
+  :: forall i v . BranchName -> Set NameTarget -> Name -> Name -> Action i v ()
+renameUnconflicted branchName nameTargets oldName newName = do
+  withBranch branchName $ \branch ->
+    let (branch', result) = foldl' go (branch, mempty) nameTargets
+         where
+          go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+            Names.TermName ->
+              rename nameTarget Branch.termsNamed Branch.renameTerm branch
+            Names.TypeName ->
+              rename nameTarget Branch.typesNamed Branch.renameType branch
+    in  do
+          respond $ RenameOutput oldName newName result
+          unless (null $ changedSuccessfully result) $ currentBranch .= branch'
  where
   rename
     :: Foldable f
@@ -370,67 +368,45 @@ renameUnconflicted branchName respond respondNewBranch
     -> Branch
     -> (Branch, NameChangeResult)
   rename nameTarget named rename' branch =
-    let
-      oldNameMatchCount = length . named oldName $ Branch.head branch
-      newNameExists = (not . null) (named newName $ Branch.head branch)
-    in if (oldNameMatchCount == 1 && not newNameExists)
-       then
-        (Branch.modify (rename' oldName newName) branch,
-          NameChangeResult mempty mempty (Set.singleton nameTarget))
-       else
-        (branch, NameChangeResult
-          (if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty)
-          (if newNameExists then Set.singleton nameTarget else mempty)
-          mempty)
+    let oldNameMatchCount = length . named oldName $ Branch.head branch
+        newNameExists     = (not . null) (named newName $ Branch.head branch)
+    in  if (oldNameMatchCount == 1 && not newNameExists)
+          then
+            ( Branch.modify (rename' oldName newName) branch
+            , NameChangeResult mempty mempty (Set.singleton nameTarget)
+            )
+          else
+            ( branch
+            , NameChangeResult
+              (if oldNameMatchCount > 1
+                then Set.singleton nameTarget
+                else mempty
+              )
+              (if newNameExists then Set.singleton nameTarget else mempty)
+              mempty
+            )
 
-unnameAll :: forall i v
-          . BranchName
-          -> (Output v -> Action i v)
-          -> NameTarget
-          -> Name
-          -> Action i v
-          -> Action i v
-unnameAll branchName respond nameTarget name success =
-  updateBranch respond success branchName $ case nameTarget of
+unnameAll :: BranchName -> NameTarget -> Name -> Action i v () -> Action i v ()
+unnameAll branchName nameTarget name success =
+  updateBranch success branchName $ case nameTarget of
     Names.TermName -> Branch.modify (Branch.deleteTermsNamed name)
     Names.TypeName -> Branch.modify (Branch.deleteTypesNamed name)
 
-addTermName
-  :: BranchName
-  -> (Output v -> Action i v)
-  -> Action i v
-  -> Referent
-  -> Name
-  -> Action i v
-addTermName branchName respond success r name =
-  updateBranch respond success branchName (Branch.modify (Branch.addTermName r name))
+addTermName :: BranchName -> Action i v () -> Referent -> Name -> Action i v ()
+addTermName branchName success r name =
+  updateBranch success branchName . Branch.modify $ Branch.addTermName r name
 
-addTypeName
-  :: BranchName
-  -> (Output v -> Action i v)
-  -> Action i v
-  -> Reference
-  -> Name
-  -> Action i v
-addTypeName branchName respond success r name =
-  updateBranch respond success branchName (Branch.modify (Branch.addTypeName r name))
+addTypeName :: BranchName -> Action i v () -> Reference -> Name -> Action i v ()
+addTypeName branchName success r name =
+  updateBranch success branchName . Branch.modify $ Branch.addTypeName r name
 
-mergeBranch
-  :: BranchName
-  -> (Output v -> Action i v)
-  -> Action i v
-  -> Branch
-  -> Action i v
-mergeBranch targetBranchName respond success b = ifM
-  (Free.eval $ MergeBranch targetBranchName b)
-  success
-  (respond $ UnknownBranch targetBranchName)
+merging :: BranchName -> Branch -> Action i v () -> Action i v ()
+merging targetBranchName b success =
+  ifM (eval $ MergeBranch targetBranchName b) success . respond $ UnknownBranch
+    targetBranchName
 
 updateBranch
-  :: (Output v -> Action i v)
-  -> Action i v
-  -> BranchName
-  -> (Branch -> Branch)
-  -> Action i v
-updateBranch respond success branchName f =
-  withBranch branchName respond $ mergeBranch branchName respond success . f
+  :: Action i v () -> BranchName -> (Branch -> Branch) -> Action i v ()
+updateBranch success branchName f =
+  withBranch branchName $ \b -> merging branchName (f b) success
+
