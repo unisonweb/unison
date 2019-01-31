@@ -1,5 +1,6 @@
 module Unison.Typechecker.TypeLookup where
 
+import Control.Applicative ((<|>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Unison.Reference (Reference)
@@ -23,8 +24,8 @@ data TypeLookup v a =
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r
-  Referent.Con r cid -> typeOfDataConstructor tl r cid
-  Referent.Req r cid -> typeOfEffectConstructor tl r cid
+  Referent.Con r cid -> typeOfDataConstructor tl r cid <|>
+                        typeOfEffectConstructor tl r cid
 
 typeOfDataConstructor :: TypeLookup v a -> Reference -> Int -> Maybe (Type v a)
 typeOfDataConstructor tl r cid = go =<< Map.lookup r (dataDecls tl)

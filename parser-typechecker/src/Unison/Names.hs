@@ -49,9 +49,6 @@ instance Show Names where
     "terms: " ++ show (es) ++ "\n" ++
     "types: " ++ show (ts)
 
-lookupTerm :: Ord v => a -> Names -> Name -> Maybe (AnnotatedTerm v a)
-lookupTerm a ns n = Term.fromReferent a <$> Map.lookup n (termNames ns)
-
 lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
 
@@ -80,7 +77,6 @@ patternNameds ns s = patternNamed ns (fromString s)
 
 patternNamed :: Names -> Name -> Maybe (Reference, Int)
 patternNamed ns n = Map.lookup n (termNames ns) >>= \case
-  Referent.Req r cid -> Just (r, cid)
   Referent.Con r cid -> Just (r, cid)
   _ -> Nothing
 

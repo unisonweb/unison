@@ -133,10 +133,7 @@ patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
 patternName env r cid =
   case fst <$> argmax snd (Map.toList (terms env $ Referent.Con r cid)) of
     Just name -> name
-    Nothing ->
-      case fst <$> argmax snd (Map.toList (terms env $ Referent.Req r cid)) of
-        Just name -> name
-        Nothing -> HQ.fromReferent (Referent.Con r cid)
+    Nothing -> HQ.fromReferent (Referent.Con r cid)
           -- arbitrarily pick Con because it doesn't matter
 
 -- patternName :: PrettyPrintEnv -> Reference -> Int -> Name

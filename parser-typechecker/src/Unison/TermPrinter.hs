@@ -147,7 +147,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     Constructor' ref i ->
       prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Request' ref i ->
-      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Req ref i)
+      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Handle' h body ->
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal) h)

@@ -138,7 +138,6 @@ fuzzyFindTermTypes codebase branch query =
   let found = fuzzyFindTerms' branch query
       tripleForRef name ref = (name, ref, ) <$> case ref of
         Referent.Ref r -> getTypeOfTerm codebase r
-        Referent.Req r cid -> getTypeOfConstructor codebase r cid
         Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 

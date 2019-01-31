@@ -175,10 +175,6 @@ putReferent r = case r of
     putWord8 1
     putReference r
     putLength i
-  Referent.Req r i -> do
-    putWord8 2
-    putReference r
-    putLength i
 
 getReferent :: MonadGet m => m Referent
 getReferent = do
@@ -186,7 +182,6 @@ getReferent = do
   case tag of
     0 -> Referent.Ref <$> getReference
     1 -> Referent.Con <$> getReference <*> getLength
-    2 -> Referent.Req <$> getReference <*> getLength
     _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()

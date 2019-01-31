@@ -162,7 +162,7 @@ hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
         [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 hashTerms ::
