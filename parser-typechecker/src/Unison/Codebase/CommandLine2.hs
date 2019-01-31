@@ -207,7 +207,7 @@ notifyUser dir o = case o of
             else "  " <> P.text n
         in  intercalateMap "\n" go (sort branches)
   ListOfDefinitions branch terms types ->
-    let ppe  = Branch.prettyPrintEnv1 (Branch.head branch)
+    let ppe  = Branch.prettyPrintEnv (Branch.head branch)
         sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
         sigs = [(name,t) | (name, Just t) <- sigs0 ]
         impossible = terms >>= \case
@@ -239,8 +239,8 @@ notifyUser dir o = case o of
     termTypesFromFile =
       Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents file) ]
     ppe =
-      Branch.prettyPrintEnv1 (Branch.head branch) `PPE.unionLeft`
-      Branch.prettyPrintEnv1 (Branch.fromTypecheckedFile file)
+      Branch.prettyPrintEnv (Branch.head branch) `PPE.unionLeft`
+      Branch.prettyPrintEnv (Branch.fromTypecheckedFile file)
     filterTermTypes vs =
       [ (HQ.fromVar v,t) | v <- toList vs
               , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
@@ -443,7 +443,7 @@ notifyUser dir o = case o of
         ]
      ]
   TodoOutput branch todo ->
-    let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
+    let ppe = Branch.prettyPrintEnv (Branch.head branch) in
     if E.todoScore todo == 0 && E.todoConflicts todo == mempty
     then putPrettyLn . P.okCallout $ "No conflicts or edits in progress."
     else do

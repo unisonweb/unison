@@ -655,7 +655,7 @@ doTodo code b = do
   f <- Codebase.frontier code b
   let dirty = R.dom f
       frontier = R.ran f
-      ppe = Branch.prettyPrintEnv1 b
+      ppe = Branch.prettyPrintEnv b
   (frontierTerms, frontierTypes) <- loadDefinitions code frontier
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
   -- todo: something more intelligent here?

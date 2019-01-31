@@ -177,7 +177,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
             ppe =
               PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                 `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                `PPE.unionLeft` Branch.prettyPrintEnv1
+                `PPE.unionLeft` Branch.prettyPrintEnv
                                   (Branch.head currentBranch')
             loc = case outputLoc of
               Editor.ConsoleLocation    -> Nothing

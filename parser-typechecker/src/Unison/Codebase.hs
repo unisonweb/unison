@@ -131,17 +131,15 @@ typecheckingEnvironment code t = do
 fuzzyFindTerms' :: Branch -> [String] -> [(HashQualified, Referent)]
 fuzzyFindTerms' (Branch.head -> branch) query =
   let
-    termNames = Name.toString <$> toList (Branch.allTermNames branch)
-    matchingTerms :: [String]
+    terms = Branch.allTerms branch
+    termNames = [(HQ.toString n, (n,r))
+              | r <- toList terms
+              , n <- toList (Branch.hashNamesForTerm r branch)]
+    matchingTerms :: [(String,(HashQualified,Referent))]
     matchingTerms = if null query
       then termNames
-      else query >>= \q -> sortedApproximateMatches q termNames
-    refsForName :: String -> [Referent]
-    refsForName (Name.fromString -> name) =
-      Set.toList $ Branch.termsNamed name branch
-    makePair (Name.fromString -> name) r =
-      (Branch.hashQualifiedTermName branch name r, r)
-  in matchingTerms >>= \name -> makePair name <$> refsForName name
+      else query >>= \q -> sortedApproximateMatches' q termNames
+  in snd <$> matchingTerms
 
 fuzzyFindTermTypes
   :: forall m v a
@@ -199,7 +197,7 @@ listReferencesMatching code (Branch.head -> b) query = do
 listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
 listReferences code branch refs = do
-  let ppe = Branch.prettyPrintEnv1 branch
+  let ppe = Branch.prettyPrintEnv branch
   terms0 <- forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
     pure $ (PPE.termName ppe (Referent.Ref r), otyp)
@@ -262,7 +260,7 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
     let
 -- We force the `(r0,name)` association since if this is a recursive
 -- fn whose body also mentions `r`, want name to be the same as the binding.
-        ppEnv = PPE.assignTermName r0 name $ Branch.prettyPrintEnv1 b
+        ppEnv = PPE.assignTermName r0 name $ Branch.prettyPrintEnv b
     in  case tm of
           Term.Ann' _ _ ->
             pure $ Just (TermPrinter.prettyBinding ppEnv name tm)
@@ -347,7 +345,7 @@ makeSelfContained
   -> m (UF.UnisonFile v a)
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
-  let pp = Branch.prettyPrintEnv1 b
+  let pp = Branch.prettyPrintEnv b
       termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
@@ -395,6 +393,29 @@ sortedApproximateMatches q possible = trim (sortOn fst matches)
   editDistance q s = levenshteinDistance defaultEditCosts q s
   matches = map (\s -> (score s, s)) possible
   trim ((_, h) : _) | h == q = [h]
+  trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
+
+sortedApproximateMatches' :: String -> [(String,a)] -> [(String,a)]
+sortedApproximateMatches' q possible = trim (sortOn fst matches)
+ where
+  nq = length q
+  score (s,_)
+          | s == q                         = 0 :: Int
+          | -- exact match is top choice
+            map toLower q == map toLower s = 1
+          |        -- ignore case
+            q `isSuffixOf` s               = 2
+          |        -- matching suffix is pretty good
+            q `isInfixOf` s                = 3
+          |        -- a match somewhere
+            q `isPrefixOf` s               = 4
+          |        -- ...
+            map toLower q `isInfixOf` map toLower s = 5
+          | q `isSubsequenceOf` s          = 6
+          | otherwise = 7 + editDistance (map toLower q) (map toLower s)
+  editDistance q s = levenshteinDistance defaultEditCosts q s
+  matches = map (\s -> (score s, s)) possible
+  trim ((_, (h,a)) : _) | h == q = [(h,a)]
   trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
@@ -471,7 +492,7 @@ unhashComponent
   -> m (Maybe (Map v (Reference, Term v a, Type v a)))
 unhashComponent code b ref = do
   let component = Reference.members $ Reference.componentFor ref
-      ppe = Branch.prettyPrintEnv1 b
+      ppe = Branch.prettyPrintEnv b
   isTerm <- isTerm code ref
   isType <- isType code ref
   if isTerm then do

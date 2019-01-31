@@ -366,8 +366,8 @@ numHashChars = const 3 -- todo: use trie to find depth of branching
 -- We must choose a canonical name for each referent in the branch.
 -- In the future we might like a way for the user to choose a preferred name
 -- (i.e. just `unionLeft` the user preferences before the arbitrary choice)
-prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
-prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
+prettyPrintEnv :: Branch0 -> PrettyPrintEnv
+prettyPrintEnv b = PPE.PrettyPrintEnv terms types where
   hashLen = numHashChars b
   or :: Set a -> Set a -> Set a
   or s1 s2 = if Set.null s1 then s2 else s1
