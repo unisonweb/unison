@@ -303,6 +303,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                mergeBranch
                branchUpdates
                dependents
+               builtinTypeAnnotation
 
 ubfPathToName :: FilePath -> BranchName
 ubfPathToName = Text.pack . takeFileName . takeDirectory
