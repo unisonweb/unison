@@ -114,13 +114,13 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
               (Typecheck (view currentBranch s) sourceName text)
             case r of
               -- Parsing failed
-              Nothing -> do
+              Nothing ->
                 respond $ ParseErrors
                   text
                   [ err | Result.Parsing err <- toList notes ]
               Just (errorEnv, r) -> case r of
                 -- Typing failed
-                Nothing -> do
+                Nothing ->
                   respond $ TypeErrors
                     text
                     errorEnv
@@ -243,7 +243,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           (eval $ ForkBranch currentBranch' targetBranchName)
           (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
-        MergeBranchI inputBranchName -> do
+        MergeBranchI inputBranchName ->
           withBranch inputBranchName $ \branch -> do
             let merged0 = branch <> currentBranch'
             merged <- eval $ Propagate merged0
