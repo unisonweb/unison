@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.Codebase.CommandLine2 where
+module Unison.Codebase.CommandLine where
 
 import           Data.Maybe                     ( catMaybes )
 import           Prelude                 hiding ( readFile
