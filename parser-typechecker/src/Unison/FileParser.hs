@@ -44,6 +44,23 @@ file = do
     let uf = UnisonFile (UF.datas env) (UF.effects env) term
     pure (PPE.fromNames names, uf)
 
+-- A stanza is either a watch expression like:
+--   > 1 + x
+--   > z = x + 1
+-- Or it is a binding like:
+--   foo : Nat -> Nat
+--   foo x = x + 42
+-- Or it is a namespace like:
+--   namespace Woot where
+--     x = 42
+--     y = 17
+-- which parses as [(Woot.x, 42), (Woot.y, 17)]
+stanza :: P v (Either (v, AnnotatedTerm v Ann) [(v, AnnotatedTerm v Ann)])
+stanza = watchExpression <|> binding <|> (tweak <$> TermParser.namespaceBlock)
+  where
+  tweak
+-- > x + sum [1,2,3]
+
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
   | Set.member v (ABT.freeVars e) = Term.letRec top a bs (Term.unit (ABT.annotation body))

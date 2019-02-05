@@ -14,5 +14,5 @@ data Runtime v = Runtime
       .  MonadIO m
       => UnisonFile v a
       -> Codebase m v b
-      -> m ([(Text, Term v)], Term v)
+      -> m (Term v)
   }

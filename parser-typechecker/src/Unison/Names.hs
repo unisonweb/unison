@@ -10,6 +10,7 @@ import           Data.Bifunctor   (first)
 import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
+import qualified Data.Set         as Set
 import           Data.String      (fromString)
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
@@ -23,6 +24,7 @@ import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
+import qualified Unison.Var       as Var
 
 unqualified :: Name -> Name
 unqualified = Name.unsafeFromText . unqualified' . Name.toText
@@ -36,6 +38,11 @@ data Names = Names
   }
 
 data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
+
+subtractTerms :: Var v => [v] -> Names -> Names
+subtractTerms vs n = let
+  taken = Set.fromList (Name.unsafeFromVar <$> vs)
+  in n { termNames = Map.withoutKeys (termNames n) taken }
 
 renderNameTarget :: NameTarget -> String
 renderNameTarget = \case

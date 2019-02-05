@@ -38,8 +38,13 @@ import qualified Unison.Typechecker.TypeLookup as TL
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
-  term               :: AnnotatedTerm v a
-} deriving (Show)
+  terms :: [(v, AnnotatedTerm v a)],
+  watches :: [(v, AnnotatedTerm v a)]
+} deriving Show
+
+-- Converts a file to a single let rec
+uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
+uberTerm uf = Term.letRec' True (terms uf <> watches uf) (Term.unit mempty)
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
@@ -97,12 +102,12 @@ dependencies' file = let
   in allDeps
 
 -- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
-dependencies :: Var v => UnisonFile v a -> Names -> Set Reference
+dependencies :: (Monoid a, Var v) => UnisonFile v a -> Names -> Set Reference
 dependencies uf ns = directReferences <>
                       Set.fromList freeTypeVarRefs <>
                       Set.fromList freeTermVarRefs
   where
-    tm = term uf
+    tm = uberTerm uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
       catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
@@ -117,17 +122,17 @@ dependencies uf ns = directReferences <>
         || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
       ]
 
-discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes tm (TypecheckedUnisonFile_ datas effects _) =
-  UnisonFile datas effects tm
+-- discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
+-- discardTypes tm (TypecheckedUnisonFile_ datas effects _) =
+--   UnisonFile datas effects tm
 
-discardTypes' :: TypecheckedUnisonFile' v a -> UnisonFile v a
-discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
-  UnisonFile datas effects tm
+-- discardTypes' :: TypecheckedUnisonFile' v a -> UnisonFile v a
+-- discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
+--   UnisonFile datas effects tm
 
-discardTerm :: Var v => TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
-discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
-  typecheckedUnisonFile datas effects tlcs
+-- discardTerm :: Var v => TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+-- discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
+--  typecheckedUnisonFile datas effects tlcs
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -183,11 +188,14 @@ bindBuiltins :: Var v
              => Names
              -> UnisonFile v a
              -> UnisonFile v a
-bindBuiltins names (UnisonFile d e t) =
-  UnisonFile
+bindBuiltins names (UnisonFile d e ts ws) = let
+  vs = (fst <$> ts) ++ (fst <$> ws)
+  names' = Names.subtractTerms vs names
+  in UnisonFile
     (second (DD.bindBuiltins names) <$> d)
     (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
-    (Names.bindTerm names t)
+    (second (Names.bindTerm names') <$> ts)
+    (second (Names.bindTerm names') <$> ws)
 
 filterVars
   :: Var v
