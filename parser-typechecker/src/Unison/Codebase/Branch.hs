@@ -19,8 +19,6 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
-import qualified Data.Text                as Text
-import           Data.Text                (Text)
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
@@ -32,10 +30,13 @@ import qualified Unison.DataDeclaration as DD
 import           Unison.Hash              (Hash)
 import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
-import           Unison.Names             (Name, Names (..))
+import           Unison.HashQualified     (HashQualified)
+import qualified Unison.HashQualified     as HashQualified
+import           Unison.Name              (Name)
+import           Unison.Names             (Names (..))
+import qualified Unison.Name              as Name
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
-import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
@@ -45,7 +46,6 @@ import           Unison.Util.TransitiveClosure (transitiveClosure)
 import           Unison.PrettyPrintEnv    (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv    as PPE
 import           Unison.Var               (Var)
-import qualified Unison.Var               as Var
 
 -- todo:
 -- probably should refactor Reference to include info about whether it
@@ -261,14 +261,21 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
-allNames :: Branch0 -> Set Name
-allNames = Set.union <$> allTermNames <*> allTypeNames
+allNamesHashQualified :: Branch0 -> Set HashQualified
+allNamesHashQualified b =
+  Set.union (allTermsHashQualified b) (allTypesHashQualified b)
 
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
+allTermsHashQualified :: Branch0 -> Set HashQualified
+allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
+
 allTypeNames :: Branch0 -> Set Name
 allTypeNames b0 = R.dom (typeNamespace b0)
+
+allTypesHashQualified :: Branch0 -> Set HashQualified
+allTypesHashQualified b = foldMap (\r -> hashNamesForType r b) (allTypes b)
 
 hasTermNamed :: Name -> Branch0 -> Bool
 hasTermNamed n b = not . null $ termsNamed n b
@@ -286,7 +293,10 @@ typesNamed :: Name -> Branch0 -> Set Reference
 typesNamed name = R.lookupDom name . typeNamespace
 
 namesForTerm :: Referent -> Branch0 -> Set Name
-namesForTerm ref b = let
+namesForTerm ref = R.lookupRan ref . termNamespace
+
+hashNamesForTerm :: Referent -> Branch0 -> Set HashQualified
+hashNamesForTerm ref b = let
   ns = (termNamespace b) :: Relation Name Referent
   hashLen = numHashChars b
   names = (R.lookupRan ref ns) :: Set Name
@@ -296,7 +306,10 @@ namesForTerm ref b = let
   in Set.map f names
 
 namesForType :: Reference -> Branch0 -> Set Name
-namesForType ref b = let
+namesForType ref = R.lookupRan ref . typeNamespace
+
+hashNamesForType :: Reference -> Branch0 -> Set HashQualified
+hashNamesForType ref b = let
   ns = (typeNamespace b) :: Relation Name Reference
   hashLen = numHashChars b
   names = (R.lookupRan ref ns) :: Set Name
@@ -305,60 +318,66 @@ namesForType ref b = let
           $ hashQualifyTypeName hashLen n (R.lookupDom n references)
   in Set.map f names
 
-hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent Text
+hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent HashQualified
 hashQualifyTermName numHashChars n rs =
-  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
-  else Map.fromList [ (r, n <> Text.pack (Referent.showShort numHashChars r))
+  if Set.size rs < 2
+  then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
+  else Map.fromList [ (r, HashQualified.forReferent r numHashChars n)
                     | r <- toList rs ]
 
-hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference Text
+hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference HashQualified
 hashQualifyTypeName numHashChars n rs =
-  if Set.size rs < 2 then Map.fromList [(r, n) | r <- toList rs ]
-  else Map.fromList [ (r, n <> Text.pack (Reference.showShort numHashChars r))
+  if Set.size rs < 2
+  then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
+  else Map.fromList [ (r, HashQualified.forReference r numHashChars n)
                     | r <- toList rs ]
 
 -- Get the appropriately hash-qualified version of a name for term.
 -- Should be the same as the input name if the branch is unconflicted.
-hashQualifiedTermName :: Branch0 -> Name -> Referent -> Text
+hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
   if (> 1) . length . R.lookupDom n . termNamespace $ b then
     -- name is conflicted
-    n <> Text.pack (Referent.showShort (numHashChars b) r)
-  else n
+    HashQualified.forReferent r (numHashChars b) n
+  else HashQualified.fromName n
 
-hashQualifiedTypeName :: Branch0 -> Name -> Reference -> Text
+hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
   if (> 1) . length . R.lookupDom n . typeNamespace $ b then
     -- name is conflicted
-    n <> Text.pack (Reference.showShort (numHashChars b) r)
-  else n
+    HashQualified.forReference r (numHashChars b) n
+  else HashQualified.fromName n
 
-oldNamesForTerm :: Int -> Referent -> Branch0 -> Set Name
+oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
-  = Set.map (<> Text.pack (Referent.showShort numHashChars ref))
+  = Set.map (HashQualified.forReferent ref numHashChars)
   . R.lookupRan ref
   . (view $ oldNamespaceL . terms)
 
-oldNamesForType :: Int -> Reference -> Branch0 -> Set Name
+oldNamesForType :: Int -> Reference -> Branch0 -> Set HashQualified
 oldNamesForType numHashChars ref
-  = Set.map (<> Text.pack (Reference.showShort numHashChars ref))
+  = Set.map (HashQualified.forReference ref numHashChars)
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
 
-prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
-prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
+-- We must choose a canonical name for each referent in the branch.
+-- In the future we might like a way for the user to choose a preferred name
+-- (i.e. just `unionLeft` the user preferences before the arbitrary choice)
+prettyPrintEnv :: Branch0 -> PrettyPrintEnv
+prettyPrintEnv b = PPE.PrettyPrintEnv terms types where
   hashLen = numHashChars b
   or :: Set a -> Set a -> Set a
   or s1 s2 = if Set.null s1 then s2 else s1
-  terms r = multiset $ namesForTerm r b `or` oldNamesForTerm hashLen r b
-  types r = multiset $ namesForType r b `or` oldNamesForType hashLen r b
-  multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
+  terms r =
+    Set.lookupMin $ hashNamesForTerm r b `or` oldNamesForTerm hashLen r b
+  types r =
+    Set.lookupMin $ hashNamesForType r b `or` oldNamesForType hashLen r b
 
-prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
-prettyPrintEnv = foldMap prettyPrintEnv1
+-- prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
+-- prettyPrintEnv = foldMap prettyPrintEnv1
 
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
@@ -547,7 +566,7 @@ fromTypecheckedFile
   :: forall v a . Var v => UF.TypecheckedUnisonFile v a -> Branch0
 fromTypecheckedFile file =
   let
-    toName      = Var.name
+    toName      = Name.unsafeFromVar
     hashedTerms = UF.hashTerms file
     ctors :: [(v, Referent)]
     ctors = Map.toList $ UF.hashConstructors file
@@ -590,8 +609,8 @@ intersectWithFile branch file =
     >>= (>>= (\(v, _, _) -> if Set.member v termNames then [v] else []))
   )
  where
-  typeNames = Set.map (Var.named) $ allTypeNames branch
-  termNames = Set.map (Var.named) $ allTermNames branch
+  typeNames = Set.map (Name.toVar) $ allTypeNames branch
+  termNames = Set.map (Name.toVar) $ allTermNames branch
 
 
 modify :: (Branch0 -> Branch0) -> Branch -> Branch

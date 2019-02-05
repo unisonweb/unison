@@ -41,7 +41,6 @@ library
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.Causal
-    Unison.Codebase.CommandLine
     Unison.Codebase.CommandLine2
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
@@ -59,9 +58,12 @@ library
     Unison.FileParsers
     Unison.Hash
     Unison.Hashable
+    Unison.HashQualified
     Unison.Kind
     Unison.Lexer
+    Unison.Name
     Unison.Names
+    Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
     Unison.Path
@@ -95,6 +97,7 @@ library
     Unison.Util.Components
     Unison.Util.Free
     Unison.Util.Logger
+    Unison.Util.Histogram
     Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.Pretty
@@ -191,15 +194,6 @@ executable prettyprintdemo
     base,
     safe,
     text,
-    unison-parser-typechecker
-
-executable unisonold
-  main-is: Main.hs
-  hs-source-dirs: unisonold
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  build-depends:
-    base,
-    safe,
     unison-parser-typechecker
 
 executable tests

@@ -32,6 +32,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import qualified Unison.DataDeclaration       as DD
+import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
@@ -702,7 +703,7 @@ renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
 renderTerm env (Term.Ref' r) =
-  fromString (Text.unpack $ PPE.termName env (Referent.Ref r))
+  fromString (HQ.toString $ PPE.termName env (Referent.Ref r))
 renderTerm _ e =
   let s = show e
   in      -- todo: pretty print
@@ -783,14 +784,14 @@ renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showTermRef :: IsString s => Env -> Referent -> s
-showTermRef env r = fromString . Text.unpack $ PPE.termName env r
+showTermRef env r = fromString . HQ.toString $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s
-showTypeRef env r = fromString . Text.unpack $ PPE.typeName env r
+showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
 showConstructor :: IsString s => Env -> R.Reference -> Int -> s
-showConstructor env r cid = fromString . Text.unpack $
+showConstructor env r cid = fromString . HQ.toString $
   PPE.patternName env r cid
 
 styleInOverallType

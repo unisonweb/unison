@@ -1,12 +1,16 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 
 module Unison.Referent where
 
+import           Data.Text        (Text)
+import qualified Data.Text        as Text
+import           Data.Word        (Word64)
 import           Unison.Hashable  (Hashable)
 import qualified Unison.Hashable  as H
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as R
-import           Data.Word        (Word64)
 
 data Referent = Ref Reference | Req Reference Int | Con Reference Int
   deriving (Show, Ord, Eq)
@@ -16,14 +20,21 @@ data Referent = Ref Reference | Req Reference Int | Con Reference Int
 
 showShort :: Int -> Referent -> String
 showShort numHashChars r = case r of
-  Ref r -> R.showShort numHashChars r
+  Ref r     -> R.showShort numHashChars r
   Con r cid -> R.showShort numHashChars r <> "#" <> show cid
   Req r cid -> R.showShort numHashChars r <> "#" <> show cid
+
+toString :: Referent -> String
+toString = \case
+  Ref r     -> show r
+  Con r cid -> show r <> "#" <> show cid
+  Req r cid -> show r <> "#" <> show cid
+
 
 isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True
 isConstructor (Req _ _) = True
-isConstructor _ = False
+isConstructor _         = False
 
 toReference :: Referent -> Reference
 toReference = \case
@@ -36,6 +47,22 @@ toTypeReference = \case
   Req r _i -> Just r
   Con r _i -> Just r
   _ -> Nothing
+
+-- Parses Asdf##Foo as Builtin Foo
+-- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
+unsafeFromText :: Text -> Referent
+unsafeFromText t = case Text.split (=='#') t of
+  [_, "", b]  -> Ref $ R.Builtin b
+  [_, h]      -> Ref $ case Text.split (=='-') h of
+    [hash]            -> R.derivedBase58 hash 0 1
+    [hash, pos, size] -> R.derivedBase58 hash (read . Text.unpack $ pos)
+                                              (read . Text.unpack $ size)
+    _ -> bail
+  [_, _h, _cid] -> error . Text.unpack $
+                  "todo: how can we parse a Referent as Con vs Req? " <> t
+  _ -> bail
+  where bail = error . Text.unpack $ "couldn't parse a Referent from " <> t
+
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r

@@ -19,6 +19,7 @@ import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.Name            as Name
 import           Unison.Names           (Names)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
@@ -104,7 +105,7 @@ dependencies uf ns = directReferences <>
     tm = term uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
-      catMaybes (flip Map.lookup (Names.typeNames ns) . Var.name <$>
+      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
                   Set.toList (Term.freeTypeVars tm))
     -- foreach name in Names.termNames,
         -- if the name or unqualified name is in Term.freeVars,
@@ -112,8 +113,8 @@ dependencies uf ns = directReferences <>
     freeTermVarRefs =
       [ Referent.toReference referent
       | (name, referent) <- Map.toList $ Names.termNames ns
-      , Var.named name `Set.member` Term.freeVars tm
-        || Var.unqualified (Var.named name) `Set.member` Term.freeVars tm
+      , Name.toVar name `Set.member` Term.freeVars tm
+        || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
       ]
 
 discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
@@ -220,8 +221,8 @@ environmentFor
 environmentFor names0 dataDecls0 effectDecls0 =
   let
     -- ignore builtin types that will be shadowed by user-defined data/effects
-    unshadowed n = Map.notMember (Var.named n) dataDecls0
-                && Map.notMember (Var.named n) effectDecls0
+    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
+                && Map.notMember (Name.toVar n) effectDecls0
     names = Names.filterTypes unshadowed names0
     -- data decls and hash decls may reference each other, and thus must be hashed together
     dataDecls :: Map v (DataDeclaration' v a)

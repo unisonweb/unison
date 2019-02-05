@@ -19,6 +19,7 @@ import           Prelude.Extras (Show1)
 import qualified Unison.ABT as ABT
 import           Unison.Hashable (Accumulate, Hashable1)
 import qualified Unison.Hashable as Hashable
+import qualified Unison.Name as Name
 import           Unison.Reference (Reference)
 import qualified Unison.Reference as Reference
 import           Unison.Referent (Referent)
@@ -114,7 +115,7 @@ toNames0
   -> Names
 toNames0 typeSymbol r f dd =
   let names (ctor, i) =
-        let name = Var.qualifiedName ctor in Names.fromTerms [(name, f r i)]
+        let name = Name.unsafeFromVar ctor in Names.fromTerms [(name, f r i)]
   in  foldMap names (constructorVars dd `zip` [0 ..])
         <> Names.fromTypesV [(typeSymbol, r)]
 
@@ -258,4 +259,3 @@ bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
   sortCtors dd =
     DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
   hash3 (_, _, typ) = ABT.hash typ :: Hash
-

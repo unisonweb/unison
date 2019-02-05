@@ -52,6 +52,8 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
+import           Unison.Name                   (Name)
+import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -487,18 +489,24 @@ getTypeEdit = getWord8 >>= \case
 
 putBranch :: MonadPut m => Branch -> m ()
 putBranch (Branch b) = putCausal b $ \b -> do
-  putRelation (Branch.termNamespace b) putText putReferent
-  putRelation (Branch.typeNamespace b) putText putReference
-  putRelation (Branch.oldTermNamespace b) putText putReferent
-  putRelation (Branch.oldTypeNamespace b) putText putReference
+  putRelation (Branch.termNamespace b) putName putReferent
+  putRelation (Branch.typeNamespace b) putName putReference
+  putRelation (Branch.oldTermNamespace b) putName putReferent
+  putRelation (Branch.oldTypeNamespace b) putName putReference
   putRelation (Branch.editedTerms b) putReference putTermEdit
   putRelation (Branch.editedTypes b) putReference putTypeEdit
+
+putName :: MonadPut m => Name -> m ()
+putName = putText . Name.toText
+
+getName :: MonadGet m => m Name
+getName = Name.unsafeFromText <$> getText
 
 getNamespace :: MonadGet m => m Branch.Namespace
 getNamespace =
   Branch.Namespace
-    <$> getRelation getText getReferent
-    <*> getRelation getText getReference
+    <$> getRelation getName getReferent
+    <*> getRelation getName getReference
 
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal

@@ -28,8 +28,6 @@ import           Data.Maybe                     ( catMaybes
                                                 )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.String                    ( fromString )
-import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import           Text.EditDistance              ( defaultEditCosts
@@ -42,7 +40,10 @@ import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Names                   ( Name )
+import           Unison.HashQualified           ( HashQualified )
+import qualified Unison.HashQualified          as HQ
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
@@ -75,6 +76,7 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
+type BranchName = Text
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -83,12 +85,12 @@ data Codebase m v a =
 
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
-           , branches           :: m [Name]
-           , getBranch          :: Name -> m (Maybe Branch)
+           , branches           :: m [BranchName]
+           , getBranch          :: BranchName -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
            -- or creates a new branch if there's no branch with that name
-           , mergeBranch        :: Name -> Branch -> m Branch
-           , branchUpdates      :: m (m (), m (Set Name))
+           , mergeBranch        :: BranchName -> Branch -> m Branch
+           , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)
            , builtinLoc :: a
@@ -126,19 +128,18 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-fuzzyFindTerms' :: Branch -> [String] -> [(Text, Referent)]
+fuzzyFindTerms' :: Branch -> [String] -> [(HashQualified, Referent)]
 fuzzyFindTerms' (Branch.head -> branch) query =
   let
-    termNames = Text.unpack <$> toList (Branch.allTermNames branch)
-    matchingTerms :: [String]
+    terms = Branch.allTerms branch
+    termNames = [(HQ.toString n, (n,r))
+              | r <- toList terms
+              , n <- toList (Branch.hashNamesForTerm r branch)]
+    matchingTerms :: [(String,(HashQualified,Referent))]
     matchingTerms = if null query
       then termNames
-      else query >>= \q -> sortedApproximateMatches q termNames
-    refsForName :: String -> [Referent]
-    refsForName (Text.pack -> name) = Set.toList $ Branch.termsNamed name branch
-    makePair (Text.pack -> name) r =
-      (Branch.hashQualifiedTermName branch name r, r)
-  in matchingTerms >>= \name -> makePair name <$> refsForName name
+      else query >>= \q -> sortedApproximateMatches' q termNames
+  in snd <$> matchingTerms
 
 fuzzyFindTermTypes
   :: forall m v a
@@ -146,7 +147,7 @@ fuzzyFindTermTypes
   => Codebase m v a
   -> Branch
   -> [String]
-  -> m [(Text, Referent, Maybe (Type v a))]
+  -> m [(HashQualified, Referent, Maybe (Type v a))]
 fuzzyFindTermTypes codebase branch query =
   let found = fuzzyFindTerms' branch query
       tripleForRef name ref = (name, ref, ) <$> case ref of
@@ -155,17 +156,16 @@ fuzzyFindTermTypes codebase branch query =
         Referent.Con r cid -> getTypeOfConstructor codebase r cid
   in  traverse (uncurry tripleForRef) found
 
-fuzzyFindTypes' :: Branch -> [String] -> [(Text, Reference)]
+fuzzyFindTypes' :: Branch -> [String] -> [(HashQualified, Reference)]
 fuzzyFindTypes' (Branch.head -> branch) query =
   let
-    typeNames =
-      Text.unpack <$> toList (Branch.allTypeNames branch)
+    typeNames = toList (Branch.allTypeNames branch)
     matchingTypes = if null query
       then typeNames
-      else query >>= \q -> sortedApproximateMatches q typeNames
-    refsForName (Text.pack -> name) = Set.toList $ Branch.typesNamed name branch
-    makePair (Text.pack -> name) r =
-      (Branch.hashQualifiedTypeName branch name r, r)
+      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
+    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
+    refsForName name = Set.toList $ Branch.typesNamed name branch
+    makePair name r = (Branch.hashQualifiedTypeName branch name r, r)
   in matchingTypes >>= \name -> makePair name <$> refsForName name
 
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
@@ -176,18 +176,20 @@ listReferencesMatching
   :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
 listReferencesMatching code (Branch.head -> b) query = do
   let
-    termNames     = Text.unpack <$> toList (Branch.allTermNames b)
-    typeNames     = Text.unpack <$> toList (Branch.allTypeNames b)
+    termNames     = toList (Branch.allTermNames b)
+    typeNames     = toList (Branch.allTypeNames b)
     matchingTerms = if null query
       then termNames
-      else query >>= \q -> sortedApproximateMatches q termNames
+      else query >>= \q -> asStrings (sortedApproximateMatches q) termNames
     matchingTypes = if null query
       then typeNames
-      else query >>= \q -> sortedApproximateMatches q typeNames
+      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
     matchingTypeRefs = matchingTypes
-      >>= \name -> Set.toList (Branch.typesNamed (Text.pack name) b)
+      >>= \name -> Set.toList (Branch.typesNamed name b)
     matchingTermRefs = matchingTerms
-      >>= \name -> Set.toList (Branch.termsNamed (Text.pack name) b)
+      >>= \name -> Set.toList (Branch.termsNamed name b)
+    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
+
   listReferences code
                  b
                  (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
@@ -195,7 +197,7 @@ listReferencesMatching code (Branch.head -> b) query = do
 listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
 listReferences code branch refs = do
-  let ppe = Branch.prettyPrintEnv1 branch
+  let ppe = Branch.prettyPrintEnv branch
   terms0 <- forM refs $ \r -> do
     otyp <- getTypeOfTerm code r
     pure $ (PPE.termName ppe (Referent.Ref r), otyp)
@@ -245,7 +247,7 @@ initialize c = do
 prettyBinding
   :: (Var.Var v, Monad m)
   => Codebase m v a
-  -> Name
+  -> HashQualified
   -> Referent
   -> Branch0
   -> m (Maybe (Pretty String))
@@ -256,55 +258,25 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
   go Nothing = pure Nothing
   go (Just tm) =
     let
--- We boost the `(r0,name)` association since if this is a recursive
+-- We force the `(r0,name)` association since if this is a recursive
 -- fn whose body also mentions `r`, want name to be the same as the binding.
-        ppEnv = Branch.prettyPrintEnv [b]
-          `mappend` PPE.scale 10 (PPE.fromTermNames [(r0, name)])
+        ppEnv = PPE.assignTermName r0 name $ Branch.prettyPrintEnv b
     in  case tm of
           Term.Ann' _ _ ->
-            pure $ Just (TermPrinter.prettyBinding ppEnv (Var.named name) tm)
+            pure $ Just (TermPrinter.prettyBinding ppEnv name tm)
           _ -> do
             Just typ <- getTypeOfTerm cb r1
             pure . Just $ TermPrinter.prettyBinding
               ppEnv
-              (Var.named name)
+              name
               (Term.ann (ABT.annotation tm) tm typ)
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(Name,Referent)] -> Branch0 -> m (Pretty String)
+  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty String)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
-
--- Search for and display bindings matching the given query
-prettyBindingsQ
-  :: (Var.Var v, Monad m)
-  => Codebase m v a
-  -> String
-  -> Branch0
-  -> m (Pretty String)
-prettyBindingsQ cb query b =
-  let possible = Branch.allTermNames b
-      matches =
-        sortedApproximateMatches query (Text.unpack <$> toList possible)
-      str = fromString
-      bs =
-        [ (name, r)
-        | name <- Text.pack <$> matches
-        , r    <- take 1 (toList $ Branch.termsNamed name b)
-        ]
-      go pp = if length matches > 5
-        then PP.linesSpaced
-          [ pp
-          , "... "
-          <> str (show (length matches - 5))
-          <> " more (use `> list "
-          <> str query
-          <> "` to see all matches)"
-          ]
-        else pp
-  in  go <$> prettyBindings cb (take 5 bs) b
 
 prettyListingQ
   :: (Var.Var v, Monad m)
@@ -373,7 +345,7 @@ makeSelfContained
   -> m (UF.UnisonFile v a)
 makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
-  let pp = Branch.prettyPrintEnv1 b
+  let pp = Branch.prettyPrintEnv b
       termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
@@ -381,18 +353,18 @@ makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
     _                           -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
-      fmap (r, Var.named (termName r), ) <$> getTerm code rid
+      fmap (r, HQ.toVar (termName r), ) <$> getTerm code rid
     _ -> pure Nothing
   let
     unref t = ABT.visitPure go t
      where
       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
-        Just (Term.var (ABT.annotation t) (Var.named $ termName r))
+        Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
       go _ = Nothing
     datas = Map.fromList
-      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [Var.named (typeName r)] ]
+      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
     effects = Map.fromList
-      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [Var.named (typeName r)] ]
+      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
     unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
     tm' = case tm of
@@ -423,7 +395,30 @@ sortedApproximateMatches q possible = trim (sortOn fst matches)
   trim ((_, h) : _) | h == q = [h]
   trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
-branchExists :: Functor m => Codebase m v a -> Name -> m Bool
+sortedApproximateMatches' :: String -> [(String,a)] -> [(String,a)]
+sortedApproximateMatches' q possible = trim (sortOn fst matches)
+ where
+  nq = length q
+  score (s,_)
+          | s == q                         = 0 :: Int
+          | -- exact match is top choice
+            map toLower q == map toLower s = 1
+          |        -- ignore case
+            q `isSuffixOf` s               = 2
+          |        -- matching suffix is pretty good
+            q `isInfixOf` s                = 3
+          |        -- a match somewhere
+            q `isPrefixOf` s               = 4
+          |        -- ...
+            map toLower q `isInfixOf` map toLower s = 5
+          | q `isSubsequenceOf` s          = 6
+          | otherwise = 7 + editDistance (map toLower q) (map toLower s)
+  editDistance q s = levenshteinDistance defaultEditCosts q s
+  matches = map (\s -> (score s, s)) possible
+  trim ((_, (h,a)) : _) | h == q = [(h,a)]
+  trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
+
+branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase
 
 builtinBranch :: Branch
@@ -459,7 +454,7 @@ isTerm code = fmap isJust . getTypeOfTerm code
 
 isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
-  Reference.Builtin b -> pure (b `Set.member` Builtin.builtinTypeNames)
+  Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
   _ -> error "impossible"
 
@@ -497,7 +492,7 @@ unhashComponent
   -> m (Maybe (Map v (Reference, Term v a, Type v a)))
 unhashComponent code b ref = do
   let component = Reference.members $ Reference.componentFor ref
-      ppe = Branch.prettyPrintEnv1 b
+      ppe = Branch.prettyPrintEnv b
   isTerm <- isTerm code ref
   isType <- isType code ref
   if isTerm then do
@@ -510,7 +505,7 @@ unhashComponent code b ref = do
           Reference.DerivedId id -> do
             mtm <- getTerm code id
             tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-            pure (Var.named $ PPE.termName ppe (Referent.Ref termRef), (termRef, tm, tp))
+            pure (HQ.toVar $ PPE.termName ppe (Referent.Ref termRef), (termRef, tm, tp))
           _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
       unhash m =
         let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)

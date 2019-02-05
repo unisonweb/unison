@@ -49,9 +49,8 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
-import           Unison.Names                   ( Name
-                                                , NameTarget
-                                                )
+import           Unison.Name                    ( Name )
+import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -181,7 +180,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
               PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
                 `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
                 `PPE.unionLeft` Branch.prettyPrintEnv
-                                  [Branch.head $ currentBranch']
+                                  (Branch.head currentBranch')
             loc = case outputLoc of
               Editor.ConsoleLocation    -> Nothing
               Editor.FileLocation path  -> Just path
@@ -411,4 +410,3 @@ updateBranch
   :: Action i v () -> BranchName -> (Branch -> Branch) -> Action i v ()
 updateBranch success branchName f =
   withBranch branchName $ \b -> merging branchName (f b) success
-

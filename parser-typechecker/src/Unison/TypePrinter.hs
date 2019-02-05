@@ -8,7 +8,8 @@ module Unison.TypePrinter where
 import           Data.Maybe            (isJust)
 import           Data.String           (fromString)
 import qualified Data.Text             as Text
-import           Unison.Names          (Name)
+import           Unison.HashQualified  (HashQualified)
+import           Unison.NamePrinter    (prettyHashQualified)
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
@@ -46,7 +47,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
 -- application has precedence 10.
 pretty n p tp = case tp of
   Var' v     -> l $ Text.unpack (Var.name v)
-  Ref' r     -> l $ Text.unpack (PrettyPrintEnv.typeName n r)
+  Ref' r     -> prettyHashQualified $ (PrettyPrintEnv.typeName n r)
   Cycle' _ _ -> l $ "error" -- TypeParser does not currently emit Cycle
   Abs' _     -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
@@ -112,24 +113,46 @@ pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
 prettySignatures'
   :: Var v => PrettyPrintEnv
-  -> [(Name, AnnotatedType v a)]
+  -> [(HashQualified, AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
-  [ (PP.text name, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
+  [ (prettyHashQualified name, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
                    (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
   | (name, typ) <- ts
   ]
 
+prettySignaturesAlt'
+  :: Var v => PrettyPrintEnv
+  -> [([HashQualified], AnnotatedType v a)]
+  -> [Pretty ColorText]
+prettySignaturesAlt' env ts = PP.align
+  [ (PP.commas . fmap prettyHashQualified $ names, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
+     (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
+  | (names, typ) <- ts
+  ]
+
+-- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, AnnotatedType v a)] -> [Pretty ColorText]
+-- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
+
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(Name, AnnotatedType v a)]
+  -> [(HashQualified, AnnotatedType v a)]
   -> Pretty ColorText
 prettySignatures env ts = PP.lines $
   PP.group <$> prettySignatures' env ts
 
-prettyDataHeader :: Name -> Pretty ColorText
-prettyDataHeader name = PP.bold "type " <> PP.text name
+prettySignaturesAlt
+  :: Var v
+  => PrettyPrintEnv
+  -> [([HashQualified], AnnotatedType v a)]
+  -> Pretty ColorText
+prettySignaturesAlt env ts = PP.lines $
+  PP.group <$> prettySignaturesAlt' env ts
 
-prettyEffectHeader :: Name -> Pretty ColorText
-prettyEffectHeader name = PP.bold "ability " <> PP.text name
+
+prettyDataHeader :: HashQualified -> Pretty ColorText
+prettyDataHeader name = PP.bold "type " <> prettyHashQualified name
+
+prettyEffectHeader :: HashQualified -> Pretty ColorText
+prettyEffectHeader name = PP.bold "ability " <> prettyHashQualified name
