@@ -559,7 +559,7 @@ notifyUser dir o = case o of
       P.wrap $ "I" <> pastTenseCmd <> "the"
         <> ns (E.changedSuccessfully r)
         <> P.blue (prettyName oldName)
-        <> "to" <> P.green (prettyName newName) <> "."
+        <> "to" <> P.group (P.green (prettyName newName) <> ".")
     when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
       (P.wrap $ "I couldn't" <> cmd <> "the"
            <> ns (E.oldNameConflicted r)
