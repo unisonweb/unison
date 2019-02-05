@@ -17,7 +17,9 @@ import           Control.Monad.State            ( StateT
                                                 , get
                                                 )
 import           Control.Monad.Trans            ( lift )
-import           Control.Monad.Trans.Maybe      ( MaybeT, runMaybeT )
+import           Control.Monad.Trans.Maybe      ( MaybeT(..)
+                                                , runMaybeT
+                                                )
 import           Data.Foldable                  ( foldl'
                                                 , toList
                                                 )
@@ -292,7 +294,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           eval $ SwitchBranch branch branchName
           currentBranch .= branch
           currentBranchName .= branchName
-    quit = eval Quit
+    quit = MaybeT $ pure Nothing
 
 eval :: Command i v a -> Action i v a
 eval = lift . lift . Free.eval

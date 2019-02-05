@@ -9,9 +9,10 @@
 
 module Unison.Codebase.CommandLine2 where
 
--- import Debug.Trace
-import Data.Maybe (catMaybes)
-import Prelude hiding (readFile, writeFile)
+import           Data.Maybe                     ( catMaybes )
+import           Prelude                 hiding ( readFile
+                                                , writeFile
+                                                )
 import           Control.Applicative            ((<|>))
 import           Control.Concurrent             (forkIO, killThread)
 import qualified Control.Concurrent.Async       as Async
@@ -31,7 +32,9 @@ import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
-import Data.Text.IO (readFile, writeFile)
+import           Data.Text.IO                   ( readFile
+                                                , writeFile
+                                                )
 import qualified System.Console.ANSI            as Console
 import qualified System.Console.Haskeline       as Line
 import qualified System.Console.Terminal.Size   as Terminal
@@ -428,7 +431,7 @@ notifyUser dir o = case o of
     Console.setTitle "Unison ☺︎"
     let uf         = UF.discardTerm unisonFile
         defs       = prettyTypecheckedFile uf errorEnv
-    when (not $ null defs) . putPrettyLn . P.lines $ [
+    when (not $ null defs) . putPrettyLn $
       P.okCallout $
         P.lines [
           P.wrap (
@@ -441,7 +444,6 @@ notifyUser dir o = case o of
             "Now evaluating any watch expressions (lines starting with `>`)"
             <> "..."
         ]
-     ]
   TodoOutput branch todo ->
     let ppe = Branch.prettyPrintEnv (Branch.head branch) in
     if E.todoScore todo == 0 && E.todoConflicts todo == mempty

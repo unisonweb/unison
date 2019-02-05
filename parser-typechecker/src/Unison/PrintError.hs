@@ -13,6 +13,7 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
+import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
@@ -28,7 +29,6 @@ import           Data.String                  (IsString, fromString)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
-import           Debug.Trace
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import qualified Unison.DataDeclaration       as DD
