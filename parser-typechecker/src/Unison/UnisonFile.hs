@@ -51,10 +51,11 @@ uberTerm uf = Term.letRec' True (terms uf <> watches uf) (Term.unit mempty)
 data TypecheckedUnisonFile v a =
   -- Giving this an ugly name to encourage use of lowercase smart ctor
   -- which filters out watch expressions
-  TypecheckedUnisonFile_ {
+  TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+    watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
   } deriving Show
 
 -- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
@@ -71,9 +72,9 @@ getDecl' uf v =
   (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
   (Left . snd <$> Map.lookup v (effectDeclarations' uf))
 
-discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
-discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
-  TypecheckedUnisonFile_ datas effects components
+-- discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
+-- discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
+--  TypecheckedUnisonFile_ datas effects components
 
 -- Returns a relation for the dependencies of this file. The domain is
 -- the dependent, and the range is its dependencies, thus:
@@ -147,19 +148,7 @@ toNames (UnisonFile {..}) = datas <> effects
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFile_ Map.empty Map.empty mempty
-
-typecheckedUnisonFile
-  :: Var v
-  => Map v (Reference, DataDeclaration' v a)
-  -> Map v (Reference, EffectDeclaration' v a)
-  -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
-  -> TypecheckedUnisonFile v a
-typecheckedUnisonFile ds es cs = TypecheckedUnisonFile_ ds es (removeWatches cs)
- where
-  -- todo: more robust way of doing this once we have different kinds of variables
-  removeWatches = filter (not . null) . fmap filterDefs
-  filterDefs    = filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_")
+typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
 
 hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
@@ -203,10 +192,11 @@ filterVars
   -> Set v
   -> TypecheckedUnisonFile v a
   -> TypecheckedUnisonFile v a
-filterVars types terms file = TypecheckedUnisonFile_
+filterVars types terms file = TypecheckedUnisonFile
   (dataDeclarations' file `Map.restrictKeys` types)
   (effectDeclarations' file `Map.restrictKeys` types)
   (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
+  (filter (any (\(v, _, _) -> Set.member v terms)) $ watchComponents file)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
