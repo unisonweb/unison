@@ -6,7 +6,7 @@ import           Control.Monad                  ( when )
 import           Safe                           ( headMay )
 import           System.Environment             ( getArgs )
 import qualified Unison.Codebase               as Codebase
-import qualified Unison.Codebase.CommandLine2  as CommandLine
+import qualified Unison.Codebase.CommandLine  as CommandLine
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import           Unison.Codebase.Runtime.JVM    ( javaRuntime )
 import qualified Unison.Codebase.Serialization as S
