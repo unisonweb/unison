@@ -258,11 +258,12 @@ data Command i v a where
             -> Source
             -> Command i v (TypecheckingResult v)
 
-  -- Evaluate a UnisonFile and return the result and the result of
+  -- Evaluate a UnisonFile and return the result of
   -- any watched expressions (which are just labeled with `Text`)
+  -- along with their original source location
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v ([(Text, Term v ())], Term v ())
+           -> Command i v (Map v (Ann, Term v ()))
 
   -- Load definitions from codebase:
   -- option 1:
@@ -627,7 +628,8 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       selfContained <- Codebase.makeSelfContained codebase
                                                   (Branch.head branch)
                                                   unisonFile
-      Runtime.evaluate rt selfContained codebase
+      let noCache = const (pure Nothing)
+      Runtime.evaluateWatches codebase noCache rt selfContained
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName

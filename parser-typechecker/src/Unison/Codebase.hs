@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Codebase where
@@ -338,13 +339,13 @@ transitiveDependencies code seen0 r = if Set.member r seen0
 -- Creates a self-contained `UnisonFile` which bakes in
 -- all transitive dependencies
 makeSelfContained
-  :: (Monad m, Var v)
+  :: forall m v a . (Monad m, Monoid a, Var v)
   => Codebase m v a
   -> Branch0
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
-makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
-  deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
+makeSelfContained code b uf@(UF.UnisonFile datas0 effects0 terms watches) = do
+  deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies $ UF.uberTerm uf)
   let pp = Branch.prettyPrintEnv b
       termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
@@ -353,9 +354,10 @@ makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
     _                           -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
-      fmap (r, HQ.toVar (termName r), ) <$> getTerm code rid
+      fmap (r, HQ.toVar @v (termName r), ) <$> getTerm code rid
     _ -> pure Nothing
   let
+    unref :: Term v a -> Term v a
     unref t = ABT.visitPure go t
      where
       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
@@ -367,11 +369,8 @@ makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
     unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
-    tm' = case tm of
-      Term.LetRecNamedAnnotatedTop' top ann bs e ->
-        Term.letRec top ann (bindings ++ unrefBindings bs) (unref e)
-      tm -> Term.letRec True (ABT.annotation tm) bindings (unref tm)
-  pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects) tm'
+  pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects)
+                       (unrefBindings terms) (unrefBindings watches)
 
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = trim (sortOn fst matches)

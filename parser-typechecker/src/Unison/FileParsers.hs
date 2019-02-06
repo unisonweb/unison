@@ -106,7 +106,8 @@ synthesizeFile
 synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 term0) = unisonFile
+    uf@(UnisonFile dds0 eds0 terms watches) = unisonFile
+    term0 = UF.uberTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
@@ -172,19 +173,3 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
           -- loc of replacement already chosen correctly by whatever made the Decision
           pure . pure $ replacement
       _ -> Nothing
-
-synthesizeAndSerializeUnisonFile
-  :: Var v
-  => TL.TypeLookup v Ann
-  -> Names
-  -> UnisonFile v
-  -> Result
-       (Seq (Note v Ann))
-       (UF.TypecheckedUnisonFile' v Ann, ByteString)
-synthesizeAndSerializeUnisonFile tl names unisonFile =
-  let r = synthesizeFile tl names unisonFile
-      f unisonFile' =
-        let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile
-              (UF.discardTypes' unisonFile')
-        in  (unisonFile', bs)
-  in  f <$> r

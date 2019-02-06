@@ -157,26 +157,6 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable bootstrap
-  main-is: Bootstrap.hs
-  hs-source-dirs: bootstrap
-  ghc-options:    -Wall
-  build-depends:
-    base,
-    base58-bytestring,
-    bytes,
-    bytestring,
-    containers,
-    cryptonite,
-    filepath,
-    memory,
-    mtl,
-    prelude-extras,
-    text,
-    transformers,
-    vector,
-    unison-parser-typechecker
-
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
