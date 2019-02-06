@@ -5,7 +5,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="created" content="2019-02-05T15:35:17-0500"/>
-        <meta name="modified" content="2019-02-06T14:53:09-0500"/>
+        <meta name="modified" content="2019-02-06T14:55:03-0500"/>
         <meta name="tags" content="unison"/>
         <meta name="last device" content="ndnd"/>
     </head>
@@ -121,10 +121,9 @@ We discussed producing a <code class='code-inline'>Heartbeat</code> identifier a
 We haven’t discussed how to prevent a delegate supervisor from accumulating and perpetuating many long-running Futures that will never actually be forced. With this in mind, have we gained anything from a GC perspective?
 
 <h2>Stationary data</h2>
-We will need some notion of data that doesn't just move automatically with the computation, even if the computation references it.  
-<ul><li>  Two reasons you might want to do this:
-</li><li>	The data is big, and you don't want to copy it around willy-nilly.
-</li><li>	The data is secret, and you don't want to accidentally ship it to another location, you want to be very explicit about when this happens (for instance, secret keys, etc).
+We will need some notion of data that doesn't just move automatically with the computation, even if the computation references it.  We identified two reasons you might want to do this:
+<ul><li>		The data is big, and you don't want to copy it around willy-nilly.
+</li><li>		The data is secret, and you don't want to accidentally ship it to another location, you want to be very explicit about when this happens (for instance, secret keys, etc).
 </li></ul>
 <br>
 <p>More generally, we want a way of being explicit about when certain data is moved between locations, rather than implicitly relocating anything in lexical scope (this could be an API thing, a type-system thing, a code-analysis tool).</p>

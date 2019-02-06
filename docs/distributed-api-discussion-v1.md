@@ -117,10 +117,9 @@ Remote.unsupervise : Loc {e} -> Future a -> {Remote} ()
 We haven’t discussed how to prevent a delegate supervisor from accumulating and perpetuating many long-running Futures that will never actually be forced. With this in mind, have we gained anything from a GC perspective?
 
 ## Stationary data
-We will need some notion of data that doesn't just move automatically with the computation, even if the computation references it.  
-	* Two reasons you might want to do this:
-	* The data is big, and you don't want to copy it around willy-nilly.
-	* The data is secret, and you don't want to accidentally ship it to another location, you want to be very explicit about when this happens (for instance, secret keys, etc).
+We will need some notion of data that doesn't just move automatically with the computation, even if the computation references it.  We identified two reasons you might want to do this:
+		* The data is big, and you don't want to copy it around willy-nilly.
+		* The data is secret, and you don't want to accidentally ship it to another location, you want to be very explicit about when this happens (for instance, secret keys, etc).
 
 More generally, we want a way of being explicit about when certain data is moved between locations, rather than implicitly relocating anything in lexical scope (this could be an API thing, a type-system thing, a code-analysis tool).
 - - - -
