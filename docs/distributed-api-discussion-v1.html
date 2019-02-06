@@ -5,7 +5,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="created" content="2019-02-05T15:35:17-0500"/>
-        <meta name="modified" content="2019-02-06T14:55:03-0500"/>
+        <meta name="modified" content="2019-02-06T14:58:54-0500"/>
         <meta name="tags" content="unison"/>
         <meta name="last device" content="ndnd"/>
     </head>
@@ -18,7 +18,7 @@
 
 <span class="sf_code_comment">-- example:</span>
 <span class="sf_code_hvariable">f1</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">forkAt</span> <span class="sf_code_hvariable">a</span> '<span class="sf_code_keyword">let</span>
-	<span class="sf_code_hvariable">x</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">longRunningComputation</span> <span class="sf_code_number">101</span>
+  <span class="sf_code_hvariable">x</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">longRunningComputation</span> <span class="sf_code_number">101</span>
   <span class="sf_code_hvariable">Email.send</span> <span class="sf_code_hvariable">x</span>
 <span class="sf_code_hvariable">y</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">otherLongComputation</span>
 <span class="sf_code_comment">-- x and y are computed in parallel</span></code></pre>
@@ -85,7 +85,7 @@ An elastic compute service “front-end” would expose:
 
 <span class="sf_code_comment">-- example:</span>
 <span class="sf_code_hvariable">f1</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">forkAt</span> <span class="sf_code_hvariable">a</span> '<span class="sf_code_keyword">let</span>
-	<span class="sf_code_hvariable">x</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">longRunningComputation</span> <span class="sf_code_number">101</span>
+  <span class="sf_code_hvariable">x</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">longRunningComputation</span> <span class="sf_code_number">101</span>
   <span class="sf_code_hvariable">makeHistogram</span> <span class="sf_code_hvariable">x</span>
 <span class="sf_code_hvariable">y</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">otherLongComputation</span>
 <span class="sf_code_hvariable">x</span> <span class="sf_code_operator">=</span> <span class="sf_code_hvariable">Future.force</span> <span class="sf_code_hvariable">f1</span>
@@ -98,7 +98,7 @@ An elastic compute service “front-end” would expose:
 <p>Unison Futures can be monitored or terminated using:</p>
 <pre><code class='code-multiline' lang='haskell'><span class="sf_code_hvariable">Future.status</span> <span class="sf_code_operator">:</span> <span class="sf_code_constant">Future</span> <span class="sf_code_hvariable">a</span> <span class="sf_code_operator">-&gt;</span><span class="sf_code_punctuation">{</span><span class="sf_code_constant">Remote</span><span class="sf_code_punctuation">}</span> <span class="sf_code_constant">Future.Status</span>
 <span class="sf_code_keyword">type</span> <span class="sf_code_constant">Future.Status</span> 
-	<span class="sf_code_operator">=</span> <span class="sf_code_constant">Running</span> <span class="sf_code_constant">LastUpdate</span> <span class="sf_code_operator">|</span> <span class="sf_code_constant">Canceled</span> <span class="sf_code_operator">|</span> <span class="sf_code_constant">Finished</span> 
+  <span class="sf_code_operator">=</span> <span class="sf_code_constant">Running</span> <span class="sf_code_constant">LastUpdate</span> <span class="sf_code_operator">|</span> <span class="sf_code_constant">Canceled</span> <span class="sf_code_operator">|</span> <span class="sf_code_constant">Finished</span> 
   <span class="sf_code_operator">|</span> <span class="sf_code_constant">Unreachable</span> <span class="sf_code_operator">|</span> <span class="sf_code_constant">Unresponsive</span> 
 
 <span class="sf_code_hvariable">Future.cancel</span> <span class="sf_code_operator">:</span> <span class="sf_code_constant">Future</span> <span class="sf_code_hvariable">a</span> <span class="sf_code_operator">-&gt;</span><span class="sf_code_punctuation">{</span><span class="sf_code_constant">Remote</span><span class="sf_code_punctuation">}</span> <span class="sf_code_punctuation">(</span><span class="sf_code_constant">Either</span> <span class="sf_code_constant">Err2</span> <span class="sf_code_punctuation">())</span>
