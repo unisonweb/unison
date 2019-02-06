@@ -24,7 +24,6 @@ import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
-import qualified Unison.Var       as Var
 
 unqualified :: Name -> Name
 unqualified = Name.unsafeFromText . unqualified' . Name.toText

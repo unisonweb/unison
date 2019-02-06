@@ -339,8 +339,8 @@ namespaceBlock = do
   _ <- closeBlock
   pure $ Namespace (L.payload name) elems
 
-toBindings0 :: [BlockElement v] -> [((a,v), e)]
-toBindings0 b = let
+toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
+toBindings b = let
   expand (Binding ((a, v), e)) = [((a, Just v), e)]
   expand (Action e) = [((ann e, Nothing), e)]
   expand (Namespace name bs) = scope name $ expand =<< bs
@@ -361,15 +361,6 @@ toBindings0 b = let
     sub e = ABT.substsInheritAnnotation substs e
     in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
   in finishBindings (expand =<< b)
-
-watched :: Var v => P v (Maybe String)
-watched = (P.try $ do
-  op <- optional (L.payload <$> P.lookAhead symbolyId)
-  guard (op == Just ">")
-  (curLine, lineContents) <- currentLine
-  _ <- anyToken -- consume the '>' token
-  let lineNote = Strings.strPadLeft ' ' 5 (show curLine) ++ " | " ++ lineContents
-  pure (Just lineNote)) <|> pure Nothing
 
 topLevelBlock
   :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
@@ -408,26 +399,26 @@ block' isTop s openBlock closeBlock = do
     go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
     go open bs
       = let
-          startAnnotation = (fst . fst . head $ toBindings =<< bs)
-          endAnnotation   = (fst . fst . last $ toBindings =<< bs)
+          startAnnotation = (fst . fst . head $ toBindings bs)
+          endAnnotation   = (fst . fst . last $ toBindings bs)
         in
           case reverse bs of
             Namespace _v _ : _ -> pure $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
-              (finishBindings $ toBindings =<< bs)
+              (toBindings bs)
               (Term.var endAnnotation
                         (positionalVar endAnnotation Var.missingResult)
               )
             Binding ((a, _v), _) : _ -> pure $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
-              (finishBindings $ toBindings =<< bs)
+              (toBindings bs)
               (Term.var a (positionalVar endAnnotation Var.missingResult))
             Action e : bs -> pure $ Term.letRec
               isTop
               (startAnnotation <> ann e)
-              (finishBindings $ toBindings =<< reverse bs)
+              (toBindings $ reverse bs)
               e
             [] -> customFailure $ EmptyBlock (const s <$> open)
 

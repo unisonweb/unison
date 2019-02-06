@@ -5,13 +5,14 @@ module Unison.FileParser where
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
-import           Control.Monad (void)
+import           Control.Monad (void, guard)
 import           Control.Monad.Reader (local, ask)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
+import qualified Text.Megaparsec as P
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
@@ -38,10 +39,10 @@ file = do
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask
-    term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
-              (void <$> peekAny) -- we actually opened before the declarations
-              closeBlock
-    let uf = UnisonFile (UF.datas env) (UF.effects env) term
+    stanzas <- sepBy semi stanza
+    let terms = error "todo - create terms and watches from the stanzas"
+        watches = []
+        uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
 
 -- A stanza is either a watch expression like:
@@ -55,11 +56,33 @@ file = do
 --     x = 42
 --     y = 17
 -- which parses as [(Woot.x, 42), (Woot.y, 17)]
-stanza :: P v (Either (v, AnnotatedTerm v Ann) [(v, AnnotatedTerm v Ann)])
-stanza = watchExpression <|> binding <|> (tweak <$> TermParser.namespaceBlock)
+
+data Stanza v
+  = WatchBinding Ann String ((Ann, v), AnnotatedTerm v Ann)
+  | WatchExpression Ann String (AnnotatedTerm v Ann)
+  | Binding ((Ann, v), (AnnotatedTerm v Ann))
+  | Bindings [((Ann, v), AnnotatedTerm v Ann)]
+
+stanza :: Var v => P v (Stanza v)
+stanza = watchExpression <|> binding <|> namespace
   where
-  tweak
--- > x + sum [1,2,3]
+  watchExpression = do
+    (ann, msg) <- watched
+    (WatchExpression ann msg <$> TermParser.blockTerm)
+      <|> (WatchBinding ann msg <$> TermParser.binding)
+  binding = Binding <$> TermParser.binding
+  namespace = tweak <$> TermParser.namespaceBlock where
+    tweak ns = Bindings (TermParser.toBindings [ns])
+
+watched :: Var v => P v (Ann, String)
+watched = P.try $ do
+  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  guard (op == Just ">")
+  cur <- P.lookAhead anyToken
+  let a = ann cur
+  (curLine, lineContents) <- currentLine
+  _ <- anyToken -- consume the '>' token
+  pure (a, lineContents)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
