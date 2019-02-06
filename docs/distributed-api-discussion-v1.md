@@ -6,7 +6,7 @@ Remote.forkAt : Loc {e} ->'({e} a) ->{Remote} Future a
 
 -- example:
 f1 = forkAt a 'let
-	x = longRunningComputation 101
+  x = longRunningComputation 101
   Email.send x
 y = otherLongComputation
 -- x and y are computed in parallel
@@ -77,7 +77,7 @@ type Err = TBD
 
 -- example:
 f1 = forkAt a 'let
-	x = longRunningComputation 101
+  x = longRunningComputation 101
   makeHistogram x
 y = otherLongComputation
 x = Future.force f1
@@ -91,7 +91,7 @@ Unison Futures can be monitored or terminated using:
 ```haskell
 Future.status : Future a ->{Remote} Future.Status
 type Future.Status 
-	= Running LastUpdate | Canceled | Finished 
+  = Running LastUpdate | Canceled | Finished 
   | Unreachable | Unresponsive 
 
 Future.cancel : Future a ->{Remote} (Either Err2 ())
