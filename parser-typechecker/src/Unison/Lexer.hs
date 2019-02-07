@@ -25,7 +25,7 @@ data Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | UnknownLexeme
   | TextLiteralMissingClosingQuote String
-  | InvalidEscapeCharacter Char -- TODO: Actually handle this case
+  | InvalidEscapeCharacter Char
   | LayoutError
   deriving (Eq,Ord,Show) -- richer algebra
 
