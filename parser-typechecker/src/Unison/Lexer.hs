@@ -322,7 +322,7 @@ splitStringLit :: String -> Either Err (String, String)
 splitStringLit ('\\':s:rem) = case parseEscapeChar s of
   (Just e) -> appendFst e <$> splitStringLit rem
   Nothing  -> Left $ InvalidEscapeCharacter s
-splitStringLit ('"':rem)    = Right ("", rem)
+splitStringLit ('"':rem)    = Right ("", '"':rem)
 splitStringLit (x:rem)      = appendFst x <$> splitStringLit rem
 splitStringLit []           = Left $ TextLiteralMissingClosingQuote ""
 
