@@ -4,7 +4,7 @@
 
 module Unison.FileParsers where
 
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, join)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
@@ -13,6 +13,7 @@ import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import Data.List (partition)
 import Data.Set (Set)
 import qualified Data.Set                   as Set
 import           Data.Sequence              (Seq)
@@ -87,7 +88,7 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
@@ -102,7 +103,7 @@ synthesizeFile
   => TL.TypeLookup v Ann
   -> Names
   -> UnisonFile v
-  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
+  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
@@ -152,9 +153,12 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    t          <- doTdnr tdnrTerm
+    _          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
-    pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
+    let (watches', terms') = partition isWatch tdnredTlcs
+        isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
+        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
+    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]

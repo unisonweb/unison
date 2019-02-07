@@ -116,6 +116,9 @@ data InfixContext
 
 -}
 
+prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty String
+prettyTop env = pretty env (ac (-1) Normal)
+
 pretty
   :: Var v
   => PrettyPrintEnv

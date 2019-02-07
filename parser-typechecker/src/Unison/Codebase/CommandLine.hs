@@ -32,6 +32,7 @@ import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
+import           Data.Text                      (Text)
 import           Data.Text.IO                   ( readFile
                                                 , writeFile
                                                 )
@@ -60,6 +61,7 @@ import           Unison.NamePrinter             (prettyName,
                                                  styleHashQualified
                                                 )
 import           Unison.Parser                  (Ann)
+import           Unison.Parser                  (startingLine, endingLine)
 import qualified Unison.PrettyPrintEnv          as PPE
 import           Unison.PrintError              (prettyParseError,
                                                  prettyTypecheckedFile,
@@ -68,6 +70,7 @@ import qualified Unison.Result                  as Result
 import qualified Unison.Referent                as Referent
 import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
+import           Unison.Term                    (Term)
 import qualified Unison.TermPrinter             as TermPrinter
 import qualified Unison.Codebase.TypeEdit       as TypeEdit
 import qualified Unison.Codebase.TermEdit       as TermEdit
@@ -410,8 +413,10 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
             . map Result.TypeError
     putStrLn . showNote $ notes
-  Evaluated names (watches, _term) -> do
-    traverse_ (uncurry $ Watch.watchPrinter names) watches
+  Evaluated fileContents ppe watches ->
+    putPrettyLn $ P.lines [
+      watchPrinter fileContents ppe ann evald |
+      (_v, (ann,evald)) <- Map.toList watches ]
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         types    = R.dom $ Branch.typeNamespace branch
@@ -427,10 +432,10 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv unisonFile -> do
+  Typechecked sourceName errorEnv uf -> do
     Console.setTitle "Unison ☺︎"
-    let uf         = UF.discardTerm unisonFile
-        defs       = prettyTypecheckedFile uf errorEnv
+    -- todo: we should just print this the same way as everything else
+    let defs       = prettyTypecheckedFile uf errorEnv
     when (not $ null defs) . putPrettyLn $
       P.okCallout $
         P.lines [
@@ -596,6 +601,19 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
     ]
+
+watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
+                      -> Term v -> P.Pretty P.ColorText
+watchPrinter src ppe ann term = P.callout "👀" $ let
+  lines = Text.lines src
+  lineNum = fromMaybe 1 $ startingLine ann
+  lineNumWidth = length (show lineNum)
+  line = lines !! (lineNum - 1)
+  in P.lines [
+    fromString (show lineNum) <> " | " <> P.text line,
+    fromString (replicate lineNumWidth ' ') <> "   ⧩",
+    P.map fromString $ TermPrinter.prettyTop ppe term
+  ]
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)

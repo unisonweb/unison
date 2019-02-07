@@ -76,7 +76,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
@@ -189,8 +189,8 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated Names ([(Text, Term v ())], Term v ())
-  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
+  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v ()))
+  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
@@ -198,6 +198,7 @@ data Output v
   | TodoOutput Branch (TodoOutput v Ann)
   deriving (Show)
 
+type SourceFileContents = Text
 type Score = Int
 
 data TodoOutput v a

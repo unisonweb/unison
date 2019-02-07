@@ -34,6 +34,7 @@ import           Unison.Term                    ( Term )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
+import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
@@ -97,19 +98,3 @@ watchDirectory dir allow = do
         else await
   pure (cancel, await)
 
-watchPrinter :: Var v => Names -> Text -> Term v -> IO ()
-watchPrinter names label term = do
-  -- I guess this string constant comes from somewhere, and we are using
-  -- a bunch of spaces of the same total length.
-  let lead = const ' ' <$> "      | > "
-  -- weird that this doesn't incorporate the previous constant somehow
-  let arr = "          ⧩"
-  -- todo: replace 80 with some number calculated from the terminal width
-  -- e.g. http://hackage.haskell.org/package/terminal-size
-  let tm = TermPrinter.pretty' (Just 80) (PPE.fromNames names) term
-  let tm2 = tm >>= \case
-       '\n' -> '\n' : lead
-       c -> pure c
-  putStrLn $ Text.unpack label
-  putStrLn arr
-  putStrLn $ lead ++ tm2 ++ "\n"

@@ -58,23 +58,10 @@ data TypecheckedUnisonFile v a =
     watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
   } deriving Show
 
--- A UnisonFile after typechecking. Inlcludes a top-level term and its type.
-data TypecheckedUnisonFile' v a = TypecheckedUnisonFile' {
-  dataDeclarations''   :: Map v (Reference, DataDeclaration' v a),
-  effectDeclarations'' :: Map v (Reference, EffectDeclaration' v a),
-  topLevelComponents'  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-  topLevelTerm :: AnnotatedTerm v a,
-  typ :: AnnotatedType v a
-} deriving Show
-
 getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
 getDecl' uf v =
   (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
   (Left . snd <$> Map.lookup v (effectDeclarations' uf))
-
--- discardTopLevelTerm :: TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
--- discardTopLevelTerm (TypecheckedUnisonFile' datas effects components _ _) =
---  TypecheckedUnisonFile_ datas effects components
 
 -- Returns a relation for the dependencies of this file. The domain is
 -- the dependent, and the range is its dependencies, thus:
@@ -123,17 +110,10 @@ dependencies uf ns = directReferences <>
         || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
       ]
 
--- discardTypes :: AnnotatedTerm v a -> TypecheckedUnisonFile v a -> UnisonFile v a
--- discardTypes tm (TypecheckedUnisonFile_ datas effects _) =
---   UnisonFile datas effects tm
-
--- discardTypes' :: TypecheckedUnisonFile' v a -> UnisonFile v a
--- discardTypes' (TypecheckedUnisonFile' datas effects _ tm _) =
---   UnisonFile datas effects tm
-
--- discardTerm :: Var v => TypecheckedUnisonFile' v a -> TypecheckedUnisonFile v a
--- discardTerm (TypecheckedUnisonFile' datas effects tlcs _ _) =
---  typecheckedUnisonFile datas effects tlcs
+discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
+discardTypes (TypecheckedUnisonFile datas effects terms watches) =
+  UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ]
+                           [ (a,b) | (a,b,_) <- join watches ]
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
