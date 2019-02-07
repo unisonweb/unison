@@ -23,11 +23,14 @@ import qualified System.IO.Streams.ByteString  as BSS
 import qualified System.IO.Streams.Network     as N
 import qualified System.Process                as P
 import           Unison.Codebase                ( Codebase )
-import           Unison.Codebase.Runtime        ( Runtime(..) )
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.Runtime        ( Runtime(..))
+import           Unison.Codebase.CodeLookup     ( CodeLookup )
+import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Serialization.V0
                                                as Szn
 import qualified Unison.Codecs                 as Codecs
-import           Unison.Term                    ( Term )
+import           Unison.Term                    ( AnnotatedTerm, Term )
 import           Unison.UnisonFile              ( UnisonFile )
 import           Unison.Var                     ( Var )
 
@@ -49,26 +52,28 @@ javaRuntime getv suggestedPort = do
           pure $ (reverse acc, term)
         x -> fail $ "Unexpected byte in JVM output: " ++ show x
     feedme
-      :: forall v a b m. (Var v, MonadIO m)
+      :: forall v a b m. (Var v, MonadIO m, Monoid a)
       => (forall g. MonadGet g => g v)
       -> InputStream ByteString
       -> OutputStream ByteString
-      -> UnisonFile v a
-      -> Codebase m v b
-      -> m ([(Text, Term v)], Term v)
-    feedme getv input output unisonFile _codebase = liftIO $ do
+      -> CodeLookup m v a
+      -> AnnotatedTerm v a
+      -> m (Term v)
+    feedme getv input output codeLookup tm = do
       -- todo: runtime should be able to request more terms/types/arities by hash
-      let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile
-      Streams.write (Just bs) output
+      unisonFile <- Codebase.makeSelfContained codeLookup mempty tm
+      liftIO $ do
+        let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile unisonFile tm
+        Streams.write (Just bs) output
 
-      bs <- BSS.readExactly 8 input
-      case runGetS Szn.getInt bs of
-        Left e -> fail e
-        Right size -> do
-          bs <- BSS.readExactly (fromIntegral size) input
-          case runGetS (processWatches getv []) bs of
-            Left e -> fail e
-            Right x -> pure x
+        bs <- BSS.readExactly 8 input
+        case runGetS Szn.getInt bs of
+          Left e -> fail e
+          Right size -> do
+            bs <- BSS.readExactly (fromIntegral size) input
+            case runGetS (processWatches getv []) bs of
+              Left e -> fail e
+              Right x -> pure (snd x)
 
     -- open a listening socket for the runtime to connect to
     choosePortAndListen :: Int -> IO (Socket, Int)

@@ -297,9 +297,10 @@ serializeConstructorArities r constructorArities = do
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
 serializeFile
-  :: (MonadPut m, MonadState Pos m, Monoid a, Var v) => UnisonFile v a -> m ()
-serializeFile uf@(UnisonFile dataDecls effectDecls _ _) = do
-  let body = UF.uberTerm uf
+  :: (MonadPut m, MonadState Pos m, Monoid a, Var v)
+  => UnisonFile v a -> AnnotatedTerm v a -> m ()
+serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
+  let body = UF.uberTerm' uf tm
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' =
         second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls

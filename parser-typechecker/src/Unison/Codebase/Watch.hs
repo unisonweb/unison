@@ -19,7 +19,6 @@ import           Control.Monad                  ( forever
 import           Data.IORef
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
-import qualified Data.Text                     as Text
 import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime

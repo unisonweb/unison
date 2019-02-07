@@ -1,26 +1,29 @@
 {-#LANGUAGE RankNTypes#-}
 module Unison.Codebase.Runtime where
 
+import Control.Applicative
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Control.Monad.IO.Class         ( MonadIO )
-import           Data.Text                      ( Text )
-import           Unison.Codebase                ( Codebase )
+import           Unison.Codebase                ( Codebase, Decl )
+import qualified Unison.Codebase.CodeLookup     as CL
 import           Unison.UnisonFile              ( UnisonFile )
+import qualified Unison.UnisonFile              as UF
+import qualified Unison.Term                    as Term
 import           Unison.Term                    ( Term
                                                 , AnnotatedTerm
                                                 )
 import           Unison.Var                     ( Var )
 import           Unison.Reference               ( Reference )
+import qualified Unison.Reference               as Reference
 
 data Runtime v = Runtime
   { terminate :: forall m. MonadIO m => m ()
   , evaluate
       :: forall a b m
-      .  MonadIO m
-      => UnisonFile v a
+      .  (MonadIO m, Monoid a)
+      => CL.CodeLookup m v a
       -> AnnotatedTerm v a
-      -> Codebase m v b
       -> m (Term v)
   }
 

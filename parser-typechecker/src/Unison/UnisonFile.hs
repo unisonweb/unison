@@ -42,9 +42,13 @@ data UnisonFile v a = UnisonFile {
   watches :: [(v, AnnotatedTerm v a)]
 } deriving Show
 
--- Converts a file to a single let rec
+-- Converts a file to a single let rec with a body of `()`.
 uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
 uberTerm uf = Term.letRec' True (terms uf <> watches uf) (Term.unit mempty)
+
+-- Converts a file and a body to a single let rec with the given body.
+uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
+uberTerm' uf body = Term.letRec' True (terms uf <> watches uf) body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
