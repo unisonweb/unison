@@ -76,7 +76,12 @@ library
     Unison.Reference
     Unison.Referent
     Unison.Result
+    Unison.Runtime.ANF
+    Unison.Runtime.IR
     Unison.Runtime.Rt0
+    Unison.Runtime.Rt1
+    Unison.Runtime.Vector
+    Unison.Runtime.SparseVector
     Unison.Settings
     Unison.Symbol
     Unison.Term
@@ -110,6 +115,7 @@ library
 
   build-depends:
     ansi-terminal,
+    array,
     async,
     base,
     base58-bytestring,
@@ -118,7 +124,9 @@ library
     bytestring,
     containers,
     comonad,
+    concurrent-supply,
     cryptonite,
+    data-memocombinators,
     directory,
     errors,
     edit-distance,
@@ -165,6 +173,16 @@ executable unison
   build-depends:
     base,
     safe,
+    unison-parser-typechecker
+
+executable haskellruntimetest
+  main-is: Main.hs
+  hs-source-dirs: haskellruntimetest
+  ghc-options: -O3 -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    text,
     unison-parser-typechecker
 
 executable prettyprintdemo
