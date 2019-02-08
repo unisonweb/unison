@@ -41,6 +41,7 @@ at :: Z -> Machine -> V
 at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
+  LazySlot i -> m !! fromIntegral i -- todo: should this be Lazy?
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of
@@ -100,15 +101,15 @@ run env ir m = go ir m where
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     ApplyZ fnPos args -> call (at fnPos m) args m
-    ApplyIR (V fn) args -> call fn args m
+    ApplyIR (Leaf (Val fn)) args -> call fn args m
     ApplyIR fn args -> case go fn m of
       RRequest _req -> error "todo"
       RDone fn -> call fn args m
       e -> error $ show e
-    Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Var 0))
+    Request r cid args -> RRequest (Req r cid ((`at` m) <$> args) (Leaf $ Slot 0))
     Handle handler body -> runHandler (at handler m) body m
-    Var i -> done (at (Slot i) m)
-    V v -> done v
+    Leaf (Val v) -> done v
+    Leaf s -> done (at s m)
     Construct r cid args -> done $ Data r cid ((`at` m) <$> args)
     -- Ints
     AddI i j -> done $ I (ati i m + ati j m)

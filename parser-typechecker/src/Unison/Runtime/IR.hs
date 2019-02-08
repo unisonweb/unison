@@ -75,8 +75,7 @@ data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
 
 -- Computations - evaluation reduces these to values
 data IR
-  = Var Pos
-  | LazyVar Pos
+  = Leaf Z
   -- Ints
   | AddI Z Z | SubI Z Z | MultI Z Z | DivI Z Z
   | GtI Z Z | LtI Z Z | GtEqI Z Z | LtEqI Z Z | EqI Z Z
@@ -90,7 +89,6 @@ data IR
   | Let IR IR
   | LetRec [IR] IR
   | MakeSequence [Z]
-  | V V
   | ApplyIR IR [Z]
   | ApplyZ Z [Z] -- call to unknown function
   | Construct R.Reference ConstructorId [Z]
@@ -152,10 +150,10 @@ compile0 env bound t =
     -- TODO:
     --  2. update Rt0 to deal with extra Supply parameter
     Term.LamsNamed' vs body ->
-      V (Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body)))
+      Leaf . Val $ Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (ind "or" t x) (go y)
     Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
-    Term.Constructor' r cid -> V (Data r cid mempty)
+    Term.Constructor' r cid -> Leaf . Val $ Data r cid mempty
     Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
       Term.Ref' r -> ApplyIR (env r) (ind "apps-ref" t <$> args)
@@ -179,7 +177,7 @@ compile0 env bound t =
       unknown v = error $ "free variable during compilation: " ++ show v
       ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
       ind msg _t e = case go e of
-        V v -> Val v
+        Leaf v -> v
         e -> error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
       compilePattern pat = case pat of
@@ -216,98 +214,100 @@ instance Show Z where
   show (Val v) = show v
 
 builtins :: Map R.Reference IR
-builtins = Map.fromList $
-  [ (R.Builtin name, V (Lam arity (Left (R.Builtin name)) ir)) |
-    (name, arity, ir) <-
-      [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
-      , ("Int.-", 2, SubI (Slot 1) (Slot 0))
-      , ("Int.*", 2, MultI (Slot 1) (Slot 0))
-      , ("Int./", 2, DivI (Slot 1) (Slot 0))
-      , ("Int.<", 2, LtI (Slot 1) (Slot 0))
-      , ("Int.>", 2, GtI (Slot 1) (Slot 0))
-      , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
-      , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
-      , ("Int.==", 2, EqI (Slot 1) (Slot 0))
-      , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
-      --, ("Int.is-even", "Int -> Boolean")
-      --, ("Int.is-odd", "Int -> Boolean")
-      --, ("Int.signum", "Int -> Int")
-      --, ("Int.negate", "Int -> Int")
+builtins = Map.fromList $ let
+  -- slot = Leaf . Slot
+  val = Leaf . Val
+  in [ (R.Builtin name, Leaf . Val $ Lam arity (Left (R.Builtin name)) ir) |
+       (name, arity, ir) <-
+        [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
+        , ("Int.-", 2, SubI (Slot 1) (Slot 0))
+        , ("Int.*", 2, MultI (Slot 1) (Slot 0))
+        , ("Int./", 2, DivI (Slot 1) (Slot 0))
+        , ("Int.<", 2, LtI (Slot 1) (Slot 0))
+        , ("Int.>", 2, GtI (Slot 1) (Slot 0))
+        , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
+        , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
+        , ("Int.==", 2, EqI (Slot 1) (Slot 0))
+        , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
+        --, ("Int.is-even", "Int -> Boolean")
+        --, ("Int.is-odd", "Int -> Boolean")
+        --, ("Int.signum", "Int -> Int")
+        --, ("Int.negate", "Int -> Int")
 
-      , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
-      , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
-      , ("Nat.sub", 2, SubN (Slot 1) (Slot 0))
-      , ("Nat.*", 2, MultN (Slot 1) (Slot 0))
-      , ("Nat./", 2, DivN (Slot 1) (Slot 0))
-      , ("Nat.<", 2, LtN (Slot 1) (Slot 0))
-      , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
-      , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
-      , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
-      , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
-      --, ("Nat.increment", "Nat -> Nat")
-      --, ("Nat.is-even", "Nat -> Boolean")
-      --, ("Nat.is-odd", "Nat -> Boolean")
+        , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
+        , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
+        , ("Nat.sub", 2, SubN (Slot 1) (Slot 0))
+        , ("Nat.*", 2, MultN (Slot 1) (Slot 0))
+        , ("Nat./", 2, DivN (Slot 1) (Slot 0))
+        , ("Nat.<", 2, LtN (Slot 1) (Slot 0))
+        , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
+        , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
+        , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
+        , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
+        --, ("Nat.increment", "Nat -> Nat")
+        --, ("Nat.is-even", "Nat -> Boolean")
+        --, ("Nat.is-odd", "Nat -> Boolean")
 
-      , ("Float.+", 2, AddF (Slot 1) (Slot 0))
-      , ("Float.-", 2, SubF (Slot 1) (Slot 0))
-      , ("Float.*", 2, MultF (Slot 1) (Slot 0))
-      , ("Float./", 2, DivF (Slot 1) (Slot 0))
-      , ("Float.<", 2, LtF (Slot 1) (Slot 0))
-      , ("Float.>", 2, GtF (Slot 1) (Slot 0))
-      , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
-      , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
-      , ("Float.==", 2, EqF (Slot 1) (Slot 0))
+        , ("Float.+", 2, AddF (Slot 1) (Slot 0))
+        , ("Float.-", 2, SubF (Slot 1) (Slot 0))
+        , ("Float.*", 2, MultF (Slot 1) (Slot 0))
+        , ("Float./", 2, DivF (Slot 1) (Slot 0))
+        , ("Float.<", 2, LtF (Slot 1) (Slot 0))
+        , ("Float.>", 2, GtF (Slot 1) (Slot 0))
+        , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
+        , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
+        , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
-      , ("Boolean.not", 1, Not (Slot 0))
+        , ("Boolean.not", 1, Not (Slot 0))
 
-      , ("Text.empty", 0, V (T ""))
-      --, ("Text.++", "Text -> Text -> Text")
-      --, ("Text.take", "Nat -> Text -> Text")
-      --, ("Text.drop", "Nat -> Text -> Text")
-      --, ("Text.size", "Text -> Nat")
-      --, ("Text.==", "Text -> Text -> Boolean")
-      --, ("Text.!=", "Text -> Text -> Boolean")
-      --, ("Text.<=", "Text -> Text -> Boolean")
-      --, ("Text.>=", "Text -> Text -> Boolean")
-      --, ("Text.<", "Text -> Text -> Boolean")
-      --, ("Text.>", "Text -> Text -> Boolean")
+        , ("Text.empty", 0, val $ T "")
+        --, ("Text.++", "Text -> Text -> Text")
+        --, ("Text.take", "Nat -> Text -> Text")
+        --, ("Text.drop", "Nat -> Text -> Text")
+        --, ("Text.size", "Text -> Nat")
+        --, ("Text.==", "Text -> Text -> Boolean")
+        --, ("Text.!=", "Text -> Text -> Boolean")
+        --, ("Text.<=", "Text -> Text -> Boolean")
+        --, ("Text.>=", "Text -> Text -> Boolean")
+        --, ("Text.<", "Text -> Text -> Boolean")
+        --, ("Text.>", "Text -> Text -> Boolean")
 
-      --, ("Stream.empty", "Stream a")
-      --, ("Stream.single", "a -> Stream a")
-      --, ("Stream.constant", "a -> Stream a")
-      --, ("Stream.from-int", "Int -> Stream Int")
-      --, ("Stream.from-nat", "Nat -> Stream Nat")
-      --, ("Stream.cons", "a -> Stream a -> Stream a")
-      --, ("Stream.take", "Nat -> Stream a -> Stream a")
-      --, ("Stream.drop", "Nat -> Stream a -> Stream a")
-      --, ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
-      --, ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
-      --, ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
-      --, ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
-      --, ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
-      --, ("Stream.iterate", "a -> (a -> a) -> Stream a")
-      --, ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
-      --, ("Stream.toSequence", "Stream a -> Sequence a")
-      --, ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
-      --, ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
-      --, ("Stream.sum-int", "Stream Int -> Int")
-      --, ("Stream.sum-nat", "Stream Nat -> Nat")
-      --, ("Stream.sum-float", "Stream Float -> Float")
-      --, ("Stream.append", "Stream a -> Stream a -> Stream a")
-      --, ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
-      --, ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
+        --, ("Stream.empty", "Stream a")
+        --, ("Stream.single", "a -> Stream a")
+        --, ("Stream.constant", "a -> Stream a")
+        --, ("Stream.from-int", "Int -> Stream Int")
+        --, ("Stream.from-nat", "Nat -> Stream Nat")
+        --, ("Stream.cons", "a -> Stream a -> Stream a")
+        --, ("Stream.take", "Nat -> Stream a -> Stream a")
+        --, ("Stream.drop", "Nat -> Stream a -> Stream a")
+        --, ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+        --, ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
+        --, ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
+        --, ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
+        --, ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
+        --, ("Stream.iterate", "a -> (a -> a) -> Stream a")
+        --, ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
+        --, ("Stream.toSequence", "Stream a -> Sequence a")
+        --, ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
+        --, ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
+        --, ("Stream.sum-int", "Stream Int -> Int")
+        --, ("Stream.sum-nat", "Stream Nat -> Nat")
+        --, ("Stream.sum-float", "Stream Float -> Float")
+        --, ("Stream.append", "Stream a -> Stream a -> Stream a")
+        --, ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
+        --, ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
 
-      --, ("Sequence.empty", "[a]")
-      --, ("Sequence.cons", "a -> [a] -> [a]")
-      --, ("Sequence.snoc", "[a] -> a -> [a]")
-      --, ("Sequence.take", "Nat -> [a] -> [a]")
-      --, ("Sequence.drop", "Nat -> [a] -> [a]")
-      --, ("Sequence.++", "[a] -> [a] -> [a]")
-      --, ("Sequence.size", "[a] -> Nat")
-      --, ("Sequence.at", "Nat -> [a] -> Optional a")
+        --, ("Sequence.empty", "[a]")
+        --, ("Sequence.cons", "a -> [a] -> [a]")
+        --, ("Sequence.snoc", "[a] -> a -> [a]")
+        --, ("Sequence.take", "Nat -> [a] -> [a]")
+        --, ("Sequence.drop", "Nat -> [a] -> [a]")
+        --, ("Sequence.++", "[a] -> [a] -> [a]")
+        --, ("Sequence.size", "[a] -> Nat")
+        --, ("Sequence.at", "Nat -> [a] -> Optional a")
 
-      -- , ("Debug.watch", "Text -> a -> a")
-      ]
+        -- , ("Debug.watch", "Text -> a -> a")
+        ]
   ]
 
 -- boring instances
