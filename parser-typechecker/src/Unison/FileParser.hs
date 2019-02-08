@@ -5,7 +5,7 @@ module Unison.FileParser where
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
-import           Control.Monad (guard)
+import           Control.Monad (guard, msum)
 import           Control.Monad.Reader (local, ask)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
@@ -75,8 +75,9 @@ stanza = watchExpression <|> binding <|> namespace
   where
   watchExpression = do
     ann <- watched
-    (WatchExpression ann <$> TermParser.blockTerm)
-      <|> (WatchBinding ann <$> TermParser.binding)
+    msum [
+     WatchBinding ann <$> TermParser.binding,
+     WatchExpression ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
   namespace = tweak <$> TermParser.namespaceBlock where
     tweak ns = Bindings (TermParser.toBindings [ns])
