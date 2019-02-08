@@ -79,7 +79,6 @@ library
     Unison.Runtime.ANF
     Unison.Runtime.IR
     Unison.Runtime.Rt0
-    Unison.Runtime.Rt1
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings
@@ -115,7 +114,6 @@ library
 
   build-depends:
     ansi-terminal,
-    array,
     async,
     base,
     base58-bytestring,
