@@ -33,6 +33,13 @@ data CodeLookup m v a
       getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
    }
 
+instance (Ord v, Functor m) => Functor (CodeLookup m v) where
+  fmap f cl = CodeLookup tm ty where
+    tm id = fmap (Term.amap f) <$> getTerm cl id
+    ty id = fmap md <$> getTypeDeclaration cl id
+    md (Left e) = Left (f <$> e)
+    md (Right d) = Right (f <$> d)
+
 instance Monad m => Semigroup (CodeLookup m v a) where
   (<>) = mappend
 

@@ -189,7 +189,7 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v ()))
+  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
@@ -259,12 +259,26 @@ data Command i v a where
             -> Source
             -> Command i v (TypecheckingResult v)
 
-  -- Evaluate a UnisonFile and return the result of
-  -- any watched expressions (which are just labeled with `Text`)
-  -- along with their original source location
+  -- Evaluate all watched expressions in a UnisonFile and return
+  -- their results, keyed by the name of the watch variable. The tuple returned
+  -- has the form:
+  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+  --
+  -- where
+  --   `hash` is the hash of the original watch expression definition
+  --   `ann` gives the location of the watch expression
+  --   `sourceTerm` is a closed term (no free vars) for the watch expression
+  --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
+  --   `isCacheHit` is True if the result was computed by just looking up
+  --   in a cache
+  --
+  -- It's expected that the user of this action might add the
+  -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
+  -- of the same watches instantaneous.
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v (Map v (Ann, Term v ()))
+           -> Command i v (Map v
+                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
   -- option 1:

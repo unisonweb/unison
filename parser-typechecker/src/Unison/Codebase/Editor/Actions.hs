@@ -134,8 +134,13 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                       ( Evaluate (view currentBranch s)
                       $ UF.discardTypes unisonFile
                       )
+                  let e' = Map.map go e
+                      go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
+                  -- todo: this would be a good spot to update the cache
+                  -- with all the (hash, eval) pairs, even if it's just an
+                  -- in-memory cache
                   eval . Notify $ Evaluated text
-                    (Branch.prettyPrintEnv $ Branch.head currentBranch') e
+                    (Branch.prettyPrintEnv $ Branch.head currentBranch') e'
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of

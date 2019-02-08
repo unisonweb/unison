@@ -287,6 +287,9 @@ tupleCons :: (Ord v, Semigroup a)
 tupleCons hd tl =
   apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
 
+tuple :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
+tuple = foldr tupleCons (unit mempty)
+
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
 force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a

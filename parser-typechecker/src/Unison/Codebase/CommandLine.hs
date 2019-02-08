@@ -415,8 +415,8 @@ notifyUser dir o = case o of
     putStrLn . showNote $ notes
   Evaluated fileContents ppe watches ->
     putPrettyLn $ P.lines [
-      watchPrinter fileContents ppe ann evald |
-      (_v, (ann,evald)) <- Map.toList watches ]
+      watchPrinter fileContents ppe ann evald isCacheHit |
+      (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         types    = R.dom $ Branch.typeNamespace branch
@@ -603,15 +603,19 @@ notifyUser dir o = case o of
     ]
 
 watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
-                      -> Term v -> P.Pretty P.ColorText
-watchPrinter src ppe ann term = P.callout "👀" $ let
+                      -> Term v
+                      -> Runtime.IsCacheHit
+                      -> P.Pretty P.ColorText
+watchPrinter src ppe ann term isHit = P.callout "👀" $ let
   lines = Text.lines src
   lineNum = fromMaybe 1 $ startingLine ann
   lineNumWidth = length (show lineNum)
   line = lines !! (lineNum - 1)
   in P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
-    fromString (replicate lineNumWidth ' ') <> "   ⧩",
+    fromString (replicate lineNumWidth ' ')
+      <> "   ⧩"
+      <> (if isHit then P.blue " (using cache)" else ""),
     P.map fromString $ TermPrinter.prettyTop ppe term
   ]
 
