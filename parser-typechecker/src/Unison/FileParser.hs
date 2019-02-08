@@ -39,9 +39,16 @@ file = do
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask
-    _stanzas <- sepBy semi stanza
-    let terms = error "todo - create terms and watches from the stanzas"
-        watches = []
+    stanzas <- sepBy semi stanza
+    _ <- closeBlock
+    let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
+        go (terms, watches, n) s = case s of
+          WatchBinding _ ((_, v), at) -> (terms, (v,at) : watches, n)
+          WatchExpression _ at ->
+            (terms, (Var.nameds ("_" <> show n), at) : watches, n + 1)
+          Binding ((_, v), at) -> ((v,at) : terms, watches, n)
+          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches, n)
+        (terms, watches) = (reverse termsr, reverse watchesr)
         uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
 
