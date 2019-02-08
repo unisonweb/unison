@@ -27,14 +27,8 @@ import           System.FSNotify                ( Event(Added, Modified)
                                                 , watchTree
                                                 , withManager
                                                 )
-import           Unison.Names                   ( Names )
-import qualified Unison.TermPrinter             as TermPrinter
-import           Unison.Term                    ( Term )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
-import qualified Unison.Util.Pretty            as P
-import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
 watchDirectory' :: FilePath -> IO (IO (), IO (FilePath, UTCTime))

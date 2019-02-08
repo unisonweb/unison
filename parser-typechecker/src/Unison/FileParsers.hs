@@ -4,12 +4,10 @@
 
 module Unison.FileParsers where
 
-import           Control.Monad              (foldM, join)
+import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
-import           Data.Bytes.Put             (runPutS)
-import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -21,7 +19,6 @@ import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import qualified Unison.Name                as Name
@@ -107,7 +104,7 @@ synthesizeFile
 synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 terms watches) = unisonFile
+    uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
     term0 = UF.uberTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
@@ -129,7 +126,7 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
-  Result (convertNotes notes) mayType >>= \typ -> do
+  Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let

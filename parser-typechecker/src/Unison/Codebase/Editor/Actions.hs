@@ -222,7 +222,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           unnameAll currentBranchName' nameTarget name success
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf'@(UF.TypecheckedUnisonFile datas effects _ _) -> do
+          Just uf' -> do
             let collisionHandler = if allowUpdates
                   then Editor.updateCollisionHandler
                   else Editor.addCollisionHandler

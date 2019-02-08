@@ -1,26 +1,21 @@
 {-#LANGUAGE RankNTypes#-}
 module Unison.Codebase.Runtime where
 
-import Control.Applicative
 import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
 import           Control.Monad.IO.Class         ( MonadIO )
-import           Unison.Codebase                ( Codebase, Decl )
+import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase.CodeLookup     as CL
 import           Unison.UnisonFile              ( UnisonFile )
-import qualified Unison.UnisonFile              as UF
-import qualified Unison.Term                    as Term
 import           Unison.Term                    ( Term
                                                 , AnnotatedTerm
                                                 )
 import           Unison.Var                     ( Var )
 import           Unison.Reference               ( Reference )
-import qualified Unison.Reference               as Reference
 
 data Runtime v = Runtime
   { terminate :: forall m. MonadIO m => m ()
   , evaluate
-      :: forall a b m
+      :: forall a m
       .  (MonadIO m, Monoid a)
       => CL.CodeLookup m v a
       -> AnnotatedTerm v a
@@ -41,4 +36,4 @@ evaluateWatches :: (Var v, MonadIO m)
                 -> Runtime v
                 -> UnisonFile v a
                 -> m (Map v (a, Term v))
-evaluateWatches evaluationCache rt uf = error "todo"
+evaluateWatches _evaluationCache _rt _uf = error "todo"

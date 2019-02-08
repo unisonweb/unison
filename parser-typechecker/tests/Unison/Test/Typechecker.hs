@@ -13,7 +13,6 @@ import           EasyTest
 import           System.FilePath        (joinPath, splitPath)
 import           System.FilePath.Find   (always, extension, find, (==?))
 import qualified Unison.Builtin         as Builtin
-import           Unison.FileParsers     (Type, Term)
 import           Unison.Parser          as Parser
 import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
@@ -23,18 +22,20 @@ import           Unison.Symbol          (Symbol)
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
-import           Control.Arrow          ((&&&))
 
 type Note = Result.Note Symbol Parser.Ann
 
+type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
-  Result (Seq Note) (PrintError.Env, Maybe (Term Symbol, Type Symbol))
-type EitherResult = Either String (Term Symbol, Type Symbol)
+  Result (Seq Note)
+         (PrintError.Env, Maybe TFile)
+
+type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.fromNames Builtin.names
 
-expectRight' :: EitherResult -> Test (Term Symbol, Type Symbol)
+expectRight' :: Either String a -> Test a
 expectRight' (Left  e) = crash e
 expectRight' (Right a) = ok >> pure a
 
@@ -80,13 +81,13 @@ showNotes source env notes =
   intercalateMap "\n\n" (PrintError.renderNoteAsANSI env source) notes
 
 decodeResult
-  :: String -> SynthResult -> Either String (Term Symbol, Type Symbol)
+  :: String -> SynthResult -> EitherResult--  String (UF.TypecheckedUnisonFile Symbol Ann)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source ppEnv notes
 decodeResult source (Result notes (Just (env, Nothing))) =
   Left $ showNotes source env notes
-decodeResult _source (Result _notes (Just (_env, Just (t, typ)))) =
-  Right (t, typ)
+decodeResult _source (Result _notes (Just (_env, Just uf))) =
+  Right uf
 
 makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
 makePassingTest how filepath = join $ do
@@ -97,6 +98,5 @@ makePassingTest how filepath = join $ do
     $ scope shortName
     . how
     . decodeResult source
-    . fmap (fmap (fmap (UF.topLevelTerm &&& UF.typ)))
     . parseAndSynthesizeAsFile shortName
     $ source

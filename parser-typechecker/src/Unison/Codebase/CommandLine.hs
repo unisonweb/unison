@@ -61,7 +61,7 @@ import           Unison.NamePrinter             (prettyName,
                                                  styleHashQualified
                                                 )
 import           Unison.Parser                  (Ann)
-import           Unison.Parser                  (startingLine, endingLine)
+import           Unison.Parser                  (startingLine)
 import qualified Unison.PrettyPrintEnv          as PPE
 import           Unison.PrintError              (prettyParseError,
                                                  prettyTypecheckedFile,

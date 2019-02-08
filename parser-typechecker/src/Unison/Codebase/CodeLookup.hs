@@ -1,17 +1,12 @@
 module Unison.Codebase.CodeLookup where
 
 import Control.Applicative
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Control.Monad.IO.Class         ( MonadIO )
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.UnisonFile              as UF
 import qualified Unison.Term                    as Term
-import           Unison.Term                    ( Term
-                                                , AnnotatedTerm
-                                                )
+import           Unison.Term                    ( AnnotatedTerm )
 import           Unison.Var                     ( Var )
-import           Unison.Reference               ( Reference )
 import qualified Unison.Reference as Reference
 import qualified Unison.Typechecker.TypeLookup as TL
 

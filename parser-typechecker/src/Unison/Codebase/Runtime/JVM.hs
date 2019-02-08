@@ -12,7 +12,6 @@ import           Data.Bytes.Get                 ( getWord8
                                                 )
 import           Data.Bytes.Put                 ( runPutS )
 import           Data.ByteString                ( ByteString )
-import           Data.Text                      ( Text )
 import           Network.Socket
 import           System.IO.Streams              ( InputStream
                                                 , OutputStream
@@ -22,16 +21,13 @@ import qualified System.IO.Streams             as Streams
 import qualified System.IO.Streams.ByteString  as BSS
 import qualified System.IO.Streams.Network     as N
 import qualified System.Process                as P
-import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Runtime        ( Runtime(..))
 import           Unison.Codebase.CodeLookup     ( CodeLookup )
-import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Codebase.Serialization.V0
                                                as Szn
 import qualified Unison.Codecs                 as Codecs
 import           Unison.Term                    ( AnnotatedTerm, Term )
-import           Unison.UnisonFile              ( UnisonFile )
 import           Unison.Var                     ( Var )
 
 javaRuntime :: (Var v, MonadIO m) => (forall g. MonadGet g => g v) -> Int -> m (Runtime v)
@@ -52,7 +48,7 @@ javaRuntime getv suggestedPort = do
           pure $ (reverse acc, term)
         x -> fail $ "Unexpected byte in JVM output: " ++ show x
     feedme
-      :: forall v a b m. (Var v, MonadIO m, Monoid a)
+      :: forall v a m. (Var v, MonadIO m, Monoid a)
       => (forall g. MonadGet g => g v)
       -> InputStream ByteString
       -> OutputStream ByteString

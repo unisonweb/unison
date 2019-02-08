@@ -14,7 +14,6 @@ import qualified Data.Map               as Map
 import           Data.Maybe             (catMaybes)
 import qualified Data.Set               as Set
 import Data.Set (Set)
-import qualified Data.Text              as Text
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
