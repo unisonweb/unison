@@ -13,18 +13,31 @@ import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word64)
+import Unison.Codebase.Runtime (Runtime)
 import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Vector as Vector
 import qualified Unison.Builtin as B
+import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Var as Var
+
+runtime :: Var v => Runtime v
+runtime = Rt.Runtime (pure ()) eval
+  where
+  missing r = error $ "Missing compiled form for: " ++ show r
+  changeVar term = Term.vmap (\s -> Var.named (Var.shortName s)) term
+  eval _code term = case normalize missing (changeVar term) of
+    Nothing -> fail $ "result could not be decompiled from: " ++ show term
+    Just t -> pure (changeVar t)
 
 newtype Machine = Machine [V] -- a stack of values
 

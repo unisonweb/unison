@@ -170,6 +170,7 @@ executable unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
+    containers,
     safe,
     unison-parser-typechecker
 
