@@ -346,6 +346,10 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code b uf = do
+  -- hashed :: Map v (Reference, AnnotatedTerm v a)
+  -- hashed = Term.hashComponents (Map.fromList $ UF.terms uf <> UF.watches uf)
+  -- todo: the variable names in uf' differ from those in uf - instead need
+  -- to key off the hashes in uf and uf'
   uf' <- makeSelfContained code b (UF.uberTerm uf)
   let originalWatches = Set.fromList (fst <$> UF.watches uf')
       (watches, terms) = partition (\(v,_) -> Set.member v originalWatches)
