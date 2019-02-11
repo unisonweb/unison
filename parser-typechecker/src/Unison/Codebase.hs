@@ -339,6 +339,9 @@ transitiveDependencies code seen0 r = if Set.member r seen0
 toCodeLookup :: Codebase m v a -> CL.CodeLookup m v a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
+-- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+-- Any watches in the input `UnisonFile` will be watches in the returned
+-- `UnisonFile`, but any missing
 makeSelfContained'
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup m v a
@@ -346,15 +349,25 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code b uf = do
-  -- hashed :: Map v (Reference, AnnotatedTerm v a)
-  -- hashed = Term.hashComponents (Map.fromList $ UF.terms uf <> UF.watches uf)
-  -- todo: the variable names in uf' differ from those in uf - instead need
-  -- to key off the hashes in uf and uf'
-  uf' <- makeSelfContained code b (UF.uberTerm uf)
-  let originalWatches = Set.fromList (fst <$> UF.watches uf')
-      (watches, terms) = partition (\(v,_) -> Set.member v originalWatches)
-                                   (UF.terms uf')
-  pure $ uf' { UF.terms = terms, UF.watches = watches }
+  let
+    -- The logic here: if the hash of a binding is equal to the hash of a
+    -- binding in the original file which was a watched expression, we move
+    -- it to the watch list in the output
+    hash1 :: Map v (Reference, Term.AnnotatedTerm v a)
+    hash1 = Term.hashComponents (Map.fromList $ UF.terms uf <> UF.watches uf)
+    originalWatches :: Set Reference
+    originalWatches = Set.fromList
+      [ ref | (v,_) <- UF.watches uf, (ref,_) <- toList (Map.lookup v hash1) ]
+    b' = b <> Branch.fromTermNames [
+           (Name.unsafeFromVar v, Referent.Ref r) | (v, (r,_)) <- Map.toList hash1 ]
+  uf' <- makeSelfContained code b' (UF.uberTerm uf)
+  let
+    hash2 = Term.hashComponents (Map.fromList $ UF.terms uf' <> UF.watches uf')
+    (watches, terms) =
+      partition (\(_v,(ref,_tm)) -> Set.member ref originalWatches)
+                (Map.toList $ hash2)
+    tweak (v, (_ref, tm)) = (v, tm)
+  pure $ uf' { UF.terms = tweak <$> terms, UF.watches = tweak <$> watches }
 
 -- Creates a self-contained `UnisonFile` which bakes in
 -- all transitive dependencies
