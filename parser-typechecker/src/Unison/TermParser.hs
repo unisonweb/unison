@@ -90,7 +90,7 @@ matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixApp
   t <- block "->"
-  pure . Term.MatchCase p guard $ ABT.absChain' boundVars t
+  pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = constructor <|> leaf
