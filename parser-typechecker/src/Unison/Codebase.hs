@@ -71,6 +71,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
+-- import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -341,7 +342,7 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
 -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
 -- Any watches in the input `UnisonFile` will be watches in the returned
--- `UnisonFile`, but any missing
+-- `UnisonFile`.
 makeSelfContained'
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup m v a
@@ -349,25 +350,34 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code b uf = do
+  let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
+  deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
+  let pp = Branch.prettyPrintEnv b
+      termName r = PPE.termName pp (Referent.Ref r)
+      typeName r = PPE.typeName pp r
+  decls <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
+    _                           -> pure Nothing
+  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) ->
+      fmap (r, HQ.toVar @v (termName r), ) <$> CL.getTerm code rid
+    _ -> pure Nothing
   let
-    -- The logic here: if the hash of a binding is equal to the hash of a
-    -- binding in the original file which was a watched expression, we move
-    -- it to the watch list in the output
-    hash1 :: Map v (Reference, Term.AnnotatedTerm v a)
-    hash1 = Term.hashComponents (Map.fromList $ UF.terms uf <> UF.watches uf)
-    originalWatches :: Set Reference
-    originalWatches = Set.fromList
-      [ ref | (v,_) <- UF.watches uf, (ref,_) <- toList (Map.lookup v hash1) ]
-    b' = b <> Branch.fromTermNames [
-           (Name.unsafeFromVar v, Referent.Ref r) | (v, (r,_)) <- Map.toList hash1 ]
-  uf' <- makeSelfContained code b' (UF.uberTerm uf)
-  let
-    hash2 = Term.hashComponents (Map.fromList $ UF.terms uf' <> UF.watches uf')
-    (watches, terms) =
-      partition (\(_v,(ref,_tm)) -> Set.member ref originalWatches)
-                (Map.toList $ hash2)
-    tweak (v, (_ref, tm)) = (v, tm)
-  pure $ uf' { UF.terms = tweak <$> terms, UF.watches = tweak <$> watches }
+    unref :: Term v a -> Term v a
+    unref t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+        Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
+      go _ = Nothing
+    datas = Map.fromList
+      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
+    effects = Map.fromList
+      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
+    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
+  pure $ UF.UnisonFile datas effects
+           (bindings ++ unrefb (UF.terms uf))
+           (unrefb $ UF.watches uf)
 
 -- Creates a self-contained `UnisonFile` which bakes in
 -- all transitive dependencies

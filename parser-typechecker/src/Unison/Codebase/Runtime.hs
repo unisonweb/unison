@@ -21,6 +21,7 @@ import           Unison.Term                    ( Term
                                                 )
 import           Unison.Var                     ( Var )
 import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
 import qualified Unison.UnisonFile             as UF
 
 data Runtime v = Runtime
@@ -63,8 +64,10 @@ evaluateWatches code evaluationCache rt uf = do
               Just t'  -> pure (v, (r, ABT.annotation t, t', True))
   -- 3. create a big ol' let rec whose body is a big tuple of all watches
   let
+    rv :: Map Reference v
+    rv = Map.fromList [(r,v) | (v, (r,_)) <- Map.toList m ]
     bindings :: [(v, Term v)]
-    bindings = [ (v, b) | (v, (_,_,b,_)) <- Map.toList m' ]
+    bindings = [ (v, unref rv b) | (v, (_,_,b,_)) <- Map.toList m' ]
     watchVars = [ Term.var() v | v <- toList watches ]
     bigOl'LetRec = Term.letRec' True bindings (Term.tuple watchVars)
   -- 4. evaluate it and get all the results out of the tuple, then
@@ -75,3 +78,11 @@ evaluateWatches code evaluationCache rt uf = do
       let go eval (ref, a, uneval, isHit) = (a, ref, uneval, eval, isHit)
       in Map.intersectionWith go (Map.fromList (toList watches `zip` results)) m'
     _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
+  where
+    -- unref :: Map Reference v -> AnnotatedTerm v a -> AnnotatedTerm v a
+    unref rv t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' r@(Reference.DerivedId _)) = case Map.lookup r rv of
+        Nothing -> Nothing
+        Just v -> Just (Term.var (ABT.annotation t) v)
+      go _ = Nothing

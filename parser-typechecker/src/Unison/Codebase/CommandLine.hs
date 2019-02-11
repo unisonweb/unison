@@ -414,7 +414,9 @@ notifyUser dir o = case o of
             . map Result.TypeError
     putStrLn . showNote $ notes
   Evaluated fileContents ppe watches ->
-    putPrettyLn $ P.lines [
+    if null watches then putStrLn ""
+    else
+      putPrettyLn $ P.lines [
       watchPrinter fileContents ppe ann evald isCacheHit |
       (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
   DisplayConflicts branch -> do
@@ -436,7 +438,7 @@ notifyUser dir o = case o of
     Console.setTitle "Unison ☺︎"
     -- todo: we should just print this the same way as everything else
     let defs       = prettyTypecheckedFile uf errorEnv
-    when (not $ null defs) . putPrettyLn $
+    when (not $ null defs) . putPrettyLn' . ("\n" <>) $
       P.okCallout $
         P.lines [
           P.wrap (
@@ -606,17 +608,19 @@ watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
                       -> Term v
                       -> Runtime.IsCacheHit
                       -> P.Pretty P.ColorText
-watchPrinter src ppe ann term isHit = P.callout "👀" $ let
+watchPrinter src ppe ann term isHit = P.bracket $ let
   lines = Text.lines src
   lineNum = fromMaybe 1 $ startingLine ann
   lineNumWidth = length (show lineNum)
+  extra = "     " -- for the ` | > ` after the line number
   line = lines !! (lineNum - 1)
   in P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
     fromString (replicate lineNumWidth ' ')
-      <> "   ⧩"
-      <> (if isHit then P.blue " (using cache)" else ""),
-    P.map fromString $ TermPrinter.prettyTop ppe term
+      <> fromString extra <> "⧩"
+      <> (if isHit then P.bold " (using cache)" else ""),
+    P.indentN (lineNumWidth + length extra)
+      . P.green . P.map fromString $ TermPrinter.prettyTop ppe term
   ]
 
 allow :: FilePath -> Bool
@@ -955,6 +959,11 @@ putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.border 2 p
+
+putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn' p = do
+  width <- getAvailableWidth
+  putStrLn . P.toANSI width $ P.indentN 2 p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =
