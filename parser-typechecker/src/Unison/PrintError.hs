@@ -22,7 +22,7 @@ import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
-import           Data.Maybe                   (catMaybes, fromMaybe)
+import           Data.Maybe                   (catMaybes)
 import           Data.Sequence                (Seq (..))
 import qualified Data.Set                     as Set
 import           Data.String                  (IsString, fromString)
@@ -160,7 +160,7 @@ renderTypeInfo i env = case i of
     in  case defs of
           [def] ->
             "🌟 I found and typechecked a definition:\n"
-              <> (mconcat $ renderOne def)
+              <> mconcat (renderOne def)
           [] -> mempty
           _ ->
             "🎁 These mutually dependent definitions typechecked:\n"
@@ -482,7 +482,7 @@ renderTypeError e env src = case e of
             Type.Existential' _ _ -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
-                <> style Type1 (renderType' env $ expectedType)
+                <> style Type1 (renderType' env expectedType)
                 <> ".\n"
                  -- ++ showTypeWithProvenance env src Type1 expectedType
           , case correct of
@@ -868,7 +868,7 @@ printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
-  (fromString $ "Invalid Path: " ++ show path ++ "\n")
+  fromString ("Invalid Path: " ++ show path ++ "\n")
     <> annotatedAsErrorSite s term
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
@@ -937,7 +937,7 @@ prettyParseError s = \case
    -- instance for it
   go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = mconcat
     [ "The last line of the block starting at "
-    , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn
+    , fromString . fmap Char.toLower . annotatedToEnglish $ blockAnn
     , "\n"
     , "has to be an expression, not a binding/import/etc:"
     , annotatedAsErrorSite s lastBindingAnn
@@ -1014,4 +1014,4 @@ prettyTypeInfo
   -> Env
   -> AnnotatedText Color
 prettyTypeInfo n e =
-  fromMaybe "" $ flip renderTypeInfo e <$> typeInfoFromNote n
+  maybe "" (`renderTypeInfo` e) (typeInfoFromNote n)
