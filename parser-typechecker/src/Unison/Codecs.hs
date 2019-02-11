@@ -4,6 +4,7 @@ module Unison.Codecs where
 
 -- A format for encoding runtime values, with sharing for compiled nodes.
 
+import Debug.Trace
 import Data.Text (Text)
 import           Control.Arrow (second)
 import           Control.Monad.State
@@ -304,6 +305,7 @@ serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' =
         second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
+  traceM $ show effectDecls'
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   -- NB: we rewrite the term to minimize away let rec cycles, as let rec

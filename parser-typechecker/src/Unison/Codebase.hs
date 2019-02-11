@@ -71,7 +71,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
--- import Debug.Trace
+import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -350,6 +350,8 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code b uf = do
+  traceM $ "before - " <> show (Map.keys (UF.dataDeclarations uf))
+        <> " " <> show (Map.keys (UF.effectDeclarations uf))
   let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
   let pp = Branch.prettyPrintEnv b
@@ -369,15 +371,25 @@ makeSelfContained' code b uf = do
       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
         Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
       go _ = Nothing
-    datas = Map.fromList
-      [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
-    effects = Map.fromList
-      [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
+    datas1 = Map.fromList
+      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
+    effects1 = Map.fromList
+      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
+    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
+            Map.toList $ UF.dataDeclarations uf ]
+    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
+            Map.toList $ UF.effectDeclarations uf ]
     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
     unrefb bs = [ (v, unref b) | (v, b) <- bs ]
-  pure $ UF.UnisonFile datas effects
-           (bindings ++ unrefb (UF.terms uf))
-           (unrefb $ UF.watches uf)
+    uf' = UF.UnisonFile
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
+      (bindings ++ unrefb (UF.terms uf))
+      (unrefb $ UF.watches uf)
+  traceM $ "after - " <> show (Map.keys (UF.dataDeclarations uf'))
+        <> " " <> show (Map.keys (UF.effectDeclarations uf') )
+  pure $ uf'
 
 -- Creates a self-contained `UnisonFile` which bakes in
 -- all transitive dependencies
