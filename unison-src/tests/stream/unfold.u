@@ -1,7 +1,8 @@
 (+) = (Int.+)
 (/) = (Int./)
 (<) = (Int.<)
-Stream.toSequence
+
+ex = Stream.toSequence
   (Stream.take 5
     (Stream.unfold
       (b ->

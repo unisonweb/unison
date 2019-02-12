@@ -11,5 +11,3 @@ foo a b = (a + b) + 3
 
 bar a b = 3 + b + a
 
-x
-
