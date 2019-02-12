@@ -1,2 +1,2 @@
 foo = if true then true else false
-foo
+> foo

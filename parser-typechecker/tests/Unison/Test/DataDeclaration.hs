@@ -48,7 +48,6 @@ type Pong a = Pnong | Pong (Ping a)
 
 type Long' a = Long' (Ling' a) | Lnong
 type Ling' a = Ling' a (Long' a)
-()
 |]
 
 
