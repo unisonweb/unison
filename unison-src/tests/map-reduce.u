@@ -114,4 +114,4 @@ i |> f = f i
 ex2 : [Nat]
 ex2 = Stream.from-nat 1 |> take 15 |> toSequence
 
-ex2
+> ex2
