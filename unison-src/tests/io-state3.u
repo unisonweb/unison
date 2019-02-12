@@ -6,5 +6,5 @@ effect IO where
 -- ambient abilities (which will be empty)
 ex1 : () -> {IO} ()
 ex1 unit = IO.launch-missiles()
-()
+
 

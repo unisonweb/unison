@@ -2,4 +2,4 @@ r10 : Nat
 r10 = case 1 of
   1 | true -> 3
   _ -> 4
-()
+

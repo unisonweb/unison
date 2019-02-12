@@ -22,4 +22,4 @@ x = let
   Stream.from-int -3
     |> Stream.take 10
     |> Stream.fold-left +0 (Int.+)
-()
+
