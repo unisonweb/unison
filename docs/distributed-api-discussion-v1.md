@@ -1,21 +1,82 @@
 # Distributed programming API v1 discussion
-Underlying the Unison distributed programming API is the desire to move computations to other Locations:
-
 ```haskell
-Remote.forkAt : Loc {e} -> '({e} a) ->{Remote} Future a
+type Either a b = Left a | Right b
+type Status = Running | Finished | Canceled | Error Error
+type Error =
+	Unknown | Unreachable | Unresponsive | AbilityCheckFailure
 
--- example:
-f1 = forkAt a 'let
-  x = longRunningComputation 101
-  Email.send x
-y = otherLongComputation
--- x and y are computed in parallel
+ability Remote location where
+  fork   : location {e} -> '{e} a ->{Remote location} Future a
+  join   : Future a ->{Remote location} Either Error a
+  status : Future a ->{Remote location} Status
+  cancel : Future a ->{Remote location} Either Error ()
+
+type Future a = Future
+  ('{Remote loc} (Either Err a) -- join
+  ,'{Remote loc} ()             -- cancel
+  ,'{Remote loc} Status,        -- status
+  , Duration ->{Remote loc} ())  -- keepalive (seconds 10)
 ```
 
-> We decided that automatically cancelling a child computation when its parent terminates or delaying termination of of the parent until its children complete would break associativity in terms of parallelism when chaining computations, therefore `forkAt` doesn’t enforce any such conditions.  See more about cancellation & termination below, in “Supervision and garbage-collection of Futures”  
+
+Feb 11 Q&A:
+* Do we need `Remote.here`? Thinking is: we don’t, we can just get one when starting the Unison Remote server; can then use that value, or restricted derivatives, in applications.
+```
+Unison.server
+  -> (Location {e} ->{Remote Location} r) -- local computation
+  -> {e} r                                -- rrrrresult
+```
+
+`handle expression with handler`  OR  
+`with handler handle expression`
+	* How do you launch anything?
+		* Watch expression lol
+		* launch
+
+* What does it mean to `cancel`?  
+Proposal: Runtime needs to support this. `fork`-ing in Unison likely works by forking a new instance `t` of Haskell runtime; that Haskell thread `t` can be asynchronously interrupted.  So, the implementation of `Future.cancel` just throws a Haskell async exception into `t`, terminating that instance of the runtime.
+* How do decide if a received computation is allowed to be run? (and we are capable of running it?)
+	1. Some Unison term comes over the wire.
+	2. -Decide the type (typecheck?  maybe slow? some other proof?)- No, we can use runtime exception.
+	3. Scan the term for unknown hashes. (Could we do this lazily?  Arya says: that’s crazay [sic]!  Rúnar adds:  Sounds super fragile.)
+		* Could speculatively send some dependencies with the initial request, especially if protocol has minimum message size, but maybe not easy to anticipate which dependencies will be needed at remote end.
+		* If doing this lazily, could spare sending definitions for code paths not used during this particular execution.
+		* Could get started running the computation if there’s any work that can be done before receiving missing dependencies.  Background thread works to populate the term cache from remote sources.
+	4. If missing some of the dependencies, send list of references back to originator for definitions.  Repeat steps 3–4 until the whole application is loaded / cached / whatever.
+	5. Just run it and then complain if encountering an unexpected ability request.
+
+* How do actually run one?
+---
+Do we need to choose a representation of `Location` now?
+* No, we can use incrementally more sophisticated representations. e.g., loc can initially be `()` or `Nat`, and the handler can maintain pure maps or whatever.  (note: need pure maps).
+* Yes, because the entire `Remote` ability needs to be defined up front, but some APIs e.g. relating to “keepalives” only make sense in the context of true multi-node Locations.
+
+Do we need to choose a representation of `Future` now?
+* Yes, because the entire `Remote` ability needs to be defined up front, but we may need additional remote abilities to operate on `Future`s.
+* It can just be `'{Remote loc} a`
+	* No, this representation doesn’t contain enough info to asynchronously identify the computation, e.g. to support `Remote.status` in a multi-node implementation.
+* It can be some kind of handle or GUID.
+	* Can we index typed results by untyped handle?
+
+Do we need the ability to automatically clean up zombie tasks?  This informs the discussion around keepalives.
+* Yes:
 
 ## Locations
-A Location is simply a computing context on some hardware somewhere, having access to certain computational resources.  Its runtime representation is essentially a collection of cryptographic tokens authorizing the use of these resources.
+A Location is simply a computing context with access to certain computational resources.  The `Remote` ability is parameterized with a Location type `loc`, giving us significant flexibility in defining various `Remote` interpreters.  The interpreter can then require a `loc` that describes resources in whatever way it likes, and the interpreter can be paired with an appropriate implementation for obtaining or generating `loc`s.
+
+For example:
+```haskell
+runLocal : '{Remote () ()} a -> a
+runLocal r =
+  step nid r = case r of
+    {a} -> a
+    {Remote.fork t -> k} -> handle (step nid) in k t
+    {Remote.spawn -> k} -> handle (step (Node.increment nid)) in k nid
+    {Remote.at _ t -> k} -> handle (step nid) in k !t
+  handle (step (Node.Node 0)) in !r
+```
+
+Its runtime representation is essentially a collection of cryptographic tokens authorizing the use of these resources.
 
 In Unison code, a Location is represented by a `Loc {e}`. A Unison value of type `Loc {}` supports only pure computations, whereas a `Loc {Remote, GPU}` provides the `Remote` and `GPU` abilities.
 
@@ -26,35 +87,44 @@ A `Loc` is represented by one or more host / port / auth tokens, along with abil
 -- Haskell runtime representation
 -- individual Tokens should be cryptographically unguessable.
 -- Tokens may correspond to or contain quota/other data.
-data Loc = Loc Hosts Abilities Quota
-
-type Token = TBD -- sufficient to prove authorization
-type HostTokenExample = Token Data sig(Data)
+data Loc = Loc Hosts Abilities
+type Token = TBD
 type Hosts = Map (Hostname,Port) Token
 type Abilities = Map Reference Token -- Map Reference (PublicKey, RandomDigits, signature(publicKey, randomDigits <> reference))
-type Quota = Set QUnit
-data QUnit = QDisk QDiskUnit Token | QCpu QCpuUnit Token | QNet QNetUnit Token | ...
-```
-alternatively, if disk / cpu / network tokens only come in one size:
-```haskell
-type Quota = Map QType [Token]
-data QType = QDisk | QCpu | QNetwork | ...
 ```
 
-* Maybe `Token a` is a proof that have access to `a` for any type `a`. Abilities is just a `Set (Token Reference)`, and Hosts is maybe just a `Map (Hostname,Port) (Token ())`, quotas is a `Set (Token (QType, Nat))`.
+### What's in a Token?
 
-Thanks to the composite representation, a `Loc` can be restricted if desired by simply dropping some ability tokens:
-```haskell
-Loc.restrict : Abilities {e} -> Loc {e,e2} -> Loc {e}
+In this formulation, Token is a possibly-parameterized catch-all that includes whatever information is necessary to securely authorize some use.
+
+Stateless tokens will include:
+
+* A description of the authorized resource/activity, sufficient to be understood by the resource servers.
+* A signature by entity trusted by the resource server.  
+  * If the token is composite, each separable piece must be individually signed.  Signatures are typically the size of the key (4096 bits = 512 bytes), so they can start to add up.
+
+They will optionally include:
+
+* An expiration / validity period - or be valid in perpetuity
+* An "audience", identity of the target resource server, in cases where the signature key is too broad to identify the resource server.
+
+Example:
 ```
-Similarly, disk/cpu quotas can be sub-allocated to various subtasks.
-```haskell
-Loc.take : QType -> Nat -> Loc {e} -> (Optional (Loc {e}), Loc {e})
--- or
-Loc.take : QUnit -> Loc {e} -> (Optional (Loc {e}), Loc {e})
+Token =
+  abilities e_1, ..., e_n <> expiration
+    <> signature ku ([e_1 ... e_n] <> expiration)
+    <> fingerprint ku
+
+or:
+  (e_1 <> expiration <> signature ku (e_1 <> expiration) <> fingerprint ku)
+<> ...
+<>(e_n <> expiration <> signature ku (e_n <> expiration) <> fingerprint ku)
 ```
 
-However, I don’t have a story for composing locations on the user side.  This may call for another type parameter on `Loc`, representing the provider.  More on this, below.
+This is leading up to an exponential number of signatures, just to support `Loc.restrict`.  So, let's look at some schemes for delegation.
+
+
+
 
 ### Elastically producing new Locations
 An elastic compute service “front-end” would expose:
@@ -166,3 +236,8 @@ _Misc?_:
 	* Maybe in implementation, but not explicit in v1 API
 * Well-defined semantics not just a bunch of implementation-defined gobbledygook
 * Do we need globally-addressed mutable state? e.g. node `a` can refer to mutable data on node `b`; or node `c` can mutate data on node `d`. Yes, probably.
+
+## Choices
+* We decided that automatically cancelling a child computation when its parent terminates or delaying termination of of the parent until its children complete would break associativity in terms of parallelism when chaining computations, therefore `forkAt` doesn’t enforce any such conditions.  See more about cancellation & termination below, in “Supervision and garbage-collection of Futures”  
+
+#unison
