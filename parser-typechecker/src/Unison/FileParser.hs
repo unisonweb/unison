@@ -1,3 +1,4 @@
+{-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
 
 module Unison.FileParser where
@@ -39,7 +40,11 @@ file = do
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask
-    stanzas <- sepBy semi stanza
+    -- The file may optionally contain top-level imports,
+    -- which are parsed and applied to each stanza
+    (names', substImports) <- TermParser.imports <* optional semi
+    stanzas0 <- local (names' `mappend`) $ sepBy semi stanza
+    let stanzas = fmap substImports <$> stanzas0
     _ <- closeBlock
     let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
         go (terms, watches, n) s = case s of
@@ -64,13 +69,13 @@ file = do
 --     y = 17
 -- which parses as [(Woot.x, 42), (Woot.y, 17)]
 
-data Stanza v
-  = WatchBinding Ann ((Ann, v), AnnotatedTerm v Ann)
-  | WatchExpression Ann (AnnotatedTerm v Ann)
-  | Binding ((Ann, v), (AnnotatedTerm v Ann))
-  | Bindings [((Ann, v), AnnotatedTerm v Ann)]
+data Stanza v term
+  = WatchBinding Ann ((Ann, v), term)
+  | WatchExpression Ann term
+  | Binding ((Ann, v), term)
+  | Bindings [((Ann, v), term)] deriving Functor
 
-stanza :: Var v => P v (Stanza v)
+stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
 stanza = watchExpression <|> binding <|> namespace
   where
   watchExpression = do
@@ -100,7 +105,7 @@ declarations :: Var v => P v
                           Map v (EffectDeclaration' v Ann))
 declarations = do
   declarations <- many $
-    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* semi
+    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
   pure (Map.fromList dataDecls, Map.fromList effectDecls)
 
