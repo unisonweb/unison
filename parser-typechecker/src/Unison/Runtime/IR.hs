@@ -71,7 +71,7 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
+data Z = Slot Pos | LazySlot Symbol Pos | Val V deriving (Eq)
 
 -- Computations - evaluation reduces these to values
 data IR
@@ -164,12 +164,13 @@ compile0 env bound t =
     Term.Handle' h body -> Handle (ind "handle" t h) (go body)
     Term.Ann' e _ -> go e
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
+    Term.Var' _ -> Leaf $ ind "var" t t
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
         if v == v' then case o of
-          Nothing | isLazy v  -> LazySlot i
+          Nothing | isLazy v  -> LazySlot (underlyingSymbol v) i
                   | otherwise -> Slot i
           Just v -> Val v
         else if isJust o then compileVar i v tl
@@ -209,7 +210,7 @@ decompile v = case v of
   Lazy _ _ _ -> error "IR todo - decompile Lazy"
 
 instance Show Z where
-  show (LazySlot i) = "'#" ++ show i
+  show (LazySlot s i) = "'#" ++ show s ++ "#" ++ show i
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
 

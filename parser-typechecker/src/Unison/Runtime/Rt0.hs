@@ -54,7 +54,9 @@ at :: Z -> Machine -> V
 at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
-  LazySlot i -> m !! fromIntegral i -- todo: should this be Lazy?
+  LazySlot s i -> let
+    nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
+    in Lazy nonce s (m !! fromIntegral i)
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of
@@ -94,12 +96,8 @@ run :: (R.Reference -> IR) -> IR -> Machine -> Result
 run env ir m = go ir m where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
-    And i j -> case at i m of
-      b@(B False) -> done b
-      _ -> go j m
-    Or i j -> case at i m of
-      b@(B True) -> done b
-      _ -> go j m
+    And i j -> if atb i m then go j m else done (B False)
+    Or i j -> if atb i m then done (B True) else go j m
     Not i -> done (B (not (atb i m)))
     Match scrutinee cases -> match (at scrutinee m) cases m
     Let b body -> case go b m of
