@@ -74,8 +74,8 @@ instance ShowToken (Token Lexeme) where
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
-      pretty Close = ""
-      pretty t = show t
+      pretty Close = "<outdent>"
+      pretty Semi = "<virtual semicolon>"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
