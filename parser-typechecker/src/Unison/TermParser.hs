@@ -79,7 +79,9 @@ match :: Var v => TermP v
 match = do
   start <- reserved "case"
   scrutinee <- term
-  _ <- openBlockWith "of"
+  _ <- P.try (openBlockWith "of") <|> do
+         t <- anyToken
+         P.customFailure (ExpectedBlockOpen "of" t)
   cases <- sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock

@@ -41,6 +41,7 @@ data Error v
   | EmptyBlock (L.Token String)
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
+  | ExpectedBlockOpen String (L.Token L.Lexeme)
   deriving (Show, Eq, Ord)
 
 data Ann
