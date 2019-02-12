@@ -640,12 +640,14 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
+      let codeLookup = Codebase.toCodeLookup codebase
+
       selfContained <- Codebase.makeSelfContained'
-        (Codebase.toCodeLookup codebase)
+        codeLookup
         (Branch.head branch)
         unisonFile
       let noCache = const (pure Nothing)
-      Runtime.evaluateWatches codebase noCache rt selfContained
+      Runtime.evaluateWatches codeLookup noCache rt selfContained
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName

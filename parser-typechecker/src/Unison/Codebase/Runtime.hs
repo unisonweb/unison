@@ -11,8 +11,6 @@ import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Control.Monad.IO.Class         ( MonadIO )
-import           Unison.Codebase                ( Codebase )
-import qualified Unison.Codebase               as Codebase
 import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Term                   as Term
@@ -45,7 +43,7 @@ type IsCacheHit = Bool
 -- `evaluationCache`. If that returns a result, evaluation of that definition
 -- can be skipped.
 evaluateWatches :: forall m v a . (Var v, MonadIO m)
-                => Codebase m v a
+                => CL.CodeLookup m v a
                 -> (Reference -> m (Maybe (Term v)))
                 -> Runtime v
                 -> UnisonFile v a
@@ -70,8 +68,7 @@ evaluateWatches code evaluationCache rt uf = do
     bindings = [ (v, unref rv b) | (v, (_,_,b,_)) <- Map.toList m' ]
     watchVars = [ Term.var() v | v <- toList watches ]
     bigOl'LetRec = Term.letRec' True bindings (Term.tuple watchVars)
-    cl :: CL.CodeLookup m v ()
-    cl = void $ CL.fromUnisonFile uf <> Codebase.toCodeLookup code
+    cl = void $ CL.fromUnisonFile uf <> code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl bigOl'LetRec

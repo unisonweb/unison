@@ -4,21 +4,30 @@
 
 module Unison.Test.Typechecker where
 
-import           Control.Monad          (join, void)
+import           Control.Lens           ( view )
+import           Control.Lens.Tuple     ( _4 )
+import           Control.Monad          (void)
 import           Control.Monad.IO.Class (liftIO)
+import qualified Data.Map               as Map
 import           Data.Sequence          (Seq)
 import           Data.Text              (unpack)
 import           Data.Text.IO           (readFile)
 import           EasyTest
-import           System.FilePath        (joinPath, splitPath)
+import           System.FilePath        (joinPath, splitPath, replaceExtension)
 import           System.FilePath.Find   (always, extension, find, (==?))
+import           System.Directory       ( doesFileExist )
 import qualified Unison.Builtin         as Builtin
+import           Unison.Codebase.Runtime  ( Runtime, evaluateWatches )
 import           Unison.Parser          as Parser
+import qualified Unison.Parsers         as Parsers
 import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
+import qualified Unison.Codebase.Runtime.JVM as JVM
+import           Unison.Codebase.Serialization.V0 as Ser
 import           Unison.Symbol          (Symbol)
+import           Unison.Term            ( amap )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
@@ -46,13 +55,14 @@ bad :: EitherResult -> Test ()
 bad = void <$> EasyTest.expectLeft
 
 test :: Test ()
-test =
+test = do
+  rt <- io $ JVM.javaRuntime Ser.getSymbol 1001
   scope "typechecker"
     . tests
-    $ [ go shouldPassNow   good
-      , go shouldFailNow   bad
-      , go shouldPassLater (pending . bad)
-      , go shouldFailLater (pending . good)
+    $ [ go rt shouldPassNow   good
+      , go rt shouldFailNow   bad
+      , go rt shouldPassLater (pending . bad)
+      , go rt shouldFailLater (pending . good)
       ]
 
 shouldPassPath, shouldFailPath :: String
@@ -71,10 +81,10 @@ shouldPassLater = find always (extension ==? ".uu") shouldPassPath
 shouldFailLater :: IO [FilePath]
 shouldFailLater = find always (extension ==? ".uu") shouldFailPath
 
-go :: IO [FilePath] -> (EitherResult -> Test ()) -> Test ()
-go files how = do
+go :: Runtime Symbol -> IO [FilePath] -> (EitherResult -> Test ()) -> Test ()
+go rt files how = do
   files' <- liftIO files
-  tests (makePassingTest how <$> files')
+  tests (makePassingTest rt how <$> files')
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
 showNotes source env notes =
@@ -89,14 +99,25 @@ decodeResult source (Result notes (Just (env, Nothing))) =
 decodeResult _source (Result _notes (Just (_env, Just uf))) =
   Right uf
 
-makePassingTest :: (EitherResult -> Test ()) -> FilePath -> Test ()
-makePassingTest how filepath = join $ do
-  let shortName = joinPath . drop 1 . splitPath $ filepath
+makePassingTest
+  :: Runtime Symbol -> (EitherResult -> Test ()) -> FilePath -> Test ()
+makePassingTest rt how filepath = scope shortName $ do
+  let valueFile = replaceExtension filepath "ur"
   source <- io $ unpack <$> Data.Text.IO.readFile filepath
-  -- io $ putStrLn (show $ Builtin.names @Symbol)
-  pure
-    $ scope shortName
-    . how
-    . decodeResult source
-    . parseAndSynthesizeAsFile shortName
-    $ source
+  let r = decodeResult source $ parseAndSynthesizeAsFile shortName source
+  rFileExists <- io $ doesFileExist valueFile
+  case (rFileExists, r) of
+    (True, Right file) -> do
+      values <- io $ unpack <$> Data.Text.IO.readFile valueFile
+      let untypedFile = UF.discardTypes file
+      let term = Parsers.parseTerm values $ UF.toNames untypedFile
+      watches <- io
+        $ evaluateWatches mempty (const $ pure Nothing) rt untypedFile
+      case term of
+        Right tm ->
+          expect $ (view _4 <$> Map.elems watches) == [amap (const ()) tm]
+        Left e -> crash $ show e
+    _ -> pure ()
+  how r
+  where shortName = joinPath . drop 1 . splitPath $ filepath
+
