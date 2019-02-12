@@ -171,7 +171,12 @@ reorder ts = join . sortWith f . stanzas $ ts
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
   let t = tree $ lexer0 scope rem
-  in toList $ reorderTree reorder t
+      -- after reordering can end up with trailing semicolon at the end of
+      -- a block, which we remove with this pass
+      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup [] = []
+      fixup (h : t) = h : fixup t
+  in fixup . toList $ reorderTree reorder t
 
 lexer0 :: String -> String -> [Token Lexeme]
 lexer0 scope rem =
