@@ -70,9 +70,11 @@ evaluateWatches code evaluationCache rt uf = do
     bindings = [ (v, unref rv b) | (v, (_,_,b,_)) <- Map.toList m' ]
     watchVars = [ Term.var() v | v <- toList watches ]
     bigOl'LetRec = Term.letRec' True bindings (Term.tuple watchVars)
+    cl :: CL.CodeLookup m v ()
+    cl = void $ CL.fromUnisonFile uf <> Codebase.toCodeLookup code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
-  out <- evaluate rt (void $ Codebase.toCodeLookup code) bigOl'LetRec
+  out <- evaluate rt cl bigOl'LetRec
   case out of
     Term.Tuple' results -> pure $
       let go eval (ref, a, uneval, isHit) = (a, ref, uneval, eval, isHit)

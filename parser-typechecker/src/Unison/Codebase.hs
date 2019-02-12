@@ -71,7 +71,7 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
-import Debug.Trace
+-- import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -350,8 +350,6 @@ makeSelfContained'
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
 makeSelfContained' code b uf = do
-  traceM $ "before - " <> show (Map.keys (UF.dataDeclarations uf))
-        <> " " <> show (Map.keys (UF.effectDeclarations uf))
   let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
   let pp = Branch.prettyPrintEnv b
@@ -387,8 +385,6 @@ makeSelfContained' code b uf = do
       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
       (bindings ++ unrefb (UF.terms uf))
       (unrefb $ UF.watches uf)
-  traceM $ "after - " <> show (Map.keys (UF.dataDeclarations uf'))
-        <> " " <> show (Map.keys (UF.effectDeclarations uf') )
   pure $ uf'
 
 -- Creates a self-contained `UnisonFile` which bakes in
