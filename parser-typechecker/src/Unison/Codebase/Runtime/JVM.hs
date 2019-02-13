@@ -88,7 +88,7 @@ javaRuntime getv suggestedPort = do
       Socket -> Int -> IO (IO (), InputStream ByteString, OutputStream ByteString)
     connectToRuntime listenSock port = do
       let cmd = "scala"
-          args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes",
+          args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes:runtime-jvm/main/target/scala-2.12/classes",
                   "org.unisonweb.BootstrapStream", show port]
       exe <- findExecutable cmd
       case exe of
