@@ -87,8 +87,9 @@ javaRuntime getv suggestedPort = do
     connectToRuntime ::
       Socket -> Int -> IO (IO (), InputStream ByteString, OutputStream ByteString)
     connectToRuntime listenSock port = do
-      let cmd = "scala"
-          args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes:runtime-jvm/main/target/scala-2.12/classes",
+      let cmd = "java"
+          -- eep.  ugly hack of adding scala-library from .ivy2 dir to java classpath
+          args = ["-cp", "runtime-jvm/.bloop/main/scala-2.12/classes:runtime-jvm/main/target/scala-2.12/classes:~/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.12.7.jar",
                   "org.unisonweb.BootstrapStream", show port]
       exe <- findExecutable cmd
       case exe of
