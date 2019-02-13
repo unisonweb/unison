@@ -1,4 +1,4 @@
 (+) = (Nat.+)
 
-x = case (1,2,3,4) of
-  (a,b,c,d) -> (a + b, c + d)
+> case (1,2,3,4) of
+    (a,b,c,d) -> (a + b, c + d)
