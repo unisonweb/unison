@@ -53,8 +53,6 @@ at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
   LazySlot i -> m !! fromIntegral i
-    -- let nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
-    -- in Lazy nonce s (m !! fromIntegral i)
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of

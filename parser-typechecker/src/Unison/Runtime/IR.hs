@@ -1,6 +1,9 @@
+{-# Language DeriveFoldable #-}
+{-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
 {-# Language FlexibleContexts #-}
-{-# Language PartialTypeSignatures #-}
 {-# Language OverloadedStrings #-}
+{-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
 
@@ -77,34 +80,39 @@ data Pattern
 -- Leaf level instructions - these return immediately without using any stack
 data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
 
+type IR = IR' Z
+
+-- IR z
+-- depth of a slot is just that slot
+-- depth of a let is just depth
+--
 -- Computations - evaluation reduces these to values
-data IR
-  = Leaf Z
+data IR' z
+  = Leaf z
   -- Ints
-  | AddI Z Z | SubI Z Z | MultI Z Z | DivI Z Z
-  | GtI Z Z | LtI Z Z | GtEqI Z Z | LtEqI Z Z | EqI Z Z
+  | AddI z z | SubI z z | MultI z z | DivI z z
+  | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
   -- Nats
-  | AddN Z Z | DropN Z Z | SubN Z Z | MultN Z Z | DivN Z Z
-  | GtN Z Z | LtN Z Z | GtEqN Z Z | LtEqN Z Z | EqN Z Z
+  | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
+  | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
   -- Floats
-  | AddF Z Z | SubF Z Z | MultF Z Z | DivF Z Z
-  | GtF Z Z | LtF Z Z | GtEqF Z Z | LtEqF Z Z | EqF Z Z
+  | AddF z z | SubF z z | MultF z z | DivF z z
+  | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
   -- Control flow
-  | Let IR IR
-  | LetRec [(Symbol,IR)] IR
-  | MakeSequence [Z]
-  | ApplyIR IR [Z]
-  | ApplyZ Z [Z] -- call to unknown function
-  | Construct R.Reference ConstructorId [Z]
-  | Request R.Reference ConstructorId [Z]
-  | Handle Z IR
-  | If Z IR IR
-  | And Z IR
-  | Or Z IR
-  | Not Z
-  | Match Z [(Pattern, Maybe IR, IR)] -- pattern, optional guard, rhs
-  -- | Watch Text (Term Symbol) IR
-  deriving (Eq,Show)
+  | Let (IR' z) (IR' z)
+  | LetRec [(Symbol,(IR' z))] (IR' z)
+  | MakeSequence [z]
+  | ApplyIR (IR' z) [z]
+  | ApplyZ z [z] -- call to unknown function
+  | Construct R.Reference ConstructorId [z]
+  | Request R.Reference ConstructorId [z]
+  | Handle z (IR' z)
+  | If z (IR' z) (IR' z)
+  | And z (IR' z)
+  | Or z (IR' z)
+  | Not z
+  | Match z [(Pattern, Maybe (IR' z), (IR' z))] -- pattern, optional guard, rhs
+  deriving (Functor,Foldable,Traversable,Eq,Show)
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
