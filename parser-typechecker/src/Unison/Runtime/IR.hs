@@ -10,6 +10,7 @@ import Control.Concurrent.Supply (Supply)
 import Control.Monad.State (MonadState, get, put)
 import Data.Foldable
 import Data.Functor (void)
+import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
 import Data.Maybe (isJust)
@@ -19,6 +20,7 @@ import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Supply as Supply
 import qualified Data.Map as Map
@@ -52,11 +54,11 @@ data V
   | Lam Arity (Either R.Reference (Term SymbolC)) IR
   | Data R.Reference ConstructorId [V]
   | Sequence (Vector V)
-  | Lazy Int Symbol ~V -- the inner `V` here is lazy
+  | Ref Int Symbol (IORef V)
   | Pure V
   | Requested Req
   | Cont IR
-  deriving (Eq,Show)
+  deriving Eq
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
@@ -207,7 +209,7 @@ decompile v = case v of
   Pure _ -> Nothing
   Requested _ -> Nothing
   Cont _ -> Nothing
-  Lazy _ _ _ -> error "IR todo - decompile Lazy"
+  Ref _ _ _ -> error "IR todo - decompile Ref"
 
 instance Show Z where
   show (LazySlot s i) = "'#" ++ show s ++ "#" ++ show i
@@ -328,3 +330,17 @@ instance Var SymbolC where
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
   freshIn vs (SymbolC i s) =
     SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
+
+instance Show V where
+  show (I n) = show n
+  show (F n) = show n
+  show (N n) = show n
+  show (B b) = show b
+  show (T t) = show t
+  show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " " <> show ir <> ")"
+  show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
+  show (Sequence vs) = "[" <> intercalateMap ", " show vs <> "]"
+  show (Ref n s _) = "(Ref " <> show n <> " " <> show s <> ")"
+  show (Pure v) = "(Pure " <> show v <> ")"
+  show (Requested r) = "(Requested " <> show r <> ")"
+  show (Cont ir) = "(Cont " <> show ir <> ")"

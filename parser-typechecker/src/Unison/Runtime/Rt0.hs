@@ -54,9 +54,9 @@ at :: Z -> Machine -> V
 at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
-  LazySlot s i -> let
-    nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
-    in Lazy nonce s (m !! fromIntegral i)
+  LazySlot _s i -> m !! fromIntegral i
+    -- let nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
+    -- in Lazy nonce s (m !! fromIntegral i)
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of
@@ -83,7 +83,7 @@ att i m = case at i m of
   T t -> t
   _ -> error "type error"
 
-data Result = RRequest Req | RMatchFail | RDone V deriving (Show)
+data Result = RRequest Req | RMatchFail | RDone V deriving (Eq,Show)
 
 done :: V -> Result
 done = RDone
