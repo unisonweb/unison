@@ -4,6 +4,10 @@ dist: trusty
 sudo: false
 language: generic
 
+addons:
+  apt:
+    packages:
+      - scala
 
 # Caching so the next build will be fast too.
 cache:
