@@ -19,12 +19,10 @@ import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
-import qualified Data.Map as Map
 import qualified Data.Vector as Vector
 import qualified Unison.Builtin as B
 import qualified Unison.Codebase.Runtime as Rt
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
-import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
@@ -33,7 +31,7 @@ import qualified Unison.Var as Var
 runtime :: Var v => Runtime v
 runtime = Rt.Runtime (pure ()) eval
   where
-  missing r = error $ "Missing compiled form for: " ++ show r
+  missing = mempty
   changeVar term = Term.vmap (\s -> Var.named (Var.shortName s)) term
   eval _code term = case normalize missing (changeVar term) of
     Nothing -> fail $ "result could not be decompiled from: " ++ show term
@@ -54,7 +52,7 @@ at :: Z -> Machine -> V
 at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
-  LazySlot _s i -> m !! fromIntegral i
+  LazySlot i -> m !! fromIntegral i
     -- let nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
     -- in Lazy nonce s (m !! fromIntegral i)
 
@@ -92,7 +90,7 @@ arity :: V -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
-run :: (R.Reference -> IR) -> IR -> Machine -> Result
+run :: CompilationEnv -> IR -> Machine -> Result
 run env ir m = go ir m where
   go ir m = case ir of
     If c t f -> if atb c m then go t m else go f m
@@ -108,7 +106,7 @@ run env ir m = go ir m where
       m' = pushes bs' m
       toVal (RDone a) = a
       toVal e = error ("bindings in a let rec must not have effects " ++ show e)
-      bs' = map (\ir -> toVal $ go ir m') bs
+      bs' = map (\ir -> toVal $ go ir m') (snd <$> bs)
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
     ApplyZ fnPos args -> call (at fnPos m) args m
@@ -230,7 +228,7 @@ run env ir m = go ir m where
   call (Cont k) [arg] m = go k (push (at arg m) m)
   call f _ _ = error $ "type error " ++ show f
 
-normalize :: (R.Reference -> IR) -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
+normalize :: CompilationEnv -> AnnotatedTerm Symbol a -> Maybe (Term Symbol)
 normalize env t =
   let v = case run env (compile env $ Term.unannotate t) (Machine []) of
         RRequest e -> Requested e
@@ -239,13 +237,9 @@ normalize env t =
   in Term.vmap underlyingSymbol <$> decompile v
 
 parseAndNormalize' :: String -> String
-parseAndNormalize' s = parseAndNormalize env s
-  where
-  env r = case Map.lookup r builtins of
-    Nothing -> error $ "unknown ref " ++ show r
-    Just ir -> ir
+parseAndNormalize' s = parseAndNormalize compilationEnv0 s
 
-parseAndNormalize :: (R.Reference -> IR) -> String -> String
+parseAndNormalize :: CompilationEnv -> String -> String
 parseAndNormalize env s = let
   tm = Term.unannotate $ B.tm s
   r = normalize env tm

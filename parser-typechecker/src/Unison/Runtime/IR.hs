@@ -6,8 +6,7 @@
 
 module Unison.Runtime.IR where
 
-import Control.Concurrent.Supply (Supply)
-import Control.Monad.State (MonadState, get, put)
+import Control.Applicative
 import Data.Foldable
 import Data.Functor (void)
 import Data.IORef
@@ -22,7 +21,6 @@ import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
-import qualified Control.Concurrent.Supply as Supply
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -32,10 +30,14 @@ import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 
-type Pos = Word64
+type Pos = Int
 type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
+
+data CompilationEnv
+  = CompilationEnv { toIR :: R.Reference -> Maybe IR
+                   , constructorArity :: R.Reference -> Int -> Maybe Int }
 
 data SymbolC =
   SymbolC { isLazy :: Bool
@@ -73,7 +75,7 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z = Slot Pos | LazySlot Symbol Pos | Val V deriving (Eq)
+data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
 
 -- Computations - evaluation reduces these to values
 data IR
@@ -89,7 +91,7 @@ data IR
   | GtF Z Z | LtF Z Z | GtEqF Z Z | LtEqF Z Z | EqF Z Z
   -- Control flow
   | Let IR IR
-  | LetRec [IR] IR
+  | LetRec [(Symbol,IR)] IR
   | MakeSequence [Z]
   | ApplyIR IR [Z]
   | ApplyZ Z [Z] -- call to unknown function
@@ -121,25 +123,18 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 wrapHandler :: V -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
-compile :: (R.Reference -> IR) -> Term Symbol -> IR
+compile :: CompilationEnv -> Term Symbol -> IR
 compile env t = compile0 env [] (Term.vmap toSymbolC t)
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =
   ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
 
-fresh :: MonadState Supply m => m Int
-fresh = do
-  s <- get
-  let (i, s2) = Supply.freshId s
-  put s2
-  pure i
-
 -- Main compilation function - converts an arbitrary term to an `IR`.
 -- Takes a way of resolving `Reference`s and an environment of variables,
 -- some of which may already be precompiled to `V`s. (This occurs when
 -- recompiling a function that is being partially applied)
-compile0 :: (R.Reference -> IR) -> [(SymbolC, Maybe V)] -> Term SymbolC -> IR
+compile0 :: CompilationEnv -> [(SymbolC, Maybe V)] -> Term SymbolC -> IR
 compile0 env bound t =
   if Set.null fvs then
     go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
@@ -154,11 +149,14 @@ compile0 env bound t =
     Term.LamsNamed' vs body ->
       Leaf . Val $ Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (ind "or" t x) (go y)
-    Term.LetRecNamed' bs body -> LetRec (go . snd <$> bs) (go body)
+    Term.LetRecNamed' bs body ->
+      LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
     Term.Constructor' r cid -> Leaf . Val $ Data r cid mempty
     Term.Request' r cid -> Request r cid mempty
     Term.Apps' f args -> case f of
-      Term.Ref' r -> ApplyIR (env r) (ind "apps-ref" t <$> args)
+      Term.Ref' r -> case toIR env r of
+        Nothing -> error $ "unknown reference " ++ show r
+        Just ir -> ApplyIR ir (ind "apps-ref" t <$> args)
       Term.Request' r cid -> Request r cid (ind "apps-req" t <$> args)
       Term.Constructor' r cid -> Construct r cid (ind "apps-ctor" t <$> args)
       _ -> let msg = "apps-fn" ++ show args
@@ -172,7 +170,7 @@ compile0 env bound t =
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
         if v == v' then case o of
-          Nothing | isLazy v  -> LazySlot (underlyingSymbol v) i
+          Nothing | isLazy v  -> LazySlot i
                   | otherwise -> Slot i
           Just v -> Val v
         else if isJust o then compileVar i v tl
@@ -212,7 +210,7 @@ decompile v = case v of
   Ref _ _ _ -> error "IR todo - decompile Ref"
 
 instance Show Z where
-  show (LazySlot s i) = "'#" ++ show s ++ "#" ++ show i
+  show (LazySlot i) = "'#" ++ show i
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
 
@@ -344,3 +342,15 @@ instance Show V where
   show (Pure v) = "(Pure " <> show v <> ")"
   show (Requested r) = "(Requested " <> show r <> ")"
   show (Cont ir) = "(Cont " <> show ir <> ")"
+
+compilationEnv0 :: CompilationEnv
+compilationEnv0 = mempty { toIR = \r -> Map.lookup r builtins }
+
+instance Semigroup CompilationEnv where (<>) = mappend
+
+instance Monoid CompilationEnv where
+  mempty = CompilationEnv (const Nothing) (\_ _ -> Nothing)
+  mappend c1 c2 = CompilationEnv ir ctor where
+    ir r = toIR c1 r <|> toIR c2 r
+    ctor r cid = constructorArity c1 r cid <|> constructorArity c2 r cid
+
