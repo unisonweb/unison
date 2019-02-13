@@ -41,6 +41,7 @@ library
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.Causal
+    Unison.Codebase.CodeLookup
     Unison.Codebase.CommandLine
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
@@ -75,7 +76,12 @@ library
     Unison.Reference
     Unison.Referent
     Unison.Result
+    Unison.Runtime.ANF
+    Unison.Runtime.IR
     Unison.Runtime.Rt0
+    Unison.Runtime.Rt1
+    Unison.Runtime.Vector
+    Unison.Runtime.SparseVector
     Unison.Settings
     Unison.Symbol
     Unison.Term
@@ -117,7 +123,9 @@ library
     bytestring,
     containers,
     comonad,
+    concurrent-supply,
     cryptonite,
+    data-memocombinators,
     directory,
     errors,
     edit-distance,
@@ -157,33 +165,24 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable bootstrap
-  main-is: Bootstrap.hs
-  hs-source-dirs: bootstrap
-  ghc-options:    -Wall
-  build-depends:
-    base,
-    base58-bytestring,
-    bytes,
-    bytestring,
-    containers,
-    cryptonite,
-    filepath,
-    memory,
-    mtl,
-    prelude-extras,
-    text,
-    transformers,
-    vector,
-    unison-parser-typechecker
-
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
+    containers,
     safe,
+    unison-parser-typechecker
+
+executable haskellruntimetest
+  main-is: Main.hs
+  hs-source-dirs: haskellruntimetest
+  ghc-options: -O3 -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    safe,
+    text,
     unison-parser-typechecker
 
 executable prettyprintdemo
@@ -220,10 +219,12 @@ executable tests
     base,
     bytestring,
     containers,
+    directory,
     easytest,
     errors,
     filepath,
     filemanip,
+    lens,
     megaparsec,
     mtl,
     raw-strings-qq,

@@ -35,5 +35,5 @@ ex =
 
 -- should return `20`, but actually returns `12`
 -- seems like only one `put` is actually being run
-ex
+> ex
 

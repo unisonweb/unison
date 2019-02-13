@@ -58,6 +58,6 @@ isWin board =
           _ b _
           c _ _ -> same a b c
 
-isWin (Board X O X
-             O X X
-             O E X)
+x = isWin (Board X O X
+                 O X X
+                 O E X)

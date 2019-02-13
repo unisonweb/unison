@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Codebase where
@@ -37,6 +38,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
@@ -57,9 +59,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
-import           Unison.Typechecker.TypeLookup  ( Decl
-                                                , TypeLookup(TypeLookup)
-                                                )
+import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.AnnotatedText      ( AnnotatedText )
@@ -71,12 +71,14 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
+-- import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 type BranchName = Text
+type Decl v a = TL.Decl v a
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -308,7 +310,7 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
 -- todo: add some tests on this guy?
 transitiveDependencies
   :: (Monad m, Var v)
-  => Codebase m v a
+  => CL.CodeLookup m v a
   -> Set Reference
   -> Reference
   -> m (Set Reference)
@@ -319,12 +321,12 @@ transitiveDependencies code seen0 r = if Set.member r seen0
     in
       case r of
         Reference.DerivedId id -> do
-          t <- getTerm code id
+          t <- CL.getTerm code id
           case t of
             Just t ->
               foldM (transitiveDependencies code) seen (Term.dependencies t)
             Nothing -> do
-              t <- getTypeDeclaration code id
+              t <- CL.getTypeDeclaration code id
               case t of
                 Nothing        -> pure seen
                 Just (Left ed) -> foldM (transitiveDependencies code)
@@ -335,27 +337,78 @@ transitiveDependencies code seen0 r = if Set.member r seen0
                                          (DD.dependencies dd)
         _ -> pure seen
 
--- Creates a self-contained `UnisonFile` which bakes in
--- all transitive dependencies
-makeSelfContained
-  :: (Monad m, Var v)
-  => Codebase m v a
+toCodeLookup :: Codebase m v a -> CL.CodeLookup m v a
+toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+
+-- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+-- Any watches in the input `UnisonFile` will be watches in the returned
+-- `UnisonFile`.
+makeSelfContained'
+  :: forall m v a . (Monad m, Monoid a, Var v)
+  => CL.CodeLookup m v a
   -> Branch0
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
-makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
-  deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies tm)
+makeSelfContained' code b uf = do
+  let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
+  deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
   let pp = Branch.prettyPrintEnv b
       termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) -> fmap (r, ) <$> getTypeDeclaration code rid
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
     _                           -> pure Nothing
   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) ->
-      fmap (r, HQ.toVar (termName r), ) <$> getTerm code rid
+      fmap (r, HQ.toVar @v (termName r), ) <$> CL.getTerm code rid
     _ -> pure Nothing
   let
+    unref :: Term v a -> Term v a
+    unref t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+        Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
+      go _ = Nothing
+    datas1 = Map.fromList
+      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
+    effects1 = Map.fromList
+      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
+    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
+            Map.toList $ UF.dataDeclarations uf ]
+    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
+            Map.toList $ UF.effectDeclarations uf ]
+    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
+    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
+    uf' = UF.UnisonFile
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
+      (bindings ++ unrefb (UF.terms uf))
+      (unrefb $ UF.watches uf)
+  pure $ uf'
+
+-- Creates a self-contained `UnisonFile` which bakes in
+-- all transitive dependencies
+makeSelfContained
+  :: forall m v a . (Monad m, Monoid a, Var v)
+  => CL.CodeLookup m v a
+  -> Branch0
+  -> Term v a
+  -> m (UF.UnisonFile v a)
+makeSelfContained code b term = do
+  deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies term)
+  let pp = Branch.prettyPrintEnv b
+      termName r = PPE.termName pp (Referent.Ref r)
+      typeName r = PPE.typeName pp r
+  decls <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
+    _                           -> pure Nothing
+  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) ->
+      fmap (r, HQ.toVar @v (termName r), ) <$> CL.getTerm code rid
+    _ -> pure Nothing
+  let
+    unref :: Term v a -> Term v a
     unref t = ABT.visitPure go t
      where
       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
@@ -365,13 +418,8 @@ makeSelfContained code b (UF.UnisonFile datas0 effects0 tm) = do
       [ (v, (r, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
     effects = Map.fromList
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
-    bindings = [ ((ABT.annotation t, v), unref t) | (_, v, t) <- termsByRef ]
-    unrefBindings bs = [ (av, unref t) | (av, t) <- bs ]
-    tm' = case tm of
-      Term.LetRecNamedAnnotatedTop' top ann bs e ->
-        Term.letRec top ann (bindings ++ unrefBindings bs) (unref e)
-      tm -> Term.letRec True (ABT.annotation tm) bindings (unref tm)
-  pure $ UF.UnisonFile (datas0 <> datas) (effects0 <> effects) tm'
+    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+  pure $ UF.UnisonFile datas effects bindings [] -- no watches in the resulting file
 
 sortedApproximateMatches :: String -> [String] -> [String]
 sortedApproximateMatches q possible = trim (sortOn fst matches)

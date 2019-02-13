@@ -7,7 +7,7 @@ state s eff = case eff of
   { State.put snew -> k } -> handle (state snew) in k ()
   { a } -> s
 
-handle (state 10) in
+> handle (state 10) in
   State.put (11 + 1)
   State.put (5 + 15)
   ()

@@ -1,4 +1,4 @@
 f x = x
 
-and (f false) false
+> and (f false) false
 -- and false false

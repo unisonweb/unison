@@ -77,7 +77,7 @@ data LoopState v
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
-      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile' v Ann) }
+      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann) }
 
 type SkipNextUpdate = Bool
 
@@ -132,9 +132,15 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   e <-
                     eval
                       ( Evaluate (view currentBranch s)
-                      $ UF.discardTypes' unisonFile
+                      $ UF.discardTypes unisonFile
                       )
-                  eval . Notify $ Evaluated (Branch.toNames currentBranch') e
+                  let e' = Map.map go e
+                      go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
+                  -- todo: this would be a good spot to update the cache
+                  -- with all the (hash, eval) pairs, even if it's just an
+                  -- in-memory cache
+                  eval . Notify $ Evaluated text
+                    (Branch.prettyPrintEnv $ Branch.head currentBranch') e'
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
@@ -221,9 +227,8 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           unnameAll currentBranchName' nameTarget name success
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
-          Just (UF.TypecheckedUnisonFile' datas effects tlcs _ _) -> do
-            let uf'              = UF.typecheckedUnisonFile datas effects tlcs
-                collisionHandler = if allowUpdates
+          Just uf' -> do
+            let collisionHandler = if allowUpdates
                   then Editor.updateCollisionHandler
                   else Editor.addCollisionHandler
             updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'

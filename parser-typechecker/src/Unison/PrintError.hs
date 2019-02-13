@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 module Unison.PrintError where
@@ -928,6 +929,16 @@ prettyParseError s = \case
     ]
   go' (P.ErrorCustom e) = go e
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat
+    [ "I was expecting an indented block following the " <>
+      "`" <> fromString blockName <> "` keyword\n"
+    , "but instead found an outdent:\n\n"
+    , tokenAsErrorSite s tok ] -- todo: @aryairani why is this displaying weirdly?
+  go (Parser.ExpectedBlockOpen blockName tok) = mconcat
+    [ "I was expecting an indented block following the " <>
+      "`" <> fromString blockName <> "` keyword\n"
+    , "but instead found this token:\n"
+    , tokenAsErrorSite s tok ]
   go (Parser.SignatureNeedsAccompanyingBody tok) = mconcat
     [ "You provided a type signature, but I didn't find an accompanying\n"
     , "binding after it.  Could it be a spelling mismatch?\n"

@@ -8,11 +8,10 @@ import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
-import           Data.Bytes.Put             (runPutS)
-import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import Data.List (partition)
 import Data.Set (Set)
 import qualified Data.Set                   as Set
 import           Data.Sequence              (Seq)
@@ -20,7 +19,6 @@ import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import qualified Unison.Name                as Name
@@ -87,7 +85,7 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
@@ -102,11 +100,12 @@ synthesizeFile
   => TL.TypeLookup v Ann
   -> Names
   -> UnisonFile v
-  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
+  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 term0) = unisonFile
+    uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
+    term0 = UF.uberTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
@@ -127,7 +126,7 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
-  Result (convertNotes notes) mayType >>= \typ -> do
+  Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
@@ -151,9 +150,12 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    t          <- doTdnr tdnrTerm
+    _          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
-    pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
+    let (watches', terms') = partition isWatch tdnredTlcs
+        isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
+        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
+    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]
@@ -172,19 +174,3 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
           -- loc of replacement already chosen correctly by whatever made the Decision
           pure . pure $ replacement
       _ -> Nothing
-
-synthesizeAndSerializeUnisonFile
-  :: Var v
-  => TL.TypeLookup v Ann
-  -> Names
-  -> UnisonFile v
-  -> Result
-       (Seq (Note v Ann))
-       (UF.TypecheckedUnisonFile' v Ann, ByteString)
-synthesizeAndSerializeUnisonFile tl names unisonFile =
-  let r = synthesizeFile tl names unisonFile
-      f unisonFile' =
-        let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile
-              (UF.discardTypes' unisonFile')
-        in  (unisonFile', bs)
-  in  f <$> r

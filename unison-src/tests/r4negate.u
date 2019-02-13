@@ -2,4 +2,4 @@ r4 : Int -> Int
 r4 x = case x of
   +1 -> -1
   _  -> Int.negate x
-()
+

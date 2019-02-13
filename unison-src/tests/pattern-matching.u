@@ -33,4 +33,4 @@ len l = case l of
   List.Nil -> 0
   List.Cons _ t -> len t + 1
 
-(w, w2, len)
+> (w, w2, len)

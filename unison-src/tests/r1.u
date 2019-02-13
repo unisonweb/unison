@@ -3,4 +3,4 @@ type Optional a = None | Some a
 r1 : Nat
 r1 = case Optional.Some 3 of
   x -> 1
-()
+

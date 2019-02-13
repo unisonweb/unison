@@ -32,6 +32,7 @@ import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
+import           Data.Text                      (Text)
 import           Data.Text.IO                   ( readFile
                                                 , writeFile
                                                 )
@@ -60,6 +61,7 @@ import           Unison.NamePrinter             (prettyName,
                                                  styleHashQualified
                                                 )
 import           Unison.Parser                  (Ann)
+import           Unison.Parser                  (startingLine)
 import qualified Unison.PrettyPrintEnv          as PPE
 import           Unison.PrintError              (prettyParseError,
                                                  prettyTypecheckedFile,
@@ -68,6 +70,7 @@ import qualified Unison.Result                  as Result
 import qualified Unison.Referent                as Referent
 import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
+import           Unison.Term                    (Term)
 import qualified Unison.TermPrinter             as TermPrinter
 import qualified Unison.Codebase.TypeEdit       as TypeEdit
 import qualified Unison.Codebase.TermEdit       as TermEdit
@@ -410,8 +413,12 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
             . map Result.TypeError
     putStrLn . showNote $ notes
-  Evaluated names (watches, _term) -> do
-    traverse_ (uncurry $ Watch.watchPrinter names) watches
+  Evaluated fileContents ppe watches ->
+    if null watches then putStrLn ""
+    else
+      putPrettyLn $ P.lines [
+      watchPrinter fileContents ppe ann evald isCacheHit |
+      (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         types    = R.dom $ Branch.typeNamespace branch
@@ -427,11 +434,11 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv unisonFile -> do
+  Typechecked sourceName errorEnv uf -> do
     Console.setTitle "Unison ☺︎"
-    let uf         = UF.discardTerm unisonFile
-        defs       = prettyTypecheckedFile uf errorEnv
-    when (not $ null defs) . putPrettyLn $
+    -- todo: we should just print this the same way as everything else
+    let defs       = prettyTypecheckedFile uf errorEnv
+    when (not $ null defs) . putPrettyLn' . ("\n" <>) $
       P.okCallout $
         P.lines [
           P.wrap (
@@ -596,6 +603,25 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
     ]
+
+watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
+                      -> Term v
+                      -> Runtime.IsCacheHit
+                      -> P.Pretty P.ColorText
+watchPrinter src ppe ann term isHit = P.bracket $ let
+  lines = Text.lines src
+  lineNum = fromMaybe 1 $ startingLine ann
+  lineNumWidth = length (show lineNum)
+  extra = "     " -- for the ` | > ` after the line number
+  line = lines !! (lineNum - 1)
+  in P.lines [
+    fromString (show lineNum) <> " | " <> P.text line,
+    fromString (replicate lineNumWidth ' ')
+      <> fromString extra <> "⧩"
+      <> (if isHit then P.bold " (using cache)" else ""),
+    P.indentN (lineNumWidth + length extra)
+      . P.green . P.map fromString $ TermPrinter.prettyTop ppe term
+  ]
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -933,6 +959,11 @@ putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.border 2 p
+
+putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn' p = do
+  width <- getAvailableWidth
+  putStrLn . P.toANSI width $ P.indentN 2 p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =

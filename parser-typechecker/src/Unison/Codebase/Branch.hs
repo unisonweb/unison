@@ -186,6 +186,13 @@ allNamedTypes = R.ran . typeNamespace
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
+fromTermName :: Name -> Referent -> Branch0
+fromTermName n ref = Branch0 (Namespace terms mempty) mempty R.empty R.empty
+  where terms = R.fromList [(n, ref)]
+
+fromTermNames :: [(Name,Referent)] -> Branch0
+fromTermNames = foldMap (uncurry $ fromTermName)
+
 fromNames :: Names -> Branch0
 fromNames names = Branch0 (Namespace terms types) mempty R.empty R.empty
  where

@@ -75,8 +75,8 @@ instance ShowToken (Token Lexeme) where
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
-      pretty Close = ""
-      pretty t = show t
+      pretty Close = "<outdent>"
+      pretty Semi = "<virtual semicolon>"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -172,7 +172,12 @@ reorder ts = join . sortWith f . stanzas $ ts
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
   let t = tree $ lexer0 scope rem
-  in toList $ reorderTree reorder t
+      -- after reordering can end up with trailing semicolon at the end of
+      -- a block, which we remove with this pass
+      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup [] = []
+      fixup (h : t) = h : fixup t
+  in fixup . toList $ reorderTree reorder t
 
 lexer0 :: String -> String -> [Token Lexeme]
 lexer0 scope rem =
