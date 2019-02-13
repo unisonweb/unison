@@ -45,16 +45,20 @@ fresh m = atomicModifyIORef' (supply m) (\n -> (n + 1, n))
 
 type Size = Int
 
+force :: V -> IO V
+force (Ref _ _ r) = readIORef r >>= force
+force v = pure v
+
 at :: Size -> Z -> Machine -> IO V
 at size i m = case i of
-  Val v -> pure v
+  Val v -> force v
   Slot i -> do
     s <- readIORef (stack m)
     -- the top of the stack is slot 0, at index size - 1
+    force =<< MV.read s (size - i - 1)
+  LazySlot i -> do
+    s <- readIORef (stack m)
     MV.read s (size - i - 1)
-  LazySlot i -> at size (Slot i) m
-    -- let nonce = 42 -- todo: we need to conjure up a unique id here, using some monad
-    -- in Lazy nonce s (m !! fromIntegral i)
 
 ati :: Size -> Z -> Machine -> IO Int64
 ati size i m = at size i m >>= \case
