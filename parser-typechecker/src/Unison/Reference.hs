@@ -16,13 +16,14 @@ module Unison.Reference
    groupByComponent,
    componentFor,
    unsafeFromText,
+   readSuffix,
    showShort) where
 
 import           Control.Monad   (join)
 import           Data.Foldable   (toList)
 import           Data.List
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust)
+import           Data.Maybe      (fromJust, maybe)
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 import           Data.Text       (Text)
@@ -33,6 +34,15 @@ import qualified Unison.ABT      as ABT
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import qualified Unison.Var      as Var
+import           Data.Bytes.Get
+import           Data.Bytes.Put
+import           Data.Bytes.Serial              ( serialize
+                                                , deserialize
+                                                )
+import           Data.Bytes.VarInt              ( VarInt(..) )
+import qualified Data.ByteString.Base58 as Base58
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.ByteString (ByteString)
 
 data Reference
   = Builtin_ Text.Text
@@ -46,7 +56,22 @@ data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 instance Show Id where
   show (Id h 0 1) = show h
-  show (Id h i n) = show h <> "-" <> show i <> "-" <> show n
+  show (Id h i n) = show h <> "." <> showSuffix i n
+
+showSuffix :: Pos -> Size -> String
+showSuffix i n = Text.unpack . encode58 . runPutS $ put where
+  encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
+  put = putLength i >> putLength n
+  putLength = serialize . VarInt
+
+readSuffix :: Text -> Either String (Pos, Size)
+readSuffix t =
+  runGetS get =<< (tagError . decode58) t where
+  tagError = maybe (Left "base58 decoding error") Right
+  decode58 :: Text -> Maybe ByteString
+  decode58 = Base58.decodeBase58 Base58.bitcoinAlphabet . encodeUtf8
+  get = (,) <$> getLength <*> getLength
+  getLength = unVarInt <$> deserialize
 
 pattern Builtin t = Builtin_ t
 pattern Derived h n i = DerivedPrivate_ (Id h n i)
@@ -73,16 +98,19 @@ derivedBase58 b58 i n = DerivedPrivate_ (Id (fromJust h) i n)
 -- Parses Asdf##Foo as Builtin Foo
 -- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
 unsafeFromText :: Text -> Reference
-unsafeFromText t = case Text.split (=='#') t of
-  [_, "", b] -> Builtin b
-  [_, h]     -> case Text.split (=='-') h of
-    [hash]            -> derivedBase58 hash 0 1
-    [hash, pos, size] -> derivedBase58 hash (read . Text.unpack $ pos)
-                                            (read . Text.unpack $ size)
+unsafeFromText = either error id . fromText
+
+-- Parses Asdf##Foo as Builtin Foo
+-- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
+fromText :: Text -> Either String Reference
+fromText t = case Text.split (=='#') t of
+  [_, "", b] -> Right (Builtin b)
+  [_, h]     -> case Text.split (=='.') h of
+    [hash]         -> Right (derivedBase58 hash 0 1)
+    [hash, suffix] -> uncurry (derivedBase58 hash) <$> readSuffix suffix
     _ -> bail
   _ -> bail
-  where bail = error . Text.unpack $ "couldn't parse a Reference from " <> t
-
+  where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
 hashComponents ::
      (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)
