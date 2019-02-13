@@ -103,16 +103,18 @@ run env ir m = go 0 ir where
       RRequest req -> pure $ RRequest (req `appendCont` body)
       RDone v -> push size v m >> go (size + 1) body
       e -> error $ show e
-    LetRec bs body -> do
-      let size' = size + length bs
-      refs <- for bs $ \(v,b) -> do
-        r <- newIORef (N 99)
-        i <- fresh m
-        pure (Ref i v r, b)
-      for_ (refs `zip` [0..]) $ \((r,_), i) -> push (size + i) r m
-      for_ refs $ \(Ref _ _ r,b) -> do
-        let toVal (RDone a) = a
-            toVal e = error ("bindings in a let rec must not have effects " ++ show e)
-        result <- toVal <$> go size' ir
-        writeIORef r result
-      go size' body
+    LetRec bs body -> letrec size bs body
+
+  letrec size bs body = do
+    let size' = size + length bs
+    refs <- for bs $ \(v,b) -> do
+      r <- newIORef (N 99)
+      i <- fresh m
+      pure (Ref i v r, b)
+    for_ (refs `zip` [0..]) $ \((r,_), i) -> push (size + i) r m
+    for_ refs $ \(Ref _ _ r,b) -> do
+      let toVal (RDone a) = a
+          toVal e = error ("bindings in a let rec must not have effects " ++ show e)
+      result <- toVal <$> go size' ir
+      writeIORef r result
+    go size' body
