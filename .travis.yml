@@ -35,6 +35,7 @@ install:
 - travis_wait stack --no-terminal setup
 - travis_wait stack --no-terminal test --only-snapshot
 - travis_wait stack --no-terminal build
+- travis_wait (cd runtime-jvm; sbt compile)
 
 script:
 - stack --no-terminal exec tests
