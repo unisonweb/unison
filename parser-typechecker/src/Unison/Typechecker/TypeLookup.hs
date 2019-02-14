@@ -32,7 +32,7 @@ typeOfReferent tl r = case r of
 constructorType :: TypeLookup v a -> Reference -> Maybe CT.ConstructorType
 constructorType tl r =
   (const CT.Data <$> Map.lookup r (dataDecls tl)) <|>
-  (const CT.Effect <$> Map.lookup r (dataDecls tl))
+  (const CT.Effect <$> Map.lookup r (effectDecls tl))
 
 typeOfDataConstructor :: TypeLookup v a -> Reference -> Int -> Maybe (Type v a)
 typeOfDataConstructor tl r cid = go =<< Map.lookup r (dataDecls tl)
