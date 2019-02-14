@@ -74,6 +74,14 @@ toTypeReference = \case
 unsafeFromText :: Text -> Referent
 unsafeFromText = either error id . fromText
 
+-- examples:
+-- `##Text.take` — builtins don’t have cycles
+-- `##FileIO#3` — builtins can have suffixes, constructor 3
+-- `#2tWjVAuc7` — term ref, no cycle
+-- `#y9ycWkiC1.y9` — term ref, part of cycle
+-- `#cWkiC1x89#1` — constructor
+-- `#DCxrnCAPS.WD#0` — constructor of a type in a cycle
+-- Anything to the left of the first # is ignored.
 fromText :: Text -> Either String Referent
 fromText t = case Text.split (=='#') t of
   [_, "", b]  -> Right $ Ref (R.Builtin b)

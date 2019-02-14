@@ -72,12 +72,14 @@ splitSuffix :: Id -> (String, Maybe String)
 splitSuffix (Id h 0 1) = (show h, Nothing)
 splitSuffix (Id h i n) = (show h, Just ("." <> showSuffix i n))
   where
+    -- todo: remove `n` parameter; must also update readSuffix
     showSuffix :: Pos -> Size -> String
     showSuffix i n = Text.unpack . encode58 . runPutS $ put where
       encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
-      put = putLength i >> putLength n
+      put = putLength i putLength n
       putLength = serialize . VarInt
 
+-- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
 readSuffix t =
   runGetS get =<< (tagError . decode58) t where
@@ -105,13 +107,14 @@ derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
   where
   h = H.fromBase58 b58
 
--- Parses Asdf##Foo as Builtin Foo
--- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
 
--- Parses Asdf##Foo as Builtin Foo
--- Parses Asdf#abc123-1-2 as Derived 'abc123' 1 2
+-- examples:
+-- `##Text.take` — builtins don’t have cycles
+-- `#2tWjVAuc7` — derived, no cycle
+-- `#y9ycWkiC1.y9` — derived, part of cycle
+-- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
 fromText :: Text -> Either String Reference
 fromText t = case Text.split (=='#') t of
   [_, "", b] -> Right (Builtin b)
