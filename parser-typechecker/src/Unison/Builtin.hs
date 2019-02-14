@@ -13,6 +13,7 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.ABT                    as ABT
+import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
@@ -60,8 +61,16 @@ t s = ABT.amap (const Intrinsic) .
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v
-tm s = Names.bindTerm names . either (error . showParseError s) id $
-          Parser.run (Parser.root TermParser.term) s names
+tm s = Names.bindTerm constructorType names
+       . either (error . showParseError s) id
+       $ Parser.run (Parser.root TermParser.term) s names
+
+constructorType :: R.Reference -> CT.ConstructorType
+constructorType r =
+  if any f (builtinDataDecls @Symbol) then CT.Data
+  else if any f (builtinEffectDecls @Symbol) then CT.Effect
+  else error "a builtin term referenced a constructor for a non-builtin type"
+  where f = (==r) . fst . snd
 
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =

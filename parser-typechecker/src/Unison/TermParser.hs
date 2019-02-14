@@ -8,7 +8,6 @@
 module Unison.TermParser where
 
 -- import           Debug.Trace
-import qualified Data.Strings as Strings
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
@@ -35,6 +34,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Names as Names
+import Unison.Names (Names)
 
 import Debug.Trace
 
@@ -79,7 +79,9 @@ match :: Var v => TermP v
 match = do
   start <- reserved "case"
   scrutinee <- term
-  _ <- openBlockWith "of"
+  _ <- P.try (openBlockWith "of") <|> do
+         t <- anyToken
+         P.customFailure (ExpectedBlockOpen "of" t)
   cases <- sepBy1 semi matchCase
   -- TODO: Add error for empty match list
   _ <- closeBlock
@@ -90,7 +92,7 @@ matchCase = do
   (p, boundVars) <- parsePattern
   guard <- optional $ reserved "|" *> infixApp
   t <- block "->"
-  pure . Term.MatchCase p guard $ ABT.absChain' boundVars t
+  pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = constructor <|> leaf
@@ -324,32 +326,58 @@ importp = do
 --  op m = case m of Monoid
 
 data BlockElement v
-  = Binding (Maybe String) ((Ann, v), AnnotatedTerm v Ann)
-  | Action (Maybe String) (AnnotatedTerm v Ann)
+  = Binding ((Ann, v), AnnotatedTerm v Ann)
+  | Action (AnnotatedTerm v Ann)
   | Namespace String [BlockElement v]
 
 namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
   name <- wordyId
-  let statement = (Binding <$> watched <*> binding) <|> namespaceBlock
+  let statement = (Binding <$> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
   pure $ Namespace (L.payload name) elems
 
-watched :: Var v => P v (Maybe String)
-watched = (P.try $ do
-  op <- optional (L.payload <$> P.lookAhead symbolyId)
-  guard (op == Just ">")
-  (curLine, lineContents) <- currentLine
-  _ <- anyToken -- consume the '>' token
-  let lineNote = Strings.strPadLeft ' ' 5 (show curLine) ++ " | " ++ lineContents
-  pure (Just lineNote)) <|> pure Nothing
+toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
+toBindings b = let
+  expand (Binding ((a, v), e)) = [((a, Just v), e)]
+  expand (Action e) = [((ann e, Nothing), e)]
+  expand (Namespace name bs) = scope name $ expand =<< bs
+  v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
+  finishBindings bs =
+    [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
+
+  scope :: String -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
+                  -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
+  scope name bs = let
+    vs :: [Maybe v]
+    vs = (snd . fst) <$> bs
+    prefix :: v -> v
+    prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
+    vs' :: [Maybe v]
+    vs' = fmap prefix <$> vs
+    substs = [ (v, Term.var () v') | (Just v, Just v') <- vs `zip` vs' ]
+    sub e = ABT.substsInheritAnnotation substs e
+    in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
+  in finishBindings (expand =<< b)
 
 topLevelBlock
   :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 topLevelBlock = block' True
+
+imports :: Var v => P v (Names, AnnotatedTerm v Ann -> AnnotatedTerm v Ann)
+imports = do
+  let sem = P.try (semi <* P.lookAhead (reserved "use"))
+  imported <- mconcat . reverse <$> sepBy sem importp
+  env <- Names.importing imported <$> ask
+  let
+    importTerms = [ (n, Term.var() qn) | (n,qn) <- imported ]
+    substImports tm =
+      ABT.substsInheritAnnotation importTerms .
+      Term.typeMap (Names.bindType env) $ tm
+  pure (env, substImports)
 
 block'
   :: forall v b
@@ -361,66 +389,38 @@ block'
   -> TermP v
 block' isTop s openBlock closeBlock = do
     open <- openBlock
-    let sem = P.try (semi <* P.lookAhead (reserved "use"))
-    imports <- mconcat . reverse <$> sepBy sem importp
+    (env, substImports) <- imports
     _ <- optional semi
-    env <- Names.importing imports <$> ask
     statements <- local (const env) $ sepBy semi statement
     _ <- closeBlock
-    let
-      importTerms = [ (n, Term.var() qn) | (n,qn) <- imports ]
-      substImports tm =
-        ABT.substsInheritAnnotation importTerms .
-        Term.typeMap (Names.bindType env) $ tm
     substImports <$> go open statements
   where
-    statement = namespaceBlock <|> do
-      w <- watched
-      asum [ Binding w <$> binding, Action w <$> blockTerm ]
-    toBindings (Binding w ((a, v), e)) = [((a, Just v), Term.watchMaybe w e)]
-    toBindings (Action w e) = [((ann e, Nothing), Term.watchMaybe w e)]
-    toBindings (Namespace name bs) = scope name $ (toBindings =<< bs)
-    v `orBlank` i = fromMaybe (Var.nameds $ "_" ++ show i) v
-    finishBindings bs =
-      [((a, v `orBlank` i), e) | (((a,v), e), i) <- bs `zip` [(1::Int)..]]
-
-    scope :: String -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
-                    -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
-    scope name bs =
-      let vs :: [Maybe v]
-          vs = (snd . fst) <$> bs
-          prefix :: v -> v
-          prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
-          vs' :: [Maybe v]
-          vs' = fmap prefix <$> vs
-          substs = [ (v, Term.var () v') | (Just v, Just v') <- vs `zip` vs' ]
-          sub e = ABT.substsInheritAnnotation substs e
-      in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
-
+    statement = namespaceBlock <|>
+      asum [ Binding <$> binding, Action <$> blockTerm ]
     go :: L.Token () -> [BlockElement v] -> P v (AnnotatedTerm v Ann)
     go open bs
       = let
-          startAnnotation = (fst . fst . head $ toBindings =<< bs)
-          endAnnotation   = (fst . fst . last $ toBindings =<< bs)
+          startAnnotation = (fst . fst . head $ toBindings bs)
+          endAnnotation   = (fst . fst . last $ toBindings bs)
         in
           case reverse bs of
             Namespace _v _ : _ -> pure $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
-              (finishBindings $ toBindings =<< bs)
+              (toBindings bs)
               (Term.var endAnnotation
                         (positionalVar endAnnotation Var.missingResult)
               )
-            Binding _watchNote ((a, _v), _) : _ -> pure $ Term.letRec
+            Binding ((a, _v), _) : _ -> pure $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
-              (finishBindings $ toBindings =<< bs)
+              (toBindings bs)
               (Term.var a (positionalVar endAnnotation Var.missingResult))
-            Action watchNote e : bs -> pure $ Term.letRec
+            Action e : bs -> pure $ Term.letRec
               isTop
               (startAnnotation <> ann e)
-              (finishBindings $ toBindings =<< reverse bs)
-              (Term.watchMaybe watchNote e)
+              (toBindings $ reverse bs)
+              e
             [] -> customFailure $ EmptyBlock (const s <$> open)
 
 number :: Var v => TermP v

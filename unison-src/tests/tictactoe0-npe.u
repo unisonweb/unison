@@ -13,5 +13,5 @@ x = 1
 y = 2
 z = 3
 
-case b of
+ex = case b of
   Board a b c d e f g h i -> a

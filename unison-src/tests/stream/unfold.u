@@ -1,8 +1,8 @@
 (+) = (Int.+)
 (/) = (Int./)
 (<) = (Int.<)
-Stream.toSequence
-  (Stream.take 5
+
+> Stream.toSequence (Stream.take 5
     (Stream.unfold
       (b ->
         if b < +1

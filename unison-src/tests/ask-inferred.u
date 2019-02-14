@@ -21,5 +21,3 @@ y = '(!x)
 
 y2 : '{Ask Nat, AskU} Nat
 y2 = x2
-
-()

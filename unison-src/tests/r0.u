@@ -1,4 +1,5 @@
 r0 : Nat
 r0 = case Optional.Some 3 of
   x -> 1
-42
+
+> r0

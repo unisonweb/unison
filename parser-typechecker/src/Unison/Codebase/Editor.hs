@@ -76,7 +76,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
@@ -189,8 +189,8 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated Names ([(Text, Term v ())], Term v ())
-  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile' v Ann)
+  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v (), Runtime.IsCacheHit))
+  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
@@ -198,6 +198,7 @@ data Output v
   | TodoOutput Branch (TodoOutput v Ann)
   deriving (Show)
 
+type SourceFileContents = Text
 type Score = Int
 
 data TodoOutput v a
@@ -258,11 +259,26 @@ data Command i v a where
             -> Source
             -> Command i v (TypecheckingResult v)
 
-  -- Evaluate a UnisonFile and return the result and the result of
-  -- any watched expressions (which are just labeled with `Text`)
+  -- Evaluate all watched expressions in a UnisonFile and return
+  -- their results, keyed by the name of the watch variable. The tuple returned
+  -- has the form:
+  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+  --
+  -- where
+  --   `hash` is the hash of the original watch expression definition
+  --   `ann` gives the location of the watch expression
+  --   `sourceTerm` is a closed term (no free vars) for the watch expression
+  --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
+  --   `isCacheHit` is True if the result was computed by just looking up
+  --   in a cache
+  --
+  -- It's expected that the user of this action might add the
+  -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
+  -- of the same watches instantaneous.
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v ([(Text, Term v ())], Term v ())
+           -> Command i v (Map v
+                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
   -- option 1:
@@ -391,7 +407,6 @@ outcomes okToUpdate b file = let
               -- note - it doesn't count as a collision if the name
               -- collision is on a ctor of the type we're replacing
               -- of the type we will be replacing
-              Referent.Req r _ -> if r == oldref then [] else [r2]
               Referent.Con r _ -> if r == oldref then [] else [r2]
             in if null conflicted then (r0, Updated)
                else (r0, ConstructorExistingTermCollision conflicted)
@@ -597,7 +612,6 @@ collateReferences terms types =
   let terms' = [ r | Referent.Ref r <- terms ]
       types' = terms >>= \case
         Referent.Con r _ -> [r]
-        Referent.Req r _ -> [r]
         _                -> []
   in  (terms', nubOrd $ types' <> types)
 
@@ -624,10 +638,14 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
-      selfContained <- Codebase.makeSelfContained codebase
-                                                  (Branch.head branch)
-                                                  unisonFile
-      Runtime.evaluate rt selfContained codebase
+      let codeLookup = Codebase.toCodeLookup codebase
+
+      selfContained <- Codebase.makeSelfContained'
+        codeLookup
+        (Branch.head branch)
+        unisonFile
+      let noCache = const (pure Nothing)
+      Runtime.evaluateWatches codeLookup noCache rt selfContained
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName

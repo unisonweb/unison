@@ -4,6 +4,7 @@ module Unison.Codecs where
 
 -- A format for encoding runtime values, with sharing for compiled nodes.
 
+-- import Debug.Trace
 import Data.Text (Text)
 import           Control.Arrow (second)
 import           Control.Monad.State
@@ -27,6 +28,7 @@ import           Unison.Reference (Reference, pattern Builtin, pattern Derived)
 import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
+import qualified Unison.UnisonFile as UF
 import           Unison.Var
 import qualified Unison.Var as Var
 import Unison.PatternP (Pattern)
@@ -296,11 +298,14 @@ serializeConstructorArities r constructorArities = do
   serializeFoldable (putWord32be . fromIntegral) constructorArities
 
 serializeFile
-  :: (MonadPut m, MonadState Pos m, Var v) => UnisonFile v a -> m ()
-serializeFile (UnisonFile dataDecls effectDecls body) = do
+  :: (MonadPut m, MonadState Pos m, Monoid a, Var v)
+  => UnisonFile v a -> AnnotatedTerm v a -> m ()
+serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
+  let body = UF.uberTerm' uf tm
   let dataDecls' = second DD.constructorArities <$> toList dataDecls
   let effectDecls' =
         second (DD.constructorArities . DD.toDataDecl) <$> toList effectDecls
+  -- traceM $ show effectDecls'
   serializeFoldable (uncurry serializeConstructorArities) dataDecls'
   serializeFoldable (uncurry serializeConstructorArities) effectDecls'
   -- NB: we rewrite the term to minimize away let rec cycles, as let rec

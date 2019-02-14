@@ -56,8 +56,7 @@ typeName :: PrettyPrintEnv -> Reference -> HashQualified
 typeName env r = fromMaybe (HQ.fromReferent (Referent.Ref r)) (types env r)
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
-patternName env r cid = fromMaybe (HQ.fromReferent (Referent.Con r cid)) $
-  terms env (Referent.Con r cid) <|> terms env (Referent.Req r cid)
-  -- arbitrarily pick Con because it is only used to determine how to render
-  -- the referent as text. We haven't chosen any rendering distinction between
-  -- Req and Con.
+patternName env r cid =
+  case terms env (Referent.Con r cid) of
+    Just name -> name
+    Nothing -> HQ.fromReferent (Referent.Con r cid)

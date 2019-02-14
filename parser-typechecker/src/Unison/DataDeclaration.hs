@@ -124,7 +124,7 @@ dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
 effectDeclToNames typeSymbol r ed =
-  toNames0 typeSymbol r Referent.Req $ toDataDecl ed
+  toNames0 typeSymbol r Referent.Con $ toDataDecl ed
 
 dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d

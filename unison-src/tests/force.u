@@ -6,4 +6,4 @@ force a = !a
 ex : '{Woot} Text
 ex = '(force 'Woot.woot)
 
-ex
+> ex

@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 
 module Unison.Referent where
@@ -24,7 +25,7 @@ import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Safe                   (readMay)
 
 
-data Referent = Ref Reference | Req Reference Int | Con Reference Int
+data Referent = Ref Reference | Con Reference Int
   deriving (Show, Ord, Eq)
 
 type Pos = Word64
@@ -38,29 +39,24 @@ showShort :: Int -> Referent -> String
 showShort numHashChars r = case r of
   Ref r     -> R.showShort numHashChars r
   Con r cid -> R.showShort numHashChars r <> "#" <> show cid
-  Req r cid -> R.showShort numHashChars r <> "#" <> show cid
 
 toString :: Referent -> String
 toString = \case
   Ref r     -> show r
   Con r cid -> show r <> "#" <> show cid
-  Req r cid -> show r <> "#" <> show cid
 
 
 isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True
-isConstructor (Req _ _) = True
 isConstructor _         = False
 
 toReference :: Referent -> Reference
 toReference = \case
   Ref r -> r
-  Req r _i -> r
   Con r _i -> r
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case
-  Req r _i -> Just r
   Con r _i -> Just r
   _ -> Nothing
 
@@ -76,10 +72,6 @@ fromText t = case Text.split (=='#') t of
   [_, h, c]   ->
     Con <$> getId h
         <*> fromMaybe (Left "couldn't parse cid") (readMay (Text.unpack c))
-
-    -- [hash, suffix, con] -> readSuffix suffix >>= \case
-    --   (pos, size, True) ->  Req (R.derivedBase58 hash pos size) (read . Text.unpack $ c)
-    --   (pos, size, False) -> Con (R.derivedBase58 hash) pos size
   _ -> bail
   where
   getId h = case Text.split (=='.') h of
@@ -88,31 +80,23 @@ fromText t = case Text.split (=='#') t of
     _              -> bail
   bail = Left . Text.unpack $ "couldn't parse a Referent from " <> t
 
-showSuffix :: Pos -> Size -> IsAbility -> String
-showSuffix i n isAbility = Text.unpack . encode58 . runPutS $ put where
+showSuffix :: Pos -> Size -> String
+showSuffix i n = Text.unpack . encode58 . runPutS $ put where
   encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
-  put = putLength i >> putLength n >> putBoolean isAbility
+  put = putLength i >> putLength n
   putLength = serialize . VarInt
-  putBoolean False = putWord8 0
-  putBoolean True  = putWord8 1
 
 
-readSuffix' :: Text -> Either String (Pos, Size, IsAbility)
+readSuffix' :: Text -> Either String (Pos, Size)
 readSuffix' t =
   runGetS get =<< (tagError . decode58) t where
   tagError = maybe (Left "base58 decoding error") Right
   decode58 :: Text -> Maybe ByteString
   decode58 = Base58.decodeBase58 Base58.bitcoinAlphabet . encodeUtf8
-  get = (,,) <$> getLength <*> getLength <*> getBoolean
+  get = (,) <$> getLength <*> getLength
   getLength = unVarInt <$> deserialize
-  getBoolean = go =<< getWord8 where
-    go 0 = pure False
-    go 1 = pure True
-    go t = fail ("unknown tag " <> show t <> " reading Referent suffix")
-      -- don't fail here
 
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r
-  tokens (Req r i) = [H.Tag 1] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
   tokens (Con r i) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)

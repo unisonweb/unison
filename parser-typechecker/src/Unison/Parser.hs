@@ -41,6 +41,7 @@ data Error v
   | EmptyBlock (L.Token String)
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
+  | ExpectedBlockOpen String (L.Token L.Lexeme)
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -48,6 +49,14 @@ data Ann
   | External
   | Ann { start :: L.Pos, end :: L.Pos }
   deriving (Eq, Ord, Show)
+
+startingLine :: Ann -> Maybe L.Line
+startingLine (Ann (L.line -> line) _) = Just line
+startingLine _ = Nothing
+
+endingLine :: Ann -> Maybe L.Line
+endingLine (Ann _ (L.line -> line)) = Just line
+endingLine _ = Nothing
 
 instance Monoid Ann where
   mempty = External

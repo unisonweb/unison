@@ -9,6 +9,7 @@ module Unison.Util.Pretty (
    ColorText,
    align,
    bulleted,
+   bracket,
    -- breakable
    callout,
    warnCallout, fatalCallout, okCallout,
@@ -401,6 +402,10 @@ border n p = "\n" <> indentN n p <> "\n"
 callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 callout header p =
   lines ["┌\n" <> indent ("│  ") (header <> "\n\n" <> p), "└"]
+
+bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
+bracket p =
+  lines ["┌\n" <> indent ("│  ") p, "└"]
 
 warnCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

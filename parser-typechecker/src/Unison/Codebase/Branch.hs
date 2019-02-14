@@ -186,6 +186,13 @@ allNamedTypes = R.ran . typeNamespace
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
+fromTermName :: Name -> Referent -> Branch0
+fromTermName n ref = Branch0 (Namespace terms mempty) mempty R.empty R.empty
+  where terms = R.fromList [(n, ref)]
+
+fromTermNames :: [(Name,Referent)] -> Branch0
+fromTermNames = foldMap (uncurry $ fromTermName)
+
 fromNames :: Names -> Branch0
 fromNames names = Branch0 (Namespace terms types) mempty R.empty R.empty
  where
@@ -572,8 +579,6 @@ fromTypecheckedFile file =
     ctors = Map.toList $ UF.hashConstructors file
     conNamespace =
       R.fromList [ (toName v, r) | (v, r@(Referent.Con _ _)) <- ctors ]
-    reqNamespace =
-      R.fromList [ (toName v, r) | (v, r@(Referent.Req _ _)) <- ctors ]
     termNamespace1 = R.fromList
       [ (toName v, Referent.Ref r) | (v, (r, _, _)) <- Map.toList hashedTerms ]
     typeNamespace1 = R.fromList
@@ -585,7 +590,7 @@ fromTypecheckedFile file =
   in
     Branch0
       (Namespace
-        (termNamespace1 `R.union` conNamespace `R.union` reqNamespace)
+        (termNamespace1 `R.union` conNamespace)
         (typeNamespace1 `R.union` typeNamespace2)
       )
       mempty
@@ -672,7 +677,6 @@ replaceType old new b
   where
     isMatch r = case r of
       Referent.Con r _ -> r == old
-      Referent.Req r _ -> r == old
       _ -> False
 
 -- insertNames :: Monad m

@@ -18,5 +18,5 @@ effect State se2 where
   put : ∀ se . se -> {State se} ()
   get : ∀ se . {State se} se
 
-()
+
 

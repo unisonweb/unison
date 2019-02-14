@@ -10,9 +10,11 @@ import           Data.Bifunctor   (first)
 import           Data.List        (foldl')
 import           Data.Map         (Map)
 import qualified Data.Map         as Map
+import qualified Data.Set         as Set
 import           Data.String      (fromString)
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
+import           Unison.ConstructorType (ConstructorType)
 import           Unison.Reference (pattern Builtin, Reference)
 import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
@@ -37,6 +39,11 @@ data Names = Names
 
 data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
 
+subtractTerms :: Var v => [v] -> Names -> Names
+subtractTerms vs n = let
+  taken = Set.fromList (Name.unsafeFromVar <$> vs)
+  in n { termNames = Map.withoutKeys (termNames n) taken }
+
 renderNameTarget :: NameTarget -> String
 renderNameTarget = \case
   TermName -> "term"
@@ -48,9 +55,6 @@ instance Show Names where
   show (Names es ts) =
     "terms: " ++ show (es) ++ "\n" ++
     "types: " ++ show (ts)
-
-lookupTerm :: Ord v => a -> Names -> Name -> Maybe (AnnotatedTerm v a)
-lookupTerm a ns n = Term.fromReferent a <$> Map.lookup n (termNames ns)
 
 lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
@@ -80,7 +84,6 @@ patternNameds ns s = patternNamed ns (fromString s)
 
 patternNamed :: Names -> Name -> Maybe (Reference, Int)
 patternNamed ns n = Map.lookup n (termNames ns) >>= \case
-  Referent.Req r cid -> Just (r, cid)
   Referent.Con r cid -> Just (r, cid)
   _ -> Nothing
 
@@ -89,12 +92,15 @@ bindType ns t = Type.bindBuiltins typeNames' t
   where
   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm
-  :: forall v a . Var v => Names -> AnnotatedTerm v a -> AnnotatedTerm v a
-bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
+bindTerm :: forall v a . Var v
+         => (Reference -> ConstructorType)
+         -> Names
+         -> AnnotatedTerm v a
+         -> AnnotatedTerm v a
+bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
  where
   termBuiltins =
-    [ (Name.toVar v, Term.fromReferent() e) | (v, e) <- Map.toList (termNames ns) ]
+    [ (Name.toVar v, Term.fromReferent ctorType () e) | (v, e) <- Map.toList (termNames ns) ]
   typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
 

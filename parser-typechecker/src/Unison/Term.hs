@@ -45,6 +45,7 @@ import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
+import qualified Unison.ConstructorType as CT
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -286,6 +287,9 @@ tupleCons :: (Ord v, Semigroup a)
           -> AnnotatedTerm2 vt at ap v a
 tupleCons hd tl =
   apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
+
+tuple :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
+tuple = foldr tupleCons (unit mempty)
 
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
@@ -700,91 +704,16 @@ hashConstructor = hashConstructor' $ constructor ()
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
 
-fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-fromReferent a = \case
+fromReferent :: Ord v
+             => (Reference -> CT.ConstructorType)
+             -> a
+             -> Referent
+             -> AnnotatedTerm2 vt at ap v a
+fromReferent ct a = \case
   Referent.Ref r -> ref a r
-  Referent.Req r i -> request a r i
-  Referent.Con r i -> constructor a r i
-
-toReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
-toReferent t = case t of
-  Ref' r           -> Just $ Referent.Ref r
-  Request' r i     -> Just $ Referent.Req r i
-  Constructor' r i -> Just $ Referent.Con r i
-  _                -> Nothing
-
-anf :: ∀ vt at v a . (Semigroup a, Var v)
-    => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
-anf t = go t
- where
-  ann = ABT.annotation
-  isVar (Var' _) = True
-  isVar _        = False
-  isClosedLam t@(LamNamed' _ _) | Set.null (ABT.freeVars t) = True
-  isClosedLam _ = False
-  fixAp t f args =
-    let args' = Map.fromList $ toVar =<< (args `zip` [0 ..])
-        toVar (b, i)
-          | isVar b
-          = []
-          | otherwise
-          = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
-        argsANF = map toANF (args `zip` [0 ..])
-        toANF (b, i) = maybe b (var (ann b)) $ Map.lookup i args'
-        addLet (b, i) body =
-          maybe body (\v -> let1' False [(v, go b)] body) (Map.lookup i args')
-    in  foldr addLet (apps' f argsANF) (args `zip` [(0 :: Int) ..])
-  go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
-  go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args
-   where
-    ap vs       body  []           = lam' (ann f) vs body
-    ap (v : vs) body  (arg : args) = let1' False [(v, arg)] $ ap vs body args
-    ap []       _body _args        = error "type error"
-  go t@(Apps' f args)
-    | isVar f
-    = fixAp t f args
-    | otherwise
-    = let fv' = ABT.fresh t (Var.named "f")
-      in  let1' False [(fv', anf f)] (fixAp t (var (ann f) fv') args)
-  go e@(Handle' h body)
-    | isVar h
-    = handle (ann e) h (go body)
-    | otherwise
-    = let h' = ABT.fresh e (Var.named "handler")
-      in  let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
-  go e@(If' cond t f)
-    | isVar cond
-    = iff (ann e) cond (go t) (go f)
-    | otherwise
-    = let cond' = ABT.fresh e (Var.named "cond")
-      in  let1' False
-                [(cond', anf cond)]
-                (iff (ann e) (var (ann cond) cond') t f)
-  go e@(Match' scrutinee cases)
-    | isVar scrutinee
-    = match (ann e) scrutinee (fmap go <$> cases)
-    | otherwise
-    = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-      in  let1' False
-                [(scrutinee', go scrutinee)]
-                (match (ann e) (var (ann scrutinee) scrutinee') cases)
-  go e@(And' x y)
-    | isVar x
-    = and (ann e) x (go y)
-    | otherwise
-    = let x' = ABT.fresh e (Var.named "argX")
-      in  let1' False [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
-  go e@(Or' x y)
-    | isVar x
-    = or (ann e) x (go y)
-    | otherwise
-    = let x' = ABT.fresh e (Var.named "argX")
-      in  let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))
-  go e@(ABT.Tm'  f               ) = ABT.tm' (ann e) (go <$> f)
-  go e@(ABT.Var' _               ) = e
-  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
-  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
-  go e                             = e
+  Referent.Con r i -> case ct r of
+    CT.Data -> constructor a r i
+    CT.Effect -> request a r i
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e
@@ -931,4 +860,3 @@ instance (Var v, Show a) => Show (F v a0 p a) where
       showParen (p > 0) $ s "or " <> showsPrec 0 x <> s " " <> showsPrec 0 y
     (<>) = (.)
     s    = showString
-
