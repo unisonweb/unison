@@ -76,7 +76,7 @@ splitSuffix (Id h i n) = (show h, Just ("." <> showSuffix i n))
     showSuffix :: Pos -> Size -> String
     showSuffix i n = Text.unpack . encode58 . runPutS $ put where
       encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
-      put = putLength i putLength n
+      put = putLength i >> putLength n
       putLength = serialize . VarInt
 
 -- todo: don't read or return size; must also update showSuffix and fromText
