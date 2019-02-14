@@ -269,7 +269,8 @@ typeDirectedNameResolution oldNotes oldType env = do
                               replacement
               constructorType :: Reference -> CT.ConstructorType
               constructorType =
-                fromMaybe (error "unknown constructor type in substSuggestion") . TL.constructorType (view typeLookup env)
+                fromMaybe (error "no constructor type in substSuggestion")
+                  . TL.constructorType (view typeLookup env)
 
   substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
