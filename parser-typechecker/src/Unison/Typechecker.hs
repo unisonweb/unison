@@ -26,14 +26,16 @@ import           Data.Foldable              (for_, toList, traverse_)
 import           Data.List                  (nub)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, isJust, maybeToList)
+import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
 import           Data.Sequence              (Seq)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
+import qualified Unison.ConstructorType     as CT
 -- import           Unison.Name                (Name)
 -- import qualified Unison.Name                as Name
+import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
@@ -262,7 +264,13 @@ typeDirectedNameResolution oldNotes oldType env = do
     do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
-        where solved = either (Term.var loc) (Term.fromReferent loc) replacement
+        where solved = either (Term.var loc)
+                              (Term.fromReferent constructorType loc)
+                              replacement
+              constructorType :: Reference -> CT.ConstructorType
+              constructorType =
+                fromMaybe (error "unknown constructor type in substSuggestion") . TL.constructorType (view typeLookup env)
+
   substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc

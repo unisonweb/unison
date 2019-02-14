@@ -11,10 +11,11 @@ import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe             (catMaybes)
+import           Data.Maybe             (catMaybes, fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Data.Text              as Text
+import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
@@ -183,11 +184,16 @@ bindBuiltins :: Var v
              => Names
              -> UnisonFile v a
              -> UnisonFile v a
-bindBuiltins names (UnisonFile d e t) =
+bindBuiltins names uf@(UnisonFile d e t) =
   UnisonFile
     (second (DD.bindBuiltins names) <$> d)
     (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
-    (Names.bindTerm names t)
+    (Names.bindTerm (errMsg . constructorType uf) names t)
+  where errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
+
+constructorType ::
+  Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
+constructorType = TL.constructorType . declsToTypeLookup
 
 filterVars
   :: Var v

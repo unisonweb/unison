@@ -13,6 +13,7 @@ import qualified Data.Map         as Map
 import           Data.String      (fromString)
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
+import           Unison.ConstructorType (ConstructorType)
 import           Unison.Reference (pattern Builtin, Reference)
 import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
@@ -86,11 +87,11 @@ bindType ns t = Type.bindBuiltins typeNames' t
   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
 bindTerm
-  :: forall v a . Var v => Names -> AnnotatedTerm v a -> AnnotatedTerm v a
-bindTerm ns e = Term.bindBuiltins termBuiltins typeBuiltins e
+  :: forall v a . Var v => (Reference -> ConstructorType) -> Names -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
  where
   termBuiltins =
-    [ (Name.toVar v, Term.fromReferent() e) | (v, e) <- Map.toList (termNames ns) ]
+    [ (Name.toVar v, Term.fromReferent ctorType () e) | (v, e) <- Map.toList (termNames ns) ]
   typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
 

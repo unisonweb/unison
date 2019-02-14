@@ -45,6 +45,7 @@ import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
+import qualified Unison.ConstructorType as CT
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -678,11 +679,14 @@ hashRequest = hashConstructor' $ request ()
 --    Typechecker.substSuggestion; a referent is suggested based on a name
 --      Could we get around this by going directly from name to type?
 
-fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-fromReferent a = \case
+fromReferent ::
+  Ord v => (Reference -> CT.ConstructorType)
+        -> a -> Referent -> AnnotatedTerm2 vt at ap v a
+fromReferent ct a = \case
   Referent.Ref r -> ref a r
-  Referent.Req r i -> request a r i
-  Referent.Con r i -> constructor a r i
+  Referent.Con r i -> case ct r of
+    CT.Data -> constructor a r i
+    CT.Effect -> request a r i
 
 anf :: ∀ vt at v a . (Semigroup a, Var v)
     => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a

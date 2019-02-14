@@ -11,6 +11,7 @@ import Control.Monad.Writer (tell)
 import           Data.Bytes.Put             (runPutS)
 import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
+import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import Data.Set (Set)
@@ -111,7 +112,8 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
     allTheNames = localNames <> preexistingNames
-    term = Names.bindTerm allTheNames term0
+    ctorType r = fromMaybe (error $"unknown constructor type for " <> show r <> "in synthesizeFile") (TL.constructorType (localTypes <> preexistingTypes) r)
+    term = Names.bindTerm ctorType allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
     lookupTypes = localTypes <> preexistingTypes
