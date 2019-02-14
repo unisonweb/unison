@@ -56,7 +56,7 @@ module Unison.Test.FileParser where
   builtins :: Names
   builtins = Names.fromTerms
     [ ("Pair"     , Referent.Con (R.Builtin "Pair") 0)
-    , ("State.set", Referent.Req (R.Builtin "State") 0)
+    , ("State.set", Referent.Con (R.Builtin "State") 0)
     ]
 
   parses :: String -> Test ()

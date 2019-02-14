@@ -11,9 +11,10 @@ import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe             (catMaybes)
+import           Data.Maybe             (catMaybes, fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
+import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
@@ -139,7 +140,7 @@ hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
         [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Req ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 hashTerms ::
@@ -160,14 +161,20 @@ bindBuiltins :: Var v
              => Names
              -> UnisonFile v a
              -> UnisonFile v a
-bindBuiltins names (UnisonFile d e ts ws) = let
+bindBuiltins names uf@(UnisonFile d e ts ws) = let
   vs = (fst <$> ts) ++ (fst <$> ws)
   names' = Names.subtractTerms vs names
+  ct = errMsg . constructorType uf
+  errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
   in UnisonFile
-    (second (DD.bindBuiltins names) <$> d)
-    (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
-    (second (Names.bindTerm names') <$> ts)
-    (second (Names.bindTerm names') <$> ws)
+      (second (DD.bindBuiltins names) <$> d)
+      (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
+      (second (Names.bindTerm ct names') <$> ts)
+      (second (Names.bindTerm ct names') <$> ws)
+
+constructorType ::
+  Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
+constructorType = TL.constructorType . declsToTypeLookup
 
 filterVars
   :: Var v

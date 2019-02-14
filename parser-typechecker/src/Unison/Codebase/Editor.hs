@@ -407,7 +407,6 @@ outcomes okToUpdate b file = let
               -- note - it doesn't count as a collision if the name
               -- collision is on a ctor of the type we're replacing
               -- of the type we will be replacing
-              Referent.Req r _ -> if r == oldref then [] else [r2]
               Referent.Con r _ -> if r == oldref then [] else [r2]
             in if null conflicted then (r0, Updated)
                else (r0, ConstructorExistingTermCollision conflicted)
@@ -613,7 +612,6 @@ collateReferences terms types =
   let terms' = [ r | Referent.Ref r <- terms ]
       types' = terms >>= \case
         Referent.Con r _ -> [r]
-        Referent.Req r _ -> [r]
         _                -> []
   in  (terms', nubOrd $ types' <> types)
 

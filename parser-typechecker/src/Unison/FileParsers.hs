@@ -9,6 +9,7 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
 import qualified Data.Foldable              as Foldable
+import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import Data.List (partition)
@@ -110,7 +111,11 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
     allTheNames = localNames <> preexistingNames
-    term = Names.bindTerm allTheNames term0
+    ctorType r =
+      fromMaybe
+        (error $ "no constructor type in synthesizeFile for " <> show r)
+        (TL.constructorType (localTypes <> preexistingTypes) r)
+    term = Names.bindTerm ctorType allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
     lookupTypes = localTypes <> preexistingTypes

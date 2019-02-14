@@ -45,6 +45,7 @@ import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
+import qualified Unison.ConstructorType as CT
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -703,18 +704,16 @@ hashConstructor = hashConstructor' $ constructor ()
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
 
-fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-fromReferent a = \case
+fromReferent :: Ord v
+             => (Reference -> CT.ConstructorType)
+             -> a
+             -> Referent
+             -> AnnotatedTerm2 vt at ap v a
+fromReferent ct a = \case
   Referent.Ref r -> ref a r
-  Referent.Req r i -> request a r i
-  Referent.Con r i -> constructor a r i
-
-toReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
-toReferent t = case t of
-  Ref' r           -> Just $ Referent.Ref r
-  Request' r i     -> Just $ Referent.Req r i
-  Constructor' r i -> Just $ Referent.Con r i
-  _                -> Nothing
+  Referent.Con r i -> case ct r of
+    CT.Data -> constructor a r i
+    CT.Effect -> request a r i
 
 instance Var v => Hashable1 (F v a p) where
   hash1 hashCycle hash e
@@ -861,4 +860,3 @@ instance (Var v, Show a) => Show (F v a0 p a) where
       showParen (p > 0) $ s "or " <> showsPrec 0 x <> s " " <> showsPrec 0 y
     (<>) = (.)
     s    = showString
-

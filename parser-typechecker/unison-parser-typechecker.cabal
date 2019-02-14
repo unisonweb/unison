@@ -54,6 +54,7 @@ library
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.ConstructorType
     Unison.DataDeclaration
     Unison.FileParser
     Unison.FileParsers
