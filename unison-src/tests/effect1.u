@@ -7,5 +7,5 @@ eff f z e = case e of
 effect Abort where
   Abort : forall a . () -> {Abort} a
 
-()
+
 

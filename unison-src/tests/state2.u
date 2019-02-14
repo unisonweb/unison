@@ -7,5 +7,6 @@ state woot eff = case eff of
   { State.get () -> k } -> handle (state woot) in (k woot)
   { State.put snew -> k } -> handle (state snew) in (k ())
   { a } -> (woot, a)
-()
+
+> ()
 

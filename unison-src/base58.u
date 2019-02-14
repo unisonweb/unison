@@ -59,4 +59,4 @@ base58Encode ws =
 base58Decode : Text -> Words
 base58Decode txt = _
 
-()
+

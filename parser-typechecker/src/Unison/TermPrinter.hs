@@ -18,6 +18,7 @@ import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 import           Unison.NamePrinter             ( prettyHashQualified )
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
@@ -114,6 +115,9 @@ data InfixContext
        { Eff 10p 10q ... -> 0k }
 
 -}
+
+prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty String
+prettyTop env = pretty env (ac (-1) Normal)
 
 pretty
   :: Var v
@@ -417,7 +421,7 @@ isSymbolic (HQ.HashQualified name _) = isSymbolic' name
 isSymbolic (HQ.HashOnly _) = False
 
 isSymbolic' :: Name -> Bool
-isSymbolic' name = case symbolyId . show $ name of
+isSymbolic' name = case symbolyId . Name.toString $ name of
   Right _ -> True
   _       -> False
 

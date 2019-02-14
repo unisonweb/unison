@@ -34,4 +34,4 @@ woot4-usage2 =
     Foo.Foo (x + x)
   woot4 foo
 
-woot4-usage2
+> woot4-usage2

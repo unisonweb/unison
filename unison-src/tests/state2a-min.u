@@ -14,4 +14,4 @@ ex = handle (state 10) in
   "hello"
 
 -- returns () for some reason!!!
-ex
+> ex

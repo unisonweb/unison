@@ -12,4 +12,4 @@ state woot eff = case eff of
 blah : ∀ s a . s -> Effect (State s) a -> (s, a)
 blah = state
 
-()
+> ()

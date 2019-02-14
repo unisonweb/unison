@@ -51,6 +51,10 @@ test = scope "lexer" . tests $
   , t "if x then else" [Open "if", WordyId "x", Close, Open "then", Reserved "else", Close]
   -- Empty `else` clause
   , t "if x then 1 else" [Open "if", WordyId "x", Close, Open "then", Numeric "1", Close, Open "else", Close]
+  -- Test string literals
+  , t "\"simple string without escape characters\"" [Textual "simple string without escape characters"]
+  , t "\"test escaped quotes \\\"in quotes\\\"\"" [Textual "test escaped quotes \"in quotes\""]
+  , t "\"\\n \\t \\b \\a\"" [Textual "\n \t \b \a"]
   ]
 
 t :: String -> [Lexeme] -> Test ()

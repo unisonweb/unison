@@ -186,6 +186,13 @@ allNamedTypes = R.ran . typeNamespace
 
 data Diff = Diff { ours :: Branch0, theirs :: Branch0 }
 
+fromTermName :: Name -> Referent -> Branch0
+fromTermName n ref = Branch0 (Namespace terms mempty) mempty R.empty R.empty
+  where terms = R.fromList [(n, ref)]
+
+fromTermNames :: [(Name,Referent)] -> Branch0
+fromTermNames = foldMap (uncurry $ fromTermName)
+
 fromNames :: Names -> Branch0
 fromNames names = Branch0 (Namespace terms types) mempty R.empty R.empty
  where
@@ -261,17 +268,21 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
-allNames :: Branch0 -> Set Name
-allNames = Set.union <$> allTermNames <*> allTypeNames
+allNamesHashQualified :: Branch0 -> Set HashQualified
+allNamesHashQualified b =
+  Set.union (allTermsHashQualified b) (allTypesHashQualified b)
 
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
-allTermsHashQualified :: Branch0 -> Set (HashQualified)
+allTermsHashQualified :: Branch0 -> Set HashQualified
 allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
 
 allTypeNames :: Branch0 -> Set Name
 allTypeNames b0 = R.dom (typeNamespace b0)
+
+allTypesHashQualified :: Branch0 -> Set HashQualified
+allTypesHashQualified b = foldMap (\r -> hashNamesForType r b) (allTypes b)
 
 hasTermNamed :: Name -> Branch0 -> Bool
 hasTermNamed n b = not . null $ termsNamed n b
@@ -359,14 +370,18 @@ oldNamesForType numHashChars ref
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
 
-prettyPrintEnv1 :: Branch0 -> PrettyPrintEnv
-prettyPrintEnv1 b = PPE.PrettyPrintEnv terms types where
+-- We must choose a canonical name for each referent in the branch.
+-- In the future we might like a way for the user to choose a preferred name
+-- (i.e. just `unionLeft` the user preferences before the arbitrary choice)
+prettyPrintEnv :: Branch0 -> PrettyPrintEnv
+prettyPrintEnv b = PPE.PrettyPrintEnv terms types where
   hashLen = numHashChars b
   or :: Set a -> Set a -> Set a
   or s1 s2 = if Set.null s1 then s2 else s1
-  terms r = multiset $ hashNamesForTerm r b `or` oldNamesForTerm hashLen r b
-  types r = multiset $ hashNamesForType r b `or` oldNamesForType hashLen r b
-  multiset ks = Map.fromList [ (k, 1) | k <- Set.toList ks ]
+  terms r =
+    Set.lookupMin $ hashNamesForTerm r b `or` oldNamesForTerm hashLen r b
+  types r =
+    Set.lookupMin $ hashNamesForType r b `or` oldNamesForType hashLen r b
 
 -- prettyPrintEnv :: [Branch0] -> PrettyPrintEnv
 -- prettyPrintEnv = foldMap prettyPrintEnv1

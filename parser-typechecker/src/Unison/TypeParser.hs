@@ -52,7 +52,10 @@ delayed = do
                     t
 
 type2 :: Var v => TypeP v
-type2 = app valueTypeLeaf
+type2 = do
+  hd <- valueTypeLeaf
+  tl <- many (effectList <|> valueTypeLeaf)
+  pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
 -- ex : {State Text, IO} (Sequence Int)
 effect :: Var v => TypeP v
@@ -83,12 +86,6 @@ tupleOrParenthesizedType rec = tupleOrParenthesized rec Type.unit pair
     pair t1 t2 =
       let a = ann t1 <> ann t2
       in Type.app a (Type.app (ann t1) (Type.pair a) t1) t2
-
--- "TypeA TypeB TypeC"
-app :: Ord v => TypeP v -> TypeP v
-app rec = do
-  (hd:tl) <- some rec
-  pure $ foldl' (\a b -> Type.app (ann a <> ann b) a b) hd tl
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v

@@ -1,3 +1,4 @@
+{-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
 
 module Unison.FileParser where
@@ -5,13 +6,14 @@ module Unison.FileParser where
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
-import           Control.Monad (void)
+import           Control.Monad (guard, msum)
 import           Control.Monad.Reader (local, ask)
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
+import qualified Text.Megaparsec as P
 import           Unison.DataDeclaration (DataDeclaration', EffectDeclaration')
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
@@ -38,11 +40,59 @@ file = do
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask
-    term <- terminateTerm <$> TermParser.topLevelBlock "top-level block"
-              (void <$> peekAny) -- we actually opened before the declarations
-              closeBlock
-    let uf = UnisonFile (UF.datas env) (UF.effects env) term
+    -- The file may optionally contain top-level imports,
+    -- which are parsed and applied to each stanza
+    (names', substImports) <- TermParser.imports <* optional semi
+    stanzas0 <- local (names' `mappend`) $ sepBy semi stanza
+    let stanzas = fmap substImports <$> stanzas0
+    _ <- closeBlock
+    let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
+        go (terms, watches, n) s = case s of
+          WatchBinding _ ((_, v), at) -> (terms, (v,at) : watches, n)
+          WatchExpression _ at ->
+            (terms, (Var.nameds ("_" <> show n), at) : watches, n + 1)
+          Binding ((_, v), at) -> ((v,at) : terms, watches, n)
+          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches, n)
+        (terms, watches) = (reverse termsr, reverse watchesr)
+        uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
+
+-- A stanza is either a watch expression like:
+--   > 1 + x
+--   > z = x + 1
+-- Or it is a binding like:
+--   foo : Nat -> Nat
+--   foo x = x + 42
+-- Or it is a namespace like:
+--   namespace Woot where
+--     x = 42
+--     y = 17
+-- which parses as [(Woot.x, 42), (Woot.y, 17)]
+
+data Stanza v term
+  = WatchBinding Ann ((Ann, v), term)
+  | WatchExpression Ann term
+  | Binding ((Ann, v), term)
+  | Bindings [((Ann, v), term)] deriving Functor
+
+stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
+stanza = watchExpression <|> binding <|> namespace
+  where
+  watchExpression = do
+    ann <- watched
+    msum [
+     WatchBinding ann <$> TermParser.binding,
+     WatchExpression ann <$> TermParser.blockTerm ]
+  binding = Binding <$> TermParser.binding
+  namespace = tweak <$> TermParser.namespaceBlock where
+    tweak ns = Bindings (TermParser.toBindings [ns])
+
+watched :: Var v => P v Ann
+watched = P.try $ do
+  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  guard (op == Just ">")
+  tok <- anyToken
+  pure (ann tok)
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
@@ -55,7 +105,7 @@ declarations :: Var v => P v
                           Map v (EffectDeclaration' v Ann))
 declarations = do
   declarations <- many $
-    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* semi
+    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
   pure (Map.fromList dataDecls, Map.fromList effectDecls)
 

@@ -7,4 +7,4 @@ effect Foo where
 
 -- previously this didn't work as first argument was pure
 -- and second argument was impure
-blah '("hello!") 'Foo.foo
+> blah '("hello!") 'Foo.foo

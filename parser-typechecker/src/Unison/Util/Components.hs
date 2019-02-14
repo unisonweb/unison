@@ -5,7 +5,6 @@ import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Unison.Var (Var)
 
 -- | Order bindings by dependencies and group into components.
 -- Each component consists of > 1 bindings, each of which depends
@@ -33,7 +32,7 @@ import           Unison.Var (Var)
 --
 -- Uses Tarjan's algorithm:
 --   https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-components :: Var v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
+components :: Ord v => (t -> Set v) -> [(v, t)] -> [[(v, t)]]
 components freeVars bs =
   let varIds =
         Map.fromList (map fst bs `zip` reverse [(1 :: Int) .. length bs])

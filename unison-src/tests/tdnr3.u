@@ -2,5 +2,5 @@
 
 Foo.bar x = x + 1
 
-bar 99
+z = bar 99
 

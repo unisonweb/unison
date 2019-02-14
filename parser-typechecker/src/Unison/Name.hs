@@ -24,7 +24,7 @@ toString :: Name -> String
 toString = Text.unpack . toText
 
 instance Show Name where
-  show = show . toText
+  show = toString
 
 instance IsString Name where
   fromString = unsafeFromText . Text.pack

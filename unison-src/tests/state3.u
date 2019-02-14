@@ -27,4 +27,4 @@ ex2 = handle (state 42) in State.get ()
 ex3 : (Nat, Nat)
 ex3 = ex2
 
-()
+> ex3

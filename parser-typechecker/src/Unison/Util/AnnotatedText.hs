@@ -72,7 +72,7 @@ instance LL.ListLike (AnnotatedText a) Char where
   drop n (AnnotatedText at) = case at of
     Seq.Empty -> AnnotatedText Seq.Empty
     (s,a) :<| tl ->
-      if n <= length s then AnnotatedText $ pure (drop n s, a)
+      if n <= length s then AnnotatedText $ (drop n s, a) :<| tl
       else LL.drop (n - length s) (AnnotatedText tl)
   null (AnnotatedText at) = all (null . fst) at
 

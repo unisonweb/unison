@@ -33,6 +33,9 @@ hashSeparator = "#"
 toString :: HashQualified -> String
 toString = Text.unpack . toText
 
+fromString :: String -> HashQualified
+fromString = fromText . Text.pack
+
 -- parses possibly-hash-qualified into structured type
 fromText :: Text -> HashQualified
 fromText t =

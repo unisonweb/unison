@@ -4,7 +4,6 @@ dist: trusty
 sudo: false
 language: generic
 
-
 # Caching so the next build will be fast too.
 cache:
   directories:
@@ -31,6 +30,7 @@ install:
 - travis_wait stack --no-terminal setup
 - travis_wait stack --no-terminal test --only-snapshot
 - travis_wait stack --no-terminal build
+- (cd runtime-jvm; sbt compile)
 
 script:
 - stack --no-terminal exec tests

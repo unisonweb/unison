@@ -7,11 +7,12 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.Codebase.CommandLine2 where
+module Unison.Codebase.CommandLine where
 
--- import Debug.Trace
-import Data.Maybe (catMaybes)
-import Prelude hiding (readFile, writeFile)
+import           Data.Maybe                     ( catMaybes )
+import           Prelude                 hiding ( readFile
+                                                , writeFile
+                                                )
 import           Control.Applicative            ((<|>))
 import           Control.Concurrent             (forkIO, killThread)
 import qualified Control.Concurrent.Async       as Async
@@ -31,7 +32,10 @@ import           Data.Maybe                     (fromMaybe, listToMaybe)
 import           Data.String                    (IsString, fromString)
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
-import Data.Text.IO (readFile, writeFile)
+import           Data.Text                      (Text)
+import           Data.Text.IO                   ( readFile
+                                                , writeFile
+                                                )
 import qualified System.Console.ANSI            as Console
 import qualified System.Console.Haskeline       as Line
 import qualified System.Console.Terminal.Size   as Terminal
@@ -57,6 +61,7 @@ import           Unison.NamePrinter             (prettyName,
                                                  styleHashQualified
                                                 )
 import           Unison.Parser                  (Ann)
+import           Unison.Parser                  (startingLine)
 import qualified Unison.PrettyPrintEnv          as PPE
 import           Unison.PrintError              (prettyParseError,
                                                  prettyTypecheckedFile,
@@ -65,6 +70,7 @@ import qualified Unison.Result                  as Result
 import qualified Unison.Referent                as Referent
 import qualified Unison.Reference               as Reference
 import qualified Unison.TypePrinter             as TypePrinter
+import           Unison.Term                    (Term)
 import qualified Unison.TermPrinter             as TermPrinter
 import qualified Unison.Codebase.TypeEdit       as TypeEdit
 import qualified Unison.Codebase.TermEdit       as TermEdit
@@ -80,7 +86,8 @@ import qualified Unison.Var                     as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
-  Success _    -> putStrLn "Done."
+  Success (MergeBranchI _) -> putPrettyLn $ P.bold "Merged. " <> "Here's what's `todo` after the merge:"
+  Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe terms types -> let
     prettyTerms = map go terms
     go (r, dt) =
@@ -206,7 +213,7 @@ notifyUser dir o = case o of
             else "  " <> P.text n
         in  intercalateMap "\n" go (sort branches)
   ListOfDefinitions branch terms types ->
-    let ppe  = Branch.prettyPrintEnv1 (Branch.head branch)
+    let ppe  = Branch.prettyPrintEnv (Branch.head branch)
         sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
         sigs = [(name,t) | (name, Just t) <- sigs0 ]
         impossible = terms >>= \case
@@ -238,8 +245,8 @@ notifyUser dir o = case o of
     termTypesFromFile =
       Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents file) ]
     ppe =
-      Branch.prettyPrintEnv1 (Branch.head branch) `PPE.unionLeft`
-      Branch.prettyPrintEnv1 (Branch.fromTypecheckedFile file)
+      Branch.prettyPrintEnv (Branch.head branch) `PPE.unionLeft`
+      Branch.prettyPrintEnv (Branch.fromTypecheckedFile file)
     filterTermTypes vs =
       [ (HQ.fromVar v,t) | v <- toList vs
               , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
@@ -406,8 +413,12 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
             . map Result.TypeError
     putStrLn . showNote $ notes
-  Evaluated names (watches, _term) -> do
-    traverse_ (uncurry $ Watch.watchPrinter names) watches
+  Evaluated fileContents ppe watches ->
+    if null watches then putStrLn ""
+    else
+      putPrettyLn $ P.lines [
+      watchPrinter fileContents ppe ann evald isCacheHit |
+      (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         types    = R.dom $ Branch.typeNamespace branch
@@ -423,11 +434,11 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv unisonFile -> do
+  Typechecked sourceName errorEnv uf -> do
     Console.setTitle "Unison ☺︎"
-    let uf         = UF.discardTerm unisonFile
-        defs       = prettyTypecheckedFile uf errorEnv
-    when (not $ null defs) . putPrettyLn . P.lines $ [
+    -- todo: we should just print this the same way as everything else
+    let defs       = prettyTypecheckedFile uf errorEnv
+    when (not $ null defs) . putPrettyLn' . ("\n" <>) $
       P.okCallout $
         P.lines [
           P.wrap (
@@ -440,9 +451,8 @@ notifyUser dir o = case o of
             "Now evaluating any watch expressions (lines starting with `>`)"
             <> "..."
         ]
-     ]
   TodoOutput branch todo ->
-    let ppe = Branch.prettyPrintEnv1 (Branch.head branch) in
+    let ppe = Branch.prettyPrintEnv (Branch.head branch) in
     if E.todoScore todo == 0 && E.todoConflicts todo == mempty
     then putPrettyLn . P.okCallout $ "No conflicts or edits in progress."
     else do
@@ -558,7 +568,7 @@ notifyUser dir o = case o of
       P.wrap $ "I" <> pastTenseCmd <> "the"
         <> ns (E.changedSuccessfully r)
         <> P.blue (prettyName oldName)
-        <> "to" <> P.green (prettyName newName) <> "."
+        <> "to" <> P.group (P.green (prettyName newName) <> ".")
     when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
       (P.wrap $ "I couldn't" <> cmd <> "the"
            <> ns (E.oldNameConflicted r)
@@ -593,6 +603,25 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
     ]
+
+watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
+                      -> Term v
+                      -> Runtime.IsCacheHit
+                      -> P.Pretty P.ColorText
+watchPrinter src ppe ann term isHit = P.bracket $ let
+  lines = Text.lines src
+  lineNum = fromMaybe 1 $ startingLine ann
+  lineNumWidth = length (show lineNum)
+  extra = "     " -- for the ` | > ` after the line number
+  line = lines !! (lineNum - 1)
+  in P.lines [
+    fromString (show lineNum) <> " | " <> P.text line,
+    fromString (replicate lineNumWidth ' ')
+      <> fromString extra <> "⧩"
+      <> (if isHit then P.bold " (using cache)" else ""),
+    P.indentN (lineNumWidth + length extra)
+      . P.green . P.map fromString $ TermPrinter.prettyTop ppe term
+  ]
 
 allow :: FilePath -> Bool
 allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
@@ -698,7 +727,7 @@ validInputs = validPatterns
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
   definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
-    let names = Name.toString <$> toList (Branch.allNames (Branch.head b))
+    let names = HQ.toString <$> toList (Branch.allNamesHashQualified (Branch.head b))
     pure $ autoComplete q names
   noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
   quit          = InputPattern
@@ -865,6 +894,14 @@ validInputs = validPatterns
           else pure $ SlurpFileI True
         )
       , InputPattern
+        "propagate"
+        []
+        []
+        (P.wrap $ "`propagate` rewrites any definitions that"
+               <> "depend on definitions with type-preserving edits to use"
+               <> "the updated versions of these dependencies.")
+        (const $ pure PropagateI)
+      , InputPattern
         "todo"
         []
         []
@@ -922,6 +959,11 @@ putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.border 2 p
+
+putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
+putPrettyLn' p = do
+  width <- getAvailableWidth
+  putStrLn . P.toANSI width $ P.indentN 2 p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =
