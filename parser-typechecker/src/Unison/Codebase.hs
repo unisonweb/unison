@@ -503,7 +503,6 @@ isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
-  _ -> error "impossible"
 
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
 dependents c r

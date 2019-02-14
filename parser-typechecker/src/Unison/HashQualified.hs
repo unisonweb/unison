@@ -40,8 +40,8 @@ fromString = fromText . Text.pack
 fromText :: Text -> HashQualified
 fromText t =
   case Text.breakOn hashSeparator t of
-    ("", "")     -> error "don't give me that"
-    (name, "")   -> NameOnly (Name.unsafeFromText name)
+    ("", "")     -> error "don't give me that" -- a hash mark with nothing else
+    (name, "")   -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
     ("", hash)   -> HashOnly (Referent.unsafeFromText hash)
     (name, hash) -> HashQualified (Name.unsafeFromText name) hash
 

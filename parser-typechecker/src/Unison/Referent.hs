@@ -24,27 +24,36 @@ import qualified Data.ByteString.Base58 as Base58
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
 import           Safe                   (readMay)
 
-
 data Referent = Ref Reference | Con Reference Int
   deriving (Show, Ord, Eq)
 
 type Pos = Word64
 type Size = Word64
-type IsAbility = Bool
 
 -- referentToTerm moved to Term.fromReferent
 -- termToReferent moved to Term.toReferent
 
+-- (c = compressible part, nc = non-compressible part)
+splitSuffix :: Referent -> (String, Maybe String)
+splitSuffix = \case
+  Ref (R.Builtin t)   -> ("", Just ("#" <> Text.unpack t))
+  Con (R.Builtin t) i -> ("", Just ("#" <> Text.unpack t <> "#" <> show i))
+  Ref (R.DerivedId id) -> R.splitSuffix id
+  Con (R.DerivedId id) i ->
+    let (c, nc) = R.splitSuffix id
+    in case nc of
+      Nothing -> (c, Just ("#" <> show i))
+      Just nc -> (c, Just (nc <> "#" <> show i))
+
 showShort :: Int -> Referent -> String
-showShort numHashChars r = case r of
-  Ref r     -> R.showShort numHashChars r
-  Con r cid -> R.showShort numHashChars r <> "#" <> show cid
+showShort numHashChars r =
+  let (c, nc) = splitSuffix r
+  in "#" <> take numHashChars c <> fromMaybe "" nc
 
 toString :: Referent -> String
 toString = \case
   Ref r     -> show r
   Con r cid -> show r <> "#" <> show cid
-
 
 isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True
