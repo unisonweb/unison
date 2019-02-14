@@ -704,15 +704,11 @@ hashConstructor = hashConstructor' $ constructor ()
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
 
--- Problem: how do we avoid needing a Req pattern here?
--- fromReferent is used by:
---    Names.bindTerm, used by UnisonFile.bindBuiltins.
---    Typechecker.substSuggestion; a referent is suggested based on a name
---      Could we get around this by going directly from name to type?
-
-fromReferent ::
-  Ord v => (Reference -> CT.ConstructorType)
-        -> a -> Referent -> AnnotatedTerm2 vt at ap v a
+fromReferent :: Ord v
+             => (Reference -> CT.ConstructorType)
+             -> a
+             -> Referent
+             -> AnnotatedTerm2 vt at ap v a
 fromReferent ct a = \case
   Referent.Ref r -> ref a r
   Referent.Con r i -> case ct r of

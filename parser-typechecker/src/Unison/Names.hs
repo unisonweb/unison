@@ -92,8 +92,11 @@ bindType ns t = Type.bindBuiltins typeNames' t
   where
   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm
-  :: forall v a . Var v => (Reference -> ConstructorType) -> Names -> AnnotatedTerm v a -> AnnotatedTerm v a
+bindTerm :: forall v a . Var v
+         => (Reference -> ConstructorType)
+         -> Names
+         -> AnnotatedTerm v a
+         -> AnnotatedTerm v a
 bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
  where
   termBuiltins =

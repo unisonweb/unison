@@ -111,7 +111,10 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
     allTheNames = localNames <> preexistingNames
-    ctorType r = fromMaybe (error $"unknown constructor type for " <> show r <> "in synthesizeFile") (TL.constructorType (localTypes <> preexistingTypes) r)
+    ctorType r =
+      fromMaybe
+        (error $ "no constructor type in synthesizeFile for " <> show r)
+        (TL.constructorType (localTypes <> preexistingTypes) r)
     term = Names.bindTerm ctorType allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
