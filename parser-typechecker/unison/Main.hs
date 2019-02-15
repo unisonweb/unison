@@ -38,7 +38,6 @@ args = Args
          <> help "Scratch file path" )
      <*> switch
           ( long "haskell"
-         <> short 'r'
          <> help "Use the Haskell runtime" )
 
 opts :: ParserInfo Args
