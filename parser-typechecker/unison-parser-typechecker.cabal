@@ -173,6 +173,7 @@ executable unison
   build-depends:
     base,
     containers,
+    optparse-applicative,
     safe,
     unison-parser-typechecker
 
