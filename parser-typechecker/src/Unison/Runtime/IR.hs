@@ -54,13 +54,13 @@ toSymbolC :: Symbol -> SymbolC
 toSymbolC s = SymbolC False s
 
 -- Values, in normal form
-data V
+data Value
   = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity (Either R.Reference (Term SymbolC)) IR
-  | Data R.Reference ConstructorId [V]
-  | Sequence (Vector V)
-  | Ref Int Symbol (IORef V)
-  | Pure V
+  | Data R.Reference ConstructorId [Value]
+  | Sequence (Vector Value)
+  | Ref Int Symbol (IORef Value)
+  | Pure Value
   | Requested Req
   | Cont IR
   deriving Eq
@@ -78,7 +78,7 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z = Slot Pos | LazySlot Pos | Val V deriving (Eq)
+data Z = Slot Pos | LazySlot Pos | Val Value deriving (Eq)
 
 type IR = IR' Z
 
@@ -117,7 +117,7 @@ data IR' z
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
 data Req
-  = Req R.Reference ConstructorId [V] IR
+  = Req R.Reference ConstructorId [Value] IR
   deriving (Eq,Show)
 
 -- Appends `k2` to the end of the `k` continuation
@@ -128,7 +128,7 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
-wrapHandler :: V -> Req -> Req
+wrapHandler :: Value -> Req -> Req
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
 compile :: CompilationEnv -> Term Symbol -> IR
@@ -142,7 +142,7 @@ freeVars bound t =
 -- Takes a way of resolving `Reference`s and an environment of variables,
 -- some of which may already be precompiled to `V`s. (This occurs when
 -- recompiling a function that is being partially applied)
-compile0 :: CompilationEnv -> [(SymbolC, Maybe V)] -> Term SymbolC -> IR
+compile0 :: CompilationEnv -> [(SymbolC, Maybe Value)] -> Term SymbolC -> IR
 compile0 env bound t =
   if Set.null fvs then
     go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
@@ -152,8 +152,6 @@ compile0 env bound t =
   fvs = freeVars bound t
   go t = case t of
     Term.And' x y -> And (ind "and" t x) (go y)
-    -- TODO:
-    --  2. update Rt0 to deal with extra Supply parameter
     Term.LamsNamed' vs body ->
       Leaf . Val $ Lam (length vs) (Right $ void t) (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (ind "or" t x) (go y)
@@ -202,7 +200,7 @@ compile0 env bound t =
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: V -> Maybe (Term SymbolC)
+decompile :: Value -> Maybe (Term SymbolC)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -337,7 +335,7 @@ instance Var SymbolC where
   freshIn vs (SymbolC i s) =
     SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
 
-instance Show V where
+instance Show Value where
   show (I n) = show n
   show (F n) = show n
   show (N n) = show n

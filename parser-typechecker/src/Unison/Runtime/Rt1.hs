@@ -17,9 +17,9 @@ import Unison.Runtime.IR
 import Unison.Symbol (Symbol)
 import qualified Data.Vector.Mutable as MV
 
-type Stack = MV.IOVector V
+type Stack = MV.IOVector Value
 
-push :: Size -> V -> Stack -> IO Stack
+push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
   s1 <-
     if (size >= MV.length s0)
@@ -33,11 +33,11 @@ push size v s0 = do
 
 type Size = Int
 
-force :: V -> IO V
+force :: Value -> IO Value
 force (Ref _ _ r) = readIORef r >>= force
 force v = pure v
 
-at :: Size -> Z -> Stack -> IO V
+at :: Size -> Z -> Stack -> IO Value
 at size i m = case i of
   Val v -> force v
   Slot i ->
@@ -71,12 +71,12 @@ att size i m = at size i m >>= \case
   T t -> pure t
   _ -> fail "type error"
 
-data Result = RRequest Req | RMatchFail | RDone V deriving (Eq,Show)
+data Result = RRequest Req | RMatchFail | RDone Value deriving (Eq,Show)
 
-done :: V -> IO Result
+done :: Value -> IO Result
 done v = pure (RDone v)
 
-arity :: V -> Int
+arity :: Value -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
