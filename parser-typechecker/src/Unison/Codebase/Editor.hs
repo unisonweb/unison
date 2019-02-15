@@ -707,5 +707,4 @@ loadDefinitions code refs = do
         case decl of
           Nothing -> pure (r, MissingThing id)
           Just d -> pure (r, RegularThing d)
-      _ -> error $ "unpossible " ++ show r
   pure (terms, types)
