@@ -107,9 +107,8 @@ run env ir m = go ir m where
       bs' = map (\ir -> toVal $ go ir m') (snd <$> bs)
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
-    ApplyZ fnPos args -> call (at fnPos m) args m
-    ApplyIR (Leaf (Val fn)) args -> call fn args m
-    ApplyIR fn args -> case go fn m of
+    Apply (Leaf (Val fn)) args -> call fn args m
+    Apply fn args -> case go fn m of
       RRequest _req -> error "todo"
       RDone fn -> call fn args m
       e -> error $ show e
@@ -212,7 +211,8 @@ run env ir m = go ir m where
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
       _ -> case term of
-        Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) compiled
+        Specialize (Term.LamsNamed' vs body) ->
+          done $ Lam (arity - nargs) (Specialize lam) compiled
           where
           argvs = map (`at` m) args
           Just argterms = traverse decompile argvs
@@ -221,7 +221,8 @@ run env ir m = go ir m where
           compiled = compile0 env bound body
           lam = Term.let1' False (vs `zip` argterms) $
                 Term.lam'() (drop nargs vs) body
-        Left _builtin -> error "todo - handle partial application of builtins by forming closure"
+        FormClosure _builtin ->
+          error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call (Cont k) [arg] m = go k (push (at arg m) m)
   call f _ _ = error $ "type error " ++ show f
