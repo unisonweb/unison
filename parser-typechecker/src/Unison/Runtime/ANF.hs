@@ -68,14 +68,11 @@ optimize t = go t where
   -- when `y` is a variable or a primitive, otherwise this might
   -- end up duplicating evaluation or changing the order that
   -- effects are evaluated
-  canSubstLet (Var' _) _body = True
-  canSubstLet (Int' _) _body = True
-  canSubstLet (Float' _) _body = True
-  canSubstLet (Nat' _) _body = True
-  canSubstLet (Boolean' _) _body = True
-  -- todo: if number of occurrences of the binding is 1 and the
-  -- binding is pure, okay to substitute
-  canSubstLet _ _ = False
+  canSubstLet expr _body
+    | isLeaf expr = True
+    -- todo: if number of occurrences of the binding is 1 and the
+    -- binding is pure, okay to substitute
+    | otherwise   = False
 
 isLeaf :: ABT.Term (F typeVar typeAnn patternAnn) v a -> Bool
 isLeaf (Var' _) = True

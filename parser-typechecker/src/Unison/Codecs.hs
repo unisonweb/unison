@@ -4,7 +4,6 @@ module Unison.Codecs where
 
 -- A format for encoding runtime values, with sharing for compiled nodes.
 
--- import Debug.Trace
 import Data.Text (Text)
 import           Control.Arrow (second)
 import           Control.Monad.State
@@ -173,7 +172,7 @@ serializeTerm x = do
         traverse_ serializeCase2 casePositions
         incPosition
       Blank b -> error $ "cannot serialize program with blank " ++
-                         (fromMaybe "" $ Blank.nameb b)
+                         fromMaybe ""  (Blank.nameb b)
       Handle h body -> do
         hpos <- serializeTerm h
         bpos <- serializeTerm body
@@ -316,7 +315,7 @@ serializeFile uf@(UnisonFile dataDecls effectDecls _ _) tm = do
           (\e ->
             error
               (  "The Unison file is malformed. It has duplicate bindings "
-              ++ show (const () <$> e)
+              ++ show (void <$> e)
               )
           )
           id
