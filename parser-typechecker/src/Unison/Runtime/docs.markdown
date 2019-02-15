@@ -90,7 +90,7 @@ A lambda with free variables is really a program that will generate a function a
 
 #### Phase 3: ANF conversion
 
-See [https://en.wikipedia.org/wiki/A-normal_form]. __Why do we do this?__ It's much simpler to compile and optimize, and importantly, it leaves us with __just one place__, in `let`, where the continuations of ability requests are processed by the runtime.
+See [Wikipedia page for ANF](https://en.wikipedia.org/wiki/A-normal_form). __Why do we do this?__ It's much simpler to compile and optimize, and importantly, it leaves us with __just one place__, in `let`, where the continuations of ability requests are processed by the runtime.
 
 Example:
 
