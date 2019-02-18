@@ -49,7 +49,7 @@ generateConstructorRefs
   -> Int
   -> [(Int, Reference)]
 generateConstructorRefs hashCtor rid n =
-  (\i -> (i, hashCtor (Reference.DerivedPrivate_ rid) i)) <$> [0 .. n]
+  (\i -> (i, hashCtor (Reference.DerivedId rid) i)) <$> [0 .. n]
 
 -- Returns references to the constructors,
 -- along with the terms for those references and their types.

@@ -198,13 +198,10 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         traverse_ (touchDependentFile h . declDir path)
           $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
       getTypeOfTerm r = case r of
-        (Reference.Builtin _) ->
-          pure
-            $   fmap (const builtinTypeAnnotation)
-            <$> Map.lookup r Builtin.builtins0
+        Reference.Builtin _ -> pure $
+          fmap (const builtinTypeAnnotation) <$> Map.lookup r Builtin.builtins0
         Reference.DerivedId h ->
           S.getFromFile (V0.getType getV getA) (typePath path h)
-        _ -> error "impossible"
       getDecl h = S.getFromFile
         (V0.getEither (V0.getEffectDeclaration getV getA)
                       (V0.getDataDeclaration getV getA)
@@ -263,15 +260,11 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         dir = case r of
           Reference.Builtin (Name.unsafeFromText -> name) ->
             pure $ (if Builtin.isBuiltinTerm name
-                then builtinTermDir
-                else builtinTypeDir
-              )
-              path
-              name
+                    then builtinTermDir
+                    else builtinTypeDir) path name
           Reference.DerivedId id -> do
             b <- isJust <$> getTerm id
             pure $ (if b then termDir else declDir) path id
-          _ -> error "impossible: these patterns should be enough"
 
       branchUpdates :: IO (IO (), IO (Set BranchName))
       branchUpdates = do

@@ -224,7 +224,7 @@ notifyUser dir o = case o of
         termsWithMissingTypes =
           [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
         missingTypes = nubOrdOn snd $
-          [ (name, Reference.DerivedPrivate_ r) | (name, _, MissingThing r) <- types ] <>
+          [ (name, Reference.DerivedId r) | (name, _, MissingThing r) <- types ] <>
           [ (name, r) | (name, Referent.toTypeReference -> Just r, Nothing) <- terms]
         typeResults = map prettyDeclTriple types
     in do

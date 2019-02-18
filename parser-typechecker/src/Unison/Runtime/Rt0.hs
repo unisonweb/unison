@@ -37,18 +37,18 @@ runtime = Rt.Runtime (pure ()) eval
     Nothing -> fail $ "result could not be decompiled from: " ++ show term
     Just t -> pure (changeVar t)
 
-newtype Machine = Machine [V] -- a stack of values
+newtype Machine = Machine [Value] -- a stack of values
 
 instance Show Machine where
   show (Machine m) = "[ " ++ intercalateMap "\n  " show m ++ " ]"
 
-push :: V -> Machine -> Machine
+push :: Value -> Machine -> Machine
 push v (Machine m) = Machine (v : m)
 
-pushes :: [V] -> Machine -> Machine
+pushes :: [Value] -> Machine -> Machine
 pushes s (Machine m) = Machine (reverse s <> m)
 
-at :: Z -> Machine -> V
+at :: Z -> Machine -> Value
 at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
@@ -79,12 +79,12 @@ att i m = case at i m of
   T t -> t
   _ -> error "type error"
 
-data Result = RRequest Req | RMatchFail | RDone V deriving (Eq,Show)
+data Result = RRequest Req | RMatchFail | RDone Value deriving (Eq,Show)
 
-done :: V -> Result
+done :: Value -> Result
 done = RDone
 
-arity :: V -> Int
+arity :: Value -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
@@ -107,9 +107,8 @@ run env ir m = go ir m where
       bs' = map (\ir -> toVal $ go ir m') (snd <$> bs)
       in go body m'
     MakeSequence vs -> done (Sequence (Vector.fromList (map (`at` m) vs)))
-    ApplyZ fnPos args -> call (at fnPos m) args m
-    ApplyIR (Leaf (Val fn)) args -> call fn args m
-    ApplyIR fn args -> case go fn m of
+    Apply (Leaf (Val fn)) args -> call fn args m
+    Apply fn args -> case go fn m of
       RRequest _req -> error "todo"
       RDone fn -> call fn args m
       e -> error $ show e
@@ -157,7 +156,7 @@ run env ir m = go ir m where
   -- handler attached to the continuation. If the body
   -- completes without issuing a request, we pass `Pure` to
   -- the handler.
-  runHandler :: V -> IR -> Machine -> Result
+  runHandler :: Value -> IR -> Machine -> Result
   runHandler h body m = case go body m of
     RRequest req -> case call h [Slot 0] (Requested req `push` m) of
       RMatchFail -> RRequest (wrapHandler h req)
@@ -165,7 +164,7 @@ run env ir m = go ir m where
     RDone v -> call h [Slot 0] (Pure v `push` m)
     r -> r
 
-  runPattern :: V -> Pattern -> Machine -> Maybe Machine
+  runPattern :: Value -> Pattern -> Machine -> Maybe Machine
   runPattern _ PatternIgnore m = Just m
   runPattern v PatternVar m = Just (push v m)
   runPattern v (PatternAs p) m = runPattern v p (push v m)
@@ -191,7 +190,7 @@ run env ir m = go ir m where
     Just m  -> runPatterns t tp m
   runPatterns _ _ _ = Nothing
 
-  match :: V -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
+  match :: Value -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
   match _ [] _ = RMatchFail
   match s ((pat,guard,rhs) : cases) m0 = case runPattern s pat m0 of
     Nothing -> match s cases m0 -- try next case
@@ -201,7 +200,7 @@ run env ir m = go ir m where
         RDone (B True) -> go rhs m -- guard passed, commit to this case
         _ -> match s cases m0 -- guard failed, try next case
 
-  call :: V -> [Z] -> Machine -> Result
+  call :: Value -> [Z] -> Machine -> Result
   call (Lam arity term body) args m = let nargs = length args in
     case nargs of
       _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
@@ -212,7 +211,8 @@ run env ir m = go ir m where
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
       _ -> case term of
-        Right (Term.LamsNamed' vs body) -> done $ Lam (arity - nargs) (Right lam) compiled
+        Specialize (Term.LamsNamed' vs body) ->
+          done $ Lam (arity - nargs) (Specialize lam) compiled
           where
           argvs = map (`at` m) args
           Just argterms = traverse decompile argvs
@@ -221,7 +221,8 @@ run env ir m = go ir m where
           compiled = compile0 env bound body
           lam = Term.let1' False (vs `zip` argterms) $
                 Term.lam'() (drop nargs vs) body
-        Left _builtin -> error "todo - handle partial application of builtins by forming closure"
+        FormClosure _builtin ->
+          error "todo - handle partial application of builtins by forming closure"
         _ -> error "type error"
   call (Cont k) [arg] m = go k (push (at arg m) m)
   call f _ _ = error $ "type error " ++ show f

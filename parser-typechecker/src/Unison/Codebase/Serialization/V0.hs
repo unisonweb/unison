@@ -163,7 +163,7 @@ getReference = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
+    1 -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putReferent :: MonadPut m => Referent -> m ()
