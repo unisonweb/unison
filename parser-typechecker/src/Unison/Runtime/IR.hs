@@ -69,6 +69,7 @@ data Value
   | Pure Value
   | Requested Req
   | Cont IR
+  | LetRecBomb Symbol [(Symbol, IR)] IR
   deriving Eq
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
@@ -298,6 +299,7 @@ decompile v = case v of
   Requested _ -> Nothing
   Cont _ -> Nothing
   Ref _ _ _ -> error "IR todo - decompile Ref"
+  LetRecBomb _b _bs _body -> error "unpossible - decompile LetRecBomb"
 
 instance Show Z where
   show (LazySlot i) = "'#" ++ show i
@@ -433,6 +435,8 @@ instance Show Value where
   show (Pure v) = "(Pure " <> show v <> ")"
   show (Requested r) = "(Requested " <> show r <> ")"
   show (Cont ir) = "(Cont " <> show ir <> ")"
+  show (LetRecBomb b bs _body) =
+    "(LetRecBomb " <> show b <> " in " <> show (fst <$> bs)<> ")"
 
 compilationEnv0 :: CompilationEnv
 compilationEnv0 = mempty { toIR = \r -> Map.lookup r builtins }
@@ -444,4 +448,3 @@ instance Monoid CompilationEnv where
   mappend c1 c2 = CompilationEnv ir ctor where
     ir r = toIR c1 r <|> toIR c2 r
     ctor r cid = constructorArity c1 r cid <|> constructorArity c2 r cid
-

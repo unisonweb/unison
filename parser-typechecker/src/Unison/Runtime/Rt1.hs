@@ -7,8 +7,8 @@
 
 module Unison.Runtime.Rt1 where
 
-import Control.Monad (foldM)
-import Data.Foldable (for_)
+import Control.Monad (foldM, join)
+import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -33,6 +33,31 @@ push size v s0 = do
     else pure s0
   MV.write s1 size v
   pure s1
+
+pushMany :: Foldable f => Size -> f Value -> Stack -> IO (Size, Stack)
+pushMany size values m = do
+  m <- ensureSize (size + length values) m
+  let pushArg :: Size -> Value -> IO Size
+      pushArg size' val = do
+        MV.write m size' val
+        pure (size' + 1)
+  length <- foldM pushArg 0 values
+  pure ((size + length), m)
+
+pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
+pushManyZ size zs m = do
+  m <- ensureSize (size + length zs) m
+  let pushArg size' z = do
+        val <- at size z m -- variable lookup uses current size
+        MV.write m size' val
+        pure (size' + 1)
+  length <- foldM pushArg 0 zs
+  pure ((size + length), m)
+
+ensureSize :: Size -> Stack -> IO Stack
+ensureSize size m =
+  if (size >= MV.length m) then MV.grow m size
+  else pure m
 
 type Size = Int
 
@@ -74,7 +99,7 @@ att size i m = at size i m >>= \case
   T t -> pure t
   _ -> fail "type error"
 
-data Result = RRequest Req | RMatchFail | RDone Value deriving (Eq,Show)
+data Result = RRequest Req | RMatchFail {-.-} | RDone Value deriving (Eq,Show)
 
 done :: Value -> IO Result
 done v = pure (RDone v)
@@ -95,7 +120,7 @@ run env ir = do
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = case ir of
       Leaf (Val v) -> done v
-      Leaf s -> done =<< at size s m
+      Leaf slot -> done =<< at size slot m
       If c t f -> atb size c m >>= \case
         True -> go size m t
         False -> go size m f
@@ -109,7 +134,7 @@ run env ir = do
       Let b body -> go size m b >>= \case
         RRequest req -> pure $ RRequest (req `appendCont` body)
         RDone v -> push size v m >>= \m -> go (size + 1) m body
-        e -> error $ show e
+        e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Vector.fromList =<< traverse (\i -> at size i m) vs
@@ -127,6 +152,44 @@ run env ir = do
       Apply fn args -> do
         RDone fn <- go size m fn -- ANF should ensure this match is OK
         call size m fn args
+      Match scrutinee cases -> do
+        -- scrutinee : Z -- already evaluated :amazing:
+        -- cases : [(Pattern, Maybe IR, IR)]
+        scrute <- at size scrutinee m -- "I am scrute" / "Dwight K. Scrute"
+        let
+          getCapturedVars :: (Value, Pattern) -> Maybe [Value]
+          getCapturedVars = \case
+            (I x, PatternI x2) | x == x2 -> Just []
+            (F x, PatternF x2) | x == x2 -> Just []
+            (N x, PatternN x2) | x == x2 -> Just []
+            (B x, PatternB x2) | x == x2 -> Just []
+            (T x, PatternT x2) | x == x2 -> Just []
+            (Data r cid args, PatternData r2 cid2 pats)
+              | r == r2 && cid == cid2 ->
+              join <$> traverse getCapturedVars (zip args pats)
+            (Sequence args, PatternSequence pats) ->
+              join <$> traverse getCapturedVars (zip (toList args) (toList pats))
+            (Pure v, PatternPure p) -> getCapturedVars (v, p)
+            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat)
+              | r == r2 && cid == cid2 ->
+              join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
+            (v, PatternAs p) -> (v:) <$> getCapturedVars (v,p)
+            (_, PatternIgnore) -> Just []
+            (v, PatternVar) -> Just [v]
+            (v, p) -> error $
+              "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
+          tryCases m ((pattern, cond, body) : remainingCases) =
+            case getCapturedVars (scrute, pattern) of
+              Nothing -> tryCases m remainingCases -- this pattern didn't match
+              Just vars -> do
+                (size, m) <- pushMany size vars m
+                case cond of
+                  Just cond -> do
+                    (RDone (B cond)) <- go size m cond
+                    if cond then go size m body else tryCases m remainingCases
+                  Nothing -> go size m body
+          tryCases _ _ = pure RMatchFail
+        tryCases m cases
 
       -- Builtins
       AddI i j -> do x <- ati size i m; y <- ati size j m; done (I (x + y))
@@ -178,22 +241,12 @@ run env ir = do
         call (size + 1) m handler [Slot 0]
       r -> pure r
 
-    ensureSize :: Size -> Stack -> IO Stack
-    ensureSize size m =
-      if (size >= MV.length m) then MV.grow m size
-      else pure m
-
     call :: Size -> Stack -> Value -> [Z] -> IO Result
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
       if nargs == arity then do
-        m <- ensureSize (size + arity) m
-        let pushArg size' z = do
-              val <- at size z m -- variable lookup uses current size
-              MV.write m size' val
-              pure (size' + 1)
-        _ <- foldM pushArg 0 args
-        go (size + arity) m body
+        (size, m) <- pushManyZ size args m
+        go size m body
       -- overapplied call, e.g. `id id 42`
       else if nargs > arity then do
         let (usedArgs, extraArgs) = splitAt arity args
@@ -230,12 +283,12 @@ run env ir = do
     -- there's no problem.
     letrec :: Size -> Stack -> [(Symbol, IR)] -> IR -> IO Result
     letrec size m bs body = do
-      let size' = size + length bs
       refs <- for bs $ \(v,b) -> do
-        r <- newIORef (N 99) -- dummy value, could be null if `Value` had that
+        r <- newIORef (LetRecBomb v bs body)
         i <- fresh
         pure (Ref i v r, b)
-      m <- foldM (\m ((r,_), i) -> push (size + i) r m) m (refs `zip` [0..])
+      -- push the empty references onto the stack
+      (size', m) <- pushMany size (fst <$> refs) m
       for_ refs $ \(Ref _ _ r, ir) -> do
         let toVal (RDone a) = a
             toVal e = error ("bindings in a let rec must not have effects " ++ show e)
