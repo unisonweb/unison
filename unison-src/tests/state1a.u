@@ -6,5 +6,6 @@ id : Int -> Int
 id i = i
 foo : () -> {State Int} Int
 foo unit = id (State.get Int.+ State.get)
-()
+
+> ()
 

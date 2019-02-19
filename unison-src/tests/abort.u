@@ -11,4 +11,3 @@ hudy : Nat
 hudy = handle eff (x -> x Nat.+ 2) 1 in 42
 bork : () -> {Abort} Nat
 bork = u -> 1 Nat.+ (Abort.Abort ())
-()

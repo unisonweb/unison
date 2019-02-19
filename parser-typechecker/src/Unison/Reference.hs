@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
+
 
 module Unison.Reference
-  (Reference(DerivedPrivate_),
+  (Reference,
      pattern Builtin,
      pattern Derived,
      pattern DerivedId,
@@ -12,56 +14,116 @@ module Unison.Reference
    components,
    hashComponents,
    groupByComponent,
-   componentFor) where
+   componentFor,
+   unsafeFromText,
+   readSuffix,
+   showShort,
+   splitSuffix) where
 
-import GHC.Generics
-import Data.Maybe (fromJust)
-import Unison.Hashable as Hashable
-import qualified Data.Text as Text
-import qualified Unison.Hash as H
-import Data.Word (Word64)
-import Control.Monad (join)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Data.List
-import Data.Foldable (toList)
-import Data.Text (Text)
-import qualified Unison.ABT as ABT
-import qualified Unison.Var as Var
+import           Control.Monad   (join)
+import           Data.Foldable   (toList)
+import           Data.List
+import qualified Data.Map        as Map
+import           Data.Maybe      (fromJust, fromMaybe, maybe)
+import           Data.Set        (Set)
+import qualified Data.Set        as Set
+import           Data.Text       (Text)
+import qualified Data.Text       as Text
+import           Data.Word       (Word64)
+import           GHC.Generics
+import qualified Unison.ABT      as ABT
+import qualified Unison.Hash     as H
+import           Unison.Hashable as Hashable
+import qualified Unison.Var      as Var
+import           Data.Bytes.Get
+import           Data.Bytes.Put
+import           Data.Bytes.Serial              ( serialize
+                                                , deserialize
+                                                )
+import           Data.Bytes.VarInt              ( VarInt(..) )
+import qualified Data.ByteString.Base58 as Base58
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.ByteString (ByteString)
 
 data Reference
-  = Builtin_ Text.Text
+  = Builtin Text.Text
   -- `Derived` can be part of a strongly connected component.
   -- The `Pos` refers to a particular element of the component
   -- and the `Size` is the number of elements in the component.
   -- Using an ugly name so no one tempted to use this
-  | DerivedPrivate_ Id deriving (Eq,Ord,Generic)
+  | DerivedId Id deriving (Eq,Ord,Generic)
+
+pattern Derived h n i = DerivedId (Id h n i)
 
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 instance Show Id where
-  show (Id h 0 1) = show h
-  show (Id h i _) = show h <> "-" <> show i
+  show = addDot . splitSuffix where
+    addDot (h, s) = show h <> maybe "" ("."<>) s
 
-pattern Builtin t = Builtin_ t
-pattern Derived h n i <- DerivedPrivate_ (Id h n i)
-pattern DerivedId id <- DerivedPrivate_ id
+showShort :: Int -> Reference -> String
+showShort numHashChars r =
+  let (c, nc) = case r of
+        Builtin t -> ("", Just ("#" <> Text.unpack t))
+        DerivedId r -> splitSuffix r
+  in "#" <> take numHashChars c <> fromMaybe "" nc
+
+splitSuffix :: Id -> (String, Maybe String)
+splitSuffix (Id h 0 1) = (show h, Nothing)
+splitSuffix (Id h i n) = (show h, Just ("." <> showSuffix i n))
+  where
+    -- todo: remove `n` parameter; must also update readSuffix
+    showSuffix :: Pos -> Size -> String
+    showSuffix i n = Text.unpack . encode58 . runPutS $ put where
+      encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
+      put = putLength i >> putLength n
+      putLength = serialize . VarInt
+
+-- todo: don't read or return size; must also update showSuffix and fromText
+readSuffix :: Text -> Either String (Pos, Size)
+readSuffix t =
+  runGetS get =<< (tagError . decode58) t where
+  tagError = maybe (Left "base58 decoding error") Right
+  decode58 :: Text -> Maybe ByteString
+  decode58 = Base58.decodeBase58 Base58.bitcoinAlphabet . encodeUtf8
+  get = (,) <$> getLength <*> getLength
+  getLength = unVarInt <$> deserialize
 
 type Pos = Word64
 type Size = Word64
 
 newtype Component = Component { members :: Set Reference }
 
+-- Gives the component (dependency cycle) that the reference is a part of
 componentFor :: Reference -> Component
-componentFor b@(Builtin_ _) = Component (Set.singleton b)
-componentFor (DerivedPrivate_ (Id h _ n)) =
-  Component (Set.fromList [ DerivedPrivate_ (Id h i n) | i <- take (fromIntegral n) [0..]])
+componentFor b@(Builtin        _         ) = Component (Set.singleton b)
+componentFor (  DerivedId (Id h _ n)) = Component
+  (Set.fromList
+    [ DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
+  )
 
 derivedBase58 :: Text -> Pos -> Size -> Reference
-derivedBase58 b58 i n = DerivedPrivate_ (Id (fromJust h) i n)
+derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
   where
   h = H.fromBase58 b58
+
+unsafeFromText :: Text -> Reference
+unsafeFromText = either error id . fromText
+
+-- examples:
+-- `##Text.take` — builtins don’t have cycles
+-- `#2tWjVAuc7` — derived, no cycle
+-- `#y9ycWkiC1.y9` — derived, part of cycle
+-- todo: take a (Reference -> CycleSize) so that `readSuffix` doesn't have to parse the size from the text.
+fromText :: Text -> Either String Reference
+fromText t = case Text.split (=='#') t of
+  [_, "", b] -> Right (Builtin b)
+  [_, h]     -> case Text.split (=='.') h of
+    [hash]         -> Right (derivedBase58 hash 0 1)
+    [hash, suffix] -> uncurry (derivedBase58 hash) <$> readSuffix suffix
+    _ -> bail
+  _ -> bail
+  where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
 
 hashComponents ::
      (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)
@@ -71,12 +133,12 @@ hashComponents ::
 hashComponents embedRef tms =
   Map.fromList [ (v, (r,e)) | ((v,e), r) <- cs ]
   where cs = components $ ABT.hashComponents ref tms
-        ref h i n = embedRef (DerivedPrivate_ (Id h i n))
+        ref h i n = embedRef (DerivedId (Id h i n))
 
 component :: H.Hash -> [k] -> [(k, Reference)]
 component h ks = let
   size = fromIntegral (length ks)
-  in [ (k, DerivedPrivate_ (Id h i size)) | (k, i) <- ks `zip` [0..]]
+  in [ (k, DerivedId (Id h i size)) | (k, i) <- ks `zip` [0..]]
 
 components :: [(H.Hash, [k])] -> [(k, Reference)]
 components sccs = join $ uncurry component <$> sccs
@@ -91,9 +153,9 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
     done m = sortOn snd <$> toList m
 
 instance Show Reference where
-  show (Builtin_ t) = Text.unpack t
-  show (DerivedPrivate_ id) = "#" <> show id
+  show (Builtin t)         = "##" <> Text.unpack t
+  show (DerivedId id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
-  tokens (Builtin_ txt) = [Hashable.Tag 0, Hashable.Text txt]
-  tokens (DerivedPrivate_ (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]
+  tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
+  tokens (DerivedId (Id h i n)) = [Hashable.Tag 1, Hashable.Bytes (H.toBytes h), Hashable.Nat i, Hashable.Nat n]

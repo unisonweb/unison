@@ -22,4 +22,4 @@ ex = handle (state 10) in
   !increment
   State.get -- should be 15, amirite??
 
-ex
+> ex

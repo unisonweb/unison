@@ -2,7 +2,6 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE DoAndIfThenElse   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
 
 module Unison.Codebase.Watch where
 
@@ -20,7 +19,6 @@ import           Control.Monad                  ( forever
 import           Data.IORef
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
-import qualified Data.Text                     as Text
 import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
@@ -29,13 +27,8 @@ import           System.FSNotify                ( Event(Added, Modified)
                                                 , watchTree
                                                 , withManager
                                                 )
-import           Unison.Names                   ( Names )
-import qualified Unison.TermPrinter             as TermPrinter
-import           Unison.Term                    ( Term )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
-import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
 watchDirectory' :: FilePath -> IO (IO (), IO (FilePath, UTCTime))
@@ -98,19 +91,3 @@ watchDirectory dir allow = do
         else await
   pure (cancel, await)
 
-watchPrinter :: Var v => Names -> Text -> Term v -> IO ()
-watchPrinter names label term = do
-  -- I guess this string constant comes from somewhere, and we are using
-  -- a bunch of spaces of the same total length.
-  let lead = const ' ' <$> "      | > "
-  -- weird that this doesn't incorporate the previous constant somehow
-  let arr = "          ⧩"
-  -- todo: replace 80 with some number calculated from the terminal width
-  -- e.g. http://hackage.haskell.org/package/terminal-size
-  let tm = TermPrinter.pretty' (Just 80) (PPE.fromNames names) term
-  let tm2 = tm >>= \case
-       '\n' -> '\n' : lead
-       c -> pure c
-  putStrLn $ Text.unpack label
-  putStrLn arr
-  putStrLn $ lead ++ tm2 ++ "\n"

@@ -1,6 +1,5 @@
-(+) = (Int.+)
 a |> f = f a
-Stream.iterate +0 Int.increment
+> Stream.iterate +0 Int.increment
   |> Stream.take 5
   |> Stream.drop 3
   |> Stream.reduce +0 (+)

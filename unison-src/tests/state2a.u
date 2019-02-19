@@ -36,4 +36,4 @@ ex =
   second result
 
 -- returns () for some reason!!!
-ex
+> ex

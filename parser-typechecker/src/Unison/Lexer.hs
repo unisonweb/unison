@@ -25,6 +25,7 @@ data Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | UnknownLexeme
   | TextLiteralMissingClosingQuote String
+  | InvalidEscapeCharacter Char
   | LayoutError
   deriving (Eq,Ord,Show) -- richer algebra
 
@@ -74,8 +75,8 @@ instance ShowToken (Token Lexeme) where
       pretty (Numeric n) = n
       pretty (Hash h) = show h
       pretty (Err e) = show e
-      pretty Close = ""
-      pretty t = show t
+      pretty Close = "<outdent>"
+      pretty Semi = "<virtual semicolon>"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -171,7 +172,12 @@ reorder ts = join . sortWith f . stanzas $ ts
 lexer :: String -> String -> [Token Lexeme]
 lexer scope rem =
   let t = tree $ lexer0 scope rem
-  in toList $ reorderTree reorder t
+      -- after reordering can end up with trailing semicolon at the end of
+      -- a block, which we remove with this pass
+      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup [] = []
+      fixup (h : t) = h : fixup t
+  in fixup . toList $ reorderTree reorder t
 
 lexer0 :: String -> String -> [Token Lexeme]
 lexer0 scope rem =
@@ -272,11 +278,11 @@ lexer0 scope rem =
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
       -- string literals and backticked identifiers
-      '"' : rem -> span' (/= '"') rem $ \(lit, rem) ->
-        if rem == [] then
-          [Token (Err (TextLiteralMissingClosingQuote lit)) pos pos]
-        else let end = inc . incBy lit . inc $ pos in
-                   Token (Textual lit) pos end : goWhitespace l end (pop rem)
+      '"' : rem -> case splitStringLit rem of
+        Right (lit, rem) -> let end = inc . incBy lit . inc $ pos in
+          Token (Textual lit) pos end : goWhitespace l end (pop rem)
+        Left (TextLiteralMissingClosingQuote _) -> [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
+        Left err -> [Token (Err err) pos pos]
       '`' : rem -> case wordyId rem of
         Left e -> Token (Err e) pos pos : recover l pos rem
         Right (id, rem) ->
@@ -314,6 +320,35 @@ matchKeyword' :: Set String -> String -> Maybe (String,String)
 matchKeyword' keywords s = case span (not . isSep) s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
+
+-- Split into a string literal and the remainder
+-- The input string should only start with a '"' if the string literal is empty
+splitStringLit :: String -> Either Err (String, String)
+splitStringLit ('\\':s:rem) = case parseEscapeChar s of
+  (Just e) -> appendFst e <$> splitStringLit rem
+  Nothing  -> Left $ InvalidEscapeCharacter s
+splitStringLit ('"':rem)    = Right ("", '"':rem)
+splitStringLit (x:rem)      = appendFst x <$> splitStringLit rem
+splitStringLit []           = Left $ TextLiteralMissingClosingQuote ""
+
+appendFst :: Char -> (String, a) -> (String, a)
+appendFst c (s, r) = (c : s, r)
+
+-- Map a escape symbol to it's character literal
+parseEscapeChar :: Char -> Maybe Char
+parseEscapeChar '0'  = Just '\0'
+parseEscapeChar 'a'  = Just '\a'
+parseEscapeChar 'b'  = Just '\b'
+parseEscapeChar 'f'  = Just '\f'
+parseEscapeChar 'n'  = Just '\n'
+parseEscapeChar 'r'  = Just '\r'
+parseEscapeChar 't'  = Just '\t'
+parseEscapeChar 'v'  = Just '\v'
+parseEscapeChar '\'' = Just '\''
+parseEscapeChar '"'  = Just '"'
+parseEscapeChar '\\' = Just '\\'
+parseEscapeChar _    = Nothing
+
 
 numericLit :: String -> Either Err (Maybe (String,String))
 numericLit s = go s

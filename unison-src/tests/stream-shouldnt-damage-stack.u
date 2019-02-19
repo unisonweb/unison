@@ -12,4 +12,5 @@ q = 900
 r = 90
 s = 9
 sum = Stream.fold-left 0 (+) t
-(sum, p + q + r + s)
+
+> (sum, p + q + r + s)

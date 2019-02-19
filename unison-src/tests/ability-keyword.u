@@ -5,5 +5,3 @@ ability Foo where
 x = 'let
   y = Foo.foo
   ()
-
-x

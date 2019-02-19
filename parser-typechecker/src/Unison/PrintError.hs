@@ -7,12 +7,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
+import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
@@ -21,17 +23,17 @@ import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
-import           Data.Maybe                   (catMaybes, fromMaybe)
+import           Data.Maybe                   (catMaybes)
 import           Data.Sequence                (Seq (..))
 import qualified Data.Set                     as Set
 import           Data.String                  (IsString, fromString)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
-import           Debug.Trace
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import qualified Unison.DataDeclaration       as DD
+import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
 import qualified Unison.Lexer                 as L
@@ -159,7 +161,7 @@ renderTypeInfo i env = case i of
     in  case defs of
           [def] ->
             "🌟 I found and typechecked a definition:\n"
-              <> (mconcat $ renderOne def)
+              <> mconcat (renderOne def)
           [] -> mempty
           _ ->
             "🎁 These mutually dependent definitions typechecked:\n"
@@ -481,7 +483,7 @@ renderTypeError e env src = case e of
             Type.Existential' _ _ -> "\nThere are no constraints on its type."
             _ ->
               "\nWhatever it is, it has a type that conforms to "
-                <> style Type1 (renderType' env $ expectedType)
+                <> style Type1 (renderType' env expectedType)
                 <> ".\n"
                  -- ++ showTypeWithProvenance env src Type1 expectedType
           , case correct of
@@ -702,7 +704,7 @@ renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
 renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
   fromString (Text.unpack $ Var.name v)
 renderTerm env (Term.Ref' r) =
-  fromString (Text.unpack $ PPE.termName env (Referent.Ref r))
+  fromString (HQ.toString $ PPE.termName env (Referent.Ref r))
 renderTerm _ e =
   let s = show e
   in      -- todo: pretty print
@@ -783,14 +785,14 @@ renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
 
 showTermRef :: IsString s => Env -> Referent -> s
-showTermRef env r = fromString . Text.unpack $ PPE.termName env r
+showTermRef env r = fromString . HQ.toString $ PPE.termName env r
 
 showTypeRef :: IsString s => Env -> R.Reference -> s
-showTypeRef env r = fromString . Text.unpack $ PPE.typeName env r
+showTypeRef env r = fromString . HQ.toString $ PPE.typeName env r
 
 -- todo: do something different/better if cid not found
 showConstructor :: IsString s => Env -> R.Reference -> Int -> s
-showConstructor env r cid = fromString . Text.unpack $
+showConstructor env r cid = fromString . HQ.toString $
   PPE.patternName env r cid
 
 styleInOverallType
@@ -867,7 +869,7 @@ printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
 printNoteWithSource _env s (InvalidPath path term) =
-  (fromString $ "Invalid Path: " ++ show path ++ "\n")
+  fromString ("Invalid Path: " ++ show path ++ "\n")
     <> annotatedAsErrorSite s term
 printNoteWithSource _env s (UnknownSymbol v a) =
   fromString ("Unknown symbol `" ++ Text.unpack (Var.name v) ++ "`\n\n")
@@ -927,6 +929,16 @@ prettyParseError s = \case
     ]
   go' (P.ErrorCustom e) = go e
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat
+    [ "I was expecting an indented block following the " <>
+      "`" <> fromString blockName <> "` keyword\n"
+    , "but instead found an outdent:\n\n"
+    , tokenAsErrorSite s tok ] -- todo: @aryairani why is this displaying weirdly?
+  go (Parser.ExpectedBlockOpen blockName tok) = mconcat
+    [ "I was expecting an indented block following the " <>
+      "`" <> fromString blockName <> "` keyword\n"
+    , "but instead found this token:\n"
+    , tokenAsErrorSite s tok ]
   go (Parser.SignatureNeedsAccompanyingBody tok) = mconcat
     [ "You provided a type signature, but I didn't find an accompanying\n"
     , "binding after it.  Could it be a spelling mismatch?\n"
@@ -936,7 +948,7 @@ prettyParseError s = \case
    -- instance for it
   go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = mconcat
     [ "The last line of the block starting at "
-    , fromString . (fmap Char.toLower) . annotatedToEnglish $ blockAnn
+    , fromString . fmap Char.toLower . annotatedToEnglish $ blockAnn
     , "\n"
     , "has to be an expression, not a binding/import/etc:"
     , annotatedAsErrorSite s lastBindingAnn
@@ -1013,4 +1025,4 @@ prettyTypeInfo
   -> Env
   -> AnnotatedText Color
 prettyTypeInfo n e =
-  fromMaybe "" $ flip renderTypeInfo e <$> typeInfoFromNote n
+  maybe "" (`renderTypeInfo` e) (typeInfoFromNote n)

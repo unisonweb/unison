@@ -39,5 +39,5 @@ isWin board =
           d e f
           g h i -> (same a b c)
 
-isWin b
+> isWin b
 -- Some 3

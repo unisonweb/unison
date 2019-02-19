@@ -45,6 +45,7 @@ import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
+import qualified Unison.ConstructorType as CT
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -287,6 +288,9 @@ tupleCons :: (Ord v, Semigroup a)
 tupleCons hd tl =
   apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
 
+tuple :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
+tuple = foldr tupleCons (unit mempty)
+
 -- delayed terms are just lambdas that take a single `()` arg
 -- `force` calls the function
 force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
@@ -385,6 +389,18 @@ unLetRecNamedAnnotated
 unLetRecNamedAnnotated (ABT.CycleA' ann avs (ABT.Tm' (LetRec isTop bs e))) =
   Just (isTop, ann, avs `zip` bs, e)
 unLetRecNamedAnnotated _ = Nothing
+
+letRec'
+  :: (Ord v, Monoid a)
+  => Bool
+  -> [(v, AnnotatedTerm' vt v a)]
+  -> AnnotatedTerm' vt v a
+  -> AnnotatedTerm' vt v a
+letRec' isTop bindings body =
+  letRec isTop
+    (foldMap (ABT.annotation . snd) bindings)
+    [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
+    body
 
 letRec
   :: Ord v
@@ -566,55 +582,85 @@ unAskInfo tm = case tm of
   _ -> Nothing
 
 isVarKindInfo :: Var v => AnnotatedTerm' vt v a -> Bool
-isVarKindInfo t = case t of 
+isVarKindInfo t = case t of
   Var' v | (Var.kind v) == "info" -> True
   _ -> False
 
+-- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies t =
-  dependencies' t <> referencedDataDeclarations t <> referencedEffectDeclarations t
+  dependencies' t
+    <> referencedDataDeclarations t
+    <> referencedEffectDeclarations t
 
+-- Term and type dependencies, not including references to user-defined types
 dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Ref r) = Writer.tell [r] *> pure t
-        f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
-        f t = pure t
+ where
+  f t@(Ref r    ) = Writer.tell [r] *> pure t
+  f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
+  f t@(Nat _)     = Writer.tell [Type.natRef] *> pure t
+  f t@(Int _)     = Writer.tell [Type.intRef] *> pure t
+  f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
+  f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
+  f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
+  f t@(Vector _)  = Writer.tell [Type.vectorRef] *> pure t
+  f t             = pure t
 
-referencedDataDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
-referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Constructor r _) = Writer.tell [r] *> pure t
-        f t@(Match _ cases) = traverse_ g cases *> pure t where
-          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedDataDeclarationsP pat))
-        f t = pure t
+referencedDataDeclarations
+  :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
+  f
+  t
+ where
+  f t@(Constructor r _    ) = Writer.tell [r] *> pure t
+  f t@(Match       _ cases) = traverse_ g cases *> pure t
+   where
+    g (MatchCase pat _ _) =
+      Writer.tell (Set.toList (referencedDataDeclarationsP pat))
+  f t = pure t
 
 referencedDataDeclarationsP :: Pattern loc -> Set Reference
-referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
+referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p
+ where
   go (Pattern.As _ p) = go p
   go (Pattern.Constructor _ id _ args) = Writer.tell [id] *> traverse_ go args
   go (Pattern.EffectPure _ p) = go p
   go (Pattern.EffectBind _ _ _ args k) = traverse_ go args *> go k
   go _ = pure ()
 
-referencedEffectDeclarations :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
-referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Request r _) = Writer.tell [r] *> pure t
-        f t@(Match _ cases) = traverse_ g cases *> pure t where
-          g (MatchCase pat _ _) = Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
-          -- todo: does this traverse the guard and body of MatchCase?
-        f t = pure t
+referencedEffectDeclarations
+  :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
+referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
+  f
+  t
+ where
+  f t@(Request r _    ) = Writer.tell [r] *> pure t
+  f t@(Match   _ cases) = traverse_ g cases *> pure t
+   where
+    g (MatchCase pat _ _) =
+      Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
+    -- todo: does this traverse the guard and body of MatchCase?
+  f t = pure t
 
 referencedEffectDeclarationsP :: Pattern loc -> Set Reference
-referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p where
-  go (Pattern.As _ p) = go p
+referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p
+ where
+  go (Pattern.As _ p                ) = go p
   go (Pattern.Constructor _ _ _ args) = traverse_ go args
-  go (Pattern.EffectPure _ p) = go p
-  go (Pattern.EffectBind _ id _ args k) = Writer.tell [id] *> traverse_ go args *> go k
+  go (Pattern.EffectPure _ p        ) = go p
+  go (Pattern.EffectBind _ id _ args k) =
+    Writer.tell [id] *> traverse_ go args *> go k
   go _ = pure ()
 
-updateDependencies :: Ord v => Map Reference Reference -> Term v -> Term v
-updateDependencies u tm = ABT.rebuildUp go tm where
+updateDependencies
+  :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a
+updateDependencies u tm = ABT.rebuildUp go tm
+ where
+  -- todo: this function might need tweaking if we ever allow type replacements
+  -- would need to look inside pattern matching and constructor calls
   go (Ref r) = Ref (Map.findWithDefault r r u)
-  go f = f
+  go f       = f
 
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
@@ -622,8 +668,23 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
-hashComponents :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
-hashComponents m = Reference.hashComponents (\r -> ref() r) m
+-- This converts `Reference`s it finds that are in the input `Map`
+-- back to free variables
+unhashComponent :: Var v
+                => Map v (Reference, AnnotatedTerm v a)
+                -> Map v (Reference, AnnotatedTerm v a)
+unhashComponent m = let
+  refToVar = Map.fromList [ (r, v) | (v, (r,_)) <- Map.toList m ]
+  unhash1 e = ABT.rebuildUp' go e where
+    go e@(Ref' r) = case Map.lookup r refToVar of
+      Nothing -> e
+      Just v -> var (ABT.annotation e) v
+    go e = e
+  in Map.fromList [ (v, (r, unhash1 e)) | (v, (r,e)) <- Map.toList m ]
+
+hashComponents
+  :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
+hashComponents m = Reference.hashComponents (\r -> ref () r) m
 
 -- The hash for a constructor
 hashConstructor'
@@ -643,123 +704,85 @@ hashConstructor = hashConstructor' $ constructor ()
 hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
 
-fromReferent :: Ord v => a -> Referent -> AnnotatedTerm2 vt at ap v a
-fromReferent a = \case
+fromReferent :: Ord v
+             => (Reference -> CT.ConstructorType)
+             -> a
+             -> Referent
+             -> AnnotatedTerm2 vt at ap v a
+fromReferent ct a = \case
   Referent.Ref r -> ref a r
-  Referent.Req r i -> request a r i
-  Referent.Con r i -> constructor a r i
-
-toReferent :: AnnotatedTerm2 vt at ap v a -> Maybe Referent
-toReferent t = case t of
-  Ref' r           -> Just $ Referent.Ref r
-  Request' r i     -> Just $ Referent.Req r i
-  Constructor' r i -> Just $ Referent.Con r i
-  _                -> Nothing
-
-
-anf :: ∀ vt at v a . (Semigroup a, Var v)
-    => AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
-anf t = go t where
-  ann = ABT.annotation
-  isVar (Var' _) = True
-  isVar _ = False
-  isClosedLam t@(LamNamed' _ _) | Set.null (ABT.freeVars t) = True
-  isClosedLam _ = False
-  fixAp t f args =
-    let
-      args' = Map.fromList $ toVar =<< (args `zip` [0..])
-      toVar (b, i) | isVar b   = []
-                   | otherwise = [(i, ABT.fresh t (Var.named . Text.pack $ "arg" ++ show i))]
-      argsANF = map toANF (args `zip` [0..])
-      toANF (b,i) = maybe b (var (ann b)) $ Map.lookup i args'
-      addLet (b,i) body = maybe body (\v -> let1' False [(v,go b)] body) (Map.lookup i args')
-    in foldr addLet (apps' f argsANF) (args `zip` [(0::Int)..])
-  go :: AnnotatedTerm2 vt at a v a -> AnnotatedTerm2 vt at a v a
-  go (Apps' f@(LamsNamed' vs body) args) | isClosedLam f = ap vs body args where
-    ap vs body [] = lam' (ann f) vs body
-    ap (v:vs) body (arg:args) = let1' False [(v,arg)] $ ap vs body args
-    ap [] _body _args = error "type error"
-  go t@(Apps' f args)
-    | isVar f = fixAp t f args
-    | otherwise = let fv' = ABT.fresh t (Var.named "f")
-                  in let1' False [(fv', anf f)] (fixAp t (var (ann f) fv') args)
-  go e@(Handle' h body)
-    | isVar h = handle (ann e) h (go body)
-    | otherwise = let h' = ABT.fresh e (Var.named "handler")
-                  in let1' False [(h', go h)] (handle (ann e) (var (ann h) h') (go body))
-  go e@(If' cond t f)
-    | isVar cond = iff (ann e) cond (go t) (go f)
-    | otherwise = let cond' = ABT.fresh e (Var.named "cond")
-                  in let1' False [(cond', anf cond)] (iff (ann e) (var (ann cond) cond') t f)
-  go e@(Match' scrutinee cases)
-    | isVar scrutinee = match (ann e) scrutinee (fmap go <$> cases)
-    | otherwise = let scrutinee' = ABT.fresh e (Var.named "scrutinee")
-                  in let1' False [(scrutinee', go scrutinee)] (match (ann e) (var (ann scrutinee) scrutinee') cases)
-  go e@(And' x y)
-    | isVar x = and (ann e) x (go y)
-    | otherwise =
-        let x' = ABT.fresh e (Var.named "argX")
-        in let1' False [(x', anf x)] (and (ann e) (var (ann x) x') (go y))
-  go e@(Or' x y)
-    | isVar x = or (ann e) x (go y)
-    | otherwise =
-        let x' = ABT.fresh e (Var.named "argX")
-        in let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))
-  go e@(ABT.Tm' f) = ABT.tm' (ann e) (go <$> f)
-  go e@(ABT.Var' _) = e
-  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
-  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
-  go e = e
+  Referent.Con r i -> case ct r of
+    CT.Data -> constructor a r i
+    CT.Effect -> request a r i
 
 instance Var v => Hashable1 (F v a p) where
-  hash1 hashCycle hash e =
-    let
-      (tag, hashed, varint) = (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
-    in case e of
-      -- So long as `Reference.Derived` ctors are created using the same hashing
-      -- function as is used here, this case ensures that references are 'transparent'
-      -- wrt hash and hashing is unaffected by whether expressions are linked.
-      -- So for example `x = 1 + 1` and `y = x` hash the same.
-      Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
-      Ref (Reference.Derived h i n) ->
-        Hashable.accumulate [tag 1, hashed $ Hashable.fromBytes (Hash.toBytes h), Hashable.Nat i, Hashable.Nat n]
-      -- Note: start each layer with leading `1` byte, to avoid collisions with
-      -- types, which start each layer with leading `0`. See `Hashable1 Type.F`
-      _ -> Hashable.accumulate $ tag 1 : case e of
-        Nat i -> [tag 64, accumulateToken i]
-        Int i -> [tag 65, accumulateToken i]
-        Float n -> [tag 66, Hashable.Double n]
-        Boolean b -> [tag 67, accumulateToken b]
-        Text t -> [tag 68, accumulateToken t]
-        Blank b -> tag 1 :
-          case b of
-            B.Blank -> [tag 0]
-            B.Recorded (B.Placeholder _ s) -> [tag 1, Hashable.Text (Text.pack s)]
-            B.Recorded (B.Resolve _ s)  -> [tag 2, Hashable.Text (Text.pack s)]
-        Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
-        Ref (Reference.Derived _ _ _) -> error "handled above, but GHC can't figure this out"
-        App a a2 -> [tag 3, hashed (hash a), hashed (hash a2)]
-        Ann a t -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-        Vector as -> tag 5 : varint (Vector.length as) : map (hashed . hash) (Vector.toList as)
-        Lam a -> [tag 6, hashed (hash a) ]
-        -- note: we use `hashCycle` to ensure result is independent of let binding order
-        LetRec _ as a -> case hashCycle as of
-          (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
-        -- here, order is significant, so don't use hashCycle
-        Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
-        If b t f -> [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
-        Request r n -> [tag 10, accumulateToken r, varint n]
-        Constructor r n -> [tag 12, accumulateToken r, varint n]
-        Match e branches -> tag 13 : hashed (hash e) : concatMap h branches
-          where
-            h (MatchCase pat guard branch) =
-              concat [[accumulateToken pat],
-                      toList (hashed . hash <$> guard),
-                      [hashed (hash branch)]]
-        Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
-        And x y -> [tag 16, hashed $ hash x, hashed $ hash y]
-        Or x y -> [tag 17, hashed $ hash x, hashed $ hash y]
-        _ -> error $ "unhandled case in show: " <> show (const () <$> e)
+  hash1 hashCycle hash e
+    = let (tag, hashed, varint) =
+            (Hashable.Tag, Hashable.Hashed, Hashable.Nat . fromIntegral)
+      in
+        case e of
+        -- So long as `Reference.Derived` ctors are created using the same
+        -- hashing function as is used here, this case ensures that references
+        -- are 'transparent' wrt hash and hashing is unaffected by whether
+        -- expressions are linked. So for example `x = 1 + 1` and `y = x` hash
+        -- the same.
+          Ref (Reference.Derived h 0 1) -> Hashable.fromBytes (Hash.toBytes h)
+          Ref (Reference.Derived h i n) -> Hashable.accumulate
+            [ tag 1
+            , hashed $ Hashable.fromBytes (Hash.toBytes h)
+            , Hashable.Nat i
+            , Hashable.Nat n
+            ]
+          -- Note: start each layer with leading `1` byte, to avoid collisions
+          -- with types, which start each layer with leading `0`.
+          -- See `Hashable1 Type.F`
+          _ ->
+            Hashable.accumulate
+              $ tag 1
+              : case e of
+                  Nat     i -> [tag 64, accumulateToken i]
+                  Int     i -> [tag 65, accumulateToken i]
+                  Float   n -> [tag 66, Hashable.Double n]
+                  Boolean b -> [tag 67, accumulateToken b]
+                  Text    t -> [tag 68, accumulateToken t]
+                  Blank   b -> tag 1 : case b of
+                    B.Blank -> [tag 0]
+                    B.Recorded (B.Placeholder _ s) ->
+                      [tag 1, Hashable.Text (Text.pack s)]
+                    B.Recorded (B.Resolve _ s) ->
+                      [tag 2, Hashable.Text (Text.pack s)]
+                  Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
+                  Ref (Reference.Derived _ _ _) ->
+                    error "handled above, but GHC can't figure this out"
+                  App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
+                  Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
+                  Vector as -> tag 5 : varint (Vector.length as) : map
+                    (hashed . hash)
+                    (Vector.toList as)
+                  Lam a         -> [tag 6, hashed (hash a)]
+                  -- note: we use `hashCycle` to ensure result is independent of
+                  -- let binding order
+                  LetRec _ as a -> case hashCycle as of
+                    (hs, hash) -> tag 7 : hashed (hash a) : map hashed hs
+                  -- here, order is significant, so don't use hashCycle
+                  Let _ b a -> [tag 8, hashed $ hash b, hashed $ hash a]
+                  If b t f ->
+                    [tag 9, hashed $ hash b, hashed $ hash t, hashed $ hash f]
+                  Request     r n -> [tag 10, accumulateToken r, varint n]
+                  Constructor r n -> [tag 12, accumulateToken r, varint n]
+                  Match e branches ->
+                    tag 13 : hashed (hash e) : concatMap h branches
+                   where
+                    h (MatchCase pat guard branch) = concat
+                      [ [accumulateToken pat]
+                      , toList (hashed . hash <$> guard)
+                      , [hashed (hash branch)]
+                      ]
+                  Handle h b -> [tag 15, hashed $ hash h, hashed $ hash b]
+                  And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
+                  Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
+                  _ ->
+                    error $ "unhandled case in show: " <> show (const () <$> e)
 
 -- mostly boring serialization code below ...
 
@@ -785,44 +808,55 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Or a b == Or a2 b2 = a == a2 && b == b2
   Lam a == Lam b = a == b
   LetRec _ bs body == LetRec _ bs2 body2 = bs == bs2 && body == body2
-  Let _ binding body == Let _ binding2 body2 = binding == binding2 && body == body2
+  Let _ binding body == Let _ binding2 body2 =
+    binding == binding2 && body == body2
   Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
   _ == _ = False
 
 
 instance (Var v, Show a) => Show (F v a0 p a) where
-  showsPrec p fa = go p fa where
-    showConstructor r n = showsPrec 0 r <> s"#" <> showsPrec 0 n
-    go _ (Int n) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
-    go _ (Nat n) = showsPrec 0 n
-    go _ (Float n) = showsPrec 0 n
-    go _ (Boolean True) = s"true"
-    go _ (Boolean False) = s"false"
-    go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
-    go p (App f x) =
-      showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
-    go _ (Lam body) = showParen True (s"λ " <> showsPrec 0 body)
-    go _ (Vector vs) = showListWith (showsPrec 0) (Vector.toList vs)
-    go _ (Blank b) =
-      case b of
-        B.Blank -> s"_"
-        B.Recorded (B.Placeholder _ r) -> s("_" ++ r)
-        B.Recorded (B.Resolve _ r) -> s r
-    go _ (Ref r) = s"Ref(" <> showsPrec 0 r <> s")"
-    go _ (Let _ b body) = showParen True (s"let " <> showsPrec 0 b <> s" in " <> showsPrec 0 body)
-    go _ (LetRec _ bs body) = showParen True (s"let rec" <> showsPrec 0 bs <> s" in " <> showsPrec 0 body)
-    go _ (Handle b body) = showParen True (s"handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
-    go _ (Constructor r n) = showConstructor r n
-    go _ (Match scrutinee cases) =
-      showParen True (s"case " <> showsPrec 0 scrutinee <> s" of " <> showsPrec 0 cases)
-    go _ (Text s) = showsPrec 0 s
+  showsPrec p fa = go p fa
+   where
+    showConstructor r n = showsPrec 0 r <> s "#" <> showsPrec 0 n
+    go _ (Int     n    ) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
+    go _ (Nat     n    ) = showsPrec 0 n
+    go _ (Float   n    ) = showsPrec 0 n
+    go _ (Boolean True ) = s "true"
+    go _ (Boolean False) = s "false"
+    go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s ":" <> showsPrec 0 k
+    go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
+    go _ (Lam    body  ) = showParen True (s "λ " <> showsPrec 0 body)
+    go _ (Vector vs    ) = showListWith (showsPrec 0) (Vector.toList vs)
+    go _ (Blank  b     ) = case b of
+      B.Blank                        -> s "_"
+      B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
+      B.Recorded (B.Resolve     _ r) -> s r
+    go _ (Ref r) = s "Ref(" <> showsPrec 0 r <> s ")"
+    go _ (Let _ b body) =
+      showParen True (s "let " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
+    go _ (LetRec _ bs body) = showParen
+      True
+      (s "let rec" <> showsPrec 0 bs <> s " in " <> showsPrec 0 body)
+    go _ (Handle b body) = showParen
+      True
+      (s "handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
+    go _ (Constructor r         n    ) = showConstructor r n
+    go _ (Match       scrutinee cases) = showParen
+      True
+      (s "case " <> showsPrec 0 scrutinee <> s " of " <> showsPrec 0 cases)
+    go _ (Text s     ) = showsPrec 0 s
     go _ (Request r n) = showConstructor r n
-    go p (If c t f) = showParen (p > 0) $
-      s"if " <> showsPrec 0 c <> s" then " <> showsPrec 0 t <>
-      s" else " <> showsPrec 0 f
-    go p (And x y) = showParen (p > 0) $
-      s"and " <> showsPrec 0 x <> s" " <> showsPrec 0 y
-    go p (Or x y) = showParen (p > 0) $
-      s"or " <> showsPrec 0 x <> s" " <> showsPrec 0 y
+    go p (If c t f) =
+      showParen (p > 0)
+        $  s "if "
+        <> showsPrec 0 c
+        <> s " then "
+        <> showsPrec 0 t
+        <> s " else "
+        <> showsPrec 0 f
+    go p (And x y) =
+      showParen (p > 0) $ s "and " <> showsPrec 0 x <> s " " <> showsPrec 0 y
+    go p (Or x y) =
+      showParen (p > 0) $ s "or " <> showsPrec 0 x <> s " " <> showsPrec 0 y
     (<>) = (.)
-    s = showString
+    s    = showString

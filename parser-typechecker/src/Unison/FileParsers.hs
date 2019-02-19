@@ -1,8 +1,5 @@
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE UnicodeSyntax       #-}
 
 module Unison.FileParsers where
@@ -11,11 +8,11 @@ import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
-import           Data.Bytes.Put             (runPutS)
-import           Data.ByteString            (ByteString)
 import qualified Data.Foldable              as Foldable
+import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
+import Data.List (partition)
 import Data.Set (Set)
 import qualified Data.Set                   as Set
 import           Data.Sequence              (Seq)
@@ -23,10 +20,10 @@ import qualified Data.Sequence              as Seq
 import           Data.Text                  (Text, unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
-import qualified Unison.Codecs              as Codecs
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
-import           Unison.Names               (Name, Names)
+import qualified Unison.Name                as Name
+import           Unison.Names               (Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
@@ -53,6 +50,7 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann
 type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
+type Name = Text
 
 -- move to Unison.Util.List
 -- prefers earlier copies
@@ -88,7 +86,7 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile' v Ann))
+       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
@@ -103,16 +101,21 @@ synthesizeFile
   => TL.TypeLookup v Ann
   -> Names
   -> UnisonFile v
-  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile' v Ann)
+  -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
-    uf@(UnisonFile dds0 eds0 term0) = unisonFile
+    uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
+    term0 = UF.uberTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
     allTheNames = localNames <> preexistingNames
-    term = Names.bindTerm allTheNames term0
+    ctorType r =
+      fromMaybe
+        (error $ "no constructor type in synthesizeFile for " <> show r)
+        (TL.constructorType (localTypes <> preexistingTypes) r)
+    term = Names.bindTerm ctorType allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
     lookupTypes = localTypes <> preexistingTypes
@@ -120,14 +123,15 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-         [ (Names.unqualified name,
+         [ (Names.unqualified' name,
             [Typechecker.NamedReference name typ (Right r)]) |
-           (name, r) <- Map.toList $ Names.termNames allTheNames,
+           (name', r) <- Map.toList $ Names.termNames allTheNames,
+           let name = Name.toText name',
            typ <- Foldable.toList $ TL.typeOfReferent lookupTypes  r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
-  Result (convertNotes notes) mayType >>= \typ -> do
+  Result (convertNotes notes) mayType >>= \_typ -> do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
@@ -151,9 +155,12 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
         traverse (traverse strippedTopLevelBinding) tlcsFromTypechecker
     let doTdnr = applyTdnrDecisions infos
         doTdnrInComponent (v, t, tp) = (\t -> (v, t, tp)) <$> doTdnr t
-    t          <- doTdnr tdnrTerm
+    _          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
-    pure (UF.TypecheckedUnisonFile' dds0 eds0 tdnredTlcs t typ)
+    let (watches', terms') = partition isWatch tdnredTlcs
+        isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
+        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
+    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]
@@ -172,19 +179,3 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
           -- loc of replacement already chosen correctly by whatever made the Decision
           pure . pure $ replacement
       _ -> Nothing
-
-synthesizeAndSerializeUnisonFile
-  :: Var v
-  => TL.TypeLookup v Ann
-  -> Names
-  -> UnisonFile v
-  -> Result
-       (Seq (Note v Ann))
-       (UF.TypecheckedUnisonFile' v Ann, ByteString)
-synthesizeAndSerializeUnisonFile tl names unisonFile =
-  let r = synthesizeFile tl names unisonFile
-      f unisonFile' =
-        let bs = runPutS $ flip evalStateT 0 $ Codecs.serializeFile
-              (UF.discardTypes' unisonFile')
-        in  (unisonFile', bs)
-  in  f <$> r

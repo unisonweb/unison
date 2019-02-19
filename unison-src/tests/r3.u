@@ -2,5 +2,5 @@ r3 : Nat
 r3 = case Optional.Some true of
   Optional.Some true -> 1
   Optional.Some false -> 0
-()
+
 

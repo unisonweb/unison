@@ -7,9 +7,9 @@ import Unison.Reference (Reference)
 data TermEdit = Replace Reference Typing | Deprecate
   deriving (Eq, Ord, Show)
 
-referents :: TermEdit -> [Reference]
-referents (Replace r _) = [r]
-referents Deprecate = []
+references :: TermEdit -> [Reference]
+references (Replace r _) = [r]
+references Deprecate = []
 
 -- Replacements with the Same type can be automatically propagated.
 -- Replacements with a Subtype can be automatically propagated but may result in dependents getting more general types, so requires re-inference.
@@ -29,3 +29,14 @@ instance Hashable TermEdit where
 toReference :: TermEdit -> Maybe Reference
 toReference (Replace r _) = Just r
 toReference Deprecate     = Nothing
+
+isTypePreserving :: TermEdit -> Bool
+isTypePreserving e = case e of
+  Replace _ Same -> True
+  Replace _ Subtype -> True
+  _ -> False
+
+isSame :: TermEdit -> Bool
+isSame e = case e of
+  Replace _ Same -> True
+  _              -> False

@@ -1,22 +1,23 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.TypePrinter where
 
-import qualified Data.Text                     as Text
-import           Data.Maybe                     ( isJust )
-import           Unison.Names                   ( Name )
-import           Unison.Reference               ( pattern Builtin )
+import           Data.Maybe            (isJust)
+import           Data.String           (fromString)
+import qualified Data.Text             as Text
+import           Unison.HashQualified  (HashQualified)
+import           Unison.NamePrinter    (prettyHashQualified)
+import           Unison.PrettyPrintEnv (PrettyPrintEnv)
+import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
+import           Unison.Reference      (pattern Builtin)
 import           Unison.Type
-import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
-import qualified Unison.Util.Pretty            as PP
-import Unison.Util.Pretty (Pretty)
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
-import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
+import           Unison.Util.Pretty    (ColorText, Pretty)
+import qualified Unison.Util.Pretty    as PP
+import           Unison.Var            (Var)
+import qualified Unison.Var            as Var
 
 {- Explanation of precedence handling
 
@@ -46,7 +47,7 @@ pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
 -- application has precedence 10.
 pretty n p tp = case tp of
   Var' v     -> l $ Text.unpack (Var.name v)
-  Ref' r     -> l $ Text.unpack (PrettyPrintEnv.typeName n r)
+  Ref' r     -> prettyHashQualified $ (PrettyPrintEnv.typeName n r)
   Cycle' _ _ -> l $ "error" -- TypeParser does not currently emit Cycle
   Abs' _     -> l $ "error" -- TypeParser does not currently emit Abs
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
@@ -110,16 +111,48 @@ pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (-1) t
 pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
+prettySignatures'
+  :: Var v => PrettyPrintEnv
+  -> [(HashQualified, AnnotatedType v a)]
+  -> [Pretty ColorText]
+prettySignatures' env ts = PP.align
+  [ (prettyHashQualified name, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
+                   (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
+  | (name, typ) <- ts
+  ]
+
+prettySignaturesAlt'
+  :: Var v => PrettyPrintEnv
+  -> [([HashQualified], AnnotatedType v a)]
+  -> [Pretty ColorText]
+prettySignaturesAlt' env ts = PP.align
+  [ (PP.commas . fmap prettyHashQualified $ names, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
+     (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
+  | (names, typ) <- ts
+  ]
+
+-- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, AnnotatedType v a)] -> [Pretty ColorText]
+-- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
+
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(Name, Maybe (AnnotatedType v a))]
-  -> Pretty String
-prettySignatures env ts = PP.column2
-  [ (PP.text name, ":" <> prettyType typ)
-  | (name, typ) <- ts
-  ]
-  where prettyType = \case
-          -- todo: Switch to Pretty ColorText and make this red.
-          Nothing -> PP.hang "" "💥 I couldn't load this type."
-          Just typ -> PP.hang "" (pretty env (-1) typ)
+  -> [(HashQualified, AnnotatedType v a)]
+  -> Pretty ColorText
+prettySignatures env ts = PP.lines $
+  PP.group <$> prettySignatures' env ts
+
+prettySignaturesAlt
+  :: Var v
+  => PrettyPrintEnv
+  -> [([HashQualified], AnnotatedType v a)]
+  -> Pretty ColorText
+prettySignaturesAlt env ts = PP.lines $
+  PP.group <$> prettySignaturesAlt' env ts
+
+
+prettyDataHeader :: HashQualified -> Pretty ColorText
+prettyDataHeader name = PP.bold "type " <> prettyHashQualified name
+
+prettyEffectHeader :: HashQualified -> Pretty ColorText
+prettyEffectHeader name = PP.bold "ability " <> prettyHashQualified name

@@ -26,13 +26,16 @@ import           Data.Foldable              (for_, toList, traverse_)
 import           Data.List                  (nub)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, isJust, maybeToList)
+import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
 import           Data.Sequence              (Seq)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import           Unison.Names               (Name)
+import qualified Unison.ConstructorType     as CT
+-- import           Unison.Name                (Name)
+-- import qualified Unison.Name                as Name
+import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
@@ -46,6 +49,8 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 -- import           Debug.Trace
+
+type Name = Text
 
 type Term v loc = AnnotatedTerm v loc
 type Type v loc = AnnotatedType v loc
@@ -158,6 +163,16 @@ synthesize env t = let
     (Term.vtmap TypeVar.Universal t)
   in tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
 
+isSubtype :: Var v => Type v loc -> Type v loc -> Bool
+isSubtype t1 t2 = case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
+  Context.Result es _ ob -> case ob of
+    Nothing -> error $ "some errors occurred during subtype checking " ++ show es
+    Just b -> b
+  where tvar = ABT.vmap TypeVar.Universal
+
+isEqual :: Var v => Type v loc -> Type v loc -> Bool
+isEqual t1 t2 = isSubtype t1 t2 && isSubtype t2 t1
+
 type TDNR f v loc a =
   StateT (Term v loc) (ResultT (Notes v loc) f) a
 
@@ -249,7 +264,14 @@ typeDirectedNameResolution oldNotes oldType env = do
     do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
-        where solved = either (Term.var loc) (Term.fromReferent loc) replacement
+        where solved = either (Term.var loc)
+                              (Term.fromReferent constructorType loc)
+                              replacement
+              constructorType :: Reference -> CT.ConstructorType
+              constructorType =
+                fromMaybe (error "no constructor type in substSuggestion")
+                  . TL.constructorType (view typeLookup env)
+
   substSuggestion _ = pure ()
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc

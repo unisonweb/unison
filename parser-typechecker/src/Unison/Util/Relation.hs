@@ -1,6 +1,7 @@
 module Unison.Util.Relation where
 
 import           Prelude                 hiding ( null )
+import           Data.Bifunctor                 ( first, second )
 import           Data.Foldable                  ( foldl' )
 import qualified Data.Map                      as M
 import           Data.Set                       ( Set )
@@ -33,8 +34,10 @@ import qualified Data.Map                      as Map
 data Relation a b  = Relation { domain ::  M.Map a (Set b)
                               , range  ::  M.Map b (Set a)
                               }
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
+instance (Show a, Show b) => Show (Relation a b) where
+  show = show . toList
 
 -- * Functions about relations
 
@@ -163,19 +166,19 @@ lookupDom' x r = M.lookup x (domain r)
 lookupRan' :: Ord b => b -> Relation a b -> Maybe (Set a)
 lookupRan' y r = M.lookup y (range r)
 
-
-
 -- | True if the element @ x @ exists in the domain of @ r @.
 memberDom :: Ord a => a -> Relation a b -> Bool
 memberDom x r = isJust $ lookupDom' x r
-
-
 
 -- | True if the element exists in the range.
 memberRan :: Ord b => b -> Relation a b -> Bool
 memberRan y r = isJust $ lookupRan' y r
 
+filterDom :: (Ord a, Ord b) => (a -> Bool) -> Relation a b -> Relation a b
+filterDom f r = S.filter f (dom r) <| r
 
+filterRan :: (Ord a, Ord b) => (b -> Bool) -> Relation a b -> Relation a b
+filterRan f r = r |> S.filter f (ran r)
 
 -- |
 -- True if the relation @r@ is the 'empty' relation.
@@ -333,11 +336,35 @@ replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
   foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)
 
+updateDom :: (Ord a, Ord b) => (a -> a) -> b -> Relation a b -> Relation a b
+updateDom f b r =
+  foldl' (\r a -> insert (f a) b $ delete a b r) r (lookupRan b r)
+
+updateRan :: (Ord a, Ord b) => (b -> b) -> a -> Relation a b -> Relation a b
+updateRan f a r =
+  foldl' (\r b -> insert a (f b) $ delete a b r) r (lookupDom a r)
+
 deleteRan :: (Ord a, Ord b) => b -> Relation a b -> Relation a b
 deleteRan b r = foldl' (\r a -> delete a b r) r $ lookupRan b r
 
 deleteDom :: (Ord a, Ord b) => a -> Relation a b -> Relation a b
 deleteDom a r = foldl' (\r b -> delete a b r) r $ lookupDom a r
+
+deleteRanWhere :: (Ord a, Ord b) => (b -> Bool) -> a -> Relation a b -> Relation a b
+deleteRanWhere f a r =
+  foldl' (\r b -> if f b then delete a b r else r) r (lookupDom a r)
+
+deleteDomWhere :: (Ord a, Ord b) => (a -> Bool) -> b -> Relation a b -> Relation a b
+deleteDomWhere f b r =
+  foldl' (\r a -> if f a then delete a b r else r) r (lookupRan b r)
+
+-- aka first
+mapDom :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b
+mapDom f = fromList . fmap (first f) . toList
+
+-- aka second
+mapRan :: (Ord a, Ord b, Ord b') => (b -> b') -> Relation a b -> Relation a b'
+mapRan f = fromList . fmap (second f) . toList
 
 fromMap :: (Ord a, Ord b) => Map a b -> Relation a b
 fromMap = fromList . Map.toList
@@ -348,6 +375,13 @@ fromMultimap m =
 
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
+
+swap :: Relation a b -> Relation b a
+swap (Relation a b) = Relation b a
+
+bimap :: (Ord a, Ord b, Ord c, Ord d)
+      => (a -> c) -> (b -> d) -> Relation a b -> Relation c d
+bimap f g = fromList . fmap (\(a,b) -> (f a, g b)) . toList
 
 instance (Ord a, Ord b) => Monoid (Relation a b) where
   mempty = empty

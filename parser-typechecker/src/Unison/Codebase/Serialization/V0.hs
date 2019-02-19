@@ -33,6 +33,7 @@ import           Data.Word                      ( Word64 )
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
+import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Causal         ( Causal )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -51,6 +52,8 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
+import           Unison.Name                   (Name)
+import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -160,7 +163,7 @@ getReference = do
   tag <- getWord8
   case tag of
     0 -> Reference.Builtin <$> getText
-    1 -> Reference.DerivedPrivate_ <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
+    1 -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> getLength <*> getLength)
     _ -> unknownTag "Reference" tag
 
 putReferent :: MonadPut m => Referent -> m ()
@@ -172,10 +175,6 @@ putReferent r = case r of
     putWord8 1
     putReference r
     putLength i
-  Referent.Req r i -> do
-    putWord8 2
-    putReference r
-    putLength i
 
 getReferent :: MonadGet m => m Referent
 getReferent = do
@@ -183,7 +182,6 @@ getReferent = do
   case tag of
     0 -> Referent.Ref <$> getReference
     1 -> Referent.Con <$> getReference <*> getLength
-    2 -> Referent.Req <$> getReference <*> getLength
     _ -> unknownTag "getReferent" tag
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
@@ -485,20 +483,34 @@ getTypeEdit = getWord8 >>= \case
   t -> unknownTag "TypeEdit" t
 
 putBranch :: MonadPut m => Branch -> m ()
-putBranch (Branch b) = putCausal b $ \Branch0 {..} -> do
-  putRelation termNamespace putText putReferent
-  putRelation patternNamespace putText (putPair' putReference putLength)
-  putRelation typeNamespace putText putReference
-  putRelation editedTerms putReference putTermEdit
-  putRelation editedTypes putReference putTypeEdit
+putBranch (Branch b) = putCausal b $ \b -> do
+  putRelation (Branch.termNamespace b) putName putReferent
+  putRelation (Branch.typeNamespace b) putName putReference
+  putRelation (Branch.oldTermNamespace b) putName putReferent
+  putRelation (Branch.oldTypeNamespace b) putName putReference
+  putRelation (Branch.editedTerms b) putReference putTermEdit
+  putRelation (Branch.editedTypes b) putReference putTypeEdit
+
+putName :: MonadPut m => Name -> m ()
+putName = putText . Name.toText
+
+getName :: MonadGet m => m Name
+getName = Name.unsafeFromText <$> getText
+
+getNamespace :: MonadGet m => m Branch.Namespace
+getNamespace =
+  Branch.Namespace
+    <$> getRelation getName getReferent
+    <*> getRelation getName getReference
 
 getBranch :: MonadGet m => m Branch
 getBranch = Branch <$> getCausal
-  (Branch0 <$> getRelation getText getReferent
-           <*> getRelation getText (getPair getReference getLength)
-           <*> getRelation getText getReference
-           <*> getRelation getReference getTermEdit
-           <*> getRelation getReference getTypeEdit)
+  (   Branch0
+  <$> getNamespace
+  <*> getNamespace
+  <*> getRelation getReference getTermEdit
+  <*> getRelation getReference getTypeEdit
+  )
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

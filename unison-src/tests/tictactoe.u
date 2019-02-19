@@ -38,6 +38,6 @@ isWin board =
        same a d g `orElse` same b e h `orElse` same c f i `orElse`
        same a e i `orElse` same g e c)
 
-isWin (Board X O X
+> isWin (Board X O X
              O X X
              O E X)

@@ -8,6 +8,7 @@ module Unison.Test.FileParser where
   import qualified Unison.Parser as Parser
   import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
   import qualified Unison.Reference as R
+  import qualified Unison.Referent as Referent
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
   import qualified Unison.Names as Names
@@ -15,14 +16,14 @@ module Unison.Test.FileParser where
 
   test1 :: Test ()
   test1 = scope "fileparser.test1" . tests . map parses $
-    [ "()"
+    [
     -- , "type () = ()\n()"
-    , "type Pair a b = Pair a b\n()"
-    , "type Optional a = Just a | Nothing\n()"
+      "type Pair a b = Pair a b\n"
+    , "type Optional a = Just a | Nothing\n"
     , unlines
       ["type Optional2 a"
       ,"  = Just a"
-      ,"  | Nothing\n()"]
+      ,"  | Nothing\n"]
     ------ -- ,unlines
     ------ --   ["type Optional a b c where"
     ------ --   ,"  Just : a -> Optional a"
@@ -38,11 +39,11 @@ module Unison.Test.FileParser where
       ["effect State s where"
       ,"  get : {State s} s"
       ,"  set : s -> {State s} ()"
-      ,"()"]
+      ]
     , unlines
       ["ping x = pong (x + 1)"
       ,"pong x = ping (x - 1)"
-      ,"ping"]
+      ]
     ]
 
   test2 :: Test ()
@@ -53,9 +54,10 @@ module Unison.Test.FileParser where
   test = test1
 
   builtins :: Names
-  builtins = Names.fromPatterns [
-    ("Pair", (R.Builtin "Pair", 0)),
-    ("State.set", (R.Builtin "State", 0))]
+  builtins = Names.fromTerms
+    [ ("Pair"     , Referent.Con (R.Builtin "Pair") 0)
+    , ("State.set", Referent.Con (R.Builtin "State") 0)
+    ]
 
   parses :: String -> Test ()
   parses s = scope s $ do
