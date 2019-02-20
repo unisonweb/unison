@@ -44,8 +44,8 @@ type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
 
-data CompilationEnv
-  = CompilationEnv { toIR :: R.Reference -> Maybe IR
+data CompilationEnv e
+  = CompilationEnv { toIR :: R.Reference -> Maybe (IR e)
                    , constructorArity :: R.Reference -> Int -> Maybe Int }
 
 data SymbolC =
@@ -63,15 +63,14 @@ toSymbolC s = SymbolC False s
 data Value e
   = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity UnderapplyStrategy (IR e)
-  | External e
   | Data R.Reference ConstructorId [Value e]
   | Sequence (Vector (Value e))
   | Ref Int Symbol (IORef (Value e))
   | Pure (Value e)
-  | Requested Req
+  | Requested (Req e)
   | Cont (IR e)
   | LetRecBomb Symbol [(Symbol, IR e)] (IR e)
-  deriving Eq
+  deriving (Eq)
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have
@@ -115,7 +114,12 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z e = Slot Pos | LazySlot Pos | Val (Value e) deriving (Eq)
+data Z e
+  = Slot Pos
+  | LazySlot Pos
+  | Val (Value e)
+  | External e
+  deriving (Eq)
 
 type IR e = IR' (Z e)
 
@@ -153,61 +157,23 @@ data IR' z
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
-data Req
-  = Req R.Reference ConstructorId [Value] IR
+data Req e
+  = Req R.Reference ConstructorId [Value e] (IR e)
   deriving (Eq,Show)
 
 -- Appends `k2` to the end of the `k` continuation
 -- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
 -- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
-appendCont :: Req -> IR -> Req
+appendCont :: Req e -> IR e -> Req e
 appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
-wrapHandler :: Value -> Req -> Req
+wrapHandler :: Value -> Req e -> Req e
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
-compile :: CompilationEnv -> Term Symbol -> IR
+compile :: CompilationEnv e -> Term Symbol -> IR e
 compile env t = compile0 env [] (Term.vmap toSymbolC t)
-
-compileM :: Monad m
-         => CL.CodeLookup m Symbol a
-         -> Term Symbol -> m IR
-compileM env t = (`compile` t) <$> compilationEnv env t
-
--- Creates a `CompilationEnv` by pulling out all the constructor arities for
--- types that are referenced by the given term, `t`.
-compilationEnv :: Monad m
-  => CL.CodeLookup m Symbol a -> Term Symbol
-  -> m CompilationEnv
-compilationEnv env t = do
-  let typeDeps = Term.referencedDataDeclarations t
-              <> Term.referencedEffectDeclarations t
-  arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
-    r@(R.DerivedId id) -> do
-      decl <- CL.getTypeDeclaration env id
-      case decl of
-        Nothing -> pure []
-        Just (Left ad) -> pure $
-          let arities = DD.constructorArities $ DD.toDataDecl ad
-          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
-        Just (Right dd) -> pure $
-          let arities = DD.constructorArities dd
-          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
-    _ -> pure []
-  let cenv = CompilationEnv (const Nothing)
-                            (\r cid -> Map.lookup (r,cid) arityMap)
-    -- deps = Term.dependencies t
-  -- this would rely on haskell laziness for compilation, needs more thought
-  --compiledTerms <- fmap (Map.fromList . join) . for (toList deps) $ \case
-  --  r@(R.DerivedId id) -> do
-  --    o <- CL.getTerm env id
-  --    case o of
-  --      Nothing -> pure []
-  --      Just e -> pure [(r, compile cenv (Term.amap (const ()) e))]
-  --  _ -> pure []
-  pure cenv
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =
@@ -303,10 +269,11 @@ decompile v = case v of
   Ref _ _ _ -> error "IR todo - decompile Ref"
   LetRecBomb _b _bs _body -> error "unpossible - decompile LetRecBomb"
 
-instance Show Z where
+instance Show e => Show (Z e) where
   show (LazySlot i) = "'#" ++ show i
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
+  show (External e) = "External:" <> show e
 
 builtins :: Map R.Reference IR
 builtins = Map.fromList $ let
@@ -424,7 +391,7 @@ instance Var SymbolC where
   freshIn vs (SymbolC i s) =
     SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
 
-instance Show Value where
+instance Show e => Show (Value e) where
   show (I n) = show n
   show (F n) = show n
   show (N n) = show n
@@ -443,9 +410,9 @@ instance Show Value where
 compilationEnv0 :: CompilationEnv
 compilationEnv0 = mempty { toIR = \r -> Map.lookup r builtins }
 
-instance Semigroup CompilationEnv where (<>) = mappend
+instance Semigroup (CompilationEnv e) where (<>) = mappend
 
-instance Monoid CompilationEnv where
+instance Monoid (CompilationEnv e) where
   mempty = CompilationEnv (const Nothing) (\_ _ -> Nothing)
   mappend c1 c2 = CompilationEnv ir ctor where
     ir r = toIR c1 r <|> toIR c2 r

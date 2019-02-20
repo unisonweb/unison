@@ -14,16 +14,25 @@ import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Word (Word64)
-import Unison.Runtime.IR
+import Unison.Runtime.IR hiding (Value)
+import qualified Unison.Runtime.IR as IR
 import Unison.Symbol (Symbol)
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MV
 import qualified Unison.Term as Term
 
-type Stack = MV.IOVector Value
+
+newtype Stack' e = Stack' (MV.IOVector (Value e))
+
+newtype ExternalFunction =
+  ExternalFunction (Size -> Stack -> IO (Value ExternalFunction))
+
+newtype Stack = Stack (Stack' ExternalFunction)
+
+type Value = IR.Value ExternalFunction
 
 push :: Size -> Value -> Stack -> IO Stack
-push size v s0 = do
+push size v (Stack s0) = do
   s1 <-
     if size >= MV.length s0
     then do
@@ -32,32 +41,33 @@ push size v s0 = do
       pure s1
     else pure s0
   MV.write s1 size v
-  pure s1
+  pure (Stack s1)
 
-pushMany :: Foldable f => Size -> f Value -> Stack -> IO (Size, Stack)
-pushMany size values m = do
+pushMany :: Foldable f
+  => Size -> f Value -> Stack -> IO (Size, Stack)
+pushMany size values (Stack m) = do
   m <- ensureSize (size + length values) m
   let pushArg :: Size -> Value -> IO Size
       pushArg size' val = do
         MV.write m size' val
         pure (size' + 1)
   length <- foldM pushArg 0 values
-  pure ((size + length), m)
+  pure ((size + length), Stack m)
 
 pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
-pushManyZ size zs m = do
+pushManyZ size zs (Stack m) = do
   m <- ensureSize (size + length zs) m
   let pushArg size' z = do
         val <- at size z m -- variable lookup uses current size
         MV.write m size' val
         pure (size' + 1)
   length <- foldM pushArg 0 zs
-  pure ((size + length), m)
+  pure ((size + length), Stack m)
 
 ensureSize :: Size -> Stack -> IO Stack
-ensureSize size m =
-  if (size >= MV.length m) then MV.grow m size
-  else pure m
+ensureSize size (Stack m) =
+  if (size >= MV.length m) then Stack <$> MV.grow m size
+  else pure (Stack m)
 
 type Size = Int
 
@@ -65,41 +75,10 @@ force :: Value -> IO Value
 force (Ref _ _ r) = readIORef r >>= force
 force v = pure v
 
-at :: Size -> Z -> Stack -> IO Value
-at size i m = case i of
-  Val v -> force v
-  Slot i ->
-    -- the top of the stack is slot 0, at index size - 1
-    force =<< MV.read m (size - i - 1)
-  LazySlot i ->
-    MV.read m (size - i - 1)
-
-ati :: Size -> Z -> Stack -> IO Int64
-ati size i m = at size i m >>= \case
-  I i -> pure i
-  _ -> fail "type error"
-
-atn :: Size -> Z -> Stack -> IO Word64
-atn size i m = at size i m >>= \case
-  N i -> pure i
-  _ -> fail "type error"
-
-atf :: Size -> Z -> Stack -> IO Double
-atf size i m = at size i m >>= \case
-  F i -> pure i
-  _ -> fail "type error"
-
-atb :: Size -> Z -> Stack -> IO Bool
-atb size i m = at size i m >>= \case
-  B b -> pure b
-  _ -> fail "type error"
-
-att :: Size -> Z -> Stack -> IO Text
-att size i m = at size i m >>= \case
-  T t -> pure t
-  _ -> fail "type error"
-
-data Result = RRequest Req | RMatchFail {-.-} | RDone Value deriving (Eq,Show)
+data Result
+  = RRequest Req
+  | RMatchFail {- maybe add more info here. -}
+  | RDone Value deriving (Eq,Show)
 
 done :: Value -> IO Result
 done v = pure (RDone v)
@@ -108,7 +87,45 @@ arity :: Value -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
-run :: CompilationEnv -> (e -> Stack -> Size -> IO Result) -> IR e -> IO Result
+compileM :: Monad m
+         => CL.CodeLookup m Symbol a
+         -> Term Symbol -> m (IR ExternalFunction)
+compileM env t = (`compile` t) <$> compilationEnv env t
+
+-- Creates a `CompilationEnv` by pulling out all the constructor arities for
+-- types that are referenced by the given term, `t`.
+compilationEnv :: Monad m
+  => CL.CodeLookup m Symbol a -> Term Symbol
+  -> m (CompilationEnv (Stack -> Size -> IO Value))
+compilationEnv env t = do
+  let typeDeps = Term.referencedDataDeclarations t
+              <> Term.referencedEffectDeclarations t
+  arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
+    r@(R.DerivedId id) -> do
+      decl <- CL.getTypeDeclaration env id
+      case decl of
+        Nothing -> pure []
+        Just (Left ad) -> pure $
+          let arities = DD.constructorArities $ DD.toDataDecl ad
+          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
+        Just (Right dd) -> pure $
+          let arities = DD.constructorArities dd
+          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
+    _ -> pure []
+  let cenv = CompilationEnv (const Nothing)
+                            (\r cid -> Map.lookup (r,cid) arityMap)
+    -- deps = Term.dependencies t
+  -- this would rely on haskell laziness for compilation, needs more thought
+  --compiledTerms <- fmap (Map.fromList . join) . for (toList deps) $ \case
+  --  r@(R.DerivedId id) -> do
+  --    o <- CL.getTerm env id
+  --    case o of
+  --      Nothing -> pure []
+  --      Just e -> pure [(r, compile cenv (Term.amap (const ()) e))]
+  --  _ -> pure []
+  pure cenv
+
+run :: CompilationEnv -> (e -> Stack -> Size -> IO Value) -> IR e -> IO Result
 run env callExternal ir = do
   supply <- newIORef 0
   m0 <- MV.new 256
@@ -117,9 +134,45 @@ run env callExternal ir = do
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
 
-    go :: Size -> Stack -> IR -> IO Result
+    -- This function converts `Z` to a `Value`.
+    -- A bunch of variants follow.
+    at :: Size -> Z e -> Stack -> IO Value
+    at size i m = case i of
+      Val v -> force v
+      Slot i ->
+        -- the top of the stack is slot 0, at index size - 1
+        force =<< MV.read m (size - i - 1)
+      LazySlot i ->
+        MV.read m (size - i - 1)
+      External e -> callExternal e m size
+
+    ati :: Size -> Z e -> Stack -> IO Int64
+    ati size i m = at size i m >>= \case
+      I i -> pure i
+      _ -> fail "type error"
+
+    atn :: Size -> Z e -> Stack -> IO Word64
+    atn size i m = at size i m >>= \case
+      N i -> pure i
+      _ -> fail "type error"
+
+    atf :: Size -> Z e -> Stack -> IO Double
+    atf size i m = at size i m >>= \case
+      F i -> pure i
+      _ -> fail "type error"
+
+    atb :: Size -> Z e -> Stack -> IO Bool
+    atb size i m = at size i m >>= \case
+      B b -> pure b
+      _ -> fail "type error"
+
+    att :: Size -> Z e -> Stack -> IO Text
+    att size i m = at size i m >>= \case
+      T t -> pure t
+      _ -> fail "type error"
+
+    go :: Size -> Stack -> IR e -> IO Result
     go size m ir = case ir of
-      Leaf (Val (External e)) -> callExternal e m size
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m
       If c t f -> atb size c m >>= \case
