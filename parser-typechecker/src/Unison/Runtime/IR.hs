@@ -187,12 +187,14 @@ compile0 env bound t =
   where
   fvs = freeVars bound t
   go t = case t of
+    Term.Nat' n -> Leaf . Val . N $ n
     Term.And' x y -> And (ind "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
         (Specialize $ void t)
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (ind "or" t x) (go y)
+    Term.Let1Named' _v b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
     Term.Constructor' r cid -> ctorIR Construct (Term.constructor()) r cid

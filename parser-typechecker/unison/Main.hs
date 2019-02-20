@@ -16,7 +16,7 @@ import           Unison.Codebase.Serialization.V0
                                                 , getSymbol
                                                 )
 import           Unison.Parser                  ( Ann(External) )
-import qualified Unison.Runtime.Rt0            as Rt0
+import qualified Unison.Runtime.Rt1            as Rt1
 
 main :: IO ()
 main = do
@@ -34,7 +34,7 @@ main = do
         scratchFilePath
         initialBranchName
         (headMay args)
-        (if useHaskellRuntime then pure Rt0.runtime
+        (if useHaskellRuntime then pure Rt1.runtime
          else javaRuntime getSymbol 42441)
         theCodebase
   exists <- FileCodebase.exists codebasePath

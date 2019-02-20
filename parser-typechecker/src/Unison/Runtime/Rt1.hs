@@ -3,12 +3,16 @@
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
 {-# Language StrictData #-}
+{-# LANGUAGE RankNTypes #-}
 {-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
+{-# Language ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Runtime.Rt1 where
 
 import Control.Monad (foldM, join)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
@@ -22,6 +26,7 @@ import qualified Data.Vector.Mutable as MV
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Term as Term
 import qualified Unison.Codebase.CodeLookup as CL
+import Unison.Codebase.Runtime (Runtime(Runtime))
 import qualified Unison.Reference as R
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
@@ -37,6 +42,29 @@ type Z = IR.Z ExternalFunction
 newtype ExternalFunction = ExternalFunction (Size -> Stack -> IO Value)
 
 type Stack = MV.IOVector Value
+
+runtime :: Runtime Symbol
+runtime = Runtime terminate eval
+  where
+  terminate :: forall m. MonadIO m => m ()
+  terminate = pure ()
+  changeVar term = Term.vmap IR.underlyingSymbol term
+  eval :: (MonadIO m, Monoid a) => CL.CodeLookup m Symbol a -> Term.AnnotatedTerm Symbol a -> m (Term Symbol)
+  eval cl term = do
+    cenv <- compilationEnv cl term -- in `m`
+    RDone result <- liftIO $
+      run cenv (compile cenv $ Term.amap (const ()) term)
+    let Just decompiled = decompile result
+    pure . changeVar $ decompiled
+
+
+-- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
+-- compilationEnv :: Monad m
+--   => CL.CodeLookup m Symbol a
+--   -> Term Symbol
+--   -> m CompilationEnv
+-- run :: CompilationEnv -> IR -> IO Result
+
 
 -- This function converts `Z` to a `Value`.
 -- A bunch of variants follow.
@@ -132,16 +160,11 @@ arity :: Value -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
-compileM :: Monad m
-         => CL.CodeLookup m Symbol a
-         -> Term Symbol -> m IR
-compileM env t = (`compile` t) <$> compilationEnv env t
-
 -- Creates a `CompilationEnv` by pulling out all the constructor arities for
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
   => CL.CodeLookup m Symbol a
-  -> Term Symbol
+  -> Term.AnnotatedTerm Symbol a
   -> m CompilationEnv
 compilationEnv env t = do
   let typeDeps = Term.referencedDataDeclarations t
@@ -169,7 +192,7 @@ compilationEnv env t = do
   --      Nothing -> pure []
   --      Just e -> pure [(r, compile cenv (Term.amap (const ()) e))]
   --  _ -> pure []
-  pure cenv
+  pure $ builtinCompilationEnv <> cenv
 
 builtinCompilationEnv :: CompilationEnv
 builtinCompilationEnv =
@@ -188,7 +211,6 @@ builtinCompilationEnv =
         makeIR arity name =
           Leaf . Val . Lam arity (underapply name) . Leaf . External . ExternalFunction
         underapply name = FormClosure (Term.ref() $ R.Builtin name)
-        -- , ("Text.++", "Text -> Text -> Text")
 
         --, ("Text.take", "Nat -> Text -> Text")
         --, ("Text.drop", "Nat -> Text -> Text")
