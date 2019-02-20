@@ -12,6 +12,7 @@ import Control.Monad (foldM, join)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Traversable (for)
@@ -37,6 +38,43 @@ newtype ExternalFunction = ExternalFunction (Size -> Stack -> IO Value)
 
 type Stack = MV.IOVector Value
 
+-- This function converts `Z` to a `Value`.
+-- A bunch of variants follow.
+at :: Size -> Z -> Stack -> IO Value
+at size i m = case i of
+  Val v -> force v
+  Slot i ->
+    -- the top of the stack is slot 0, at index size - 1
+    force =<< MV.read m (size - i - 1)
+  LazySlot i ->
+    MV.read m (size - i - 1)
+  External (ExternalFunction e) -> e size m
+
+ati :: Size -> Z -> Stack -> IO Int64
+ati size i m = at size i m >>= \case
+  I i -> pure i
+  _ -> fail "type error"
+
+atn :: Size -> Z -> Stack -> IO Word64
+atn size i m = at size i m >>= \case
+  N i -> pure i
+  _ -> fail "type error"
+
+atf :: Size -> Z -> Stack -> IO Double
+atf size i m = at size i m >>= \case
+  F i -> pure i
+  _ -> fail "type error"
+
+atb :: Size -> Z -> Stack -> IO Bool
+atb size i m = at size i m >>= \case
+  B b -> pure b
+  _ -> fail "type error"
+
+att :: Size -> Z -> Stack -> IO Text
+att size i m = at size i m >>= \case
+  T t -> pure t
+  _ -> fail "type error"
+
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
   s1 <-
@@ -58,6 +96,16 @@ pushMany size values m = do
         MV.write m size' val
         pure (size' + 1)
   length <- foldM pushArg 0 values
+  pure ((size + length), m)
+
+pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
+pushManyZ size zs m = do
+  m <- ensureSize (size + length zs) m
+  let pushArg size' z = do
+        val <- at size z m -- variable lookup uses current size
+        MV.write m size' val
+        pure (size' + 1)
+  length <- foldM pushArg 0 zs
   pure ((size + length), m)
 
 ensureSize :: Size -> Stack -> IO Stack
@@ -92,7 +140,8 @@ compileM env t = (`compile` t) <$> compilationEnv env t
 -- Creates a `CompilationEnv` by pulling out all the constructor arities for
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
-  => CL.CodeLookup m Symbol a -> Term Symbol
+  => CL.CodeLookup m Symbol a
+  -> Term Symbol
   -> m CompilationEnv
 compilationEnv env t = do
   let typeDeps = Term.referencedDataDeclarations t
@@ -122,6 +171,35 @@ compilationEnv env t = do
   --  _ -> pure []
   pure cenv
 
+builtinCompilationEnv :: CompilationEnv
+builtinCompilationEnv =
+  CompilationEnv (flip Map.lookup (builtinsMap <> IR.builtins))
+                 (\_ _ -> Nothing)
+  where builtins :: [(Text, Int, Size -> Stack -> IO Value)]
+        builtins = [
+           ("Text.++", 2, \size stack -> do
+             l <- att size (Slot 1) stack
+             r <- att size (Slot 0) stack
+             pure . T $ l <> r)
+          ]
+        builtinsMap :: Map R.Reference IR
+        builtinsMap = Map.fromList
+          [ (R.Builtin name, makeIR arity name ir) | (name, arity, ir) <- builtins ]
+        makeIR arity name =
+          Leaf . Val . Lam arity (underapply name) . Leaf . External . ExternalFunction
+        underapply name = FormClosure (Term.ref() $ R.Builtin name)
+        -- , ("Text.++", "Text -> Text -> Text")
+
+        --, ("Text.take", "Nat -> Text -> Text")
+        --, ("Text.drop", "Nat -> Text -> Text")
+        --, ("Text.size", "Text -> Nat")
+        --, ("Text.==", "Text -> Text -> Boolean")
+        --, ("Text.!=", "Text -> Text -> Boolean")
+        --, ("Text.<=", "Text -> Text -> Boolean")
+        --, ("Text.>=", "Text -> Text -> Boolean")
+        --, ("Text.<", "Text -> Text -> Boolean")
+        --, ("Text.>", "Text -> Text -> Boolean")
+
 run :: CompilationEnv -> IR -> IO Result
 run env ir = do
   supply <- newIORef 0
@@ -130,53 +208,6 @@ run env ir = do
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
-
-    -- This function converts `Z` to a `Value`.
-    -- A bunch of variants follow.
-    at :: Size -> Z -> Stack -> IO Value
-    at size i m = case i of
-      Val v -> force v
-      Slot i ->
-        -- the top of the stack is slot 0, at index size - 1
-        force =<< MV.read m (size - i - 1)
-      LazySlot i ->
-        MV.read m (size - i - 1)
-      External (ExternalFunction e) -> e size m
-
-    ati :: Size -> Z -> Stack -> IO Int64
-    ati size i m = at size i m >>= \case
-      I i -> pure i
-      _ -> fail "type error"
-
-    atn :: Size -> Z -> Stack -> IO Word64
-    atn size i m = at size i m >>= \case
-      N i -> pure i
-      _ -> fail "type error"
-
-    atf :: Size -> Z -> Stack -> IO Double
-    atf size i m = at size i m >>= \case
-      F i -> pure i
-      _ -> fail "type error"
-
-    atb :: Size -> Z -> Stack -> IO Bool
-    atb size i m = at size i m >>= \case
-      B b -> pure b
-      _ -> fail "type error"
-
-    _att :: Size -> Z -> Stack -> IO Text
-    _att size i m = at size i m >>= \case
-      T t -> pure t
-      _ -> fail "type error"
-
-    pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
-    pushManyZ size zs m = do
-      m <- ensureSize (size + length zs) m
-      let pushArg size' z = do
-            val <- at size z m -- variable lookup uses current size
-            MV.write m size' val
-            pure (size' + 1)
-      length <- foldM pushArg 0 zs
-      pure ((size + length), m)
 
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = case ir of

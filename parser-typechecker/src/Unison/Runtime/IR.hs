@@ -319,7 +319,8 @@ builtins = Map.fromList $ let
         , ("Boolean.not", 1, Not (Slot 0))
 
         , ("Text.empty", 0, val $ T "")
-        --, ("Text.++", "Text -> Text -> Text")
+        -- , ("Text.++", "Text -> Text -> Text")
+
         --, ("Text.take", "Nat -> Text -> Text")
         --, ("Text.drop", "Nat -> Text -> Text")
         --, ("Text.size", "Text -> Nat")
