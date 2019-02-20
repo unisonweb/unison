@@ -152,17 +152,20 @@ vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 vtmap :: Ord vt2 => (vt -> vt2) -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
 
-typeMap :: Ord vt2 => (Type.AnnotatedType vt at -> Type.AnnotatedType vt2 at2)
-                   -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt2 at2 ap v a
+typeMap
+  :: Ord vt2
+  => (Type.AnnotatedType2 vt ak vt at -> Type.AnnotatedType2 vt2 ak vt2 at2)
+  -> AnnotatedTerm2 vt at ap v a
+  -> AnnotatedTerm2 vt2 at2 ap v a
 typeMap f t = go t where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
-    ABT.Abs v t -> ABT.Abs v (go t)
-    ABT.Var v -> ABT.Var v
-    ABT.Cycle t -> ABT.Cycle (go t)
-    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (f t))
+    ABT.Abs v t         -> ABT.Abs v (go t)
+    ABT.Var   v         -> ABT.Var v
+    ABT.Cycle t         -> ABT.Cycle (go t)
+    ABT.Tm    (Ann e t) -> ABT.Tm (Ann (go e) (f t))
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
-    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+    ABT.Tm    ts        -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
 unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
 unTypeVar = typeMap (ABT.vmap TypeVar.underlying)

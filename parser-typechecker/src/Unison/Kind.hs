@@ -6,6 +6,10 @@
 module Unison.Kind where
 
 import           GHC.Generics
+import           Prelude.Extras                 ( Eq1(..)
+                                                , Show1(..)
+                                                )
+import qualified Unison.ABT                    as ABT
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable1 )
 
@@ -14,6 +18,8 @@ data F a
   | Arrow a a
   | Forall a
   deriving (Foldable, Functor, Generic, Generic1, Traversable)
+
+type AnnotatedKind v a = ABT.Term F v a
 
 instance Hashable1 F where
   hash1 _hashCycle hash e =
@@ -39,3 +45,11 @@ instance Show a => Show (F a) where
       _ -> showParen True $ s "∀ " <> showsPrec 0 body
     (<>) = (.)
     s    = showString
+
+instance Eq1 F where (==#) = (==)
+instance Show1 F where showsPrec1 = showsPrec
+instance Eq a => Eq (F a) where
+  Type == Type = True
+  Arrow i o == Arrow i2 o2 = i == i2 && o == o2
+  Forall a == Forall b = a == b
+  _ == _ = False

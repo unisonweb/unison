@@ -109,21 +109,27 @@ annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v a0 -> Term f v [v]
 annotateBound' t = snd <$> annotateBound'' t
 
 -- Annotate the tree with the set of bound variables at each node.
-annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+annotateBound
+  :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
 annotateBound t = go Set.empty t where
-  go bound t = let a = (annotation t, bound) in case out t of
-    Var v -> annotatedVar a v
-    Cycle body -> cycle' a (go bound body)
-    Abs x body -> abs' a x (go (Set.insert x bound) body)
-    Tm body -> tm' a (go bound <$> body)
+  go bound t =
+    let a = (annotation t, bound)
+    in  case out t of
+          Var   v    -> annotatedVar a v
+          Cycle body -> cycle' a (go bound body)
+          Abs x body -> abs' a x (go (Set.insert x bound) body)
+          Tm body    -> tm' a (go bound <$> body)
 
-annotateBound'' :: (Ord v, Functor f, Foldable f) => Term f v a -> Term f v (a, [v])
+annotateBound''
+  :: (Ord v, Functor f, Foldable f) => Term f v a -> Term f v (a, [v])
 annotateBound'' t = go [] t where
-  go env t = let a = (annotation t, env) in case out t of
-    Abs v body -> abs' a v (go (v : env) body)
-    Cycle body -> cycle' a (go env body)
-    Tm f -> tm' a (go env <$> f)
-    Var v -> annotatedVar a v
+  go env t =
+    let a = (annotation t, env)
+    in  case out t of
+          Abs v body -> abs' a v (go (v : env) body)
+          Cycle body -> cycle' a (go env body)
+          Tm    f    -> tm' a (go env <$> f)
+          Var   v    -> annotatedVar a v
 
 -- | Return the set of all variables bound by this ABT
 bound :: (Ord v, Foldable f) => Term f v a -> Set v
