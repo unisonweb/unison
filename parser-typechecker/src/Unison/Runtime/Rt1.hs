@@ -4,6 +4,7 @@
 {-# Language Strict #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.Runtime.Rt1 where
 
@@ -11,28 +12,33 @@ import Control.Monad (foldM, join)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Word (Word64)
-import Unison.Runtime.IR hiding (Value)
-import qualified Unison.Runtime.IR as IR
-import Unison.Symbol (Symbol)
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MV
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.Term as Term
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.Reference as R
+import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
+import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
+import qualified Unison.Runtime.IR as IR
+import Unison.Symbol (Symbol)
 
-
-newtype Stack' e = Stack' (MV.IOVector (Value e))
-
-newtype ExternalFunction =
-  ExternalFunction (Size -> Stack -> IO (Value ExternalFunction))
-
-newtype Stack = Stack (Stack' ExternalFunction)
-
+type CompilationEnv = IR.CompilationEnv ExternalFunction
+type IR = IR.IR ExternalFunction
+type Req = IR.Req ExternalFunction
 type Value = IR.Value ExternalFunction
+type Z = IR.Z ExternalFunction
+
+newtype ExternalFunction = ExternalFunction (Size -> Stack -> IO Value)
+
+type Stack = MV.IOVector Value
 
 push :: Size -> Value -> Stack -> IO Stack
-push size v (Stack s0) = do
+push size v s0 = do
   s1 <-
     if size >= MV.length s0
     then do
@@ -41,33 +47,23 @@ push size v (Stack s0) = do
       pure s1
     else pure s0
   MV.write s1 size v
-  pure (Stack s1)
+  pure s1
 
 pushMany :: Foldable f
   => Size -> f Value -> Stack -> IO (Size, Stack)
-pushMany size values (Stack m) = do
+pushMany size values m = do
   m <- ensureSize (size + length values) m
   let pushArg :: Size -> Value -> IO Size
       pushArg size' val = do
         MV.write m size' val
         pure (size' + 1)
   length <- foldM pushArg 0 values
-  pure ((size + length), Stack m)
-
-pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
-pushManyZ size zs (Stack m) = do
-  m <- ensureSize (size + length zs) m
-  let pushArg size' z = do
-        val <- at size z m -- variable lookup uses current size
-        MV.write m size' val
-        pure (size' + 1)
-  length <- foldM pushArg 0 zs
-  pure ((size + length), Stack m)
+  pure ((size + length), m)
 
 ensureSize :: Size -> Stack -> IO Stack
-ensureSize size (Stack m) =
-  if (size >= MV.length m) then Stack <$> MV.grow m size
-  else pure (Stack m)
+ensureSize size m =
+  if (size >= MV.length m) then MV.grow m size
+  else pure m
 
 type Size = Int
 
@@ -78,7 +74,8 @@ force v = pure v
 data Result
   = RRequest Req
   | RMatchFail {- maybe add more info here. -}
-  | RDone Value deriving (Eq,Show)
+  | RDone Value
+  deriving (Show)
 
 done :: Value -> IO Result
 done v = pure (RDone v)
@@ -89,14 +86,14 @@ arity _ = 0
 
 compileM :: Monad m
          => CL.CodeLookup m Symbol a
-         -> Term Symbol -> m (IR ExternalFunction)
+         -> Term Symbol -> m IR
 compileM env t = (`compile` t) <$> compilationEnv env t
 
 -- Creates a `CompilationEnv` by pulling out all the constructor arities for
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
   => CL.CodeLookup m Symbol a -> Term Symbol
-  -> m (CompilationEnv (Stack -> Size -> IO Value))
+  -> m CompilationEnv
 compilationEnv env t = do
   let typeDeps = Term.referencedDataDeclarations t
               <> Term.referencedEffectDeclarations t
@@ -125,8 +122,8 @@ compilationEnv env t = do
   --  _ -> pure []
   pure cenv
 
-run :: CompilationEnv -> (e -> Stack -> Size -> IO Value) -> IR e -> IO Result
-run env callExternal ir = do
+run :: CompilationEnv -> IR -> IO Result
+run env ir = do
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
@@ -136,7 +133,7 @@ run env callExternal ir = do
 
     -- This function converts `Z` to a `Value`.
     -- A bunch of variants follow.
-    at :: Size -> Z e -> Stack -> IO Value
+    at :: Size -> Z -> Stack -> IO Value
     at size i m = case i of
       Val v -> force v
       Slot i ->
@@ -144,34 +141,44 @@ run env callExternal ir = do
         force =<< MV.read m (size - i - 1)
       LazySlot i ->
         MV.read m (size - i - 1)
-      External e -> callExternal e m size
+      External (ExternalFunction e) -> e size m
 
-    ati :: Size -> Z e -> Stack -> IO Int64
+    ati :: Size -> Z -> Stack -> IO Int64
     ati size i m = at size i m >>= \case
       I i -> pure i
       _ -> fail "type error"
 
-    atn :: Size -> Z e -> Stack -> IO Word64
+    atn :: Size -> Z -> Stack -> IO Word64
     atn size i m = at size i m >>= \case
       N i -> pure i
       _ -> fail "type error"
 
-    atf :: Size -> Z e -> Stack -> IO Double
+    atf :: Size -> Z -> Stack -> IO Double
     atf size i m = at size i m >>= \case
       F i -> pure i
       _ -> fail "type error"
 
-    atb :: Size -> Z e -> Stack -> IO Bool
+    atb :: Size -> Z -> Stack -> IO Bool
     atb size i m = at size i m >>= \case
       B b -> pure b
       _ -> fail "type error"
 
-    att :: Size -> Z e -> Stack -> IO Text
-    att size i m = at size i m >>= \case
+    _att :: Size -> Z -> Stack -> IO Text
+    _att size i m = at size i m >>= \case
       T t -> pure t
       _ -> fail "type error"
 
-    go :: Size -> Stack -> IR e -> IO Result
+    pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
+    pushManyZ size zs m = do
+      m <- ensureSize (size + length zs) m
+      let pushArg size' z = do
+            val <- at size z m -- variable lookup uses current size
+            MV.write m size' val
+            pure (size' + 1)
+      length <- foldM pushArg 0 zs
+      pure ((size + length), m)
+
+    go :: Size -> Stack -> IR -> IO Result
     go size m ir = case ir of
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m
@@ -232,8 +239,8 @@ run env callExternal ir = do
             (v, PatternVar) -> Just [v]
             (v, p) -> error $
               "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
-          tryCases m ((pattern, cond, body) : remainingCases) =
-            case getCapturedVars (scrute, pattern) of
+          tryCases m ((pat, cond, body) : remainingCases) =
+            case getCapturedVars (scrute, pat) of
               Nothing -> tryCases m remainingCases -- this pattern didn't match
               Just vars -> do
                 (size, m) <- pushMany size vars m
@@ -351,3 +358,6 @@ run env callExternal ir = do
       go size' m body
 
   go 0 m0 ir
+
+instance Show ExternalFunction where
+  show _ = "ExternalFunction"

@@ -11,8 +11,6 @@
 module Unison.Runtime.IR where
 
 import Control.Applicative
-import Control.Monad (join)
--- import Control.Monad.Fix (MonadFix)
 import Data.Foldable
 import Data.Functor (void)
 import Data.IORef
@@ -21,7 +19,6 @@ import Data.Map (Map)
 import Data.Maybe (isJust)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Traversable (for)
 import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Symbol (Symbol)
@@ -31,8 +28,6 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
@@ -146,7 +141,7 @@ data IR' z
   | Apply (IR' z) [z]
   | Construct R.Reference ConstructorId [z]
   | Request R.Reference ConstructorId [z]
-  | Handlz (IR' z)
+  | Handle z (IR' z)
   | If z (IR' z) (IR' z)
   | And z (IR' z)
   | Or z (IR' z)
@@ -169,10 +164,10 @@ appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
 
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
-wrapHandler :: Value -> Req e -> Req e
+wrapHandler :: Value e -> Req e -> Req e
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
-compile :: CompilationEnv e -> Term Symbol -> IR e
+compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
 compile env t = compile0 env [] (Term.vmap toSymbolC t)
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
@@ -183,7 +178,7 @@ freeVars bound t =
 -- Takes a way of resolving `Reference`s and an environment of variables,
 -- some of which may already be precompiled to `V`s. (This occurs when
 -- recompiling a function that is being partially applied)
-compile0 :: CompilationEnv -> [(SymbolC, Maybe Value)] -> Term SymbolC -> IR
+compile0 :: Show e => CompilationEnv e -> [(SymbolC, Maybe (Value e))] -> Term SymbolC -> IR e
 compile0 env bound t =
   if Set.null fvs then
     go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
@@ -218,9 +213,9 @@ compile0 env bound t =
         else if isJust o then compileVar i v tl
         else compileVar (i + 1) v tl
 
-      ctorIR :: (R.Reference -> Int -> [Z] -> IR)
+      ctorIR :: (R.Reference -> Int -> [Z e] -> IR e)
              -> (R.Reference -> Int -> Term SymbolC)
-             -> R.Reference -> Int -> IR
+             -> R.Reference -> Int -> IR e
       ctorIR con src r cid = case constructorArity env r cid of
         Nothing -> error $ "the compilation env is missing info about how "
                         ++ "to compile this constructor: " ++ show (r, cid)
@@ -251,7 +246,7 @@ compile0 env bound t =
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: Value -> Maybe (Term SymbolC)
+decompile :: Value e -> Maybe (Term SymbolC)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -275,7 +270,7 @@ instance Show e => Show (Z e) where
   show (Val v) = show v
   show (External e) = "External:" <> show e
 
-builtins :: Map R.Reference IR
+builtins :: Map R.Reference (IR e)
 builtins = Map.fromList $ let
   -- slot = Leaf . Slot
   val = Leaf . Val
@@ -407,7 +402,7 @@ instance Show e => Show (Value e) where
   show (LetRecBomb b bs _body) =
     "(LetRecBomb " <> show b <> " in " <> show (fst <$> bs)<> ")"
 
-compilationEnv0 :: CompilationEnv
+compilationEnv0 :: CompilationEnv e
 compilationEnv0 = mempty { toIR = \r -> Map.lookup r builtins }
 
 instance Semigroup (CompilationEnv e) where (<>) = mappend

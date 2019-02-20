@@ -4,6 +4,7 @@
 {-# Language BangPatterns #-}
 {-# Language TupleSections #-}
 {-# Language UnicodeSyntax #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.Runtime.Rt0 where
 
@@ -14,7 +15,9 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Runtime.IR
+import Unison.Runtime.IR (pattern Req)
+import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
+import qualified Unison.Runtime.IR as IR
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
@@ -27,6 +30,12 @@ import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Var as Var
+
+type CompilationEnv = IR.CompilationEnv ()
+type IR = IR.IR ()
+type Req = IR.Req ()
+type Value = IR.Value ()
+type Z = IR.Z ()
 
 runtime :: Var v => Runtime v
 runtime = Rt.Runtime (pure ()) eval
@@ -53,6 +62,7 @@ at i (Machine m) = case i of
   Val v -> v
   Slot i -> m !! fromIntegral i
   LazySlot i -> m !! fromIntegral i
+  External _ -> error "Rt0 doesn't support External"
 
 ati :: Z -> Machine -> Int64
 ati i m = case at i m of
