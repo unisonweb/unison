@@ -60,3 +60,9 @@ patternName env r cid =
   case terms env (Referent.Con r cid) of
     Just name -> name
     Nothing -> HQ.fromReferent (Referent.Con r cid)
+
+instance Monoid PrettyPrintEnv where
+  mempty = PrettyPrintEnv (const Nothing) (const Nothing)
+  mappend = unionLeft
+instance Semigroup PrettyPrintEnv where
+  (<>) = mappend

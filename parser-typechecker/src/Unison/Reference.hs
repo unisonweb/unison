@@ -59,7 +59,7 @@ data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 instance Show Id where
   show = addDot . splitSuffix where
-    addDot (h, s) = show h <> maybe "" ("."<>) s
+    addDot (h, s) = (take 5 $ show h) <> maybe "" ("."<>) s
 
 showShort :: Int -> Reference -> String
 showShort numHashChars r =

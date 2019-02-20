@@ -32,6 +32,9 @@ import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import qualified Unison.Runtime.IR as IR
 import Unison.Symbol (Symbol)
+import Unison.TermPrinter (prettyTop)
+import qualified Unison.Util.Pretty as Pretty
+import Debug.Trace
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction
 type IR = IR.IR ExternalFunction
@@ -51,6 +54,7 @@ runtime = Runtime terminate eval
   changeVar term = Term.vmap IR.underlyingSymbol term
   eval :: (MonadIO m, Monoid a) => CL.CodeLookup m Symbol a -> Term.AnnotatedTerm Symbol a -> m (Term Symbol)
   eval cl term = do
+    liftIO . putStrLn $ Pretty.render 80 (prettyTop mempty term)
     cenv <- compilationEnv cl term -- in `m`
     RDone result <- liftIO $
       run cenv (compile cenv $ Term.amap (const ()) term)
@@ -126,6 +130,11 @@ pushMany size values m = do
   length <- foldM pushArg 0 values
   pure ((size + length), m)
 
+
+  -- [s3,s2,s1,s0] [i1,i2,i3]
+  -- [s3,s2,s1,s0,  i1,i2,i3]
+  -- [s3,s2,s1,s0,  i3,i2,i1]
+
 pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
 pushManyZ size zs m = do
   m <- ensureSize (size + length zs) m
@@ -133,8 +142,8 @@ pushManyZ size zs m = do
         val <- at size z m -- variable lookup uses current size
         MV.write m size' val
         pure (size' + 1)
-  length <- foldM pushArg 0 zs
-  pure ((size + length), m)
+  size2 <- foldM pushArg size zs
+  pure (size2, m)
 
 ensureSize :: Size -> Stack -> IO Stack
 ensureSize size m =
@@ -169,20 +178,22 @@ compilationEnv :: Monad m
 compilationEnv env t = do
   let typeDeps = Term.referencedDataDeclarations t
               <> Term.referencedEffectDeclarations t
+  traceM "typeDeps"
+  traceShowM typeDeps
   arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
     r@(R.DerivedId id) -> do
       decl <- CL.getTypeDeclaration env id
       case decl of
-        Nothing -> pure []
+        Nothing -> error $ "no type declaration for " <> show id -- pure []
         Just (Left ad) -> pure $
           let arities = DD.constructorArities $ DD.toDataDecl ad
-          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
+          in [ ((r, i), arity) | (arity, i) <- arities `zip` [0..] ]
         Just (Right dd) -> pure $
           let arities = DD.constructorArities dd
-          in [ ((r, i), arity) | (i, arity) <- arities `zip` [0..] ]
+          in [ ((r, i), arity) | (arity, i) <- arities `zip` [0..] ]
     _ -> pure []
-  let cenv = CompilationEnv (const Nothing)
-                            (\r cid -> Map.lookup (r,cid) arityMap)
+  let cenv = CompilationEnv mempty arityMap
+
     -- deps = Term.dependencies t
   -- this would rely on haskell laziness for compilation, needs more thought
   --compiledTerms <- fmap (Map.fromList . join) . for (toList deps) $ \case
@@ -196,8 +207,7 @@ compilationEnv env t = do
 
 builtinCompilationEnv :: CompilationEnv
 builtinCompilationEnv =
-  CompilationEnv (flip Map.lookup (builtinsMap <> IR.builtins))
-                 (\_ _ -> Nothing)
+  CompilationEnv (builtinsMap <> IR.builtins) mempty
   where builtins :: [(Text, Int, Size -> Stack -> IO Value)]
         builtins = [
            ("Text.++", 2, \size stack -> do
@@ -232,7 +242,12 @@ run env ir = do
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
 
     go :: Size -> Stack -> IR -> IO Result
-    go size m ir = case ir of
+    go size m ir = do
+     stackStuff <- traverse (MV.read m) [0..size-1]
+     traceM $ "stack: " <> show stackStuff
+     traceM $ "ir: " <> show ir
+     traceM ""
+     case ir of
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m
       If c t f -> atb size c m >>= \case

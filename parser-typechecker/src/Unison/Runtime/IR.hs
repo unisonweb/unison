@@ -7,10 +7,10 @@
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
+{-# Language ViewPatterns #-}
 
 module Unison.Runtime.IR where
 
-import Control.Applicative
 import Data.Foldable
 import Data.Functor (void)
 import Data.IORef
@@ -40,8 +40,14 @@ type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
 
 data CompilationEnv e
-  = CompilationEnv { toIR :: R.Reference -> Maybe (IR e)
-                   , constructorArity :: R.Reference -> Int -> Maybe Int }
+  = CompilationEnv { toIR' :: Map R.Reference (IR e)
+                   , constructorArity' :: Map (R.Reference, Int) Int }
+
+toIR :: CompilationEnv e -> R.Reference -> Maybe (IR e)
+toIR = flip Map.lookup . toIR'
+
+constructorArity :: CompilationEnv e -> R.Reference -> Int -> Maybe Int
+constructorArity e r i = Map.lookup (r,i) $ constructorArity' e
 
 data SymbolC =
   SymbolC { isLazy :: Bool
@@ -188,6 +194,10 @@ compile0 env bound t =
   fvs = freeVars bound t
   go t = case t of
     Term.Nat' n -> Leaf . Val . N $ n
+    Term.Int' n -> Leaf . Val . I $ n
+    Term.Float' n -> Leaf . Val . F $ n
+    Term.Boolean' n -> Leaf . Val . B $ n
+    Term.Text' n -> Leaf . Val . T $ n
     Term.And' x y -> And (ind "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
@@ -204,6 +214,7 @@ compile0 env bound t =
     Term.Ann' e _ -> go e
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
     Term.Var' _ -> Leaf $ ind "var" t t
+    Term.Ref' (toIR env -> Just ir) -> ir
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       compileVar _ v [] = unknown v
@@ -220,7 +231,8 @@ compile0 env bound t =
              -> R.Reference -> Int -> IR e
       ctorIR con src r cid = case constructorArity env r cid of
         Nothing -> error $ "the compilation env is missing info about how "
-                        ++ "to compile this constructor: " ++ show (r, cid)
+                        ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
+        Just 0 -> con r cid []
         Just arity -> Leaf . Val $ Lam arity (FormClosure $ src r cid) ir
           where
           -- if `arity` is 1, then `Slot 0` is the sole argument.
@@ -395,7 +407,7 @@ instance Show e => Show (Value e) where
   show (N n) = show n
   show (B b) = show b
   show (T t) = show t
-  show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " " <> show ir <> ")"
+  show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " (" <> show ir <> "))"
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
   show (Sequence vs) = "[" <> intercalateMap ", " show vs <> "]"
   show (Ref n s _) = "(Ref " <> show n <> " " <> show s <> ")"
@@ -406,12 +418,12 @@ instance Show e => Show (Value e) where
     "(LetRecBomb " <> show b <> " in " <> show (fst <$> bs)<> ")"
 
 compilationEnv0 :: CompilationEnv e
-compilationEnv0 = mempty { toIR = \r -> Map.lookup r builtins }
+compilationEnv0 = CompilationEnv builtins mempty
 
 instance Semigroup (CompilationEnv e) where (<>) = mappend
 
 instance Monoid (CompilationEnv e) where
-  mempty = CompilationEnv (const Nothing) (\_ _ -> Nothing)
+  mempty = CompilationEnv mempty mempty
   mappend c1 c2 = CompilationEnv ir ctor where
-    ir r = toIR c1 r <|> toIR c2 r
-    ctor r cid = constructorArity c1 r cid <|> constructorArity c2 r cid
+    ir = toIR' c1 <> toIR' c2
+    ctor = constructorArity' c1 <> constructorArity' c2
