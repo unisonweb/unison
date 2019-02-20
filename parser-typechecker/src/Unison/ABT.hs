@@ -10,39 +10,50 @@
 
 module Unison.ABT where
 
-import Control.Applicative
-import Control.Monad
-import Data.Word (Word64)
-import Data.Functor.Identity (runIdentity)
-import Data.List hiding (cycle)
-import Data.Maybe
-import Data.Ord
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Traversable
-import Data.Vector ((!))
-import Prelude hiding (abs,cycle)
-import Prelude.Extras (Eq1(..), Show1(..))
-import Unison.Hashable (Accumulate,Hashable1,hash1)
-import Unison.Var (Var)
-import qualified Data.Foldable as Foldable
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Data.Vector as Vector
-import qualified Unison.Hashable as Hashable
-import qualified Unison.Var as Var
-import qualified Unison.Util.Components as Components
+import           Control.Applicative
+import           Control.Monad
+import           Data.Word                      ( Word64 )
+import           Data.Functor.Identity          ( runIdentity )
+import           Data.List               hiding ( cycle )
+import           Data.Maybe
+import           Data.Ord
+import           Data.Set                       ( Set )
+import           Data.Text                      ( Text )
+import           Data.Traversable
+import           Data.Vector                    ( (!) )
+import           Prelude                 hiding ( abs
+                                                , cycle
+                                                )
+import           Prelude.Extras                 ( Eq1(..)
+                                                , Show1(..)
+                                                )
+import           Unison.Hashable                ( Accumulate
+                                                , Hashable1
+                                                , hash1
+                                                , Hashable
+                                                )
+import           Unison.Var                     ( Var )
+import qualified Data.Foldable                 as Foldable
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as Text
+import qualified Data.Vector                   as Vector
+import qualified Unison.Hashable               as Hashable
+import qualified Unison.Var                    as Var
+import qualified Unison.Util.Components        as Components
 
-data ABT f v r
+-- Abstract typed binding trees
+data ABT f t v r
   = Var v
   | Cycle r
   | Abs v r
+  | Ann t r
   | Tm (f r) deriving (Functor, Foldable, Traversable)
 
 -- | At each level in the tree, we store the set of free variables and
 -- a value of type `a`. Variables are of type `v`.
-data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
+data Term f t v a =
+  Term { freeVars :: Set v, annotation :: a, out :: ABT f t v (Term f t v a) }
 
 data V v = Free v | Bound v deriving (Eq,Ord,Show,Functor)
 
@@ -72,7 +83,9 @@ instance Monoid (Path s t a b m) where
   mappend (Path p1) (Path p2) = Path p3 where
     p3 s = p1 s <|> p2 s
 
-type Path' f g m = forall a v . Var v => Path (Term f v a) (Term f (V v) a) (Term g v a) (Term g (V v) a) m
+type Path' f g t m =
+  forall a v . Var v =>
+    Path (Term f t v a) (Term f t (V v) a) (Term g t v a) (Term g t (V v) a) m
 
 compose :: Monoid m => Path s t a b m -> Path a b a' b' m -> Path s t a' b' m
 compose (Path p1) (Path p2) = Path p3 where
@@ -87,30 +100,38 @@ at p s = (\(a,_,_) -> a) <$> focus p s
 modify' :: Path s t a b m -> (m -> a -> b) -> s -> Maybe t
 modify' p f s = focus p s >>= \(get,set,m) -> set (f m get)
 
-wrap :: (Functor f, Foldable f, Var v) => v -> Term f (V v) a -> (V v, Term f (V v) a)
-wrap v t =
-  if Set.member (Free v) (freeVars t)
+wrap
+  :: (Functor f, Foldable f, Var v)
+  => v
+  -> Term f t (V v) a
+  -> (V v, Term f t (V v) a)
+wrap v t = if Set.member (Free v) (freeVars t)
   then let v' = fresh t (Bound v) in (v', rename (Bound v) v' t)
   else (Bound v, t)
 
-wrap' :: (Functor f, Foldable f, Var v)
-      => v -> Term f (V v) a -> (V v -> Term f (V v) a -> c) -> c
+wrap'
+  :: (Functor f, Foldable f, Var v)
+  => v
+  -> Term f t (V v) a
+  -> (V v -> Term f t (V v) a -> c)
+  -> c
 wrap' v t f = uncurry f (wrap v t)
 
 -- | Return the list of all variables bound by this ABT
-bound' :: Foldable f => Term f v a -> [v]
+bound' :: Foldable f => Term f t v a -> [v]
 bound' t = case out t of
   Abs v t -> v : bound' t
   Cycle t -> bound' t
-  Tm f -> Foldable.toList f >>= bound'
-  _ -> []
+  Tm    f -> Foldable.toList f >>= bound'
+  _       -> []
 
-annotateBound' :: (Ord v, Functor f, Foldable f) => Term f v a0 -> Term f v [v]
+annotateBound'
+  :: (Ord v, Functor f, Foldable f) => Term f t v a0 -> Term f t v [v]
 annotateBound' t = snd <$> annotateBound'' t
 
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound
-  :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
+  :: (Ord v, Foldable f, Functor f) => Term f t v a -> Term f t v (a, Set v)
 annotateBound t = go Set.empty t where
   go bound t =
     let a = (annotation t, bound)
@@ -121,7 +142,7 @@ annotateBound t = go Set.empty t where
           Tm body    -> tm' a (go bound <$> body)
 
 annotateBound''
-  :: (Ord v, Functor f, Foldable f) => Term f v a -> Term f v (a, [v])
+  :: (Ord v, Functor f, Foldable f) => Term f t v a -> Term f t v (a, [v])
 annotateBound'' t = go [] t where
   go env t =
     let a = (annotation t, env)
@@ -132,26 +153,30 @@ annotateBound'' t = go [] t where
           Var   v    -> annotatedVar a v
 
 -- | Return the set of all variables bound by this ABT
-bound :: (Ord v, Foldable f) => Term f v a -> Set v
+bound :: (Ord v, Foldable f) => Term f t v a -> Set v
 bound t = Set.fromList (bound' t)
 
 -- | `True` if the term has no free variables, `False` otherwise
-isClosed :: Term f v a -> Bool
+isClosed :: Term f t v a -> Bool
 isClosed t = Set.null (freeVars t)
 
 -- | `True` if `v` is a member of the set of free variables of `t`
-isFreeIn :: Ord v => v -> Term f v a -> Bool
+isFreeIn :: Ord v => v -> Term f t v a -> Bool
 isFreeIn v t = Set.member v (freeVars t)
 
 -- | Replace the annotation with the given argument.
-annotate :: a -> Term f v a -> Term f v a
+annotate :: a -> Term f t v a -> Term f t v a
 annotate a (Term fvs _ out) = Term fvs a out
 
-vmap :: (Functor f, Foldable f, Ord v2) => (v -> v2) -> Term f v a -> Term f v2 a
+vmap
+  :: (Functor f, Foldable f, Ord v2)
+  => (v -> v2)
+  -> Term f t v a
+  -> Term f t v2 a
 vmap f (Term _ a out) = case out of
-  Var v -> annotatedVar a (f v)
-  Tm fa -> tm' a (fmap (vmap f) fa)
-  Cycle r -> cycle' a (vmap f r)
+  Var   v    -> annotatedVar a (f v)
+  Tm    fa   -> tm' a (fmap (vmap f) fa)
+  Cycle r    -> cycle' a (vmap f r)
   Abs v body -> abs' a (f v) (vmap f body)
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
@@ -162,7 +187,7 @@ amap f (Term _ a out) = case out of
   Abs v body -> abs' (f a) v (amap f body)
 
 -- | Modifies the annotations in this tree
-instance Functor f => Functor (Term f v) where
+instance Functor f => Functor (Term f t v) where
   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
 
 pattern Var' v <- Term _ _ (Var v)
@@ -173,6 +198,7 @@ pattern AbsN' vs body <- (unabs -> (vs, body))
 pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
+pattern Ann' t r <- Term _ _ (Ann t r)
 
 unabsA :: Term f v a -> ([(a,v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
@@ -417,10 +443,10 @@ rewriteDown f t = let t' = f t in case out t' of
   Abs x e -> abs' (annotation t) x (rewriteDown f e)
   Tm body -> tm' (annotation t) (rewriteDown f `fmap` body)
 
-data Subst f v a =
+data Subst f t v a =
   Subst { freshen :: forall m v' . Monad m => (v -> m v') -> m v'
-        , bind :: Term f v a -> Term f v a
-        , bindInheritAnnotation :: forall b . Term f v b -> Term f v a
+        , bind :: Term f t v a -> Term f t v a
+        , bindInheritAnnotation :: forall b . Term f t v b -> Term f t v a
         , variable :: v }
 
 unabs1 :: (Foldable f, Functor f, Var v) => Term f v a -> Maybe (Subst f v a)
@@ -448,8 +474,9 @@ transform f tm = case (out tm) of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
-instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
-  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f t v a) where
+  -- alpha equivalence, works by renaming any aligned Abs ctors
+  -- to use a common fresh variable
   t1 == t2 = go (out t1) (out t2) where
     go (Var v) (Var v2) | v == v2 = True
     go (Cycle t1) (Cycle t2) = t1 == t2
@@ -458,24 +485,31 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
       else let v3 = freshInBoth body1 body2 v1
            in rename v1 v3 body1 == rename v2 v3 body2
     go (Tm f1) (Tm f2) = f1 ==# f2
+    go (Ann t1 a1) (Ann t2 a2) = t1 == t2 && a1 == a2
     go _ _ = False
 
-components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
+components :: Var v => [(v, Term f t v a)] -> [[(v, Term f t v a)]]
 components = Components.components freeVars
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
-hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
-  => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
-hashComponent byName = let
-  ts = Map.toList byName
-  embeds = [ (v, void (transform Embed t)) | (v,t) <- ts ]
-  vs = fst <$> ts
-  tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
-  hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
-  sortedHashed = sortBy (comparing snd) hashed
-  overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
-  in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
+hashComponent
+  :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  => Map.Map v (Term f v a)
+  -> (h, [(v, Term f v a)])
+hashComponent byName =
+  let
+    ts     = Map.toList byName
+    embeds = [ (v, void (transform Embed t)) | (v, t) <- ts ]
+    vs     = fst <$> ts
+    tms =
+      [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
+    hashed       = [ ((v, t), hash t) | (v, t) <- tms ]
+    sortedHashed = sortBy (comparing snd) hashed
+    overallHash  = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
+  in
+    ( overallHash
+    , [ (v, t) | ((v, _), _) <- sortedHashed, Just t <- [Map.lookup v byName] ]
+    )
 
 -- Group the definitions into strongly connected components and hash
 -- each component. Substitute the hash of each component into subsequent
@@ -518,8 +552,11 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
-     => Term f v a -> h
+hash
+  :: forall f t v a h
+   . (Functor f, Hashable1 f, Hashable t, Eq v, Var v, Ord h, Accumulate h)
+  => Term f t v a
+  -> h
 hash t = hash' [] t where
   hash' :: [Either [v] v] -> Term f v a -> h
   hash' env (Term _ _ t) = case t of
@@ -529,22 +566,23 @@ hash t = hash' [] t where
             ind = findIndex lookup env
             hashInt :: Int -> h
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show (Var.qualifiedName v)
+            die = error $ "unknown var in environment: "
+                        ++ show (Var.qualifiedName v)
                         ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
     Abs v t -> hash' (Right v : env) t
     Tm t -> Hashable.hash1 (hashCycle env) (hash' env) $ t
-
-  hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
+    Ann t a -> accumulate t $ hash' env a
+  hashCycle :: [Either [v] v] -> [Term f t v a] -> ([h], Term f t v a -> h)
   hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
-    let
-      permute p xs = case Vector.fromList xs of xs -> map (xs !) p
-      hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
-      pt = map fst (sortBy (comparing snd) hashed)
-      (p,ts') = unzip pt
-    in case map Right (permute p cycle) ++ envTl of
-      env -> (map (hash' env) ts', hash' env)
+    let permute p xs = case Vector.fromList xs of
+          xs -> map (xs !) p
+        hashed   = map (\(i, t) -> ((i, t), hash' env t)) (zip [0 ..] ts)
+        pt       = map fst (sortBy (comparing snd) hashed)
+        (p, ts') = unzip pt
+    in  case map Right (permute p cycle) ++ envTl of
+          env -> (map (hash' env) ts', hash' env)
   hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
@@ -563,7 +601,7 @@ subtract _ t1s t2s =
   let skips = Set.fromList (map hash t2s :: [h])
   in filter (\t -> Set.notMember (hash t) skips) t1s
 
-instance (Show1 f, Var v) => Show (Term f v a) where
+instance (Show1 f, Var v) => Show (Term f t v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
     Var v -> (\x -> "Var " ++ show v ++ x)
