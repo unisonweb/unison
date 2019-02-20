@@ -134,9 +134,11 @@ data IR' z
   -- Ints
   | AddI z z | SubI z z | MultI z z | DivI z z
   | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
+  | SignumI z | NegateI z | ModI z z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
+  | ModN z z
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
@@ -303,8 +305,9 @@ builtins = Map.fromList $ let
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         --, ("Int.is-even", "Int -> Boolean")
         --, ("Int.is-odd", "Int -> Boolean")
-        --, ("Int.signum", "Int -> Int")
-        --, ("Int.negate", "Int -> Int")
+        , ("Int.signum", 1, SignumI (Slot 0))
+        , ("Int.negate", 1, NegateI (Slot 0))
+        , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
 
         , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
         , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
@@ -316,7 +319,8 @@ builtins = Map.fromList $ let
         , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
         , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
         , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
-        --, ("Nat.increment", "Nat -> Nat")
+        , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
+        , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
         --, ("Nat.is-even", "Nat -> Boolean")
         --, ("Nat.is-odd", "Nat -> Boolean")
 

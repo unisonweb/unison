@@ -17,23 +17,23 @@ import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
-import qualified Data.Text as Text
 import Data.Traversable (for)
 import Data.Word (Word64)
-import qualified Data.Vector as Vector
-import qualified Data.Vector.Mutable as MV
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Term as Term
-import qualified Unison.Codebase.CodeLookup as CL
 import Unison.Codebase.Runtime (Runtime(Runtime))
-import qualified Unison.Reference as R
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
-import qualified Unison.Runtime.IR as IR
 import Unison.Symbol (Symbol)
 import Unison.TermPrinter (prettyTop)
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Vector as Vector
+import qualified Data.Vector.Mutable as MV
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Reference as R
+import qualified Unison.Runtime.IR as IR
+import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty
 import Debug.Trace
 
@@ -209,41 +209,44 @@ compilationEnv env t = do
 builtinCompilationEnv :: CompilationEnv
 builtinCompilationEnv =
   CompilationEnv (builtinsMap <> IR.builtins) mempty
-  where builtins :: [(Text, Int, Size -> Stack -> IO Value)]
-        builtins = [
-           ("Text.++", 2, \size stack -> do
-             l <- att size (Slot 1) stack
-             r <- att size (Slot 0) stack
-             pure . T $ l <> r),
-         -- ("Text.++", 2, mk2 T (<>))
-           ("Text.++", 2, mk2 att att (pure.T) (<>)),
-           ("Text.take", 2, mk2 atn att (pure.T) (Text.take . fromIntegral))
-          ]
-        builtinsMap :: Map R.Reference IR
-        builtinsMap = Map.fromList
-          [ (R.Builtin name, makeIR arity name ir) | (name, arity, ir) <- builtins ]
-        makeIR arity name =
-          Leaf . Val . Lam arity (underapply name) . Leaf . External . ExternalFunction
-        underapply name = FormClosure (Term.ref() $ R.Builtin name)
-        mk2 :: (Size -> Z -> Stack -> IO a)
-            -> (Size -> Z -> Stack -> IO b)
-            -> (c -> IO Value)
-            -> (a -> b -> c)
-            -> Size -> Stack -> IO Value
-        mk2 getA getB mkC f size stack = do
-          x <- getA size (Slot 1) stack
-          y <- getB size (Slot 0) stack
-          mkC $ f x y
+  where
+    builtins :: [(Text, Int, Size -> Stack -> IO Value)]
+    builtins = [
+      ("Text.++", 2, mk2 att att (pure.T) (<>)),
+      ("Text.take", 2, mk2 atn att (pure.T) (Text.take . fromIntegral)),
+      ("Text.drop", 2, mk2 atn att (pure.T) (Text.drop . fromIntegral)),
+      ("Text.size", 2, mk1 att (pure.N) (fromIntegral . Text.length)),
+      ("Text.==", 2, mk2 att att (pure.B) (==)),
+      ("Text./=", 2, mk2 att att (pure.B) (/=)),
+      ("Text.<=", 2, mk2 att att (pure.B) (<=)),
+      ("Text.>=", 2, mk2 att att (pure.B) (>=)),
+      ("Text.>", 2, mk2 att att (pure.B) (>)),
+      ("Text.<", 2, mk2 att att (pure.B) (<))
+      ]
 
-        --, ("Text.take", "Nat -> Text -> Text")
-        --, ("Text.drop", "Nat -> Text -> Text")
-        --, ("Text.size", "Text -> Nat")
-        --, ("Text.==", "Text -> Text -> Boolean")
-        --, ("Text.!=", "Text -> Text -> Boolean")
-        --, ("Text.<=", "Text -> Text -> Boolean")
-        --, ("Text.>=", "Text -> Text -> Boolean")
-        --, ("Text.<", "Text -> Text -> Boolean")
-        --, ("Text.>", "Text -> Text -> Boolean")
+    builtinsMap :: Map R.Reference IR
+    builtinsMap = Map.fromList
+      [ (R.Builtin name, makeIR arity name ir) | (name, arity, ir) <- builtins ]
+    makeIR arity name =
+      Leaf . Val . Lam arity (underapply name)
+           . Leaf . External . ExternalFunction
+    underapply name = FormClosure (Term.ref() $ R.Builtin name)
+    mk1 :: (Size -> Z -> Stack -> IO a)
+        -> (b -> IO Value)
+        -> (a -> b)
+        -> Size -> Stack -> IO Value
+    mk1 getA mkB f size stack = do
+      a <- getA size (Slot 0) stack
+      mkB $ f a
+    mk2 :: (Size -> Z -> Stack -> IO a)
+        -> (Size -> Z -> Stack -> IO b)
+        -> (c -> IO Value)
+        -> (a -> b -> c)
+        -> Size -> Stack -> IO Value
+    mk2 getA getB mkC f size stack = do
+      a <- getA size (Slot 1) stack
+      b <- getB size (Slot 0) stack
+      mkC $ f a b
 
 run :: CompilationEnv -> IR -> IO Result
 run env ir = do
@@ -343,6 +346,9 @@ run env ir = do
       LtI i j -> do x <- ati size i m; y <- ati size j m; done (B (x < y))
       LtEqI i j -> do x <- ati size i m; y <- ati size j m; done (B (x <= y))
       EqI i j -> do x <- ati size i m; y <- ati size j m; done (B (x == y))
+      SignumI i -> do x <- ati size i m; done (I (signum x))
+      NegateI i -> do x <- ati size i m; done (I (negate x))
+      ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
       -- cast to `Int` and subtract
@@ -353,6 +359,7 @@ run env ir = do
                       done (N (x - (y `min` x)))
       MultN i j -> do x <- atn size i m; y <- atn size j m; done (N (x * y))
       DivN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `div` y))
+      ModN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `mod` y))
       GtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x > y))
       GtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x >= y))
       LtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x < y))

@@ -161,6 +161,8 @@ run env ir m = go ir m where
     LtEqN i j -> done $ B (atn i m <= atn j m)
     EqN i j -> done $ B (atn i m == atn j m)
 
+    ir -> error $ "don't know how to eval: " ++ show ir
+
   -- If the body issues a request, we try passing it to the
   -- handler. If it fails, the request is reraised with the
   -- handler attached to the continuation. If the body
