@@ -19,6 +19,7 @@ import Data.Int (Int64)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Traversable (for)
 import Data.Word (Word64)
 import qualified Data.Vector as Vector
@@ -213,7 +214,10 @@ builtinCompilationEnv =
            ("Text.++", 2, \size stack -> do
              l <- att size (Slot 1) stack
              r <- att size (Slot 0) stack
-             pure . T $ l <> r)
+             pure . T $ l <> r),
+         -- ("Text.++", 2, mk2 T (<>))
+           ("Text.++", 2, mk2 att att (pure.T) (<>)),
+           ("Text.take", 2, mk2 atn att (pure.T) (Text.take . fromIntegral))
           ]
         builtinsMap :: Map R.Reference IR
         builtinsMap = Map.fromList
@@ -221,6 +225,15 @@ builtinCompilationEnv =
         makeIR arity name =
           Leaf . Val . Lam arity (underapply name) . Leaf . External . ExternalFunction
         underapply name = FormClosure (Term.ref() $ R.Builtin name)
+        mk2 :: (Size -> Z -> Stack -> IO a)
+            -> (Size -> Z -> Stack -> IO b)
+            -> (c -> IO Value)
+            -> (a -> b -> c)
+            -> Size -> Stack -> IO Value
+        mk2 getA getB mkC f size stack = do
+          x <- getA size (Slot 1) stack
+          y <- getB size (Slot 0) stack
+          mkC $ f x y
 
         --, ("Text.take", "Nat -> Text -> Text")
         --, ("Text.drop", "Nat -> Text -> Text")
