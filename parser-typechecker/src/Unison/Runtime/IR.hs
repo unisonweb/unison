@@ -60,16 +60,17 @@ toSymbolC :: Symbol -> SymbolC
 toSymbolC s = SymbolC False s
 
 -- Values, in normal form
-data Value
+data Value e
   = I Int64 | F Double | N Word64 | B Bool | T Text
-  | Lam Arity UnderapplyStrategy IR
-  | Data R.Reference ConstructorId [Value]
-  | Sequence (Vector Value)
-  | Ref Int Symbol (IORef Value)
-  | Pure Value
+  | Lam Arity UnderapplyStrategy (IR e)
+  | External e
+  | Data R.Reference ConstructorId [Value e]
+  | Sequence (Vector (Value e))
+  | Ref Int Symbol (IORef (Value e))
+  | Pure (Value e)
   | Requested Req
-  | Cont IR
-  | LetRecBomb Symbol [(Symbol, IR)] IR
+  | Cont (IR e)
+  | LetRecBomb Symbol [(Symbol, IR e)] (IR e)
   deriving Eq
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
@@ -114,9 +115,9 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z = Slot Pos | LazySlot Pos | Val Value deriving (Eq)
+data Z e = Slot Pos | LazySlot Pos | Val (Value e) deriving (Eq)
 
-type IR = IR' Z
+type IR e = IR' (Z e)
 
 -- IR z
 -- depth of a slot is just that slot
@@ -141,12 +142,13 @@ data IR' z
   | Apply (IR' z) [z]
   | Construct R.Reference ConstructorId [z]
   | Request R.Reference ConstructorId [z]
-  | Handle z (IR' z)
+  | Handlz (IR' z)
   | If z (IR' z) (IR' z)
   | And z (IR' z)
   | Or z (IR' z)
   | Not z
-  | Match z [(Pattern, Maybe (IR' z), (IR' z))] -- pattern, optional guard, rhs
+  -- pattern, optional guard, rhs
+  | Match z [(Pattern, Maybe (IR' z), (IR' z))]
   deriving (Functor,Foldable,Traversable,Eq,Show)
 
 -- Contains the effect ref and ctor id, the args, and the continuation

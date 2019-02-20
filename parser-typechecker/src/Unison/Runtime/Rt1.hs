@@ -25,7 +25,7 @@ type Stack = MV.IOVector Value
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
   s1 <-
-    if (size >= MV.length s0)
+    if size >= MV.length s0
     then do
       -- increase the size to fit
       s1 <- MV.grow s0 size
@@ -108,8 +108,8 @@ arity :: Value -> Int
 arity (Lam n _ _) = n
 arity _ = 0
 
-run :: CompilationEnv -> IR -> IO Result
-run env ir = do
+run :: CompilationEnv -> (e -> Stack -> Size -> IO Result) -> IR e -> IO Result
+run env callExternal ir = do
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
@@ -119,6 +119,7 @@ run env ir = do
 
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = case ir of
+      Leaf (Val (External e)) -> callExternal e m size
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m
       If c t f -> atb size c m >>= \case
