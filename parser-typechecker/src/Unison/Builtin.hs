@@ -7,12 +7,15 @@
 module Unison.Builtin where
 
 import           Control.Arrow                  ( first )
-import           Control.Applicative            ( liftA2 )
+import           Control.Applicative            ( liftA2
+                                                , (<|>)
+                                                )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.ABT                    as ABT
+import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -139,6 +142,14 @@ builtinDataDecls = l
 
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []
+
+codeLookup :: (Applicative m, Var v) => CodeLookup m v Ann
+codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
+  pure
+    $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
+    <|> lookup
+          r
+          [ (r, Left x) | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt

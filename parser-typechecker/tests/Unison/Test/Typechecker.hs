@@ -109,9 +109,11 @@ makePassingTest rt how filepath = scope shortName $ do
     (True, Right file) -> do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
-      let term = Parsers.parseTerm values $ UF.toNames untypedFile
-      watches <- io
-        $ evaluateWatches mempty (const $ pure Nothing) rt untypedFile
+      let term        = Parsers.parseTerm values $ UF.toNames untypedFile
+      watches <- io $ evaluateWatches Builtin.codeLookup
+                                      (const $ pure Nothing)
+                                      rt
+                                      untypedFile
       case term of
         Right tm ->
           expect $ (view _4 <$> Map.elems watches) == [amap (const ()) tm]
