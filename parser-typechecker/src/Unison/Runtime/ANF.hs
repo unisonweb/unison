@@ -133,10 +133,10 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar (minimizeCyclesOrCrash t)) wh
     | otherwise =
         let x' = ABT.fresh e (Var.named "argX")
         in let1' False [(x', go x)] (or (ann e) (var (ann x) x') (go y))
-  go e@(ABT.Tm' f) = case e of
-    Lam' _ -> e -- ANF conversion is shallow - don't descend into closed lambdas
-    _ -> ABT.tm' (ann e) (go <$> f)
-  go e@(ABT.Var' _) = e
-  go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
-  go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
+  -- go e@(ABT.Tm' f) = case e of
+  --   Lam' _ -> e -- ANF conversion is shallow - don't descend into closed lambdas
+  --   _ -> ABT.tm' (ann e) (go <$> f)
+  -- go e@(ABT.Var' _) = e
+  -- go e@(ABT.out -> ABT.Cycle body) = ABT.cycle' (ann e) (go body)
+  -- go e@(ABT.out -> ABT.Abs v body) = ABT.abs' (ann e) v (go body)
   go e = e
