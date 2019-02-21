@@ -221,12 +221,15 @@ compile0 env bound t =
     Term.Let1Named' _v b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
-    Term.Constructor' r cid -> ctorIR Construct (Term.constructor()) r cid
-    Term.Request' r cid -> ctorIR Request (Term.request()) r cid
+    Term.Constructor' r cid -> ctorIR con (Term.constructor()) r cid where
+      con 0 r cid [] = Leaf . Val $ Data r cid []
+      con _ r cid args = Construct r cid args
+    Term.Request' r cid -> ctorIR (const Request) (Term.request()) r cid
     Term.Apps' f args -> Apply (go f) (map (ind "apply-args" t) args)
     Term.Handle' h body -> Handle (ind "handle" t h) (go body)
     Term.Ann' e _ -> go e
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
+    ABT.Abs1NA' _ body -> go body
     Term.Var' _ -> Leaf $ ind "var" t t
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Vector' vs -> MakeSequence . toList . fmap (ind "sequence" t) $ vs
@@ -241,26 +244,27 @@ compile0 env bound t =
         else if isJust o then compileVar i v tl
         else compileVar (i + 1) v tl
 
-      ctorIR :: (R.Reference -> Int -> [Z e] -> IR e)
+      ctorIR :: (Int -> R.Reference -> Int -> [Z e] -> IR e)
              -> (R.Reference -> Int -> Term SymbolC)
              -> R.Reference -> Int -> IR e
       ctorIR con src r cid = case constructorArity env r cid of
         Nothing -> error $ "the compilation env is missing info about how "
                         ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
-        Just 0 -> con r cid []
+        Just 0 -> con 0 r cid []
+        -- Just 0 -> Leaf . Val $ Data "Optional" 0
         Just arity -> Leaf . Val $ Lam arity (FormClosure $ src r cid) ir
           where
           -- if `arity` is 1, then `Slot 0` is the sole argument.
           -- if `arity` is 2, then `Slot 1` is the first arg, and `Slot 0`
           -- get the second arg, etc.
           -- Note: [1..10] is inclusive of both `1` and `10`
-          ir = con r cid (reverse $ map Slot [0 .. (arity - 1)])
+          ir = con arity r cid (reverse $ map Slot [0 .. (arity - 1)])
 
       unknown v = error $ "free variable during compilation: " ++ show v
       ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
       ind msg _t e = case go e of
         Leaf v -> v
-        e -> error $ msg ++ " ANF should eliminate any non-var arguments here: " ++ show e
+        e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
