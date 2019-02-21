@@ -229,14 +229,15 @@ builtinCompilationEnv =
       ("Text.>", 2, mk2 att att (pure.B) (>)),
       ("Text.<", 2, mk2 att att (pure.B) (<)),
 
-
       ("Sequence.cons", 2, mk2 at ats (pure.Sequence) (Vector.cons)),
       ("Sequence.snoc", 2, mk2 ats at (pure.Sequence) (Vector.snoc)),
       ("Sequence.take", 2, mk2 atn ats (pure.Sequence) (Vector.take . fromIntegral)),
       ("Sequence.drop", 2, mk2 atn ats (pure.Sequence) (Vector.drop . fromIntegral)),
       ("Sequence.++", 2, mk2 ats ats (pure.Sequence) (<>)),
       ("Sequence.size", 1, mk1 ats (pure.N) (fromIntegral . Vector.length)),
-      ("Sequence.at", 1, mk2 atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral))
+      ("Sequence.at", 1, mk2 atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral)),
+
+      ("Debug.watch", 2, mk2 att at id (\t v -> putStrLn (Text.unpack t) *> pure v))
       ]
 
     builtinsMap :: Map R.Reference IR
