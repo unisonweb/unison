@@ -3,7 +3,7 @@ package org.unisonweb
 import java.util.function.{DoubleBinaryOperator, LongBinaryOperator, LongPredicate, LongUnaryOperator}
 
 import org.unisonweb.Term.{Name, Term}
-import org.unisonweb.UnisonToScala.{EnvTo, unsafeToUnboxed1, unsafeToUnboxed2}
+import org.unisonweb.UnisonToScala.EnvTo
 import org.unisonweb.Value.Lambda
 import org.unisonweb.Value.Lambda.Lambda1
 import org.unisonweb.compilation._
@@ -14,107 +14,6 @@ import org.unisonweb.util.{Sequence, Stream, Text}
 object Builtins {
 
   type StreamRepr = EnvTo[Stream[Value]]
-  // Stream.empty : Stream a
-  val Stream_empty =
-    c0z("Stream.empty",
-        (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-          Stream.empty[Value])
-
-  // Stream.single: a -> Stream a
-  val Stream_single =
-    fp_z("Stream.single", "a",
-         (a: Value) =>
-           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-             Stream.singleton(a))
-
-  val Stream_constant =
-    fp_z("Stream.constant", "a",
-         (a: Value) =>
-           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-             Stream.constant(a))
-
-  // Stream.fromInt : Int -> Stream Int
-  val Stream_fromInt =
-    fp_z("Stream.fromInt", "n",
-         (u: U) =>
-           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-             Stream.fromInt(u))
-
-  // Stream.fromNat : Nat -> Stream Nat
-  val Stream_fromNat =
-    fp_z("Stream.fromNat", "n",
-         (u: U) =>
-           (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
-             Stream.fromNat(u))
-
-  // Stream.cons : a -> Stream a -> Stream a
-  val Stream_cons =
-    fpp_z("Stream.cons", "v", "stream",
-          (v: Value, stream: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              v :: stream(stackU, stackB, top, r))
-
-  // "Stream.unfold", "forall a b . (a -> Optional (b, a)) -> b -> Stream a"
-  val Stream_unfold =
-    fpp_z("Stream.unfold", "f", "initial",
-          (f: Value, b: Value) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              Stream.unfold[Value,Value,Value,Value,Value](b)(
-                unsafeToUnboxed1(f)(stackU, stackB, top, r)))
-
-  // Stream.append: Stream a -> Stream a -> Stream a
-  val Stream_append =
-    fpp_z("Stream.append", "s1", "s2",
-          (s1: StreamRepr, s2: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s1(stackU, stackB, top, r) ++ s2(stackU, stackB, top, r))
-
-  // Stream.zip-with : forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c
-  val Stream_zipWith =
-    fppp_z("Stream.zipWith", "f", "s1", "s2",
-           (f: Value, s1: StreamRepr, s2: StreamRepr) =>
-             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-               s1(stackU, stackB, top, r).
-                 zipWith(s2(stackU, stackB, top, r))
-                        (unsafeToUnboxed2(f)(stackU, stackB, top, r))
-           )
-
-  val Stream_take =
-    flp_z("Stream.take", "n", "stream",
-          (n, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r).take(n))
-
-  val Stream_drop =
-    flp_z("Stream.drop", "n", "stream",
-          (n, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r).drop(n))
-
-  // Stream.take-while : forall a . (a -> Boolean) -> Stream a -> Stream a
-  val Stream_takeWhile =
-    fpp_z("Stream.takeWhile", "f", "stream",
-          (f: Value, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r)
-                .takeWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
-
-  // Stream.drop-while : forall a . (a -> Boolean) -> Stream a -> Stream a
-  val Stream_dropWhile =
-    fpp_z("Stream.dropWhile", "f", "stream",
-          (f: Value, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r)
-                .dropWhile(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
-
-  // Stream.map : (a -> b) -> Stream a -> Stream b
-  val Stream_map =
-    fpp_z("Stream.map", "f", "stream",
-          (f: Value, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r)
-                .map(unsafeToUnboxed1(f)(stackU, stackB, top, r)))
-
   def unsafeValueToStream(stackU: Array[U], stackB: Array[B], top: StackPtr, r: R): util.Unboxed.F1[Value, Stream[Value]] =
     new util.Unboxed.F1[Value, Stream[Value]] {
       def apply[x] =
@@ -126,89 +25,6 @@ object Builtins {
             kvx(U0, a, u2, x)
           }
     }
-
-  // Stream.flat-map : (a -> Stream b) -> Stream a -> Stream b)
-  val Stream_flatMap =
-    fpp_z("Stream.flatMap", "f", "stream",
-          (f: Value, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r)
-                .flatMap(unsafeToUnboxed1(f)(stackU, stackB, top, r)
-                           .map(unsafeValueToStream(stackU, stackB, top, r))))
-
-  // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
-  val Stream_foldLeft =
-    fppp_s("Stream.foldLeft", "acc", "f", "stream",
-           (acc: Value, f: Value, s: StreamRepr) => {
-             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-               s(stackU, stackB, top, r)
-                 .foldLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
-           }
-    )
-
-  // Stream.iterate : a -> (a -> a) -> Stream a
-  val Stream_iterate =
-    fpp_z("Stream.iterate", "start", "f",
-          (start: Value, f: Value) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              Stream.iterate(start)(unsafeToUnboxed1(f)(stackU, stackB, top, r))
-    )
-
-  // Stream.reduce : a -> (a -> a -> a) -> Stream a -> a
-  val Stream_reduce =
-    fppp_s("Stream.reduce", "zero", "f", "stream",
-            (zero: Value, f: Value, s: StreamRepr) =>
-              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) => {
-                s(stackU, stackB, top, r)
-                  .reduce(zero)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
-              }
-      )
-
-  // Stream.to-sequence : Stream a -> Sequence a
-  val Stream_toSequence =
-    fp_s("Stream.toSequence", "stream",
-         (s: StreamRepr) =>
-           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-             s(stackU, stackB, top, r).toSequence[Value])
-
-  // Stream.filter : (a -> Boolean) -> Stream a -> Stream a
-  val Stream_filter =
-    fpp_z("Stream.filter", "f", "stream",
-          (f: Value, s: StreamRepr) =>
-            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-              s(stackU, stackB, top, r)
-                .filter(unsafeToUnboxed1(f)(stackU, stackB, top, r))
-    )
-
-  // Stream.scan-left : b -> (b -> a -> b) -> Stream a -> Stream b
-  val Stream_scanLeft =
-    fppp_z("Stream.scanLeft", "acc", "f", "stream",
-           (acc: Value, f: Value, s: StreamRepr) =>
-             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-               s(stackU, stackB, top, r)
-                 .scanLeft(acc)(unsafeToUnboxed2(f)(stackU, stackB, top, r))
-    )
-
-  // Stream.sum-int : Stream Int -> Int
-  val Stream_sumInt =
-    fp_s("Stream.sumInt", "stream",
-         (s: StreamRepr) =>
-           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-             s(stackU, stackB, top, r).unsafeSumUnboxedLong)
-
-  // Stream.sum-nat : Stream Nat -> Nat
-  val Stream_sumNat =
-    fp_s("Stream.sumNat", "stream",
-         (s: StreamRepr) =>
-           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-             Unsigned(s(stackU, stackB, top, r).unsafeSumUnboxedLong))
-
-  // Stream.sum-float : Stream Float -> Float
-  val Stream_sumFloat =
-    fp_s("Stream.sumFloat", "stream",
-         (s: StreamRepr) =>
-           (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
-             s(stackU, stackB, top, r).unsafeSumUnboxedFloat)
 
   def fppp_p[A,B,C,D](name: Name, arg1: Name, arg2: Name, arg3: Name, f: (A,B,C) => D)
                      (implicit
@@ -253,34 +69,6 @@ object Builtins {
       new Value.Lambda.ClosureForming(List(arg1, arg2, arg3), body, decompiled)
     name -> Return(lambda)
   }
-
-
-  val streamBuiltins = Map(
-    Stream_empty,
-    Stream_single,
-    Stream_constant,
-    Stream_fromInt,
-    Stream_fromNat,
-    Stream_append,
-    Stream_zipWith,
-    Stream_cons,
-    Stream_drop,
-    Stream_take,
-    Stream_dropWhile,
-    Stream_takeWhile,
-    Stream_map,
-    Stream_flatMap,
-    Stream_foldLeft,
-    Stream_iterate,
-    Stream_reduce,
-    Stream_toSequence,
-    Stream_filter,
-    Stream_scanLeft,
-    Stream_sumInt,
-    Stream_sumNat,
-    Stream_sumFloat,
-    Stream_unfold,
-  )
 
   // Sequence.empty : Sequence a
   val Sequence_empty: (Name, Computation) =
@@ -603,7 +391,7 @@ object Builtins {
   val debugBuiltins = Map(Debug_crash)
 
   val builtins: Map[Name, Computation] =
-    streamBuiltins ++ seqBuiltins ++ numericBuiltins ++
+    seqBuiltins ++ numericBuiltins ++
     booleanBuiltins ++ textBuiltins ++ debugBuiltins
 
   // Polymorphic one-argument function
