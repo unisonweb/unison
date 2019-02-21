@@ -28,27 +28,27 @@ namespace Monoid where
   op : Monoid a -> a -> a -> a
   op m = case m of Monoid op _ -> op
 
-  fold-map0 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
-  fold-map0 f m as =
+  foldMap0 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  foldMap0 f m as =
     op = Monoid.op m
-    if size as < 2 then Sequence.fold-left (b a -> op b (f a)) (zero m) as
-    else case Sequence.halve as of (l, r) -> fold-map f m l `op` fold-map f m r
+    if size as < 2 then Sequence.foldLeft (b a -> op b (f a)) (zero m) as
+    else case Sequence.halve as of (l, r) -> foldMap f m l `op` foldMap f m r
 
-  fold-map : (a -> b) -> Monoid b -> [a] -> b
-  fold-map f m as =
+  foldMap : (a -> b) -> Monoid b -> [a] -> b
+  foldMap f m as =
     op = Monoid.op m
     z = Monoid.zero m
     go as =
-      if size as < 2 then Sequence.fold-left (b a -> op b (f a)) z as
+      if size as < 2 then Sequence.foldLeft (b a -> op b (f a)) z as
       else case Sequence.halve as of (l, r) -> go l `op` go r
     go as
 
-  fold-map2 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
-  fold-map2 f m as =
+  foldMap2 : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  foldMap2 f m as =
     op = Monoid.op m
     z = Monoid.zero m
     go as =
-      if size as < 2 then Sequence.fold-left (b a -> op b (f a)) z as
+      if size as < 2 then Sequence.foldLeft (b a -> op b (f a)) z as
       else case Sequence.halve as of (l, r) -> go l `op` go r
     go as
 
@@ -56,21 +56,21 @@ namespace Monoid where
   par m =
     o = op m
     z = zero m
-    Monoid (a1 a2 -> par-apply o a1 a2) 'z
+    Monoid (a1 a2 -> parApply o a1 a2) 'z
 
 force : '{e} a -> {e} a
 force a = !a
 
-map-reduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
-map-reduce f m a =
-  force <| Monoid.fold-map (a -> fork '(f a)) (Monoid.par m) a
+mapReduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
+mapReduce f m a =
+  force <| Monoid.foldMap (a -> fork '(f a)) (Monoid.par m) a
 
 namespace Sequence where
 
-  fold-left : (b -> a -> {e} b) -> b -> [a] -> {e} b
-  fold-left f z as = case Sequence.at 0 as of
+  foldLeft : (b -> a -> {e} b) -> b -> [a] -> {e} b
+  foldLeft f z as = case Sequence.at 0 as of
     None -> z
-    Some h -> fold-left f (f z h) (drop 1 as)
+    Some h -> foldLeft f (f z h) (drop 1 as)
 
   halve : [a] -> ([a], [a])
   halve as = (take (size as / 2) as, drop (size as / 2) as)
@@ -83,14 +83,14 @@ ex = 'let
   f2 = fork '(2 + 2)
   !f1 + !f2
 
-par-apply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
-par-apply f a b = 'let
+parApply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
+parApply f a b = 'let
   x = fork a
   y = fork b
   f !x !y
 
-Remote.run-local : '{Remote Nat} a -> a
-Remote.run-local r =
+Remote.runLocal : '{Remote Nat} a -> a
+Remote.runLocal r =
   step : Nat -> Effect (Remote Nat) a -> a
   step nid r = case r of
     {a} -> a
@@ -112,6 +112,6 @@ i |> f = f i
 
 -- TDNR FTW
 ex2 : [Nat]
-ex2 = Stream.from-nat 1 |> take 15 |> toSequence
+ex2 = Stream.fromNat 1 |> take 15 |> toSequence
 
 > ex2

@@ -1,5 +1,5 @@
 > Stream.toSequence
   (Stream.take 5
-    (Stream.flat-map
+    (Stream.flatMap
       (n -> Stream.cons 7 (Stream.single n))
-      (Stream.from-nat 0)))
+      (Stream.fromNat 0)))

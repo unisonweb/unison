@@ -18,8 +18,8 @@ z = List.Nil
 
 ex = (c 1 (c 2 (c 3 z)))
 
-pure-map : List Text
-pure-map = map (a -> "hello") ex
+pureMap : List Text
+pureMap = map (a -> "hello") ex
 
 -- `map` is effect polymorphic
 zappy : () -> {Noop} (List Nat)

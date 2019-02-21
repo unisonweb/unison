@@ -10,9 +10,9 @@ increment x = x + 1
 (|>) : forall a b . a -> (a -> b) -> b
 a |> f = f a
 
-Stream.from-int -3
+Stream.fromInt -3
   |> Stream.take 10
-  |> Stream.fold-left +0 (Int.+)
+  |> Stream.foldLeft +0 (Int.+)
   |> Optional.Some
 
 -- as of 3935b366383fe8184f96cfe714c31ca04234cf27,

@@ -12,14 +12,14 @@
 > (or true false : Boolean)
 > (and true false : Boolean)
 > ([1,2,3] : Sequence Nat)
-> (Stream.from-int +0 : Stream Int)
+> (Stream.fromInt +0 : Stream Int)
 > ((Nat.+) 1 : Nat -> Nat)
 
 x : Int
 x = let
   (|>) : forall a b . a -> (a -> b) -> b
   a |> f = f a
-  Stream.from-int -3
+  Stream.fromInt -3
     |> Stream.take 10
-    |> Stream.fold-left +0 (Int.+)
+    |> Stream.foldLeft +0 (Int.+)
 

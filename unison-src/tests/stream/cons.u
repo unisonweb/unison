@@ -2,9 +2,9 @@ reduce = Stream.reduce
 (+) = (Nat.+)
 take = Stream.take
 cons = Stream.cons
-from = Stream.from-nat
+from = Stream.fromNat
 sum = reduce 0 (+)
-scan = Stream.scan-left 0 (+)
+scan = Stream.scanLeft 0 (+)
 f `compose` g = a -> f (g a)
 
 > (sum `compose` scan `compose` Stream.take 10 `compose` Stream.cons 3)

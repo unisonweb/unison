@@ -1,4 +1,4 @@
 a |> f = f a
-> Stream.from-nat 0
+> Stream.fromNat 0
   |> Stream.take 10
-  |> Stream.fold-left 0 (b a -> a Nat.+ b)
+  |> Stream.foldLeft 0 (b a -> a Nat.+ b)

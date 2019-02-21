@@ -10,10 +10,10 @@ fib4 n =
     n -> loop b c d (a + b + c + d) (n - 1)
   loop 0 0 0 1 n
 
-t = Stream.take 10 (Stream.map fib4 (Stream.from-nat 0))
+t = Stream.take 10 (Stream.map fib4 (Stream.fromNat 0))
 p = 9000
 q = 900
 r = 90
 s = 9
-sum = Stream.fold-left 0 (+) t
+sum = Stream.foldLeft 0 (+) t
 > sum * 10000 + p + q + r + s
