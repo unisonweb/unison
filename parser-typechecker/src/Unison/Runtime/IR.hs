@@ -218,12 +218,12 @@ compile0 env bound t =
     Term.Float' n -> Leaf . Val . F $ n
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
-    Term.And' x y -> And (ind "and" t x) (go y)
+    Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
         (Specialize $ void t)
         (compile0 env (ABT.annotation body) (void body))
-    Term.Or' x y -> Or (ind "or" t x) (go y)
+    Term.Or' x y -> Or (toZ "or" t x) (go y)
     Term.Let1Named' _v b body -> Let (go b) (go body)
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
@@ -231,15 +231,17 @@ compile0 env bound t =
       con 0 r cid [] = Leaf . Val $ Data r cid []
       con _ r cid args = Construct r cid args
     Term.Request' r cid -> ctorIR (const Request) (Term.request()) r cid
-    Term.Apps' f args -> Apply (go f) (map (ind "apply-args" t) args)
-    Term.Handle' h body -> Handle (ind "handle" t h) (go body)
+    Term.Apps' f args -> Apply (go f) (map (toZ "apply-args" t) args)
+    Term.Handle' h body -> Handle (toZ "handle" t h) (go body)
     Term.Ann' e _ -> go e
-    Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
+    Term.Match' scrutinee cases -> Match (toZ "match" t scrutinee) (compileCase <$> cases)
     ABT.Abs1NA' _ body -> go body
-    Term.Var' _ -> Leaf $ ind "var" t t
+    Term.If' cond ifT ifF -> If (toZ "cond" t cond) (go ifT) (go ifF)
+    Term.Var' _ -> Leaf $ toZ "var" t t
     Term.Ref' (toIR env -> Just ir) -> ir
-    Term.Vector' vs -> MakeSequence . toList . fmap (ind "sequence" t) $ vs
-    _ -> error $ "TODO - don't know how to compile this term:\n" ++ show (P.render 80 . TP.prettyTop mempty $ void t)
+    Term.Vector' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
+    _ -> error $ "TODO - don't know how to compile this term:\n"
+              <> (P.render 80 . TP.prettyTop mempty $ void t)
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
@@ -267,8 +269,8 @@ compile0 env bound t =
           ir = con arity r cid (reverse $ map Slot [0 .. (arity - 1)])
 
       unknown v = error $ "free variable during compilation: " ++ show v
-      ind _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
-      ind msg _t e = case go e of
+      toZ _msg t (Term.Var' v) = compileVar 0 v (ABT.annotation t)
+      toZ msg _t e = case go e of
         Leaf v -> v
         e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
       compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
