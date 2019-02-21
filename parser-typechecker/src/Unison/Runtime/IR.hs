@@ -26,6 +26,8 @@ import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
+import qualified Unison.Util.Pretty as P
+import qualified Unison.TermPrinter as TP
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -54,7 +56,9 @@ constructorArity e r i = Map.lookup (r,i) $ constructorArity' e
 data SymbolC =
   SymbolC { isLazy :: Bool
           , underlyingSymbol :: Symbol
-          } deriving Show
+          }-- deriving Show
+instance Show SymbolC where
+  show (SymbolC lazy s) = (if lazy then "'" else "") <> show s
 
 makeLazy :: SymbolC -> SymbolC
 makeLazy s = s { isLazy = True }
@@ -226,7 +230,7 @@ compile0 env bound t =
     Term.Var' _ -> Leaf $ ind "var" t t
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Vector' vs -> MakeSequence . toList . fmap (ind "sequence" t) $ vs
-    _ -> error $ "TODO - don't know how to compile " ++ show t
+    _ -> error $ "TODO - don't know how to compile this term:\n" ++ show (P.render 80 . TP.prettyTop mempty $ void t)
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
