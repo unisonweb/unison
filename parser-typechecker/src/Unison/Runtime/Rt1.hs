@@ -218,7 +218,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.take" atn att (pure . T) (Text.take . fromIntegral)
     , mk2 "Text.drop" atn att (pure . T) (Text.drop . fromIntegral)
     , mk2 "Text.=="   att att (pure . B) (==)
-    , mk2 "Text./="   att att (pure . B) (/=)
+    , mk2 "Text.!="   att att (pure . B) (/=)
     , mk2 "Text.<="   att att (pure . B) (<=)
     , mk2 "Text.>="   att att (pure . B) (>=)
     , mk2 "Text.>"    att att (pure . B) (>)
