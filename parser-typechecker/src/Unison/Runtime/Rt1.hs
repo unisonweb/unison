@@ -20,6 +20,7 @@ import Data.Map (Map)
 import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Word (Word64)
+import Data.Vector (Vector)
 import Unison.Codebase.Runtime (Runtime(Runtime))
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
@@ -106,6 +107,11 @@ atb size i m = at size i m >>= \case
 att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
+  _ -> fail "type error"
+
+ats :: Size -> Z -> Stack -> IO (Vector Value)
+ats size i m = at size i m >>= \case
+  Sequence v -> pure v
   _ -> fail "type error"
 
 push :: Size -> Value -> Stack -> IO Stack
@@ -221,7 +227,16 @@ builtinCompilationEnv =
       ("Text.<=", 2, mk2 att att (pure.B) (<=)),
       ("Text.>=", 2, mk2 att att (pure.B) (>=)),
       ("Text.>", 2, mk2 att att (pure.B) (>)),
-      ("Text.<", 2, mk2 att att (pure.B) (<))
+      ("Text.<", 2, mk2 att att (pure.B) (<)),
+
+
+      ("Sequence.cons", 2, mk2 at ats (pure.Sequence) (Vector.cons)),
+      ("Sequence.snoc", 2, mk2 ats at (pure.Sequence) (Vector.snoc)),
+      ("Sequence.take", 2, mk2 atn ats (pure.Sequence) (Vector.take . fromIntegral)),
+      ("Sequence.drop", 2, mk2 atn ats (pure.Sequence) (Vector.drop . fromIntegral)),
+      ("Sequence.++", 2, mk2 ats ats (pure.Sequence) (<>)),
+      ("Sequence.size", 1, mk1 ats (pure.N) (fromIntegral . Vector.length)),
+      ("Sequence.at", 1, mk2 atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral))
       ]
 
     builtinsMap :: Map R.Reference IR

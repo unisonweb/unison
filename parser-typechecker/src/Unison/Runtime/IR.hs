@@ -8,6 +8,7 @@
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
 {-# Language ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.Runtime.IR where
 
@@ -32,6 +33,7 @@ import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.Var as Var
 
 type Pos = Int
@@ -72,6 +74,12 @@ data Value e
   | Cont (IR e)
   | LetRecBomb Symbol [(Symbol, IR e)] (IR e)
   deriving (Eq)
+
+-- would have preferred to make pattern synonyms
+maybeToOptional :: Maybe (Value e) -> Value e
+maybeToOptional = \case
+  Just a -> Data Type.optionalRef 1 [a]
+  Nothing -> Data Type.optionalRef 0 []
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have
@@ -341,6 +349,7 @@ builtins = Map.fromList $ let
         , ("Boolean.not", 1, Not (Slot 0))
 
         , ("Text.empty", 0, val $ T "")
+        , ("Sequence.empty", 0, val $ Sequence mempty)
         ]
   ]
 
