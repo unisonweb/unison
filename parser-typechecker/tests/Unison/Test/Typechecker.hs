@@ -24,8 +24,7 @@ import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
-import qualified Unison.Codebase.Runtime.JVM as JVM
-import           Unison.Codebase.Serialization.V0 as Ser
+import qualified Unison.Runtime.Rt1     as RT
 import           Unison.Symbol          (Symbol)
 import           Unison.Term            ( amap )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
@@ -56,7 +55,7 @@ bad = void <$> EasyTest.expectLeft
 
 test :: Test ()
 test = do
-  rt <- io $ JVM.javaRuntime Ser.getSymbol 1001
+  let rt = RT.runtime
   scope "typechecker"
     . tests
     $ [ go rt shouldPassNow   good
