@@ -35,14 +35,14 @@ object Builtins {
 
   // Stream.fromInt : Int -> Stream Int
   val Stream_fromInt =
-    fp_z("Stream.from-int", "n",
+    fp_z("Stream.fromInt", "n",
          (u: U) =>
            (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
              Stream.fromInt(u))
 
   // Stream.fromNat : Nat -> Stream Nat
   val Stream_fromNat =
-    fp_z("Stream.from-nat", "n",
+    fp_z("Stream.fromNat", "n",
          (u: U) =>
            (_: Array[U], _: Array[B], _: StackPtr, _: R) =>
              Stream.fromNat(u))
@@ -71,7 +71,7 @@ object Builtins {
 
   // Stream.zip-with : forall a b c . (a -> b -> c) -> Stream a -> Stream b -> Stream c
   val Stream_zipWith =
-    fppp_z("Stream.zip-with", "f", "s1", "s2",
+    fppp_z("Stream.zipWith", "f", "s1", "s2",
            (f: Value, s1: StreamRepr, s2: StreamRepr) =>
              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
                s1(stackU, stackB, top, r).
@@ -93,7 +93,7 @@ object Builtins {
 
   // Stream.take-while : forall a . (a -> Boolean) -> Stream a -> Stream a
   val Stream_takeWhile =
-    fpp_z("Stream.take-while", "f", "stream",
+    fpp_z("Stream.takeWhile", "f", "stream",
           (f: Value, s: StreamRepr) =>
             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
               s(stackU, stackB, top, r)
@@ -101,7 +101,7 @@ object Builtins {
 
   // Stream.drop-while : forall a . (a -> Boolean) -> Stream a -> Stream a
   val Stream_dropWhile =
-    fpp_z("Stream.drop-while", "f", "stream",
+    fpp_z("Stream.dropWhile", "f", "stream",
           (f: Value, s: StreamRepr) =>
             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
               s(stackU, stackB, top, r)
@@ -129,7 +129,7 @@ object Builtins {
 
   // Stream.flat-map : (a -> Stream b) -> Stream a -> Stream b)
   val Stream_flatMap =
-    fpp_z("Stream.flat-map", "f", "stream",
+    fpp_z("Stream.flatMap", "f", "stream",
           (f: Value, s: StreamRepr) =>
             (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
               s(stackU, stackB, top, r)
@@ -138,7 +138,7 @@ object Builtins {
 
   // Stream.foldLeft : b -> (b -> a -> b) -> Stream a -> b
   val Stream_foldLeft =
-    fppp_s("Stream.fold-left", "acc", "f", "stream",
+    fppp_s("Stream.foldLeft", "acc", "f", "stream",
            (acc: Value, f: Value, s: StreamRepr) => {
              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
                s(stackU, stackB, top, r)
@@ -182,7 +182,7 @@ object Builtins {
 
   // Stream.scan-left : b -> (b -> a -> b) -> Stream a -> Stream b
   val Stream_scanLeft =
-    fppp_z("Stream.scan-left", "acc", "f", "stream",
+    fppp_z("Stream.scanLeft", "acc", "f", "stream",
            (acc: Value, f: Value, s: StreamRepr) =>
              (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
                s(stackU, stackB, top, r)
@@ -191,21 +191,21 @@ object Builtins {
 
   // Stream.sum-int : Stream Int -> Int
   val Stream_sumInt =
-    fp_s("Stream.sum-int", "stream",
+    fp_s("Stream.sumInt", "stream",
          (s: StreamRepr) =>
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              s(stackU, stackB, top, r).unsafeSumUnboxedLong)
 
   // Stream.sum-nat : Stream Nat -> Nat
   val Stream_sumNat =
-    fp_s("Stream.sum-nat", "stream",
+    fp_s("Stream.sumNat", "stream",
          (s: StreamRepr) =>
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              Unsigned(s(stackU, stackB, top, r).unsafeSumUnboxedLong))
 
   // Stream.sum-float : Stream Float -> Float
   val Stream_sumFloat =
-    fp_s("Stream.sum-float", "stream",
+    fp_s("Stream.sumFloat", "stream",
          (s: StreamRepr) =>
            (stackU: Array[U], stackB: Array[B], top: StackPtr, r: R) =>
              s(stackU, stackB, top, r).unsafeSumUnboxedFloat)
@@ -352,10 +352,10 @@ object Builtins {
     fl_l("Int.increment", "x", _ + 1)
 
   val Int_isEven =
-    fl_b("Int.is-even", "x", _ % 2 == 0)
+    fl_b("Int.isEven", "x", _ % 2 == 0)
 
   val Int_isOdd =
-    fl_b("Int.is-odd", "x", _ % 2 != 0)
+    fl_b("Int.isOdd", "x", _ % 2 != 0)
 
   val Int_add =
     fll_l("Int.+", "x", "y", _ + _)
@@ -400,16 +400,16 @@ object Builtins {
   def uint(n: Long): Term = Term.Unboxed(longToUnboxed(n), UnboxedType.Nat)
 
   val Nat_toInt =
-    fl_l("Nat.to-int", "x", x => x)
+    fl_l("Nat.toInt", "x", x => x)
 
   val Nat_inc =
     fn_n("Nat.increment", "x", _ + 1)
 
   val Nat_isEven =
-    fl_b("Nat.is-even", "x", _ % 2 == 0)
+    fl_b("Nat.isEven", "x", _ % 2 == 0)
 
   val Nat_isOdd =
-    fl_b("Nat.is-odd", "x", _ % 2 != 0)
+    fl_b("Nat.isOdd", "x", _ % 2 != 0)
 
   val Nat_add =
     fnn_n("Nat.+", "x", "y", _ + _)

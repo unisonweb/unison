@@ -78,8 +78,14 @@ data Value e
 -- would have preferred to make pattern synonyms
 maybeToOptional :: Maybe (Value e) -> Value e
 maybeToOptional = \case
-  Just a -> Data Type.optionalRef 1 [a]
+  Just a  -> Data Type.optionalRef 1 [a]
   Nothing -> Data Type.optionalRef 0 []
+
+unit :: Value e
+unit = Data Type.unitRef 0 []
+
+pair :: (Value e, Value e) -> Value e
+pair (a, b) = Data Type.pairRef 0 [a, b]
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have
@@ -315,8 +321,8 @@ builtins = Map.fromList $ let
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
-        , ("Int.is-even", 1, Let (ModI (Slot 0) (Val (I 2))) (EqI (Val (I 0)) (Slot 0)))
-        , ("Int.is-odd", 1, Let (ModI (Slot 0) (Val (I 2)))
+        , ("Int.isEven", 1, Let (ModI (Slot 0) (Val (I 2))) (EqI (Val (I 0)) (Slot 0)))
+        , ("Int.isOdd", 1, Let (ModI (Slot 0) (Val (I 2)))
                                 (Let (EqI (Val (I 0)) (Slot 0))
                                      (Not (Slot 0))))
 
@@ -332,8 +338,8 @@ builtins = Map.fromList $ let
         , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
-        , ("Nat.is-even", 1, Let (ModN (Slot 0) (Val (N 2))) (EqN (Val (N 0)) (Slot 0)))
-        , ("Nat.is-odd", 1, Let (ModN (Slot 0) (Val (N 2)))
+        , ("Nat.isEven", 1, Let (ModN (Slot 0) (Val (N 2))) (EqN (Val (N 0)) (Slot 0)))
+        , ("Nat.isOdd", 1, Let (ModN (Slot 0) (Val (N 2)))
                                 (Let (EqN (Val (N 0)) (Slot 0))
                                      (Not (Slot 0))))
 
