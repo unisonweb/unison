@@ -215,26 +215,26 @@ builtinCompilationEnv =
   where
     builtins :: [(Text, Int, Size -> Stack -> IO Value)]
     builtins = [
-      ("Text.++", 2, mk2 att att (pure.T) (<>)),
-      ("Text.take", 2, mk2 atn att (pure.T) (Text.take . fromIntegral)),
-      ("Text.drop", 2, mk2 atn att (pure.T) (Text.drop . fromIntegral)),
-      ("Text.size", 2, mk1 att (pure.N) (fromIntegral . Text.length)),
-      ("Text.==", 2, mk2 att att (pure.B) (==)),
-      ("Text./=", 2, mk2 att att (pure.B) (/=)),
-      ("Text.<=", 2, mk2 att att (pure.B) (<=)),
-      ("Text.>=", 2, mk2 att att (pure.B) (>=)),
-      ("Text.>", 2, mk2 att att (pure.B) (>)),
-      ("Text.<", 2, mk2 att att (pure.B) (<)),
+      mk2 "Text.++" att att (pure.T) (<>),
+      mk2 "Text.take" atn att (pure.T) (Text.take . fromIntegral),
+      mk2 "Text.drop" atn att (pure.T) (Text.drop . fromIntegral),
+      mk1 "Text.size" att (pure.N) (fromIntegral . Text.length),
+      mk2 "Text.==" att att (pure.B) (==),
+      mk2 "Text./=" att att (pure.B) (/=),
+      mk2 "Text.<=" att att (pure.B) (<=),
+      mk2 "Text.>=" att att (pure.B) (>=),
+      mk2 "Text.>" att att (pure.B) (>),
+      mk2 "Text.<" att att (pure.B) (<),
 
-      ("Sequence.cons", 2, mk2 at ats (pure.Sequence) (Vector.cons)),
-      ("Sequence.snoc", 2, mk2 ats at (pure.Sequence) (Vector.snoc)),
-      ("Sequence.take", 2, mk2 atn ats (pure.Sequence) (Vector.take . fromIntegral)),
-      ("Sequence.drop", 2, mk2 atn ats (pure.Sequence) (Vector.drop . fromIntegral)),
-      ("Sequence.++", 2, mk2 ats ats (pure.Sequence) (<>)),
-      ("Sequence.size", 1, mk1 ats (pure.N) (fromIntegral . Vector.length)),
-      ("Sequence.at", 1, mk2 atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral)),
+      mk2 "Sequence.cons" at ats (pure.Sequence) (Vector.cons),
+      mk2 "Sequence.snoc" ats at (pure.Sequence) (Vector.snoc),
+      mk2 "Sequence.take" atn ats (pure.Sequence) (Vector.take . fromIntegral),
+      mk2 "Sequence.drop" atn ats (pure.Sequence) (Vector.drop . fromIntegral),
+      mk2 "Sequence.++" ats ats (pure.Sequence) (<>),
+      mk1 "Sequence.size" ats (pure.N) (fromIntegral . Vector.length),
+      mk2 "Sequence.at" atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral),
 
-      ("Debug.watch", 2, mk2 att at id (\t v -> putStrLn (Text.unpack t) *> pure v))
+      mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
       ]
 
     builtinsMap :: Map R.Reference IR
@@ -244,22 +244,24 @@ builtinCompilationEnv =
       Leaf . Val . Lam arity (underapply name)
            . Leaf . External . ExternalFunction
     underapply name = FormClosure (Term.ref() $ R.Builtin name)
-    mk1 :: (Size -> Z -> Stack -> IO a)
+    mk1 :: Text
+        -> (Size -> Z -> Stack -> IO a)
         -> (b -> IO Value)
         -> (a -> b)
-        -> Size -> Stack -> IO Value
-    mk1 getA mkB f size stack = do
+        -> (Text, Int, Size -> Stack -> IO Value)
+    mk1 name getA mkB f = (name, 1, \size stack -> do
       a <- getA size (Slot 0) stack
-      mkB $ f a
-    mk2 :: (Size -> Z -> Stack -> IO a)
+      mkB $ f a)
+    mk2 :: Text
+        -> (Size -> Z -> Stack -> IO a)
         -> (Size -> Z -> Stack -> IO b)
         -> (c -> IO Value)
         -> (a -> b -> c)
-        -> Size -> Stack -> IO Value
-    mk2 getA getB mkC f size stack = do
+        -> (Text, Int, Size -> Stack -> IO Value)
+    mk2 name getA getB mkC f = (name, 2, \size stack -> do
       a <- getA size (Slot 1) stack
       b <- getB size (Slot 0) stack
-      mkC $ f a b
+      mkC $ f a b)
 
 run :: CompilationEnv -> IR -> IO Result
 run env ir = do
@@ -404,6 +406,7 @@ run env ir = do
       r -> pure r
 
     call :: Size -> Stack -> Value -> [Z] -> IO Result
+    call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
       if nargs == arity then do
