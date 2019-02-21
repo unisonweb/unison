@@ -87,32 +87,32 @@ at size i m = case i of
 ati :: Size -> Z -> Stack -> IO Int64
 ati size i m = at size i m >>= \case
   I i -> pure i
-  _ -> fail "type error"
+  _ -> fail "type error, expecting I"
 
 atn :: Size -> Z -> Stack -> IO Word64
 atn size i m = at size i m >>= \case
   N i -> pure i
-  _ -> fail "type error"
+  _ -> fail "type error, expecting N"
 
 atf :: Size -> Z -> Stack -> IO Double
 atf size i m = at size i m >>= \case
   F i -> pure i
-  _ -> fail "type error"
+  _ -> fail "type error, expecting F"
 
 atb :: Size -> Z -> Stack -> IO Bool
 atb size i m = at size i m >>= \case
   B b -> pure b
-  _ -> fail "type error"
+  _ -> fail "type error, expecting B"
 
 att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
-  _ -> fail "type error"
+  _ -> fail "type error, expecting T"
 
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  _ -> fail "type error"
+  _ -> fail "type error, expecting Sequence"
 
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
@@ -126,6 +126,8 @@ push size v s0 = do
   MV.write s1 size v
   pure s1
 
+-- Values passed to pushMany* are already in stack order:
+-- the first Value is deeper on the resulting stack than the final Value
 pushMany :: Foldable f
   => Size -> f Value -> Stack -> IO (Size, Stack)
 pushMany size values m = do
@@ -134,13 +136,8 @@ pushMany size values m = do
       pushArg size' val = do
         MV.write m size' val
         pure (size' + 1)
-  length <- foldM pushArg 0 values
-  pure ((size + length), m)
-
-
-  -- [s3,s2,s1,s0] [i1,i2,i3]
-  -- [s3,s2,s1,s0,  i1,i2,i3]
-  -- [s3,s2,s1,s0,  i3,i2,i1]
+  newSize <- foldM pushArg size values
+  pure (newSize, m)
 
 pushManyZ :: Foldable f => Size -> f Z -> Stack -> IO (Size, Stack)
 pushManyZ size zs m = do

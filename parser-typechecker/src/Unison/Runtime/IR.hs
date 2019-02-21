@@ -225,7 +225,7 @@ compile0 env bound t =
     Term.Match' scrutinee cases -> Match (ind "match" t scrutinee) (compileCase <$> cases)
     Term.Var' _ -> Leaf $ ind "var" t t
     Term.Ref' (toIR env -> Just ir) -> ir
-    Term.Vector' vs -> MakeSequence . toList $ (fmap ((\(Leaf v) -> v) . go) vs)
+    Term.Vector' vs -> MakeSequence . toList . fmap (ind "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile " ++ show t
     where
       compileVar _ v [] = unknown v
