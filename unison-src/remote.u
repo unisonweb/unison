@@ -16,7 +16,7 @@ ability Remote where
 type Node = Node Nat -- more realistic would be perhaps a (Hostname, PublicKey) pair
 
 replicate : Nat -> a -> [a]
-replicate n a = to-sequence (take n (constant a))
+replicate n a = toSequence (take n (constant a))
 
 -- here's a simple usage of it - this ships the program `replicate n a`
 -- to another node and evaluates it there before returning to the current node

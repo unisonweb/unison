@@ -17,7 +17,7 @@ increment n = n + 1
 > increment 99
 
 replicate : Nat -> a -> [a]
-replicate n a = to-sequence (take n (constant a))
+replicate n a = toSequence (take n (constant a))
 
 -- this is nice for quick testing!
 

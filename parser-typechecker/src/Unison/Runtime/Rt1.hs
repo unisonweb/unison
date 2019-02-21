@@ -210,58 +210,78 @@ compilationEnv env t = do
   pure $ builtinCompilationEnv <> cenv
 
 builtinCompilationEnv :: CompilationEnv
-builtinCompilationEnv =
-  CompilationEnv (builtinsMap <> IR.builtins) mempty
-  where
-    builtins :: [(Text, Int, Size -> Stack -> IO Value)]
-    builtins = [
-      mk2 "Text.++" att att (pure.T) (<>),
-      mk2 "Text.take" atn att (pure.T) (Text.take . fromIntegral),
-      mk2 "Text.drop" atn att (pure.T) (Text.drop . fromIntegral),
-      mk1 "Text.size" att (pure.N) (fromIntegral . Text.length),
-      mk2 "Text.==" att att (pure.B) (==),
-      mk2 "Text./=" att att (pure.B) (/=),
-      mk2 "Text.<=" att att (pure.B) (<=),
-      mk2 "Text.>=" att att (pure.B) (>=),
-      mk2 "Text.>" att att (pure.B) (>),
-      mk2 "Text.<" att att (pure.B) (<),
+builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
+ where
+  builtins :: [(Text, Int, Size -> Stack -> IO Value)]
+  builtins =
+    [ mk2 "Text.++"   att att (pure . T) (<>)
+    , mk2 "Text.take" atn att (pure . T) (Text.take . fromIntegral)
+    , mk2 "Text.drop" atn att (pure . T) (Text.drop . fromIntegral)
+    , mk2 "Text.=="   att att (pure . B) (==)
+    , mk2 "Text.!="   att att (pure . B) (/=)
+    , mk2 "Text.<="   att att (pure . B) (<=)
+    , mk2 "Text.>="   att att (pure . B) (>=)
+    , mk2 "Text.>"    att att (pure . B) (>)
+    , mk2 "Text.<"    att att (pure . B) (<)
+    , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
 
-      mk2 "Sequence.cons" at ats (pure.Sequence) (Vector.cons),
-      mk2 "Sequence.snoc" ats at (pure.Sequence) (Vector.snoc),
-      mk2 "Sequence.take" atn ats (pure.Sequence) (Vector.take . fromIntegral),
-      mk2 "Sequence.drop" atn ats (pure.Sequence) (Vector.drop . fromIntegral),
-      mk2 "Sequence.++" ats ats (pure.Sequence) (<>),
-      mk1 "Sequence.size" ats (pure.N) (fromIntegral . Vector.length),
-      mk2 "Sequence.at" atn ats (pure.IR.maybeToOptional) (flip (Vector.!?) . fromIntegral),
+    , mk2 "Sequence.at" atn ats (pure . IR.maybeToOptional)
+      $ flip (Vector.!?)
+      . fromIntegral
+    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Vector.cons)
+    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Vector.snoc)
+    , mk2 "Sequence.take" atn ats (pure . Sequence) (Vector.take . fromIntegral)
+    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Vector.drop . fromIntegral)
+    , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
+    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Vector.length)
 
-      mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
-      ]
+    , mk1 "Float.ceiling"  atf (pure . I) ceiling
+    , mk1 "Float.floor"    atf (pure . I) floor
+    , mk1 "Float.round"    atf (pure . I) round
+    , mk1 "Float.truncate" atf (pure . I) truncate
 
-    builtinsMap :: Map R.Reference IR
-    builtinsMap = Map.fromList
-      [ (R.Builtin name, makeIR arity name ir) | (name, arity, ir) <- builtins ]
-    makeIR arity name =
-      Leaf . Val . Lam arity (underapply name)
-           . Leaf . External . ExternalFunction
-    underapply name = FormClosure (Term.ref() $ R.Builtin name)
-    mk1 :: Text
-        -> (Size -> Z -> Stack -> IO a)
-        -> (b -> IO Value)
-        -> (a -> b)
-        -> (Text, Int, Size -> Stack -> IO Value)
-    mk1 name getA mkB f = (name, 1, \size stack -> do
+    , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
+    ]
+
+  builtinsMap :: Map R.Reference IR
+  builtinsMap = Map.fromList
+    [ (R.Builtin name, makeIR arity name ir) | (name, arity, ir) <- builtins ]
+  makeIR arity name =
+    Leaf
+      . Val
+      . Lam arity (underapply name)
+      . Leaf
+      . External
+      . ExternalFunction
+  underapply name = FormClosure (Term.ref () $ R.Builtin name)
+  mk1
+    :: Text
+    -> (Size -> Z -> Stack -> IO a)
+    -> (b -> IO Value)
+    -> (a -> b)
+    -> (Text, Int, Size -> Stack -> IO Value)
+  mk1 name getA mkB f =
+    ( name
+    , 1
+    , \size stack -> do
       a <- getA size (Slot 0) stack
-      mkB $ f a)
-    mk2 :: Text
-        -> (Size -> Z -> Stack -> IO a)
-        -> (Size -> Z -> Stack -> IO b)
-        -> (c -> IO Value)
-        -> (a -> b -> c)
-        -> (Text, Int, Size -> Stack -> IO Value)
-    mk2 name getA getB mkC f = (name, 2, \size stack -> do
+      mkB $ f a
+    )
+  mk2
+    :: Text
+    -> (Size -> Z -> Stack -> IO a)
+    -> (Size -> Z -> Stack -> IO b)
+    -> (c -> IO Value)
+    -> (a -> b -> c)
+    -> (Text, Int, Size -> Stack -> IO Value)
+  mk2 name getA getB mkC f =
+    ( name
+    , 2
+    , \size stack -> do
       a <- getA size (Slot 1) stack
       b <- getB size (Slot 0) stack
-      mkC $ f a b)
+      mkC $ f a b
+    )
 
 run :: CompilationEnv -> IR -> IO Result
 run env ir = do

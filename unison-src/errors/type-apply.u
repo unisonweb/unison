@@ -10,7 +10,7 @@ map2 = map
 c = List.Cons
 z = List.Nil
 ex = c 1 (c 2 (c 3 z))
-pure-map : List Int -- should fail, output is a `List Text`
-pure-map = map (a -> "hi") ex
+pureMap : List Int -- should fail, output is a `List Text`
+pureMap = map (a -> "hi") ex
 ()
 

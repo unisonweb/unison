@@ -16,7 +16,7 @@ effect Remote n where
 type Monoid a = Monoid (a -> a -> a) a
 
 use Nat + - * / == <
-use Sequence map take drop size fold-left halve
+use Sequence map take drop size foldLeft halve
 use Optional None Some
 use Monoid.Monoid -- import the constructor
 use Remote fork spawn at
@@ -29,14 +29,14 @@ namespace Monoid where
   op : Monoid a -> a -> a -> a
   op m = case m of Monoid op _ -> op
 
-  fold-map : (a -> {e} b) -> Monoid b -> [a] -> {e} b
-  fold-map f m as =
+  foldMap : (a -> {e} b) -> Monoid b -> [a] -> {e} b
+  foldMap f m as =
     op = Monoid.op m
     -- this line has a type error, `op` is (b -> b -> b)
     -- and `zero m` is of type `b`, but `as` is of type `[a]`
     --                                                 👇
-    if size as < 2 then Sequence.fold-left op (zero m) as
-    else case Sequence.halve as of (l, r) -> fold-map f m l `op` fold-map f m r
+    if size as < 2 then Sequence.foldLeft op (zero m) as
+    else case Sequence.halve as of (l, r) -> foldMap f m l `op` foldMap f m r
 
   par : Monoid a -> Monoid ('{Remote n} a)
   par m =
@@ -44,19 +44,19 @@ namespace Monoid where
     z = zero m
     -- note - does not typecheck if flip the order of the constructor!
     -- the 'z has type 'a, which fails to match the later remote thunk
-    Monoid (a1 a2 -> par-apply o a1 a2) 'z
+    Monoid (a1 a2 -> parApply o a1 a2) 'z
 
 force : '{e} a -> {e} a
 force a = !a
 
-map-reduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
-map-reduce f m a =
-  force <| Monoid.fold-map (a -> fork '(f a)) (Monoid.par m) a
+mapReduce : (a -> {Remote n} b) -> Monoid b -> [a] -> {Remote n} b
+mapReduce f m a =
+  force <| Monoid.foldMap (a -> fork '(f a)) (Monoid.par m) a
 
 namespace Sequence where
 
-  fold-left : (b -> a -> b) -> b -> [a] -> b
-  fold-left f z as = _todo2
+  foldLeft : (b -> a -> b) -> b -> [a] -> b
+  foldLeft f z as = _todo2
 
   halve : [a] -> ([a], [a])
   halve as = (take (size as / 2) as, drop (size as / 2) as)
@@ -69,15 +69,15 @@ ex = 'let
   f2 = fork '(2 + 2)
   !f1 + !f2
 
-par-apply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
-par-apply f a b = 'let
+parApply : (a -> b -> c) -> '{Remote n} a -> '{Remote n} b -> '{Remote n} c
+parApply f a b = 'let
   x = fork a
   y = fork b
   f !x !y
 
 -- this currently crashes the compiler
-Remote.run-local : '{Remote Nat} a -> a
-Remote.run-local r =
+Remote.runLocal : '{Remote Nat} a -> a
+Remote.runLocal r =
   step : Nat -> Effect (Remote Nat) a -> a
   step nid r = case r of
     {a} -> a
@@ -97,7 +97,7 @@ dos f a a2 = f !a !a2
 f <| i = f i
 i |> f = f i
 
-Stream.from-nat 1
+Stream.fromNat 1
   |> Stream.take 15
-  |> Stream.to-sequence
+  |> Stream.toSequence
 
