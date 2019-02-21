@@ -1,5 +1,0 @@
-a |> f = f a
-> Stream.iterate 0 Nat.increment
-  |> Stream.take 10000
-  |> Stream.filter Nat.isEven
-  |> Stream.reduce 0 (Nat.+)

@@ -1,5 +1,0 @@
-a |> f = f a
-> Stream.fromNat 1
-  |> Stream.take 10000
-  |> Stream.scanLeft 0 (Nat.+)
-  |> Stream.reduce 0 (Nat.+)

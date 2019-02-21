@@ -1,5 +1,0 @@
-a |> f = f a
-> Stream.fromInt +0
-  |> Stream.take 10
-  |> Stream.map Int.increment
-  |> Stream.toSequence

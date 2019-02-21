@@ -1,4 +1,0 @@
-a |> f = f a
-> Stream.fromNat 0
-  |> Stream.take 10000
-  |> Stream.foldLeft 0 (Nat.+)

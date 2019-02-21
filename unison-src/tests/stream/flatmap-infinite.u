@@ -1,5 +1,0 @@
-> Stream.toSequence
-  (Stream.take 3
-    (Stream.flatMap
-      (n -> Stream.constant n)
-      (Stream.fromNat 0)))

@@ -1,5 +1,0 @@
-a |> f = f a
-> Stream.fromNat 0
-  |> Stream.take 10
-  |> Stream.foldLeft Stream.empty (b a -> Stream.cons a b)
-  |> Stream.toSequence

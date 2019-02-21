@@ -1,8 +1,0 @@
-a |> f = f a
-(*) = (Nat.*)
-(<) = (Nat.<)
-
-left = Stream.fromNat 0 |> Stream.takeWhile (n -> n < 10)
-right = Stream.fromNat 77 |> Stream.dropWhile (n -> n < 103)
-
-> Stream.zipWith (x y -> x * y) left right |> Stream.sumNat
