@@ -214,7 +214,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block) body
+            PP.group (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block) body
         _ -> go term
 
   sepList sep xs = sepList' (pretty n (ac 0 Normal)) sep xs
