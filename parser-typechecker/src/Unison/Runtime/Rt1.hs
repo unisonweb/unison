@@ -36,6 +36,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Var as Var
 import Debug.Trace
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction
@@ -311,8 +312,8 @@ run env ir = do
         True -> done (B True)
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
-      Let b body -> go size m b >>= \case
-        RRequest req -> pure $ RRequest (req `appendCont` body)
+      Let v b body -> go size m b >>= \case
+        RRequest req -> pure $ RRequest (appendCont v req body)
         RDone v -> push size v m >>= \m -> go (size + 1) m body
         e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
@@ -358,7 +359,7 @@ run env ir = do
             (v, PatternVar) -> Just [v]
             (v, p) -> error $
               "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
-          tryCases m ((pat, cond, body) : remainingCases) =
+          tryCases m ((pat, _vars, cond, body) : remainingCases) =
             case getCapturedVars (scrute, pat) of
               Nothing -> tryCases m remainingCases -- this pattern didn't match
               Just vars -> do
@@ -438,7 +439,12 @@ run env ir = do
         result <- call size m fn usedArgs
         case result of
           RDone fn' -> call size m fn' extraArgs
-          RRequest req -> pure . RRequest $ req `appendCont` error "todo"
+          -- foo : Int ->{IO} (Int -> Int)
+          -- ...
+          -- (foo 12 12)
+          RRequest req ->
+            let overApplyName = Var.named "oa" in
+            pure . RRequest . appendCont overApplyName req $ error "todo"
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do

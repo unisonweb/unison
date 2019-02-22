@@ -161,7 +161,7 @@ data IR' z
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
   -- Control flow
-  | Let (IR' z) (IR' z)
+  | Let Symbol (IR' z) (IR' z)
   | LetRec [(Symbol, IR' z)] (IR' z)
   | MakeSequence [z]
   | Apply (IR' z) [z]
@@ -173,7 +173,7 @@ data IR' z
   | Or z (IR' z)
   | Not z
   -- pattern, optional guard, rhs
-  | Match z [(Pattern, Maybe (IR' z), (IR' z))]
+  | Match z [(Pattern, [Symbol], Maybe (IR' z), (IR' z))]
   deriving (Functor,Foldable,Traversable,Eq,Show)
 
 -- Contains the effect ref and ctor id, the args, and the continuation
@@ -185,8 +185,8 @@ data Req e
 -- Appends `k2` to the end of the `k` continuation
 -- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
 -- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
-appendCont :: Req e -> IR e -> Req e
-appendCont (Req r cid args k) k2 = Req r cid args (Let k k2)
+appendCont :: Symbol -> Req e -> IR e -> Req e
+appendCont v (Req r cid args k) k2 = Req r cid args (Let v k k2)
 
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
@@ -224,7 +224,7 @@ compile0 env bound t =
         (Specialize $ void t)
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
-    Term.Let1Named' _v b body -> Let (go b) (go body)
+    Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body)
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
     Term.Constructor' r cid -> ctorIR con (Term.constructor()) r cid where
@@ -234,7 +234,8 @@ compile0 env bound t =
     Term.Apps' f args -> Apply (go f) (map (toZ "apply-args" t) args)
     Term.Handle' h body -> Handle (toZ "handle" t h) (go body)
     Term.Ann' e _ -> go e
-    Term.Match' scrutinee cases -> Match (toZ "match" t scrutinee) (compileCase <$> cases)
+    Term.Match' scrutinee cases ->
+      Match (toZ "match" t scrutinee) (compileCase <$> cases)
     ABT.Abs1NA' _ body -> go body
     Term.If' cond ifT ifF -> If (toZ "cond" t cond) (go ifT) (go ifF)
     Term.Var' _ -> Leaf $ toZ "var" t t
@@ -273,7 +274,8 @@ compile0 env bound t =
       toZ msg _t e = case go e of
         Leaf v -> v
         e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
-      compileCase (Term.MatchCase pat guard rhs) = (compilePattern pat, go <$> guard, go rhs)
+      compileCase (Term.MatchCase pat guard rhs@(ABT.unabs -> (vs,_))) =
+          (compilePattern pat, underlyingSymbol <$> vs, go <$> guard, go rhs)
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
         Pattern.Var -> PatternVar
@@ -316,6 +318,7 @@ builtins = Map.fromList $ let
   -- slot = Leaf . Slot
   val = Leaf . Val
   underapply name = FormClosure (Term.ref() $ R.Builtin name)
+  var = Var.named "x"
   in [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
        (name, arity, ir) <-
         [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
@@ -331,11 +334,11 @@ builtins = Map.fromList $ let
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
-        , ("Int.isEven", 1, Let (ModI (Slot 0) (Val (I 2)))
-                                (EqI (Val (I 0)) (Slot 0)))
-        , ("Int.isOdd", 1, Let (ModI (Slot 0) (Val (I 2)))
-                                (Let (EqI (Val (I 0)) (Slot 0))
-                                     (Not (Slot 0))))
+        , ("Int.isEven", 1, Let var (ModI (Slot 0) (Val (I 2)))
+                                    (EqI (Val (I 0)) (Slot 0)))
+        , ("Int.isOdd", 1, Let var (ModI (Slot 0) (Val (I 2)))
+                                   (Let var (EqI (Val (I 0)) (Slot 0))
+                                            (Not (Slot 0))))
 
         , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
         , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
@@ -349,11 +352,11 @@ builtins = Map.fromList $ let
         , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
-        , ("Nat.isEven", 1, Let (ModN (Slot 0) (Val (N 2)))
-                                (EqN (Val (N 0)) (Slot 0)))
-        , ("Nat.isOdd", 1, Let (ModN (Slot 0) (Val (N 2)))
-                               (Let (EqN (Val (N 0)) (Slot 0))
-                                    (Not (Slot 0))))
+        , ("Nat.isEven", 1, Let var (ModN (Slot 0) (Val (N 2)))
+                                    (EqN (Val (N 0)) (Slot 0)))
+        , ("Nat.isOdd", 1, Let var (ModN (Slot 0) (Val (N 2)))
+                                   (Let var (EqN (Val (N 0)) (Slot 0))
+                                            (Not (Slot 0))))
 
         , ("Float.+", 2, AddF (Slot 1) (Slot 0))
         , ("Float.-", 2, SubF (Slot 1) (Slot 0))

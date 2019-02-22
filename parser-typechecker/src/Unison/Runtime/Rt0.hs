@@ -106,8 +106,8 @@ run env ir m = go ir m where
     Or i j -> if atb i m then done (B True) else go j m
     Not i -> done (B (not (atb i m)))
     Match scrutinee cases -> match (at scrutinee m) cases m
-    Let b body -> case go b m of
-      RRequest req -> RRequest (req `appendCont` body)
+    Let v b body -> case go b m of
+      RRequest req -> RRequest (appendCont v req body)
       RDone v -> go body (push v m)
       e -> error $ show e
     LetRec bs body -> let
@@ -202,9 +202,9 @@ run env ir m = go ir m where
     Just m  -> runPatterns t tp m
   runPatterns _ _ _ = Nothing
 
-  match :: Value -> [(Pattern, Maybe IR, IR)] -> Machine -> Result
+  match :: Value -> [(Pattern, [Symbol], Maybe IR, IR)] -> Machine -> Result
   match _ [] _ = RMatchFail
-  match s ((pat,guard,rhs) : cases) m0 = case runPattern s pat m0 of
+  match s ((pat,_vs,guard,rhs) : cases) m0 = case runPattern s pat m0 of
     Nothing -> match s cases m0 -- try next case
     Just m -> case guard of
       Nothing -> go rhs m -- no guard, commit to this case
@@ -218,7 +218,7 @@ run env ir m = go ir m where
       _ | nargs == arity -> go body (map (`at` m) args `pushes` m)
       _ | nargs > arity ->
         case go body (map (`at` m) (take arity args) `pushes` m) of
-          RRequest req -> RRequest $ req `appendCont` error "todo - overapplication yielding request"
+          RRequest req -> RRequest . appendCont (Var.named "oa") req $ error "todo - overapplication yielding request"
           RDone fn' -> call fn' (drop arity args) m
           e -> error $ "type error, tried to apply: " ++ show e
       -- nargs < arity
