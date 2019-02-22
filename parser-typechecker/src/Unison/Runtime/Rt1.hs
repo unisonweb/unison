@@ -11,6 +11,7 @@
 
 module Unison.Runtime.Rt1 where
 
+import Data.Bifunctor (second)
 import Control.Monad (foldM, join)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_, toList)
@@ -61,7 +62,7 @@ runtime = Runtime terminate eval
     cenv <- compilationEnv cl term -- in `m`
     RDone result <- liftIO $
       run cenv (compile cenv $ Term.amap (const ()) term)
-    let Just decompiled = decompile result
+    decompiled <- liftIO $ decompile result
     pure . changeVar $ decompiled
 
 
@@ -254,7 +255,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       . Leaf
       . External
       . ExternalFunction
-  underapply name = FormClosure (Term.ref () $ R.Builtin name)
+  underapply name = FormClosure (Term.ref () $ R.Builtin name) []
   mk1
     :: Text
     -> (Size -> Z -> Stack -> IO a)
@@ -450,20 +451,20 @@ run env ir = do
       else do
         argvs <- for args $ \arg -> at size arg m
         case underapply of
-          Specialize (Term.LamsNamed' vs body) -> do
+          -- previousArgs = [mostRecentlyApplied, ..., firstApplied]
+          Specialize lam@(Term.LamsNamed' vs body) previousArgs -> do
             let
-              Just argterms = traverse decompile argvs
-              toBound vs = reverse ((,Nothing) <$> vs)
-              bound = toBound (drop nargs vs) ++ reverse (vs `zip` map Just argvs)
-              compiled = compile0 env bound body
-              lam = Term.let1' False (vs `zip` argterms) $
-                    Term.lam'() (drop nargs vs) body
-            done $ Lam (arity - nargs) (Specialize lam) compiled
-          Specialize e -> error $ "can't underapply a non-lambda: " <> show e
-          FormClosure tm -> do
-            let Just argterms = traverse decompile argvs
+              nowArgs = reverse (vs `zip` argvs) ++ previousArgs
+              nowArgs' = (second Just <$> nowArgs)
+              vsRemaining = drop (length nowArgs) vs
+              vsRemaining' = (,Nothing) <$> vsRemaining
+              -- todo: is this right??
+              compiled = compile0 env (reverse vsRemaining' ++ nowArgs') body
+            done $ Lam (arity - nargs) (Specialize lam nowArgs) compiled
+          Specialize e previousArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show previousArgs
+          FormClosure tm previousArgs ->
             done $ Lam (arity - nargs)
-                       (FormClosure $ Term.apps' tm argterms)
+                       (FormClosure tm (reverse argvs ++ previousArgs))
                        (error "todo - gotta form an IR that calls the original body with args in the correct order")
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
@@ -475,7 +476,7 @@ run env ir = do
     letrec :: Size -> Stack -> [(Symbol, IR)] -> IR -> IO Result
     letrec size m bs body = do
       refs <- for bs $ \(v,b) -> do
-        r <- newIORef (LetRecBomb v bs body)
+        r <- newIORef (UninitializedLetRecSlot v bs body)
         i <- fresh
         pure (Ref i v r, b)
       -- push the empty references onto the stack

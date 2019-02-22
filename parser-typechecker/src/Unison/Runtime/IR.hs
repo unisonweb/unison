@@ -12,6 +12,7 @@
 
 module Unison.Runtime.IR where
 
+import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
 import Data.IORef
@@ -53,6 +54,7 @@ toIR = flip Map.lookup . toIR'
 constructorArity :: CompilationEnv e -> R.Reference -> Int -> Maybe Int
 constructorArity e r i = Map.lookup (r,i) $ constructorArity' e
 
+-- SymbolC = Should this variable be compiled as a LazySlot?
 data SymbolC =
   SymbolC { isLazy :: Bool
           , underlyingSymbol :: Symbol
@@ -69,14 +71,14 @@ toSymbolC s = SymbolC False s
 -- Values, in normal form
 data Value e
   = I Int64 | F Double | N Word64 | B Bool | T Text
-  | Lam Arity UnderapplyStrategy (IR e)
+  | Lam Arity (UnderapplyStrategy e) (IR e)
   | Data R.Reference ConstructorId [Value e]
   | Sequence (Vector (Value e))
   | Ref Int Symbol (IORef (Value e))
   | Pure (Value e)
   | Requested (Req e)
   | Cont (IR e)
-  | LetRecBomb Symbol [(Symbol, IR e)] (IR e)
+  | UninitializedLetRecSlot Symbol [(Symbol, IR e)] (IR e)
   deriving (Eq)
 
 -- would have preferred to make pattern synonyms
@@ -115,10 +117,15 @@ pair (a, b) = Data Type.pairRef 0 [a, b]
 -- The reason is that builtins and constructor functions don't have a body
 -- with variables that we could substitute - the functions only compute
 -- to anything when all the arguments are available.
-data UnderapplyStrategy
-  = FormClosure (Term SymbolC)
-  | Specialize (Term SymbolC)
+data UnderapplyStrategy e
+  = FormClosure (Term SymbolC) [Value e]
+  | Specialize (Term SymbolC) [(SymbolC, Value e)]
   deriving (Eq, Show)
+
+decompileUnderapplied :: UnderapplyStrategy e -> IO (Term SymbolC)
+decompileUnderapplied = \case
+  FormClosure _ _ -> error "todo"
+  Specialize _ _ -> error "todo"
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
@@ -198,7 +205,10 @@ compile env t = compile0 env [] (Term.vmap toSymbolC t)
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =
-  ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
+  let fv = trace "free:" . traceShowId $ ABT.freeVars t
+      bv = trace "bound:" . traceShowId $ Set.fromList (fst <$> bound)
+  in trace "difference:" . traceShowId $ fv `Set.difference` bv
+  -- ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
 
 -- Main compilation function - converts an arbitrary term to an `IR`.
 -- Takes a way of resolving `Reference`s and an environment of variables,
@@ -207,7 +217,16 @@ freeVars bound t =
 compile0 :: Show e => CompilationEnv e -> [(SymbolC, Maybe (Value e))] -> Term SymbolC -> IR e
 compile0 env bound t =
   if Set.null fvs then
-    go ((++ bound) . fmap (,Nothing) <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
+    -- Annotates the term with this [(SymbolC, Maybe (Value e))]
+    -- where a `Just v` indicates an immediate value, and `Nothing` indicates
+    -- a stack lookup is needed at the stack index equal to the symbol's index.
+    -- ABT.annotateBound' produces an initial annotation consisting of the a
+    -- stack of bound variables, with the innermost bound variable at the top.
+    -- We tag each of these with `Nothing`, and then tack on the immediates at
+    -- the end.  Their indices don't correspond to stack positions (although
+    -- they may reflect shadowing).
+    let wrangle vars = ((,Nothing) <$> vars) ++ bound
+    in go (wrangle <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
   else
     error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
@@ -221,7 +240,7 @@ compile0 env bound t =
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
-        (Specialize $ void t)
+        (Specialize (void t) [])
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
     Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body)
@@ -261,7 +280,7 @@ compile0 env bound t =
                         ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
         Just 0 -> con 0 r cid []
         -- Just 0 -> Leaf . Val $ Data "Optional" 0
-        Just arity -> Leaf . Val $ Lam arity (FormClosure $ src r cid) ir
+        Just arity -> Leaf . Val $ Lam arity (FormClosure (src r cid) []) ir
           where
           -- if `arity` is 1, then `Slot 0` is the sole argument.
           -- if `arity` is 2, then `Slot 1` is the first arg, and `Slot 0`
@@ -289,23 +308,22 @@ compile0 env bound t =
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: Value e -> Maybe (Term SymbolC)
+decompile :: Value e -> IO (Term SymbolC)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
   F n -> pure $ Term.float () n
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
-  Lam _ f _ -> pure $ case f of
-    FormClosure f -> f
-    Specialize f -> f
+  Lam _ f _ -> decompileUnderapplied f
   Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
   Sequence vs -> Term.vector' () <$> traverse decompile vs
-  Pure _ -> Nothing
-  Requested _ -> Nothing
-  Cont _ -> Nothing
   Ref _ _ _ -> error "IR todo - decompile Ref"
-  LetRecBomb _b _bs _body -> error "unpossible - decompile LetRecBomb"
+  Cont _ -> error "Nothing"
+  Pure _ -> error "Nothing"
+  Requested _ -> error "Nothing"
+  UninitializedLetRecSlot _b _bs _body ->
+    error "unpossible - decompile UninitializedLetRecSlot"
 
 instance Show e => Show (Z e) where
   show (LazySlot i) = "'#" ++ show i
@@ -317,7 +335,7 @@ builtins :: Map R.Reference (IR e)
 builtins = Map.fromList $ let
   -- slot = Leaf . Slot
   val = Leaf . Val
-  underapply name = FormClosure (Term.ref() $ R.Builtin name)
+  underapply name = FormClosure (Term.ref() $ R.Builtin name) []
   var = Var.named "x"
   in [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
        (name, arity, ir) <-
@@ -406,8 +424,8 @@ instance Show e => Show (Value e) where
   show (Pure v) = "(Pure " <> show v <> ")"
   show (Requested r) = "(Requested " <> show r <> ")"
   show (Cont ir) = "(Cont " <> show ir <> ")"
-  show (LetRecBomb b bs _body) =
-    "(LetRecBomb " <> show b <> " in " <> show (fst <$> bs)<> ")"
+  show (UninitializedLetRecSlot b bs _body) =
+    "(UninitializedLetRecSlot " <> show b <> " in " <> show (fst <$> bs)<> ")"
 
 compilationEnv0 :: CompilationEnv e
 compilationEnv0 = CompilationEnv builtins mempty
