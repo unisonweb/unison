@@ -42,9 +42,6 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CodeLookup
-    Unison.Codebase.CommandLine
-    Unison.Codebase.CommandLine.InputPattern
-    Unison.Codebase.CommandLine.Main
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
@@ -56,6 +53,9 @@ library
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.CommandLine
+    Unison.CommandLine.InputPattern
+    Unison.CommandLine.Main
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.FileParser

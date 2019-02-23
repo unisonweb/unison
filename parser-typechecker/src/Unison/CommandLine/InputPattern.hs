@@ -9,7 +9,7 @@
 {-# LANGUAGE DoAndIfThenElse     #-}
 
 
-module Unison.Codebase.CommandLine.InputPattern where
+module Unison.CommandLine.InputPattern where
 
 import qualified System.Console.Haskeline       as Line
 import           Unison.Codebase                (Codebase)

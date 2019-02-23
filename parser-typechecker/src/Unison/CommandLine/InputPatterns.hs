@@ -8,26 +8,26 @@
 {-# LANGUAGE TypeApplications    #-}
 
 
-module Unison.Codebase.CommandLine.InputPatterns where
+module Unison.CommandLine.InputPatterns where
 
-import           Data.Foldable                            (toList)
-import           Data.List                                (intercalate)
-import qualified Data.Map                                 as Map
-import qualified Data.Set                                 as Set
-import           Data.String                              (fromString)
-import qualified Data.Text                                as Text
-import qualified Unison.Codebase                          as Codebase
-import qualified Unison.Codebase.Branch                   as Branch
-import           Unison.Codebase.CommandLine
-import           Unison.Codebase.CommandLine.InputPattern (ArgumentType (..),
-                                                           InputPattern (..))
-import           Unison.Codebase.Editor                   (Input (..))
-import qualified Unison.Codebase.Editor                   as E
-import qualified Unison.HashQualified                     as HQ
-import qualified Unison.Names                             as Names
-import qualified Unison.Util.ColorText                    as CT
-import           Unison.Util.Monoid                       (intercalateMap)
-import qualified Unison.Util.Pretty                       as P
+import           Data.Foldable                   (toList)
+import           Data.List                       (intercalate)
+import qualified Data.Map                        as Map
+import qualified Data.Set                        as Set
+import           Data.String                     (fromString)
+import qualified Data.Text                       as Text
+import qualified Unison.Codebase                 as Codebase
+import qualified Unison.Codebase.Branch          as Branch
+import           Unison.Codebase.Editor          (Input (..))
+import qualified Unison.Codebase.Editor          as E
+import           Unison.CommandLine
+import           Unison.CommandLine.InputPattern (ArgumentType (..),
+                                                  InputPattern (..))
+import qualified Unison.HashQualified            as HQ
+import qualified Unison.Names                    as Names
+import qualified Unison.Util.ColorText           as CT
+import           Unison.Util.Monoid              (intercalateMap)
+import qualified Unison.Util.Pretty              as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [

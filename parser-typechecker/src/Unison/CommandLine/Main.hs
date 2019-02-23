@@ -8,40 +8,36 @@
 {-# LANGUAGE TypeApplications    #-}
 
 
-module Unison.Codebase.CommandLine.Main where
+module Unison.CommandLine.Main where
 
-import qualified Control.Concurrent.Async                 as Async
-import           Control.Concurrent.STM                   (atomically)
-import           Control.Exception                        (finally)
-import           Control.Monad.IO.Class                   (MonadIO, liftIO)
-import           Control.Monad.Trans                      (lift)
+import qualified Control.Concurrent.Async         as Async
+import           Control.Concurrent.STM           (atomically)
+import           Control.Exception                (finally)
+import           Control.Monad.IO.Class           (MonadIO, liftIO)
+import           Control.Monad.Trans              (lift)
 import           Data.IORef
-import           Data.Map                                 (Map)
-import qualified Data.Map                                 as Map
-import           Data.Maybe                               (fromMaybe,
-                                                           listToMaybe)
-import           Data.String                              (fromString)
-import qualified Data.Text                                as Text
-import           Prelude                                  hiding (readFile,
-                                                           writeFile)
-import qualified System.Console.Haskeline                 as Line
-import           Unison.Codebase                          (Codebase)
-import qualified Unison.Codebase                          as Codebase
-import           Unison.Codebase.Branch                   (Branch)
-import           Unison.Codebase.CommandLine
-import           Unison.Codebase.CommandLine.InputPattern (ArgumentType (suggestions),
-                                                           InputPattern (args, patternName, aliases))
-import           Unison.Codebase.CommandLine.InputPatterns (validInputs)
-import           Unison.Codebase.Editor                   (BranchName,
-                                                           Input (..))
-import qualified Unison.Codebase.Editor                   as E
-import qualified Unison.Codebase.Editor.Actions           as Actions
-import           Unison.Codebase.Runtime                  (Runtime)
-import qualified Unison.Codebase.Runtime                  as Runtime
-import           Unison.Parser                            (Ann)
-import qualified Unison.Util.Pretty                       as P
-import qualified Unison.Util.TQueue                       as Q
-import           Unison.Var                               (Var)
+import           Data.Map                         (Map)
+import qualified Data.Map                         as Map
+import           Data.Maybe                       (fromMaybe, listToMaybe)
+import           Data.String                      (fromString)
+import qualified Data.Text                        as Text
+import           Prelude                          hiding (readFile, writeFile)
+import qualified System.Console.Haskeline         as Line
+import           Unison.Codebase                  (Codebase)
+import qualified Unison.Codebase                  as Codebase
+import           Unison.Codebase.Branch           (Branch)
+import           Unison.Codebase.Editor           (BranchName, Input (..))
+import qualified Unison.Codebase.Editor           as E
+import qualified Unison.Codebase.Editor.Actions   as Actions
+import           Unison.Codebase.Runtime          (Runtime)
+import qualified Unison.Codebase.Runtime          as Runtime
+import           Unison.CommandLine
+import           Unison.CommandLine.InputPattern  (ArgumentType (suggestions), InputPattern (aliases, args, patternName))
+import           Unison.CommandLine.InputPatterns (validInputs)
+import           Unison.Parser                    (Ann)
+import qualified Unison.Util.Pretty               as P
+import qualified Unison.Util.TQueue               as Q
+import           Unison.Var                       (Var)
 
 getUserInput
   :: (MonadIO m, Line.MonadException m)
