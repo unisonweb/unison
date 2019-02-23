@@ -36,3 +36,7 @@ data ArgumentType = ArgumentType
                 -> Branch
                 -> m [Line.Completion]
   }
+
+noSuggestions ::
+  Monad m => String -> Codebase m v a -> Branch -> m [Line.Completion]
+noSuggestions _ _ _ = pure []

@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 module Unison.CommandLine.InputPatterns where
@@ -21,8 +22,12 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (Input (..))
 import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
-import           Unison.CommandLine.InputPattern (ArgumentType (..),
-                                                  InputPattern (..))
+import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType),
+                                                  InputPattern (InputPattern,
+                                                                aliases,
+                                                                help,
+                                                                patternName),
+                                                  noSuggestions)
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.Names                    as Names
 import qualified Unison.Util.ColorText           as CT
@@ -56,14 +61,15 @@ validInputs = validPatterns
     )
   commandName =
     ArgumentType "command" $ \q _ _ -> pure $ autoComplete q commandNames
-  branchArg = ArgumentType "branch" $ \q codebase _ -> do
+  branchArg = ArgumentType "branch" $ \q codebase _b -> do
     branches <- Codebase.branches codebase
     let bs = Text.unpack <$> branches
     pure $ autoComplete q bs
-  definitionQueryArg = ArgumentType "definition query" $ \q _ b -> do
-    let names = HQ.toString <$> toList (Branch.allNamesHashQualified (Branch.head b))
-    pure $ autoComplete q names
-  noCompletions = ArgumentType "a word" $ \_ _ _ -> pure []
+  definitionQueryArg =
+    ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
+      let names = HQ.toString <$> toList (Branch.allNamesHashQualified b)
+      pure $ autoComplete q names
+  noCompletions = ArgumentType "a word" noSuggestions
   quit          = InputPattern
     "quit"
     ["exit"]
@@ -83,9 +89,10 @@ validInputs = validPatterns
           else pure $ SlurpFileI False)
       , InputPattern "branch" [] [(True, branchArg)]
         (P.column2
-          [ ("`branch`", P.wrap "lists all branches in the codebase.")
-          , ( "`branch foo`", P.wrap $  "switches to the branch named 'foo', "
-                                    <> "creating it first if it doesn't exist.")
+          [ ("`branch`"
+            , P.wrap "lists all branches in the codebase.")
+          , ( "`branch foo`"
+            , P.wrap "switches to the branch named 'foo', creating it first if it doesn't exist.")
           ]
         )
         (\case
@@ -104,11 +111,12 @@ validInputs = validPatterns
         )
       , InputPattern "find" ["ls","list"] [(True, definitionQueryArg)]
         (P.column2
-          [ ("`find`", P.wrap $ "lists all definitions in the current branch.")
-          , ( "`find foo`" , P.wrap $ "lists all definitions with a name"
-                                  <> "similar to 'foo' in the current branch.")
-          , ( "`find foo bar`", P.wrap $ "lists all definitions with a name"
-                          <> "similar to 'foo' or 'bar' in the current branch.")
+          [ ("`find`"
+            , P.wrap "lists all definitions in the current branch.")
+          , ( "`find foo`"
+            , P.wrap "lists all definitions with a name similar to 'foo' in the current branch.")
+          , ( "`find foo bar`"
+            , P.wrap "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
           ]
         )
         (pure . SearchByNameI)
@@ -148,15 +156,13 @@ validInputs = validPatterns
             (fromString oldName)
             (fromString newName)
           _ -> Left . P.warnCallout $ P.wrap
-            "`rename` takes two arguments, like `rename oldname newname`."
-        )
+            "`rename` takes two arguments, like `rename oldname newname`.")
       , InputPattern
         "alias"
         ["cp"]
         [(False, definitionQueryArg), (False, noCompletions)]
         (P.wrap
-          "`alias foo bar` introduces `bar` with the same definition as `foo`."
-        )
+          "`alias foo bar` introduces `bar` with the same definition as `foo`.")
         (\case
           [oldName, newName] -> Right $ AliasUnconflictedI
             allTargets
@@ -171,10 +177,10 @@ validInputs = validPatterns
         []
         (  P.wrap
         $  "`update` works like `add`, except "
-        <> "if a definition in the file "
-        <> "has the same name as an existing definition, the name gets updated "
-        <> "to point to the new definition. "
-        <> "If the old definition has any dependents, `update` will add "
+        <> "if a definition in the file"
+        <> "has the same name as an existing definition, the name gets updated"
+        <> "to point to the new definition."
+        <> "If the old definition has any dependents, `update` will add"
         <> "those dependents to a refactoring session."
         )
         (\ws -> if not $ null ws
