@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Util.Pretty (
    Pretty,
@@ -34,6 +35,7 @@ module Unison.Util.Pretty (
    map,
    nest,
    newline,
+   nonEmpty,
    numbered,
    orElse,
    orElses,
@@ -230,6 +232,12 @@ sepSpaced between = sep (between <> softbreak)
 
 sep :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sep between = intercalateMap between id
+
+nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
+nonEmpty (toList -> l) = case l of
+  (out -> Empty) : t -> nonEmpty t
+  h : t -> h : nonEmpty t
+  [] -> []
 
 parenthesize :: IsString s => Pretty s -> Pretty s
 parenthesize p = group $ "(" <> p <> ")"

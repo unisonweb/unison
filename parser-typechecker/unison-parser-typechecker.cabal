@@ -55,7 +55,9 @@ library
     Unison.Codebase.Watch
     Unison.CommandLine
     Unison.CommandLine.InputPattern
+    Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
+    Unison.CommandLine.OutputMessages
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.FileParser

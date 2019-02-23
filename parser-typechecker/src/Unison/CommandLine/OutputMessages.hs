@@ -12,12 +12,11 @@
 module Unison.CommandLine.OutputMessages where
 
 import           Control.Applicative             ((<|>))
-import           Control.Monad                   (join, when)
+import           Control.Monad                   (join, when, unless)
 import           Data.Foldable                   (toList, traverse_)
 import           Data.List                       (sort)
 import           Data.List.Extra                 (nubOrdOn)
 import qualified Data.Map                        as Map
-import           Data.Maybe                      (catMaybes)
 import           Data.Maybe                      (listToMaybe)
 import qualified Data.Set                        as Set
 import           Data.String                     (fromString)
@@ -27,6 +26,7 @@ import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.ANSI             as Console
 import           System.Directory                (canonicalizePath,
                                                   doesFileExist)
+import           Unison.Codebase.Branch          (Branch)
 import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (DisplayThing (..), Input (..),
                                                   Output (..))
@@ -53,9 +53,10 @@ import qualified Unison.Result                   as Result
 import           Unison.Term                     (AnnotatedTerm)
 import qualified Unison.TermPrinter              as TermPrinter
 import qualified Unison.TypePrinter              as TypePrinter
+import qualified Unison.Typechecker.TypeLookup   as TL
 import qualified Unison.UnisonFile               as UF
 import qualified Unison.Util.ColorText           as CT
-import           Unison.Util.Monoid              (intercalateMap)
+import           Unison.Util.Monoid              (intercalateMap, unlessM)
 import qualified Unison.Util.Pretty              as P
 import qualified Unison.Util.Relation            as R
 import           Unison.Var                      (Var)
@@ -160,11 +161,11 @@ notifyUser dir o = case o of
     in do
       putPrettyLn . P.lines $
         typeResults ++ TypePrinter.prettySignatures' ppe sigs ++
-        formatMissingStuff termsWithMissingTypes missingTypes
+        [formatMissingStuff termsWithMissingTypes missingTypes]
       when (not $ null impossible) . error $ "Compiler bug, these referents are missing types: " <> show impossible
 
   SlurpOutput s ->
-    putPrettyLn . P.sep "\n" . catMaybes $ [
+    putPrettyLn . P.sep "\n" . P.nonEmpty $ [
         addMsg, updateMsg, dupeMsg, collMsg,
         conflictMsg, aliasingMsg, termExistingCtorMsg,
         ctorExistingTermMsg, blockedDependenciesMsg ]
@@ -189,114 +190,98 @@ notifyUser dir o = case o of
       Just (Left _)  -> TypePrinter.prettyEffectHeader (HQ.fromVar v)
       Just (Right _) -> TypePrinter.prettyDataHeader (HQ.fromVar v)
       Nothing        -> error "Wat."
-    addMsg = if not (null addedTypes && null addedTerms)
-      then Just . P.okCallout $
-        P.wrap ("I" <> P.bold "added" <> "these definitions:")
-        <> "\n\n" <> P.indentN 2
-          (P.lines (
-            (prettyDeclHeader <$> toList addedTypes) ++
-            TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
-          )
-      else Nothing
-    updateMsg = if not (null updatedTypes && null updatedTerms)
-      then Just . P.okCallout $
-        P.wrap ("I" <> P.bold "updated" <> "these definitions:")
-        -- todo: show the partial hash too?
-        <> "\n\n"
-        <> P.indentN 2 (
-            P.lines (
-              (prettyDeclHeader <$> toList updatedTypes) ++
-              TypePrinter.prettySignatures' ppe (filterTermTypes updatedTerms))
-           )
-        -- todo "You probably have a bunch more work to do."
-      else Nothing
-    dupeMsg = if not (null dupeTypes && null dupeTerms)
-      then Just . P.callout "☑️" $
-        P.wrap ("I skipped these definitions because they have" <> P.bold "already been added:")
-        <> "\n\n"
-        <> P.indentN 2 (
-            P.lines (
-              (prettyDeclHeader <$> toList dupeTypes) ++
-              TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
-          )
-      else Nothing
-    collMsg =
-      if not (null collidedTypes && null collidedTerms)
-      then Just . P.warnCallout $
-        P.wrap ("I skipped these definitions because the" <> P.bold "names already exist," <> "but with different definitions:") <> "\n\n" <>
-        P.indentN 2 (
+    addMsg = unlessM (null addedTypes && null addedTerms) . P.okCallout $
+      P.wrap ("I" <> P.bold "added" <> "these definitions:")
+      <> "\n\n" <> P.indentN 2
+        (P.lines (
+          (prettyDeclHeader <$> toList addedTypes) ++
+          TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
+        )
+    updateMsg = unlessM (null updatedTypes && null updatedTerms) . P.okCallout $
+      P.wrap ("I" <> P.bold "updated" <> "these definitions:")
+      -- todo: show the partial hash too?
+      <> "\n\n"
+      <> P.indentN 2 (
           P.lines (
-            (prettyDeclHeader <$> toList collidedTypes) ++
-            TypePrinter.prettySignatures' ppe (filterTermTypes collidedTerms))
-          )
-          <> "\n\n"
-          <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
-      else Nothing
-    conflictMsg =
-      if not (null conflictedTypes && null conflictedTerms)
-      then Just . P.warnCallout $
-        let sampleName =
-              P.text . head . fmap Var.name . toList $
-                (conflictedTypes <> conflictedTerms)
-            sampleHash = "#abc" -- todo: get real hash prefix for sampleName
-            sampleNameHash = P.group (sampleName <> sampleHash)
-            sampleNameHash' = P.group (sampleNameHash <> "`")
-            sampleNameHash'' = P.group ("`" <> sampleNameHash <> "`")
-            -- todo: get real unused name from branch
-            sampleNewName = P.group (sampleName <> "2")
-            sampleNewName' = P.group (sampleNewName <> "`")
-            sampleName' = P.group (sampleName <>"`")
-            sampleName'' = P.group ("`" <> sampleName <>"`") in
-        P.wrap ("I didn't try to update these definitions because the names are" <>
-                P.bold "conflicted" <>
-                "(already associated with multiple definitions):")
-        <> P.newline
-        <> P.newline
-        <> P.indentN 2 (
+            (prettyDeclHeader <$> toList updatedTypes) ++
+            TypePrinter.prettySignatures' ppe (filterTermTypes updatedTerms))
+         )
+      -- todo "You probably have a bunch more work to do."
+    dupeMsg = unlessM (null dupeTypes && null dupeTerms) . P.callout "☑️" $
+      P.wrap ("I skipped these definitions because they have"
+               <> P.bold "already been added:")
+      <> "\n\n"
+      <> P.indentN 2 (
           P.lines (
-            (prettyDeclHeader <$> toList conflictedTypes) ++
-            TypePrinter.prettySignatures' ppe (filterTermTypes conflictedTerms))
-        ) <> "\n\n"
-          <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
-      else Nothing
+            (prettyDeclHeader <$> toList dupeTypes) ++
+            TypePrinter.prettySignatures' ppe (filterTermTypes dupeTerms))
+        )
+    collMsg = unlessM (null collidedTypes && null collidedTerms) . P.warnCallout $
+      P.wrap ("I skipped these definitions because the" <> P.bold "names already exist," <> "but with different definitions:") <> "\n\n" <>
+      P.indentN 2 (
+        P.lines (
+          (prettyDeclHeader <$> toList collidedTypes) ++
+          TypePrinter.prettySignatures' ppe (filterTermTypes collidedTerms))
+        )
+        <> "\n\n"
+        <> tip ("You can use `update` if you're trying to replace the existing definitions and all their usages, or `rename` the existing definition to free up the name for the definitions in your .u file.")
+    conflictMsg = unlessM (null conflictedTypes && null conflictedTerms) . P.warnCallout $
+      let sampleName =
+            P.text . head . fmap Var.name . toList $
+              (conflictedTypes <> conflictedTerms)
+          sampleHash = "#abc" -- todo: get real hash prefix for sampleName
+          sampleNameHash = P.group (sampleName <> sampleHash)
+          sampleNameHash' = P.group (sampleNameHash <> "`")
+          sampleNameHash'' = P.group ("`" <> sampleNameHash <> "`")
+          -- todo: get real unused name from branch
+          sampleNewName = P.group (sampleName <> "2")
+          sampleNewName' = P.group (sampleNewName <> "`")
+          sampleName' = P.group (sampleName <>"`")
+          sampleName'' = P.group ("`" <> sampleName <>"`") in
+      P.wrap ("I didn't try to update these definitions because the names are" <>
+              P.bold "conflicted" <>
+              "(already associated with multiple definitions):")
+      <> P.newline
+      <> P.newline
+      <> P.indentN 2 (
+        P.lines (
+          (prettyDeclHeader <$> toList conflictedTypes) ++
+          TypePrinter.prettySignatures' ppe (filterTermTypes conflictedTerms))
+      ) <> "\n\n"
+        <> tip ("Use `view " <> sampleName' <> " to view the conflicting definitions and `rename " <> sampleNameHash <> " " <> sampleNewName' <> " to give each definition a distinct name. Alternatively, use `resolve " <> sampleNameHash' <> "to make" <> sampleNameHash'' <> " the canonical " <> sampleName'' <> "and remove the name from the other definitions.")
+    aliasingMsg = unlessM (R.null (Branch.termCollisions (E.needsAlias s))
+              && R.null (Branch.typeCollisions (E.needsAlias s))) . P.warnCallout $
+      let f = listToMaybe . Map.toList . R.domain
+          Just (sampleName0, sampleExistingName0) =
+            (f . Branch.typeCollisions) (E.needsAlias s) <|>
+            (f . Branch.termCollisions) (E.needsAlias s)
+          sampleNewName' = P.group (prettyName sampleName0 <> "`")
+          sampleOldName = prettyName . head . toList $ sampleExistingName0 in
 
-    aliasingMsg =
-      if not (R.null (Branch.termCollisions (E.needsAlias s))
-              && R.null (Branch.typeCollisions (E.needsAlias s)))
-      then Just . P.warnCallout $
-        let f = listToMaybe . Map.toList . R.domain
-            Just (sampleName0, sampleExistingName0) =
-              (f . Branch.typeCollisions) (E.needsAlias s) <|>
-              (f . Branch.termCollisions) (E.needsAlias s)
-            sampleNewName' = P.group (prettyName sampleName0 <> "`")
-            sampleOldName = prettyName . head . toList $ sampleExistingName0 in
-
-        P.wrap ("I skipped these definitions because they already" <> P.bold "exist with other names:") <> "\n\n" <>
-        P.indentN 2 (
-          P.lines . join $ [
-            P.align
-          -- ("type Optional", "aka " ++ commas existingNames)
-          -- todo: something is wrong here: only one oldName is being shown, instead of all
-            [(prettyDeclHeader $ Name.toVar newName,
-              "aka " <> P.commas (prettyName <$> toList oldNames)) |
-              (newName, oldNames) <-
-                Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ],
-          TypePrinter.prettySignaturesAlt' ppe
-              -- foo, foo2, fasdf : a -> b -> c
-              -- note: this shit vvvv is not a Name.
-              [ (name : fmap HQ.fromName (toList oldNames), typ)
-              | (newName, oldNames) <-
-                  Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
-              , (name, typ) <- filterTermTypes [Name.toVar newName]
-              ]
-          ])
-          <> "\n\n"
-          <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
-      else Nothing
+      P.wrap ("I skipped these definitions because they already" <> P.bold "exist with other names:") <> "\n\n" <>
+      P.indentN 2 (
+        P.lines . join $ [
+          P.align
+        -- ("type Optional", "aka " ++ commas existingNames)
+        -- todo: something is wrong here: only one oldName is being shown, instead of all
+          [(prettyDeclHeader $ Name.toVar newName,
+            "aka " <> P.commas (prettyName <$> toList oldNames)) |
+            (newName, oldNames) <-
+              Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ],
+        TypePrinter.prettySignaturesAlt' ppe
+            -- foo, foo2, fasdf : a -> b -> c
+            -- note: this shit vvvv is not a Name.
+            [ (name : fmap HQ.fromName (toList oldNames), typ)
+            | (newName, oldNames) <-
+                Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
+            , (name, typ) <- filterTermTypes [Name.toVar newName]
+            ]
+        ])
+        <> "\n\n"
+        <> tip ("Use `alias" <> sampleOldName <> " " <> sampleNewName' <> "to create an additional name for this definition.")
     termExistingCtorCollisions = E.termExistingConstructorCollisions s
     termExistingCtorMsg =
-      if not (null termExistingCtorCollisions)
-      then Just . P.warnCallout $
+      unlessM (null termExistingCtorCollisions) . P.warnCallout $
         P.wrap ("I can't update these terms because the" <> P.bold "names are currently assigned to constructors:") <> "\n\n" <>
           P.indentN 2
             (P.column2
@@ -305,29 +290,23 @@ notifyUser dir o = case o of
             )
             <> "\n\n"
             <> tip "You can `rename` these constructors to free up the names for your new definitions."
-      else Nothing
       where
         go r = prettyHashQualified (PPE.typeName ppe (Referent.toReference r))
     ctorExistingTermCollisions = E.constructorExistingTermCollisions s
     commaRefs rs = P.wrap $ P.commas (map go rs) where
       go r = prettyHashQualified (PPE.termName ppe r)
-    ctorExistingTermMsg =
-      if not (null ctorExistingTermCollisions)
-      then Just . P.warnCallout $
-        P.wrap ("I can't update these types because one or more of the" <> P.bold "constructor names matches an existing term:") <> "\n\n" <>
-          P.indentN 2 (
-            P.column2 [
-              (P.text $ Var.name v, "has name collisions for: " <> commaRefs rs)
-              | (v, rs) <- Map.toList ctorExistingTermCollisions ]
-            )
-            <> "\n\n"
-            <> tip "You can `rename` existing definitions to free up the names for your new definitions."
-      else Nothing
+    ctorExistingTermMsg = unlessM (null ctorExistingTermCollisions) . P.warnCallout $
+      P.wrap ("I can't update these types because one or more of the" <> P.bold "constructor names matches an existing term:") <> "\n\n" <>
+        P.indentN 2 (
+          P.column2 [
+            (P.text $ Var.name v, "has name collisions for: " <> commaRefs rs)
+            | (v, rs) <- Map.toList ctorExistingTermCollisions ]
+          )
+          <> "\n\n"
+          <> tip "You can `rename` existing definitions to free up the names for your new definitions."
     blockedTerms = Map.keys (E.termsWithBlockedDependencies s)
     blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
-    blockedDependenciesMsg =
-      if null blockedTerms && null blockedTypes then Nothing
-      else Just . P.warnCallout $
+    blockedDependenciesMsg = unlessM (null blockedTerms && null blockedTypes) . P.warnCallout $
         P.wrap ("I also skipped these definitions with a" <> P.bold "transitive dependency on a skipped definition" <> "mentioned above:") <> "\n\n"
         <> P.indentN 2 (
             P.lines (
@@ -346,18 +325,18 @@ notifyUser dir o = case o of
     putStrLn . showNote $ notes
   Evaluated fileContents ppe watches ->
     if null watches then putStrLn ""
-    else
-      putPrettyLn $ P.lines [
-      watchPrinter fileContents ppe ann evald isCacheHit |
-      (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+    else putPrettyLn $ P.lines
+      [ watchPrinter fileContents ppe ann evald isCacheHit
+      | (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
   DisplayConflicts branch -> do
     showConflicts "terms" terms
     showConflicts "types" types
     where
     terms    = R.dom $ Branch.termNamespace branch
     types    = R.dom $ Branch.typeNamespace branch
+    showConflicts :: Foldable f => String -> f Name -> IO ()
     showConflicts thingsName things =
-      when (not $ null things) $ do
+      unless (null things) $ do
         putStrLn $ "🙅 These " <> thingsName <> " have conflicts: "
         traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) things
     -- TODO: Present conflicting TermEdits and TypeEdits
@@ -383,115 +362,10 @@ notifyUser dir o = case o of
             "Now evaluating any watch expressions (lines starting with `>`)"
             <> "..."
         ]
-  TodoOutput branch todo ->
-    let ppe = Branch.prettyPrintEnv (Branch.head branch) in
-    if E.todoScore todo == 0 && E.todoConflicts todo == mempty
-    then putPrettyLn . P.okCallout $ "No conflicts or edits in progress."
-    else do
-      let (frontierTerms, frontierTypes) = E.todoFrontier todo
-          (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
-          corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
-          corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
-          goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
-      putPrettyLn . P.lines $
-        (if (E.todoConflicts todo == mempty) then [] else [
-          let c = E.todoConflicts todo
-              -- If a conflict is both an edit and a name conflict, we show it
-              -- under the edit conflicts section
-              c' = Branch.nameOnlyConflicts c
-              conflictedTypeNames = Branch.allTypeNames c'
-              conflictedTermNames = Branch.allTermNames c'
-          in
-            P.lines . join $ [
-              renderEditConflicts ppe (Branch.head branch),
-              renderNameConflicts conflictedTypeNames conflictedTermNames
-            ]
-        ]) ++
-        (if E.todoScore todo == 0 then [] else
-        [ P.callout "🚧" . P.lines . join $ [
-          [P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
-                  <> "transitive dependent(s) left to upgrade."
-                  <> "Your edit frontier is the dependents of these definitions:")],
-          [""],
-          [P.indentN 2 . P.lines $ (
-              (prettyDeclTriple <$> toList frontierTypes) ++
-              TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
-           )],
-          [""],
-          [P.wrap "I recommend working on them in the following order:"],
-          [""],
-          [P.indentN 2 . P.lines $
-            let unscore (_score,a,b,c) = (a,b,c)
-            in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-               (TypePrinter.prettySignatures' ppe (goodTerms $ unscore <$> dirtyTerms))
-          ],
-          formatMissingStuff corruptTerms corruptTypes
-         ]
-        ])
+  TodoOutput branch todo -> todoOutput branch todo
 
  where
-  renderNameConflicts :: Set.Set Name -> Set.Set Name -> [P.Pretty CT.ColorText]
-  renderNameConflicts conflictedTypeNames conflictedTermNames =
-    if null allNames then []
-    else [
-      P.callout "❓" . P.sep "\n\n" . join $ [
-        showConflictedNames "types" conflictedTypeNames,
-        showConflictedNames "terms" conflictedTermNames,
-        [tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
-            <> P.group ("`view " <> P.sep " " (prettyName <$> take 3 allNames) <> "`")
-            <> "to see the conflicting defintions, then use `rename`"
-            <> "and/or `replace` to resolve the conflicts."]
-      ]
-    ]
-    where
-      allNames = toList (conflictedTermNames <> conflictedTypeNames)
-      showConflictedNames things conflictedNames =
-        if Set.null conflictedNames then []
-        else [
-          P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
-          `P.hang` P.commas (P.blue . prettyName <$> toList conflictedNames)
-        ]
-
-  renderEditConflicts ppe (Branch.editConflicts -> cs@(e:_)) = [P.callout "❓" . P.sep "\n\n" $ [
-    P.wrap $ "These" <> P.bold "definitions were edited differently"
-          <> "in branches that have been merged into this branch."
-          <> "You'll have to tell me what to use as the new definition:",
-    P.indentN 2 (P.lines (formatConflict <$> cs)),
-    tip $ "Use" <>
-      P.group ("`resolve-edit " <> name e <> " <replacement>")
-      <> "to pick a replacement." -- todo: eventually something with `edit`
-    ]]
-    where
-      name (Left (r,_)) = styleHashQualified P.bold (PPE.typeName ppe r)
-      name (Right (r,_)) = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
-      formatTypeEdits es = P.wrap $ mconcat [
-        "was",
-        if TypeEdit.Deprecate `elem` es
-        then "deprecated and also replaced with"
-        else "replaced with",
-        P.oxfordCommas [ styleHashQualified P.bold (PPE.typeName ppe r) | TypeEdit.Replace r <- toList es ]
-        ]
-      formatTermEdits es = P.wrap $ mconcat [
-        "was",
-        if TermEdit.Deprecate `elem` es
-        then "deprecated and also replaced with"
-        else "replaced with",
-        P.oxfordCommas [ styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r)) | TermEdit.Replace r _ <- toList es ]
-        ]
-      formatConflict e@(Left (_, edits)) =
-        "The type " <> name e <> formatTypeEdits (toList edits)
-      formatConflict e@(Right (_, edits)) =
-        "The term " <> name e <> " " <> formatTermEdits edits
-  renderEditConflicts _ppe _ = []
-
   renderFileName = P.group . P.blue . fromString
-  prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-    BuiltinThing -> P.wrap $
-      TypePrinter.prettyDataHeader name <> "(built-in)"
-    MissingThing _ -> mempty -- these need to be handled elsewhere
-    RegularThing decl -> case decl of
-      Left _ability -> TypePrinter.prettyEffectHeader name
-      Right _d      -> TypePrinter.prettyDataHeader name
 
   nameChange cmd pastTenseCmd oldName newName r = do
     when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
@@ -521,18 +395,18 @@ notifyUser dir o = case o of
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
 
-  formatMissingStuff :: (Show tm, Show typ)
-    => [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> [P.Pretty P.ColorText]
-  formatMissingStuff terms types = catMaybes [
-    (if null terms then Nothing else Just . P.fatalCallout $
-      P.wrap "The following terms have a missing or corrupted type signature:"
-      <> "\n\n"
-      <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- terms ]),
-    (if null types then Nothing else Just . P.fatalCallout $
-      P.wrap "The following types weren't found in the codebase:"
-      <> "\n\n"
-      <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
-    ]
+formatMissingStuff :: (Show tm, Show typ) =>
+  [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> P.Pretty P.ColorText
+formatMissingStuff terms types =
+  (if null terms then mempty else P.fatalCallout $
+    P.wrap "The following terms have a missing or corrupted type signature:"
+    <> "\n\n"
+    <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- terms ]) <>
+  (if null types then mempty else P.fatalCallout $
+    P.wrap "The following types weren't found in the codebase:"
+    <> "\n\n"
+    <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
+
 
 
 displayDefinitions :: Var v =>
@@ -594,3 +468,102 @@ displayDefinitions outputLoc ppe terms types =
     <> "which is missing from the codebase.")
     <> P.newline
     <> tip "You might need to repair the codebase manually."
+
+prettyDeclTriple ::
+  (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
+  -> P.Pretty P.ColorText
+prettyDeclTriple (name, _, displayDecl) = case displayDecl of
+  BuiltinThing -> P.wrap $ TypePrinter.prettyDataHeader name <> "(built-in)"
+  MissingThing _ -> mempty -- these need to be handled elsewhere
+  RegularThing decl -> case decl of
+    Left _ability -> TypePrinter.prettyEffectHeader name
+    Right _d      -> TypePrinter.prettyDataHeader name
+
+renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
+renderNameConflicts conflictedTypeNames conflictedTermNames =
+  unlessM (null allNames) $ P.callout "❓" . P.sep "\n\n" . P.nonEmpty $ [
+    showConflictedNames "types" conflictedTypeNames,
+    showConflictedNames "terms" conflictedTermNames,
+    tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
+        <> P.group ("`view " <> P.sep " " (prettyName <$> take 3 allNames) <> "`")
+        <> "to see the conflicting defintions, then use `rename`"
+        <> "and/or `replace` to resolve the conflicts."
+  ]
+  where
+    allNames = toList (conflictedTermNames <> conflictedTypeNames)
+    showConflictedNames things conflictedNames =
+      unlessM (Set.null conflictedNames) $
+        P.wrap ("These" <> P.bold (things <> "have conflicting definitions:"))
+        `P.hang` P.commas (P.blue . prettyName <$> toList conflictedNames)
+
+renderEditConflicts ::
+  PPE.PrettyPrintEnv -> Branch.Branch0 -> P.Pretty CT.ColorText
+renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
+  if null editConflicts then mempty else
+    P.callout "❓" . P.sep "\n\n" $ [
+    P.wrap $ "These" <> P.bold "definitions were edited differently"
+          <> "in branches that have been merged into this branch."
+          <> "You'll have to tell me what to use as the new definition:",
+    P.indentN 2 (P.lines (formatConflict <$> editConflicts)),
+    tip $ "Use" <>
+      P.group ("`resolve-edit " <> name (head editConflicts) <> " <replacement>")
+      <> "to pick a replacement." -- todo: eventually something with `edit`
+    ]
+  where
+    name = either (typeName . fst) (termName . fst)
+    typeName r = styleHashQualified P.bold (PPE.typeName ppe r)
+    termName r = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
+    formatTypeEdits (r, toList -> es) = P.wrap $
+      "The type" <> typeName r <> "was" <>
+      (if TypeEdit.Deprecate `elem` es
+      then "deprecated and also replaced with"
+      else "replaced with") <>
+      P.oxfordCommas [ typeName r | TypeEdit.Replace r <- es ]
+    formatTermEdits (r, toList -> es) = P.wrap $
+      "The term" <> termName r <> "was" <>
+      (if TermEdit.Deprecate `elem` es
+      then "deprecated and also replaced with"
+      else "replaced with") <>
+      P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
+    formatConflict = either formatTypeEdits formatTermEdits
+
+todoOutput :: Var v => Branch -> E.TodoOutput v a -> IO ()
+todoOutput (Branch.head -> branch) todo =
+  if noConflicts && noEdits
+  then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
+  else putPrettyLn (todoConflicts <> todoEdits)
+  where
+  noConflicts = E.todoConflicts todo == mempty
+  noEdits = E.todoScore todo == 0
+  ppe = Branch.prettyPrintEnv branch
+  (frontierTerms, frontierTypes) = E.todoFrontier todo
+  (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
+  corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
+  corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
+  goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
+  todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
+    [ renderEditConflicts ppe branch
+    , renderNameConflicts conflictedTypeNames conflictedTermNames ]
+    where
+    -- If a conflict is both an edit and a name conflict, we show it in the edit
+    -- conflicts section
+    c = Branch.nameOnlyConflicts (E.todoConflicts todo)
+    conflictedTypeNames = Branch.allTypeNames c
+    conflictedTermNames = Branch.allTermNames c
+  todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+      [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+              <> "transitive dependent(s) left to upgrade."
+              <> "Your edit frontier is the dependents of these definitions:")
+      , P.indentN 2 . P.lines $ (
+          (prettyDeclTriple <$> toList frontierTypes) ++
+          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+          )
+      , P.wrap "I recommend working on them in the following order:"
+      , P.indentN 2 . P.lines $
+          let unscore (_score,a,b,c) = (a,b,c)
+          in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+             (TypePrinter.prettySignatures'
+                ppe
+                (goodTerms $ unscore <$> dirtyTerms))
+      , formatMissingStuff corruptTerms corruptTypes
+      ]
