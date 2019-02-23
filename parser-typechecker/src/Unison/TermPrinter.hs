@@ -363,8 +363,8 @@ Binary functions with symbolic names are output infix, as follows:
 a + b = ...
 
 -}
-prettyBinding
-  :: Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
+prettyBinding ::
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
 prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [

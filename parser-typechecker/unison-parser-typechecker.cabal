@@ -43,6 +43,8 @@ library
     Unison.Codebase.Causal
     Unison.Codebase.CodeLookup
     Unison.Codebase.CommandLine
+    Unison.Codebase.CommandLine.InputPattern
+    Unison.Codebase.CommandLine.Main
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
