@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -6,138 +7,67 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE DoAndIfThenElse     #-}
 
 
 module Unison.CommandLine.OutputMessages where
 
-import           Data.Maybe                     ( catMaybes )
-import           Prelude                 hiding ( readFile
-                                                , writeFile
-                                                )
-import           Control.Applicative            ((<|>))
-import           Control.Concurrent             (forkIO, killThread)
-import           Control.Concurrent.STM         (atomically)
-import           Control.Monad                  (forever, join, when)
-import           Data.Foldable                  (toList, traverse_)
-import           Data.List                      (isSuffixOf, sort)
-import           Data.ListLike                  (ListLike)
-import           Data.List.Extra                (nubOrdOn)
-import           Data.Map                       (Map)
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe, listToMaybe)
-import           Data.String                    (IsString, fromString)
-import qualified Data.Set                       as Set
-import qualified Data.Text                      as Text
-import           Data.Text                      (Text)
-import           Data.Text.IO                   ( readFile
-                                                , writeFile
-                                                )
-import qualified System.Console.ANSI            as Console
-import qualified System.Console.Haskeline       as Line
-import qualified System.Console.Terminal.Size   as Terminal
-import           System.Directory               (canonicalizePath, doesFileExist)
-import           Unison.Codebase                (Codebase)
-import qualified Unison.Codebase                as Codebase
-import           Unison.Codebase.Branch         (Branch)
-import qualified Unison.Codebase.Branch         as Branch
-import           Unison.Codebase.Editor         (BranchName, DisplayThing (..),
-                                                 Event (..), Input (..),
-                                                 Output (..))
-import qualified Unison.Codebase.Editor         as E
-import qualified Unison.Codebase.Runtime        as Runtime
-import qualified Unison.Codebase.Watch          as Watch
-import           Unison.CommandLine.InputPattern (InputPattern(parse))
-import qualified Unison.HashQualified           as HQ
-import           Unison.Name                    (Name)
-import qualified Unison.Name                    as Name
-import qualified Unison.Names                   as Names
-import           Unison.NamePrinter             (prettyName,
-                                                 prettyHashQualified,
-                                                 styleHashQualified
-                                                )
-import           Unison.Parser                  (Ann)
-import           Unison.Parser                  (startingLine)
-import qualified Unison.PrettyPrintEnv          as PPE
-import           Unison.PrintError              (prettyParseError,
-                                                 prettyTypecheckedFile,
-                                                 renderNoteAsANSI)
-import qualified Unison.Result                  as Result
-import qualified Unison.Referent                as Referent
-import qualified Unison.Reference               as Reference
-import qualified Unison.TypePrinter             as TypePrinter
-import           Unison.Term                    (Term)
-import qualified Unison.TermPrinter             as TermPrinter
-import qualified Unison.Codebase.TypeEdit       as TypeEdit
-import qualified Unison.Codebase.TermEdit       as TermEdit
-import qualified Unison.UnisonFile              as UF
-import qualified Unison.Util.ColorText          as CT
-import           Unison.Util.Monoid             (intercalateMap)
-import qualified Unison.Util.Pretty             as P
-import qualified Unison.Util.Relation           as R
-import           Unison.Util.TQueue             (TQueue)
-import qualified Unison.Util.TQueue             as Q
-import           Unison.Var                     (Var)
-import qualified Unison.Var                     as Var
+import           Control.Applicative             ((<|>))
+import           Control.Monad                   (join, when)
+import           Data.Foldable                   (toList, traverse_)
+import           Data.List                       (sort)
+import           Data.List.Extra                 (nubOrdOn)
+import qualified Data.Map                        as Map
+import           Data.Maybe                      (catMaybes)
+import           Data.Maybe                      (listToMaybe)
+import qualified Data.Set                        as Set
+import           Data.String                     (fromString)
+import qualified Data.Text                       as Text
+import           Data.Text.IO                    (readFile, writeFile)
+import           Prelude                         hiding (readFile, writeFile)
+import qualified System.Console.ANSI             as Console
+import           System.Directory                (canonicalizePath,
+                                                  doesFileExist)
+import qualified Unison.Codebase.Branch          as Branch
+import           Unison.Codebase.Editor          (DisplayThing (..), Input (..),
+                                                  Output (..))
+import qualified Unison.Codebase.Editor          as E
+import qualified Unison.Codebase.TermEdit        as TermEdit
+import qualified Unison.Codebase.TypeEdit        as TypeEdit
+import           Unison.CommandLine              (backtick, backtickEOS,
+                                                  putPrettyLn, putPrettyLn',
+                                                  tip, warn, watchPrinter)
+import qualified Unison.HashQualified            as HQ
+import           Unison.Name                     (Name)
+import qualified Unison.Name                     as Name
+import           Unison.NamePrinter              (prettyHashQualified,
+                                                  prettyName,
+                                                  styleHashQualified)
+import qualified Unison.Names                    as Names
+import qualified Unison.PrettyPrintEnv           as PPE
+import           Unison.PrintError               (prettyParseError,
+                                                  prettyTypecheckedFile,
+                                                  renderNoteAsANSI)
+import qualified Unison.Reference                as Reference
+import qualified Unison.Referent                 as Referent
+import qualified Unison.Result                   as Result
+import           Unison.Term                     (AnnotatedTerm)
+import qualified Unison.TermPrinter              as TermPrinter
+import qualified Unison.TypePrinter              as TypePrinter
+import qualified Unison.UnisonFile               as UF
+import qualified Unison.Util.ColorText           as CT
+import           Unison.Util.Monoid              (intercalateMap)
+import qualified Unison.Util.Pretty              as P
+import qualified Unison.Util.Relation            as R
+import           Unison.Var                      (Var)
+import qualified Unison.Var                      as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
   Success (MergeBranchI _) ->
     putPrettyLn $ P.bold "Merged. " <> "Here's what's `todo` after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  DisplayDefinitions outputLoc ppe terms types -> case outputLoc of
-    -- stdout
-    Nothing -> putPrettyLn out
-    Just path -> do
-      path' <- canonicalizePath path
-      prependToFile out path'
-      printMessage out path'
-      where
-      prependToFile out path = do
-        existingContents <- do
-          exists <- doesFileExist path
-          if exists then readFile path
-          else pure ""
-        writeFile path . Text.pack . P.toPlain 80 $
-          P.lines [ out, ""
-                  , "---- " <> "Anything below this line is ignored by Unison."
-                  , "", P.text existingContents ]
-      printMessage out path =
-        putPrettyLn . P.callout "☝️" $ P.lines [
-          P.wrap $ "I added these definitions to the top of " <> fromString path,
-          "",
-          P.indentN 2 out,
-          "",
-          P.wrap $
-            "You can edit them there, then do `update` to replace the" <>
-            "definitions currently in this branch."
-         ]
-    where
-    out = P.sep "\n\n" (prettyTypes <> prettyTerms)
-    prettyTerms = map go terms
-    prettyTypes = map go2 types
-    go (r, dt) =
-      let n = PPE.termName ppe (Referent.Ref r) in
-      case dt of
-        MissingThing r -> missing n r
-        BuiltinThing -> builtin n
-        RegularThing tm -> P.map fromString $
-          TermPrinter.prettyBinding ppe n tm
-    go2 (r, dt) =
-      let n = PPE.typeName ppe r in
-      case dt of
-        MissingThing r -> missing n r
-        BuiltinThing -> builtin n
-        RegularThing decl -> case decl of
-          Left _ability -> TypePrinter.prettyEffectHeader n <> " -- todo"
-          Right _d -> TypePrinter.prettyDataHeader n <> " -- todo"
-    builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
-    missing n r = P.wrap (
-      "-- The name " <> prettyHashQualified n <> " is assigned to the "
-      <> "reference " <> fromString (show r ++ ",")
-      <> "which is missing from the codebase.")
-      <> P.newline
-      <> tip "You might need to repair the codebase manually."
+  DisplayDefinitions outputLoc ppe terms types ->
+    displayDefinitions outputLoc ppe terms types
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -219,7 +149,7 @@ notifyUser dir o = case o of
         impossible = terms >>= \case
           (name, r, Nothing) -> case r of
             Referent.Ref (Reference.Builtin _) -> [(name,r)]
-            _ -> []
+            _                                  -> []
           _ -> []
         termsWithMissingTypes =
           [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
@@ -256,9 +186,9 @@ notifyUser dir o = case o of
       [ (HQ.fromVar v,t) | v <- toList vs
               , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
     prettyDeclHeader v = case UF.getDecl' file v of
-      Just (Left _) -> TypePrinter.prettyEffectHeader (HQ.fromVar v)
+      Just (Left _)  -> TypePrinter.prettyEffectHeader (HQ.fromVar v)
       Just (Right _) -> TypePrinter.prettyDataHeader (HQ.fromVar v)
-      Nothing -> error "Wat."
+      Nothing        -> error "Wat."
     addMsg = if not (null addedTypes && null addedTerms)
       then Just . P.okCallout $
         P.wrap ("I" <> P.bold "added" <> "these definitions:")
@@ -561,7 +491,7 @@ notifyUser dir o = case o of
     MissingThing _ -> mempty -- these need to be handled elsewhere
     RegularThing decl -> case decl of
       Left _ability -> TypePrinter.prettyEffectHeader name
-      Right _d -> TypePrinter.prettyDataHeader name
+      Right _d      -> TypePrinter.prettyDataHeader name
 
   nameChange cmd pastTenseCmd oldName newName r = do
     when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
@@ -603,3 +533,64 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
     ]
+
+
+displayDefinitions :: Var v =>
+  Maybe FilePath
+  -> PPE.PrettyPrintEnv
+  -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
+  -> [(Reference.Reference, DisplayThing (Either a2 b))]
+  -> IO ()
+displayDefinitions outputLoc ppe terms types =
+  maybe displayOnly scratchAndDisplay outputLoc
+  where
+  displayOnly = putPrettyLn code
+  scratchAndDisplay path = do
+    path' <- canonicalizePath path
+    prependToFile code path'
+    putPrettyLn (message code path')
+    where
+    prependToFile code path = do
+      existingContents <- do
+        exists <- doesFileExist path
+        if exists then readFile path
+        else pure ""
+      writeFile path . Text.pack . P.toPlain 80 $
+        P.lines [ code, ""
+                , "---- " <> "Anything below this line is ignored by Unison."
+                , "", P.text existingContents ]
+    message code path =
+      P.callout "☝️" $ P.lines [
+        P.wrap $ "I added these definitions to the top of " <> fromString path,
+        "",
+        P.indentN 2 code,
+        "",
+        P.wrap $
+          "You can edit them there, then do `update` to replace the" <>
+          "definitions currently in this branch."
+       ]
+  code = P.sep "\n\n" (prettyTypes <> prettyTerms)
+  prettyTerms = map go terms
+  prettyTypes = map go2 types
+  go (r, dt) =
+    let n = PPE.termName ppe (Referent.Ref r) in
+    case dt of
+      MissingThing r -> missing n r
+      BuiltinThing -> builtin n
+      RegularThing tm -> P.map fromString $
+        TermPrinter.prettyBinding ppe n tm
+  go2 (r, dt) =
+    let n = PPE.typeName ppe r in
+    case dt of
+      MissingThing r -> missing n r
+      BuiltinThing -> builtin n
+      RegularThing decl -> case decl of
+        Left _ability -> TypePrinter.prettyEffectHeader n <> " -- todo"
+        Right _d      -> TypePrinter.prettyDataHeader n <> " -- todo"
+  builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
+  missing n r = P.wrap (
+    "-- The name " <> prettyHashQualified n <> " is assigned to the "
+    <> "reference " <> fromString (show r ++ ",")
+    <> "which is missing from the codebase.")
+    <> P.newline
+    <> tip "You might need to repair the codebase manually."

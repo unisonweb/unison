@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -5,80 +6,42 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE DoAndIfThenElse     #-}
 
 
 module Unison.CommandLine where
 
-import           Data.Maybe                     ( catMaybes )
-import           Prelude                 hiding ( readFile
-                                                , writeFile
-                                                )
-import           Control.Applicative            ((<|>))
-import           Control.Concurrent             (forkIO, killThread)
-import           Control.Concurrent.STM         (atomically)
-import           Control.Monad                  (forever, join, when)
-import           Data.Foldable                  (toList, traverse_)
-import           Data.List                      (isSuffixOf, sort)
-import           Data.ListLike                  (ListLike)
-import           Data.List.Extra                (nubOrdOn)
-import           Data.Map                       (Map)
-import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe, listToMaybe)
-import           Data.String                    (IsString, fromString)
-import qualified Data.Set                       as Set
-import qualified Data.Text                      as Text
-import           Data.Text                      (Text)
-import           Data.Text.IO                   ( readFile
-                                                , writeFile
-                                                )
-import qualified System.Console.ANSI            as Console
-import qualified System.Console.Haskeline       as Line
-import qualified System.Console.Terminal.Size   as Terminal
-import           System.Directory               (canonicalizePath, doesFileExist)
-import           Unison.Codebase                (Codebase)
-import qualified Unison.Codebase                as Codebase
-import           Unison.Codebase.Branch         (Branch)
-import qualified Unison.Codebase.Branch         as Branch
-import           Unison.Codebase.Editor         (BranchName, DisplayThing (..),
-                                                 Event (..), Input (..),
-                                                 Output (..))
-import qualified Unison.Codebase.Editor         as E
-import qualified Unison.Codebase.Runtime        as Runtime
-import qualified Unison.Codebase.Watch          as Watch
-import           Unison.CommandLine.InputPattern (InputPattern(parse))
-import qualified Unison.HashQualified           as HQ
-import           Unison.Name                    (Name)
-import qualified Unison.Name                    as Name
-import qualified Unison.Names                   as Names
-import           Unison.NamePrinter             (prettyName,
-                                                 prettyHashQualified,
-                                                 styleHashQualified
-                                                )
-import           Unison.Parser                  (Ann)
-import           Unison.Parser                  (startingLine)
-import qualified Unison.PrettyPrintEnv          as PPE
-import           Unison.PrintError              (prettyParseError,
-                                                 prettyTypecheckedFile,
-                                                 renderNoteAsANSI)
-import qualified Unison.Result                  as Result
-import qualified Unison.Referent                as Referent
-import qualified Unison.Reference               as Reference
-import qualified Unison.TypePrinter             as TypePrinter
-import           Unison.Term                    (Term)
-import qualified Unison.TermPrinter             as TermPrinter
-import qualified Unison.Codebase.TypeEdit       as TypeEdit
-import qualified Unison.Codebase.TermEdit       as TermEdit
-import qualified Unison.UnisonFile              as UF
-import qualified Unison.Util.ColorText          as CT
-import           Unison.Util.Monoid             (intercalateMap)
-import qualified Unison.Util.Pretty             as P
-import qualified Unison.Util.Relation           as R
-import           Unison.Util.TQueue             (TQueue)
-import qualified Unison.Util.TQueue             as Q
-import           Unison.Var                     (Var)
-import qualified Unison.Var                     as Var
+import           Control.Concurrent              (forkIO, killThread)
+import           Control.Concurrent.STM          (atomically)
+import           Control.Monad                   (forever, when)
+import           Data.List                       (isSuffixOf)
+import           Data.ListLike                   (ListLike)
+import           Data.Map                        (Map)
+import qualified Data.Map                        as Map
+import           Data.Maybe                      (fromMaybe)
+import           Data.String                     (IsString, fromString)
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
+import           Prelude                         hiding (readFile, writeFile)
+import qualified System.Console.Haskeline        as Line
+import qualified System.Console.Terminal.Size    as Terminal
+import           Unison.Codebase                 (Codebase)
+import qualified Unison.Codebase                 as Codebase
+import           Unison.Codebase.Branch          (Branch)
+import           Unison.Codebase.Editor          (BranchName, Event (..),
+                                                  Input (..))
+import qualified Unison.Codebase.Runtime         as Runtime
+import qualified Unison.Codebase.Watch           as Watch
+import           Unison.CommandLine.InputPattern (InputPattern (parse))
+import           Unison.Parser                   (Ann)
+import           Unison.Parser                   (startingLine)
+import qualified Unison.PrettyPrintEnv           as PPE
+import           Unison.Term                     (Term)
+import qualified Unison.TermPrinter              as TermPrinter
+import qualified Unison.Util.ColorText           as CT
+import qualified Unison.Util.Pretty              as P
+import           Unison.Util.TQueue              (TQueue)
+import qualified Unison.Util.TQueue              as Q
+import           Unison.Var                      (Var)
 
 watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
                       -> Term v
