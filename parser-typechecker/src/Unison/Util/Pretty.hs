@@ -59,6 +59,7 @@ module Unison.Util.Pretty (
    toANSI,
    toPlain,
    wrap,
+   wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
    border
@@ -177,7 +178,8 @@ render availableWidth p = go mempty [Right p] where
     in maxCol (cur' <> delta p) < availableWidth
 
 newline :: IsString s => Pretty s
-newline = lit' (chDelta '\n') (fromString "\n")
+newline = "\n"
+
 
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
@@ -278,6 +280,13 @@ rightPad n p =
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
+
+wrapColumn2 ::
+  (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
+wrapColumn2 rows = lines (align rows) where
+  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+    in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
+       | (l, r) <- rows]
 
 align :: (LL.ListLike s Char, IsString s)
   => [(Pretty s, Pretty s)]
