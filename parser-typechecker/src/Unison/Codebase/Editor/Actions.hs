@@ -49,6 +49,8 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
+import qualified Unison.Codebase.SearchResult as SR
+import qualified Unison.HashQualified as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
@@ -145,16 +147,16 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
         SearchByNameI qs -> do
-          terms  <- eval $ SearchTerms currentBranch' qs
-          types  <- eval $ SearchTypes currentBranch' qs
+          terms  <- eval $ SearchTerms currentBranch' (HQ.fromText . Text.pack <$> qs)
+          types  <- eval $ SearchTypes currentBranch' (HQ.fromText . Text.pack <$> qs)
           types' <-
             let
-              go (name, ref) = case ref of
+              go (SR.TypeResult name ref _aliases) = case ref of
                 Reference.DerivedId id ->
                   (name, ref, ) . maybe (MissingThing id) RegularThing <$> eval
                     (LoadType id)
                 _ -> pure (name, ref, BuiltinThing)
-            in  traverse go types
+            in traverse go types
           respond $ ListOfDefinitions currentBranch' terms types'
         ShowDefinitionI outputLoc qs -> do
           terms <- eval $ SearchTerms currentBranch' qs

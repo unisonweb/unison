@@ -120,12 +120,13 @@ completion s = Line.Completion s s True
 
 autoComplete :: String -> [String] -> [Line.Completion]
 autoComplete q ss = fixup $
-  completion <$> (id $ Codebase.sortedApproximateMatches q ss)
+  completion <$> error "todo"--Codebase.sortedApproximateMatches q ss
   where
   -- workaround for https://github.com/judah/haskeline/issues/100
   -- if the common prefix of all the completions is smaller than
   -- the query, we make all the replacements equal to the query,
   -- which will preserve what the user has typed
+  fixup :: [Line.Completion] -> [Line.Completion]
   fixup [] = []
   fixup [c] = [c]
   fixup cs@(h:t) = let

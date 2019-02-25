@@ -49,17 +49,22 @@ fromTermNames tms = let
   m = Map.fromList tms
   in PrettyPrintEnv (`Map.lookup` m) (const Nothing)
 
+-- todo: these need to be a dynamic length, but we need additional info
+todoHashLength :: Int
+todoHashLength = 10
 termName :: PrettyPrintEnv -> Referent -> HashQualified
-termName env r = fromMaybe (HQ.fromReferent r) (terms env r)
+termName env r =
+  fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)
 
 typeName :: PrettyPrintEnv -> Reference -> HashQualified
-typeName env r = fromMaybe (HQ.fromReferent (Referent.Ref r)) (types env r)
+typeName env r =
+  fromMaybe (HQ.take todoHashLength $ HQ.fromReference r) (types env r)
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
 patternName env r cid =
   case terms env (Referent.Con r cid) of
     Just name -> name
-    Nothing -> HQ.fromReferent (Referent.Con r cid)
+    Nothing -> HQ.take todoHashLength $ HQ.fromReferent (Referent.Con r cid)
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)

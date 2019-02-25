@@ -32,6 +32,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.SearchResult   ( TermResult, TypeResult )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
@@ -321,13 +322,13 @@ data Command i v a where
 
   -- Return a list of terms whose names match the given queries.
   SearchTerms :: Branch
-              -> [String]
-              -> Command i v [(HashQualified, Referent, Maybe (Type v Ann))]
+              -> [HashQualified]
+              -> Command i v [TermResult v Ann]
 
   -- Return a list of types whose names match the given queries.
   SearchTypes :: Branch
-              -> [String]
-              -> Command i v [(HashQualified, Reference)] -- todo: can add Kind later
+              -> [HashQualified]
+              -> Command i v [TypeResult] -- todo: can add Kind later
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
@@ -654,9 +655,9 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchTerms branch queries ->
-      Codebase.fuzzyFindTermTypes codebase branch queries
+      error "todo"-- Codebase.searchTerms codebase (Branch.head branch) queries
     SearchTypes branch queries ->
-      pure $ Codebase.fuzzyFindTypes' branch queries
+      error "todo"--Codebase.searchTypes codebase (Branch.head branch) queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)

@@ -32,6 +32,7 @@ import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
 import           Unison.HashQualified     (HashQualified)
 import qualified Unison.HashQualified     as HashQualified
+import qualified Unison.HashQualified     as HQ
 import           Unison.Name              (Name)
 import           Unison.Names             (Names (..))
 import qualified Unison.Name              as Name
@@ -329,14 +330,14 @@ hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent HashQualified
 hashQualifyTermName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HashQualified.forReferent r numHashChars n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReferent r n)
                     | r <- toList rs ]
 
 hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference HashQualified
 hashQualifyTypeName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HashQualified.forReference r numHashChars n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReference r n)
                     | r <- toList rs ]
 
 -- Get the appropriately hash-qualified version of a name for term.
@@ -345,25 +346,25 @@ hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
   if (> 1) . length . R.lookupDom n . termNamespace $ b then
     -- name is conflicted
-    HashQualified.forReferent r (numHashChars b) n
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReferent r n
   else HashQualified.fromName n
 
 hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
   if (> 1) . length . R.lookupDom n . typeNamespace $ b then
     -- name is conflicted
-    HashQualified.forReference r (numHashChars b) n
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReference r n
   else HashQualified.fromName n
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
-  = Set.map (HashQualified.forReferent ref numHashChars)
+  = Set.map (HQ.take numHashChars . HashQualified.fromNamedReferent ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . terms)
 
 oldNamesForType :: Int -> Reference -> Branch0 -> Set HashQualified
 oldNamesForType numHashChars ref
-  = Set.map (HashQualified.forReference ref numHashChars)
+  = Set.map (HQ.take numHashChars . HashQualified.fromNamedReference ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
