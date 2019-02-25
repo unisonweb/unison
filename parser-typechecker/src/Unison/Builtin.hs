@@ -238,5 +238,7 @@ builtins0 = Map.fromList $
       , ("Sequence.at", "Nat -> [a] -> Optional a")
 
       , ("Debug.watch", "Text -> a -> a")
+      , ("Effect.pure", "a -> Effect e a") -- Effect ambient e a
+      , ("Effect.bind", "'{e} a -> (a ->{ambient} b) -> Effect e a") -- Effect ambient e a
       ]
   ]
