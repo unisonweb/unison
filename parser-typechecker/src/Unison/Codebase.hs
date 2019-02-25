@@ -190,6 +190,10 @@ loadSrTypes code (SearchResult0 tms typs) = do
   loadTermType :: SR.TermResult0 -> m (SR.TermResult v a)
   loadTermType (SR.TermResult0 {..}) = error "todo"
 
+searchBranch :: (Monad m, Var v, Ord score) => Codebase m v a -> Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> m SearchResult0
+searchBranch code b score queries = error "todo"
+
+
 searchCodebase :: forall m v a score.
   (Var v, Monad m, Ord score)
   => Codebase m v a

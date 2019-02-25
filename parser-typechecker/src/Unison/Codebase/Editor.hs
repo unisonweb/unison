@@ -32,7 +32,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.SearchResult   ( TermResult, TypeResult )
+import           Unison.Codebase.SearchResult   ( SearchResult0, TermResult, TypeResult )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
@@ -320,17 +320,18 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Return a list of terms whose names match the given queries.
-  SearchTerms :: Branch
-              -> [HashQualified]
-              -> Command i v [TermResult v Ann]
+  -- Return a list of definitions whose names match the given queries.
+  SearchBranch :: Branch
+             -> [HashQualified]
+             -> Command i v SearchResult0
 
-  -- Return a list of types whose names match the given queries.
-  SearchTypes :: Branch
-              -> [HashQualified]
-              -> Command i v [TypeResult] -- todo: can add Kind later
+  -- -- Return a list of types whose names match the given queries.
+  -- SearchTypes :: Branch
+  --             -> [HashQualified]
+  --             -> Command i v [TypeResult] -- todo: can add Kind later
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
+  LoadTypeOfTerm :: Reference -> Command i v (Maybe (Type v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
@@ -654,10 +655,9 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
-    SearchTerms branch queries ->
-      error "todo"-- Codebase.searchTerms codebase (Branch.head branch) queries
-    SearchTypes branch queries ->
-      error "todo"--Codebase.searchTypes codebase (Branch.head branch) queries
+    SearchBranch branch queries ->
+      Codebase.searchBranch codebase (Branch.head branch) score queries
+      where score = (error "todo" :: Name -> Name -> Maybe Int)
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)

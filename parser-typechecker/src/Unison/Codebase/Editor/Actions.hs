@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
-
+{-# LANGUAGE ViewPatterns        #-}
 module Unison.Codebase.Editor.Actions where
 
 import           Control.Applicative
@@ -27,7 +27,7 @@ import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
-import           Data.Tuple                     ( swap )
+-- import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.ABT as ABT
@@ -146,9 +146,13 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
-        SearchByNameI qs -> do
-          terms  <- eval $ SearchTerms currentBranch' (HQ.fromText . Text.pack <$> qs)
-          types  <- eval $ SearchTypes currentBranch' (HQ.fromText . Text.pack <$> qs)
+        SearchByNameI (fmap HQ.fromString -> qs) -> do
+          results0 <- eval $ SearchBranch currentBranch' qs
+          let terms = SR.termResults0 results0
+          let types = SR.typeResults0 results0
+          let terms' = traverse go terms where
+              go (SR.TermResult0 name ref _aliases) =
+                (name, ref,) <$> eval (LoadTypeOfTerm ref)
           types' <-
             let
               go (SR.TypeResult name ref _aliases) = case ref of
@@ -157,15 +161,16 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                     (LoadType id)
                 _ -> pure (name, ref, BuiltinThing)
             in traverse go types
-          respond $ ListOfDefinitions currentBranch' terms types'
-        ShowDefinitionI outputLoc qs -> do
+          respond $ ListOfDefinitions currentBranch' terms' types'
+        ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
           terms <- eval $ SearchTerms currentBranch' qs
           types <- eval $ SearchTypes currentBranch' qs
-          let terms' = [ (n, r) | (n, r, _) <- terms ]
-              termTypes =
-                Map.fromList [ (r, t) | (_, Referent.Ref r, Just t) <- terms ]
+          let termTypes = Map.fromList
+                [ (r, t)
+                | SR.TermResult _ (Referent.Ref r) (Just t) _ <- terms ]
               (collatedTerms, collatedTypes) =
-                collateReferences (snd <$> terms') (snd <$> types)
+                collateReferences (SR.referent <$> terms)
+                                  (SR.reference <$> types)
           loadedTerms <- for collatedTerms $ \r -> case r of
             Reference.DerivedId i -> do
               tm <- eval (LoadTerm i)
@@ -185,10 +190,9 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           -- in the pretty-printer
           let
             ppe =
-              PPE.fromTermNames [ (r, n) | (n, r, _) <- terms ]
-                `PPE.unionLeft` PPE.fromTypeNames (swap <$> types)
-                `PPE.unionLeft` Branch.prettyPrintEnv
-                                  (Branch.head currentBranch')
+              PPE.fromTermNames [ (r, n) | SR.TermResult n r _ _ <- terms ] <>
+              PPE.fromTypeNames [ (r, n) | SR.TypeResult n r _ <- types ] <>
+              Branch.prettyPrintEnv (Branch.head currentBranch')
             loc = case outputLoc of
               Editor.ConsoleLocation    -> Nothing
               Editor.FileLocation path  -> Just path
