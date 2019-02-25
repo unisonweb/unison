@@ -122,7 +122,7 @@ data UnderapplyStrategy e
   | Specialize (Term SymbolC) [(SymbolC, Value e)]
   deriving (Eq, Show)
 
-decompileUnderapplied :: UnderapplyStrategy e -> IO (Term SymbolC)
+decompileUnderapplied :: UnderapplyStrategy e -> IO (Term Symbol)
 decompileUnderapplied = \case
   FormClosure _ _ -> error "todo"
   Specialize _ _ -> error "todo"
@@ -308,7 +308,7 @@ compile0 env bound t =
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: Value e -> IO (Term SymbolC)
+decompile :: External e => Value e -> IO (Term Symbol)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -316,14 +316,26 @@ decompile v = case v of
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
   Lam _ f _ -> decompileUnderapplied f
-  Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
+  Data r cid args ->
+    Term.apps' <$> pure (Term.constructor() r cid)
+               <*> traverse decompile (toList args)
   Sequence vs -> Term.vector' () <$> traverse decompile vs
   Ref _ _ _ -> error "IR todo - decompile Ref"
-  Cont _ -> error "Nothing"
+  Cont k -> pure $ Term.lam () contIn (decompileIR [contIn] k)
+    where contIn = Var.freshIn (irBoundVars k) (Var.named "result")
   Pure _ -> error "Nothing"
   Requested _ -> error "Nothing"
   UninitializedLetRecSlot _b _bs _body ->
     error "unpossible - decompile UninitializedLetRecSlot"
+
+irBoundVars :: IR e -> Set Symbol
+irBoundVars = error "todo -- recurse over the IR tree and pull out all the Let/LetRec symbols"
+
+class External e where
+  decompileExternal :: e -> Term Symbol
+
+decompileIR :: External e => [Symbol] -> IR e -> Term Symbol
+decompileIR _stack = error "todo" -- maintain a stack of variables
 
 instance Show e => Show (Z e) where
   show (LazySlot i) = "'#" ++ show i
