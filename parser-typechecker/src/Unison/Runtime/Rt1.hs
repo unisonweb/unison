@@ -451,17 +451,23 @@ run env ir = do
       else do
         argvs <- for args $ \arg -> at size arg m
         case underapply of
-          -- previousArgs = [mostRecentlyApplied, ..., firstApplied]
-          Specialize lam@(Term.LamsNamed' vs body) previousArgs -> do
-            let
-              nowArgs = reverse (vs `zip` argvs) ++ previousArgs
-              nowArgs' = (second Just <$> nowArgs)
-              vsRemaining = drop (length nowArgs) vs
-              vsRemaining' = (,Nothing) <$> vsRemaining
-              -- todo: is this right??
-              compiled = compile0 env (reverse vsRemaining' ++ nowArgs') body
-            done $ Lam (arity - nargs) (Specialize lam nowArgs) compiled
-          Specialize e previousArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show previousArgs
+          -- Example 1:
+          -- f = x y z p -> x - y - z - p
+          -- f' = f 1 2 -- Specialize f [2, 1] -- each arg is pushed onto top
+          -- f'' = f' 3 -- Specialize f [3, 2, 1]
+          -- f'' 4      -- should be the same thing as `f 1 2 3 4`
+          --
+          -- pushedArgs = [mostRecentlyApplied, ..., firstApplied]
+          Specialize lam@(Term.LamsNamed' vs body) pushedArgs -> let
+            pushedArgs' :: [ (SymbolC, Value)] -- head is the latest argument
+            pushedArgs' = reverse (drop (length pushedArgs) vs `zip` argvs) ++ pushedArgs
+            vsRemaining = drop (length pushedArgs') vs
+            compiled = compile0 env
+              (reverse (fmap (,Nothing) vsRemaining) ++
+               fmap (second Just) pushedArgs')
+              body
+            in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
+          Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
           FormClosure tm previousArgs ->
             done $ Lam (arity - nargs)
                        (FormClosure tm (reverse argvs ++ previousArgs))
