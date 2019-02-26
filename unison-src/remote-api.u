@@ -3,35 +3,48 @@ type Status = Running | Finished | Canceled | Error Error
 type Duration = Seconds Nat
 -- type Abilities e = Abilities {e}
 
-ability Remote loc where fork : loc {e} -> '{e} a ->{Remote loc} Future loc a
+ability Remote loc where
+  fork : loc {e}
+      -> '{e} a
+      -> {Remote loc} Future loc a
+
+forkRegistered : (Future loc a -> {e2} ()) -> loc {e} -> '{e} a
+              -> {Remote loc, e2} Future loc a
+forkRegistered register loc t =
+  future = Remote.fork loc t
+  register future
+  Future.begin future
+  future
+
+
 ability Error e where error : e ->{Error e} ()
 
-
 type Future loc a = Future
-  ('{Remote loc, Error Future.Error} a         -- join
-  ,'{Remote loc} ()               -- cancel
-  ,'{Remote loc} Status           -- status
-  ,Duration ->{Remote loc} ())    -- keepalive (seconds 10)
-type Future.Error = Unknown | Unreachable | Unresponsive | AbilityCheckFailure
-
-Future.join : Future loc a ->{Remote loc, Error Future.Error} a
-Future.join f = case f of Future.Future (j, c, s, k) -> !j
-
-Future.cancel : Future loc a ->{Remote loc} ()
-Future.cancel f = case f of Future.Future (j, c, s, k) -> !c
-
-Future.status : Future loc a ->{Remote loc} Status
-Future.status f = case f of Future.Future (j, c, s, k) -> !s
-
-Future.keepalive : Future loc a -> Duration ->{Remote loc} ()
-Future.keepalive f d = case f of Future.Future (j, c, s, k) -> k d
+  ('{Remote loc} ()                            -- begin
+  ,'{Remote loc} ()                            -- cancel
+  ,'{Remote loc} Status                        -- status
+  ,'{Remote loc, Error Future.Error} a         -- join
+  )
+type Future.Error = UnknownFuture | UnreachableLocation | UnresponsiveLocation | Terminated | AbilityCheckFailure
 
 -- Ability.check : Abilities {a} -> Request {b} x -> Boolean
 -- Ability.check = _
 
-
 -- Remote.server : (loc {e} -> {e} a) -> {e} a
 -- Remote.server computation =
+
+Future.join : Future loc a ->{Remote loc, Error Future.Error} a
+Future.join f = case f of Future.Future (b, c, s, j) -> !j
+
+Future.cancel : Future loc a ->{Remote loc} ()
+Future.cancel f = case f of Future.Future (b, c, s, j) -> !c
+
+Future.status : Future loc a ->{Remote loc} Status
+Future.status f = case f of Future.Future (b, c, s, j) -> !s
+
+Future.begin : Future loc a ->{Remote loc} ()
+Future.begin f = case f of Future.Future (b, c, s, j) -> !b
+
 
 type UnitLoc e = UnitLoc
 
