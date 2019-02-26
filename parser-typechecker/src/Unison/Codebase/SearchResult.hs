@@ -1,8 +1,7 @@
 module Unison.Codebase.SearchResult where
 
-import           Data.List            (sortOn)
-import           Data.Map             (Map)
-import           Data.Ord             (Down (..))
+-- import           Data.List            (sortOn)
+-- import           Data.Map             (Map)
 import           Data.Set             (Set)
 import           Unison.HashQualified (HashQualified)
 import           Unison.Reference     (Reference)
@@ -46,6 +45,8 @@ instance Monoid (SearchResult v a) where
   mempty = SearchResult [] []
   mappend = (<>)
 
+
+-- note: don't use Down
 -- instance Ord score => Semigroup (SearchResult' v a score) where
 --   left <> right = SearchResult'
 --     (sortOn (Down . fst) $ termResults left <> termResults right)

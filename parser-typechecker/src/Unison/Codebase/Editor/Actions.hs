@@ -27,7 +27,6 @@ import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
--- import           Data.Tuple                     ( swap )
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.ABT as ABT
@@ -147,24 +146,18 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
         SearchByNameI (fmap HQ.fromString -> qs) -> do
-          results0 <- eval $ SearchBranch currentBranch' qs
-          let terms = SR.termResults0 results0
-          let types = SR.typeResults0 results0
-          let terms' = traverse go terms where
-              go (SR.TermResult0 name ref _aliases) =
-                (name, ref,) <$> eval (LoadTypeOfTerm ref)
-          types' <-
-            let
+          SR.SearchResult terms types <- eval $ SearchBranch currentBranch' qs
+          let terms' = fmap go terms where
+              go (SR.TermResult name ref typ _aliases) = (name, ref, typ)
+          let types0 = traverse go types where
               go (SR.TypeResult name ref _aliases) = case ref of
+                -- We load the type to determine if data or ability.
                 Reference.DerivedId id ->
-                  (name, ref, ) . maybe (MissingThing id) RegularThing <$> eval
-                    (LoadType id)
+                  (name, ref, ) . maybe (MissingThing id) RegularThing <$> eval (LoadType id)
                 _ -> pure (name, ref, BuiltinThing)
-            in traverse go types
-          respond $ ListOfDefinitions currentBranch' terms' types'
+          types0 >>= respond . ListOfDefinitions currentBranch' terms'
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          terms <- eval $ SearchTerms currentBranch' qs
-          types <- eval $ SearchTypes currentBranch' qs
+          SR.SearchResult terms types <- eval $ SearchBranch currentBranch' qs
           let termTypes = Map.fromList
                 [ (r, t)
                 | SR.TermResult _ (Referent.Ref r) (Just t) _ <- terms ]

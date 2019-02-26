@@ -15,7 +15,6 @@ import           Control.Monad                  ( foldM
                                                 , forM
                                                 , join
                                                 )
-import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
                                                 , forM_
@@ -32,9 +31,6 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
-import           Text.EditDistance              ( defaultEditCosts
-                                                , levenshteinDistance
-                                                )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0, Namespace )
@@ -181,16 +177,20 @@ searchNamespace :: Ord score =>
   Namespace -> (Name -> Name -> Maybe score) -> [HashQualified] -> SearchResult0
 searchNamespace = error "todo"
 
-loadSrTypes :: forall m v a.
+loadSRTypes :: forall m v a.
   (Var v, Monad m) => Codebase m v a -> SearchResult0 -> m (SearchResult v a)
-loadSrTypes code (SearchResult0 tms typs) = do
+loadSRTypes code (SearchResult0 tms typs) = do
   tms' <- traverse loadTermType tms
   pure $ SR.SearchResult tms' typs
   where
   loadTermType :: SR.TermResult0 -> m (SR.TermResult v a)
-  loadTermType (SR.TermResult0 {..}) = error "todo"
+  loadTermType (SR.TermResult0 t r0 as) = case r0 of
+    Referent.Ref r -> setType <$> getTypeOfTerm code r
+    Referent.Con r i -> setType <$> getTypeOfConstructor code r i
+    where setType typ = SR.TermResult t r0 typ as
 
-searchBranch :: (Monad m, Var v, Ord score) => Codebase m v a -> Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> m SearchResult0
+
+searchBranch :: (Monad m, Var v, Ord score) => Codebase m v a -> Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> m (SearchResult v a)
 searchBranch code b score queries = error "todo"
 
 
@@ -201,7 +201,7 @@ searchCodebase :: forall m v a score.
   -> (Name -> Name -> Maybe score)
   -> [HashQualified]
   -> m (SearchResult v a)
-searchCodebase code b score queries = loadSrTypes code =<< results0
+searchCodebase code b score queries = loadSRTypes code =<< results0
   where
   results0 = (localResults <>) <$> namelessResults
   localResults, oldResults :: SearchResult0

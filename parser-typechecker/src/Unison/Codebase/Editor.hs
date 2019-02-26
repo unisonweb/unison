@@ -6,12 +6,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor where
 
 -- import Debug.Trace
 
-import Data.List (sortOn)
+import           Data.Char                      ( toLower )
+import Data.List (sortOn, isSuffixOf, isInfixOf, isPrefixOf, isSubsequenceOf)
 import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -25,6 +27,9 @@ import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
+import           Text.EditDistance              ( defaultEditCosts
+                                                , levenshteinDistance
+                                                )
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -32,7 +37,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.SearchResult   ( SearchResult0, TermResult, TypeResult )
+import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
@@ -321,17 +326,9 @@ data Command i v a where
   GetConflicts :: Branch -> Command i v Branch0
 
   -- Return a list of definitions whose names match the given queries.
-  SearchBranch :: Branch
-             -> [HashQualified]
-             -> Command i v SearchResult0
-
-  -- -- Return a list of types whose names match the given queries.
-  -- SearchTypes :: Branch
-  --             -> [HashQualified]
-  --             -> Command i v [TypeResult] -- todo: can add Kind later
+  SearchBranch :: Branch -> [HashQualified] -> Command i v (SearchResult v Ann)
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
-  LoadTypeOfTerm :: Reference -> Command i v (Maybe (Type v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
@@ -656,8 +653,7 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchBranch branch queries ->
-      Codebase.searchBranch codebase (Branch.head branch) score queries
-      where score = (error "todo" :: Name -> Name -> Maybe Int)
+      Codebase.searchBranch codebase (Branch.head branch) nameDistance queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
@@ -709,3 +705,16 @@ loadDefinitions code refs = do
           Nothing -> pure (r, MissingThing id)
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
+
+nameDistance :: Name -> Name -> Maybe Int
+nameDistance (Name.toString -> q) (Name.toString -> n) =
+  if q == n                              then Just 0-- exact match is top choice
+  else if map toLower q == map toLower n then Just 1-- ignore case
+  else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
+  else if q `isInfixOf` n                then Just 3-- a match somewhere
+  else if q `isPrefixOf` n               then Just 4
+  else if map toLower q `isInfixOf` map toLower n then Just 5
+  else if q `isSubsequenceOf` n          then Just 6
+  else if editDistance < 10 then Just (7 + editDistance)
+  else Nothing
+  where editDistance = levenshteinDistance defaultEditCosts q n
