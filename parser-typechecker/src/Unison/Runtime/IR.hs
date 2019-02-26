@@ -122,7 +122,7 @@ data UnderapplyStrategy e
   | Specialize (Term SymbolC) [(SymbolC, Value e)]
   deriving (Eq, Show)
 
-decompileUnderapplied :: UnderapplyStrategy e -> IO (Term SymbolC)
+decompileUnderapplied :: UnderapplyStrategy e -> IO (Term Symbol)
 decompileUnderapplied = \case
   FormClosure _ _ -> error "todo"
   Specialize _ _ -> error "todo"
@@ -308,7 +308,7 @@ compile0 env bound t =
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
-decompile :: Value e -> IO (Term SymbolC)
+decompile :: External e => Value e -> IO (Term Symbol)
 decompile v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -316,14 +316,147 @@ decompile v = case v of
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
   Lam _ f _ -> decompileUnderapplied f
-  Data r cid args -> Term.apps' <$> pure (Term.constructor() r cid) <*> traverse decompile (toList args)
+  Data r cid args ->
+    Term.apps' <$> pure (Term.constructor() r cid)
+               <*> traverse decompile (toList args)
   Sequence vs -> Term.vector' () <$> traverse decompile vs
-  Ref _ _ _ -> error "IR todo - decompile Ref"
-  Cont _ -> error "Nothing"
-  Pure _ -> error "Nothing"
-  Requested _ -> error "Nothing"
+  Ref _ _ _ -> error "IR todo - decompile Ref" -- find all the refs
+  Cont k -> Term.lam () contIn <$> decompileIR [contIn] k
+    where contIn = Var.freshIn (boundVarsIR k) (Var.named "result")
+  Pure _ -> error "todo"
+  Requested _ -> error "todo"
   UninitializedLetRecSlot _b _bs _body ->
     error "unpossible - decompile UninitializedLetRecSlot"
+
+boundVarsIR :: IR e -> Set Symbol
+boundVarsIR = \case
+  Let v b body -> Set.singleton v <> boundVarsIR b <> boundVarsIR body
+  LetRec bs body -> Set.fromList (fst <$> bs) <> foldMap (boundVarsIR . snd) bs <> boundVarsIR body
+  Apply lam _ -> boundVarsIR lam
+  Handle _ body -> boundVarsIR body
+  If _ t f -> foldMap boundVarsIR [t,f]
+  And _ b -> boundVarsIR b
+  Or _ b -> boundVarsIR b
+  Match _ cases -> foldMap doCase cases
+    where doCase (_, _, b, body) = maybe mempty boundVarsIR b <> boundVarsIR body
+  -- I added all these cases for exhaustiveness checking in the future,
+  -- and also because I needed the patterns for decompileIR anyway.
+  -- Sure is ugly though.  This ghc doesn't support Language MultiCase.
+  -- I want to be able to say `_ -> mempty` where _ refers to exactly the other
+  -- cases that existed at the time I wrote it!
+  Leaf _ -> mempty
+  AddI _ _ -> mempty
+  SubI _ _ -> mempty
+  MultI _ _ -> mempty
+  DivI _ _ -> mempty
+  GtI _ _ -> mempty
+  LtI _ _ -> mempty
+  GtEqI _ _ -> mempty
+  LtEqI _ _ -> mempty
+  EqI _ _ -> mempty
+  SignumI _ -> mempty
+  NegateI _ -> mempty
+  ModI _ _ -> mempty
+  AddN _ _ -> mempty
+  DropN _ _ -> mempty
+  SubN _ _ -> mempty
+  MultN _ _ -> mempty
+  DivN _ _ -> mempty
+  GtN _ _ -> mempty
+  LtN _ _ -> mempty
+  GtEqN _ _ -> mempty
+  LtEqN _ _ -> mempty
+  EqN _ _ -> mempty
+  ModN _ _ -> mempty
+  AddF _ _ -> mempty
+  SubF _ _ -> mempty
+  MultF _ _ -> mempty
+  DivF _ _ -> mempty
+  GtF _ _ -> mempty
+  LtF _ _ -> mempty
+  GtEqF _ _ -> mempty
+  LtEqF _ _ -> mempty
+  EqF _ _ -> mempty
+  MakeSequence _ -> mempty
+  Construct _ _ _ -> mempty
+  Request _ _ _ -> mempty
+  Not _ -> mempty
+
+class External e where
+  decompileExternal :: e -> Term Symbol
+
+decompileIR :: External e => [Symbol] -> IR e -> IO (Term Symbol)
+decompileIR stack = \case
+  -- added all these cases for exhaustiveness checking in the future,
+  -- and also because I needed the patterns for decompileIR anyway.
+  Leaf z -> decompileZ z
+  AddI x y -> builtin "Int.+" [x,y]
+  SubI x y -> builtin "Int.-" [x,y]
+  MultI x y -> builtin "Int.*" [x,y]
+  DivI x y -> builtin "Int./" [x,y]
+  GtI x y -> builtin "Int.>" [x,y]
+  LtI x y -> builtin "Int.<" [x,y]
+  GtEqI x y -> builtin "Int.>=" [x,y]
+  LtEqI x y -> builtin "Int.<=" [x,y]
+  EqI x y -> builtin "Int.==" [x,y]
+  SignumI x -> builtin "Int.signum" [x]
+  NegateI x -> builtin "Int.negate" [x]
+  ModI x y -> builtin "Int.mod" [x,y]
+  AddN x y -> builtin "Nat.+" [x,y]
+  DropN x y -> builtin "Nat.drop" [x,y]
+  SubN x y -> builtin "Nat.sub" [x,y]
+  MultN x y -> builtin "Nat.*" [x,y]
+  DivN x y -> builtin "Nat./" [x,y]
+  GtN x y -> builtin "Nat.>" [x,y]
+  LtN x y -> builtin "Nat.<" [x,y]
+  GtEqN x y -> builtin "Nat.>=" [x,y]
+  LtEqN x y -> builtin "Nat.<=" [x,y]
+  EqN x y -> builtin "Nat.==" [x,y]
+  ModN x y -> builtin "Nat.mod" [x,y]
+  AddF x y -> builtin "Float.+" [x,y]
+  SubF x y -> builtin "Float.-" [x,y]
+  MultF x y -> builtin "Float.*" [x,y]
+  DivF x y -> builtin "Float./" [x,y]
+  GtF x y -> builtin "Float.>" [x,y]
+  LtF x y -> builtin "Float.<" [x,y]
+  GtEqF x y -> builtin "Float.>=" [x,y]
+  LtEqF x y -> builtin "Float.<=" [x,y]
+  EqF x y -> builtin "Float.==" [x,y]
+  Let v b body -> do
+    b' <- decompileIR stack b
+    body' <- decompileIR (v:stack) body
+    pure $ Term.let1_ False [(v, b')] body'
+  LetRec bs body -> error "todo" bs body
+  MakeSequence args ->
+    Term.vector() <$> traverse decompileZ args
+  Apply lam args ->
+    Term.apps' <$> decompileIR stack lam <*> traverse decompileZ args
+  Construct r cid args ->
+    Term.apps' (Term.constructor() r cid) <$> traverse decompileZ args
+  Request r cid args ->
+    Term.apps' (Term.request() r cid) <$> traverse decompileZ args
+  Handle h body ->
+    Term.handle() <$> decompileZ h <*> decompileIR stack body
+  If c t f ->
+    Term.iff() <$> decompileZ c <*> decompileIR stack t <*> decompileIR stack f
+  And x y ->
+    Term.and() <$> decompileZ x <*> decompileIR stack y
+  Or x y ->
+    Term.or() <$> decompileZ x <*> decompileIR stack y
+  Not x -> builtin "Boolean.not" [x]
+  Match _ cases -> error "todo" cases
+  where
+  builtin :: External e => Text -> [Z e] -> IO (Term Symbol)
+  builtin t args =
+    Term.apps' (Term.ref() (R.Builtin t)) <$> traverse decompileZ args
+  at :: Pos -> Term Symbol
+  at i = Term.var() (stack !! i)
+  decompileZ :: External e => Z e -> IO (Term Symbol)
+  decompileZ = \case
+    Slot p -> pure $ at p
+    LazySlot _ -> error "todo"
+    Val v -> decompile v
+    External e -> pure $ decompileExternal e
 
 instance Show e => Show (Z e) where
   show (LazySlot i) = "'#" ++ show i
