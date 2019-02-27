@@ -189,7 +189,7 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v (), Runtime.IsCacheHit))
+  | Evaluated SourceFileContents PPE.PrettyPrintEnv [(v, Term v ())] (Map v (Ann, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
@@ -277,7 +277,7 @@ data Command i v a where
   -- of the same watches instantaneous.
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v (Map v
+           -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:

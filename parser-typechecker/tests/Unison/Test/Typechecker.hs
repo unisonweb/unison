@@ -26,6 +26,7 @@ import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
 import qualified Unison.Runtime.Rt1     as RT
 import           Unison.Symbol          (Symbol)
+import qualified Unison.Term            as Term
 import           Unison.Term            ( amap )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import qualified Unison.UnisonFile      as UF
@@ -110,15 +111,17 @@ makePassingTest rt how filepath = scope shortName $ do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
       let term        = Parsers.parseTerm values $ UF.toNames untypedFile
-      watches <- io $ evaluateWatches Builtin.codeLookup
+      (bindings, watches) <- io $ evaluateWatches Builtin.codeLookup
                                       (const $ pure Nothing)
                                       rt
                                       untypedFile
       case term of
-        Right tm ->
-          expect $ (view _4 <$> Map.elems watches) == [amap (const ()) tm]
+        Right tm -> let
+          -- compare the the watch expression from the .u with the expr in .ur
+          [watchResult] = view _4 <$> Map.elems watches
+          tm' = Term.letRec' False bindings watchResult
+          in expect $ tm' == amap (const ()) tm
         Left e -> crash $ show e
     _ -> pure ()
   how r
   where shortName = joinPath . drop 1 . splitPath $ filepath
-

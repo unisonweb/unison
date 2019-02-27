@@ -121,15 +121,22 @@ pair (a, b) = Data Type.pairRef 0 [a, b]
 -- The reason is that builtins and constructor functions don't have a body
 -- with variables that we could substitute - the functions only compute
 -- to anything when all the arguments are available.
+
 data UnderapplyStrategy e
-  = FormClosure (Term SymbolC) [Value e]
-  | Specialize (Term SymbolC) [(SymbolC, Value e)]
+  = FormClosure (Term SymbolC) [Value e] -- head is the latest argument
+  | Specialize (Term SymbolC) [(SymbolC, Value e)] -- same
   deriving (Eq, Show)
 
-decompileUnderapplied :: UnderapplyStrategy e -> DS (Term Symbol)
+decompileUnderapplied :: External e => UnderapplyStrategy e -> DS (Term Symbol)
 decompileUnderapplied = \case
-  FormClosure _ _ -> error "todo"
-  Specialize _ _ -> error "todo"
+  FormClosure lam vals ->
+    Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
+      traverse decompileImpl vals
+  Specialize lam symvals -> do
+    lam <- Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
+      traverse (decompileImpl . snd) symvals
+    pure $ Term.betaReduce lam
+
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
@@ -342,7 +349,7 @@ decompileImpl v = case v of
       modify (second $ Set.insert id)
       t <- decompileImpl =<< lift (readIORef ioref)
       modify (first $ Map.insert symbol t)
-      pure t
+      pure (Term.etaNormalForm t)
   Cont k -> Term.lam () contIn <$> decompileIR [contIn] k
     where contIn = Var.freshIn (boundVarsIR k) (Var.named "result")
   Pure _ -> error "todo"
