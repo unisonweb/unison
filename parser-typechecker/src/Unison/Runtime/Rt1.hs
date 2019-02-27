@@ -448,9 +448,11 @@ run env ir = do
           -- foo : Int ->{IO} (Int -> Int)
           -- ...
           -- (foo 12 12)
-          RRequest req ->
-            let overApplyName = Var.named "oa" in
-            pure . RRequest . appendCont overApplyName req $ error "todo"
+          RRequest req -> do
+            let overApplyName = Var.named "oa"
+            extraArgvs <- for extraArgs $ \arg -> at size arg m
+            pure . RRequest . appendCont overApplyName req $
+                   Apply (Leaf (Slot 0)) (Val <$> extraArgvs)
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do
