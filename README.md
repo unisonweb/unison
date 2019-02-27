@@ -1,4 +1,4 @@
-The Unison platform
+The Unison language
 ======
 
 [![Build Status](https://travis-ci.org/unisonweb/unison.svg?branch=master)](https://travis-ci.org/unisonweb/unison)
