@@ -9,9 +9,12 @@
 {-# Language TupleSections #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
+{-# Language DoAndIfThenElse #-}
 
 module Unison.Runtime.IR where
 
+import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
+import Data.Bifunctor (first, second)
 import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
@@ -69,12 +72,13 @@ toSymbolC :: Symbol -> SymbolC
 toSymbolC s = SymbolC False s
 
 -- Values, in normal form
+type RefID = Int
 data Value e
   = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity (UnderapplyStrategy e) (IR e)
   | Data R.Reference ConstructorId [Value e]
   | Sequence (Vector (Value e))
-  | Ref Int Symbol (IORef (Value e))
+  | Ref RefID Symbol (IORef (Value e))
   | Pure (Value e)
   | Requested (Req e)
   | Cont (IR e)
@@ -122,7 +126,7 @@ data UnderapplyStrategy e
   | Specialize (Term SymbolC) [(SymbolC, Value e)]
   deriving (Eq, Show)
 
-decompileUnderapplied :: UnderapplyStrategy e -> IO (Term Symbol)
+decompileUnderapplied :: UnderapplyStrategy e -> DS (Term Symbol)
 decompileUnderapplied = \case
   FormClosure _ _ -> error "todo"
   Specialize _ _ -> error "todo"
@@ -302,14 +306,23 @@ compile0 env bound t =
         Pattern.Int n -> PatternI n
         Pattern.Nat n -> PatternN n
         Pattern.Float n -> PatternF n
+        Pattern.Text t -> PatternT t
         Pattern.Constructor r cid args -> PatternData r cid (compilePattern <$> args)
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         _ -> error $ "todo - compilePattern " ++ show pat
 
+type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
 decompile :: External e => Value e -> IO (Term Symbol)
-decompile v = case v of
+decompile v = do
+  (body, (letRecBindings, _)) <- runStateT (decompileImpl v) mempty
+  pure $ if null letRecBindings then body
+         else Term.letRec' False (Map.toList letRecBindings) body
+
+decompileImpl ::
+  External e => Value e -> DS (Term Symbol)
+decompileImpl v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
   F n -> pure $ Term.float () n
@@ -318,9 +331,18 @@ decompile v = case v of
   Lam _ f _ -> decompileUnderapplied f
   Data r cid args ->
     Term.apps' <$> pure (Term.constructor() r cid)
-               <*> traverse decompile (toList args)
-  Sequence vs -> Term.vector' () <$> traverse decompile vs
-  Ref _ _ _ -> error "IR todo - decompile Ref" -- find all the refs
+               <*> traverse decompileImpl (toList args)
+  Sequence vs -> Term.vector' () <$> traverse decompileImpl vs
+  Ref id symbol ioref -> do
+    seen <- gets snd
+    symbol <- pure $ Var.freshenId (fromIntegral id) symbol
+    if Set.member id seen then
+      pure $ Term.var () symbol
+    else do
+      modify (second $ Set.insert id)
+      t <- decompileImpl =<< lift (readIORef ioref)
+      modify (first $ Map.insert symbol t)
+      pure t
   Cont k -> Term.lam () contIn <$> decompileIR [contIn] k
     where contIn = Var.freshIn (boundVarsIR k) (Var.named "result")
   Pure _ -> error "todo"
@@ -385,7 +407,7 @@ boundVarsIR = \case
 class External e where
   decompileExternal :: e -> Term Symbol
 
-decompileIR :: External e => [Symbol] -> IR e -> IO (Term Symbol)
+decompileIR :: External e => [Symbol] -> IR e -> DS (Term Symbol)
 decompileIR stack = \case
   -- added all these cases for exhaustiveness checking in the future,
   -- and also because I needed the patterns for decompileIR anyway.
@@ -426,7 +448,12 @@ decompileIR stack = \case
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
     pure $ Term.let1_ False [(v, b')] body'
-  LetRec bs body -> error "todo" bs body
+  LetRec bs body -> do
+    let stack' = reverse (fmap fst bs) ++ stack
+        secondM f (x,y) = (x,) <$> f y
+    bs' <- traverse (secondM $ decompileIR stack') bs
+    body' <- decompileIR stack' body
+    pure $ Term.letRec' False bs' body'
   MakeSequence args ->
     Term.vector() <$> traverse decompileZ args
   Apply lam args ->
@@ -444,19 +471,48 @@ decompileIR stack = \case
   Or x y ->
     Term.or() <$> decompileZ x <*> decompileIR stack y
   Not x -> builtin "Boolean.not" [x]
-  Match _ cases -> error "todo" cases
+  Match scrutinee cases ->
+    Term.match () <$> decompileZ scrutinee <*> traverse decompileMatchCase cases
   where
-  builtin :: External e => Text -> [Z e] -> IO (Term Symbol)
+  builtin :: External e => Text -> [Z e] -> DS (Term Symbol)
   builtin t args =
     Term.apps' (Term.ref() (R.Builtin t)) <$> traverse decompileZ args
   at :: Pos -> Term Symbol
   at i = Term.var() (stack !! i)
-  decompileZ :: External e => Z e -> IO (Term Symbol)
+  decompileZ :: External e => Z e -> DS (Term Symbol)
   decompileZ = \case
     Slot p -> pure $ at p
-    LazySlot _ -> error "todo"
-    Val v -> decompile v
+    LazySlot p -> pure $ at p
+    Val v -> decompileImpl v
     External e -> pure $ decompileExternal e
+  decompilePattern :: Pattern -> Pattern.Pattern
+  decompilePattern = \case
+    PatternI i -> Pattern.Int i
+    PatternN n -> Pattern.Nat n
+    PatternF f -> Pattern.Float f
+    PatternB b -> Pattern.Boolean b
+    PatternT t -> Pattern.Text t
+    PatternData r cid pats ->
+      Pattern.Constructor r cid (d <$> pats)
+    PatternSequence v -> error "todo" v
+      -- case vec of
+      --   head +: tail -> ...
+      --   init :+ last -> ...
+      --   [] -> ...
+      --   [1,2,3] -> ...
+      --   [1,2,3] ++ mid ++ [7,8,9] -> ... maybe?
+    PatternPure pat -> Pattern.EffectPure (d pat)
+    PatternBind r cid pats k ->
+      Pattern.EffectBind r cid (d <$> pats) (d k)
+    PatternAs pat -> Pattern.As (d pat)
+    PatternIgnore -> Pattern.Unbound
+    PatternVar -> Pattern.Var
+  d = decompilePattern
+  decompileMatchCase (pat, vars, guard, body) = do
+    let stack' = reverse vars ++ stack
+    guard' <- traverse (decompileIR stack') guard
+    body' <- decompileIR stack' body
+    pure $ Term.MatchCase (d pat) guard' body'
 
 instance Show e => Show (Z e) where
   show (LazySlot i) = "'#" ++ show i

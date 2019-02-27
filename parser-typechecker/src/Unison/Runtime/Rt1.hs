@@ -341,27 +341,30 @@ run env ir = do
         -- cases : [(Pattern, Maybe IR, IR)]
         scrute <- at size scrutinee m -- "I am scrute" / "Dwight K. Scrute"
         let
+          -- Just = match success, Nothing = match fail
           getCapturedVars :: (Value, Pattern) -> Maybe [Value]
           getCapturedVars = \case
-            (I x, PatternI x2) | x == x2 -> Just []
-            (F x, PatternF x2) | x == x2 -> Just []
-            (N x, PatternN x2) | x == x2 -> Just []
-            (B x, PatternB x2) | x == x2 -> Just []
-            (T x, PatternT x2) | x == x2 -> Just []
+            (I x, PatternI x2) -> when' (x == x2) $ Just []
+            (F x, PatternF x2) -> when' (x == x2) $ Just []
+            (N x, PatternN x2) -> when' (x == x2) $ Just []
+            (B x, PatternB x2) -> when' (x == x2) $ Just []
+            (T x, PatternT x2) -> when' (x == x2) $ Just []
             (Data r cid args, PatternData r2 cid2 pats)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip args pats)
+              -> when' (r == r2 && cid == cid2) $
+                  join <$> traverse getCapturedVars (zip args pats)
             (Sequence args, PatternSequence pats) ->
               join <$> traverse getCapturedVars (zip (toList args) (toList pats))
             (Pure v, PatternPure p) -> getCapturedVars (v, p)
-            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
+            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
+              when' (r == r2 && cid == cid2) $
+                join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
             (v, PatternAs p) -> (v:) <$> getCapturedVars (v,p)
             (_, PatternIgnore) -> Just []
             (v, PatternVar) -> Just [v]
             (v, p) -> error $
               "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
+            where when' b m = if b then m else Nothing
+
           tryCases m ((pat, _vars, cond, body) : remainingCases) =
             case getCapturedVars (scrute, pat) of
               Nothing -> tryCases m remainingCases -- this pattern didn't match

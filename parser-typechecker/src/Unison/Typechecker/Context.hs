@@ -886,6 +886,8 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.nat loc) scrutineeType $> mempty
     Pattern.Float loc _ ->
       lift $ subtype (Type.float loc) scrutineeType $> mempty
+    Pattern.Text loc _ ->
+      lift $ subtype (Type.text loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
       udct <- lift $ ungeneralize dct
@@ -1574,4 +1576,3 @@ instance MonadReader (MEnv v loc) (M v loc) where
 instance Alternative (M v loc) where
   empty = liftResult empty
   a <|> b = a `orElse` b
-
