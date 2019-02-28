@@ -335,6 +335,7 @@ run env ir = do
         runHandler size m h body
       Apply fn args -> do
         RDone fn <- go size m fn -- ANF should ensure this match is OK
+        fn <- force fn
         call size m fn args
       Match scrutinee cases -> do
         -- scrutinee : Z -- already evaluated :amazing:
