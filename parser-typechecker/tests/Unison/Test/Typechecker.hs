@@ -24,7 +24,7 @@ import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
-import qualified Unison.Runtime.Rt1     as RT
+import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
 import           Unison.Term            ( amap )

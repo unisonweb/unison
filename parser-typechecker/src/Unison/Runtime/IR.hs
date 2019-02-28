@@ -196,8 +196,7 @@ data IR' z
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
-data Req e
-  = Req R.Reference ConstructorId [Value e] (IR e)
+data Req e = Req R.Reference ConstructorId [Value e] (IR e)
   deriving (Eq,Show)
 
 -- Appends `k2` to the end of the `k` continuation

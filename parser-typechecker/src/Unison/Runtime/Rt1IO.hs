@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -8,9 +9,13 @@ import           Control.Lens
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
                                                 , readMVar
+                                                , newMVar
                                                 )
-import           Control.Monad.IO.Class         ( liftIO, MonadIO )
-import           Control.Monad.Reader           ( ReaderT, ask, MonadReader )
+import           Control.Monad.Trans            ( lift )
+import           Control.Monad.IO.Class         ( liftIO )
+import           Control.Monad.Reader           ( ReaderT
+                                                , runReaderT
+                                                )
 import           Data.GUID                      ( genText )
 import           Data.List                      ( genericIndex )
 import           Data.Map                       ( Map )
@@ -24,26 +29,27 @@ import           System.IO                      ( Handle
                                                 )
 import           Unison.Symbol
 import qualified Unison.Reference              as R
-import           Unison.Parser                  ( Ann )
 import qualified Unison.Runtime.Rt1            as RT
 import qualified Unison.Runtime.IR             as IR
+import qualified Unison.Term                   as Term
 import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.DataDeclaration
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Hash                   as Hash
+import qualified Unison.Util.Pretty            as Pretty
+import           Unison.TermPrinter             ( prettyTop )
+import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 
 type GUID = Text
 type IOState = MVar HandleMap
 
-type UIO a = ReaderT S IO a
+type UIO ann a = ReaderT (S ann) IO a
 type HandleMap = Map GUID Handle
 
-data S = S
+data S a = S
   { _ioState :: IOState
-  , _codeLookup :: CL.CodeLookup IO Symbol Ann
-  , _size :: RT.Size
-  , _stack :: RT.Stack
+  , _codeLookup :: CL.CodeLookup IO Symbol a
   }
 
 makeLenses 'S
@@ -54,39 +60,30 @@ haskellMode mode = case mode of
   "IOMode.Write"     -> WriteMode
   "IOMode.Append"    -> AppendMode
   "IOMode.ReadWrite" -> ReadWriteMode
-  _ -> error . Text.unpack $ "Unknown IO mode " <> mode
+  _                  -> error . Text.unpack $ "Unknown IO mode " <> mode
 
-newUnisonHandle :: Handle -> UIO RT.Value
+newUnisonHandle :: Handle -> UIO a RT.Value
 newUnisonHandle h = do
   t <- liftIO $ genText
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . Map.insert t h
   pure $ IR.T t
 
-deleteUnisonHandle :: Text -> UIO ()
+deleteUnisonHandle :: Text -> UIO a ()
 deleteUnisonHandle h = do
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . Map.delete h
 
-getHaskellHandle :: Text -> UIO (Maybe Handle)
+getHaskellHandle :: Text -> UIO a (Maybe Handle)
 getHaskellHandle h = do
   m <- view ioState
   v <- liftIO $ readMVar m
   pure $ Map.lookup h v
 
-atText :: (MonadIO m, MonadReader S m) => RT.Z -> m Text
-atText z = ask >>= \t -> liftIO $ RT.att (view size t) z (view stack t)
-
-atData
-  :: (MonadIO m, MonadReader S m)
-  => RT.Z
-  -> m (R.Reference, IR.ConstructorId, [RT.Value])
-atData z = ask >>= \t -> liftIO $ RT.atd (view size t) z (view stack t)
-
-constructorName :: R.Id -> IR.ConstructorId -> UIO Text
+constructorName :: R.Id -> IR.ConstructorId -> UIO a Text
 constructorName hash cid = do
   cl <- view codeLookup
-  liftIO $ constructorName' cl hash cid
+  lift $ constructorName' cl hash cid
 
 constructorName'
   :: (Var v, Monad m)
@@ -111,24 +108,44 @@ ioHash = R.Id (Hash.unsafeFromBase58 "abracadabra") 0 1
 ioModeHash :: R.Id
 ioModeHash = R.Id (Hash.unsafeFromBase58 "abracadabra1") 0 1
 
-handleIO :: IR.ConstructorId -> [RT.Z] -> UIO RT.Value
+handleIO' :: S a -> R.Reference -> IR.ConstructorId -> [RT.Value] -> IO RT.Value
+handleIO' s rid cid vs = case rid of
+  R.DerivedId x | x == ioHash -> runReaderT (handleIO cid vs) s
+  _ -> fail $ "This ability is not an I/O ability: " <> show rid
+
+handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
 handleIO cid = (constructorName ioHash cid >>=) . flip go
  where
-  go "IO.openFile" [filePath, ioMode] = do
-    fp           <- atText filePath
-    (_, mode, _) <- atData ioMode
-    n            <- constructorName ioModeHash mode
-    h            <- liftIO . openFile (Text.unpack fp) $ haskellMode n
+  go "IO.openFile" [IR.T filePath, IR.Data _ mode _] = do
+    n <- constructorName ioModeHash mode
+    h <- liftIO . openFile (Text.unpack filePath) $ haskellMode n
     newUnisonHandle h
-  go "IO.closeFile" [handle] = do
-    h  <- atText handle
-    hh <- getHaskellHandle h
-    liftIO $ maybe (fail . Text.unpack $ "Missing file handle " <> h) hClose hh
-    deleteUnisonHandle h
+  go "IO.closeFile" [IR.T handle] = do
+    hh <- getHaskellHandle handle
+    liftIO $ maybe (pure ()) hClose hh
+    deleteUnisonHandle handle
     pure IR.unit
-  go "IO.printLine" [string] = do
-    t <- atText string
-    liftIO . putStrLn $ Text.unpack t
+  go "IO.printLine" [IR.T string] = do
+    liftIO . putStrLn $ Text.unpack string
     pure IR.unit
   go _ _ = undefined
 
+runtime :: Runtime Symbol
+runtime = Runtime terminate eval
+ where
+  terminate :: IO ()
+  terminate = pure ()
+  eval
+    :: (Monoid a)
+    => CL.CodeLookup IO Symbol a
+    -> Term.AnnotatedTerm Symbol a
+    -> IO (Term.Term Symbol)
+  eval cl term = do
+    putStrLn $ Pretty.render 80 (prettyTop mempty term)
+    cenv            <- RT.compilationEnv cl term -- in `m`
+    mmap            <- newMVar mempty
+    RT.RDone result <- RT.run (handleIO' $ S mmap cl)
+                              cenv
+                              (IR.compile cenv $ Term.amap (const ()) term)
+    decompiled <- IR.decompile result
+    pure decompiled

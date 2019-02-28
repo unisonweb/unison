@@ -13,7 +13,6 @@ module Unison.Runtime.Rt1 where
 
 import Data.Bifunctor (second)
 import Control.Monad (foldM, join)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
@@ -22,11 +21,9 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import Data.Vector (Vector)
-import Unison.Codebase.Runtime (Runtime(Runtime))
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
-import Unison.TermPrinter (prettyTop)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -36,7 +33,6 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
-import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
 import Debug.Trace
 
@@ -52,21 +48,6 @@ instance External ExternalFunction where
   decompileExternal (ExternalFunction r _) = Term.ref () r
 
 type Stack = MV.IOVector Value
-
-runtime :: Runtime Symbol
-runtime = Runtime terminate eval
-  where
-  terminate :: forall m. MonadIO m => m ()
-  terminate = pure ()
-  eval :: (MonadIO m, Monoid a) => CL.CodeLookup m Symbol a -> Term.AnnotatedTerm Symbol a -> m (Term Symbol)
-  eval cl term = do
-    liftIO . putStrLn $ Pretty.render 80 (prettyTop mempty term)
-    cenv <- compilationEnv cl term -- in `m`
-    RDone result <- liftIO $
-      run cenv (compile cenv $ Term.amap (const ()) term)
-    decompiled <- liftIO $ decompile result
-    pure decompiled
-
 
 -- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
 -- compilationEnv :: Monad m
@@ -292,8 +273,11 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       mkC $ f a b
     )
 
-run :: CompilationEnv -> IR -> IO Result
-run env ir = do
+run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
+    -> CompilationEnv
+    -> IR
+    -> IO Result
+run ioHandler env ir = do
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
@@ -301,6 +285,8 @@ run env ir = do
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
 
+    -- TODO:
+    -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = do
      stackStuff <- traverse (MV.read m) [0..size-1]
@@ -507,7 +493,13 @@ run env ir = do
         writeIORef r result
       go size' m body
 
-  go 0 m0 ir
+  r <- go 0 m0 ir
+  case r of
+    RRequest (Req ref cid vs k) -> do
+      ioResult <- ioHandler ref cid vs
+      s <- push 0 ioResult m0
+      go 1 s k
+    a -> pure a
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"
