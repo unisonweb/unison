@@ -11,6 +11,7 @@
 
 module Unison.Runtime.Rt1 where
 
+import Data.Bifunctor (second)
 import Control.Monad (foldM, join)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_, toList)
@@ -36,6 +37,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Util.Pretty as Pretty
+import qualified Unison.Var as Var
 import Debug.Trace
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction
@@ -44,7 +46,10 @@ type Req = IR.Req ExternalFunction
 type Value = IR.Value ExternalFunction
 type Z = IR.Z ExternalFunction
 
-newtype ExternalFunction = ExternalFunction (Size -> Stack -> IO Value)
+data ExternalFunction =
+  ExternalFunction R.Reference (Size -> Stack -> IO Value)
+instance External ExternalFunction where
+  decompileExternal (ExternalFunction r _) = Term.ref () r
 
 type Stack = MV.IOVector Value
 
@@ -53,15 +58,14 @@ runtime = Runtime terminate eval
   where
   terminate :: forall m. MonadIO m => m ()
   terminate = pure ()
-  changeVar term = Term.vmap IR.underlyingSymbol term
   eval :: (MonadIO m, Monoid a) => CL.CodeLookup m Symbol a -> Term.AnnotatedTerm Symbol a -> m (Term Symbol)
   eval cl term = do
     liftIO . putStrLn $ Pretty.render 80 (prettyTop mempty term)
     cenv <- compilationEnv cl term -- in `m`
     RDone result <- liftIO $
       run cenv (compile cenv $ Term.amap (const ()) term)
-    let Just decompiled = decompile result
-    pure . changeVar $ decompiled
+    decompiled <- liftIO $ decompile result
+    pure decompiled
 
 
 -- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
@@ -82,7 +86,7 @@ at size i m = case i of
     force =<< MV.read m (size - i - 1)
   LazySlot i ->
     MV.read m (size - i - 1)
-  External (ExternalFunction e) -> e size m
+  External (ExternalFunction _ e) -> e size m
 
 ati :: Size -> Z -> Stack -> IO Int64
 ati size i m = at size i m >>= \case
@@ -257,8 +261,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       . Lam arity (underapply name)
       . Leaf
       . External
-      . ExternalFunction
-  underapply name = FormClosure (Term.ref () $ R.Builtin name)
+      . ExternalFunction (R.Builtin name)
+  underapply name = FormClosure (Term.ref () $ R.Builtin name) []
   mk1
     :: Text
     -> (Size -> Z -> Stack -> IO a)
@@ -316,8 +320,8 @@ run env ir = do
         True -> done (B True)
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
-      Let b body -> go size m b >>= \case
-        RRequest req -> pure $ RRequest (req `appendCont` body)
+      Let v b body -> go size m b >>= \case
+        RRequest req -> pure $ RRequest (appendCont v req body)
         RDone v -> push size v m >>= \m -> go (size + 1) m body
         e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
@@ -336,34 +340,38 @@ run env ir = do
         runHandler size m h body
       Apply fn args -> do
         RDone fn <- go size m fn -- ANF should ensure this match is OK
+        fn <- force fn
         call size m fn args
       Match scrutinee cases -> do
         -- scrutinee : Z -- already evaluated :amazing:
         -- cases : [(Pattern, Maybe IR, IR)]
         scrute <- at size scrutinee m -- "I am scrute" / "Dwight K. Scrute"
         let
+          -- Just = match success, Nothing = match fail
           getCapturedVars :: (Value, Pattern) -> Maybe [Value]
           getCapturedVars = \case
-            (I x, PatternI x2) | x == x2 -> Just []
-            (F x, PatternF x2) | x == x2 -> Just []
-            (N x, PatternN x2) | x == x2 -> Just []
-            (B x, PatternB x2) | x == x2 -> Just []
-            (T x, PatternT x2) | x == x2 -> Just []
+            (I x, PatternI x2) -> when' (x == x2) $ Just []
+            (F x, PatternF x2) -> when' (x == x2) $ Just []
+            (N x, PatternN x2) -> when' (x == x2) $ Just []
+            (B x, PatternB x2) -> when' (x == x2) $ Just []
+            (T x, PatternT x2) -> when' (x == x2) $ Just []
             (Data r cid args, PatternData r2 cid2 pats)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip args pats)
+              -> when' (r == r2 && cid == cid2) $
+                  join <$> traverse getCapturedVars (zip args pats)
             (Sequence args, PatternSequence pats) ->
               join <$> traverse getCapturedVars (zip (toList args) (toList pats))
             (Pure v, PatternPure p) -> getCapturedVars (v, p)
-            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
+            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
+              when' (r == r2 && cid == cid2) $
+                join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
             (v, PatternAs p) -> (v:) <$> getCapturedVars (v,p)
             (_, PatternIgnore) -> Just []
             (v, PatternVar) -> Just [v]
             (v, p) -> error $
               "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
-          tryCases m ((pat, cond, body) : remainingCases) =
+            where when' b m = if b then m else Nothing
+
+          tryCases m ((pat, _vars, cond, body) : remainingCases) =
             case getCapturedVars (scrute, pat) of
               Nothing -> tryCases m remainingCases -- this pattern didn't match
               Just vars -> do
@@ -443,26 +451,39 @@ run env ir = do
         result <- call size m fn usedArgs
         case result of
           RDone fn' -> call size m fn' extraArgs
-          RRequest req -> pure . RRequest $ req `appendCont` error "todo"
+          -- foo : Int ->{IO} (Int -> Int)
+          -- ...
+          -- (foo 12 12)
+          RRequest req -> do
+            let overApplyName = Var.named "oa"
+            extraArgvs <- for extraArgs $ \arg -> at size arg m
+            pure . RRequest . appendCont overApplyName req $
+                   Apply (Leaf (Slot 0)) (Val <$> extraArgvs)
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do
         argvs <- for args $ \arg -> at size arg m
         case underapply of
-          Specialize (Term.LamsNamed' vs body) -> do
-            let
-              Just argterms = traverse decompile argvs
-              toBound vs = reverse ((,Nothing) <$> vs)
-              bound = toBound (drop nargs vs) ++ reverse (vs `zip` map Just argvs)
-              compiled = compile0 env bound body
-              lam = Term.let1' False (vs `zip` argterms) $
-                    Term.lam'() (drop nargs vs) body
-            done $ Lam (arity - nargs) (Specialize lam) compiled
-          Specialize e -> error $ "can't underapply a non-lambda: " <> show e
-          FormClosure tm -> do
-            let Just argterms = traverse decompile argvs
+          -- Example 1:
+          -- f = x y z p -> x - y - z - p
+          -- f' = f 1 2 -- Specialize f [2, 1] -- each arg is pushed onto top
+          -- f'' = f' 3 -- Specialize f [3, 2, 1]
+          -- f'' 4      -- should be the same thing as `f 1 2 3 4`
+          --
+          -- pushedArgs = [mostRecentlyApplied, ..., firstApplied]
+          Specialize lam@(Term.LamsNamed' vs body) pushedArgs -> let
+            pushedArgs' :: [ (SymbolC, Value)] -- head is the latest argument
+            pushedArgs' = reverse (drop (length pushedArgs) vs `zip` argvs) ++ pushedArgs
+            vsRemaining = drop (length pushedArgs') vs
+            compiled = compile0 env
+              (reverse (fmap (,Nothing) vsRemaining) ++
+               fmap (second Just) pushedArgs')
+              body
+            in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
+          Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
+          FormClosure tm previousArgs ->
             done $ Lam (arity - nargs)
-                       (FormClosure $ Term.apps' tm argterms)
+                       (FormClosure tm (reverse argvs ++ previousArgs))
                        (error "todo - gotta form an IR that calls the original body with args in the correct order")
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
@@ -474,7 +495,7 @@ run env ir = do
     letrec :: Size -> Stack -> [(Symbol, IR)] -> IR -> IO Result
     letrec size m bs body = do
       refs <- for bs $ \(v,b) -> do
-        r <- newIORef (LetRecBomb v bs body)
+        r <- newIORef (UninitializedLetRecSlot v bs body)
         i <- fresh
         pure (Ref i v r, b)
       -- push the empty references onto the stack

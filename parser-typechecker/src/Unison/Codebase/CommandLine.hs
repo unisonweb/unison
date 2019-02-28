@@ -413,12 +413,23 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
             . map Result.TypeError
     putStrLn . showNote $ notes
-  Evaluated fileContents ppe watches ->
+  Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else
-      putPrettyLn $ P.lines [
-      watchPrinter fileContents ppe ann evald isCacheHit |
-      (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+      -- todo: hashqualify binding names if necessary to distinguish them from
+      --       defs in the codebase.  In some cases it's fine for bindings to
+      --       shadow codebase names, but you don't want it to capture them in
+      --       the decompiled output.
+      let prettyBindings = P.map fromString . P.bracket . P.lines $
+            P.wrap "The watch expression(s) reference these definitions:" : "" :
+            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            | (v, b) <- bindings]
+          prettyWatches = P.lines [
+            watchPrinter fileContents ppe ann evald isCacheHit |
+            (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+      -- todo: use P.nonempty
+      in putPrettyLn $ if null bindings then prettyWatches
+                       else prettyBindings <> "\n" <> prettyWatches
   DisplayConflicts branch -> do
     let terms    = R.dom $ Branch.termNamespace branch
         types    = R.dom $ Branch.typeNamespace branch

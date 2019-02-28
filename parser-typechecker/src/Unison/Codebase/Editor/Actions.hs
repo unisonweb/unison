@@ -129,7 +129,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                 -- A unison file has changed
                 Just unisonFile -> do
                   eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-                  e <-
+                  (bindings, e) <-
                     eval
                       ( Evaluate (view currentBranch s)
                       $ UF.discardTypes unisonFile
@@ -140,7 +140,9 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   -- with all the (hash, eval) pairs, even if it's just an
                   -- in-memory cache
                   eval . Notify $ Evaluated text
-                    (Branch.prettyPrintEnv $ Branch.head currentBranch') e'
+                    (Branch.prettyPrintEnv $ Branch.head currentBranch')
+                    bindings
+                    e'
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of

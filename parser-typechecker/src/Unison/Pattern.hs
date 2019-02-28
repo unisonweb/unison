@@ -4,6 +4,7 @@ module Unison.Pattern where
 
 import Data.List (intercalate)
 import Data.Int (Int64)
+import Data.Text (Text)
 import Data.Word (Word64)
 import Data.Foldable as Foldable
 import GHC.Generics
@@ -36,6 +37,7 @@ data PatternP loc
   | IntP loc !Int64
   | NatP loc !Word64
   | FloatP loc !Double
+  | TextP loc !Text
   | ConstructorP loc !Reference !Int [PatternP loc]
   | AsP loc (PatternP loc)
   | EffectPureP loc (PatternP loc)
@@ -49,6 +51,7 @@ instance Show (PatternP loc) where
   show (IntP   _ x) = "Int " <> show x
   show (NatP  _ x) = "Nat " <> show x
   show (FloatP   _ x) = "Float " <> show x
+  show (TextP   _ t) = "Text " <> show t
   show (ConstructorP _ r i ps) =
     "Constructor " <> intercalate " " [show r, show i, show ps]
   show (AsP         _ p) = "As " <> show p
@@ -73,6 +76,7 @@ pattern Boolean b = BooleanP () b
 pattern Int n = IntP () n
 pattern Nat n = NatP () n
 pattern Float n = FloatP () n
+pattern Text t = TextP () t
 pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
@@ -98,6 +102,7 @@ instance H.Hashable (PatternP p) where
   tokens (EffectBindP _ r n args k) =
     [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
+  tokens (TextP _ t) = H.Tag 10 : H.tokens t
 
 instance Eq (PatternP loc) where
   UnboundP _ == UnboundP _ = True
@@ -110,6 +115,7 @@ instance Eq (PatternP loc) where
   EffectPureP _ p == EffectPureP _ q = p == q
   EffectBindP _ r ctor ps k == EffectBindP _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
   AsP _ p == AsP _ q = p == q
+  TextP _ t == TextP _ t2 = t == t2
   _ == _ = False
 
 

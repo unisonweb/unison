@@ -47,7 +47,10 @@ evaluateWatches :: forall m v a . (Var v, MonadIO m)
                 -> (Reference -> m (Maybe (Term v)))
                 -> Runtime v
                 -> UnisonFile v a
-                -> m (Map v (a, Reference, Term v, Term v, IsCacheHit))
+                -- Map watchName (loc, hash, expression, value, isHit)
+                -> m ([(v, Term v)]
+                     , Map v (a, Reference, Term v, Term v, IsCacheHit))
+                -- m (bindings :: [v,Term v], map :: ^^^)
 evaluateWatches code evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
   let
@@ -72,11 +75,13 @@ evaluateWatches code evaluationCache rt uf = do
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl bigOl'LetRec
-  case out of
-    Term.Tuple' results -> pure $
-      let go eval (ref, a, uneval, isHit) = (a, ref, uneval, eval, isHit)
-      in Map.intersectionWith go (Map.fromList (toList watches `zip` results)) m'
-    _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
+  let (bindings, results) = case out of
+        Term.Tuple' results -> (mempty, results)
+        Term.LetRecNamed' bs (Term.Tuple' results) -> (bs, results)
+        _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
+  let go eval (ref, a, uneval, isHit) = (a, ref, uneval, Term.etaNormalForm eval, isHit)
+      watchMap = Map.intersectionWith go (Map.fromList (toList watches `zip` results)) m'
+  pure (bindings, watchMap)
   where
     -- unref :: Map Reference v -> AnnotatedTerm v a -> AnnotatedTerm v a
     unref rv t = ABT.visitPure go t

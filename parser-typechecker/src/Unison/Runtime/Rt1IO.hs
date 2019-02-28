@@ -63,6 +63,11 @@ newUnisonHandle h = do
   liftIO . modifyMVar_ m $ pure . Map.insert t h
   pure $ IR.T t
 
+deleteUnisonHandle :: Text -> UIO ()
+deleteUnisonHandle h = do
+  m <- view ioState
+  liftIO . modifyMVar_ m $ pure . Map.delete h
+
 getHaskellHandle :: Text -> UIO (Maybe Handle)
 getHaskellHandle h = do
   m <- view ioState
@@ -119,5 +124,11 @@ handleIO cid = (constructorName ioHash cid >>=) . flip go
     h  <- atText handle
     hh <- getHaskellHandle h
     liftIO $ maybe (fail . Text.unpack $ "Missing file handle " <> h) hClose hh
+    deleteUnisonHandle h
+    pure IR.unit
+  go "IO.printLine" [string] = do
+    t <- atText string
+    liftIO . putStrLn $ Text.unpack t
     pure IR.unit
   go _ _ = undefined
+
