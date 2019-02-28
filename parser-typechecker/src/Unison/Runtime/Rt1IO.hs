@@ -103,7 +103,12 @@ constructorName' cl hash cid = do
 
 -- TODO: Put the actual hashes of these types in here
 ioHash :: R.Id
-ioHash = R.Id (Hash.unsafeFromBase58 "abracadabra") 0 1
+ioHash = R.Id
+  (Hash.unsafeFromBase58
+    "3aEd7hZ5DUwcKcTij4Ba8fUzs6B85euZ9Zcs2iNHxyG9UyDYUzXqgENLo9HNzqRKgXBg7B1eA2nNB1sxMcbqCa15"
+  )
+  0
+  1
 
 ioModeHash :: R.Id
 ioModeHash = R.Id (Hash.unsafeFromBase58 "abracadabra1") 0 1
