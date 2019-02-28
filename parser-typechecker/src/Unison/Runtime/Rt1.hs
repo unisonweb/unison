@@ -114,6 +114,11 @@ ats size i m = at size i m >>= \case
   Sequence v -> pure v
   _ -> fail "type error, expecting Sequence"
 
+atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
+atd size i m = at size i m >>= \case
+  Data r id vs -> pure (r, id, vs)
+  _ -> fail "type error, expecting Data"
+
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
   s1 <-

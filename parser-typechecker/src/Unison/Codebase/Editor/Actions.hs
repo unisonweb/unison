@@ -268,6 +268,8 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           _ <- eval $ MergeBranch currentBranchName' b
           _ <- success
           currentBranch .= b
+        -- ExecuteI name args ->
+
         QuitI -> quit
        where
         success       = respond $ Success input
