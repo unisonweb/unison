@@ -210,6 +210,39 @@ appendCont v (Req r cid args k) k2 = Req r cid args (Let v k k2)
 wrapHandler :: Value e -> Req e -> Req e
 wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
+-- Annotate all `z` values with the number of outer bindings, useful for
+-- tracking free variables or converting away from debruijn indexing.
+-- Currently used as an implementation detail by `specializeIR`.
+annotateDepth :: IR' z -> IR' (z, Int)
+annotateDepth ir = go 0 ir where
+  go depth ir = case ir of
+    -- Only the binders modify the depth
+    Let v b body -> Let v (go depth b) (go (depth + 1) body)
+    LetRec bs body -> let
+      depth' = depth + length bs
+      in LetRec (second (go depth') <$> bs) (go depth' body)
+    Match scrute cases -> Match (scrute, depth) (tweak <$> cases) where
+      tweak (pat, boundVars, guard, rhs) = let
+        depth' = depth + length boundVars
+        in (pat, boundVars, go depth' <$> guard, go depth' rhs)
+    -- All the other cases just leave depth alone and recurse
+    Apply f args -> Apply (go depth f) ((,depth) <$> args)
+    Handle f body -> Handle (f,depth) (go depth body)
+    If c a b -> If (c,depth) (go depth a) (go depth b)
+    And a b -> And (a,depth) (go depth b)
+    Or a b -> Or (a,depth) (go depth b)
+    ir -> (,depth) <$> ir
+
+-- Given an environment mapping of de bruijn indices to values, specialize
+-- the given `IR` by replacing slot lookups with the provided values.
+specializeIR :: Map Int (Value e) -> IR' (Z e) -> IR' (Z e)
+specializeIR env ir = let
+  ir' = annotateDepth ir
+  go (s@(Slot i), depth) = maybe s Val $ Map.lookup (i - depth) env
+  go (s@(LazySlot i), depth) = maybe s Val $ Map.lookup (i - depth) env
+  go (s,_) = s
+  in go <$> ir'
+
 compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
 compile env t = compile0 env [] (Term.vmap toSymbolC t)
 

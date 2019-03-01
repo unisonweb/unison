@@ -433,10 +433,14 @@ run ioHandler env ir = do
               body
             in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
           Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
-          FormClosure tm previousArgs ->
-            done $ Lam (arity - nargs)
-                       (FormClosure tm (reverse argvs ++ previousArgs))
-                       (error "todo - gotta form an IR that calls the original body with args in the correct order")
+          FormClosure tm pushedArgs -> let
+            pushedArgs' = reverse argvs ++ pushedArgs
+            arity' = arity - nargs
+            allArgs = replicate arity' Nothing ++ map Just pushedArgs'
+            bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
+            in done $ Lam (arity - nargs)
+                       (FormClosure tm pushedArgs')
+                       (specializeIR bound body)
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
 
