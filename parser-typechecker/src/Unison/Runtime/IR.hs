@@ -128,7 +128,7 @@ data UnderapplyStrategy e
   deriving (Eq, Show)
 
 decompileUnderapplied :: External e => UnderapplyStrategy e -> DS (Term Symbol)
-decompileUnderapplied = \case
+decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
   FormClosure lam vals ->
     Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse decompileImpl vals
@@ -320,6 +320,7 @@ compile0 env bound t =
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
+
 decompile :: External e => Value e -> IO (Term Symbol)
 decompile v = do
   (body, (letRecBindings, _)) <- runStateT (decompileImpl v) mempty
@@ -351,10 +352,25 @@ decompileImpl v = case v of
       pure (Term.etaNormalForm t)
   Cont k -> Term.lam () contIn <$> decompileIR [contIn] k
     where contIn = Var.freshIn (boundVarsIR k) (Var.named "result")
-  Pure _ -> error "todo"
-  Requested _ -> error "todo"
+  Pure a -> do
+    -- `{a}` doesn't have a term syntax, so it's decompiled as
+    -- `handle (x -> x) in a`, which has the type `Request ambient e a`
+    a <- decompileImpl a
+    pure $ Term.handle() id a
+  Requested (Req r cid vs k) -> do
+    -- `{req a b -> k}` doesn't have a term syntax, so it's decompiled as
+    -- `handle (x -> x) in k (req a b)`
+    vs <- traverse decompileImpl vs
+    let v = Var.freshIn (boundVarsIR k) (Var.named "result")
+    k <- decompileIR [v] k
+    pure . Term.handle() id $
+      Term.apps' (Term.lam() v k) [Term.apps' (Term.request() r cid) vs]
   UninitializedLetRecSlot _b _bs _body ->
     error "unpossible - decompile UninitializedLetRecSlot"
+  where
+    idv = Var.named "x"
+    id = Term.lam () idv (Term.var() idv)
+
 
 boundVarsIR :: IR e -> Set Symbol
 boundVarsIR = \case

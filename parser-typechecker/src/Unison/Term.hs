@@ -671,8 +671,12 @@ updateDependencies u tm = ABT.rebuildUp go tm
 -- | If the outermost term is a function application,
 -- perform substitution of the argument into the body
 betaReduce :: Var v => Term v -> Term v
-betaReduce (App' (Lam' f) arg) = betaReduce (ABT.bind f arg)
+betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+betaNormalForm :: Var v => Term v -> Term v
+betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f) a))
+betaNormalForm e = e
 
 -- x -> f x => f
 etaNormalForm :: Eq v => Term v -> Term v
