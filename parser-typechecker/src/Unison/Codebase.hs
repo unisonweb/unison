@@ -33,13 +33,11 @@ import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch         ( Branch, Branch0, Namespace )
+import           Unison.Codebase.Branch         ( Branch, Branch0 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
-import qualified Unison.Codebase.SearchResult  as SR
-import           Unison.Codebase.SearchResult   ( SearchResult, SearchResult0(..) )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
@@ -61,8 +59,7 @@ import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
-import           Unison.Util.AnnotatedText      ( AnnotatedText )
-import           Unison.Util.ColorText          ( Color, ColorText )
+import           Unison.Util.ColorText          ( ColorText )
 import qualified Unison.Util.Components        as Components
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
@@ -85,8 +82,7 @@ data Codebase m v a =
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
-           , allTerms           :: m [Reference.Id]
-           , allTypes           :: m [Reference.Id]
+
            , branches           :: m [BranchName]
            , getBranch          :: BranchName -> m (Maybe Branch)
            -- thought: this merges the given branch with the existing branch
@@ -172,82 +168,6 @@ typecheckingEnvironment code t = do
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
 prettyTypeSource = error "todo"
 
--- Search for names / hashes in branch / codebase
-searchNamespace :: Ord score =>
-  Namespace -> (Name -> Name -> Maybe score) -> [HashQualified] -> SearchResult0
-searchNamespace = error "todo"
-
-loadSRTypes :: forall m v a.
-  (Var v, Monad m) => Codebase m v a -> SearchResult0 -> m (SearchResult v a)
-loadSRTypes code (SearchResult0 tms typs) = do
-  tms' <- traverse loadTermType tms
-  pure $ SR.SearchResult tms' typs
-  where
-  loadTermType :: SR.TermResult0 -> m (SR.TermResult v a)
-  loadTermType (SR.TermResult0 t r0 as) = case r0 of
-    Referent.Ref r -> setType <$> getTypeOfTerm code r
-    Referent.Con r i -> setType <$> getTypeOfConstructor code r i
-    where setType typ = SR.TermResult t r0 typ as
-
-
-searchBranch :: (Monad m, Var v, Ord score) => Codebase m v a -> Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> m (SearchResult v a)
-searchBranch code b score queries = error "todo"
-
-
-searchCodebase :: forall m v a score.
-  (Var v, Monad m, Ord score)
-  => Codebase m v a
-  -> Branch0
-  -> (Name -> Name -> Maybe score)
-  -> [HashQualified]
-  -> m (SearchResult v a)
-searchCodebase code b score queries = loadSRTypes code =<< results0
-  where
-  results0 = (localResults <>) <$> namelessResults
-  localResults, oldResults :: SearchResult0
-  localResults = searchNamespace (Branch.namespace b) score queries
-  oldResults = searchNamespace (Branch.oldNamespace b) score queries
-  namelessResults :: m SearchResult0
-  namelessResults = do
-    _ <- allTerms code
-    _ <- allTypes code
-    terms <- error "todo"
-    types <- error "todo"
-    pure $ SearchResult0 terms types
-
-  -- aggregateResults <$> traverse search queries
-  -- where
-  -- aggregateResults :: [SearchResult v' a' score] -> SearchResult v' a' score
-  -- aggregateResults = mconcat
-  -- search :: HashQualified -> m (SearchResult v a score)
-  -- search = \case
-  --   HQ.NameOnly n -> error "todo"
-  --   HQ.HashOnly n -> error "todo"
-  --   HQ.HashQualified n h -> error "todo"
-
-
--- listReferencesMatching
---   :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
--- listReferencesMatching code (Branch.head -> b) query = do
---   let
---     termNames     = toList (Branch.allTermNames b)
---     typeNames     = toList (Branch.allTypeNames b)
---     matchingTerms = if null query
---       then termNames
---       else query >>= \q -> asStrings (sortedApproximateMatches q) termNames
---     matchingTypes = if null query
---       then typeNames
---       else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
---     matchingTypeRefs = matchingTypes
---       >>= \name -> Set.toList (Branch.typesNamed name b)
---     matchingTermRefs = matchingTerms
---       >>= \name -> Set.toList (Branch.termsNamed name b)
---     asStrings f names = Name.fromString <$> f (Name.toString <$> names)
---
---   listReferences code
---                  b
---                  (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
-
 listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
 listReferences code branch refs = do
@@ -331,17 +251,6 @@ prettyBindings :: (Var.Var v, Monad m)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
-
-prettyListingQ
-  :: (Var.Var v, Monad m)
-  => Codebase m v a
-  -> String
-  -> Branch
-  -> m (AnnotatedText Color)
-prettyListingQ _cb _query _b =
-  error
-    $  "todo - find all matches, display similar output to "
-    <> "PrintError.prettyTypecheckedFile"
 
 typeLookupForDependencies
   :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)

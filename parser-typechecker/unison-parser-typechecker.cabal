@@ -88,6 +88,7 @@ library
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings
+    Unison.ShortHash
     Unison.Symbol
     Unison.Term
     Unison.TermParser

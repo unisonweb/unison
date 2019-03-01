@@ -32,6 +32,9 @@ unqualified = Name.unsafeFromText . unqualified' . Name.toText
 unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."
 
+-- Names is like Branch.Namespace, but:
+-- - there are no conflicts
+-- - lookup is one-directional
 data Names = Names
   { termNames    :: Map Name Referent
   , typeNames    :: Map Name Reference

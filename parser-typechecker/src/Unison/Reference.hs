@@ -25,7 +25,7 @@ import           Control.Monad   (join)
 import           Data.Foldable   (toList)
 import           Data.List
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust, fromMaybe, maybe)
+import           Data.Maybe      (fromJust, maybe)
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 import           Data.Text       (Text)
@@ -64,7 +64,7 @@ data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) Nothing Nothing
+toShortHash (Derived h 0 _) = SH.ShortHash (H.base58 h) Nothing Nothing
 toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
@@ -74,6 +74,7 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
       encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
       put = putLength i >> putLength n
       putLength = serialize . VarInt
+toShortHash (DerivedId _) = error "this should be covered above"
 
 showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash

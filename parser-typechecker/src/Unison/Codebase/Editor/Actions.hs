@@ -23,7 +23,7 @@ import           Control.Monad.Trans.Maybe      ( MaybeT(..)
 import           Data.Foldable                  ( foldl'
                                                 , toList
                                                 )
-import           Data.Maybe                     ( fromMaybe )
+import           Data.Maybe                     ( catMaybes, fromMaybe )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
@@ -48,7 +48,6 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
-import qualified Unison.Codebase.SearchResult as SR
 import qualified Unison.HashQualified as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
@@ -145,25 +144,22 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
-        SearchByNameI (fmap HQ.fromString -> qs) -> do
-          SR.SearchResult terms types <- eval $ SearchBranch currentBranch' qs
-          let terms' = fmap go terms where
-              go (SR.TermResult name ref typ _aliases) = (name, ref, typ)
-          let types0 = traverse go types where
-              go (SR.TypeResult name ref _aliases) = case ref of
-                -- We load the type to determine if data or ability.
-                Reference.DerivedId id ->
-                  (name, ref, ) . maybe (MissingThing id) RegularThing <$> eval (LoadType id)
-                _ -> pure (name, ref, BuiltinThing)
-          types0 >>= respond . ListOfDefinitions currentBranch' terms'
+        SearchByNameI (fmap HQ.fromString -> qs) ->
+          (eval $ SearchBranch currentBranch' qs)
+            >>= respond . ListOfDefinitions currentBranch'
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          SR.SearchResult terms types <- eval $ SearchBranch currentBranch' qs
-          let termTypes = Map.fromList
+          results <- eval $ SearchBranch currentBranch' qs
+          let termTypes :: Map.Map Reference (Editor.Type v Ann)
+              termTypes = Map.fromList
                 [ (r, t)
-                | SR.TermResult _ (Referent.Ref r) (Just t) _ <- terms ]
+                | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
+              termReferent (Editor.Tm _ _ r _) = Just r
+              termReferent _ = Nothing
+              typeReference (Editor.Tp _ _ r _) = Just r
+              typeReference _ = Nothing
               (collatedTerms, collatedTypes) =
-                collateReferences (SR.referent <$> terms)
-                                  (SR.reference <$> types)
+                collateReferences (catMaybes . map termReferent $ results)
+                                  (catMaybes . map typeReference $ results)
           loadedTerms <- for collatedTerms $ \r -> case r of
             Reference.DerivedId i -> do
               tm <- eval (LoadTerm i)
@@ -174,17 +170,17 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
                 Just (tm, typ) -> case tm of
                   Term.Ann' _ _ -> RegularThing tm
                   _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-            _ -> pure (r, BuiltinThing)
+            Reference.Builtin _ -> pure (r, BuiltinThing)
           loadedTypes <- for collatedTypes $ \r -> case r of
             Reference.DerivedId i ->
               (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
-            _ -> pure (r, BuiltinThing)
+            Reference.Builtin _ -> pure (r, BuiltinThing)
           -- makes sure that the user search terms get used as the names
           -- in the pretty-printer
           let
             ppe =
-              PPE.fromTermNames [ (r, n) | SR.TermResult n r _ _ <- terms ] <>
-              PPE.fromTypeNames [ (r, n) | SR.TypeResult n r _ <- types ] <>
+              PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ] <>
+              PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ] <>
               Branch.prettyPrintEnv (Branch.head currentBranch')
             loc = case outputLoc of
               Editor.ConsoleLocation    -> Nothing

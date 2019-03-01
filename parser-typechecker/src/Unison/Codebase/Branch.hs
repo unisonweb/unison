@@ -22,6 +22,8 @@ import qualified Data.Set                 as Set
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
+import           Unison.Codebase.SearchResult (SearchResult)
+import qualified Unison.Codebase.SearchResult as SR
 import           Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import           Unison.Codebase.TypeEdit (TypeEdit)
@@ -33,11 +35,13 @@ import qualified Unison.Hashable          as H
 import           Unison.HashQualified     (HashQualified)
 import qualified Unison.HashQualified     as HashQualified
 import qualified Unison.HashQualified     as HQ
+import qualified Unison.ShortHash         as SH
 import           Unison.Name              (Name)
 import           Unison.Names             (Names (..))
 import qualified Unison.Name              as Name
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
@@ -269,6 +273,7 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
+-- todo: audit uses of these functions
 allNamesHashQualified :: Branch0 -> Set HashQualified
 allNamesHashQualified b =
   Set.union (allTermsHashQualified b) (allTypesHashQualified b)
@@ -330,14 +335,14 @@ hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent HashQualified
 hashQualifyTermName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReferent r n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReferent n r)
                     | r <- toList rs ]
 
 hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference HashQualified
 hashQualifyTypeName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReference r n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReference n r)
                     | r <- toList rs ]
 
 -- Get the appropriately hash-qualified version of a name for term.
@@ -346,25 +351,25 @@ hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
   if (> 1) . length . R.lookupDom n . termNamespace $ b then
     -- name is conflicted
-    HQ.take (numHashChars b) $ HashQualified.fromNamedReferent r n
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReferent n r
   else HashQualified.fromName n
 
 hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
   if (> 1) . length . R.lookupDom n . typeNamespace $ b then
     -- name is conflicted
-    HQ.take (numHashChars b) $ HashQualified.fromNamedReference r n
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
   else HashQualified.fromName n
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
-  = Set.map (HQ.take numHashChars . HashQualified.fromNamedReferent ref)
+  = Set.map (HQ.take numHashChars . flip HashQualified.fromNamedReferent ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . terms)
 
 oldNamesForType :: Int -> Reference -> Branch0 -> Set HashQualified
 oldNamesForType numHashChars ref
-  = Set.map (HQ.take numHashChars . HashQualified.fromNamedReference ref)
+  = Set.map (HQ.take numHashChars . flip HashQualified.fromNamedReference ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
@@ -856,3 +861,55 @@ toNames b' = Names terms types
   termRefs = Map.fromList . R.toList $ termNamespace b
   types    = Map.fromList . R.toList $ typeNamespace b
   terms    = termRefs
+
+searchTermNamespace :: forall score. Ord score =>
+  Branch0
+  -> (Name -> Name -> Maybe score)
+  -> [HashQualified]
+  -> Set (Maybe score, SearchResult)
+searchTermNamespace b score queries = foldMap do1query queries
+  where
+  do1query :: HashQualified -> Set (Maybe score, SearchResult)
+  do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
+  -- hashNamesForTerm r b
+  score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+  score1hq query (name, ref) = case query of
+    HQ.NameOnly qn ->
+      pair qn
+    HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      pair qn
+    HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      Set.singleton (Nothing, result)
+    _ -> mempty
+    where
+    result = SR.termResult (hashQualifiedTermName b name ref) ref (aliases ref)
+    pair qn = case score qn name of
+      Just score -> Set.singleton (Just score, result)
+      Nothing -> mempty
+  aliases r = hashNamesForTerm r b
+
+searchTypeNamespace :: forall score. Ord score =>
+  Branch0
+  -> (Name -> Name -> Maybe score)
+  -> [HashQualified]
+  -> Set (Maybe score, SearchResult)
+searchTypeNamespace b score queries = foldMap do1query queries
+  where
+  do1query :: HashQualified -> Set (Maybe score, SearchResult)
+  do1query q = foldMap (score1hq q) (R.toList . typeNamespace $ b)
+  -- hashNamesForTerm r b
+  score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+  score1hq query (name, ref) = case query of
+    HQ.NameOnly qn ->
+      pair qn
+    HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      pair qn
+    HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      Set.singleton (Nothing, result)
+    _ -> mempty
+    where
+    result = SR.typeResult (hashQualifiedTypeName b name ref) ref (aliases ref)
+    pair qn = case score qn name of
+      Just score -> Set.singleton (Just score, result)
+      Nothing -> mempty
+  aliases r = hashNamesForType r b

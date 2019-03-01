@@ -120,7 +120,7 @@ completion s = Line.Completion s s True
 
 autoComplete :: String -> [String] -> [Line.Completion]
 autoComplete q ss = fixup $
-  completion <$> error "todo"--Codebase.sortedApproximateMatches q ss
+  completion <$> error "todo" ss--Codebase.sortedApproximateMatches q ss
   where
   -- workaround for https://github.com/judah/haskeline/issues/100
   -- if the common prefix of all the completions is smaller than

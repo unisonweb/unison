@@ -3,7 +3,6 @@
 module Unison.NamePrinter where
 
 import           Data.String          (IsString, fromString)
-import qualified Data.Text            as Text
 import           Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import           Unison.Name          (Name)

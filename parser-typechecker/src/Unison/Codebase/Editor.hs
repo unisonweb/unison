@@ -37,7 +37,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.SearchResult   ( SearchResult )
+import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
@@ -174,6 +174,24 @@ type AllowUpdates = Bool
 data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
 
+data SearchResult' v a
+  = Tm'' (TermResult' v a)
+  | Tp'' (TypeResult' v a)
+  deriving (Eq, Show)
+data TermResult' v a =
+  TermResult'' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
+  deriving (Eq, Show)
+data TypeResult' v a =
+  TypeResult'' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
+  deriving (Eq, Show)
+pattern Tm h t r as = Tm'' (TermResult'' h t r as)
+pattern Tp h t r as = Tp'' (TypeResult'' h t r as)
+
+searchResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
+searchResult' f g = \case
+  Tm'' tm -> f tm
+  Tp'' tp -> g tp
+
 data Output v
   = Success Input
   | NoUnisonFile
@@ -187,9 +205,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfDefinitions Branch
-      [(HashQualified, Referent, Maybe (Type v Ann))]
-      [(HashQualified, Reference, DisplayThing (Decl v Ann))]
+  | ListOfDefinitions Branch [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -326,7 +342,7 @@ data Command i v a where
   GetConflicts :: Branch -> Command i v Branch0
 
   -- Return a list of definitions whose names match the given queries.
-  SearchBranch :: Branch -> [HashQualified] -> Command i v (SearchResult v Ann)
+  SearchBranch :: Branch -> [HashQualified] -> Command i v [SearchResult' v Ann]
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
@@ -652,8 +668,10 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
-    SearchBranch branch queries ->
-      Codebase.searchBranch codebase (Branch.head branch) nameDistance queries
+    SearchBranch (Branch.head -> branch) queries -> do
+      let termResults = Branch.searchTermNamespace branch nameDistance queries
+          typeResults = Branch.searchTypeNamespace branch nameDistance queries
+      loadSearchResults codebase . fmap snd . toList $ termResults <> typeResults
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
@@ -689,6 +707,24 @@ doTodo code b = do
       (dirtyTermsNamed, dirtyTypesNamed)
       (Branch.conflicts' b)
 
+loadSearchResults :: (Monad m, Var v) =>
+  Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
+loadSearchResults code = traverse loadSearchResult
+  where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- case r of
+        Referent.Ref r -> Codebase.getTypeOfTerm code r
+        Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
+      pure $ Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- case r of
+        Reference.Builtin _ -> pure BuiltinThing
+        Reference.DerivedId id ->
+          maybe (MissingThing id) RegularThing <$>
+            Codebase.getTypeDeclaration code id
+      pure $ Tp name dt r aliases
+
 loadDefinitions :: Monad m => Codebase m v a -> Set Reference
                 -> m ( [(Reference, Maybe (Type v a))],
                        [(Reference, DisplayThing (Decl v a))] )
@@ -705,6 +741,7 @@ loadDefinitions code refs = do
           Nothing -> pure (r, MissingThing id)
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
+
 
 nameDistance :: Name -> Name -> Maybe Int
 nameDistance (Name.toString -> q) (Name.toString -> n) =

@@ -4,7 +4,7 @@
 
 module Unison.Referent where
 
-import           Data.Maybe             (fromMaybe)
+-- import           Data.Maybe             (fromMaybe)
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Data.Word              (Word64)
@@ -23,7 +23,7 @@ import           Data.Bytes.VarInt      (VarInt (..))
 import           Data.ByteString        (ByteString)
 import qualified Data.ByteString.Base58 as Base58
 import           Data.Text.Encoding     (decodeUtf8, encodeUtf8)
-import           Safe                   (readMay)
+-- import           Safe                   (readMay)
 
 data Referent = Ref Reference | Con Reference Int
   deriving (Show, Ord, Eq)

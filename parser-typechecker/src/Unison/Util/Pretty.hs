@@ -16,6 +16,7 @@ module Unison.Util.Pretty (
    warnCallout, fatalCallout, okCallout,
    column2,
    commas,
+   commented,
    oxfordCommas,
    dashed,
    flatMap,
@@ -254,13 +255,22 @@ lines = intercalateMap newline id
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)
 
+prefixed :: (Foldable f, LL.ListLike s Char, IsString s)
+         => Pretty s -> Pretty s -> f (Pretty s) -> Pretty s
+prefixed first rest =
+  intercalateMap newline (\b -> first <> indentAfterNewline rest b)
+
 bulleted
   :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
-bulleted = intercalateMap newline (\b -> "* " <> indentAfterNewline "  " b)
+bulleted = prefixed "* " "  "
 
 dashed
   :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
-dashed = intercalateMap newline (\b -> "- " <> indentAfterNewline "  " b)
+dashed = prefixed "- " "  "
+
+commented
+  :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
+commented = prefixed "-- " "-- "
 
 numbered
   :: (Foldable f, LL.ListLike s Char, IsString s)

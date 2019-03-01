@@ -15,11 +15,12 @@ import           Control.Applicative             ((<|>))
 import           Control.Monad                   (join, when, unless)
 import           Data.Foldable                   (toList, traverse_)
 import           Data.List                       (sort)
+import           Data.ListLike                   (ListLike)
 import           Data.List.Extra                 (nubOrdOn)
 import qualified Data.Map                        as Map
 import           Data.Maybe                      (listToMaybe)
 import qualified Data.Set                        as Set
-import           Data.String                     (fromString)
+import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Data.Text.IO                    (readFile, writeFile)
 import           Prelude                         hiding (readFile, writeFile)
@@ -52,7 +53,6 @@ import qualified Unison.Referent                 as Referent
 import qualified Unison.Result                   as Result
 import           Unison.Term                     (AnnotatedTerm)
 import qualified Unison.TermPrinter              as TermPrinter
-import           Unison.Type                     (AnnotatedType)
 import qualified Unison.TypePrinter              as TypePrinter
 import qualified Unison.Typechecker.TypeLookup   as TL
 import qualified Unison.UnisonFile               as UF
@@ -140,8 +140,8 @@ notifyUser dir o = case o of
             then P.bold ("* " <> P.text n)
             else "  " <> P.text n
         in  intercalateMap "\n" go (sort branches)
-  ListOfDefinitions branch terms types ->
-    listOfDefinitions (Branch.head branch) terms types
+  ListOfDefinitions branch results ->
+    listOfDefinitions (Branch.head branch) results
   SlurpOutput s -> slurpOutput s
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
@@ -290,15 +290,31 @@ displayDefinitions outputLoc ppe terms types =
     <> P.newline
     <> tip "You might need to repair the codebase manually."
 
+unsafePrettyTermResult' :: Var v =>
+  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+unsafePrettyTermResult' ppe = \case
+  E.TermResult'' name (Just typ) _r aliases ->
+    prettyAliases aliases <> head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  _ -> error "Don't use Nothing"
+
+prettyTypeResult' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResult' (E.TypeResult'' name dt r aliases) =
+  prettyAliases aliases <> prettyDeclTriple (name, r, dt)
+
+prettyAliases ::
+  (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
+prettyAliases aliases = if null aliases then mempty else
+  (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified . toList) aliases <> P.newline
+
 prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-  BuiltinThing -> P.wrap $ TypePrinter.prettyDataHeader name <> "(built-in)"
-  MissingThing _ -> mempty -- these need to be handled elsewhere
-  RegularThing decl -> case decl of
-    Left _ability -> TypePrinter.prettyEffectHeader name
-    Right _d      -> TypePrinter.prettyDataHeader name
+   BuiltinThing -> P.wrap $ TypePrinter.prettyDataHeader name <> "(built-in)"
+   MissingThing _ -> mempty -- these need to be handled elsewhere
+   RegularThing decl -> case decl of
+     Left _ability -> TypePrinter.prettyEffectHeader name
+     Right _data   -> TypePrinter.prettyDataHeader name
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
@@ -386,29 +402,33 @@ todoOutput (Branch.head -> branch) todo =
       , formatMissingStuff corruptTerms corruptTypes
       ]
 
-listOfDefinitions :: Var v =>
-  Branch0
-  -> [(HQ.HashQualified, Referent.Referent, Maybe (AnnotatedType v a1))]
-  -> [(HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v2 a2))]
-  -> IO ()
-listOfDefinitions branch terms types = do
-  putPrettyLn . P.lines $
-    typeResults ++
-    TypePrinter.prettySignatures' ppe termsWithTypes ++
+listOfDefinitions :: Var v => Branch0 -> [E.SearchResult' v a] -> IO ()
+listOfDefinitions branch results = do
+  putPrettyLn . P.lines $ prettyResults ++
     [formatMissingStuff termsWithMissingTypes missingTypes]
-  unless (null impossible) . error $ "Compiler bug, these referents are missing types: " <> show impossible
+  unless (null impossible) . error $
+    "Compiler bug, these referents are missing types: " <> show impossible
   where
   ppe  = Branch.prettyPrintEnv branch
-  typeResults = map prettyDeclTriple types
-  termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
-    where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
+  prettyResults =
+    map (E.searchResult' (unsafePrettyTermResult' ppe) prettyTypeResult')
+        (filter (not . missingType) results)
+  -- typeResults = map prettyDeclTriple types
+  missingType (E.Tm _ Nothing _ _) = True
+  missingType (E.Tp _ (MissingThing _) _ _) = True
+  missingType _ = False
+  -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
+  --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (name, r) | (name, Referent.Ref (Reference.DerivedId r), Nothing) <- terms ]
+    [ (name, r)
+    | E.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
   missingTypes = nubOrdOn snd $
-    [ (name, Reference.DerivedId r) | (name, _, MissingThing r) <- types ] <>
-    [ (name, r) | (name, Referent.toTypeReference -> Just r, Nothing) <- terms]
-  impossible = terms >>= \case
-    (name, r@(Referent.Ref (Reference.Builtin _)), Nothing) -> [(name,r)]
+    [ (name, Reference.DerivedId r)
+    | E.Tp name (MissingThing r) _ _ <- results ] <>
+    [ (name, r)
+    | E.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
+  impossible = results >>= \case
+    E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(name,r)]
     _ -> []
 
 -- todo: could probably use more cleanup

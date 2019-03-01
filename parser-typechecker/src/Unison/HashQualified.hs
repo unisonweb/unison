@@ -3,6 +3,7 @@
 
 module Unison.HashQualified where
 
+import           Data.Maybe       (isJust)
 import           Data.String      (IsString, fromString)
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
@@ -28,6 +29,15 @@ toName = \case
   HashQualified name _ -> Just name
   HashOnly _ -> Nothing
 
+hasName :: HashQualified -> Bool
+hasName = isJust . toName
+
+toHash :: HashQualified -> Maybe ShortHash
+toHash = \case
+  NameOnly _ -> Nothing
+  HashQualified _ sh -> Just sh
+  HashOnly sh -> Just sh
+
 take :: Int -> HashQualified -> HashQualified
 take i = \case
   n@(NameOnly _) -> n
@@ -47,8 +57,9 @@ fromText t =
   case Text.breakOn "#" t of
     ("", "")     -> error "don't give me that" -- a hash mark with nothing else
     (name, "")   -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
-    ("", hash)   -> HashOnly (SH.fromText hash)
-    (name, hash) -> HashQualified (Name.unsafeFromText name) (SH.fromText hash)
+    ("", hash)   -> HashOnly (SH.unsafeFromText hash)   -- safe bc breakOn #
+    (name, hash) -> HashQualified (Name.unsafeFromText name)
+                                  (SH.unsafeFromText hash)
 
 toText :: HashQualified -> Text
 toText = \case
@@ -56,12 +67,12 @@ toText = \case
   HashQualified name hash -> Name.toText name <> SH.toText hash
   HashOnly ref -> Text.pack (show ref)
 
-fromNamedReferent :: Referent -> Name -> HashQualified
-fromNamedReferent r n =
+fromNamedReferent :: Name -> Referent -> HashQualified
+fromNamedReferent n r =
   HashQualified n (Referent.toShortHash r)
 
-fromNamedReference :: Reference -> Name -> HashQualified
-fromNamedReference r n =
+fromNamedReference :: Name -> Reference -> HashQualified
+fromNamedReference n r =
   HashQualified n (Reference.toShortHash r)
 
 fromReferent :: Referent -> HashQualified
