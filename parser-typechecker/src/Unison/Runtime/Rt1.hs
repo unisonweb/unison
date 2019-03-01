@@ -3,11 +3,13 @@
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
 {-# Language StrictData #-}
-{-# LANGUAGE RankNTypes #-}
+{-# Language RankNTypes #-}
 {-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
 {-# Language ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables #-}
+{-# Language DoAndIfThenElse #-}
+
 
 module Unison.Runtime.Rt1 where
 
@@ -332,43 +334,7 @@ run ioHandler env ir = do
         -- scrutinee : Z -- already evaluated :amazing:
         -- cases : [(Pattern, Maybe IR, IR)]
         scrute <- at size scrutinee m -- "I am scrute" / "Dwight K. Scrute"
-        let
-          -- Just = match success, Nothing = match fail
-          getCapturedVars :: (Value, Pattern) -> Maybe [Value]
-          getCapturedVars = \case
-            (I x, PatternI x2) -> when' (x == x2) $ Just []
-            (F x, PatternF x2) -> when' (x == x2) $ Just []
-            (N x, PatternN x2) -> when' (x == x2) $ Just []
-            (B x, PatternB x2) -> when' (x == x2) $ Just []
-            (T x, PatternT x2) -> when' (x == x2) $ Just []
-            (Data r cid args, PatternData r2 cid2 pats)
-              -> when' (r == r2 && cid == cid2) $
-                  join <$> traverse getCapturedVars (zip args pats)
-            (Sequence args, PatternSequence pats) ->
-              join <$> traverse getCapturedVars (zip (toList args) (toList pats))
-            (Pure v, PatternPure p) -> getCapturedVars (v, p)
-            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
-              when' (r == r2 && cid == cid2) $
-                join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
-            (v, PatternAs p) -> (v:) <$> getCapturedVars (v,p)
-            (_, PatternIgnore) -> Just []
-            (v, PatternVar) -> Just [v]
-            (v, p) -> error $
-              "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
-            where when' b m = if b then m else Nothing
-
-          tryCases m ((pat, _vars, cond, body) : remainingCases) =
-            case getCapturedVars (scrute, pat) of
-              Nothing -> tryCases m remainingCases -- this pattern didn't match
-              Just vars -> do
-                (size, m) <- pushMany size vars m
-                case cond of
-                  Just cond -> do
-                    (RDone (B cond)) <- go size m cond
-                    if cond then go size m body else tryCases m remainingCases
-                  Nothing -> go size m body
-          tryCases _ _ = pure RMatchFail
-        tryCases m cases
+        tryCases size scrute m cases
 
       -- Builtins
       AddI i j -> do x <- ati size i m; y <- ati size j m; done (I (x + y))
@@ -473,6 +439,43 @@ run ioHandler env ir = do
                        (error "todo - gotta form an IR that calls the original body with args in the correct order")
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
+
+    -- Just = match success, Nothing = match fail
+    tryCase :: (Value, Pattern) -> Maybe [Value]
+    tryCase = \case
+      (I x, PatternI x2) -> when' (x == x2) $ Just []
+      (F x, PatternF x2) -> when' (x == x2) $ Just []
+      (N x, PatternN x2) -> when' (x == x2) $ Just []
+      (B x, PatternB x2) -> when' (x == x2) $ Just []
+      (T x, PatternT x2) -> when' (x == x2) $ Just []
+      (Data r cid args, PatternData r2 cid2 pats)
+        -> when' (r == r2 && cid == cid2) $
+            join <$> traverse tryCase (zip args pats)
+      (Sequence args, PatternSequence pats) ->
+        join <$> traverse tryCase (zip (toList args) (toList pats))
+      (Pure v, PatternPure p) -> tryCase (v, p)
+      (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
+        when' (r == r2 && cid == cid2) $
+          join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+      (v, PatternAs p) -> (v:) <$> tryCase (v,p)
+      (_, PatternIgnore) -> Just []
+      (v, PatternVar) -> Just [v]
+      (v, p) -> error $
+        "unpossible: tryCase (" <> show v <> ", " <> show p <> ")"
+      where when' b m = if b then m else Nothing
+
+    tryCases size scrute m ((pat, _vars, cond, body) : remainingCases) =
+      case tryCase (scrute, pat) of
+        Nothing -> tryCases size scrute m remainingCases -- this pattern didn't match
+        Just vars -> do
+          (size, m) <- pushMany size vars m
+          case cond of
+            Just cond -> do
+              RDone (B cond) <- go size m cond
+              if cond then go size m body
+              else tryCases size scrute m remainingCases
+            Nothing -> go size m body
+    tryCases _ _ _ _ = pure RMatchFail
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
     -- binding, then evaluate each binding and set that `Ref` to its result.
