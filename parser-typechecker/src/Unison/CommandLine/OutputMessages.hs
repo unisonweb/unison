@@ -295,12 +295,12 @@ unsafePrettyTermResult' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResult' ppe = \case
   E.TermResult'' name (Just typ) _r aliases ->
-    prettyAliases aliases <> head (TypePrinter.prettySignatures' ppe [(name,typ)])
-  _ -> error "Don't use Nothing"
+    head (TypePrinter.prettySignatures' ppe [(name,typ)])
+  _ -> error "Don't pass Nothing"
 
 prettyTypeResult' :: E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResult' (E.TypeResult'' name dt r aliases) =
-  prettyAliases aliases <> prettyDeclTriple (name, r, dt)
+  prettyDeclTriple (name, r, dt)
 
 prettyAliases ::
   (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
