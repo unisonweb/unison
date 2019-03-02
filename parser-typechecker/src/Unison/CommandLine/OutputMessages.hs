@@ -11,6 +11,7 @@
 
 module Unison.CommandLine.OutputMessages where
 
+-- import Debug.Trace
 import           Control.Applicative             ((<|>))
 import           Control.Monad                   (join, when, unless)
 import           Data.Foldable                   (toList, traverse_)
@@ -140,7 +141,7 @@ notifyUser dir o = case o of
             then P.bold ("* " <> P.text n)
             else "  " <> P.text n
         in  intercalateMap "\n" go (sort branches)
-  ListOfDefinitions branch results ->
+  ListOfDefinitions branch results -> do
     listOfDefinitions (Branch.head branch) results
   SlurpOutput s -> slurpOutput s
   ParseErrors src es -> do
@@ -303,7 +304,7 @@ prettyTypeResult' (E.TypeResult'' name dt r aliases) =
 
 prettyAliases ::
   (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
-prettyAliases aliases = if null aliases then mempty else
+prettyAliases aliases = if length aliases < 2 then mempty else
   (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified . toList) aliases <> P.newline
 
 prettyDeclTriple ::
@@ -404,7 +405,7 @@ todoOutput (Branch.head -> branch) todo =
 
 listOfDefinitions :: Var v => Branch0 -> [E.SearchResult' v a] -> IO ()
 listOfDefinitions branch results = do
-  putPrettyLn . P.lines $ prettyResults ++
+  putPrettyLn . P.lines . P.nonEmpty $ prettyResults ++
     [formatMissingStuff termsWithMissingTypes missingTypes]
   unless (null impossible) . error $
     "Compiler bug, these referents are missing types: " <> show impossible
