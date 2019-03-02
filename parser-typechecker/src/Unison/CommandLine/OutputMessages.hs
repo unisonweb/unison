@@ -153,11 +153,24 @@ notifyUser dir o = case o of
           intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
             . map Result.TypeError
     putStrLn . showNote $ notes
-  Evaluated fileContents ppe watches ->
+  Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
-    else putPrettyLn $ P.lines
-      [ watchPrinter fileContents ppe ann evald isCacheHit
-      | (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+    else
+      -- todo: hashqualify binding names if necessary to distinguish them from
+      --       defs in the codebase.  In some cases it's fine for bindings to
+      --       shadow codebase names, but you don't want it to capture them in
+      --       the decompiled output.
+      let prettyBindings = P.map fromString . P.bracket . P.lines $
+            P.wrap "The watch expression(s) reference these definitions:" : "" :
+            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            | (v, b) <- bindings]
+          prettyWatches = P.lines [
+            watchPrinter fileContents ppe ann evald isCacheHit |
+            (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+      -- todo: use P.nonempty
+      in putPrettyLn $ if null bindings then prettyWatches
+                       else prettyBindings <> "\n" <> prettyWatches
+
   DisplayConflicts branch -> do
     showConflicts "terms" terms
     showConflicts "types" types
@@ -291,15 +304,15 @@ displayDefinitions outputLoc ppe terms types =
     <> P.newline
     <> tip "You might need to repair the codebase manually."
 
-unsafePrettyTermResult' :: Var v =>
+unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
-unsafePrettyTermResult' ppe = \case
-  E.TermResult'' name (Just typ) _r aliases ->
+unsafePrettyTermResultSig' ppe = \case
+  E.TermResult'' name (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
-prettyTypeResult' :: E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResult' (E.TypeResult'' name dt r aliases) =
+prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' (E.TypeResult'' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 prettyAliases ::
@@ -412,7 +425,7 @@ listOfDefinitions branch results = do
   where
   ppe  = Branch.prettyPrintEnv branch
   prettyResults =
-    map (E.searchResult' (unsafePrettyTermResult' ppe) prettyTypeResult')
+    map (E.searchResult' (unsafePrettyTermResultSig' ppe) prettyTypeResultHeader')
         (filter (not . missingType) results)
   -- typeResults = map prettyDeclTriple types
   missingType (E.Tm _ Nothing _ _) = True

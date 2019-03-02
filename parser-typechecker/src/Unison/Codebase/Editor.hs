@@ -144,6 +144,8 @@ data Input
   -- resolve update conflicts
   | ChooseUpdateForTermI Referent Referent
   | ChooseUpdateForTypeI Reference Reference
+  -- execute an IO object with arguments
+  -- | ExecuteI Name [String]
   -- other
   | SlurpFileI AllowUpdates
   | ListBranchesI
@@ -208,7 +210,10 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v (), Runtime.IsCacheHit))
+  | Evaluated SourceFileContents
+              PPE.PrettyPrintEnv
+              [(v, Term v ())]
+              (Map v (Ann, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
@@ -296,7 +301,7 @@ data Command i v a where
   -- of the same watches instantaneous.
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v (Map v
+           -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
@@ -349,6 +354,8 @@ data Command i v a where
 
   Propagate :: Branch -> Command i v Branch
 
+  -- Execute :: Reference.Id -> Command i v (IO ())
+
 data Outcome
   -- New definition that was added to the branch
   = Added
@@ -399,8 +406,10 @@ outcomes okToUpdate b file = let
         [] -> (r0, Added)
         referents ->
           if not (okToUpdate n) then (r0, CouldntUpdate)
-          else if length referents > 1 then (r0, CouldntUpdateConflicted)
-          else if any Referent.isConstructor referents then (r0, TermExistingConstructorCollision)
+          else if length referents > 1
+          then (r0, CouldntUpdateConflicted)
+          else if any Referent.isConstructor referents
+          then (r0, TermExistingConstructorCollision)
           else (r0, Updated)
       -- It's a type
       Left _ -> let
@@ -426,12 +435,16 @@ outcomes okToUpdate b file = let
 
   outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
   termOutcome (v, (r, _, _)) = outcome0 (Name.unsafeFromVar v) (Right r) []
-  outcomes0types
-     = map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
-    ++ map typeOutcome (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
-  typeOutcome (v, (r, dd)) = outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
-  ctorNames v r (Left e) = Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
-  ctorNames v r (Right dd) = Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
+  outcomes0types =
+    map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
+      ++ map typeOutcome
+             (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
+  typeOutcome (v, (r, dd)) =
+    outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
+  ctorNames v r (Left e) =
+    Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
+  ctorNames v r (Right dd) =
+    Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
   outcomes0 = outcomes0terms ++ outcomes0types
   in removeTransitive (UF.dependencies' file) outcomes0
 

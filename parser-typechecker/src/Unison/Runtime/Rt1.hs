@@ -3,17 +3,18 @@
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
 {-# Language StrictData #-}
-{-# LANGUAGE RankNTypes #-}
+{-# Language RankNTypes #-}
 {-# Language TupleSections #-}
 {-# Language PatternSynonyms #-}
 {-# Language ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables #-}
+{-# Language DoAndIfThenElse #-}
+
 
 module Unison.Runtime.Rt1 where
 
 import Data.Bifunctor (second)
 import Control.Monad (foldM, join)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
@@ -22,11 +23,9 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Word (Word64)
 import Data.Vector (Vector)
-import Unison.Codebase.Runtime (Runtime(Runtime))
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
-import Unison.TermPrinter (prettyTop)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
@@ -36,7 +35,6 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
-import qualified Unison.Util.Pretty as Pretty
 import qualified Unison.Var as Var
 import Debug.Trace
 
@@ -46,25 +44,12 @@ type Req = IR.Req ExternalFunction
 type Value = IR.Value ExternalFunction
 type Z = IR.Z ExternalFunction
 
-newtype ExternalFunction = ExternalFunction (Size -> Stack -> IO Value)
+data ExternalFunction =
+  ExternalFunction R.Reference (Size -> Stack -> IO Value)
+instance External ExternalFunction where
+  decompileExternal (ExternalFunction r _) = Term.ref () r
 
 type Stack = MV.IOVector Value
-
-runtime :: Runtime Symbol
-runtime = Runtime terminate eval
-  where
-  terminate :: forall m. MonadIO m => m ()
-  terminate = pure ()
-  changeVar term = Term.vmap IR.underlyingSymbol term
-  eval :: (MonadIO m, Monoid a) => CL.CodeLookup m Symbol a -> Term.AnnotatedTerm Symbol a -> m (Term Symbol)
-  eval cl term = do
-    liftIO . putStrLn $ Pretty.render 80 (prettyTop mempty term)
-    cenv <- compilationEnv cl term -- in `m`
-    RDone result <- liftIO $
-      run cenv (compile cenv $ Term.amap (const ()) term)
-    decompiled <- liftIO $ decompile result
-    pure . changeVar $ decompiled
-
 
 -- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
 -- compilationEnv :: Monad m
@@ -84,7 +69,7 @@ at size i m = case i of
     force =<< MV.read m (size - i - 1)
   LazySlot i ->
     MV.read m (size - i - 1)
-  External (ExternalFunction e) -> e size m
+  External (ExternalFunction _ e) -> e size m
 
 ati :: Size -> Z -> Stack -> IO Int64
 ati size i m = at size i m >>= \case
@@ -115,6 +100,11 @@ ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
   _ -> fail "type error, expecting Sequence"
+
+atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
+atd size i m = at size i m >>= \case
+  Data r id vs -> pure (r, id, vs)
+  _ -> fail "type error, expecting Data"
 
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
@@ -254,7 +244,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       . Lam arity (underapply name)
       . Leaf
       . External
-      . ExternalFunction
+      . ExternalFunction (R.Builtin name)
   underapply name = FormClosure (Term.ref () $ R.Builtin name) []
   mk1
     :: Text
@@ -285,8 +275,11 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       mkC $ f a b
     )
 
-run :: CompilationEnv -> IR -> IO Result
-run env ir = do
+run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
+    -> CompilationEnv
+    -> IR
+    -> IO Result
+run ioHandler env ir = do
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
@@ -294,6 +287,8 @@ run env ir = do
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
 
+    -- TODO:
+    -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = do
      stackStuff <- traverse (MV.read m) [0..size-1]
@@ -333,45 +328,13 @@ run env ir = do
         runHandler size m h body
       Apply fn args -> do
         RDone fn <- go size m fn -- ANF should ensure this match is OK
+        fn <- force fn
         call size m fn args
       Match scrutinee cases -> do
         -- scrutinee : Z -- already evaluated :amazing:
         -- cases : [(Pattern, Maybe IR, IR)]
         scrute <- at size scrutinee m -- "I am scrute" / "Dwight K. Scrute"
-        let
-          getCapturedVars :: (Value, Pattern) -> Maybe [Value]
-          getCapturedVars = \case
-            (I x, PatternI x2) | x == x2 -> Just []
-            (F x, PatternF x2) | x == x2 -> Just []
-            (N x, PatternN x2) | x == x2 -> Just []
-            (B x, PatternB x2) | x == x2 -> Just []
-            (T x, PatternT x2) | x == x2 -> Just []
-            (Data r cid args, PatternData r2 cid2 pats)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip args pats)
-            (Sequence args, PatternSequence pats) ->
-              join <$> traverse getCapturedVars (zip (toList args) (toList pats))
-            (Pure v, PatternPure p) -> getCapturedVars (v, p)
-            (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat)
-              | r == r2 && cid == cid2 ->
-              join <$> traverse getCapturedVars (zip (args ++ [Cont k]) (pats ++ [kpat]))
-            (v, PatternAs p) -> (v:) <$> getCapturedVars (v,p)
-            (_, PatternIgnore) -> Just []
-            (v, PatternVar) -> Just [v]
-            (v, p) -> error $
-              "unpossible: getCapturedVars (" <> show v <> ", " <> show p <> ")"
-          tryCases m ((pat, _vars, cond, body) : remainingCases) =
-            case getCapturedVars (scrute, pat) of
-              Nothing -> tryCases m remainingCases -- this pattern didn't match
-              Just vars -> do
-                (size, m) <- pushMany size vars m
-                case cond of
-                  Just cond -> do
-                    (RDone (B cond)) <- go size m cond
-                    if cond then go size m body else tryCases m remainingCases
-                  Nothing -> go size m body
-          tryCases _ _ = pure RMatchFail
-        tryCases m cases
+        tryCases size scrute m cases
 
       -- Builtins
       AddI i j -> do x <- ati size i m; y <- ati size j m; done (I (x + y))
@@ -443,31 +406,80 @@ run env ir = do
           -- foo : Int ->{IO} (Int -> Int)
           -- ...
           -- (foo 12 12)
-          RRequest req ->
-            let overApplyName = Var.named "oa" in
-            pure . RRequest . appendCont overApplyName req $ error "todo"
+          RRequest req -> do
+            let overApplyName = Var.named "oa"
+            extraArgvs <- for extraArgs $ \arg -> at size arg m
+            pure . RRequest . appendCont overApplyName req $
+                   Apply (Leaf (Slot 0)) (Val <$> extraArgvs)
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do
         argvs <- for args $ \arg -> at size arg m
         case underapply of
-          -- previousArgs = [mostRecentlyApplied, ..., firstApplied]
-          Specialize lam@(Term.LamsNamed' vs body) previousArgs -> do
-            let
-              nowArgs = reverse (vs `zip` argvs) ++ previousArgs
-              nowArgs' = (second Just <$> nowArgs)
-              vsRemaining = drop (length nowArgs) vs
-              vsRemaining' = (,Nothing) <$> vsRemaining
-              -- todo: is this right??
-              compiled = compile0 env (reverse vsRemaining' ++ nowArgs') body
-            done $ Lam (arity - nargs) (Specialize lam nowArgs) compiled
-          Specialize e previousArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show previousArgs
-          FormClosure tm previousArgs ->
-            done $ Lam (arity - nargs)
-                       (FormClosure tm (reverse argvs ++ previousArgs))
-                       (error "todo - gotta form an IR that calls the original body with args in the correct order")
+          -- Example 1:
+          -- f = x y z p -> x - y - z - p
+          -- f' = f 1 2 -- Specialize f [2, 1] -- each arg is pushed onto top
+          -- f'' = f' 3 -- Specialize f [3, 2, 1]
+          -- f'' 4      -- should be the same thing as `f 1 2 3 4`
+          --
+          -- pushedArgs = [mostRecentlyApplied, ..., firstApplied]
+          Specialize lam@(Term.LamsNamed' vs body) pushedArgs -> let
+            pushedArgs' :: [ (SymbolC, Value)] -- head is the latest argument
+            pushedArgs' = reverse (drop (length pushedArgs) vs `zip` argvs) ++ pushedArgs
+            vsRemaining = drop (length pushedArgs') vs
+            compiled = compile0 env
+              (reverse (fmap (,Nothing) vsRemaining) ++
+               fmap (second Just) pushedArgs')
+              body
+            in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
+          Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
+          FormClosure tm pushedArgs -> let
+            pushedArgs' = reverse argvs ++ pushedArgs
+            arity' = arity - nargs
+            allArgs = replicate arity' Nothing ++ map Just pushedArgs'
+            bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
+            in done $ Lam (arity - nargs)
+                       (FormClosure tm pushedArgs')
+                       (specializeIR bound body)
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
+
+    -- Just = match success, Nothing = match fail
+    tryCase :: (Value, Pattern) -> Maybe [Value]
+    tryCase = \case
+      (I x, PatternI x2) -> when' (x == x2) $ Just []
+      (F x, PatternF x2) -> when' (x == x2) $ Just []
+      (N x, PatternN x2) -> when' (x == x2) $ Just []
+      (B x, PatternB x2) -> when' (x == x2) $ Just []
+      (T x, PatternT x2) -> when' (x == x2) $ Just []
+      (Data r cid args, PatternData r2 cid2 pats)
+        -> when' (r == r2 && cid == cid2) $
+            join <$> traverse tryCase (zip args pats)
+      (Sequence args, PatternSequence pats) ->
+        join <$> traverse tryCase (zip (toList args) (toList pats))
+      (Pure v, PatternPure p) -> tryCase (v, p)
+      (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
+        when' (r == r2 && cid == cid2) $
+          join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+      (v, PatternAs p) -> (v:) <$> tryCase (v,p)
+      (_, PatternIgnore) -> Just []
+      (v, PatternVar) -> Just [v]
+      (v, p) -> error $
+        "unpossible: tryCase (" <> show v <> ", " <> show p <> ")"
+      where when' b m = if b then m else Nothing
+
+    tryCases size scrute m ((pat, _vars, cond, body) : remainingCases) =
+      case tryCase (scrute, pat) of
+        Nothing -> tryCases size scrute m remainingCases -- this pattern didn't match
+        Just vars -> do
+          (size, m) <- pushMany size vars m
+          case cond of
+            Just cond -> do
+              RDone (B cond) <- go size m cond
+              if cond then go size m body
+              else tryCases size scrute m remainingCases
+            Nothing -> go size m body
+    tryCases _ _ _ _ = pure RMatchFail
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
     -- binding, then evaluate each binding and set that `Ref` to its result.
@@ -488,7 +500,13 @@ run env ir = do
         writeIORef r result
       go size' m body
 
-  go 0 m0 ir
+  r <- go 0 m0 ir
+  case r of
+    RRequest (Req ref cid vs k) -> do
+      ioResult <- ioHandler ref cid vs
+      s <- push 0 ioResult m0
+      go 1 s k
+    a -> pure a
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"

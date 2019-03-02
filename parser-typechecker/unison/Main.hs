@@ -13,7 +13,7 @@ import qualified Unison.Codebase.Serialization    as S
 import           Unison.Codebase.Serialization.V0 (formatSymbol, getSymbol)
 import qualified Unison.CommandLine.Main          as CommandLine
 import           Unison.Parser                    (Ann (External))
-import qualified Unison.Runtime.Rt1               as Rt1
+import qualified Unison.Runtime.Rt1IO             as Rt1
 
 main :: IO ()
 main = do

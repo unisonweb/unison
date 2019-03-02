@@ -309,6 +309,7 @@ prettyPattern n p vs patt = case patt of
   Pattern.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
   Pattern.Nat     _ u -> (l $ show u, vs)
   Pattern.Float   _ f -> (l $ show f, vs)
+  Pattern.Text    _ t -> (l $ show t, vs)
   Pattern.Tuple [pp] ->
     let (printed, tail_vs) = prettyPattern n 10 vs pp
     in  ( paren (p >= 10) $ PP.sep " " ["Pair", printed, "()"]

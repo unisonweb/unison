@@ -85,6 +85,7 @@ library
     Unison.Runtime.ANF
     Unison.Runtime.IR
     Unison.Runtime.Rt1
+    Unison.Runtime.Rt1IO
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings
@@ -131,6 +132,7 @@ library
     comonad,
     concurrent-supply,
     cryptonite,
+    guid,
     data-memocombinators,
     directory,
     errors,

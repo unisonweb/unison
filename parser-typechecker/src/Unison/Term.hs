@@ -674,6 +674,15 @@ betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
 
+betaNormalForm :: Var v => Term v -> Term v
+betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f) a))
+betaNormalForm e = e
+
+-- x -> f x => f
+etaNormalForm :: Eq v => Term v -> Term v
+etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
+etaNormalForm t = t
+
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
 unhashComponent :: Var v
