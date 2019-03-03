@@ -681,8 +681,10 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchBranch (Branch.head -> branch) queries -> do
-      let termResults = Branch.searchTermNamespace branch nameDistance queries
-          typeResults = Branch.searchTypeNamespace branch nameDistance queries
+      let termResults =
+            Branch.searchTermNamespace branch fuzzyNameDistance queries
+          typeResults =
+            Branch.searchTypeNamespace branch fuzzyNameDistance queries
       loadSearchResults codebase . fmap snd . toList $ typeResults <> termResults
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
@@ -755,9 +757,11 @@ loadDefinitions code refs = do
   pure (terms, types)
 
 
-nameDistance' :: Name -> Name -> Maybe RE.MatchArray
-nameDistance' (Name.toString -> q) (Name.toString -> n) =
-  error "todo" Find.fuzzyFinder q n
+fuzzyNameDistance :: Name -> Name -> Maybe RE.MatchArray
+fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+  case Find.fuzzyFindMatchArray q [n] id of
+    [] -> Nothing
+    (m, _) : _ -> Just m
 
 -- todo: probably don't use this anywhere
 nameDistance :: Name -> Name -> Maybe Int

@@ -32,10 +32,18 @@ fuzzyFinder query items = fuzzyFinder' query items id
 
 fuzzyFinder' :: forall a.
   String -> [a] -> (a -> String) -> [(a, P.Pretty P.ColorText)]
-fuzzyFinder' query items render = sortAndCleanup . scoreAndHighlight $ items
+fuzzyFinder' query items render =
+  sortAndCleanup $ fuzzyFindMatchArray query items render
+  where
+  sortAndCleanup = List.map snd . List.sortOn fst
+
+fuzzyFindMatchArray :: forall a.
+  String -> [a] -> (a -> String)
+  -> [(RE.MatchArray, (a, P.Pretty P.ColorText))]
+fuzzyFindMatchArray query items render =
+  scoreAndHighlight $ items
   where
   scoreAndHighlight = catMaybes . List.map go
-  sortAndCleanup = List.map snd . List.sortOn fst
   go :: a -> Maybe (RE.MatchArray, (a, P.Pretty P.ColorText))
   go a =
     let string = render a

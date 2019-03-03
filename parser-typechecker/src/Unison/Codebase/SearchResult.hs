@@ -7,7 +7,8 @@ import           Unison.HashQualified (HashQualified)
 import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
 
-data SearchResult = Tm TermResult | Tp TypeResult deriving (Eq, Ord, Show)
+-- this Ord instance causes types < terms
+data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
 
 data TermResult = TermResult
   { termName    :: HashQualified
