@@ -392,7 +392,9 @@ oldNamesForType numHashChars ref
 
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
--- but then this will be expensive
+-- but then this will be expensive, so avoid calling it on every lookup
+-- Idea: make NumHashChars a newtype, and create a Reader for it.  This will
+-- make it easier to make sure you are relying on a shared value.
 
 -- We must choose a canonical name for each referent in the branch.
 -- In the future we might like a way for the user to choose a preferred name

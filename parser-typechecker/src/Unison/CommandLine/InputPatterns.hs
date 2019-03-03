@@ -11,7 +11,7 @@
 
 module Unison.CommandLine.InputPatterns where
 
-import           Data.Foldable                   (toList)
+-- import Debug.Trace
 import           Data.List                       (intercalate)
 import qualified Data.Set                        as Set
 import           Data.String                     (fromString)
@@ -21,13 +21,9 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (Input (..))
 import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
-import qualified Unison.CommandLine.InputPattern as I
-import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType),
-                                                  InputPattern (InputPattern,
-                                                                aliases,
-                                                                patternName),
+import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern, aliases, patternName),
                                                   noSuggestions)
-import qualified Unison.HashQualified            as HQ
+import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.Names                    as Names
 import qualified Unison.Util.ColorText           as CT
 import           Unison.Util.Monoid              (intercalateMap)
@@ -163,19 +159,18 @@ commandNames = patternName <$> validInputs
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ -> pure (autoComplete q commandNames)
+  ArgumentType "command" $ \q _ _ -> pure (fuzzyComplete q commandNames)
 
 branchArg :: ArgumentType
 branchArg = ArgumentType "branch" $ \q codebase _b -> do
   branches <- Codebase.branches codebase
   let bs = Text.unpack <$> branches
-  pure $ autoComplete q bs
+  pure $ fuzzyComplete q bs
 
 definitionQueryArg :: ArgumentType
 definitionQueryArg =
   ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
-    let names = HQ.toString <$> toList (Branch.allNamesHashQualified b)
-    pure $ autoComplete q names
+    pure $ fuzzyCompleteHashQualified b q
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "a word" noSuggestions

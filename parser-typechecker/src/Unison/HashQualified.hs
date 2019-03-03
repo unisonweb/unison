@@ -55,7 +55,6 @@ fromString = fromText . Text.pack
 fromText :: Text -> HashQualified
 fromText t =
   case Text.breakOn "#" t of
-    ("", "")     -> error "don't give me that" -- a hash mark with nothing else
     (name, "")   -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
     ("", hash)   -> HashOnly (SH.unsafeFromText hash)   -- safe bc breakOn #
     (name, hash) -> HashQualified (Name.unsafeFromText name)

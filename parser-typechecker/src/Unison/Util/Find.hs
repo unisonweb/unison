@@ -1,18 +1,31 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Util.Find where
 
--- import Debug.Trace
-import Data.Foldable (toList)
-import Data.Maybe (catMaybes)
-import qualified Data.List as List
-import qualified Data.Text as Text
-import Data.Text (Text)
-import qualified Text.Regex.TDFA as RE
-import qualified Unison.Util.Pretty as P
-import Unison.Util.Monoid (intercalateMap)
+-- import           Debug.Trace
+import           Data.Foldable                (toList)
+import qualified Data.List                    as List
+import           Data.Maybe                   (catMaybes, fromJust)
+import           Data.Text                    (Text)
+import qualified Data.Text                    as Text
+import qualified Text.Regex.TDFA              as RE
+import           Unison.Codebase.Branch       (Branch0)
+import qualified Unison.Codebase.Branch       as Branch
+import           Unison.Codebase.SearchResult (SearchResult)
+import qualified Unison.Codebase.SearchResult as SR
+import           Unison.HashQualified         (HashQualified)
+import qualified Unison.HashQualified         as HQ
+import qualified Unison.Name                  as Name
+import qualified Unison.Reference             as Reference
+import qualified Unison.Referent              as Referent
+import qualified Unison.ShortHash             as SH
+import           Unison.Util.Monoid           (intercalateMap)
+import qualified Unison.Util.Pretty           as P
+import qualified Unison.Util.Relation         as R
+
 
 fuzzyFinder :: String -> [String] -> [(String, P.Pretty P.ColorText)]
 fuzzyFinder query items = fuzzyFinder' query items id
@@ -35,11 +48,14 @@ fuzzyFinder' query items render = sortAndCleanup . scoreAndHighlight $ items
   -- regex "Foo" = "(\\F).*(\\o).*(\\o)"
   regex :: RE.Regex
   regex = let
-    s = --traceShowId . trace "regex" $
-        if null query then ".*"
-        else intercalateMap ".*" esc query where esc c = "(" <> [c] <> ")"
+    s = if null query then ".*"
+        else intercalateMap ".*" esc query where esc c = "(\\" <> [c] <> ")"
     in RE.makeRegexOpts
-        RE.defaultCompOpt { RE.caseSensitive = False }
+        RE.defaultCompOpt { RE.caseSensitive = False
+                          -- newSyntax = False,  otherwise "\<" and "\>"
+                          -- matches word boundaries instead of literal < and >
+                          , RE.newSyntax = False
+                          }
         RE.defaultExecOpt
         s
   --todo: make regex case-insensitive using CompOption
@@ -51,11 +67,35 @@ fuzzyFinder' query items render = sortAndCleanup . scoreAndHighlight $ items
   -- Ord MatchArray already provides a. and b.  todo: c.
 
 -- only search before the # before the # and after the # after the #
--- fuzzyFindHashQualified :: HashQualified
---                        -> Branch0
---                        -> [(Either Referent Reference, P.Pretty P.ColorText)]
--- fuzzyFindHashQualified hq ns =
-
+fuzzyFindInBranch :: Branch0
+                  -> HashQualified
+                  -> [(SearchResult, P.Pretty P.ColorText)]
+fuzzyFindInBranch b hq =
+  namedResults <>
+  anonymousResults
+  where
+  namedResults = case HQ.toName hq of
+    Just (Name.toString -> n) ->
+      fuzzyFinder' n candidates
+        (fromJust . fmap Name.toString . HQ.toName . SR.name)
+    Nothing -> []
+  anonymousResults = [] -- "todo"
+  candidates = typeCandidates <> termCandidates
+  -- filter branch by hash
+  typeCandidates =
+    fmap typeResult . filterTypes . R.toList . Branch.typeNamespace $ b
+  termCandidates =
+    fmap termResult . filterTerms . R.toList . Branch.termNamespace $ b
+  filterTerms = case HQ.toHash hq of
+    Just sh -> List.filter $ SH.isPrefixOf sh . Referent.toShortHash . snd
+    Nothing -> id
+  filterTypes = case HQ.toHash hq of
+    Just sh -> List.filter $ SH.isPrefixOf sh . Reference.toShortHash. snd
+    Nothing -> id
+  typeResult (n, r) = SR.typeResult (Branch.hashQualifiedTypeName b n r) r
+                                    (Branch.hashNamesForType r b)
+  termResult (n, r) = SR.termResult (Branch.hashQualifiedTermName b n r) r
+                                    (Branch.hashNamesForTerm r b)
 
 type Pos = Int
 type Len = Int
@@ -72,8 +112,8 @@ highlight' :: (P.Pretty P.ColorText -> P.Pretty P.ColorText)
           -> [(Pos, Len)]
           -> P.Pretty P.ColorText
 highlight' on off t groups = case groups of
-  [] -> (off . P.text)  t
-  (0,_) : _ -> go groups
+  []            -> (off . P.text)  t
+  (0,_) : _     -> go groups
   (start,_) : _ -> (off . P.text . Text.take start) t <> go groups
   where
   go = \case

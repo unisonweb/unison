@@ -62,7 +62,7 @@ getUserInput patterns codebase branch branchName = Line.runInputT settings $ do
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
     if null prev
-      then pure $ autoComplete word (Map.keys patterns)
+      then pure $ fuzzyComplete word (Map.keys patterns)
     -- User has finished a command name; use completions for that command
       else case words $ reverse prev of
         h : t -> fromMaybe (pure []) $ do

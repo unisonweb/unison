@@ -60,6 +60,7 @@ module Unison.Util.Pretty (
    toANSI,
    toAnsiUnbroken,
    toPlain,
+   toPlainUnbroken,
    wrap,
    wrapColumn2,
    wrapString,
@@ -149,6 +150,9 @@ toAnsiUnbroken p = CT.toANSI (renderUnbroken p)
 
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
+
+toPlainUnbroken :: Pretty ColorText -> String
+toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 
 renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound

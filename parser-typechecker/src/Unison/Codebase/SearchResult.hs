@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Unison.Codebase.SearchResult where
 
 import           Data.Set             (Set)
@@ -24,3 +26,13 @@ termResult hq r as = Tm (TermResult hq r as)
 
 typeResult :: HashQualified -> Reference -> Set HashQualified -> SearchResult
 typeResult hq r as = Tp (TypeResult hq r as)
+
+name :: SearchResult -> HashQualified
+name = \case
+  Tm t -> termName t
+  Tp t -> typeName t
+
+aliases :: SearchResult -> Set HashQualified
+aliases = \case
+  Tm t -> termAliases t
+  Tp t -> typeAliases t

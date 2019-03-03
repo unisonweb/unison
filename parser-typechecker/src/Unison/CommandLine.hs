@@ -6,10 +6,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 module Unison.CommandLine where
 
+-- import Debug.Trace
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forever, when)
@@ -26,12 +28,14 @@ import qualified System.Console.Haskeline        as Line
 import qualified System.Console.Terminal.Size    as Terminal
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
-import           Unison.Codebase.Branch          (Branch)
+import           Unison.Codebase.Branch          (Branch, Branch0)
 import           Unison.Codebase.Editor          (BranchName, Event (..),
                                                   Input (..))
 import qualified Unison.Codebase.Runtime         as Runtime
+import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
+import qualified Unison.HashQualified            as HQ
 import           Unison.Parser                   (Ann)
 import           Unison.Parser                   (startingLine)
 import qualified Unison.PrettyPrintEnv           as PPE
@@ -120,24 +124,27 @@ completion :: String -> Line.Completion
 completion s = Line.Completion s s True
 
 prettyCompletion :: (String, P.Pretty P.ColorText) -> Line.Completion
+-- -- discards formatting in favor of better alignment
+-- prettyCompletion (s, p) = Line.Completion s (P.toPlainUnbroken p) True
+-- preserves formatting, but Haskeline doesn't know how to align
 prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
 
--- autoCompleteHashQualified :: String -> [HashQualified] -> [Line.Completion]
--- autoCompleteHashQualified (HQ.fromString -> query) names =
---   go <$> Find.fuzzyFinder' q names
+fuzzyCompleteHashQualified :: Branch0 -> String -> [Line.Completion]
+fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =
+    fixupCompletion q0 $
+      makeCompletion <$> Find.fuzzyFindInBranch b query
+  where
+  makeCompletion (sr, p) =
+    prettyCompletion (HQ.toString . SR.name $ sr, p)
 
-autoComplete :: String -> [String] -> [Line.Completion]
-autoComplete q ss =
+fuzzyComplete :: String -> [String] -> [Line.Completion]
+fuzzyComplete q ss =
   fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss)
 
-_autoComplete :: String -> [String] -> [Line.Completion]
-_autoComplete q ss = fixupCompletion q $
-  completion <$> error "todo" ss--Codebase.sortedApproximateMatches q ss
-  where
-  -- workaround for https://github.com/judah/haskeline/issues/100
-  -- if the common prefix of all the completions is smaller than
-  -- the query, we make all the replacements equal to the query,
-  -- which will preserve what the user has typed
+-- workaround for https://github.com/judah/haskeline/issues/100
+-- if the common prefix of all the completions is smaller than
+-- the query, we make all the replacements equal to the query,
+-- which will preserve what the user has typed
 fixupCompletion :: String -> [Line.Completion] -> [Line.Completion]
 fixupCompletion _q [] = []
 fixupCompletion _q [c] = [c]
