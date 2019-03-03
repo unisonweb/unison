@@ -109,6 +109,7 @@ library
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
+    Unison.Util.Find
     Unison.Util.Logger
     Unison.Util.Histogram
     Unison.Util.Menu
@@ -155,6 +156,8 @@ library
     megaparsec,
     prelude-extras,
     random,
+    regex-base,
+    regex-tdfa,
     safe,
     split,
     stm,

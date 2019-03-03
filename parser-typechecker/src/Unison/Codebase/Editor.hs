@@ -13,7 +13,7 @@ module Unison.Codebase.Editor where
 -- import Debug.Trace
 
 import           Data.Char                      ( toLower )
-import Data.List (sortOn, isSuffixOf, isPrefixOf, isSubsequenceOf)
+import Data.List (sortOn, isSuffixOf, isPrefixOf)
 import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -27,6 +27,7 @@ import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
+import qualified Text.Regex.TDFA               as RE
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -66,6 +67,7 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
@@ -678,8 +680,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     MergeBranch branchName branch     -> mergeBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
-    -- SearchBranch (Branch.head -> branch) queries -> do
-    --   let termResults = R.toList $ Branch.termNamespace branch
     SearchBranch (Branch.head -> branch) queries -> do
       let termResults = Branch.searchTermNamespace branch nameDistance queries
           typeResults = Branch.searchTypeNamespace branch nameDistance queries
@@ -755,11 +755,15 @@ loadDefinitions code refs = do
   pure (terms, types)
 
 
+nameDistance' :: Name -> Name -> Maybe RE.MatchArray
+nameDistance' (Name.toString -> q) (Name.toString -> n) =
+  error "todo" Find.fuzzyFinder q n
+
+-- todo: probably don't use this anywhere
 nameDistance :: Name -> Name -> Maybe Int
 nameDistance (Name.toString -> q) (Name.toString -> n) =
   if q == n                              then Just 0-- exact match is top choice
   else if map toLower q == map toLower n then Just 1-- ignore case
   else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
   else if q `isPrefixOf` n               then Just 3-- matching prefix
-  else if q `isSubsequenceOf` n          then Just 4
   else Nothing

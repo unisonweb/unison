@@ -67,10 +67,12 @@ toText = \case
   HashQualified name hash -> Name.toText name <> SH.toText hash
   HashOnly ref -> Text.pack (show ref)
 
+-- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: Name -> Referent -> HashQualified
 fromNamedReferent n r =
   HashQualified n (Referent.toShortHash r)
 
+-- Returns the full reference in the hash.  Use HQ.take to just get a prefix
 fromNamedReference :: Name -> Reference -> HashQualified
 fromNamedReference n r =
   HashQualified n (Reference.toShortHash r)
@@ -80,9 +82,6 @@ fromReferent = HashOnly . Referent.toShortHash
 
 fromReference :: Reference -> HashQualified
 fromReference = HashOnly . Reference.toShortHash
-
--- fromFullReference :: Reference -> HashQualified
--- fromFullReference = HashOnly . Text.pack . (\('#':t) -> t) . show
 
 fromName :: Name -> HashQualified
 fromName n = NameOnly n

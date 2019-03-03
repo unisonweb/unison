@@ -281,6 +281,23 @@ allNamesHashQualified b =
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
+-- lookup fullHQ and shortHQ values by Referent
+hashQualifiedMaps :: Branch0
+                  -> (Map Referent (HashQualified, HashQualified)
+                     ,Map Reference (HashQualified, HashQualified))
+hashQualifiedMaps b =
+  let hashLen = numHashChars b
+      goTerm m (name, r) =
+        let fullHQ = HQ.fromNamedReferent name r
+            shortHQ = HQ.take hashLen fullHQ
+        in Map.insert r (fullHQ, shortHQ) m
+      goType m (name, r) =
+        let fullHQ = HQ.fromNamedReference name r
+            shortHQ = HQ.take hashLen fullHQ
+        in Map.insert r (fullHQ, shortHQ) m
+  in (foldl' goTerm mempty (R.toList $ termNamespace b)
+     ,foldl' goType mempty (R.toList $ typeNamespace b))
+
 allTermsHashQualified :: Branch0 -> Set HashQualified
 allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
 
@@ -375,6 +392,7 @@ oldNamesForType numHashChars ref
 
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
+-- but then this will be expensive
 
 -- We must choose a canonical name for each referent in the branch.
 -- In the future we might like a way for the user to choose a preferred name
@@ -871,7 +889,6 @@ searchTermNamespace b score queries = foldMap do1query queries
   where
   do1query :: HashQualified -> Set (Maybe score, SearchResult)
   do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
-  -- hashNamesForTerm r b
   score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
   score1hq query (name, ref) = case query of
     HQ.NameOnly qn ->

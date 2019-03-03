@@ -38,6 +38,7 @@ import qualified Unison.PrettyPrintEnv           as PPE
 import           Unison.Term                     (Term)
 import qualified Unison.TermPrinter              as TermPrinter
 import qualified Unison.Util.ColorText           as CT
+import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
@@ -118,25 +119,36 @@ nothingTodo s = emojiNote "😶" s
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True
 
+prettyCompletion :: (String, P.Pretty P.ColorText) -> Line.Completion
+prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
+
+-- autoCompleteHashQualified :: String -> [HashQualified] -> [Line.Completion]
+-- autoCompleteHashQualified (HQ.fromString -> query) names =
+--   go <$> Find.fuzzyFinder' q names
+
 autoComplete :: String -> [String] -> [Line.Completion]
-autoComplete q ss = fixup $
+autoComplete q ss =
+  fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss)
+
+_autoComplete :: String -> [String] -> [Line.Completion]
+_autoComplete q ss = fixupCompletion q $
   completion <$> error "todo" ss--Codebase.sortedApproximateMatches q ss
   where
   -- workaround for https://github.com/judah/haskeline/issues/100
   -- if the common prefix of all the completions is smaller than
   -- the query, we make all the replacements equal to the query,
   -- which will preserve what the user has typed
-  fixup :: [Line.Completion] -> [Line.Completion]
-  fixup [] = []
-  fixup [c] = [c]
-  fixup cs@(h:t) = let
-    commonPrefix (h1:t1) (h2:t2) | h1 == h2 = h1 : commonPrefix t1 t2
-    commonPrefix _ _             = ""
-    overallCommonPrefix =
-      foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-    in if length overallCommonPrefix < length q
-       then [ c { Line.replacement = q } | c <- cs ]
-       else cs
+fixupCompletion :: String -> [Line.Completion] -> [Line.Completion]
+fixupCompletion _q [] = []
+fixupCompletion _q [c] = [c]
+fixupCompletion q cs@(h:t) = let
+  commonPrefix (h1:t1) (h2:t2) | h1 == h2 = h1 : commonPrefix t1 t2
+  commonPrefix _ _             = ""
+  overallCommonPrefix =
+    foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
+  in if length overallCommonPrefix < length q
+     then [ c { Line.replacement = q } | c <- cs ]
+     else cs
 
 parseInput
   :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input

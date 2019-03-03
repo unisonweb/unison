@@ -58,6 +58,7 @@ module Unison.Util.Pretty (
    surroundCommas,
    text,
    toANSI,
+   toAnsiUnbroken,
    toPlain,
    wrap,
    wrapColumn2,
@@ -142,6 +143,9 @@ group p = Pretty (delta p) (Group p)
 
 toANSI :: Width -> Pretty CT.ColorText -> String
 toANSI avail p = CT.toANSI (render avail p)
+
+toAnsiUnbroken :: Pretty ColorText -> String
+toAnsiUnbroken p = CT.toANSI (renderUnbroken p)
 
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
