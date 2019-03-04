@@ -11,6 +11,9 @@ import qualified Data.List                    as List
 import           Data.Maybe                   (catMaybes, fromJust)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
+-- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
+-- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
+-- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
 import qualified Text.Regex.TDFA              as RE
 import           Unison.Codebase.Branch       (Branch0)
 import qualified Unison.Codebase.Branch       as Branch
@@ -66,8 +69,6 @@ fuzzyFindMatchArray query items render =
                           }
         RE.defaultExecOpt
         s
-  --todo: make regex case-insensitive using CompOption
-  -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA-String.html#v:execute
   -- Sort on:
   -- a. length of match group to find the most compact match
   -- b. start position of the match group to find the earliest match
