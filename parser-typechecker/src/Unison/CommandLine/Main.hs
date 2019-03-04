@@ -15,6 +15,8 @@ import           Control.Concurrent.STM            (atomically)
 import           Control.Exception                 (finally)
 import           Control.Monad.IO.Class            (MonadIO, liftIO)
 import           Control.Monad.Trans               (lift)
+import           Control.Monad.Trans.Maybe         (runMaybeT)
+import           Control.Monad.State               (runStateT)
 import           Data.IORef
 import           Data.Map                          (Map)
 import qualified Data.Map                          as Map
@@ -38,6 +40,7 @@ import           Unison.CommandLine.OutputMessages (notifyUser)
 import           Unison.Parser                     (Ann)
 import qualified Unison.Util.Pretty                as P
 import qualified Unison.Util.TQueue                as Q
+import qualified Unison.Util.Free                  as Free
 import           Unison.Var                        (Var)
 
 getUserInput
@@ -113,10 +116,15 @@ main dir currentBranchName _initialFile startRuntime codebase = do
           Runtime.terminate runtime
           cancelFileSystemWatch
           cancelWatchBranchUpdates
-    (`finally` cleanup)
-      $ E.commandLine awaitInput
-                           runtime
-                           (\b bn -> writeIORef branchRef (b, bn))
-                           (notifyUser dir)
-                           codebase
-      $ Actions.startLoop currentBranch currentBranchName
+        loop :: Actions.LoopState v -> IO ()
+        loop state = do
+          writeIORef branchRef (Actions._currentBranch state, Actions._currentBranchName state)
+          let
+            free :: Free.Free (E.Command (Either E.Event Input) v) (Maybe (), Actions.LoopState v)
+            free = runStateT (runMaybeT Actions.loop) state
+          (o, state') <-
+            E.commandLine awaitInput runtime (notifyUser dir) codebase free
+          case o of
+            Nothing -> pure ()
+            Just () -> loop state'
+    (`finally` cleanup) $ loop (Actions.loopState0 currentBranch currentBranchName)

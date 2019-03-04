@@ -13,13 +13,10 @@ import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad                  ( when, unless )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
-                                                , evalStateT
                                                 , get
                                                 )
 import           Control.Monad.Trans            ( lift )
-import           Control.Monad.Trans.Maybe      ( MaybeT(..)
-                                                , runMaybeT
-                                                )
+import           Control.Monad.Trans.Maybe      ( MaybeT(..))
 import           Data.Foldable                  ( foldl'
                                                 , toList
                                                 )
@@ -67,7 +64,7 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase as Codebase
 
-type Action i v = MaybeT (StateT (LoopState v) (Free (Command i v)))
+type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
 data LoopState v
   = LoopState
@@ -86,16 +83,13 @@ makeLenses ''LoopState
 loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing Nothing
 
-startLoop
-  :: Var v => Branch -> BranchName -> Free (Command (Either Event Input) v) ()
-startLoop = (loop .) . loopState0
+-- startLoop
+--   :: Var v => Branch -> BranchName -> Free (Command (Either Event Input) v) ()
+-- startLoop = (loop .) . loopState0
 
-loop
-  :: forall v . Var v => LoopState v -> Free (Command (Either Event Input) v) ()
-loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> get))) s
- where
-  go :: forall v . Var v => Action (Either Event Input) v ()
-  go = do
+loop :: forall v . Var v => Action (Either Event Input) v ()
+loop = do
+    s <- get
     uf                 <- use latestTypecheckedFile
     currentBranchName' <- use currentBranchName
     latestFile'        <- use latestFile
@@ -231,12 +225,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
             updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
             let branch' = updatedBranch updateo
             -- Don't bother doing anything if the branch is unchanged by the slurping
-            when (branch' /= currentBranch') $ do
-              -- This order is important - we tell the app state about the
-              -- branch change before doing the merge, so it knows to ignore
-              -- the file system event that is triggered by `doMerge`
-              eval $ SwitchBranch branch' currentBranchName'
-              doMerge currentBranchName' branch'
+            when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
             eval . Notify $ SlurpOutput updateo
             currentBranch .= branch'
         ListBranchesI ->
@@ -289,12 +278,10 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
       case branch of
         Nothing -> do
           let newBranch = Codebase.builtinBranch
-          eval $ SwitchBranch newBranch branchName
           _ <- eval $ NewBranch branchName
           currentBranch .= newBranch
           currentBranchName .= branchName
         Just branch -> do
-          eval $ SwitchBranch branch branchName
           currentBranch .= branch
           currentBranchName .= branchName
     quit = MaybeT $ pure Nothing
