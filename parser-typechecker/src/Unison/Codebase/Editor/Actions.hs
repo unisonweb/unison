@@ -191,26 +191,24 @@ loop = do
         ChooseUpdateForTermI _old _new -> error "todo"
         ChooseUpdateForTypeI _old _new -> error "todo"
         ListAllUpdatesI                -> error "todo"
-        AddTermNameI r name -> modifyCurrentBranch $
-          pure . Branch.modify (Branch.addTermName r name)
-        AddTypeNameI r name -> modifyCurrentBranch $ \b ->
-          pure $ Branch.modify (Branch.addTypeName r name) b
-        RemoveTermNameI r name -> modifyCurrentBranch $ \b ->
-          pure $ Branch.modify (Branch.deleteTermName r name) b
-        RemoveTypeNameI r name -> modifyCurrentBranch $ \b ->
-          pure $ Branch.modify (Branch.deleteTypeName r name) b
-        ChooseTermForNameI r name -> modifyCurrentBranch $ pure .
-          Branch.modify (Branch.addTermName r name .
-                         Branch.unnameAll Names.TermName name)
-        ChooseTypeForNameI r name -> modifyCurrentBranch $ pure .
-          Branch.modify (Branch.addTypeName r name .
-                         Branch.unnameAll Names.TypeName name)
+        AddTermNameI r name -> modifyCurrentBranch0 $
+          Branch.addTermName r name
+        AddTypeNameI r name -> modifyCurrentBranch0 $
+          Branch.addTypeName r name
+        RemoveTermNameI r name -> modifyCurrentBranch0 $
+          Branch.deleteTermName r name
+        RemoveTypeNameI r name -> modifyCurrentBranch0 $
+          Branch.deleteTypeName r name
+        ChooseTermForNameI r name -> modifyCurrentBranch0 $
+          Branch.addTermName r name . Branch.unnameAll Names.TermName name
+        ChooseTypeForNameI r name -> modifyCurrentBranch0 $
+          Branch.addTypeName r name . Branch.unnameAll Names.TypeName name
         AliasUnconflictedI targets existingName newName ->
           aliasUnconflicted targets existingName newName
         RenameUnconflictedI targets oldName newName ->
           renameUnconflicted targets oldName newName
-        UnnameAllI nameTarget name -> modifyCurrentBranch $ pure .
-          Branch.modify (Branch.unnameAll nameTarget name)
+        UnnameAllI nameTarget name -> modifyCurrentBranch0 $
+          Branch.unnameAll nameTarget name
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just uf' -> do
@@ -296,19 +294,18 @@ respond output = eval $ Notify output
 aliasUnconflicted
   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
 aliasUnconflicted nameTargets oldName newName =
-  modifyCurrentBranch $ \branch ->
-  let (branch', result) = foldl' go (branch, mempty) nameTargets
-       where
-      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-        Names.TermName ->
-          alias nameTarget Branch.termsNamed Branch.addTermName branch
-        Names.TypeName ->
-          alias nameTarget Branch.typesNamed Branch.addTypeName branch
-                          -- the RenameOutput action and setting the loop state
-  in do
+  modifyCurrentBranchM $ \branch ->
+    let (branch', result) = foldl' go (branch, mempty) nameTargets
+    in do
       respond $ AliasOutput oldName newName result
       pure $ branch'
- where
+  where
+  go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+     Names.TermName ->
+       alias nameTarget Branch.termsNamed Branch.addTermName branch
+     Names.TypeName ->
+       alias nameTarget Branch.typesNamed Branch.addTypeName branch
+                       -- the RenameOutput action and setting the loop state
   alias
     :: Foldable f
     => NameTarget
@@ -333,18 +330,18 @@ aliasUnconflicted nameTargets oldName newName =
 
 renameUnconflicted
   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
-renameUnconflicted nameTargets oldName newName = modifyCurrentBranch $ \branch ->
-  let (branch', result) = foldl' go (branch, mempty) nameTargets
-       where
-        go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-          Names.TermName ->
-            rename nameTarget Branch.termsNamed Branch.renameTerm branch
-          Names.TypeName ->
-            rename nameTarget Branch.typesNamed Branch.renameType branch
-  in do
-       respond $ RenameOutput oldName newName result
-       pure (branch' :: Branch)
+renameUnconflicted nameTargets oldName newName =
+  modifyCurrentBranchM $ \branch ->
+    let (branch', result) = foldl' go (branch, mempty) nameTargets
+    in do
+      respond $ RenameOutput oldName newName result
+      pure branch'
   where
+  go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+    Names.TermName ->
+      rename nameTarget Branch.termsNamed Branch.renameTerm branch
+    Names.TypeName ->
+      rename nameTarget Branch.typesNamed Branch.renameType branch
   rename
     :: Foldable f
     => NameTarget
@@ -376,8 +373,11 @@ merging targetBranchName b success =
   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
     targetBranchName
 
-modifyCurrentBranch :: (Branch -> Action i v Branch) -> Action i v ()
-modifyCurrentBranch f = do
+modifyCurrentBranch0 :: (Branch0 -> Branch0) -> Action i v ()
+modifyCurrentBranch0 f = modifyCurrentBranchM (\b -> pure $ Branch.modify f b)
+
+modifyCurrentBranchM :: (Branch -> Action i v Branch) -> Action i v ()
+modifyCurrentBranchM f = do
   b <- use currentBranch
   b' <- f b
   when (b /= b') $ do
