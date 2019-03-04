@@ -37,7 +37,7 @@ import qualified Unison.HashQualified     as HashQualified
 import qualified Unison.HashQualified     as HQ
 import qualified Unison.ShortHash         as SH
 import           Unison.Name              (Name)
-import           Unison.Names             (Names (..))
+import           Unison.Names             (Names (..), NameTarget)
 import qualified Unison.Name              as Name
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
@@ -870,6 +870,11 @@ deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
 
 deleteTypesNamed :: Name -> Branch0 -> Branch0
 deleteTypesNamed name = over (namespaceL . types) $ R.deleteDom name
+
+unnameAll :: NameTarget -> Name -> (Branch0 -> Branch0)
+unnameAll nameTarget name = case nameTarget of
+  Names.TermName -> deleteTermsNamed name
+  Names.TypeName -> deleteTypesNamed name
 
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch

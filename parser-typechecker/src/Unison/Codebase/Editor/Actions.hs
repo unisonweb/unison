@@ -10,7 +10,7 @@ module Unison.Codebase.Editor.Actions where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( when, unless )
+import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 , get
@@ -39,9 +39,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
-                                                  ( NameChangeResult
-                                                  , changedSuccessfully
-                                                  )
+                                                  ( NameChangeResult)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor         as Editor
@@ -53,7 +51,6 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                (Referent)
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
 import qualified Unison.Term as Term
@@ -194,28 +191,26 @@ loop = do
         ChooseUpdateForTermI _old _new -> error "todo"
         ChooseUpdateForTypeI _old _new -> error "todo"
         ListAllUpdatesI                -> error "todo"
-        AddTermNameI r name -> addTermName currentBranchName' success r name
-        AddTypeNameI r name -> addTypeName currentBranchName' success r name
-        RemoveTermNameI r name ->
-          updateBranch success currentBranchName'
-            . Branch.modify
-            $ Branch.deleteTermName r name
-        RemoveTypeNameI r name ->
-          updateBranch success currentBranchName'
-            . Branch.modify
-            $ Branch.deleteTypeName r name
-        ChooseTermForNameI r name ->
-          unnameAll currentBranchName' Names.TermName name
-            $ addTermName currentBranchName' success r name
-        ChooseTypeForNameI r name ->
-          unnameAll currentBranchName' Names.TypeName name
-            $ addTypeName currentBranchName' success r name
+        AddTermNameI r name -> modifyCurrentBranch $
+          pure . Branch.modify (Branch.addTermName r name)
+        AddTypeNameI r name -> modifyCurrentBranch $ \b ->
+          pure $ Branch.modify (Branch.addTypeName r name) b
+        RemoveTermNameI r name -> modifyCurrentBranch $ \b ->
+          pure $ Branch.modify (Branch.deleteTermName r name) b
+        RemoveTypeNameI r name -> modifyCurrentBranch $ \b ->
+          pure $ Branch.modify (Branch.deleteTypeName r name) b
+        ChooseTermForNameI r name -> modifyCurrentBranch $ pure .
+          Branch.modify (Branch.addTermName r name .
+                         Branch.unnameAll Names.TermName name)
+        ChooseTypeForNameI r name -> modifyCurrentBranch $ pure .
+          Branch.modify (Branch.addTypeName r name .
+                         Branch.unnameAll Names.TypeName name)
         AliasUnconflictedI targets existingName newName ->
-          aliasUnconflicted currentBranchName' targets existingName newName
+          aliasUnconflicted targets existingName newName
         RenameUnconflictedI targets oldName newName ->
-          renameUnconflicted currentBranchName' targets oldName newName
-        UnnameAllI nameTarget name ->
-          unnameAll currentBranchName' nameTarget name success
+          renameUnconflicted targets oldName newName
+        UnnameAllI nameTarget name -> modifyCurrentBranch $ pure .
+          Branch.modify (Branch.unnameAll nameTarget name)
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just uf' -> do
@@ -299,20 +294,20 @@ respond :: Output v -> Action i v ()
 respond output = eval $ Notify output
 
 aliasUnconflicted
-  :: forall i v . BranchName -> Set NameTarget -> Name -> Name -> Action i v ()
-aliasUnconflicted branchName nameTargets oldName newName = do
-  withBranch branchName $ \branch ->
-    let (branch', result) = foldl' go (branch, mempty) nameTargets
-         where
-        go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-          Names.TermName ->
-            alias nameTarget Branch.termsNamed Branch.addTermName branch
-          Names.TypeName ->
-            alias nameTarget Branch.typesNamed Branch.addTypeName branch
-                            -- the RenameOutput action and setting the loop state
-    in  do
-          respond $ AliasOutput oldName newName result
-          unless (null $ changedSuccessfully result) $ currentBranch .= branch'
+  :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
+aliasUnconflicted nameTargets oldName newName =
+  modifyCurrentBranch $ \branch ->
+  let (branch', result) = foldl' go (branch, mempty) nameTargets
+       where
+      go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+        Names.TermName ->
+          alias nameTarget Branch.termsNamed Branch.addTermName branch
+        Names.TypeName ->
+          alias nameTarget Branch.typesNamed Branch.addTypeName branch
+                          -- the RenameOutput action and setting the loop state
+  in do
+      respond $ AliasOutput oldName newName result
+      pure $ branch'
  where
   alias
     :: Foldable f
@@ -337,20 +332,19 @@ aliasUnconflicted branchName nameTargets oldName newName = do
             b = if newNameExists then Set.singleton nameTarget else mempty
 
 renameUnconflicted
-  :: forall i v . BranchName -> Set NameTarget -> Name -> Name -> Action i v ()
-renameUnconflicted branchName nameTargets oldName newName = do
-  withBranch branchName $ \branch ->
-    let (branch', result) = foldl' go (branch, mempty) nameTargets
-         where
-          go (branch, result) nameTarget = (result <>) <$> case nameTarget of
-            Names.TermName ->
-              rename nameTarget Branch.termsNamed Branch.renameTerm branch
-            Names.TypeName ->
-              rename nameTarget Branch.typesNamed Branch.renameType branch
-    in  do
-          respond $ RenameOutput oldName newName result
-          unless (null $ changedSuccessfully result) $ currentBranch .= branch'
- where
+  :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
+renameUnconflicted nameTargets oldName newName = modifyCurrentBranch $ \branch ->
+  let (branch', result) = foldl' go (branch, mempty) nameTargets
+       where
+        go (branch, result) nameTarget = (result <>) <$> case nameTarget of
+          Names.TermName ->
+            rename nameTarget Branch.termsNamed Branch.renameTerm branch
+          Names.TypeName ->
+            rename nameTarget Branch.typesNamed Branch.renameType branch
+  in do
+       respond $ RenameOutput oldName newName result
+       pure (branch' :: Branch)
+  where
   rename
     :: Foldable f
     => NameTarget
@@ -377,26 +371,16 @@ renameUnconflicted branchName nameTargets oldName newName = do
               mempty
             )
 
-unnameAll :: BranchName -> NameTarget -> Name -> Action i v () -> Action i v ()
-unnameAll branchName nameTarget name success =
-  updateBranch success branchName $ case nameTarget of
-    Names.TermName -> Branch.modify (Branch.deleteTermsNamed name)
-    Names.TypeName -> Branch.modify (Branch.deleteTypesNamed name)
-
-addTermName :: BranchName -> Action i v () -> Referent -> Name -> Action i v ()
-addTermName branchName success r name =
-  updateBranch success branchName . Branch.modify $ Branch.addTermName r name
-
-addTypeName :: BranchName -> Action i v () -> Reference -> Name -> Action i v ()
-addTypeName branchName success r name =
-  updateBranch success branchName . Branch.modify $ Branch.addTypeName r name
-
 merging :: BranchName -> Branch -> Action i v () -> Action i v ()
 merging targetBranchName b success =
   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
     targetBranchName
 
-updateBranch
-  :: Action i v () -> BranchName -> (Branch -> Branch) -> Action i v ()
-updateBranch success branchName f =
-  withBranch branchName $ \b -> merging branchName (f b) success
+modifyCurrentBranch :: (Branch -> Action i v Branch) -> Action i v ()
+modifyCurrentBranch f = do
+  b <- use currentBranch
+  b' <- f b
+  when (b /= b') $ do
+    branchName <- use currentBranchName
+    worked <- eval $ SyncBranch branchName b'
+    when worked (currentBranch .= b')
