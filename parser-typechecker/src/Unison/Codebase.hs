@@ -85,9 +85,10 @@ data Codebase m v a =
 
            , branches           :: m [BranchName]
            , getBranch          :: BranchName -> m (Maybe Branch)
-           -- thought: this merges the given branch with the existing branch
-           -- or creates a new branch if there's no branch with that name
-           , mergeBranch        :: BranchName -> Branch -> m Branch
+           -- thought: this merges the given branch history with an existing
+           -- branch on disk, or creates a new branch if there's no existing
+           -- branch with that name
+           , syncBranch         :: BranchName -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)

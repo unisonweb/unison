@@ -337,7 +337,7 @@ data Command i v a where
 
   -- Merges the branch with the existing branch with the given name. Returns
   -- `False` if no branch with that name exists, `True` otherwise.
-  MergeBranch :: BranchName -> Branch -> Command i v Bool
+  SyncBranch :: BranchName -> Branch -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
@@ -621,12 +621,12 @@ forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 forkBranch codebase branch branchName = do
   ifM (Codebase.branchExists codebase branchName)
       (pure False)
-      ((branch ==) <$> Codebase.mergeBranch codebase branchName branch)
+      ((branch ==) <$> Codebase.syncBranch codebase branchName branch)
 
-mergeBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
-mergeBranch codebase branch branchName = ifM
+syncBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+syncBranch codebase branch branchName = ifM
   (Codebase.branchExists codebase branchName)
-  (Codebase.mergeBranch codebase branchName branch *> pure True)
+  (Codebase.syncBranch codebase branchName branch *> pure True)
   (pure False)
 
 -- Returns terms and types, respectively. For terms that are
@@ -677,7 +677,7 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
-    MergeBranch branchName branch     -> mergeBranch codebase branch branchName
+    SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     SwitchBranch branch branchName    -> branchChange branch branchName
     SearchBranch (Branch.head -> branch) queries -> do

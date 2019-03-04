@@ -85,7 +85,7 @@ main dir currentBranchName _initialFile startRuntime codebase = do
   eventQueue    <- Q.newIO
   currentBranch <- case currentBranch of
     Nothing ->
-      Codebase.mergeBranch codebase currentBranchName Codebase.builtinBranch
+      Codebase.syncBranch codebase currentBranchName Codebase.builtinBranch
         <* (  putStrLn
            $  "☝️  I found no branch named '"
            <> Text.unpack currentBranchName

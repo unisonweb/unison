@@ -250,7 +250,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           withBranch inputBranchName $ \branch -> do
             let merged0 = branch <> currentBranch'
             merged <- eval $ Propagate merged0
-            ok     <- eval $ MergeBranch currentBranchName' merged
+            ok     <- eval $ SyncBranch currentBranchName' merged
             if ok
               then do
                 todo <- eval $ Todo merged
@@ -262,7 +262,7 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
           eval (Todo currentBranch') >>= respond . TodoOutput currentBranch'
         PropagateI -> do
           b <- eval . Propagate $ currentBranch'
-          _ <- eval $ MergeBranch currentBranchName' b
+          _ <- eval $ SyncBranch currentBranchName' b
           _ <- success
           currentBranch .= b
         -- ExecuteI name args ->
@@ -273,12 +273,11 @@ loop s = Free.unfold' (evalStateT (maybe (Left ()) Right <$> runMaybeT (go *> ge
         outputSuccess = eval . Notify $ Success input
    where
     doMerge branchName b = do
-      updated <- doMerge0 branchName b
+      updated <- eval $ SyncBranch branchName b
       when (not updated) $ do
         _       <- eval $ NewBranch branchName
-        updated <- doMerge0 branchName b
+        updated <- eval $ SyncBranch branchName b
         when (not updated) (disappearingBranchBomb branchName)
-    doMerge0 = (eval .) . MergeBranch
     disappearingBranchBomb branchName =
       error
         $  "The branch named "
@@ -407,7 +406,7 @@ addTypeName branchName success r name =
 
 merging :: BranchName -> Branch -> Action i v () -> Action i v ()
 merging targetBranchName b success =
-  ifM (eval $ MergeBranch targetBranchName b) success . respond $ UnknownBranch
+  ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
     targetBranchName
 
 updateBranch
