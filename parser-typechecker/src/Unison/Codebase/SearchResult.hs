@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.SearchResult where
 
@@ -21,6 +22,9 @@ data TypeResult = TypeResult
   , reference   :: Reference
   , typeAliases :: Set HashQualified
   } deriving (Eq, Ord, Show)
+
+pattern Tm' n r as = Tm (TermResult n r as)
+pattern Tp' n r as = Tp (TypeResult n r as)
 
 termResult :: HashQualified -> Referent -> Set HashQualified -> SearchResult
 termResult hq r as = Tm (TermResult hq r as)

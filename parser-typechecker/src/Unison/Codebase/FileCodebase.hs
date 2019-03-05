@@ -190,7 +190,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
       putTerm h e typ = do
         S.putWithParentDirs (V0.putTerm putV putA) (termPath path h) e
         S.putWithParentDirs (V0.putType putV putA) (typePath path h) typ
-        let declDependencies = Term.referencedDataDeclarations e
+        let declDependencies :: Set Reference
+            declDependencies = Term.referencedDataDeclarations e
               <> Term.referencedEffectDeclarations e
         -- Add the term as a dependent of its dependencies
         traverse_ (touchDependentFile h . termDir path)
