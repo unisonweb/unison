@@ -454,9 +454,11 @@ run ioHandler env ir = do
       (Sequence args, PatternSequence pats) ->
         join <$> traverse tryCase (zip (toList args) (toList pats))
       (Pure v, PatternPure p) -> tryCase (v, p)
+      (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
         when' (r == r2 && cid == cid2) $
           join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+      (Requested _, PatternPure _) -> Nothing
       (v, PatternAs p) -> (v:) <$> tryCase (v,p)
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]
