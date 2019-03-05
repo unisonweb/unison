@@ -26,6 +26,7 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
 import Debug.Trace
+import Unison.NamePrinter (prettyHashQualified)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
@@ -34,6 +35,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Pattern as Pattern
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
@@ -193,6 +195,124 @@ data IR' z
   -- pattern, optional guard, rhs
   | Match z [(Pattern, [Symbol], Maybe (IR' z), (IR' z))]
   deriving (Functor,Foldable,Traversable,Eq,Show)
+
+prettyZ :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> Z e -> P.Pretty String
+prettyZ ppe prettyE z = case z of
+  Slot i -> "@" <> P.shown i
+  LazySlot i -> "'@" <> P.shown i
+  Val v -> prettyValue ppe prettyE v
+  External e -> "External" `P.hang` prettyE e
+
+prettyIR :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> IR e -> P.Pretty String
+prettyIR ppe prettyE ir = case ir of
+  Leaf z -> pz z
+  AddI a b -> P.parenthesize $ "AddI" `P.hang` P.spaced [pz a, pz b]
+  SubI a b -> P.parenthesize $ "SubI" `P.hang` P.spaced [pz a, pz b]
+  MultI a b -> P.parenthesize $ "MultI" `P.hang` P.spaced [pz a, pz b]
+  DivI a b -> P.parenthesize $ "DivI" `P.hang` P.spaced [pz a, pz b]
+  GtI a b -> P.parenthesize $ "GtI" `P.hang` P.spaced [pz a, pz b]
+  LtI a b -> P.parenthesize $ "LtI" `P.hang` P.spaced [pz a, pz b]
+  GtEqI a b -> P.parenthesize $ "GtEqI" `P.hang` P.spaced [pz a, pz b]
+  LtEqI a b -> P.parenthesize $ "LtEqI" `P.hang` P.spaced [pz a, pz b]
+  EqI a b -> P.parenthesize $ "EqI" `P.hang` P.spaced [pz a, pz b]
+  SignumI a -> P.parenthesize $ "SignumI" `P.hang` P.spaced [pz a]
+  NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
+  ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
+
+  AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
+  SubN a b -> P.parenthesize $ "SubN" `P.hang` P.spaced [pz a, pz b]
+  DropN a b -> P.parenthesize $ "DropN" `P.hang` P.spaced [pz a, pz b]
+  MultN a b -> P.parenthesize $ "MultN" `P.hang` P.spaced [pz a, pz b]
+  DivN a b -> P.parenthesize $ "DivN" `P.hang` P.spaced [pz a, pz b]
+  GtN a b -> P.parenthesize $ "GtN" `P.hang` P.spaced [pz a, pz b]
+  LtN a b -> P.parenthesize $ "LtN" `P.hang` P.spaced [pz a, pz b]
+  GtEqN a b -> P.parenthesize $ "GtEqN" `P.hang` P.spaced [pz a, pz b]
+  LtEqN a b -> P.parenthesize $ "LtEqN" `P.hang` P.spaced [pz a, pz b]
+  EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
+  ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
+
+  AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
+  SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
+  MultF a b -> P.parenthesize $ "MultF" `P.hang` P.spaced [pz a, pz b]
+  DivF a b -> P.parenthesize $ "DivF" `P.hang` P.spaced [pz a, pz b]
+  GtF a b -> P.parenthesize $ "GtF" `P.hang` P.spaced [pz a, pz b]
+  LtF a b -> P.parenthesize $ "LtF" `P.hang` P.spaced [pz a, pz b]
+  GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
+  LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
+  EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
+  ir @ (Let _ _ _) ->
+    P.parenthesize $ "let" `P.hang` P.lines (blockElem <$> block)
+    where
+    block = unlets ir
+    blockElem (Nothing, binding) = pir binding
+    blockElem (Just name, binding) =
+      (P.shown name <> " =") `P.hang` pir binding
+  LetRec bs body -> P.parenthesize $ "letrec" `P.hang` P.lines ls
+    where
+    blockElem (Nothing, binding) = pir binding
+    blockElem (Just name, binding) =
+      (P.shown name <> " =") `P.hang` pir binding
+    ls = fmap blockElem $ [ (Just n, ir) | (n,ir) <- bs ]
+                       ++ [(Nothing, body)]
+  MakeSequence vs -> P.group $
+    P.surroundCommas "[" "]" (pz <$> vs)
+  Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
+  Construct r cid args -> P.parenthesize $
+    ("Construct " <> prettyHashQualified (PPE.patternName ppe r cid))
+    `P.hang`
+    P.surroundCommas "[" "]" (pz <$> args)
+  Request r cid args -> P.parenthesize $
+    ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+    `P.hang`
+    P.surroundCommas "[" "]" (pz <$> args)
+  Handle h body -> P.parenthesize $
+    "Handle" `P.hang` P.spaced [pz h, pir body]
+  If cond t f -> P.parenthesize $
+    ("If " <> pz cond) `P.hang` P.spaced [pir t, pir f]
+  And x y -> P.parenthesize $ "And" `P.hang` P.spaced [pz x, pir y]
+  Or x y -> P.parenthesize $ "Or" `P.hang` P.spaced [pz x, pir y]
+  Not x -> P.parenthesize $ "Not" `P.hang` pz x
+  Match scrute cases -> P.parenthesize $
+    P.group ("Match " <> pz scrute) `P.hang` P.lines (pcase <$> cases)
+    where
+    pcase (pat, vs, guard, rhs) = let
+      lhs = P.spaced . P.nonEmpty $
+              [ P.parenthesize (P.shown pat), P.shown vs, maybe mempty pir guard ]
+      in (lhs <> " ->" `P.hang` pir rhs)
+  where
+  unlets (Let s hd tl) = (Just s, hd) : unlets tl
+  unlets e = [(Nothing, e)]
+  pz = prettyZ ppe prettyE
+  pir = prettyIR ppe prettyE
+
+prettyValue :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> Value e -> P.Pretty String
+prettyValue ppe prettyE v = case v of
+  I i -> (if i >= 0 then "+" else "" ) <> P.string (show i)
+  F d -> P.shown d
+  N n -> P.shown n
+  B b -> if b then "true" else "false"
+  T t -> P.shown t
+  Lam arity _u b -> P.parenthesize $
+    ("Lambda " <> P.string (show arity)) `P.hang`
+      prettyIR ppe prettyE b
+  Data r cid vs -> P.parenthesize $
+    ("Data " <> prettyHashQualified (PPE.patternName ppe r cid)) `P.hang`
+      P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs)
+  Sequence vs -> P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs)
+  Ref id name _ -> P.parenthesize $
+    P.sep " " ["Ref", P.shown id, P.shown name]
+  Pure v -> P.surroundCommas "{" "}" [prettyValue ppe prettyE v]
+  Requested (Req r cid vs cont) -> P.parenthesize $
+    ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      `P.hang`
+      P.spaced [
+        P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs),
+        prettyIR ppe prettyE cont
+      ]
+  Cont ir -> P.parenthesize $
+    "Cont" `P.hang` prettyIR ppe prettyE ir
+  UninitializedLetRecSlot s _ _ -> P.parenthesize $
+    "Uninitialized " <> P.shown s
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack

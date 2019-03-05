@@ -50,11 +50,13 @@ module Unison.Util.Pretty (
    rightPad,
    sep,
    sepSpaced,
+   shown,
    softbreak,
    spaceIfBreak,
-   spacesIfBreak,
    spaced,
    spacedMap,
+   spacesIfBreak,
+   string,
    surroundCommas,
    text,
    toANSI,
@@ -324,6 +326,12 @@ align' rows = alignedRows
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
+
+string :: IsString s => String -> Pretty s
+string = fromString
+
+shown :: (Show a, IsString s) => a -> Pretty s
+shown = fromString . show
 
 hang'
   :: (LL.ListLike s Char, IsString s)

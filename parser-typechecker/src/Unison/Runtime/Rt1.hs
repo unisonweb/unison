@@ -36,7 +36,10 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
+
+import qualified Unison.Util.Pretty as P
 import Debug.Trace
+import Unison.Util.Monoid (intercalateMap)
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction
 type IR = IR.IR ExternalFunction
@@ -272,13 +275,17 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IR
     -> IO Result
 run ioHandler env ir = do
+  traceM $ "Running this program"
+  traceM $
+    -- if we had a PrettyPrintEnv, we could use that here
+    let pexternal (ExternalFunction r _) = P.shown r
+    in P.render 80 (prettyIR mempty pexternal ir)
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
-
     -- TODO:
     -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
@@ -319,6 +326,7 @@ run ioHandler env ir = do
         h <- at size handler m
         runHandler size m h body
       Apply fn args -> do
+        traceM $ "calling function: " <> take 50 (show fn)
         RDone fn <- go size m fn -- ANF should ensure this match is OK
         fn <- force fn
         call size m fn args
@@ -437,8 +445,14 @@ run ioHandler env ir = do
       v <- at size arg m
       m <- push size v m
       go (size + 1) m ir
-    call _ _ fn args =
-      error $ "type error - tried to apply a non-function: " <> show (fn, args)
+    call size m fn args = do
+      s0 <- traverse (MV.read m) [0..size-1]
+      let s = [(0::Int)..] `zip` reverse s0
+      error $ "type error - tried to apply a non-function: " <>
+        show fn <> " " <> show args <> "\n" <>
+        "[\n  " <>
+           intercalateMap "\n  " (\(i,v) -> "Slot " <> show i <> ": " <> take 50 (show v)) s
+           <> "\n]"
 
     -- Just = match success, Nothing = match fail
     tryCase :: (Value, Pattern) -> Maybe [Value]
