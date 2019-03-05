@@ -19,7 +19,12 @@ unzing z = case z of
 -- sequence1 = handle unzing in [Zing.zing 1 4]
 
 -- gives incorrect results
-sequence2 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4]
+sequence2 = handle unzing in
+  zonk = Zing.zing 1
+  subtract10 = Zing.zing 10
+  -- zonk somehow refers to subtract10 here
+  zoot = zonk
+  [zoot 40]
 
 -- bombs
 -- sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]

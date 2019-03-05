@@ -25,7 +25,6 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
-import Debug.Trace
 import Unison.NamePrinter (prettyHashQualified)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
@@ -43,6 +42,7 @@ import qualified Unison.TermPrinter as TP
 import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
+-- import Debug.Trace
 
 type Pos = Int
 type Arity = Int
@@ -391,10 +391,10 @@ compile0 env bound t =
     -- they may reflect shadowing).
     let wrangle vars = ((,Nothing) <$> vars) ++ bound
         t0 = ANF.fromTerm' makeLazy t
-        msg = "ANF form:\n" <>
+        _msg = "ANF form:\n" <>
                TP.pretty' (Just 80) mempty t0 <>
                "\n---------"
-    in go (wrangle <$> trace msg (ABT.annotateBound' t0))
+    in go (wrangle <$> ABT.annotateBound' t0)
   else
     error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
