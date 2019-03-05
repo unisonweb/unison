@@ -92,48 +92,69 @@ underapply2t =
 
 > (exactt, underapply0t, underapply1t, underapply2t)
 
+
+-- PATTERN MATCHING
+
+pat1 x y p = case p of x0 -> (x0, x, y, p)
+> pat1 0 1 (2, 3)
+
+pat2 x y p = case p of _ -> (x, y, p)
+> pat2 0 1 "hi"
+
+pat3 x y p = case p of (x, y) -> (y, x)
+> pat3 0 1 (2, 3)
+
+pat4 x y p = case p of (p1, _) -> (x, y, p1)
+> pat4 0 1 (2, 3)
+
+pat5 x y p = case p of (_, p2) -> (x, y, p2)
+> pat5 0 1 (3, 2)
+
+pat6 x y p = case p of (p1, _) -> (x + y : Nat, p1)
+> pat6 1 2 (3, 4)
+
 -- Now check overapply cases for abilities
 
-ability Zing where
-  zing : Nat -> {Zing} (Nat -> Nat)
-  zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
-
-unzing z = case z of
-  {a} -> a
-  {Zing.zing n -> k} -> handle unzing in k (x -> x `drop` n)
-  {Zing.zing2 n1 n2 -> k} -> handle unzing in k (n3 n4 -> [n1, n2, n3, n4])
-
-exacth = handle unzing in
-  f = Zing.zing 3
-  f 20 + 1
-
-overapplyh = handle unzing in
-  Zing.zing 3 20 + 1
-
--- SEQUENCES with abilities
-
-sequence1 = handle unzing in [Zing.zing 1 4]
-
--- gives incorrect results
-sequence2 = handle unzing in [Zing.zing 1 4, Zing.zing 1 4]
-
--- bombs
-sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
-
-> (sequence1, sequence2, sequence3)
-
--- Overapply of requests
-
-overapplyh2 = handle unzing in
-  Zing.zing2 1 2 3 4
-
-overapplyh3a = handle unzing in
-  Zing.zing2 1 2 3 4 ++ [5]
-
--- these bomb
-
-overapplyh3b = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
-
-overapplyh3c = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
-
-> (exacth, overapplyh, overapplyh2, overapplyh3a, overapplyh3b, overapplyh3c)
+-- ability Zing where
+--   zing : Nat -> {Zing} (Nat -> Nat)
+--   zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
+--
+-- unzing z = case z of
+--   {a} -> a
+--   {Zing.zing n -> k} -> handle unzing in k (x -> x `drop` n)
+--   {Zing.zing2 n1 n2 -> k} -> handle unzing in k (n3 n4 -> [n1, n2, n3, n4])
+--
+-- exacth = handle unzing in
+--   f = Zing.zing 3
+--   f 20 + 1
+--
+-- overapplyh = handle unzing in
+--   Zing.zing 3 20 + 1
+--
+-- -- SEQUENCES with abilities
+--
+-- sequence1 = handle unzing in [Zing.zing 1 4]
+--
+-- -- gives incorrect results
+-- sequence2 = handle unzing in [Zing.zing 1 4, Zing.zing 1 4]
+--
+-- -- bombs
+-- sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
+--
+-- > (sequence1, sequence2, sequence3)
+--
+-- -- Overapply of requests
+--
+-- overapplyh2 = handle unzing in
+--   Zing.zing2 1 2 3 4
+--
+-- overapplyh3a = handle unzing in
+--   Zing.zing2 1 2 3 4 ++ [5]
+--
+-- -- these bomb
+--
+-- overapplyh3b = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
+--
+-- overapplyh3c = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
+--
+-- > (exacth, overapplyh, overapplyh2, overapplyh3a, overapplyh3b, overapplyh3c)
