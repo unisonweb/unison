@@ -241,13 +241,13 @@ prettyIR ppe prettyE ir = case ir of
   LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
   EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
   ir @ (Let _ _ _) ->
-    P.parenthesize $ "let" `P.hang` P.lines (blockElem <$> block)
+    P.group $ "let" `P.hang` P.lines (blockElem <$> block)
     where
     block = unlets ir
     blockElem (Nothing, binding) = pir binding
     blockElem (Just name, binding) =
       (P.shown name <> " =") `P.hang` pir binding
-  LetRec bs body -> P.parenthesize $ "letrec" `P.hang` P.lines ls
+  LetRec bs body -> P.group $ "letrec" `P.hang` P.lines ls
     where
     blockElem (Nothing, binding) = pir binding
     blockElem (Just name, binding) =
@@ -266,7 +266,7 @@ prettyIR ppe prettyE ir = case ir of
     `P.hang`
     P.surroundCommas "[" "]" (pz <$> args)
   Handle h body -> P.parenthesize $
-    "Handle" `P.hang` P.spaced [pz h, pir body]
+    P.group ("Handle " <> pz h) `P.hang` pir body
   If cond t f -> P.parenthesize $
     ("If " <> pz cond) `P.hang` P.spaced [pir t, pir f]
   And x y -> P.parenthesize $ "And" `P.hang` P.spaced [pz x, pir y]

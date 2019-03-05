@@ -22,9 +22,9 @@ import qualified Unison.ABT as ABT
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 import Unison.Typechecker.Components (minimize')
-import Debug.Trace
-import qualified Unison.TermPrinter as TP
-import qualified Unison.Util.Pretty as P
+-- import Debug.Trace
+-- import qualified Unison.TermPrinter as TP
+-- import qualified Unison.Util.Pretty as P
 
 newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 
@@ -39,8 +39,7 @@ newtype ANF v a = ANF_ { term :: Term.AnnotatedTerm v a }
 -- The transformation is shallow and doesn't transform the body of
 -- lambdas it finds inside of `t`.
 lambdaLift :: (Var v, Semigroup a) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
-lambdaLift liftVar t =
-  trace ("lambdaLift:\n" <> P.render 80 (TP.prettyTop mempty result) <> "\n") result where
+lambdaLift liftVar t = result where
   result = ABT.visitPure go t
   go t@(LamsNamed' vs body) = Just $ let
     fvs = ABT.freeVars t

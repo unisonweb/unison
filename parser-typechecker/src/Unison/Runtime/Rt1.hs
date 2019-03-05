@@ -326,7 +326,6 @@ run ioHandler env ir = do
         h <- at size handler m
         runHandler size m h body
       Apply fn args -> do
-        traceM $ "calling function: " <> take 50 (show fn)
         RDone fn <- go size m fn -- ANF should ensure this match is OK
         fn <- force fn
         call size m fn args
@@ -391,7 +390,7 @@ run ioHandler env ir = do
       r -> pure r
 
     call :: Size -> Stack -> Value -> [Z] -> IO Result
-    call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
+    -- call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
       if nargs == arity then do
