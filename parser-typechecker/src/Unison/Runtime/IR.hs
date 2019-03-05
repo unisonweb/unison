@@ -15,7 +15,6 @@ module Unison.Runtime.IR where
 
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
-import Debug.Trace
 import Data.Foldable
 import Data.Functor (void)
 import Data.IORef
@@ -26,12 +25,11 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
+import Debug.Trace
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
-import qualified Unison.Util.Pretty as P
-import qualified Unison.TermPrinter as TP
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -39,7 +37,9 @@ import qualified Unison.Pattern as Pattern
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
+import qualified Unison.TermPrinter as TP
 import qualified Unison.Type as Type
+import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 
 type Pos = Int
@@ -244,7 +244,8 @@ specializeIR env ir = let
   in go <$> ir'
 
 compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
-compile env t = compile0 env [] (Term.vmap toSymbolC t)
+compile env t = compile0 env []
+  (ABT.rewriteDown ANF.minimizeCyclesOrCrash $ Term.vmap toSymbolC t)
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =

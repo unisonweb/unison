@@ -6,7 +6,7 @@
 {-# Language PatternSynonyms #-}
 {-# Language ScopedTypeVariables #-}
 
-module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term) where
+module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, minimizeCyclesOrCrash) where
 
 import Data.Bifunctor (second)
 import Data.Foldable hiding (and,or)
@@ -90,17 +90,17 @@ isLeaf (Boolean' _) = True
 isLeaf (Constructor' _ _) = True
 isLeaf _ = False
 
-fromTerm' :: (Monoid a, Var v) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
-fromTerm' liftVar t = term (fromTerm liftVar t)
-
 minimizeCyclesOrCrash :: Var v => AnnotatedTerm v a -> AnnotatedTerm v a
 minimizeCyclesOrCrash t = case minimize' t of
   Right t -> t
   Left e -> error $ "tried to minimize let rec with duplicate definitions: "
                  ++ show (fst <$> toList e)
 
+fromTerm' :: (Monoid a, Var v) => (v -> v) -> AnnotatedTerm v a -> AnnotatedTerm v a
+fromTerm' liftVar t = term (fromTerm liftVar t)
+
 fromTerm :: forall a v . (Monoid a, Var v) => (v -> v) -> AnnotatedTerm v a -> ANF v a
-fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar (minimizeCyclesOrCrash t)) where
+fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   ann = ABT.annotation
   isRef (Ref' _) = True
   isRef _ = False
