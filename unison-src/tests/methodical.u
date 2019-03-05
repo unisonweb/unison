@@ -118,6 +118,24 @@ pat7 x y p = case p of
   (p1, _) | true    -> (0, p1)
 > pat7 1 2 (20, 10)
 
+-- ABILITIES
+
+ability A where
+  woot : {A} Nat
+
+unA w = case w of
+  {a} -> a
+  {A.woot -> k} -> handle unA in k 10
+
+-- This verifies that the continuation captures local variables
+a1 = handle unA in
+  x = 42
+  y = A.woot
+  z = x + 1
+  z
+
+> a1 -- should be 43
+
 -- Now check overapply cases for abilities
 
 -- ability Zing where
