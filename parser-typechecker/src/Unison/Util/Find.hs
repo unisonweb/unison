@@ -22,6 +22,7 @@ import qualified Unison.Codebase.SearchResult as SR
 import           Unison.HashQualified         (HashQualified)
 import qualified Unison.HashQualified         as HQ
 import qualified Unison.Name                  as Name
+import           Unison.NamePrinter           (prettyHashQualified)
 import qualified Unison.Reference             as Reference
 import qualified Unison.Referent              as Referent
 import qualified Unison.ShortHash             as SH
@@ -80,15 +81,14 @@ fuzzyFindInBranch :: Branch0
                   -> HashQualified
                   -> [(SearchResult, P.Pretty P.ColorText)]
 fuzzyFindInBranch b hq =
-  namedResults <>
-  anonymousResults
-  where
-  namedResults = case HQ.toName hq of
+  case HQ.toName hq of
     Just (Name.toString -> n) ->
       fuzzyFinder' n candidates
         (fromJust . fmap Name.toString . HQ.toName . SR.name)
-    Nothing -> []
-  anonymousResults = [] -- "todo"
+    Nothing -> fmap getName candidates
+    where
+  where
+  getName sr = (sr, prettyHashQualified (SR.name sr))
   candidates = typeCandidates <> termCandidates
   -- filter branch by hash
   typeCandidates =
