@@ -86,7 +86,6 @@ fuzzyFindInBranch b hq =
       fuzzyFinder' n candidates
         (fromJust . fmap Name.toString . HQ.toName . SR.name)
     Nothing -> fmap getName candidates
-    where
   where
   getName sr = (sr, prettyHashQualified (SR.name sr))
   candidates = typeCandidates <> termCandidates
