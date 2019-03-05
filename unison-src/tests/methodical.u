@@ -98,29 +98,42 @@ ability Zing where
   zing : Nat -> {Zing} (Nat -> Nat)
   zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
 
-handler z = case z of
+unzing z = case z of
   {a} -> a
-  {Zing.zing n -> k} -> handle handler in k (x -> x `drop` n)
-  {Zing.zing2 n1 n2 -> k} -> handle handler in k (n3 n4 -> [n1, n2, n3, n4])
+  {Zing.zing n -> k} -> handle unzing in k (x -> x `drop` n)
+  {Zing.zing2 n1 n2 -> k} -> handle unzing in k (n3 n4 -> [n1, n2, n3, n4])
 
-exacth = handle handler in
+exacth = handle unzing in
   f = Zing.zing 3
   f 20 + 1
 
-overapplyh = handle handler in
+overapplyh = handle unzing in
   Zing.zing 3 20 + 1
 
-overapplyh2 = handle handler in
+-- SEQUENCES with abilities
+
+sequence1 = handle unzing in [Zing.zing 1 4]
+
+-- gives incorrect results
+sequence2 = handle unzing in [Zing.zing 1 4, Zing.zing 1 4]
+
+-- bombs
+sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
+
+> (sequence1, sequence2, sequence3)
+
+-- Overapply of requests
+
+overapplyh2 = handle unzing in
   Zing.zing2 1 2 3 4
 
-overapplyh3a = handle handler in
+overapplyh3a = handle unzing in
   Zing.zing2 1 2 3 4 ++ [5]
 
--- overapplyh3b = handle handler in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
+-- these bomb
 
--- overapplyh3c = handle handler in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
+overapplyh3b = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 8]
 
-> (exacth, overapplyh, overapplyh2, overapplyh3a)
+overapplyh3c = handle unzing in Zing.zing2 1 2 3 4 ++ [5, Zing.zing 2 7 + 1]
 
---
-
+> (exacth, overapplyh, overapplyh2, overapplyh3a, overapplyh3b, overapplyh3c)
