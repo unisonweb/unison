@@ -189,7 +189,6 @@ render availableWidth p = go mempty [Right p] where
 newline :: IsString s => Pretty s
 newline = "\n"
 
-
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
 

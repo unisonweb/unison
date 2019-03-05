@@ -176,22 +176,22 @@ data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
 
 data SearchResult' v a
-  = Tm'' (TermResult' v a)
-  | Tp'' (TypeResult' v a)
+  = Tm' (TermResult' v a)
+  | Tp' (TypeResult' v a)
   deriving (Eq, Show)
 data TermResult' v a =
-  TermResult'' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
+  TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
   deriving (Eq, Show)
 data TypeResult' v a =
-  TypeResult'' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
+  TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
   deriving (Eq, Show)
-pattern Tm h t r as = Tm'' (TermResult'' h t r as)
-pattern Tp h t r as = Tp'' (TypeResult'' h t r as)
+pattern Tm h t r as = Tm' (TermResult' h t r as)
+pattern Tp h t r as = Tp' (TypeResult' h t r as)
 
 searchResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
 searchResult' f g = \case
-  Tm'' tm -> f tm
-  Tp'' tp -> g tp
+  Tm' tm -> f tm
+  Tp' tp -> g tp
 
 data Output v
   = Success Input

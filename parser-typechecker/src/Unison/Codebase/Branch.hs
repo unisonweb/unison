@@ -273,45 +273,18 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
--- todo: audit uses of these functions
-allNamesHashQualified :: Branch0 -> Set HashQualified
-allNamesHashQualified b =
-  Set.union (allTermsHashQualified b) (allTypesHashQualified b)
-
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
--- lookup fullHQ and shortHQ values by Referent
-hashQualifiedMaps :: Branch0
-                  -> (Map Referent (HashQualified, HashQualified)
-                     ,Map Reference (HashQualified, HashQualified))
-hashQualifiedMaps b =
-  let hashLen = numHashChars b
-      goTerm m (name, r) =
-        let fullHQ = HQ.fromNamedReferent name r
-            shortHQ = HQ.take hashLen fullHQ
-        in Map.insert r (fullHQ, shortHQ) m
-      goType m (name, r) =
-        let fullHQ = HQ.fromNamedReference name r
-            shortHQ = HQ.take hashLen fullHQ
-        in Map.insert r (fullHQ, shortHQ) m
-  in (foldl' goTerm mempty (R.toList $ termNamespace b)
-     ,foldl' goType mempty (R.toList $ typeNamespace b))
-
-allTermsHashQualified :: Branch0 -> Set HashQualified
-allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
-
 allTypeNames :: Branch0 -> Set Name
-allTypeNames b0 = R.dom (typeNamespace b0)
+allTypeNames = R.dom . typeNamespace
 
-allTypesHashQualified :: Branch0 -> Set HashQualified
-allTypesHashQualified b = foldMap (\r -> hashNamesForType r b) (allTypes b)
+-- these appear to be unused for now
+_hasTermNamed :: Name -> Branch0 -> Bool
+_hasTermNamed n b = not . null $ termsNamed n b
 
-hasTermNamed :: Name -> Branch0 -> Bool
-hasTermNamed n b = not . null $ termsNamed n b
-
-hasTypeNamed :: Name -> Branch0 -> Bool
-hasTypeNamed n b = not . null $ typesNamed n b
+_hasTypeNamed :: Name -> Branch0 -> Bool
+_hasTypeNamed n b = not . null $ typesNamed n b
 
 termsNamed :: Name -> Branch0 -> Set Referent
 termsNamed name = R.lookupDom name . termNamespace
@@ -327,9 +300,8 @@ namesForTerm ref = R.lookupRan ref . termNamespace
 
 hashNamesForTerm :: Referent -> Branch0 -> Set HashQualified
 hashNamesForTerm ref b = let
-  ns = (termNamespace b) :: Relation Name Referent
   hashLen = numHashChars b
-  names = (R.lookupRan ref ns) :: Set Name
+  names = namesForTerm ref b :: Set Name
   referents = (names R.<| termNamespace b) :: Relation Name Referent
   f n = Map.findWithDefault (error "hashQualifyTermName likely busted") ref
           $ hashQualifyTermName hashLen n (R.lookupDom n referents)
@@ -340,9 +312,8 @@ namesForType ref = R.lookupRan ref . typeNamespace
 
 hashNamesForType :: Reference -> Branch0 -> Set HashQualified
 hashNamesForType ref b = let
-  ns = (typeNamespace b) :: Relation Name Reference
   hashLen = numHashChars b
-  names = (R.lookupRan ref ns) :: Set Name
+  names = namesForType ref b :: Set Name
   references = (names R.<| typeNamespace b)
   f n = Map.findWithDefault (error "hashQualifyTypeName likely busted") ref
           $ hashQualifyTypeName hashLen n (R.lookupDom n references)
@@ -366,15 +337,13 @@ hashQualifyTypeName numHashChars n rs =
 -- Should be the same as the input name if the branch is unconflicted.
 hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
-  if (> 1) . length . R.lookupDom n . termNamespace $ b then
-    -- name is conflicted
+  if length (termsNamed n b) > 1 then -- name is conflicted
     HQ.take (numHashChars b) $ HashQualified.fromNamedReferent n r
   else HashQualified.fromName n
 
 hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
-  if (> 1) . length . R.lookupDom n . typeNamespace $ b then
-    -- name is conflicted
+  if length (typesNamed n b) > 1 then -- name is conflicted
     HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
   else HashQualified.fromName n
 
@@ -415,10 +384,8 @@ prettyPrintEnv b = PPE.PrettyPrintEnv terms types where
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
 
--- Use e.g. by `conflicts termNamespace branch`
--- conflicts :: (Ord a, Ord b) => (Branch0 -> Relation a b) -> Branch0 -> Map a (Set b)
--- conflicts f = R.domain . conflicts'' . f
-
+-- todo: move this to Unison.Util.Relation and make readable
+-- The subset of the relation in which one `a` maps to multiple `b`
 conflicts'' :: (Ord a, Ord b) => Relation a b -> Relation a b
 conflicts'' r = R.filterDom ((>1). length . flip R.lookupDom r) r
 
@@ -895,6 +862,7 @@ asSearchResults b =
   tm(n,r) = SR.termResult (hashQualifiedTermName b n r) r (hashNamesForTerm r b)
   tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
 
+-- note: I expect these two functions will go away
 searchTermNamespace :: forall score. Ord score =>
   Branch0
   -> (Name -> Name -> Maybe score)

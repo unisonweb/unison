@@ -127,45 +127,6 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
--- fuzzyFindTerms' :: Branch -> [String] -> [(HashQualified, Referent)]
--- fuzzyFindTerms' (Branch.head -> branch) query =
---   let
---     terms = Branch.allTerms branch
---     termNames = [(HQ.toString n, (n,r))
---               | r <- toList terms
---               , n <- toList (Branch.hashNamesForTerm r branch)]
---     matchingTerms :: [(String,(HashQualified,Referent))]
---     matchingTerms = if null query
---       then termNames
---       else query >>= \q -> sortedApproximateMatches' q termNames
---   in snd <$> matchingTerms
-
--- fuzzyFindTermTypes
---   :: forall m v a
---   .  (Var v, Monad m)
---   => Codebase m v a
---   -> Branch
---   -> [String]
---   -> m [(HashQualified, Referent, Maybe (Type v a))]
--- fuzzyFindTermTypes codebase branch query =
---   let found = fuzzyFindTerms' branch query
---       tripleForRef name ref = (name, ref, ) <$> case ref of
---         Referent.Ref r -> getTypeOfTerm codebase r
---         Referent.Con r cid -> getTypeOfConstructor codebase r cid
---   in  traverse (uncurry tripleForRef) found
-
--- fuzzyFindTypes' :: Branch -> [String] -> [(HashQualified, Reference)]
--- fuzzyFindTypes' (Branch.head -> branch) query =
---   let
---     typeNames = toList (Branch.allTypeNames branch)
---     matchingTypes = if null query
---       then typeNames
---       else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
---     asStrings f names = Name.fromString <$> f (Name.toString <$> names)
---     refsForName name = Set.toList $ Branch.typesNamed name branch
---     makePair name r = (Branch.hashQualifiedTypeName branch name r, r)
---   in matchingTypes >>= \name -> makePair name <$> refsForName name
-
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
 prettyTypeSource = error "todo"
 
@@ -382,53 +343,6 @@ makeSelfContained code b term = do
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
   pure $ UF.UnisonFile datas effects bindings [] -- no watches in the resulting file
-
--- sortedApproximateMatches'' :: Codebase -> String ->
-
--- sortedApproximateMatches :: String -> [String] -> [String]
--- sortedApproximateMatches q possible = trim (sortOn fst matches)
---  where
---   nq = length q
---   score s | s == q                         = 0 :: Int
---           | -- exact match is top choice
---             map toLower q == map toLower s = 1
---           |        -- ignore case
---             q `isSuffixOf` s               = 2
---           |        -- matching suffix is pretty good
---             q `isInfixOf` s                = 3
---           |        -- a match somewhere
---             q `isPrefixOf` s               = 4
---           |        -- ...
---             map toLower q `isInfixOf` map toLower s = 5
---           | q `isSubsequenceOf` s          = 6
---           | otherwise = 7 + editDistance (map toLower q) (map toLower s)
---   editDistance q s = levenshteinDistance defaultEditCosts q s
---   matches = map (\s -> (score s, s)) possible
---   trim ((_, h) : _) | h == q = [h]
---   trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
---
--- sortedApproximateMatches' :: String -> [(String,a)] -> [(String,a)]
--- sortedApproximateMatches' q possible = trim (sortOn fst matches)
---  where
---   nq = length q
---   score (s,_)
---           | s == q                         = 0 :: Int
---           | -- exact match is top choice
---             map toLower q == map toLower s = 1
---           |        -- ignore case
---             q `isSuffixOf` s               = 2
---           |        -- matching suffix is pretty good
---             q `isInfixOf` s                = 3
---           |        -- a match somewhere
---             q `isPrefixOf` s               = 4
---           |        -- ...
---             map toLower q `isInfixOf` map toLower s = 5
---           | q `isSubsequenceOf` s          = 6
---           | otherwise = 7 + editDistance (map toLower q) (map toLower s)
---   editDistance q s = levenshteinDistance defaultEditCosts q s
---   matches = map (\s -> (score s, s)) possible
---   trim ((_, (h,a)) : _) | h == q = [(h,a)]
---   trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase

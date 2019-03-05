@@ -307,12 +307,12 @@ displayDefinitions outputLoc ppe terms types =
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSig' ppe = \case
-  E.TermResult'' name (Just typ) _r _aliases ->
+  E.TermResult' name (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
 prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeader' (E.TypeResult'' name dt r _aliases) =
+prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 prettyAliases ::

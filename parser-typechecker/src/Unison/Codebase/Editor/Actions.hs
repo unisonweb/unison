@@ -80,10 +80,6 @@ makeLenses ''LoopState
 loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing Nothing
 
--- startLoop
---   :: Var v => Branch -> BranchName -> Free (Command (Either Event Input) v) ()
--- startLoop = (loop .) . loopState0
-
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
     s <- get
