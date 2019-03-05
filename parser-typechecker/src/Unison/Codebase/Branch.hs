@@ -887,6 +887,14 @@ toNames b' = Names terms types
   types    = Map.fromList . R.toList $ typeNamespace b
   terms    = termRefs
 
+asSearchResults :: Branch0 -> [SearchResult]
+asSearchResults b =
+  (map tm $ R.toList . termNamespace $ b) <>
+  (map tp $ R.toList . typeNamespace $ b)
+  where
+  tm(n,r) = SR.termResult (hashQualifiedTermName b n r) r (hashNamesForTerm r b)
+  tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
+
 searchTermNamespace :: forall score. Ord score =>
   Branch0
   -> (Name -> Name -> Maybe score)

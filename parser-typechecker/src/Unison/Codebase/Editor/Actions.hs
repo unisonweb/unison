@@ -137,6 +137,11 @@ loop = do
                   latestFile .= Just (Text.unpack sourceName, False)
                   latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
+        -- ls with no arguments
+        SearchByNameI [] ->
+          (eval $ ListBranch currentBranch') >>=
+            respond . ListOfDefinitions currentBranch'
+        -- ls with arguments
         SearchByNameI (fmap HQ.fromString -> qs) ->
           (eval $ SearchBranch currentBranch' qs)
             >>= respond . ListOfDefinitions currentBranch'

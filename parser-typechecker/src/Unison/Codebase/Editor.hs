@@ -345,6 +345,9 @@ data Command i v a where
   -- Return a list of definitions whose names match the given queries.
   SearchBranch :: Branch -> [HashQualified] -> Command i v [SearchResult' v Ann]
 
+  --
+  ListBranch :: Branch -> Command i v [SearchResult' v Ann]
+
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
@@ -662,7 +665,6 @@ commandLine awaitInput rt notifyUser codebase command = do
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
       let codeLookup = Codebase.toCodeLookup codebase
-
       selfContained <- Codebase.makeSelfContained'
         codeLookup
         (Branch.head branch)
@@ -675,6 +677,10 @@ commandLine awaitInput rt notifyUser codebase command = do
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
     SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
+    ListBranch (Branch.head -> b) -> do
+      -- sort by name, then by searchresult (i.e. tm vs tp)
+      let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+      loadSearchResults codebase results
     SearchBranch (Branch.head -> branch) queries -> do
       let termResults =
             Branch.searchTermNamespace branch fuzzyNameDistance queries
