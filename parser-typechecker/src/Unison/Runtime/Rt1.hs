@@ -51,14 +51,6 @@ instance External ExternalFunction where
 
 type Stack = MV.IOVector Value
 
--- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
--- compilationEnv :: Monad m
---   => CL.CodeLookup m Symbol a
---   -> Term Symbol
---   -> m CompilationEnv
--- run :: CompilationEnv -> IR -> IO Result
-
-
 -- This function converts `Z` to a `Value`.
 -- A bunch of variants follow.
 at :: Size -> Z -> Stack -> IO Value
@@ -441,6 +433,10 @@ run ioHandler env ir = do
             in done $ Lam (arity - nargs)
                        (FormClosure tm pushedArgs')
                        (specializeIR bound body)
+    call size m (Cont ir) [arg] = do
+      v <- at size arg m
+      m <- push size v m
+      go (size + 1) m ir
     call _ _ fn args =
       error $ "type error - tried to apply a non-function: " <> show (fn, args)
 
