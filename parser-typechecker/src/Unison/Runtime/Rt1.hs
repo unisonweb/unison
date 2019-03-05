@@ -283,10 +283,10 @@ run ioHandler env ir = do
     -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = do
-     stackStuff <- traverse (MV.read m) [0..size-1]
-     traceM $ "stack: " <> show stackStuff
-     traceM $ "ir: " <> show ir
-     traceM ""
+     -- stackStuff <- traverse (MV.read m) [0..size-1]
+     -- traceM $ "stack: " <> show stackStuff
+     -- traceM $ "ir: " <> show ir
+     -- traceM ""
      case ir of
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m

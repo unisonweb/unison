@@ -249,10 +249,10 @@ compile env t = compile0 env []
 
 freeVars :: [(SymbolC,a)] -> Term SymbolC -> Set SymbolC
 freeVars bound t =
-  let fv = trace "free:" . traceShowId $ ABT.freeVars t
-      bv = trace "bound:" . traceShowId $ Set.fromList (fst <$> bound)
-  in trace "difference:" . traceShowId $ fv `Set.difference` bv
-  -- ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
+  -- let fv = trace "free:" . traceShowId $ ABT.freeVars t
+  --     bv = trace "bound:" . traceShowId $ Set.fromList (fst <$> bound)
+  -- in trace "difference:" . traceShowId $ fv `Set.difference` bv
+  ABT.freeVars t `Set.difference` Set.fromList (fst <$> bound)
 
 -- Main compilation function - converts an arbitrary term to an `IR`.
 -- Takes a way of resolving `Reference`s and an environment of variables,
@@ -270,7 +270,11 @@ compile0 env bound t =
     -- the end.  Their indices don't correspond to stack positions (although
     -- they may reflect shadowing).
     let wrangle vars = ((,Nothing) <$> vars) ++ bound
-    in go (wrangle <$> ABT.annotateBound' (ANF.fromTerm' makeLazy t))
+        t0 = ANF.fromTerm' makeLazy t
+        msg = "ANF form:\n" <>
+               TP.pretty' (Just 80) mempty t0 <>
+               "\n---------"
+    in go (wrangle <$> trace msg (ABT.annotateBound' t0))
   else
     error $ "can't compile a term with free variables: " ++ show (toList fvs)
   where
