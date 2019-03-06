@@ -131,10 +131,9 @@ unA w = case w of
 a1 = handle unA in
   x = 42
   y = A.woot
-  z = x + 1
-  z
+  x
 
-> a1 -- should be 43
+> a1 -- should be 42
 
 -- Now check overapply cases for abilities
 
