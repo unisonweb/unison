@@ -41,18 +41,37 @@ import qualified Unison.Util.Pretty as P
 import Debug.Trace
 import Unison.Util.Monoid (intercalateMap)
 
-type CompilationEnv = IR.CompilationEnv ExternalFunction
-type IR = IR.IR ExternalFunction
-type Req = IR.Req ExternalFunction
-type Value = IR.Value ExternalFunction
-type Z = IR.Z ExternalFunction
+type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
+type IR = IR.IR ExternalFunction Continuation
+type Req = IR.Req ExternalFunction Continuation
+type Value = IR.Value ExternalFunction Continuation
+type Z = IR.Z ExternalFunction Continuation
+type Size = Int
+type Stack = MV.IOVector Value
+
+data Continuation
+  = Wrapped Value Continuation
+  | One Size Stack IR
+  | Chain Continuation Continuation
+
+instance Semigroup Continuation where (<>) = Chain
+
+-- Wrap a `handle h` around the continuation inside the `Req`.
+-- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
+wrapHandler :: Value -> Req -> Req
+wrapHandler h (Req r cid args k) = Req r cid args (Wrapped h k)
+
+-- Appends `k2` to the end of the `k` continuation
+-- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
+-- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
+appendCont :: Symbol -> Req -> Continuation -> Req
+appendCont v (Req r cid args k) k2 = Req r cid args (k <> k2)
 
 data ExternalFunction =
   ExternalFunction R.Reference (Size -> Stack -> IO Value)
 instance External ExternalFunction where
   decompileExternal (ExternalFunction r _) = Term.ref () r
 
-type Stack = MV.IOVector Value
 
 -- This function converts `Z` to a `Value`.
 -- A bunch of variants follow.
@@ -94,7 +113,7 @@ att size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  v -> fail $ "type error, expecting Sequence, got " <> show v
+  v -> fail $ "type error, expecting Sequence"
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -141,8 +160,6 @@ ensureSize size m =
   if (size >= MV.length m) then MV.grow m size
   else pure m
 
-type Size = Int
-
 force :: Value -> IO Value
 force (Ref _ _ r) = readIORef r >>= force
 force v = pure v
@@ -151,7 +168,6 @@ data Result
   = RRequest Req
   | RMatchFail {- maybe add more info here. -}
   | RDone Value
-  deriving (Show)
 
 done :: Value -> IO Result
 done v = pure (RDone v)
@@ -273,8 +289,9 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IR
     -> IO Result
 run ioHandler env ir = do
-  let pir = prettyIR mempty pexternal
-      pvalue = prettyValue mempty pexternal
+  let pir = prettyIR mempty pexternal pcont
+      pvalue = prettyValue mempty pexternal pcont
+      pcont k = "cont"
       -- if we had a PrettyPrintEnv, we could use that here
       pexternal (ExternalFunction r _) = P.shown r
   traceM $ "Running this program"
@@ -306,8 +323,8 @@ run ioHandler env ir = do
         True -> done (B True)
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
-      Let var b body -> go size m b >>= \case
-        RRequest req -> pure $ RRequest (appendCont var req body)
+      Let var b body freeInBody -> go size m b >>= \case
+        RRequest req -> pure $ RRequest (appendCont var req $ One size m body)
         RDone v -> do
           traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
@@ -322,7 +339,7 @@ run ioHandler env ir = do
         where
         -- The continuation of the request is initially the identity function
         -- and we append to it in `Let` as we unwind the stack
-        req vs = RRequest (Req r cid vs (Leaf $ Slot 0))
+        req vs = RRequest (Req r cid vs (One size m (Leaf $ Slot 0)))
       Handle handler body -> do
         h <- at size handler m
         runHandler size m h body
@@ -410,7 +427,7 @@ run ioHandler env ir = do
             let overApplyName = Var.named "oa"
             extraArgvs <- for extraArgs $ \arg -> at size arg m
             pure . RRequest . appendCont overApplyName req $
-                   Apply (Leaf (Slot 0)) (Val <$> extraArgvs)
+                   One size m (Apply (Leaf (Slot 0)) (Val <$> extraArgvs))
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do
@@ -442,9 +459,10 @@ run ioHandler env ir = do
                        (FormClosure tm pushedArgs')
                        (specializeIR bound body)
     call size m (Cont ir) [arg] = do
-      v <- at size arg m
-      m <- push size v m
-      go (size + 1) m ir
+      error "todo - something more interesting here to interpret the continuation"
+      -- v <- at size arg m
+      -- m <- push size v m
+      -- go (size + 1) m ir
     call size m fn args = do
       s0 <- traverse (MV.read m) [0..size-1]
       let s = [(0::Int)..] `zip` reverse s0
@@ -517,8 +535,9 @@ run ioHandler env ir = do
     RRequest (Req ref cid vs k) -> do
       ioResult <- ioHandler ref cid vs
       s <- push 0 ioResult m0
-      go 1 s k
+      error "todo - something to interpret the continuation here" -- go 1 s k
     a -> pure a
+
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"

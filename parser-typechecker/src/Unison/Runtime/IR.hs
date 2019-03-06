@@ -49,14 +49,14 @@ type Arity = Int
 type ConstructorId = Int
 type Term v = AnnotatedTerm v ()
 
-data CompilationEnv e
-  = CompilationEnv { toIR' :: Map R.Reference (IR e)
+data CompilationEnv e cont
+  = CompilationEnv { toIR' :: Map R.Reference (IR e cont)
                    , constructorArity' :: Map (R.Reference, Int) Int }
 
-toIR :: CompilationEnv e -> R.Reference -> Maybe (IR e)
+toIR :: CompilationEnv e cont -> R.Reference -> Maybe (IR e cont)
 toIR = flip Map.lookup . toIR'
 
-constructorArity :: CompilationEnv e -> R.Reference -> Int -> Maybe Int
+constructorArity :: CompilationEnv e cont -> R.Reference -> Int -> Maybe Int
 constructorArity e r i = Map.lookup (r,i) $ constructorArity' e
 
 -- SymbolC = Should this variable be compiled as a LazySlot?
@@ -75,28 +75,28 @@ toSymbolC s = SymbolC False s
 
 -- Values, in normal form
 type RefID = Int
-data Value e
+data Value e cont
   = I Int64 | F Double | N Word64 | B Bool | T Text
-  | Lam Arity (UnderapplyStrategy e) (IR e)
-  | Data R.Reference ConstructorId [Value e]
-  | Sequence (Vector (Value e))
-  | Ref RefID Symbol (IORef (Value e))
-  | Pure (Value e)
-  | Requested (Req e)
-  | Cont (IR e)
-  | UninitializedLetRecSlot Symbol [(Symbol, IR e)] (IR e)
+  | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
+  | Data R.Reference ConstructorId [Value e cont]
+  | Sequence (Vector (Value e cont))
+  | Ref RefID Symbol (IORef (Value e cont))
+  | Pure (Value e cont)
+  | Requested (Req e cont)
+  | Cont cont
+  | UninitializedLetRecSlot Symbol [(Symbol, IR e cont)] (IR e cont)
   deriving (Eq)
 
 -- would have preferred to make pattern synonyms
-maybeToOptional :: Maybe (Value e) -> Value e
+maybeToOptional :: Maybe (Value e cont) -> Value e cont
 maybeToOptional = \case
   Just a  -> Data Type.optionalRef 1 [a]
   Nothing -> Data Type.optionalRef 0 []
 
-unit :: Value e
+unit :: Value e cont
 unit = Data Type.unitRef 0 []
 
-pair :: (Value e, Value e) -> Value e
+pair :: (Value e cont, Value e cont) -> Value e cont
 pair (a, b) = Data Type.pairRef 0 [a, b]
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
@@ -124,12 +124,12 @@ pair (a, b) = Data Type.pairRef 0 [a, b]
 -- with variables that we could substitute - the functions only compute
 -- to anything when all the arguments are available.
 
-data UnderapplyStrategy e
-  = FormClosure (Term SymbolC) [Value e] -- head is the latest argument
-  | Specialize (Term SymbolC) [(SymbolC, Value e)] -- same
+data UnderapplyStrategy e cont
+  = FormClosure (Term SymbolC) [Value e cont] -- head is the latest argument
+  | Specialize (Term SymbolC) [(SymbolC, Value e cont)] -- same
   deriving (Eq, Show)
 
-decompileUnderapplied :: External e => UnderapplyStrategy e -> DS (Term Symbol)
+decompileUnderapplied :: (External e, External cont) => UnderapplyStrategy e cont -> DS (Term Symbol)
 decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
   FormClosure lam vals ->
     Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
@@ -153,21 +153,19 @@ data Pattern
   | PatternVar deriving (Eq,Show)
 
 -- Leaf level instructions - these return immediately without using any stack
-data Z e
+data Z e cont
   = Slot Pos
   | LazySlot Pos
-  | Val (Value e)
+  | Val (Value e cont)
   | External e
   deriving (Eq)
 
-type IR e = IR' (Z e)
+-- The `Set Int` is the set of de bruijn indices that are free in the body
+-- of `Let` instructions.
+type IR e cont = IR' (Set Int) (Z e cont)
 
--- IR z
--- depth of a slot is just that slot
--- depth of a let is just depth
---
 -- Computations - evaluation reduces these to values
-data IR' z
+data IR' ann z
   = Leaf z
   -- Ints
   | AddI z z | SubI z z | MultI z z | DivI z z
@@ -181,163 +179,168 @@ data IR' z
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
   -- Control flow
-  | Let Symbol (IR' z) (IR' z)
-  | LetRec [(Symbol, IR' z)] (IR' z)
+
+  -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
+  -- set of "free" stack slots referenced by the body of the `let`
+  | Let Symbol (IR' ann z) (IR' ann z) ann
+  | LetRec [(Symbol, IR' ann z)] (IR' ann z)
   | MakeSequence [z]
-  | Apply (IR' z) [z]
+  | Apply (IR' ann z) [z]
   | Construct R.Reference ConstructorId [z]
   | Request R.Reference ConstructorId [z]
-  | Handle z (IR' z)
-  | If z (IR' z) (IR' z)
-  | And z (IR' z)
-  | Or z (IR' z)
+  | Handle z (IR' ann z)
+  | If z (IR' ann z) (IR' ann z)
+  | And z (IR' ann z)
+  | Or z (IR' ann z)
   | Not z
   -- pattern, optional guard, rhs
-  | Match z [(Pattern, [Symbol], Maybe (IR' z), (IR' z))]
+  | Match z [(Pattern, [Symbol], Maybe (IR' ann z), (IR' ann z))]
   deriving (Functor,Foldable,Traversable,Eq,Show)
 
-prettyZ :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> Z e -> P.Pretty String
-prettyZ ppe prettyE z = case z of
+prettyZ :: PPE.PrettyPrintEnv
+        -> (e -> P.Pretty String)
+        -> (cont -> P.Pretty String)
+        -> Z e cont
+        -> P.Pretty String
+prettyZ ppe prettyE prettyCont z = case z of
   Slot i -> "@" <> P.shown i
   LazySlot i -> "'@" <> P.shown i
-  Val v -> prettyValue ppe prettyE v
+  Val v -> prettyValue ppe prettyE prettyCont v
   External e -> "External" `P.hang` prettyE e
 
-prettyIR :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> IR e -> P.Pretty String
-prettyIR ppe prettyE ir = case ir of
-  Leaf z -> pz z
-  AddI a b -> P.parenthesize $ "AddI" `P.hang` P.spaced [pz a, pz b]
-  SubI a b -> P.parenthesize $ "SubI" `P.hang` P.spaced [pz a, pz b]
-  MultI a b -> P.parenthesize $ "MultI" `P.hang` P.spaced [pz a, pz b]
-  DivI a b -> P.parenthesize $ "DivI" `P.hang` P.spaced [pz a, pz b]
-  GtI a b -> P.parenthesize $ "GtI" `P.hang` P.spaced [pz a, pz b]
-  LtI a b -> P.parenthesize $ "LtI" `P.hang` P.spaced [pz a, pz b]
-  GtEqI a b -> P.parenthesize $ "GtEqI" `P.hang` P.spaced [pz a, pz b]
-  LtEqI a b -> P.parenthesize $ "LtEqI" `P.hang` P.spaced [pz a, pz b]
-  EqI a b -> P.parenthesize $ "EqI" `P.hang` P.spaced [pz a, pz b]
-  SignumI a -> P.parenthesize $ "SignumI" `P.hang` P.spaced [pz a]
-  NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
-  ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
-
-  AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
-  SubN a b -> P.parenthesize $ "SubN" `P.hang` P.spaced [pz a, pz b]
-  DropN a b -> P.parenthesize $ "DropN" `P.hang` P.spaced [pz a, pz b]
-  MultN a b -> P.parenthesize $ "MultN" `P.hang` P.spaced [pz a, pz b]
-  DivN a b -> P.parenthesize $ "DivN" `P.hang` P.spaced [pz a, pz b]
-  GtN a b -> P.parenthesize $ "GtN" `P.hang` P.spaced [pz a, pz b]
-  LtN a b -> P.parenthesize $ "LtN" `P.hang` P.spaced [pz a, pz b]
-  GtEqN a b -> P.parenthesize $ "GtEqN" `P.hang` P.spaced [pz a, pz b]
-  LtEqN a b -> P.parenthesize $ "LtEqN" `P.hang` P.spaced [pz a, pz b]
-  EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
-  ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
-
-  AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
-  SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
-  MultF a b -> P.parenthesize $ "MultF" `P.hang` P.spaced [pz a, pz b]
-  DivF a b -> P.parenthesize $ "DivF" `P.hang` P.spaced [pz a, pz b]
-  GtF a b -> P.parenthesize $ "GtF" `P.hang` P.spaced [pz a, pz b]
-  LtF a b -> P.parenthesize $ "LtF" `P.hang` P.spaced [pz a, pz b]
-  GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
-  LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
-  EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
-  ir @ (Let _ _ _) ->
-    P.group $ "let" `P.hang` P.lines (blockElem <$> block)
-    where
-    block = unlets ir
-    blockElem (Nothing, binding) = pir binding
-    blockElem (Just name, binding) =
-      (P.shown name <> " =") `P.hang` pir binding
-  LetRec bs body -> P.group $ "letrec" `P.hang` P.lines ls
-    where
-    blockElem (Nothing, binding) = pir binding
-    blockElem (Just name, binding) =
-      (P.shown name <> " =") `P.hang` pir binding
-    ls = fmap blockElem $ [ (Just n, ir) | (n,ir) <- bs ]
-                       ++ [(Nothing, body)]
-  MakeSequence vs -> P.group $
-    P.surroundCommas "[" "]" (pz <$> vs)
-  Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
-  Construct r cid args -> P.parenthesize $
-    ("Construct " <> prettyHashQualified (PPE.patternName ppe r cid))
-    `P.hang`
-    P.surroundCommas "[" "]" (pz <$> args)
-  Request r cid args -> P.parenthesize $
-    ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
-    `P.hang`
-    P.surroundCommas "[" "]" (pz <$> args)
-  Handle h body -> P.parenthesize $
-    P.group ("Handle " <> pz h) `P.hang` pir body
-  If cond t f -> P.parenthesize $
-    ("If " <> pz cond) `P.hang` P.spaced [pir t, pir f]
-  And x y -> P.parenthesize $ "And" `P.hang` P.spaced [pz x, pir y]
-  Or x y -> P.parenthesize $ "Or" `P.hang` P.spaced [pz x, pir y]
-  Not x -> P.parenthesize $ "Not" `P.hang` pz x
-  Match scrute cases -> P.parenthesize $
-    P.group ("Match " <> pz scrute) `P.hang` P.lines (pcase <$> cases)
-    where
-    pcase (pat, vs, guard, rhs) = let
-      lhs = P.spaced . P.nonEmpty $
-              [ P.parenthesize (P.shown pat), P.shown vs, maybe mempty pir guard ]
-      in (lhs <> " ->" `P.hang` pir rhs)
+prettyIR :: PPE.PrettyPrintEnv
+         -> (e -> P.Pretty String)
+         -> (cont -> P.Pretty String)
+         -> IR e cont
+         -> P.Pretty String
+prettyIR ppe prettyE prettyCont ir = pir ir
   where
-  unlets (Let s hd tl) = (Just s, hd) : unlets tl
+  unlets (Let s hd tl _) = (Just s, hd) : unlets tl
   unlets e = [(Nothing, e)]
-  pz = prettyZ ppe prettyE
-  pir = prettyIR ppe prettyE
+  pz = prettyZ ppe prettyE prettyCont
+  pir ir = case ir of
+    Leaf z -> pz z
+    AddI a b -> P.parenthesize $ "AddI" `P.hang` P.spaced [pz a, pz b]
+    SubI a b -> P.parenthesize $ "SubI" `P.hang` P.spaced [pz a, pz b]
+    MultI a b -> P.parenthesize $ "MultI" `P.hang` P.spaced [pz a, pz b]
+    DivI a b -> P.parenthesize $ "DivI" `P.hang` P.spaced [pz a, pz b]
+    GtI a b -> P.parenthesize $ "GtI" `P.hang` P.spaced [pz a, pz b]
+    LtI a b -> P.parenthesize $ "LtI" `P.hang` P.spaced [pz a, pz b]
+    GtEqI a b -> P.parenthesize $ "GtEqI" `P.hang` P.spaced [pz a, pz b]
+    LtEqI a b -> P.parenthesize $ "LtEqI" `P.hang` P.spaced [pz a, pz b]
+    EqI a b -> P.parenthesize $ "EqI" `P.hang` P.spaced [pz a, pz b]
+    SignumI a -> P.parenthesize $ "SignumI" `P.hang` P.spaced [pz a]
+    NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
+    ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
 
-prettyValue :: PPE.PrettyPrintEnv -> (e -> P.Pretty String) -> Value e -> P.Pretty String
-prettyValue ppe prettyE v = case v of
-  I i -> (if i >= 0 then "+" else "" ) <> P.string (show i)
-  F d -> P.shown d
-  N n -> P.shown n
-  B b -> if b then "true" else "false"
-  T t -> P.shown t
-  Lam arity _u b -> P.parenthesize $
-    ("Lambda " <> P.string (show arity)) `P.hang`
-      prettyIR ppe prettyE b
-  Data r cid vs -> P.parenthesize $
-    ("Data " <> prettyHashQualified (PPE.patternName ppe r cid)) `P.hang`
-      P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs)
-  Sequence vs -> P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs)
-  Ref id name _ -> P.parenthesize $
-    P.sep " " ["Ref", P.shown id, P.shown name]
-  Pure v -> P.surroundCommas "{" "}" [prettyValue ppe prettyE v]
-  Requested (Req r cid vs cont) -> P.parenthesize $
-    ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+    AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
+    SubN a b -> P.parenthesize $ "SubN" `P.hang` P.spaced [pz a, pz b]
+    DropN a b -> P.parenthesize $ "DropN" `P.hang` P.spaced [pz a, pz b]
+    MultN a b -> P.parenthesize $ "MultN" `P.hang` P.spaced [pz a, pz b]
+    DivN a b -> P.parenthesize $ "DivN" `P.hang` P.spaced [pz a, pz b]
+    GtN a b -> P.parenthesize $ "GtN" `P.hang` P.spaced [pz a, pz b]
+    LtN a b -> P.parenthesize $ "LtN" `P.hang` P.spaced [pz a, pz b]
+    GtEqN a b -> P.parenthesize $ "GtEqN" `P.hang` P.spaced [pz a, pz b]
+    LtEqN a b -> P.parenthesize $ "LtEqN" `P.hang` P.spaced [pz a, pz b]
+    EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
+    ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
+
+    AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
+    SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
+    MultF a b -> P.parenthesize $ "MultF" `P.hang` P.spaced [pz a, pz b]
+    DivF a b -> P.parenthesize $ "DivF" `P.hang` P.spaced [pz a, pz b]
+    GtF a b -> P.parenthesize $ "GtF" `P.hang` P.spaced [pz a, pz b]
+    LtF a b -> P.parenthesize $ "LtF" `P.hang` P.spaced [pz a, pz b]
+    GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
+    LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
+    EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
+    ir @ (Let _ _ _ _) ->
+      P.group $ "let" `P.hang` P.lines (blockElem <$> block)
+      where
+      block = unlets ir
+      blockElem (Nothing, binding) = pir binding
+      blockElem (Just name, binding) =
+        (P.shown name <> " =") `P.hang` pir binding
+    LetRec bs body -> P.group $ "letrec" `P.hang` P.lines ls
+      where
+      blockElem (Nothing, binding) = pir binding
+      blockElem (Just name, binding) =
+        (P.shown name <> " =") `P.hang` pir binding
+      ls = fmap blockElem $ [ (Just n, ir) | (n,ir) <- bs ]
+                         ++ [(Nothing, body)]
+    MakeSequence vs -> P.group $
+      P.surroundCommas "[" "]" (pz <$> vs)
+    Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
+    Construct r cid args -> P.parenthesize $
+      ("Construct " <> prettyHashQualified (PPE.patternName ppe r cid))
       `P.hang`
-      P.spaced [
-        P.surroundCommas "[" "]" (prettyValue ppe prettyE <$> vs),
-        prettyIR ppe prettyE cont
-      ]
-  Cont ir -> P.parenthesize $
-    "Cont" `P.hang` prettyIR ppe prettyE ir
-  UninitializedLetRecSlot s _ _ -> P.parenthesize $
-    "Uninitialized " <> P.shown s
+      P.surroundCommas "[" "]" (pz <$> args)
+    Request r cid args -> P.parenthesize $
+      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      `P.hang`
+      P.surroundCommas "[" "]" (pz <$> args)
+    Handle h body -> P.parenthesize $
+      P.group ("Handle " <> pz h) `P.hang` pir body
+    If cond t f -> P.parenthesize $
+      ("If " <> pz cond) `P.hang` P.spaced [pir t, pir f]
+    And x y -> P.parenthesize $ "And" `P.hang` P.spaced [pz x, pir y]
+    Or x y -> P.parenthesize $ "Or" `P.hang` P.spaced [pz x, pir y]
+    Not x -> P.parenthesize $ "Not" `P.hang` pz x
+    Match scrute cases -> P.parenthesize $
+      P.group ("Match " <> pz scrute) `P.hang` P.lines (pcase <$> cases)
+      where
+      pcase (pat, vs, guard, rhs) = let
+        lhs = P.spaced . P.nonEmpty $
+                [ P.parenthesize (P.shown pat), P.shown vs, maybe mempty pir guard ]
+        in (lhs <> " ->" `P.hang` pir rhs)
+
+prettyValue :: PPE.PrettyPrintEnv
+            -> (e -> P.Pretty String)
+            -> (cont -> P.Pretty String)
+            -> Value e cont
+            -> P.Pretty String
+prettyValue ppe prettyE prettyCont v = pv v
+  where
+  pv v = case v of
+    I i -> (if i >= 0 then "+" else "" ) <> P.string (show i)
+    F d -> P.shown d
+    N n -> P.shown n
+    B b -> if b then "true" else "false"
+    T t -> P.shown t
+    Lam arity _u b -> P.parenthesize $
+      ("Lambda " <> P.string (show arity)) `P.hang`
+        prettyIR ppe prettyE prettyCont b
+    Data r cid vs -> P.parenthesize $
+      ("Data " <> prettyHashQualified (PPE.patternName ppe r cid)) `P.hang`
+        P.surroundCommas "[" "]" (pv <$> vs)
+    Sequence vs -> P.surroundCommas "[" "]" (pv <$> vs)
+    Ref id name _ -> P.parenthesize $
+      P.sep " " ["Ref", P.shown id, P.shown name]
+    Pure v -> P.surroundCommas "{" "}" [pv v]
+    Requested (Req r cid vs cont) -> P.parenthesize $
+      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+        `P.hang`
+        P.spaced [
+          P.surroundCommas "[" "]" (pv <$> vs),
+          prettyCont cont
+        ]
+    Cont k -> P.parenthesize $ "Cont" `P.hang` prettyCont k
+    UninitializedLetRecSlot s _ _ -> P.parenthesize $
+      "Uninitialized " <> P.shown s
 
 -- Contains the effect ref and ctor id, the args, and the continuation
 -- which expects the result at the top of the stack
-data Req e = Req R.Reference ConstructorId [Value e] (IR e)
+data Req e cont = Req R.Reference ConstructorId [Value e cont] cont
   deriving (Eq,Show)
-
--- Appends `k2` to the end of the `k` continuation
--- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
--- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
-appendCont :: Symbol -> Req e -> IR e -> Req e
-appendCont v (Req r cid args k) k2 = Req r cid args (Let v k k2)
-
--- Wrap a `handle h` around the continuation inside the `Req`.
--- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
-wrapHandler :: Value e -> Req e -> Req e
-wrapHandler h (Req r cid args k) = Req r cid args (Handle (Val h) k)
 
 -- Annotate all `z` values with the number of outer bindings, useful for
 -- tracking free variables or converting away from debruijn indexing.
 -- Currently used as an implementation detail by `specializeIR`.
-annotateDepth :: IR' z -> IR' (z, Int)
+annotateDepth :: IR' a z -> IR' a (z, Int)
 annotateDepth ir = go 0 ir where
   go depth ir = case ir of
     -- Only the binders modify the depth
-    Let v b body -> Let v (go depth b) (go (depth + 1) body)
+    Let v b body ann -> Let v (go depth b) (go (depth + 1) body) ann
     LetRec bs body -> let
       depth' = depth + length bs
       in LetRec (second (go depth') <$> bs) (go depth' body)
@@ -355,7 +358,7 @@ annotateDepth ir = go 0 ir where
 
 -- Given an environment mapping of de bruijn indices to values, specialize
 -- the given `IR` by replacing slot lookups with the provided values.
-specializeIR :: Map Int (Value e) -> IR' (Z e) -> IR' (Z e)
+specializeIR :: Map Int (Value e cont) -> IR' a (Z e cont) -> IR' a (Z e cont)
 specializeIR env ir = let
   ir' = annotateDepth ir
   go (s@(Slot i), depth) = maybe s Val $ Map.lookup (i - depth) env
@@ -363,7 +366,7 @@ specializeIR env ir = let
   go (s,_) = s
   in go <$> ir'
 
-compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
+compile :: (Show e, Show cont) => CompilationEnv e cont -> Term Symbol -> IR e cont
 compile env t = compile0 env []
   (ABT.rewriteDown ANF.minimizeCyclesOrCrash $ Term.vmap toSymbolC t)
 
@@ -378,7 +381,12 @@ freeVars bound t =
 -- Takes a way of resolving `Reference`s and an environment of variables,
 -- some of which may already be precompiled to `V`s. (This occurs when
 -- recompiling a function that is being partially applied)
-compile0 :: Show e => CompilationEnv e -> [(SymbolC, Maybe (Value e))] -> Term SymbolC -> IR e
+compile0
+  :: (Show e, Show cont)
+  => CompilationEnv e cont
+  -> [(SymbolC, Maybe (Value e cont))]
+  -> Term SymbolC
+  -> IR e cont
 compile0 env bound t =
   if Set.null fvs then
     -- Annotates the term with this [(SymbolC, Maybe (Value e))]
@@ -411,7 +419,7 @@ compile0 env bound t =
         (Specialize (void t) [])
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
-    Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body)
+    Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body) (error "todo - figure out set of free variables in the binding")
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
     Term.Constructor' r cid -> ctorIR con (Term.constructor()) r cid where
@@ -440,9 +448,9 @@ compile0 env bound t =
         else if isJust o then compileVar i v tl
         else compileVar (i + 1) v tl
 
-      ctorIR :: (Int -> R.Reference -> Int -> [Z e] -> IR e)
+      ctorIR :: (Int -> R.Reference -> Int -> [Z e cont] -> IR e cont)
              -> (R.Reference -> Int -> Term SymbolC)
-             -> R.Reference -> Int -> IR e
+             -> R.Reference -> Int -> IR e cont
       ctorIR con src r cid = case constructorArity env r cid of
         Nothing -> error $ "the compilation env is missing info about how "
                         ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
@@ -479,14 +487,14 @@ compile0 env bound t =
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
 
-decompile :: External e => Value e -> IO (Term Symbol)
+decompile :: (External e, External cont) => Value e cont -> IO (Term Symbol)
 decompile v = do
   (body, (letRecBindings, _)) <- runStateT (decompileImpl v) mempty
   pure $ if null letRecBindings then body
          else Term.letRec' False (Map.toList letRecBindings) body
 
 decompileImpl ::
-  External e => Value e -> DS (Term Symbol)
+  (External e, External cont) => Value e cont -> DS (Term Symbol)
 decompileImpl v = case v of
   I n -> pure $ Term.int () n
   N n -> pure $ Term.nat () n
@@ -508,8 +516,7 @@ decompileImpl v = case v of
       t <- decompileImpl =<< lift (readIORef ioref)
       modify (first $ Map.insert symbol t)
       pure (Term.etaNormalForm t)
-  Cont k -> Term.lam () contIn <$> decompileIR [contIn] k
-    where contIn = Var.freshIn (boundVarsIR k) (Var.named "result")
+  Cont k -> pure $ decompileExternal k
   Pure a -> do
     -- `{a}` doesn't have a term syntax, so it's decompiled as
     -- `handle (x -> x) in a`, which has the type `Request ambient e a`
@@ -519,10 +526,9 @@ decompileImpl v = case v of
     -- `{req a b -> k}` doesn't have a term syntax, so it's decompiled as
     -- `handle (x -> x) in k (req a b)`
     vs <- traverse decompileImpl vs
-    let v = Var.freshIn (boundVarsIR k) (Var.named "result")
-    k <- decompileIR [v] k
+    let kt = decompileExternal k
     pure . Term.handle() id $
-      Term.apps' (Term.lam() v k) [Term.apps' (Term.request() r cid) vs]
+      Term.apps' kt [Term.apps' (Term.request() r cid) vs]
   UninitializedLetRecSlot _b _bs _body ->
     error "unpossible - decompile UninitializedLetRecSlot"
   where
@@ -530,9 +536,9 @@ decompileImpl v = case v of
     id = Term.lam () idv (Term.var() idv)
 
 
-boundVarsIR :: IR e -> Set Symbol
+boundVarsIR :: IR e cont -> Set Symbol
 boundVarsIR = \case
-  Let v b body -> Set.singleton v <> boundVarsIR b <> boundVarsIR body
+  Let v b body _ -> Set.singleton v <> boundVarsIR b <> boundVarsIR body
   LetRec bs body -> Set.fromList (fst <$> bs) <> foldMap (boundVarsIR . snd) bs <> boundVarsIR body
   Apply lam _ -> boundVarsIR lam
   Handle _ body -> boundVarsIR body
@@ -587,7 +593,8 @@ boundVarsIR = \case
 class External e where
   decompileExternal :: e -> Term Symbol
 
-decompileIR :: External e => [Symbol] -> IR e -> DS (Term Symbol)
+decompileIR
+  :: (External e, External cont) => [Symbol] -> IR e cont -> DS (Term Symbol)
 decompileIR stack = \case
   -- added all these cases for exhaustiveness checking in the future,
   -- and also because I needed the patterns for decompileIR anyway.
@@ -624,7 +631,7 @@ decompileIR stack = \case
   GtEqF x y -> builtin "Float.>=" [x,y]
   LtEqF x y -> builtin "Float.<=" [x,y]
   EqF x y -> builtin "Float.==" [x,y]
-  Let v b body -> do
+  Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
     pure $ Term.let1_ False [(v, b')] body'
@@ -654,12 +661,12 @@ decompileIR stack = \case
   Match scrutinee cases ->
     Term.match () <$> decompileZ scrutinee <*> traverse decompileMatchCase cases
   where
-  builtin :: External e => Text -> [Z e] -> DS (Term Symbol)
+  builtin :: (External e, External cont) => Text -> [Z e cont] -> DS (Term Symbol)
   builtin t args =
     Term.apps' (Term.ref() (R.Builtin t)) <$> traverse decompileZ args
   at :: Pos -> Term Symbol
   at i = Term.var() (stack !! i)
-  decompileZ :: External e => Z e -> DS (Term Symbol)
+  decompileZ :: (External e, External cont) => Z e cont -> DS (Term Symbol)
   decompileZ = \case
     Slot p -> pure $ at p
     LazySlot p -> pure $ at p
@@ -694,13 +701,23 @@ decompileIR stack = \case
     body' <- decompileIR stack' body
     pure $ Term.MatchCase (d pat) guard' body'
 
-instance Show e => Show (Z e) where
+instance (Show e, Show cont) => Show (Z e cont) where
   show (LazySlot i) = "'#" ++ show i
   show (Slot i) = "#" ++ show i
   show (Val v) = show v
   show (External e) = "External:" <> show e
 
-builtins :: Map R.Reference (IR e)
+freeSlots :: IR e cont -> Set Int
+freeSlots _ir = error "todo"
+
+decrementFrees :: Set Int -> Set Int
+decrementFrees frees = Set.map (\x -> x - 1) (Set.delete 0 frees)
+
+let' :: Symbol -> IR e cont -> IR e cont -> IR e cont
+let' name binding body =
+  Let name binding body (decrementFrees $ freeSlots body)
+
+builtins :: Map R.Reference (IR e cont)
 builtins = Map.fromList $ let
   -- slot = Leaf . Slot
   val = Leaf . Val
@@ -721,11 +738,11 @@ builtins = Map.fromList $ let
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
-        , ("Int.isEven", 1, Let var (ModI (Slot 0) (Val (I 2)))
-                                    (EqI (Val (I 0)) (Slot 0)))
-        , ("Int.isOdd", 1, Let var (ModI (Slot 0) (Val (I 2)))
-                                   (Let var (EqI (Val (I 0)) (Slot 0))
-                                            (Not (Slot 0))))
+        , ("Int.isEven", 1, let' var (ModI (Slot 0) (Val (I 2)))
+                                     (EqI (Val (I 0)) (Slot 0)))
+        , ("Int.isOdd", 1, let' var (ModI (Slot 0) (Val (I 2)))
+                                    (let' var (EqI (Val (I 0)) (Slot 0))
+                                              (Not (Slot 0))))
 
         , ("Nat.+", 2, AddN (Slot 1) (Slot 0))
         , ("Nat.drop", 2, DropN (Slot 1) (Slot 0))
@@ -739,11 +756,11 @@ builtins = Map.fromList $ let
         , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
-        , ("Nat.isEven", 1, Let var (ModN (Slot 0) (Val (N 2)))
-                                    (EqN (Val (N 0)) (Slot 0)))
-        , ("Nat.isOdd", 1, Let var (ModN (Slot 0) (Val (N 2)))
-                                   (Let var (EqN (Val (N 0)) (Slot 0))
-                                            (Not (Slot 0))))
+        , ("Nat.isEven", 1, let' var (ModN (Slot 0) (Val (N 2)))
+                                     (EqN (Val (N 0)) (Slot 0)))
+        , ("Nat.isOdd", 1, let' var (ModN (Slot 0) (Val (N 2)))
+                                    (let' var (EqN (Val (N 0)) (Slot 0))
+                                              (Not (Slot 0))))
 
         , ("Float.+", 2, AddF (Slot 1) (Slot 0))
         , ("Float.-", 2, SubF (Slot 1) (Slot 0))
@@ -780,7 +797,7 @@ instance Var SymbolC where
   freshIn vs (SymbolC i s) =
     SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
 
-instance Show e => Show (Value e) where
+instance (Show e, Show cont) => Show (Value e cont) where
   show (I n) = show n
   show (F n) = show n
   show (N n) = show n
@@ -796,12 +813,12 @@ instance Show e => Show (Value e) where
   show (UninitializedLetRecSlot b bs _body) =
     "(UninitializedLetRecSlot " <> show b <> " in " <> show (fst <$> bs)<> ")"
 
-compilationEnv0 :: CompilationEnv e
+compilationEnv0 :: CompilationEnv e cont
 compilationEnv0 = CompilationEnv builtins mempty
 
-instance Semigroup (CompilationEnv e) where (<>) = mappend
+instance Semigroup (CompilationEnv e cont) where (<>) = mappend
 
-instance Monoid (CompilationEnv e) where
+instance Monoid (CompilationEnv e cont) where
   mempty = CompilationEnv mempty mempty
   mappend c1 c2 = CompilationEnv ir ctor where
     ir = toIR' c1 <> toIR' c2
