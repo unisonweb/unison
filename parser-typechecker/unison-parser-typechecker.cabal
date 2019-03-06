@@ -42,18 +42,23 @@ library
     Unison.Codebase.Branch
     Unison.Codebase.Causal
     Unison.Codebase.CodeLookup
-    Unison.Codebase.CommandLine
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
     Unison.Codebase.NameEdit
     Unison.Codebase.Runtime
     Unison.Codebase.Runtime.JVM
+    Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.V0
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
+    Unison.CommandLine
+    Unison.CommandLine.InputPattern
+    Unison.CommandLine.InputPatterns
+    Unison.CommandLine.Main
+    Unison.CommandLine.OutputMessages
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.FileParser
@@ -84,6 +89,7 @@ library
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings
+    Unison.ShortHash
     Unison.Symbol
     Unison.Term
     Unison.TermParser
@@ -103,6 +109,7 @@ library
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
+    Unison.Util.Find
     Unison.Util.Logger
     Unison.Util.Histogram
     Unison.Util.Menu
@@ -149,6 +156,8 @@ library
     megaparsec,
     prelude-extras,
     random,
+    regex-base,
+    regex-tdfa,
     safe,
     split,
     stm,

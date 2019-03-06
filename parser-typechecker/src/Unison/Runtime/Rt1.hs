@@ -36,7 +36,10 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
+
+import qualified Unison.Util.Pretty as P
 import Debug.Trace
+import Unison.Util.Monoid (intercalateMap)
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction
 type IR = IR.IR ExternalFunction
@@ -50,14 +53,6 @@ instance External ExternalFunction where
   decompileExternal (ExternalFunction r _) = Term.ref () r
 
 type Stack = MV.IOVector Value
-
--- compile :: Show e => CompilationEnv e -> Term Symbol -> IR e
--- compilationEnv :: Monad m
---   => CL.CodeLookup m Symbol a
---   -> Term Symbol
---   -> m CompilationEnv
--- run :: CompilationEnv -> IR -> IO Result
-
 
 -- This function converts `Z` to a `Value`.
 -- A bunch of variants follow.
@@ -280,21 +275,25 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IR
     -> IO Result
 run ioHandler env ir = do
+  traceM $ "Running this program"
+  traceM $
+    -- if we had a PrettyPrintEnv, we could use that here
+    let pexternal (ExternalFunction r _) = P.shown r
+    in P.render 80 (prettyIR mempty pexternal ir)
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
-
     -- TODO:
     -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
     go size m ir = do
-     stackStuff <- traverse (MV.read m) [0..size-1]
-     traceM $ "stack: " <> show stackStuff
-     traceM $ "ir: " <> show ir
-     traceM ""
+     -- stackStuff <- traverse (MV.read m) [0..size-1]
+     -- traceM $ "stack: " <> show stackStuff
+     -- traceM $ "ir: " <> show ir
+     -- traceM ""
      case ir of
       Leaf (Val v) -> done v
       Leaf slot -> done =<< at size slot m
@@ -391,7 +390,7 @@ run ioHandler env ir = do
       r -> pure r
 
     call :: Size -> Stack -> Value -> [Z] -> IO Result
-    call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
+    -- call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
       if nargs == arity then do
@@ -441,8 +440,18 @@ run ioHandler env ir = do
             in done $ Lam (arity - nargs)
                        (FormClosure tm pushedArgs')
                        (specializeIR bound body)
-    call _ _ fn args =
-      error $ "type error - tried to apply a non-function: " <> show (fn, args)
+    call size m (Cont ir) [arg] = do
+      v <- at size arg m
+      m <- push size v m
+      go (size + 1) m ir
+    call size m fn args = do
+      s0 <- traverse (MV.read m) [0..size-1]
+      let s = [(0::Int)..] `zip` reverse s0
+      error $ "type error - tried to apply a non-function: " <>
+        show fn <> " " <> show args <> "\n" <>
+        "[\n  " <>
+           intercalateMap "\n  " (\(i,v) -> "Slot " <> show i <> ": " <> take 50 (show v)) s
+           <> "\n]"
 
     -- Just = match success, Nothing = match fail
     tryCase :: (Value, Pattern) -> Maybe [Value]
@@ -458,9 +467,11 @@ run ioHandler env ir = do
       (Sequence args, PatternSequence pats) ->
         join <$> traverse tryCase (zip (toList args) (toList pats))
       (Pure v, PatternPure p) -> tryCase (v, p)
+      (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
         when' (r == r2 && cid == cid2) $
           join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+      (Requested _, PatternPure _) -> Nothing
       (v, PatternAs p) -> (v:) <$> tryCase (v,p)
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]

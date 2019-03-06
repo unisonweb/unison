@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE LambdaCase        #-}
 
 
 module Unison.Reference
@@ -18,13 +19,13 @@ module Unison.Reference
    unsafeFromText,
    readSuffix,
    showShort,
-   splitSuffix) where
+   toShortHash) where
 
 import           Control.Monad   (join)
 import           Data.Foldable   (toList)
 import           Data.List
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust, fromMaybe, maybe)
+import           Data.Maybe      (fromJust, maybe)
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 import           Data.Text       (Text)
@@ -34,6 +35,8 @@ import           GHC.Generics
 import qualified Unison.ABT      as ABT
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
+import Unison.ShortHash (ShortHash)
+import qualified Unison.ShortHash as SH
 import qualified Unison.Var      as Var
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -53,31 +56,28 @@ data Reference
   -- Using an ugly name so no one tempted to use this
   | DerivedId Id deriving (Eq,Ord,Generic)
 
-pattern Derived h n i = DerivedId (Id h n i)
+pattern Derived h i n = DerivedId (Id h i n)
 
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
-instance Show Id where
-  show = addDot . splitSuffix where
-    addDot (h, s) = (take 5 $ show h) <> maybe "" ("."<>) s
-
-showShort :: Int -> Reference -> String
-showShort numHashChars r =
-  let (c, nc) = case r of
-        Builtin t -> ("", Just ("#" <> Text.unpack t))
-        DerivedId r -> splitSuffix r
-  in "#" <> take numHashChars c <> fromMaybe "" nc
-
-splitSuffix :: Id -> (String, Maybe String)
-splitSuffix (Id h 0 1) = (show h, Nothing)
-splitSuffix (Id h i n) = (show h, Just ("." <> showSuffix i n))
+-- todo: move these to ShortHash module?
+-- but Show Reference currently depends on SH
+toShortHash :: Reference -> ShortHash
+toShortHash (Builtin b) = SH.Builtin b
+toShortHash (Derived h 0 _) = SH.ShortHash (H.base58 h) Nothing Nothing
+toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
-    showSuffix :: Pos -> Size -> String
-    showSuffix i n = Text.unpack . encode58 . runPutS $ put where
+    index = Just $ showSuffix i n
+    showSuffix :: Pos -> Size -> Text
+    showSuffix i n = encode58 . runPutS $ put where
       encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
       put = putLength i >> putLength n
       putLength = serialize . VarInt
+toShortHash (DerivedId _) = error "this should be covered above"
+
+showShort :: Int -> Reference -> Text
+showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 -- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
@@ -152,9 +152,11 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
       Map.unionWith (<>) m (Map.fromList [(Left r, [(k,r)])])
     done m = sortOn snd <$> toList m
 
-instance Show Reference where
-  show (Builtin t)         = "##" <> Text.unpack t
-  show (DerivedId id) = "#"  <> show id
+instance Show Id where show = show . SH.take 5 . toShortHash . DerivedId
+instance Show Reference where show = show . SH.take 5 . toShortHash
+-- instance Show Reference where
+--   show (Builtin t)         = "##" <> Text.unpack t
+--   show (DerivedId id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]

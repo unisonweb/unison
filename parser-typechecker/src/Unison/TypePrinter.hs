@@ -111,6 +111,7 @@ pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (-1) t
 pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
+-- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified, AnnotatedType v a)]
@@ -121,6 +122,7 @@ prettySignatures' env ts = PP.align
   | (name, typ) <- ts
   ]
 
+-- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
   :: Var v => PrettyPrintEnv
   -> [([HashQualified], AnnotatedType v a)]

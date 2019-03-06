@@ -11,7 +11,7 @@ import qualified Unison.Codebase.FileCodebase     as FileCodebase
 import           Unison.Codebase.Runtime.JVM      (javaRuntime)
 import qualified Unison.Codebase.Serialization    as S
 import           Unison.Codebase.Serialization.V0 (formatSymbol, getSymbol)
-import qualified Unison.Codebase.CommandLine      as CommandLine
+import qualified Unison.CommandLine.Main          as CommandLine
 import           Unison.Parser                    (Ann (External))
 import qualified Unison.Runtime.Rt1IO             as Rt1
 

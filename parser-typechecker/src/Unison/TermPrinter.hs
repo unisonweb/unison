@@ -335,8 +335,12 @@ prettyPattern n p vs patt = case patt of
   Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-    in  ("{" <> prettyHashQualified (PrettyPrintEnv.patternName n ref i)
-             <> (intercalateMap " " id [pats_printed, "->", k_pat_printed]) <>
+    in  ("{" <>
+          (PP.sep " " . PP.nonEmpty $ [
+            prettyHashQualified (PrettyPrintEnv.patternName n ref i),
+            pats_printed,
+            "->",
+            k_pat_printed]) <>
          "}"
         , eventual_tail)
   t -> (l "error: " <> l (show t), vs)
@@ -364,8 +368,8 @@ Binary functions with symbolic names are output infix, as follows:
 a + b = ...
 
 -}
-prettyBinding
-  :: Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
+prettyBinding ::
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
 prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [

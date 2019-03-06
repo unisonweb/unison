@@ -41,7 +41,7 @@ data DataDeclaration' v a = DataDeclaration {
   annotation :: a,
   bound :: [v],
   constructors' :: [(a, v, AnnotatedType v a)]
-} deriving (Show, Functor)
+} deriving (Eq, Show, Functor)
 
 generateConstructorRefs
   :: (Reference -> Int -> Reference)
@@ -136,7 +136,7 @@ type EffectDeclaration v = EffectDeclaration' v ()
 
 newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
-} deriving (Show,Functor)
+} deriving (Eq,Show,Functor)
 
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
