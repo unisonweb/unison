@@ -174,6 +174,7 @@ parseInput patterns ss = case ss of
 prompt :: String
 prompt = "> "
 
+-- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
