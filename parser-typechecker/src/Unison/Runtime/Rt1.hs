@@ -13,20 +13,22 @@
 
 module Unison.Runtime.Rt1 where
 
-import Data.Bifunctor (second)
 import Control.Monad (foldM, join)
+import Control.Monad.IO.Class (liftIO)
+import Data.Bifunctor (second)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Traversable (for)
-import Data.Word (Word64)
 import Data.Vector (Vector)
+import Data.Word (Word64)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MV
@@ -37,6 +39,7 @@ import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 
+-- import qualified Unison.TermPrinter as TP
 import qualified Unison.Util.Pretty as P
 import Debug.Trace
 import Unison.Util.Monoid (intercalateMap)
@@ -49,35 +52,51 @@ type Z = IR.Z ExternalFunction Continuation
 type Size = Int
 type Stack = MV.IOVector Value
 
-data Continuation
-  = Wrapped Value Continuation
-  | One Size Stack IR
-  | Chain Continuation Continuation
+-- The number of stack elements referenced by an IR
+type NeededStack = Int
 
-instance Semigroup Continuation where (<>) = Chain
+data Continuation
+  = WrapHandler Value Continuation
+  | One NeededStack Size Stack IR
+  | Chain Symbol Continuation Continuation
 
 instance Show Continuation where
-  show c = "<continuation>"
+  show _c = "<continuation>"
 
 instance External Continuation where
-  decompileExternal c = error "todo"
+  decompileExternal k = runDS $ Term.lam() paramName <$> go [paramName] k
+    where
+    paramName = Var.freshIn (used k) (Var.named "result")
+    used c = case c of
+      One _ _ _ ir -> boundVarsIR ir
+      WrapHandler _ k -> used k
+      Chain s k1 k2 -> Set.insert s (used k1 <> used k2)
+    go :: [Symbol] -> Continuation -> DS (Term Symbol)
+    go env k = case k of
+      WrapHandler h k -> Term.handle() <$> decompileImpl h <*> go env k
+      One _needed size m ir -> do
+        captured <- fmap Map.fromList . for (toList (freeSlots ir)) $ \i ->
+          (i,) <$> liftIO (at size (LazySlot i) m)
+        decompileIR env (specializeIR captured ir)
+      Chain s k1 k2 -> do
+        k1 <- go env k1
+        Term.let1' False [(s, k1)] <$> go (s:env) k2
 
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
 wrapHandler :: Value -> Req -> Req
-wrapHandler h (Req r cid args k) = Req r cid args (Wrapped h k)
+wrapHandler h (Req r cid args k) = Req r cid args (WrapHandler h k)
 
 -- Appends `k2` to the end of the `k` continuation
 -- Ex: if `k` is `x -> x + 1` and `k2` is `y -> y + 4`,
 -- this produces a continuation `x -> let r1 = x + 1; r1 + 4`.
 appendCont :: Symbol -> Req -> Continuation -> Req
-appendCont v (Req r cid args k) k2 = Req r cid args (k <> k2)
+appendCont v (Req r cid args k) k2 = Req r cid args (Chain v k k2)
 
 data ExternalFunction =
   ExternalFunction R.Reference (Size -> Stack -> IO Value)
 instance External ExternalFunction where
-  decompileExternal (ExternalFunction r _) = Term.ref () r
-
+  decompileExternal (ExternalFunction r _) = pure $ Term.ref () r
 
 -- This function converts `Z` to a `Value`.
 -- A bunch of variants follow.
@@ -132,7 +151,7 @@ push size v s0 = do
     if size >= MV.length s0
     then do
       -- increase the size to fit
-      s1 <- MV.grow s0 size
+      s1 <- MV.grow s0 (size `max` 128)
       pure s1
     else pure s0
   MV.write s1 size v
@@ -298,7 +317,7 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
 run ioHandler env ir = do
   let pir = prettyIR mempty pexternal pcont
       pvalue = prettyValue mempty pexternal pcont
-      pcont k = "cont"
+      pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
       -- if we had a PrettyPrintEnv, we could use that here
       pexternal (ExternalFunction r _) = P.shown r
   traceM $ "Running this program"
@@ -331,7 +350,9 @@ run ioHandler env ir = do
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
       Let var b body freeInBody -> go size m b >>= \case
-        RRequest req -> pure $ RRequest (appendCont var req $ One size m body)
+        RRequest req ->
+          let needed = if Set.null freeInBody then 0 else Set.findMax freeInBody
+          in pure $ RRequest (appendCont var req $ One needed size m body)
         RDone v -> do
           traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
@@ -346,7 +367,7 @@ run ioHandler env ir = do
         where
         -- The continuation of the request is initially the identity function
         -- and we append to it in `Let` as we unwind the stack
-        req vs = RRequest (Req r cid vs (One size m (Leaf $ Slot 0)))
+        req vs = RRequest (Req r cid vs (One 0 size m (Leaf $ Slot 0)))
       Handle handler body -> do
         h <- at size handler m
         runHandler size m h body
@@ -399,11 +420,34 @@ run ioHandler env ir = do
       LtF i j -> do x <- atf size i m; y <- atf size j m; done (B (x < y))
       LtEqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x <= y))
       EqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x == y))
-      -- _ -> error $ "TODO - fill in the rest of Rt1.go " <> show ir
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
-    runHandler size m handler body = go size m body >>= \case
+    runHandler size m handler body =
+      go size m body >>= runHandler' size m handler
+
+    -- Certain handlers are of a form where we can can skip the step of
+    -- copying the continuation inside the request. We aren't totally
+    -- sure what the conditions are, but speculate:
+    --
+    -- * The Request can't escape the invocation of the handler; that is, the
+    --   handler can't stash the request for later, it has to inspect and run
+    --   the continuation immediately.
+    -- * The handler can't invoke the continuation multiple times, since
+    --   evaluation of the continuation will alter the stack.
+    -- * Is that sufficient? Does it matter if continuation is called in
+    --   tail position or not?
+    --
+    -- Leijn's "Implementing Algebraic Effects in C" paper mentions there's
+    -- a speedup in the case where the handler uses its continuation just once
+    -- in tail position:
+    -- https://www.microsoft.com/en-us/research/wp-content/uploads/2017/06/algeff-in-c-tr-v2.pdf
+    handlerNeedsCopy :: Value -> Bool
+    handlerNeedsCopy _ = True -- overly conservative choice, but never wrong!
+
+    runHandler' :: Size -> Stack -> Value -> Result -> IO Result
+    runHandler' size m handler r = case r of
       RRequest req -> do
+        req <- if handlerNeedsCopy handler then copyRequest req else pure req
         m <- push size (Requested req) m
         result <- call (size + 1) m handler [Slot 0]
         case result of
@@ -434,7 +478,7 @@ run ioHandler env ir = do
             let overApplyName = Var.named "oa"
             extraArgvs <- for extraArgs $ \arg -> at size arg m
             pure . RRequest . appendCont overApplyName req $
-                   One size m (Apply (Leaf (Slot 0)) (Val <$> extraArgvs))
+                   One 0 size m (Apply (Leaf (Slot 0)) (Val <$> extraArgvs))
           e -> error $ "type error, tried to apply: " <> show e
       -- underapplied call, e.g. `(x y -> ..) 9`
       else do
@@ -465,11 +509,9 @@ run ioHandler env ir = do
             in done $ Lam (arity - nargs)
                        (FormClosure tm pushedArgs')
                        (specializeIR bound body)
-    call size m (Cont ir) [arg] = do
-      error "todo - something more interesting here to interpret the continuation"
-      -- v <- at size arg m
-      -- m <- push size v m
-      -- go (size + 1) m ir
+    call size m (Cont k) [arg] = do
+      v <- at size arg m
+      callContinuation size m k v
     call size m fn args = do
       s0 <- traverse (MV.read m) [0..size-1]
       let s = [(0::Int)..] `zip` reverse s0
@@ -478,6 +520,40 @@ run ioHandler env ir = do
         "[\n  " <>
            intercalateMap "\n  " (\(i,v) -> "Slot " <> show i <> ": " <> take 50 (show v)) s
            <> "\n]"
+
+    callContinuation :: Size -> Stack -> Continuation -> Value -> IO Result
+    callContinuation size m k v = case k of
+      One _ size m ir -> do
+        m <- push size v m
+        go (size + 1) m ir
+      WrapHandler h k -> runHandler' size m h =<< callContinuation size m k v
+      -- reassociate to the right during execution, is this needed and why?
+      Chain v1 (Chain v2 k1 k2) k3 ->
+        callContinuation size m (Chain v1 k1 (Chain v2 k2 k3)) v
+      Chain var k1 k2 -> do
+        r <- callContinuation size m k1 v
+        case r of
+          RDone v -> callContinuation size m k2 v
+          RRequest req -> pure $ RRequest (appendCont var req k2)
+          _ -> pure r
+
+    copyContinuation :: Continuation -> IO Continuation
+    copyContinuation k = case k of
+      -- reassociate to the right during copying, is this needed and why?
+      Chain v1 (Chain v2 k1 k2) k3 ->
+        copyContinuation (Chain v1 k1 (Chain v2 k2 k3))
+      Chain v k1 k2 -> Chain v <$> copyContinuation k1 <*> copyContinuation k2
+      One needed size stack ir -> do
+        -- (@0 + @3) -- 3 needed from old stack
+        -- (@0)      -- 0 needed from old stack
+        -- (1 + 1)   -- 0 needed from old stack
+        let slice = MV.slice (size - needed) needed stack
+        copied <- MV.clone slice
+        pure $ One needed (MV.length copied) copied ir
+      WrapHandler h k -> WrapHandler h <$> copyContinuation k
+
+    copyRequest :: Req -> IO Req
+    copyRequest (Req r cid args k) = Req r cid args <$> copyContinuation k
 
     -- Just = match success, Nothing = match fail
     tryCase :: (Value, Pattern) -> Maybe [Value]
@@ -541,8 +617,7 @@ run ioHandler env ir = do
   case r of
     RRequest (Req ref cid vs k) -> do
       ioResult <- ioHandler ref cid vs
-      s <- push 0 ioResult m0
-      error "todo - something to interpret the continuation here" -- go 1 s k
+      callContinuation 0 m0 k ioResult
     a -> pure a
 
 

@@ -13,6 +13,7 @@
 
 module Unison.Runtime.IR where
 
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
 import Data.Foldable
@@ -487,11 +488,14 @@ compile0 env bound t =
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
 
-decompile :: (External e, External cont) => Value e cont -> IO (Term Symbol)
-decompile v = do
-  (body, (letRecBindings, _)) <- runStateT (decompileImpl v) mempty
+runDS :: DS (Term Symbol) -> IO (Term Symbol)
+runDS ds = do
+  (body, (letRecBindings, _)) <- runStateT ds mempty
   pure $ if null letRecBindings then body
          else Term.letRec' False (Map.toList letRecBindings) body
+
+decompile :: (External e, External cont) => Value e cont -> IO (Term Symbol)
+decompile v = runDS (decompileImpl v)
 
 decompileImpl ::
   (External e, External cont) => Value e cont -> DS (Term Symbol)
@@ -516,7 +520,7 @@ decompileImpl v = case v of
       t <- decompileImpl =<< lift (readIORef ioref)
       modify (first $ Map.insert symbol t)
       pure (Term.etaNormalForm t)
-  Cont k -> pure $ decompileExternal k
+  Cont k -> liftIO $ decompileExternal k
   Pure a -> do
     -- `{a}` doesn't have a term syntax, so it's decompiled as
     -- `handle (x -> x) in a`, which has the type `Request ambient e a`
@@ -526,7 +530,7 @@ decompileImpl v = case v of
     -- `{req a b -> k}` doesn't have a term syntax, so it's decompiled as
     -- `handle (x -> x) in k (req a b)`
     vs <- traverse decompileImpl vs
-    let kt = decompileExternal k
+    kt <- liftIO $ decompileExternal k
     pure . Term.handle() id $
       Term.apps' kt [Term.apps' (Term.request() r cid) vs]
   UninitializedLetRecSlot _b _bs _body ->
@@ -591,7 +595,7 @@ boundVarsIR = \case
   Not _ -> mempty
 
 class External e where
-  decompileExternal :: e -> Term Symbol
+  decompileExternal :: e -> IO (Term Symbol)
 
 decompileIR
   :: (External e, External cont) => [Symbol] -> IR e cont -> DS (Term Symbol)
@@ -671,7 +675,7 @@ decompileIR stack = \case
     Slot p -> pure $ at p
     LazySlot p -> pure $ at p
     Val v -> decompileImpl v
-    External e -> pure $ decompileExternal e
+    External e -> liftIO $ decompileExternal e
   decompilePattern :: Pattern -> Pattern.Pattern
   decompilePattern = \case
     PatternI i -> Pattern.Int i
