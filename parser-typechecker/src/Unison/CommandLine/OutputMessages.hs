@@ -192,12 +192,13 @@ notifyUser dir o = case o of
     Console.setTitle "Unison ☺︎"
     -- todo: we should just print this the same way as everything else
     let defs       = prettyTypecheckedFile uf errorEnv
-    when (not $ null defs) . putPrettyLn' . ("\n" <>) . P.okCallout . P.lines$
+    if (not $ null defs) then putPrettyLn' . ("\n" <>) . P.okCallout . P.lines $
      [ P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in " <> P.group (P.text sourceName <> ":")
      , ""
      , P.lit defs
      , P.wrap "Now evaluating any watch expressions (lines starting with `>`)..."
      ]
+    else putPrettyLn' . P.wrap $ "I reloaded " <> P.text sourceName <> " and didn't find any definitions."
   TodoOutput branch todo -> todoOutput branch todo
 
  where
