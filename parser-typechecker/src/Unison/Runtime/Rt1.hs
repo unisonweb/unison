@@ -69,27 +69,27 @@ at size i m = case i of
 ati :: Size -> Z -> Stack -> IO Int64
 ati size i m = at size i m >>= \case
   I i -> pure i
-  _ -> fail "type error, expecting I"
+  v -> fail $ "type error, expecting I, got " <> show v
 
 atn :: Size -> Z -> Stack -> IO Word64
 atn size i m = at size i m >>= \case
   N i -> pure i
-  _ -> fail "type error, expecting N"
+  v -> fail $ "type error, expecting N, got " <> show v
 
 atf :: Size -> Z -> Stack -> IO Double
 atf size i m = at size i m >>= \case
   F i -> pure i
-  _ -> fail "type error, expecting F"
+  v -> fail $ "type error, expecting F, got " <> show v
 
 atb :: Size -> Z -> Stack -> IO Bool
 atb size i m = at size i m >>= \case
   B b -> pure b
-  _ -> fail "type error, expecting B"
+  v -> fail $ "type error, expecting B, got " <> show v
 
 att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
-  _ -> fail "type error, expecting T"
+  v -> fail $ "type error, expecting T, got " <> show v
 
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
@@ -99,7 +99,7 @@ ats size i m = at size i m >>= \case
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
   Data r id vs -> pure (r, id, vs)
-  _ -> fail "type error, expecting Data"
+  v -> fail $ "type error, expecting Data, got " <> show v
 
 push :: Size -> Value -> Stack -> IO Stack
 push size v s0 = do
@@ -455,7 +455,10 @@ run ioHandler env ir = do
            <> "\n]"
 
     -- Just = match success, Nothing = match fail
+    -- Returns Values to be put on the stack when evaluating case guard/body
     tryCase :: (Value, Pattern) -> Maybe [Value]
+    -- tryCase x | trace ("tryCase " ++ show x ++ " =") False = undefined
+    -- tryCase x = traceShowId $ case x of
     tryCase = \case
       (I x, PatternI x2) -> when' (x == x2) $ Just []
       (F x, PatternF x2) -> when' (x == x2) $ Just []
@@ -477,7 +480,8 @@ run ioHandler env ir = do
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]
       (v, p) -> error $
-        "unpossible: tryCase (" <> show v <> ", " <> show p <> ")"
+        "bug: type error in pattern match: " <>
+        "tryCase (" <> show v <> ", " <> show p <> ")"
       where when' b m = if b then m else Nothing
 
     tryCases size scrute m ((pat, _vars, cond, body) : remainingCases) =
@@ -490,7 +494,7 @@ run ioHandler env ir = do
               RDone (B cond) <- go size' m cond
               if cond then go size' m body
               else tryCases size scrute m remainingCases
-            Nothing -> go size m body
+            Nothing -> go size' m body
     tryCases _ _ _ _ = pure RMatchFail
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
