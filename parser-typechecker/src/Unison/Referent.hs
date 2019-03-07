@@ -43,10 +43,13 @@ toShortHash = \case
 showShort :: Int -> Referent -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
+toText :: Referent -> Text
+toText = \case
+  Ref r     -> R.toText r
+  Con r cid -> R.toText r <> "#" <> Text.pack (show cid)
+
 toString :: Referent -> String
-toString = \case
-  Ref r     -> show r
-  Con r cid -> show r <> "#" <> show cid
+toString = Text.unpack . toText
 
 isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True

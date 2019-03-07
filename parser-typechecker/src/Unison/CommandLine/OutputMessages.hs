@@ -12,57 +12,57 @@
 module Unison.CommandLine.OutputMessages where
 
 -- import Debug.Trace
-import           Control.Applicative             ((<|>))
-import           Control.Monad                   (join, when, unless)
-import           Data.Foldable                   (toList, traverse_)
-import           Data.List                       (sort)
-import           Data.ListLike                   (ListLike)
-import           Data.List.Extra                 (nubOrdOn)
-import qualified Data.Map                        as Map
-import           Data.Maybe                      (listToMaybe)
-import qualified Data.Set                        as Set
-import           Data.String                     (IsString, fromString)
-import qualified Data.Text                       as Text
-import           Data.Text.IO                    (readFile, writeFile)
-import           Prelude                         hiding (readFile, writeFile)
-import qualified System.Console.ANSI             as Console
-import           System.Directory                (canonicalizePath,
-                                                  doesFileExist)
-import           Unison.Codebase.Branch          (Branch, Branch0)
-import qualified Unison.Codebase.Branch          as Branch
-import           Unison.Codebase.Editor          (DisplayThing (..), Input (..),
-                                                  Output (..))
-import qualified Unison.Codebase.Editor          as E
-import qualified Unison.Codebase.TermEdit        as TermEdit
-import qualified Unison.Codebase.TypeEdit        as TypeEdit
-import           Unison.CommandLine              (backtick, backtickEOS,
-                                                  putPrettyLn, putPrettyLn',
-                                                  tip, warn, watchPrinter)
-import qualified Unison.HashQualified            as HQ
-import           Unison.Name                     (Name)
-import qualified Unison.Name                     as Name
-import           Unison.NamePrinter              (prettyHashQualified,
-                                                  prettyName,
-                                                  styleHashQualified)
-import qualified Unison.Names                    as Names
-import qualified Unison.PrettyPrintEnv           as PPE
-import           Unison.PrintError               (prettyParseError,
-                                                  prettyTypecheckedFile,
-                                                  renderNoteAsANSI)
-import qualified Unison.Reference                as Reference
-import qualified Unison.Referent                 as Referent
-import qualified Unison.Result                   as Result
-import           Unison.Term                     (AnnotatedTerm)
-import qualified Unison.TermPrinter              as TermPrinter
-import qualified Unison.TypePrinter              as TypePrinter
-import qualified Unison.Typechecker.TypeLookup   as TL
-import qualified Unison.UnisonFile               as UF
-import qualified Unison.Util.ColorText           as CT
-import           Unison.Util.Monoid              (intercalateMap, unlessM)
-import qualified Unison.Util.Pretty              as P
-import qualified Unison.Util.Relation            as R
-import           Unison.Var                      (Var)
-import qualified Unison.Var                      as Var
+import           Control.Applicative           ((<|>))
+import           Control.Monad                 (join, unless, when)
+import           Data.Bifunctor                (bimap)
+import           Data.Foldable                 (toList, traverse_)
+import           Data.List                     (sort)
+import           Data.List.Extra               (nubOrdOn)
+import           Data.ListLike                 (ListLike)
+import qualified Data.Map                      as Map
+import           Data.Maybe                    (listToMaybe)
+import qualified Data.Set                      as Set
+import           Data.String                   (IsString, fromString)
+import qualified Data.Text                     as Text
+import           Data.Text.IO                  (readFile, writeFile)
+import           Prelude                       hiding (readFile, writeFile)
+import qualified System.Console.ANSI           as Console
+import           System.Directory              (canonicalizePath, doesFileExist)
+import           Unison.Codebase.Branch        (Branch, Branch0)
+import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Editor        (DisplayThing (..), Input (..),
+                                                Output (..))
+import qualified Unison.Codebase.Editor        as E
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
+import           Unison.CommandLine            (backtick, backtickEOS,
+                                                bigproblem, putPrettyLn,
+                                                putPrettyLn', tip, warn,
+                                                watchPrinter)
+import qualified Unison.HashQualified          as HQ
+import           Unison.Name                   (Name)
+import qualified Unison.Name                   as Name
+import           Unison.NamePrinter            (prettyHashQualified, prettyName,
+                                                styleHashQualified)
+import qualified Unison.Names                  as Names
+import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrintError             (prettyParseError,
+                                                prettyTypecheckedFile,
+                                                renderNoteAsANSI)
+import qualified Unison.Reference              as Reference
+import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
+import           Unison.Term                   (AnnotatedTerm)
+import qualified Unison.TermPrinter            as TermPrinter
+import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.ColorText         as CT
+import           Unison.Util.Monoid            (intercalateMap, unlessM)
+import qualified Unison.Util.Pretty            as P
+import qualified Unison.Util.Relation          as R
+import           Unison.Var                    (Var)
+import qualified Unison.Var                    as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
@@ -419,18 +419,23 @@ todoOutput (Branch.head -> branch) todo =
 listOfDefinitions :: Var v => Branch0 -> [E.SearchResult' v a] -> IO ()
 listOfDefinitions branch results = do
   putPrettyLn . P.lines . P.nonEmpty $ prettyResults ++
-    [formatMissingStuff termsWithMissingTypes missingTypes]
-  unless (null impossible) . error $
-    "Compiler bug, these referents are missing types: " <> show impossible
+    [formatMissingStuff termsWithMissingTypes missingTypes
+    ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
+      "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
+        P.column2 ( (P.bold "Name", P.bold "Built-in")
+                  -- : ("-", "-")
+                  : (fmap (bimap prettyHashQualified
+                                (P.text . Referent.toText)) missingBuiltins))
+    ]
   where
   ppe  = Branch.prettyPrintEnv branch
   prettyResults =
     map (E.searchResult' (unsafePrettyTermResultSig' ppe) prettyTypeResultHeader')
         (filter (not . missingType) results)
   -- typeResults = map prettyDeclTriple types
-  missingType (E.Tm _ Nothing _ _) = True
+  missingType (E.Tm _ Nothing _ _)          = True
   missingType (E.Tp _ (MissingThing _) _ _) = True
-  missingType _ = False
+  missingType _                             = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
@@ -441,7 +446,7 @@ listOfDefinitions branch results = do
     | E.Tp name (MissingThing r) _ _ <- results ] <>
     [ (name, r)
     | E.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
-  impossible = results >>= \case
+  missingBuiltins = results >>= \case
     E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(name,r)]
     _ -> []
 

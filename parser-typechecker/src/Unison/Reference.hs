@@ -19,6 +19,7 @@ module Unison.Reference
    unsafeFromText,
    readSuffix,
    showShort,
+   toText,
    toShortHash) where
 
 import           Control.Monad   (join)
@@ -75,6 +76,9 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
       put = putLength i >> putLength n
       putLength = serialize . VarInt
 toShortHash (DerivedId _) = error "this should be covered above"
+
+toText :: Reference -> Text
+toText = SH.toText . toShortHash
 
 showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash

@@ -94,7 +94,7 @@ att size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  _ -> fail "type error, expecting Sequence"
+  v -> fail $ "type error, expecting Sequence, got " <> show v
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -169,8 +169,6 @@ compilationEnv :: Monad m
 compilationEnv env t = do
   let typeDeps = Term.referencedDataDeclarations t
               <> Term.referencedEffectDeclarations t
-  traceM "typeDeps"
-  traceShowM typeDeps
   arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
     r@(R.DerivedId id) -> do
       decl <- CL.getTypeDeclaration env id
@@ -275,11 +273,12 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IR
     -> IO Result
 run ioHandler env ir = do
+  let pir = prettyIR mempty pexternal
+      pvalue = prettyValue mempty pexternal
+      -- if we had a PrettyPrintEnv, we could use that here
+      pexternal (ExternalFunction r _) = P.shown r
   traceM $ "Running this program"
-  traceM $
-    -- if we had a PrettyPrintEnv, we could use that here
-    let pexternal (ExternalFunction r _) = P.shown r
-    in P.render 80 (prettyIR mempty pexternal ir)
+  traceM $ P.render 80 (pir ir)
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
@@ -307,9 +306,11 @@ run ioHandler env ir = do
         True -> done (B True)
         False -> go size m j
       Not i -> atb size i m >>= (done . B . not)
-      Let v b body -> go size m b >>= \case
-        RRequest req -> pure $ RRequest (appendCont v req body)
-        RDone v -> push size v m >>= \m -> go (size + 1) m body
+      Let var b body -> go size m b >>= \case
+        RRequest req -> pure $ RRequest (appendCont var req body)
+        RDone v -> do
+          traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
+          push size v m >>= \m -> go (size + 1) m body
         e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
