@@ -56,6 +56,12 @@ data Continuation
 
 instance Semigroup Continuation where (<>) = Chain
 
+instance Show Continuation where
+  show c = "<continuation>"
+
+instance External Continuation where
+  decompileExternal c = error "todo"
+
 -- Wrap a `handle h` around the continuation inside the `Req`.
 -- Ex: `k = x -> x + 1` becomes `x -> handle h in x + 1`.
 wrapHandler :: Value -> Req -> Req
@@ -113,7 +119,7 @@ att size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  v -> fail $ "type error, expecting Sequence"
+  v -> fail $ "type error, expecting Sequence, got: " <> show v
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -168,6 +174,7 @@ data Result
   = RRequest Req
   | RMatchFail {- maybe add more info here. -}
   | RDone Value
+  deriving Show
 
 done :: Value -> IO Result
 done v = pure (RDone v)
