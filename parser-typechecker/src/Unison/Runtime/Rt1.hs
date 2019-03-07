@@ -316,7 +316,7 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IO Result
 run ioHandler env ir = do
   let pir = prettyIR mempty pexternal pcont
-      pvalue = prettyValue mempty pexternal pcont
+      -- pvalue = prettyValue mempty pexternal pcont
       pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
       -- if we had a PrettyPrintEnv, we could use that here
       pexternal (ExternalFunction r _) = P.shown r
@@ -354,7 +354,7 @@ run ioHandler env ir = do
           let needed = if Set.null freeInBody then 0 else Set.findMax freeInBody
           in pure $ RRequest (appendCont var req $ One needed size m body)
         RDone v -> do
-          traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
+          -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
         e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
