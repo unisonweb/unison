@@ -14,6 +14,7 @@ import           Unison.Parser
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import qualified Unison.Var as Var
 
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
@@ -81,8 +82,9 @@ sequenceTyp = do
   pure $ Type.app a (Type.vector a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
-tupleOrParenthesizedType rec = tupleOrParenthesized rec Type.unit pair
+tupleOrParenthesizedType rec = tupleOrParenthesized rec unit Type.unit pair
   where
+    unit a = pure $ Type.var a (Var.named "()")
     pair t1 t2 =
       let a = ann t1 <> ann t2
       in Type.app a (Type.app (ann t1) (Type.pair a) t1) t2

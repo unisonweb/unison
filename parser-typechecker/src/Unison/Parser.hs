@@ -133,7 +133,7 @@ instance Annotated a => Annotated (PatternP a) where
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 
-label :: (Var v, Show a) => String -> P v a -> P v a
+label :: (Ord v, Show a) => String -> P v a -> P v a
 label = P.label
 -- label = P.dbg
 
@@ -267,7 +267,8 @@ sepBy1 :: Var v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
 prefixVar :: Var v => P v (L.Token v)
-prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
+prefixVar =
+  fmap Var.nameds <$> label "symbol" prefixOp
   where
     prefixOp = wordyId <|> label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
 
@@ -285,15 +286,17 @@ string = queryToken getString
   where getString (L.Textual s) = Just (Text.pack s)
         getString _             = Nothing
 
-tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
-tupleOrParenthesized p unit pair = do
+tupleOrParenthesized
+  :: Var v => P v a -> (Ann -> P v a) -> (Ann -> a) -> (a -> a -> a) -> P v a
+tupleOrParenthesized p unit nilTuple pair = do
     open <- reserved "("
     es <- sepBy (reserved ",") p
     close <- optional semi *> reserved ")"
-    pure $ go es open close
+    go es open close
   where
-    go [t] _ _ = t
-    go as s e  = foldr pair (unit (ann s <> ann e)) as
+    go [] s e  = unit (ann s <> ann e)
+    go [t] _ _ = pure t
+    go as s e  = pure $ foldr pair (nilTuple (ann s <> ann e)) as
 
 chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where

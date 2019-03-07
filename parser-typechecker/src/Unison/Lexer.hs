@@ -245,6 +245,8 @@ lexer0 scope rem =
         Token Close pos (inc pos)
           : Token (Reserved "}") pos (inc pos)
           : goWhitespace (drop 1 l) (inc pos) rem
+      (wordyId -> Right (id, rem)) ->
+        let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
@@ -292,8 +294,6 @@ lexer0 scope rem =
       -- keywords and identifiers
       (symbolyId -> Right (id, rem)) ->
         let end = incBy id pos in Token (SymbolyId id) pos end : goWhitespace l end rem
-      (wordyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
@@ -377,6 +377,7 @@ hasSep (ch:_) = isSep ch
 
 -- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
 wordyId0 :: String -> Either Err (String, String)
+wordyId0 ('(':')':rem) = Right ("()", rem)
 wordyId0 s = span' wordyIdChar s $ \case
   (id @ (ch:_), rem) | not (Set.member id keywords)
                     && any (\ch -> isAlpha ch || isEmoji ch) id
@@ -385,7 +386,7 @@ wordyId0 s = span' wordyIdChar s $ \case
   (id, _rem) -> Left (InvalidWordyId id)
 
 wordyId :: String -> Either Err (String, String)
-wordyId s = qualifiedId False s wordyId0 wordyId0
+wordyId s = qualifiedId s wordyId0 wordyId0
 
 wordyIdStartChar :: Char -> Bool
 wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
@@ -402,34 +403,42 @@ splitOn c s = unfoldr step s where
   step [] = Nothing
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
-qualifiedId :: Bool
-            -> String
+-- TODO: write a combined `String -> Either Err (Token String, String)`
+-- where the token is either a WordyId or a SymbolyId
+-- This avoids a bunch of pointless backtracking and can probably be written
+-- simply than the monstrosity below
+
+qualifiedId :: String
             -> (String -> Either Err (String, String))
             -> (String -> Either Err (String, String))
             -> Either Err (String, String)
-qualifiedId requireLast s0 leadingSegments lastSegment =
+qualifiedId s0 leadingSegments lastSegment =
   goLeading 0 s0 where
    -- parsing 0 or more leading segments
    goLeading acc s = case leadingSegments s of
+     Right (seg, '.' : rem@('(' : ')' : _)) ->
+       goLeading (acc + length seg + 1) rem
      Right (seg, '.' : rem)
-       | not requireLast &&
-         all (\c -> isSpace c || Set.member c delimiters) (take 1 rem)
-         -> Right (seg, '.' : rem)
+       | all (\c -> isSpace c || Set.member c delimiters) (take 1 rem)
+         -> goLast Nothing acc s
        | otherwise
          -> goLeading (acc + length seg + 1) rem
-     Right (seg, rem) -> goLast Nothing (acc + length seg) rem
+     -- seg parsed as leadingSegment, but rem doesn't start with '.',
+     -- so we're calling this
+     Right (seg, rem) -> goLast Nothing acc (seg ++ rem)
+       -- if requireLast then
+       -- else goLast Nothing (acc + length seg) rem
      Left e -> goLast (Just e) acc s
    err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
    -- leading segments produced acc before failing,
    -- now parse lastSegment if required
    goLast e acc s = case lastSegment s of
-     Left e2 -> if requireLast || acc == 0 then Left (err2 e e2)
-                else Right (take acc s0, s)
-     Right (seg, s) -> Right (take (acc + length seg) s0, s)
+     Left e2 -> Left (err2 e e2)
+     Right (seg, rem) -> Right (take (acc + length seg) s0, rem)
 
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
-symbolyId s = qualifiedId True s wordyId0 symbolyId0
+symbolyId s = qualifiedId s wordyId0 symbolyId0
 
 -- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
 splitWordy :: String -> (String, String)

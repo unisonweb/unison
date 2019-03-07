@@ -1,9 +1,10 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.TermParser where
 
@@ -105,7 +106,13 @@ parsePattern = constructor <|> leaf
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
-  parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
+  parenthesizedOrTuplePattern = do
+    env <- ask
+    let unitCtor ann = case Names.patternNameds env "()" of
+          Just (ref, cid) -> pure (Pattern.Constructor ann ref cid [], [])
+          Nothing -> customFailure $ UnknownEffectConstructor tok
+            where tok = L.Token "()" (start ann) (end ann)
+    tupleOrParenthesized parsePattern unitCtor unit pair
   unit ann = (Pattern.Constructor ann Type.unitRef 0 [], [])
   pair (p1, v1) (p2, v2) =
     (Pattern.Constructor (ann p1 <> ann p2) Type.pairRef 0 [p1, p2],
@@ -442,8 +449,10 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit pair
+tupleOrParenthesizedTerm = label "tuple" $
+  tupleOrParenthesized term unit Term.unit pair
   where
+    unit a = pure $ Term.var a (Var.named "()")
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)

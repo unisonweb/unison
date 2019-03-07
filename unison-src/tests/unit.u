@@ -1,0 +1,10 @@
+type () = ()
+type Unit = Unit
+
+y : ()
+y = Unit.Unit
+x : Unit
+x = Unit.Unit
+
+> x
+> y
