@@ -21,7 +21,7 @@ import Data.Functor (void)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust,fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -712,10 +712,37 @@ instance (Show e, Show cont) => Show (Z e cont) where
   show (External e) = "External:" <> show e
 
 freeSlots :: IR e cont -> Set Int
-freeSlots _ir = error "todo"
+freeSlots ir = case ir of
+  Let _ _ _ free -> decrementFrees free
+  LetRec bs body -> let
+    n = length bs
+    in foldMap (decrementFreesBy n . freeSlots . snd) bs <>
+       decrementFreesBy n (freeSlots body)
+  Apply lam args -> freeSlots lam <> foldMap free args
+  Handle h body -> free h <> freeSlots body
+  If c t f -> free c <> freeSlots t <> freeSlots f
+  And x y -> free x <> freeSlots y
+  Or x y -> free x <> freeSlots y
+  Match scrutinee cases -> free scrutinee <> foldMap freeInCase cases where
+    freeInCase (_pat, bound, guard, rhs) = let
+      n = length bound
+      in (decrementFreesBy n $ freeSlots rhs) <>
+         (fromMaybe mempty $ decrementFreesBy n . freeSlots <$> guard)
+  _ -> foldMap free (toList ir)
+  where
+  free z = case z of
+    Slot i -> Set.singleton i
+    LazySlot i -> Set.singleton i
+    _ -> Set.empty
+
+-- todo: could make this more efficient
+decrementFreesBy :: Int -> Set Int -> Set Int
+decrementFreesBy 0 s = s
+decrementFreesBy n s = decrementFreesBy (n-1) (decrementFrees s)
 
 decrementFrees :: Set Int -> Set Int
-decrementFrees frees = Set.map (\x -> x - 1) (Set.delete 0 frees)
+decrementFrees frees =
+  Set.map (\x -> x - 1) (Set.delete 0 frees)
 
 let' :: Symbol -> IR e cont -> IR e cont -> IR e cont
 let' name binding body =
