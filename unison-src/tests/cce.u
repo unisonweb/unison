@@ -79,8 +79,8 @@ dreduce : Monoid a -> [a] ->{Remote} a
 dreduce m a =
   if size a < 2 then Monoid.orElse m (Sequence.at 0 a)
   else
-    l = Remote.forkAt Remote.spawn '(dreduce m (take (size a / 2) a))
-    r = Remote.forkAt Remote.spawn '(dreduce m (drop (size a / 2) a))
+    l = Remote.forkAt Remote.spawn '(dreduce m (Sequence.take (size a / 2) a))
+    r = Remote.forkAt Remote.spawn '(dreduce m (Sequence.drop (size a / 2) a))
     Monoid.op m (force l) (force r)
 
 dmapReduce : (a ->{Remote} b) -> Monoid b -> [a] ->{Remote} b
@@ -105,11 +105,11 @@ Node.increment n =
 
 > Remote.runLocal '(dsort (<) [3,2,1,1,2,3,9182,1,2,34,1,23])
 
-{-
+----
+
 java.lang.ClassCastException: org.unisonweb.UnboxedType$Nat$ cannot be cast to org.unisonweb.Value$Lambda
 	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$dynamicCall$1(compilation.scala:747)
 	at org.unisonweb.compilation.package$$anonfun$dynamicCall$2.apply(compilation.scala:714)
 	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$compileMatchCase$3(compilation.scala:332)
 	at org.unisonweb.compilation.package$$anonfun$compileMatchCase$6.apply(compilation.scala:324)
 	at org.unisonweb.compilation.package$.org$unisonweb$compilation$package$$$anonfun$compile$12(compilation.scala:1070)
--}
