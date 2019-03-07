@@ -420,7 +420,7 @@ compile0 env bound t =
         (Specialize (void t) [])
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
-    Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body) (error "todo - figure out set of free variables in the binding")
+    Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body) (freeSlots body)
     Term.LetRecNamed' bs body ->
       LetRec ((\(v,b) -> (underlyingSymbol v, go b)) <$> bs) (go body)
     Term.Constructor' r cid -> ctorIR con (Term.constructor()) r cid where
@@ -448,6 +448,15 @@ compile0 env bound t =
           Just v -> Val v
         else if isJust o then compileVar i v tl
         else compileVar (i + 1) v tl
+
+      -- freeSlots :: _ -> Set Int
+      freeSlots t = let
+        vars = ABT.freeVars t
+        env = ABT.annotation t
+        in Set.fromList $ toList vars >>= \v -> case compileVar 0 v env of
+             Slot i -> [i]
+             LazySlot i -> [i]
+             _ -> []
 
       ctorIR :: (Int -> R.Reference -> Int -> [Z e cont] -> IR e cont)
              -> (R.Reference -> Int -> Term SymbolC)
