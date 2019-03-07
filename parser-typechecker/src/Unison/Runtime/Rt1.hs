@@ -567,15 +567,17 @@ run ioHandler env ir = do
       (B x, PatternB x2) -> when' (x == x2) $ Just []
       (T x, PatternT x2) -> when' (x == x2) $ Just []
       (Data r cid args, PatternData r2 cid2 pats)
-        -> when' (r == r2 && cid == cid2) $
-            join <$> traverse tryCase (zip args pats)
+        -> if r == r2 && cid == cid2
+           then join <$> traverse tryCase (zip args pats)
+           else Nothing
       (Sequence args, PatternSequence pats) ->
         join <$> traverse tryCase (zip (toList args) (toList pats))
       (Pure v, PatternPure p) -> tryCase (v, p)
       (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
-        when' (r == r2 && cid == cid2) $
-          join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+        if r == r2 && cid == cid2
+        then join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
+        else Nothing
       (Requested _, PatternPure _) -> Nothing
       (v, PatternAs p) -> (v:) <$> tryCase (v,p)
       (_, PatternIgnore) -> Just []
