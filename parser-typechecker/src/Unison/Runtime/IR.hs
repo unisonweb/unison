@@ -701,12 +701,17 @@ instance Show e => Show (Z e) where
   show (External e) = "External:" <> show e
 
 builtins :: Map R.Reference (IR e)
-builtins = Map.fromList $ let
+builtins = Map.fromList $ arity0 <> arityN
+  where
   -- slot = Leaf . Slot
   val = Leaf . Val
   underapply name = FormClosure (Term.ref() $ R.Builtin name) []
   var = Var.named "x"
-  in [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
+  arity0 = [ (R.Builtin name, val $ value) | (name, value) <-
+        [ ("Text.empty", T "")
+        , ("Sequence.empty", Sequence mempty)
+        ] ]
+  arityN = [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
        (name, arity, ir) <-
         [ ("Int.+", 2, AddI (Slot 1) (Slot 0))
         , ("Int.-", 2, SubI (Slot 1) (Slot 0))
@@ -756,11 +761,7 @@ builtins = Map.fromList $ let
         , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
         , ("Boolean.not", 1, Not (Slot 0))
-
-        , ("Text.empty", 0, val $ T "")
-        , ("Sequence.empty", 0, val $ Sequence mempty)
-        ]
-  ]
+        ]]
 
 -- boring instances
 
