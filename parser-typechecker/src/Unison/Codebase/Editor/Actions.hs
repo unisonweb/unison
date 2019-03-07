@@ -127,7 +127,7 @@ loop = do
                   -- with all the (hash, eval) pairs, even if it's just an
                   -- in-memory cache
                   eval . Notify $ Evaluated text
-                    (Branch.prettyPrintEnv $ Branch.head currentBranch')
+                    (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
                     bindings
                     e'
                   latestFile .= Just (Text.unpack sourceName, False)
