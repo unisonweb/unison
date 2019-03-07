@@ -484,11 +484,11 @@ run ioHandler env ir = do
       case tryCase (scrute, pat) of
         Nothing -> tryCases size scrute m remainingCases -- this pattern didn't match
         Just vars -> do
-          (size, m) <- pushMany size vars m
+          (size', m) <- pushMany size vars m
           case cond of
             Just cond -> do
-              RDone (B cond) <- go size m cond
-              if cond then go size m body
+              RDone (B cond) <- go size' m cond
+              if cond then go size' m body
               else tryCases size scrute m remainingCases
             Nothing -> go size m body
     tryCases _ _ _ _ = pure RMatchFail
