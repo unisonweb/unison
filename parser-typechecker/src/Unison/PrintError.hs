@@ -33,6 +33,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import qualified Unison.DataDeclaration       as DD
+import Unison.DataDeclaration (pattern TupleType')
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -734,7 +735,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
       paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
     Type.Arrow' i o -> paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
     Type.Ann'   t k -> paren True $ go 1 t <> " : " <> renderKind k
-    Type.Tuple' ts  -> paren True $ commas (go 0) ts
+    TupleType' ts  -> paren True $ commas (go 0) ts
     Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
       "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f' : args)

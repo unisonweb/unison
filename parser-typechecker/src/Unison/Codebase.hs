@@ -548,7 +548,7 @@ typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
                -> [(v, Term v a)]
                -> m (Map v (Type v a))
 typecheckTerms code bindings = do
-  let tm = Term.letRec' True bindings $ Term.unit mempty
+  let tm = Term.letRec' True bindings $ DD.unitTerm mempty
   env <- typecheckingEnvironment' code tm
   (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
   -- todo: assert that the output map has a type for all variables in the input

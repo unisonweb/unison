@@ -127,18 +127,8 @@ builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
 builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
-builtinDataDecls = l
-  where
-    l = [ (Var.named "()",
-            (Type.unitRef,
-             DD.mkDataDecl' Intrinsic [] [(Intrinsic,
-                                           Var.named "()",
-                                           Type.unit Intrinsic)]))
-    -- todo: figure out why `type () = ()` doesn't parse:
-    -- l = [ parseDataDeclAsBuiltin "type () = ()"
-        , parseDataDeclAsBuiltin "type Pair a b = Pair a b"
-        , parseDataDeclAsBuiltin "type Optional a = None | Some a"
-        ]
+builtinDataDecls =
+  [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []

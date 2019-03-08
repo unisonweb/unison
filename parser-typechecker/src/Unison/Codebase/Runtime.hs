@@ -1,5 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Runtime where
 
@@ -20,6 +21,7 @@ import           Unison.Var                     ( Var )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.UnisonFile             as UF
+import Unison.DataDeclaration (pattern TupleTerm', tupleTerm)
 
 data Runtime v = Runtime
   { terminate :: IO ()
@@ -72,15 +74,15 @@ evaluateWatches code evaluationCache rt uf = do
       bindings :: [(v, Term v)]
       bindings     = [ (v, unref rv b) | (v, (_, _, b, _)) <- Map.toList m' ]
       watchVars    = [ Term.var () v | v <- toList watches ]
-      bigOl'LetRec = Term.letRec' True bindings (Term.tuple watchVars)
+      bigOl'LetRec = Term.letRec' True bindings (tupleTerm watchVars)
       cl           = void $ CL.fromUnisonFile uf <> code
   -- 4. evaluate it and get all the results out of the tuple, then
   -- create the result Map
   out <- evaluate rt cl bigOl'LetRec
   let
     (bindings, results) = case out of
-      Term.Tuple' results -> (mempty, results)
-      Term.LetRecNamed' bs (Term.Tuple' results) -> (bs, results)
+      TupleTerm' results -> (mempty, results)
+      Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
       _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
   let go eval (ref, a, uneval, isHit) =
         (a, ref, uneval, Term.etaNormalForm eval, isHit)
