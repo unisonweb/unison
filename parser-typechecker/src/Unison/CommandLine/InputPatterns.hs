@@ -99,18 +99,6 @@ validInputs =
       (pure . ShowDefinitionI E.LatestFileLocation)
   , InputPattern "rename" ["mv"]
     [(False, definitionQueryArg), (False, noCompletions)]
-    (P.wrap "`rename foo bar` renames `foo` to `bar`.")
-    (\case
-      [oldName, newName] ->
-        Right $ RenameUnconflictedI
-        allTargets
-        (fromString oldName)
-        (fromString newName)
-      _ -> Left . P.warnCallout $ P.wrap
-        "`rename` takes two arguments, like `rename oldname newname`."
-    )
-  , InputPattern "rename" ["mv"]
-    [(False, definitionQueryArg), (False, noCompletions)]
     "`rename foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> Right $ RenameUnconflictedI
