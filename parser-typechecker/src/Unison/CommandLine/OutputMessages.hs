@@ -16,7 +16,7 @@ import           Control.Applicative           ((<|>))
 import           Control.Monad                 (join, unless, when)
 import           Data.Bifunctor                (bimap)
 import           Data.Foldable                 (toList, traverse_)
-import           Data.List                     (sort)
+import           Data.List                     (sort, sortOn)
 import           Data.List.Extra               (nubOrdOn)
 import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
@@ -166,7 +166,7 @@ notifyUser dir o = case o of
             | (v, b) <- bindings]
           prettyWatches = P.lines [
             watchPrinter fileContents ppe ann evald isCacheHit |
-            (_v, (ann,evald,isCacheHit)) <- Map.toList watches ]
+            (ann,evald,isCacheHit) <- sortOn (\(a,_,_)->a) . toList $ watches ]
       -- todo: use P.nonempty
       in putPrettyLn $ if null bindings then prettyWatches
                        else prettyBindings <> "\n" <> prettyWatches
