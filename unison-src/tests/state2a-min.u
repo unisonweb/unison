@@ -13,5 +13,4 @@ ex = handle (state 10) in
   State.put (5 + 5)
   "hello"
 
--- returns () for some reason!!!
 > ex

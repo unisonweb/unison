@@ -6,12 +6,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor where
 
 -- import Debug.Trace
 
-import Data.List (sortOn)
+import           Data.Char                      ( toLower )
+import Data.List (sortOn, isSuffixOf, isPrefixOf)
 import           Control.Monad                  ( forM_, forM, foldM, filterM)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
@@ -25,6 +27,7 @@ import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
+import qualified Text.Regex.TDFA               as RE
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -32,6 +35,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
@@ -63,6 +67,7 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
@@ -141,6 +146,8 @@ data Input
   -- resolve update conflicts
   | ChooseUpdateForTermI Referent Referent
   | ChooseUpdateForTypeI Reference Reference
+  -- execute an IO object with arguments
+  -- | ExecuteI Name [String]
   -- other
   | SlurpFileI AllowUpdates
   | ListBranchesI
@@ -168,6 +175,24 @@ type AllowUpdates = Bool
 data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
 
+data SearchResult' v a
+  = Tm' (TermResult' v a)
+  | Tp' (TypeResult' v a)
+  deriving (Eq, Show)
+data TermResult' v a =
+  TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
+  deriving (Eq, Show)
+data TypeResult' v a =
+  TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
+  deriving (Eq, Show)
+pattern Tm h t r as = Tm' (TermResult' h t r as)
+pattern Tp h t r as = Tp' (TypeResult' h t r as)
+
+searchResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
+searchResult' f g = \case
+  Tm' tm -> f tm
+  Tp' tp -> g tp
+
 data Output v
   = Success Input
   | NoUnisonFile
@@ -181,15 +206,16 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfDefinitions Branch
-      [(HashQualified, Referent, Maybe (Type v Ann))]
-      [(HashQualified, Reference, DisplayThing (Decl v Ann))]
+  | ListOfDefinitions Branch [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts Branch0
-  | Evaluated SourceFileContents PPE.PrettyPrintEnv (Map v (Ann, Term v (), Runtime.IsCacheHit))
+  | Evaluated SourceFileContents
+              PPE.PrettyPrintEnv
+              [(v, Term v ())]
+              (Map v (Ann, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
@@ -277,7 +303,7 @@ data Command i v a where
   -- of the same watches instantaneous.
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
-           -> Command i v (Map v
+           -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
@@ -298,9 +324,6 @@ data Command i v a where
   -- Loads a branch by name from the codebase, returning `Nothing` if not found.
   LoadBranch :: BranchName -> Command i v (Maybe Branch)
 
-  -- Switches the app state to the given branch.
-  SwitchBranch :: Branch -> BranchName -> Command i v ()
-
   -- Returns `False` if a branch by that name already exists.
   NewBranch :: BranchName -> Command i v Bool
 
@@ -311,7 +334,7 @@ data Command i v a where
 
   -- Merges the branch with the existing branch with the given name. Returns
   -- `False` if no branch with that name exists, `True` otherwise.
-  MergeBranch :: BranchName -> Branch -> Command i v Bool
+  SyncBranch :: BranchName -> Branch -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
@@ -319,15 +342,11 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Return a list of terms whose names match the given queries.
-  SearchTerms :: Branch
-              -> [String]
-              -> Command i v [(HashQualified, Referent, Maybe (Type v Ann))]
+  -- Return a list of definitions whose names match the given queries.
+  SearchBranch :: Branch -> [HashQualified] -> Command i v [SearchResult' v Ann]
 
-  -- Return a list of types whose names match the given queries.
-  SearchTypes :: Branch
-              -> [String]
-              -> Command i v [(HashQualified, Reference)] -- todo: can add Kind later
+  --
+  ListBranch :: Branch -> Command i v [SearchResult' v Ann]
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
@@ -336,6 +355,8 @@ data Command i v a where
   Todo :: Branch -> Command i v (TodoOutput v Ann)
 
   Propagate :: Branch -> Command i v Branch
+
+  -- Execute :: Reference.Id -> Command i v (IO ())
 
 data Outcome
   -- New definition that was added to the branch
@@ -387,8 +408,10 @@ outcomes okToUpdate b file = let
         [] -> (r0, Added)
         referents ->
           if not (okToUpdate n) then (r0, CouldntUpdate)
-          else if length referents > 1 then (r0, CouldntUpdateConflicted)
-          else if any Referent.isConstructor referents then (r0, TermExistingConstructorCollision)
+          else if length referents > 1
+          then (r0, CouldntUpdateConflicted)
+          else if any Referent.isConstructor referents
+          then (r0, TermExistingConstructorCollision)
           else (r0, Updated)
       -- It's a type
       Left _ -> let
@@ -414,12 +437,16 @@ outcomes okToUpdate b file = let
 
   outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
   termOutcome (v, (r, _, _)) = outcome0 (Name.unsafeFromVar v) (Right r) []
-  outcomes0types
-     = map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
-    ++ map typeOutcome (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
-  typeOutcome (v, (r, dd)) = outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
-  ctorNames v r (Left e) = Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
-  ctorNames v r (Right dd) = Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
+  outcomes0types =
+    map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
+      ++ map typeOutcome
+             (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
+  typeOutcome (v, (r, dd)) =
+    outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
+  ctorNames v r (Left e) =
+    Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
+  ctorNames v r (Right dd) =
+    Map.keys $ Names.termNames (DD.dataDeclToNames v r dd)
   outcomes0 = outcomes0terms ++ outcomes0types
   in removeTransitive (UF.dependencies' file) outcomes0
 
@@ -594,12 +621,12 @@ forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 forkBranch codebase branch branchName = do
   ifM (Codebase.branchExists codebase branchName)
       (pure False)
-      ((branch ==) <$> Codebase.mergeBranch codebase branchName branch)
+      ((branch ==) <$> Codebase.syncBranch codebase branchName branch)
 
-mergeBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
-mergeBranch codebase branch branchName = ifM
+syncBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+syncBranch codebase branch branchName = ifM
   (Codebase.branchExists codebase branchName)
-  (Codebase.mergeBranch codebase branchName branch *> pure True)
+  (Codebase.syncBranch codebase branchName branch *> pure True)
   (pure False)
 
 -- Returns terms and types, respectively. For terms that are
@@ -620,12 +647,11 @@ commandLine
    . Var v
   => IO i
   -> Runtime v
-  -> (Branch -> BranchName -> IO ())
   -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput rt branchChange notifyUser codebase command = do
+commandLine awaitInput rt notifyUser codebase command = do
   Free.fold go command
  where
   go :: forall x . Command i v x -> IO x
@@ -639,7 +665,6 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
       typecheck codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> do
       let codeLookup = Codebase.toCodeLookup codebase
-
       selfContained <- Codebase.makeSelfContained'
         codeLookup
         (Branch.head branch)
@@ -650,13 +675,18 @@ commandLine awaitInput rt branchChange notifyUser codebase command = do
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
     ForkBranch  branch     branchName -> forkBranch codebase branch branchName
-    MergeBranch branchName branch     -> mergeBranch codebase branch branchName
+    SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
-    SwitchBranch branch branchName    -> branchChange branch branchName
-    SearchTerms branch queries ->
-      Codebase.fuzzyFindTermTypes codebase branch queries
-    SearchTypes branch queries ->
-      pure $ Codebase.fuzzyFindTypes' branch queries
+    ListBranch (Branch.head -> b) -> do
+      -- sort by name, then by searchresult (i.e. tm vs tp)
+      let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+      loadSearchResults codebase results
+    SearchBranch (Branch.head -> branch) queries -> do
+      let termResults =
+            Branch.searchTermNamespace branch fuzzyNameDistance queries
+          typeResults =
+            Branch.searchTypeNamespace branch fuzzyNameDistance queries
+      loadSearchResults codebase . fmap snd . toList $ typeResults <> termResults
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
@@ -692,6 +722,24 @@ doTodo code b = do
       (dirtyTermsNamed, dirtyTypesNamed)
       (Branch.conflicts' b)
 
+loadSearchResults :: (Monad m, Var v) =>
+  Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
+loadSearchResults code = traverse loadSearchResult
+  where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- case r of
+        Referent.Ref r -> Codebase.getTypeOfTerm code r
+        Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
+      pure $ Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- case r of
+        Reference.Builtin _ -> pure BuiltinThing
+        Reference.DerivedId id ->
+          maybe (MissingThing id) RegularThing <$>
+            Codebase.getTypeDeclaration code id
+      pure $ Tp name dt r aliases
+
 loadDefinitions :: Monad m => Codebase m v a -> Set Reference
                 -> m ( [(Reference, Maybe (Type v a))],
                        [(Reference, DisplayThing (Decl v a))] )
@@ -708,3 +756,19 @@ loadDefinitions code refs = do
           Nothing -> pure (r, MissingThing id)
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
+
+
+fuzzyNameDistance :: Name -> Name -> Maybe RE.MatchArray
+fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+  case Find.fuzzyFindMatchArray q [n] id of
+    [] -> Nothing
+    (m, _) : _ -> Just m
+
+-- todo: probably don't use this anywhere
+nameDistance :: Name -> Name -> Maybe Int
+nameDistance (Name.toString -> q) (Name.toString -> n) =
+  if q == n                              then Just 0-- exact match is top choice
+  else if map toLower q == map toLower n then Just 1-- ignore case
+  else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
+  else if q `isPrefixOf` n               then Just 3-- matching prefix
+  else Nothing

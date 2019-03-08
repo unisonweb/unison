@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 module Unison.Codebase where
 
@@ -14,7 +15,6 @@ import           Control.Monad                  ( foldM
                                                 , forM
                                                 , join
                                                 )
-import           Data.Char                      ( toLower )
 import           Data.Foldable                  ( toList
                                                 , traverse_
                                                 , forM_
@@ -31,9 +31,6 @@ import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
-import           Text.EditDistance              ( defaultEditCosts
-                                                , levenshteinDistance
-                                                )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch, Branch0 )
@@ -62,8 +59,7 @@ import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
-import           Unison.Util.AnnotatedText      ( AnnotatedText )
-import           Unison.Util.ColorText          ( Color, ColorText )
+import           Unison.Util.ColorText          ( ColorText )
 import qualified Unison.Util.Components        as Components
 import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as PP
@@ -84,14 +80,15 @@ data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
-
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
+
            , branches           :: m [BranchName]
            , getBranch          :: BranchName -> m (Maybe Branch)
-           -- thought: this merges the given branch with the existing branch
-           -- or creates a new branch if there's no branch with that name
-           , mergeBranch        :: BranchName -> Branch -> m Branch
+           -- thought: this merges the given branch history with an existing
+           -- branch on disk, or creates a new branch if there's no existing
+           -- branch with that name
+           , syncBranch         :: BranchName -> Branch -> m Branch
            , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)
@@ -130,70 +127,8 @@ typecheckingEnvironment code t = do
         Right d -> (Map.insert r d datas, effects)
   pure $ TL.TypeLookup termTypes datas effects
 
-fuzzyFindTerms' :: Branch -> [String] -> [(HashQualified, Referent)]
-fuzzyFindTerms' (Branch.head -> branch) query =
-  let
-    terms = Branch.allTerms branch
-    termNames = [(HQ.toString n, (n,r))
-              | r <- toList terms
-              , n <- toList (Branch.hashNamesForTerm r branch)]
-    matchingTerms :: [(String,(HashQualified,Referent))]
-    matchingTerms = if null query
-      then termNames
-      else query >>= \q -> sortedApproximateMatches' q termNames
-  in snd <$> matchingTerms
-
-fuzzyFindTermTypes
-  :: forall m v a
-  .  (Var v, Monad m)
-  => Codebase m v a
-  -> Branch
-  -> [String]
-  -> m [(HashQualified, Referent, Maybe (Type v a))]
-fuzzyFindTermTypes codebase branch query =
-  let found = fuzzyFindTerms' branch query
-      tripleForRef name ref = (name, ref, ) <$> case ref of
-        Referent.Ref r -> getTypeOfTerm codebase r
-        Referent.Con r cid -> getTypeOfConstructor codebase r cid
-  in  traverse (uncurry tripleForRef) found
-
-fuzzyFindTypes' :: Branch -> [String] -> [(HashQualified, Reference)]
-fuzzyFindTypes' (Branch.head -> branch) query =
-  let
-    typeNames = toList (Branch.allTypeNames branch)
-    matchingTypes = if null query
-      then typeNames
-      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
-    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
-    refsForName name = Set.toList $ Branch.typesNamed name branch
-    makePair name r = (Branch.hashQualifiedTypeName branch name r, r)
-  in matchingTypes >>= \name -> makePair name <$> refsForName name
-
 prettyTypeSource :: (Monad m, Var v) => Codebase m v a -> Name -> Reference -> Branch -> m (Maybe (Pretty ColorText))
 prettyTypeSource = error "todo"
-
-
-listReferencesMatching
-  :: (Var v, Monad m) => Codebase m v a -> Branch -> [String] -> m String
-listReferencesMatching code (Branch.head -> b) query = do
-  let
-    termNames     = toList (Branch.allTermNames b)
-    typeNames     = toList (Branch.allTypeNames b)
-    matchingTerms = if null query
-      then termNames
-      else query >>= \q -> asStrings (sortedApproximateMatches q) termNames
-    matchingTypes = if null query
-      then typeNames
-      else query >>= \q -> asStrings (sortedApproximateMatches q) typeNames
-    matchingTypeRefs = matchingTypes
-      >>= \name -> Set.toList (Branch.typesNamed name b)
-    matchingTermRefs = matchingTerms
-      >>= \name -> Set.toList (Branch.termsNamed name b)
-    asStrings f names = Name.fromString <$> f (Name.toString <$> names)
-
-  listReferences code
-                 b
-                 (matchingTypeRefs ++ [ r | Ref r <- matchingTermRefs ])
 
 listReferences
   :: (Var v, Monad m) => Codebase m v a -> Branch0 -> [Reference] -> m String
@@ -278,17 +213,6 @@ prettyBindings :: (Var.Var v, Monad m)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds
-
-prettyListingQ
-  :: (Var.Var v, Monad m)
-  => Codebase m v a
-  -> String
-  -> Branch
-  -> m (AnnotatedText Color)
-prettyListingQ _cb _query _b =
-  error
-    $  "todo - find all matches, display similar output to "
-    <> "PrintError.prettyTypecheckedFile"
 
 typeLookupForDependencies
   :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
@@ -419,51 +343,6 @@ makeSelfContained code b term = do
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
   pure $ UF.UnisonFile datas effects bindings [] -- no watches in the resulting file
-
-sortedApproximateMatches :: String -> [String] -> [String]
-sortedApproximateMatches q possible = trim (sortOn fst matches)
- where
-  nq = length q
-  score s | s == q                         = 0 :: Int
-          | -- exact match is top choice
-            map toLower q == map toLower s = 1
-          |        -- ignore case
-            q `isSuffixOf` s               = 2
-          |        -- matching suffix is pretty good
-            q `isInfixOf` s                = 3
-          |        -- a match somewhere
-            q `isPrefixOf` s               = 4
-          |        -- ...
-            map toLower q `isInfixOf` map toLower s = 5
-          | q `isSubsequenceOf` s          = 6
-          | otherwise = 7 + editDistance (map toLower q) (map toLower s)
-  editDistance q s = levenshteinDistance defaultEditCosts q s
-  matches = map (\s -> (score s, s)) possible
-  trim ((_, h) : _) | h == q = [h]
-  trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
-
-sortedApproximateMatches' :: String -> [(String,a)] -> [(String,a)]
-sortedApproximateMatches' q possible = trim (sortOn fst matches)
- where
-  nq = length q
-  score (s,_)
-          | s == q                         = 0 :: Int
-          | -- exact match is top choice
-            map toLower q == map toLower s = 1
-          |        -- ignore case
-            q `isSuffixOf` s               = 2
-          |        -- matching suffix is pretty good
-            q `isInfixOf` s                = 3
-          |        -- a match somewhere
-            q `isPrefixOf` s               = 4
-          |        -- ...
-            map toLower q `isInfixOf` map toLower s = 5
-          | q `isSubsequenceOf` s          = 6
-          | otherwise = 7 + editDistance (map toLower q) (map toLower s)
-  editDistance q s = levenshteinDistance defaultEditCosts q s
-  matches = map (\s -> (score s, s)) possible
-  trim ((_, (h,a)) : _) | h == q = [(h,a)]
-  trim ms = map snd $ takeWhile (\(n, _) -> n - 7 < nq `div` 4) ms
 
 branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase
@@ -669,7 +548,7 @@ typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
                -> [(v, Term v a)]
                -> m (Map v (Type v a))
 typecheckTerms code bindings = do
-  let tm = Term.letRec' True bindings $ Term.unit mempty
+  let tm = Term.letRec' True bindings $ DD.unitTerm mempty
   env <- typecheckingEnvironment' code tm
   (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
   -- todo: assert that the output map has a type for all variables in the input

@@ -221,13 +221,14 @@ pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
+-- begin pretty-printer helper patterns
 pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
+-- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
 pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
-pattern Tuple' xs <- (unTuple' -> Just xs)
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
@@ -277,27 +278,6 @@ nat a d = ABT.tm' a (Nat d)
 
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
-
-unit :: Var v => a -> AnnotatedTerm v a
-unit ann = constructor ann Type.unitRef 0
-
-tupleCons :: (Ord v, Semigroup a)
-          => AnnotatedTerm2 vt at ap v a
-          -> AnnotatedTerm2 vt at ap v a
-          -> AnnotatedTerm2 vt at ap v a
-tupleCons hd tl =
-  apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
-
-tuple :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
-tuple = foldr tupleCons (unit mempty)
-
--- delayed terms are just lambdas that take a single `()` arg
--- `force` calls the function
-force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
-force a au e = app a e (unit au)
-
-delay :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
-delay a e = lam a (Var.named "()") e
 
 watch :: (Var v, Semigroup a) => a -> String -> AnnotatedTerm v a -> AnnotatedTerm v a
 watch a note e =
@@ -398,7 +378,7 @@ letRec'
   -> AnnotatedTerm' vt v a
 letRec' isTop bindings body =
   letRec isTop
-    (foldMap (ABT.annotation . snd) bindings)
+    (foldMap (ABT.annotation . snd) bindings <> ABT.annotation body)
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
 
@@ -523,31 +503,35 @@ unAppsPred (t, pred) = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
-unBinaryApp :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a,
-                                                     AnnotatedTerm2 vt at ap v a,
-                                                     AnnotatedTerm2 vt at ap v a)
+unBinaryApp :: AnnotatedTerm2 vt at ap v a
+            -> Maybe (AnnotatedTerm2 vt at ap v a,
+                      AnnotatedTerm2 vt at ap v a,
+                      AnnotatedTerm2 vt at ap v a)
 unBinaryApp t = case unApps t of
   Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
   _                      -> Nothing
 
 -- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
-unBinaryApps :: AnnotatedTerm2 vt at ap v a -> Maybe ([(AnnotatedTerm2 vt at ap v a,
-                                                        AnnotatedTerm2 vt at ap v a)],
-                                                      AnnotatedTerm2 vt at ap v a)
+unBinaryApps :: AnnotatedTerm2 vt at ap v a
+             -> Maybe ([(AnnotatedTerm2 vt at ap v a,
+                        AnnotatedTerm2 vt at ap v a)],
+                        AnnotatedTerm2 vt at ap v a)
 unBinaryApps t = unBinaryAppsPred (t, \_ -> True)
 
 -- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
-unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) ->
-                      Maybe ([(AnnotatedTerm2 vt at ap v a,
-                               AnnotatedTerm2 vt at ap v a)],
-                              AnnotatedTerm2 vt at ap v a)
+unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a
+                    ,AnnotatedTerm2 vt at ap v a -> Bool)
+                 -> Maybe ([(AnnotatedTerm2 vt at ap v a,
+                             AnnotatedTerm2 vt at ap v a)],
+                           AnnotatedTerm2 vt at ap v a)
 unBinaryAppsPred (t, pred) = case unBinaryApp t of
   Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
                                Just (as, xLast) -> Just ((xLast, f) : as, y)
                                Nothing          -> Just ([(x, f)], y)
   _                       -> Nothing
 
-unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLams' :: AnnotatedTerm2 vt at ap v a
+        -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' t = unLamsPred' (t, (\_ -> True))
 
 -- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
@@ -564,12 +548,6 @@ unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) 
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
-
-unTuple' :: AnnotatedTerm2 vt at ap v a -> Maybe [AnnotatedTerm2 vt at ap v a]
-unTuple' t = case t of
-  Apps' (Constructor' Type.PairRef 0) [fst, snd] -> (fst :) <$> unTuple' snd
-  Constructor' Type.UnitRef 0 -> Just []
-  _ -> Nothing
 
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
@@ -667,6 +645,15 @@ updateDependencies u tm = ABT.rebuildUp go tm
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+betaNormalForm :: Var v => Term v -> Term v
+betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f) a))
+betaNormalForm e = e
+
+-- x -> f x => f
+etaNormalForm :: Eq v => Term v -> Term v
+etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
+etaNormalForm t = t
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables

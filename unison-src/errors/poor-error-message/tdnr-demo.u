@@ -1,5 +1,5 @@
-left = take 3 (from-nat 5)
-right = take 10 (from-nat 100)
+left = take 3 (fromNat 5)
+right = take 10 (fromNat 100)
 sum = reduce 0 (+)
 
 iterate : a -> Nat -> (a -> a) -> Sequence a
@@ -17,10 +17,10 @@ reduce a0 f s = case at 0 s of
   Optional.None -> a0
   Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
 
-pseudo-stream : Sequence Nat
-pseudo-stream = iterate 0 200 increment
-left2 = take 3 (drop 3 pseudo-stream)
-right2 = take 10 (drop 99 pseudo-stream)
+pseudo-Stream : Sequence Nat
+pseudo-Stream = iterate 0 200 increment
+left2 = take 3 (drop 3 pseudo-Stream)
+right2 = take 10 (drop 99 pseudo-Stream)
 sum2 = reduce 0 (+)
 
 (sum (append left right)) == (sum2 (left2 ++ right2))

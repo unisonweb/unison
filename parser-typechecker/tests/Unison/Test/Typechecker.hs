@@ -24,9 +24,9 @@ import qualified Unison.PrettyPrintEnv  as PPE
 import qualified Unison.PrintError      as PrintError
 import           Unison.Result          (pattern Result, Result)
 import qualified Unison.Result          as Result
-import qualified Unison.Codebase.Runtime.JVM as JVM
-import           Unison.Codebase.Serialization.V0 as Ser
+import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
+import qualified Unison.Term            as Term
 import           Unison.Term            ( amap )
 import           Unison.Test.Common     (parseAndSynthesizeAsFile)
 import qualified Unison.UnisonFile      as UF
@@ -56,7 +56,7 @@ bad = void <$> EasyTest.expectLeft
 
 test :: Test ()
 test = do
-  rt <- io $ JVM.javaRuntime Ser.getSymbol 1001
+  let rt = RT.runtime
   scope "typechecker"
     . tests
     $ [ go rt shouldPassNow   good
@@ -110,14 +110,18 @@ makePassingTest rt how filepath = scope shortName $ do
     (True, Right file) -> do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
-      let term = Parsers.parseTerm values $ UF.toNames untypedFile
-      watches <- io
-        $ evaluateWatches mempty (const $ pure Nothing) rt untypedFile
+      let term        = Parsers.parseTerm values $ UF.toNames untypedFile
+      (bindings, watches) <- io $ evaluateWatches Builtin.codeLookup
+                                      (const $ pure Nothing)
+                                      rt
+                                      untypedFile
       case term of
-        Right tm ->
-          expect $ (view _4 <$> Map.elems watches) == [amap (const ()) tm]
+        Right tm -> let
+          -- compare the the watch expression from the .u with the expr in .ur
+          [watchResult] = view _4 <$> Map.elems watches
+          tm' = Term.letRec' False bindings watchResult
+          in expect $ tm' == amap (const ()) tm
         Left e -> crash $ show e
     _ -> pure ()
   how r
   where shortName = joinPath . drop 1 . splitPath $ filepath
-

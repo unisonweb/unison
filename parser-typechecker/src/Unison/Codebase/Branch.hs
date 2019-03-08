@@ -22,6 +22,8 @@ import qualified Data.Set                 as Set
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
+import           Unison.Codebase.SearchResult (SearchResult)
+import qualified Unison.Codebase.SearchResult as SR
 import           Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import           Unison.Codebase.TypeEdit (TypeEdit)
@@ -32,11 +34,14 @@ import           Unison.Hashable          (Hashable)
 import qualified Unison.Hashable          as H
 import           Unison.HashQualified     (HashQualified)
 import qualified Unison.HashQualified     as HashQualified
+import qualified Unison.HashQualified     as HQ
+import qualified Unison.ShortHash         as SH
 import           Unison.Name              (Name)
-import           Unison.Names             (Names (..))
+import           Unison.Names             (Names (..), NameTarget)
 import qualified Unison.Name              as Name
 import qualified Unison.Names             as Names
 import           Unison.Reference         (Reference)
+import qualified Unison.Reference         as Reference
 import           Unison.Referent          (Referent)
 import qualified Unison.Referent          as Referent
 import qualified Unison.UnisonFile        as UF
@@ -268,27 +273,18 @@ instance Monoid Branch0 where
   mempty = Branch0 mempty mempty R.empty R.empty
   mappend = (<>)
 
-allNamesHashQualified :: Branch0 -> Set HashQualified
-allNamesHashQualified b =
-  Set.union (allTermsHashQualified b) (allTypesHashQualified b)
-
 allTermNames :: Branch0 -> Set Name
 allTermNames = R.dom . termNamespace
 
-allTermsHashQualified :: Branch0 -> Set HashQualified
-allTermsHashQualified b = foldMap (\r -> hashNamesForTerm r b) (allTerms b)
-
 allTypeNames :: Branch0 -> Set Name
-allTypeNames b0 = R.dom (typeNamespace b0)
+allTypeNames = R.dom . typeNamespace
 
-allTypesHashQualified :: Branch0 -> Set HashQualified
-allTypesHashQualified b = foldMap (\r -> hashNamesForType r b) (allTypes b)
+-- these appear to be unused for now
+_hasTermNamed :: Name -> Branch0 -> Bool
+_hasTermNamed n b = not . null $ termsNamed n b
 
-hasTermNamed :: Name -> Branch0 -> Bool
-hasTermNamed n b = not . null $ termsNamed n b
-
-hasTypeNamed :: Name -> Branch0 -> Bool
-hasTypeNamed n b = not . null $ typesNamed n b
+_hasTypeNamed :: Name -> Branch0 -> Bool
+_hasTypeNamed n b = not . null $ typesNamed n b
 
 termsNamed :: Name -> Branch0 -> Set Referent
 termsNamed name = R.lookupDom name . termNamespace
@@ -304,9 +300,8 @@ namesForTerm ref = R.lookupRan ref . termNamespace
 
 hashNamesForTerm :: Referent -> Branch0 -> Set HashQualified
 hashNamesForTerm ref b = let
-  ns = (termNamespace b) :: Relation Name Referent
   hashLen = numHashChars b
-  names = (R.lookupRan ref ns) :: Set Name
+  names = namesForTerm ref b :: Set Name
   referents = (names R.<| termNamespace b) :: Relation Name Referent
   f n = Map.findWithDefault (error "hashQualifyTermName likely busted") ref
           $ hashQualifyTermName hashLen n (R.lookupDom n referents)
@@ -317,9 +312,8 @@ namesForType ref = R.lookupRan ref . typeNamespace
 
 hashNamesForType :: Reference -> Branch0 -> Set HashQualified
 hashNamesForType ref b = let
-  ns = (typeNamespace b) :: Relation Name Reference
   hashLen = numHashChars b
-  names = (R.lookupRan ref ns) :: Set Name
+  names = namesForType ref b :: Set Name
   references = (names R.<| typeNamespace b)
   f n = Map.findWithDefault (error "hashQualifyTypeName likely busted") ref
           $ hashQualifyTypeName hashLen n (R.lookupDom n references)
@@ -329,46 +323,47 @@ hashQualifyTermName :: Int -> Name -> Set Referent -> Map Referent HashQualified
 hashQualifyTermName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HashQualified.forReferent r numHashChars n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReferent n r)
                     | r <- toList rs ]
 
 hashQualifyTypeName :: Int -> Name -> Set Reference -> Map Reference HashQualified
 hashQualifyTypeName numHashChars n rs =
   if Set.size rs < 2
   then Map.fromList [(r, HashQualified.fromName n) | r <- toList rs ]
-  else Map.fromList [ (r, HashQualified.forReference r numHashChars n)
+  else Map.fromList [ (r, HQ.take numHashChars $ HQ.fromNamedReference n r)
                     | r <- toList rs ]
 
 -- Get the appropriately hash-qualified version of a name for term.
 -- Should be the same as the input name if the branch is unconflicted.
 hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
-  if (> 1) . length . R.lookupDom n . termNamespace $ b then
-    -- name is conflicted
-    HashQualified.forReferent r (numHashChars b) n
+  if length (termsNamed n b) > 1 then -- name is conflicted
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReferent n r
   else HashQualified.fromName n
 
 hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
-  if (> 1) . length . R.lookupDom n . typeNamespace $ b then
-    -- name is conflicted
-    HashQualified.forReference r (numHashChars b) n
+  if length (typesNamed n b) > 1 then -- name is conflicted
+    HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
   else HashQualified.fromName n
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
-  = Set.map (HashQualified.forReferent ref numHashChars)
+  = Set.map (HQ.take numHashChars . flip HashQualified.fromNamedReferent ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . terms)
 
 oldNamesForType :: Int -> Reference -> Branch0 -> Set HashQualified
 oldNamesForType numHashChars ref
-  = Set.map (HashQualified.forReference ref numHashChars)
+  = Set.map (HQ.take numHashChars . flip HashQualified.fromNamedReference ref)
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
+-- but then this will be expensive, so avoid calling it on every lookup
+-- Idea: make NumHashChars a newtype, and create a Reader for it.  This will
+-- make it easier to make sure you are relying on a shared value.
 
 -- We must choose a canonical name for each referent in the branch.
 -- In the future we might like a way for the user to choose a preferred name
@@ -389,10 +384,8 @@ prettyPrintEnv b = PPE.PrettyPrintEnv terms types where
 before :: Branch -> Branch -> Bool
 before b b2 = unbranch b `Causal.before` unbranch b2
 
--- Use e.g. by `conflicts termNamespace branch`
--- conflicts :: (Ord a, Ord b) => (Branch0 -> Relation a b) -> Branch0 -> Map a (Set b)
--- conflicts f = R.domain . conflicts'' . f
-
+-- todo: move this to Unison.Util.Relation and make readable
+-- The subset of the relation in which one `a` maps to multiple `b`
 conflicts'' :: (Ord a, Ord b) => Relation a b -> Relation a b
 conflicts'' r = R.filterDom ((>1). length . flip R.lookupDom r) r
 
@@ -845,6 +838,11 @@ deleteTermsNamed name = over (namespaceL . terms) $ R.deleteDom name
 deleteTypesNamed :: Name -> Branch0 -> Branch0
 deleteTypesNamed name = over (namespaceL . types) $ R.deleteDom name
 
+unnameAll :: NameTarget -> Name -> (Branch0 -> Branch0)
+unnameAll nameTarget name = case nameTarget of
+  Names.TermName -> deleteTermsNamed name
+  Names.TypeName -> deleteTypesNamed name
+
 toHash :: Branch -> Hash
 toHash = Causal.currentHash . unbranch
 
@@ -855,3 +853,63 @@ toNames b' = Names terms types
   termRefs = Map.fromList . R.toList $ termNamespace b
   types    = Map.fromList . R.toList $ typeNamespace b
   terms    = termRefs
+
+asSearchResults :: Branch0 -> [SearchResult]
+asSearchResults b =
+  (map tm $ R.toList . termNamespace $ b) <>
+  (map tp $ R.toList . typeNamespace $ b)
+  where
+  tm(n,r) = SR.termResult (hashQualifiedTermName b n r) r (hashNamesForTerm r b)
+  tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
+
+-- note: I expect these two functions will go away
+searchTermNamespace :: forall score. Ord score =>
+  Branch0
+  -> (Name -> Name -> Maybe score)
+  -> [HashQualified]
+  -> Set (Maybe score, SearchResult)
+searchTermNamespace b score queries = foldMap do1query queries
+  where
+  do1query :: HashQualified -> Set (Maybe score, SearchResult)
+  do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
+  score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+  score1hq query (name, ref) = case query of
+    HQ.NameOnly qn ->
+      pair qn
+    HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      pair qn
+    HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      Set.singleton (Nothing, result)
+    _ -> mempty
+    where
+    result = SR.termResult (hashQualifiedTermName b name ref) ref (aliases ref)
+    pair qn = case score qn name of
+      Just score -> Set.singleton (Just score, result)
+      Nothing -> mempty
+  aliases r = hashNamesForTerm r b
+
+searchTypeNamespace :: forall score. Ord score =>
+  Branch0
+  -> (Name -> Name -> Maybe score)
+  -> [HashQualified]
+  -> Set (Maybe score, SearchResult)
+searchTypeNamespace b score queries = foldMap do1query queries
+  where
+  do1query :: HashQualified -> Set (Maybe score, SearchResult)
+  do1query q = foldMap (score1hq q) (R.toList . typeNamespace $ b)
+  -- hashNamesForTerm r b
+  score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+  score1hq query (name, ref) = case query of
+    HQ.NameOnly qn ->
+      pair qn
+    HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      pair qn
+    HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      Set.singleton (Nothing, result)
+    _ -> mempty
+    where
+    result = SR.typeResult (hashQualifiedTypeName b name ref) ref (aliases ref)
+    pair qn = case score qn name of
+      Just score -> Set.singleton (Just score, result)
+      Nothing -> mempty
+  aliases r = hashNamesForType r b

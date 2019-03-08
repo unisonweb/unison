@@ -1,0 +1,12 @@
+
+-- LET
+c0 =
+  a = 1000
+  b = 100
+  c = 10
+  d = 1
+  [a + b + c + d, b + c + d, c + d, d]
+
+-- Make sure we can push values onto the stack and reference them as expected
+> c0
+

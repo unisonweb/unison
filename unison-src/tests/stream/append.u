@@ -1,6 +1,0 @@
-(++) = Stream.append
-sum = Stream.reduce 0 (Nat.+)
-left = Stream.take 3 (Stream.from-nat 5)
-right = Stream.take 10 (Stream.from-nat 100)
-
-> sum (Stream.take 6 (left ++ right))

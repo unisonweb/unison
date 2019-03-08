@@ -34,6 +34,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Names as Names
+import qualified Unison.DataDeclaration as DD
 import Unison.Names (Names)
 
 import Debug.Trace
@@ -99,15 +100,16 @@ parsePattern = constructor <|> leaf
   where
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
-  literal = (,[]) <$> asum [true, false, number]
+  literal = (,[]) <$> asum [true, false, number, text]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
+  text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-  unit ann = (Pattern.Constructor ann Type.unitRef 0 [], [])
+  unit ann = (Pattern.Constructor ann DD.unitRef 0 [], [])
   pair (p1, v1) (p2, v2) =
-    (Pattern.Constructor (ann p1 <> ann p2) Type.pairRef 0 [p1, p2],
+    (Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2],
      v1 ++ v2)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
@@ -224,13 +226,13 @@ delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
   start <- reserved "'"
   e <- termLeaf
-  pure $ Term.delay (ann start <> ann e) e
+  pure $ DD.delayTerm (ann start <> ann e) e
 
 bang :: Var v => TermP v
 bang = P.label "bang" $ do
   start <- reserved "!"
   e <- termLeaf
-  pure $ Term.force (ann start <> ann e) (ann start) e
+  pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
@@ -441,11 +443,11 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit pair
+tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
   where
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) Type.pairRef 0)
+                  (Term.constructor (ann t1 <> ann t2) DD.pairRef 0)
                   t1)
         t2

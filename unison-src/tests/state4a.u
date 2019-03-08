@@ -1,0 +1,25 @@
+effect State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Effect (State s) a -> s
+state s eff = case eff of
+  { State.get -> k } -> handle (state s) in k s
+  { State.put snew -> k } -> handle (state snew) in k ()
+  { a } -> s
+
+modify : (s -> s) -> {State s} ()
+modify f = State.put (f State.get)
+
+increment : '{State Nat} ()
+increment = '(modify ((+) 1))
+
+ex : Nat
+ex = handle (state 10) in
+  State.put (11 + 1)
+  -- !increment
+  -- !increment
+  -- !increment
+  State.get -- should be 15, amirite??
+
+> ex

@@ -24,7 +24,6 @@ import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import qualified Unison.Referent               as Referent
 import           Unison.Term
-import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -33,6 +32,8 @@ import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
+import qualified Unison.DataDeclaration        as DD
+import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
 --TODO use imports to trim fully qualified names
 
@@ -157,7 +158,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
         $ ("handle" `PP.hang` pretty n (ac 2 Normal) h)
         <> PP.softbreak
         <> ("in" `PP.hang` pretty n (ac 2 Block) body)
-    App' x (Constructor' Type.UnitRef 0) ->
+    App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ l "!" <> pretty n (ac 11 Normal) x
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal) x <> l "?"
     LamNamed' v x | (Var.name v) == "()" ->
@@ -201,10 +202,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
-    (Tuple' [x], _) ->
+    (TupleTerm' [x], _) ->
       paren (p >= 10) $ "Pair" `PP.hang`
         PP.spaced [pretty n (ac 10 Normal) x, "()" ]
-    (Tuple' xs, _) -> paren True $ commaList xs
+    (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty n (ac 3 Normal) lastArg)
     _ -> case (term, nonForcePred) of
@@ -214,7 +215,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block) body
+            PP.group (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block) body
         _ -> go term
 
   sepList sep xs = sepList' (pretty n (ac 0 Normal)) sep xs
@@ -260,7 +261,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
 
   nonForcePred :: AnnotatedTerm v a -> Bool
   nonForcePred = \case
-    Constructor' Type.UnitRef 0 -> False
+    Constructor' DD.UnitRef 0 -> False
     _                           -> True
 
   nonUnitArgPred :: Var v => v -> Bool
@@ -309,11 +310,12 @@ prettyPattern n p vs patt = case patt of
   Pattern.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
   Pattern.Nat     _ u -> (l $ show u, vs)
   Pattern.Float   _ f -> (l $ show f, vs)
-  Pattern.Tuple [pp] ->
+  Pattern.Text    _ t -> (l $ show t, vs)
+  TuplePattern [pp] ->
     let (printed, tail_vs) = prettyPattern n 10 vs pp
     in  ( paren (p >= 10) $ PP.sep " " ["Pair", printed, "()"]
         , tail_vs )
-  Pattern.Tuple pats ->
+  TuplePattern pats ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   Pattern.Constructor _ ref i [] ->
@@ -334,8 +336,12 @@ prettyPattern n p vs patt = case patt of
   Pattern.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
-    in  ("{" <> prettyHashQualified (PrettyPrintEnv.patternName n ref i)
-             <> (intercalateMap " " id [pats_printed, "->", k_pat_printed]) <>
+    in  ("{" <>
+          (PP.sep " " . PP.nonEmpty $ [
+            prettyHashQualified (PrettyPrintEnv.patternName n ref i),
+            pats_printed,
+            "->",
+            k_pat_printed]) <>
          "}"
         , eventual_tail)
   t -> (l "error: " <> l (show t), vs)
@@ -363,8 +369,8 @@ Binary functions with symbolic names are output infix, as follows:
 a + b = ...
 
 -}
-prettyBinding
-  :: Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
+prettyBinding ::
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
 prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
