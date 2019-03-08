@@ -34,13 +34,13 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
-import qualified Unison.Type as Type
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -91,14 +91,14 @@ data Value e cont
 -- would have preferred to make pattern synonyms
 maybeToOptional :: Maybe (Value e cont) -> Value e cont
 maybeToOptional = \case
-  Just a  -> Data Type.optionalRef 1 [a]
-  Nothing -> Data Type.optionalRef 0 []
+  Just a  -> Data DD.optionalRef 1 [a]
+  Nothing -> Data DD.optionalRef 0 []
 
 unit :: Value e cont
-unit = Data Type.unitRef 0 []
+unit = Data DD.unitRef 0 []
 
 pair :: (Value e cont, Value e cont) -> Value e cont
-pair (a, b) = Data Type.pairRef 0 [a, b]
+pair (a, b) = Data DD.pairRef 0 [a, b]
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have

@@ -96,7 +96,7 @@ watched = P.try $ do
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
-  | Set.member v (ABT.freeVars e) = Term.letRec top a bs (Term.unit (ABT.annotation body))
+  | Set.member v (ABT.freeVars e) = Term.letRec top a bs (DD.unitTerm (ABT.annotation body))
   | otherwise = e
 terminateTerm e = e
 

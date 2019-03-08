@@ -1,8 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# Language DeriveFunctor #-}
 {-# Language DeriveFoldable #-}
+{-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language OverloadedStrings #-}
+{-# Language PatternSynonyms #-}
+{-# Language TypeApplications #-}
+{-# Language ViewPatterns #-}
 
 module Unison.DataDeclaration where
 
@@ -25,7 +28,7 @@ import qualified Unison.Reference as Reference
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import qualified Unison.Term as Term
-import           Unison.Term (AnnotatedTerm)
+import           Unison.Term (AnnotatedTerm, AnnotatedTerm2)
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
@@ -33,6 +36,8 @@ import Data.Text (Text)
 import qualified Unison.Var as Var
 import Unison.Names (Names)
 import Unison.Names as Names
+import Unison.Symbol (Symbol)
+import qualified Unison.Pattern as Pattern
 -- import Debug.Trace
 
 type DataDeclaration v = DataDeclaration' v ()
@@ -247,6 +252,90 @@ hashDecls decls =
   let varToRef = hashDecls0 (void <$> decls)
       decls'   = bindDecls decls (Names.fromTypesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
+
+unitRef, pairRef, optionalRef :: Reference
+(unitRef, pairRef, optionalRef) = let
+  decls = builtinDataDecls @ Symbol
+  [(_,unit,_)] = filter (\(v, _,_) -> v == Var.named "()") decls
+  [(_,pair,_)] = filter (\(v, _,_) -> v == Var.named "Pair") decls
+  [(_,opt,_)] = filter (\(v, _,_) -> v == Var.named "Optional") decls
+  in (unit, pair, opt)
+
+builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
+builtinDataDecls = hashDecls $
+  Map.fromList [
+    (v "()", unit), (v "Pair", pair), (v "Optional", opt) ]
+  where
+  v name = Var.named name
+  var name = Type.var() (v name)
+  arr = Type.arrow'
+  unit = DataDeclaration () [] [((), v "()", var "()")]
+  pair = DataDeclaration () [v "a", v "b"] [
+    ((), v "Pair.Pair", Type.foralls() [v"a",v"b"]
+         (var "a" `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])))
+   ]
+  opt = DataDeclaration () [v "a"] [
+    ((), v "Optional.None", Type.foralls() [v "a"]
+      (              Type.app' (var "Optional") (var "a"))),
+    ((), v "Optional.Some", Type.foralls() [v "a"]
+      (var "a" `arr` Type.app' (var "Optional") (var "a")))
+   ]
+
+pattern UnitRef <- (unUnitRef -> True)
+pattern PairRef <- (unPairRef -> True)
+pattern OptionalRef <- (unOptionalRef -> True)
+pattern TupleType' ts <- (unTupleType -> Just ts)
+pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
+pattern TuplePattern ps <- (unTuplePattern -> Just ps)
+
+unitType, pairType, optionalType :: Ord v => a -> AnnotatedType v a
+unitType a = Type.ref a unitRef
+pairType a = Type.ref a pairRef
+optionalType a = Type.ref a optionalRef
+
+unitTerm :: Var v => a -> AnnotatedTerm v a
+unitTerm ann = Term.constructor ann unitRef 0
+
+tupleConsTerm :: (Ord v, Semigroup a)
+              => AnnotatedTerm2 vt at ap v a
+              -> AnnotatedTerm2 vt at ap v a
+              -> AnnotatedTerm2 vt at ap v a
+tupleConsTerm hd tl =
+  Term.apps' (Term.constructor (ABT.annotation hd) pairRef 0) [hd, tl]
+
+tupleTerm :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
+tupleTerm = foldr tupleConsTerm (unitTerm mempty)
+
+-- delayed terms are just lambdas that take a single `()` arg
+-- `force` calls the function
+forceTerm :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
+forceTerm a au e = Term.app a e (unitTerm au)
+
+delayTerm :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
+delayTerm a e = Term.lam a (Var.named "()") e
+
+unTupleTerm :: Term.AnnotatedTerm2 vt at ap v a -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
+unTupleTerm t = case t of
+  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] -> (fst :) <$> unTupleTerm snd
+  Term.Constructor' UnitRef 0 -> Just []
+  _ -> Nothing
+
+unTupleType :: Var v => Type.AnnotatedType v a -> Maybe [Type.AnnotatedType v a]
+unTupleType t = case t of
+  Type.Apps' (Type.Ref' PairRef) [fst, snd] -> (fst :) <$> unTupleType snd
+  Type.Ref' UnitRef -> Just []
+  _ -> Nothing
+
+unTuplePattern :: Pattern.PatternP loc -> Maybe [Pattern.PatternP loc]
+unTuplePattern p = case p of
+  Pattern.ConstructorP _ PairRef 0 [fst, snd] -> (fst : ) <$> unTuplePattern snd
+  Pattern.ConstructorP _ UnitRef 0 [] -> Just []
+  _ -> Nothing
+
+unUnitRef,unPairRef,unOptionalRef :: Reference -> Bool
+unUnitRef = (== unitRef)
+unPairRef = (== pairRef)
+unOptionalRef = (== optionalRef)
 
 bindDecls
   :: Var v

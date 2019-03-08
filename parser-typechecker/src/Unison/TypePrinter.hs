@@ -18,6 +18,7 @@ import           Unison.Util.Pretty    (ColorText, Pretty)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
+import qualified Unison.DataDeclaration as DD
 
 {- Explanation of precedence handling
 
@@ -53,9 +54,9 @@ pretty n p tp = case tp of
   Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
   App' (Ref' (Builtin "Sequence")) x ->
     PP.group $ l "[" <> pretty n 0 x <> l "]"
-  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
+  DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
     [pretty n 10 x, "()"]
-  Tuple' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
+  DD.TupleType' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
   Apps' f xs -> PP.parenthesizeIf (p >= 10) $ pretty n 9 f `PP.hang` PP.spaced
     (pretty n 10 <$> xs)
   Effect1' e t ->
@@ -68,7 +69,7 @@ pretty n p tp = case tp of
       $         ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
       `PP.hang` pretty n (-1) body
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
-    EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
+    EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest ->
       PP.parenthesizeIf (p >= 0) $ pretty n 0 fst <> arrows False False rest
     _ -> l "error"
@@ -82,8 +83,8 @@ pretty n p tp = case tp of
       <> effects mes
       <> if (isJust mes) || (not delay) && (not first) then l " " else mempty
 
-  arrows delay first [(mes, Ref' UnitRef)] = arrow delay first mes <> l "()"
-  arrows delay first ((mes, Ref' UnitRef) : rest) =
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> l "()"
+  arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
     arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
   arrows delay first ((mes, arg) : rest) =
     arrow delay first mes
