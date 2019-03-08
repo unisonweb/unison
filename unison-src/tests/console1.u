@@ -19,21 +19,20 @@ namespace Console where
 
   simulate : Effect Console a -> {State ([Text], [Text])} a
   simulate c = case c of
-    {Console.read -> k} ->
+    {Console.read -> k} -> handle simulate in
       io = State.get
       ins = fst io
       outs = snd io
       State.set (drop 1 ins, outs)
-      todo
-    {Console.write t -> k} ->
+      k (at 0 ins)
+    {Console.write t -> k} -> handle simulate in
       io = State.get
       ins = fst io
       outs = snd io
-      todo
+      State.set (ins, outs ++ [t])
+      k ()
 
-(++) = Text.concatenate
-
-handle simulate in
+e = 'let handle simulate in
   use Console read write
   use Optional Some None
   write "What's your name?"
@@ -41,5 +40,3 @@ handle simulate in
     Some name -> write ("Hello" ++ name)
     None -> write "Fine, be that way."
 
-
-()
