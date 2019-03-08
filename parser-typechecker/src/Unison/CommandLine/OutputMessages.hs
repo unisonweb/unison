@@ -198,7 +198,8 @@ notifyUser dir o = case o of
      , P.lit defs
      , P.wrap "Now evaluating any watch expressions (lines starting with `>`)..."
      ]
-    else putPrettyLn' . P.wrap $ "I reloaded " <> P.text sourceName <> " and didn't find any definitions."
+    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
+      "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
 
  where
