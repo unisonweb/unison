@@ -244,6 +244,11 @@ hashDecls0 decls =
 --   data List a = Nil | Cons a (List a)
 --   becomes something like
 --   (List, #xyz, [forall a. #xyz a, forall a. a -> (#xyz a) -> (#xyz a)])
+--
+-- NOTE: technical limitation, this implementation gives diff results if ctors
+-- have the same FQN as one of the types. TODO: assert this and bomb if not
+-- satisfied, or else do local mangling and unmangling to ensure this doesn't
+-- affect the hash.
 hashDecls
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v a)
@@ -269,7 +274,8 @@ builtinDataDecls = hashDecls $
   v name = Var.named name
   var name = Type.var() (v name)
   arr = Type.arrow'
-  unit = DataDeclaration () [] [((), v "()", var "()")]
+  -- see note on `hashDecls` above for why ctor must be called `().()`.
+  unit = DataDeclaration () [] [((), v "().()", var "()")]
   pair = DataDeclaration () [v "a", v "b"] [
     ((), v "Pair.Pair", Type.foralls() [v"a",v"b"]
          (var "a" `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])))
