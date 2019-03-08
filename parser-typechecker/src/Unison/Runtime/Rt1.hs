@@ -13,7 +13,7 @@
 
 module Unison.Runtime.Rt1 where
 
-import Control.Monad (foldM, join)
+import Control.Monad (foldM, join, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
 import Data.Foldable (for_, toList)
@@ -152,6 +152,7 @@ push size v s0 = do
     then do
       -- increase the size to fit
       s1 <- MV.grow s0 (size `max` 128)
+      traceM $ "Grew stack size to: " <> show (MV.length s1)
       pure s1
     else pure s0
   MV.write s1 size v
@@ -328,6 +329,7 @@ run ioHandler env ir = do
   let
     fresh :: IO Int
     fresh = atomicModifyIORef' supply (\n -> (n + 1, n))
+
     -- TODO:
     -- go :: (MonadReader Size m, MonadState Stack m, MonadIO m) => IR -> m Result
     go :: Size -> Stack -> IR -> IO Result
@@ -354,6 +356,11 @@ run ioHandler env ir = do
           let needed = if Set.null freeInBody then 0 else Set.findMax freeInBody
           in pure $ RRequest (appendCont var req $ One needed size m body)
         RDone v -> do
+          -- Garbage collect the stack occasionally
+          (size, m) <-
+            if size > MV.length m `div` 2
+            then gc size m (if Set.null freeInBody then 0 else Set.findMax freeInBody)
+            else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
         e@RMatchFail -> error $ show e
@@ -618,6 +625,17 @@ run ioHandler env ir = do
         result <- toVal <$> go size' m ir
         writeIORef r result
       go size' m body
+
+    -- Garbage collect the elements of the stack that are more than `maxSlot`
+    -- below the top - this is done just by copying to a fresh stack.
+    gc :: Size -> Stack -> Int -> IO (Size, Stack)
+    gc size m maxSlot = do
+      when (maxSlot < 0) $ fail $ "invalid max slot for garbage collection: " <> show maxSlot
+      let size2 = maxSlot + 1
+          m2 = MV.slice (size - maxSlot - 1) size2 m
+      m <- MV.clone m2
+      m <- MV.grow m 256
+      pure (size2, m)
 
   r <- go 0 m0 ir
   case r of
