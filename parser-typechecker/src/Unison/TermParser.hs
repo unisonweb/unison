@@ -7,7 +7,6 @@
 
 module Unison.TermParser where
 
--- import           Debug.Trace
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)

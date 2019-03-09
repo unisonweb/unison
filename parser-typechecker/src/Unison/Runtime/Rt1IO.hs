@@ -37,8 +37,9 @@ import           Unison.DataDeclaration
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Hash                   as Hash
-import qualified Unison.Util.Pretty            as Pretty
-import           Unison.TermPrinter             ( prettyTop )
+-- import Debug.Trace
+-- import qualified Unison.Util.Pretty            as Pretty
+-- import           Unison.TermPrinter             ( prettyTop )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 
 type GUID = Text
@@ -146,7 +147,7 @@ runtime = Runtime terminate eval
     -> Term.AnnotatedTerm Symbol a
     -> IO (Term.Term Symbol)
   eval cl term = do
-    putStrLn $ Pretty.render 80 (prettyTop mempty term)
+    -- traceM $ Pretty.render 80 (prettyTop mempty term)
     cenv            <- RT.compilationEnv cl term -- in `m`
     mmap            <- newMVar mempty
     RT.RDone result <- RT.run (handleIO' $ S mmap cl)

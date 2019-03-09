@@ -40,8 +40,8 @@ import qualified Unison.Term as Term
 import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
-import qualified Unison.Util.Pretty as P
-import Debug.Trace
+-- import qualified Unison.Util.Pretty as P
+-- import Debug.Trace
 import Unison.Util.Monoid (intercalateMap)
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
@@ -152,7 +152,7 @@ push size v s0 = do
     then do
       -- increase the size to fit
       s1 <- MV.grow s0 (size `max` 128)
-      traceM $ "Grew stack size to: " <> show (MV.length s1)
+      -- traceM $ "Grew stack size to: " <> show (MV.length s1)
       pure s1
     else pure s0
   MV.write s1 size v
@@ -316,13 +316,13 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
     -> IR
     -> IO Result
 run ioHandler env ir = do
-  let pir = prettyIR mempty pexternal pcont
+  let -- pir = prettyIR mempty pexternal pcont
       -- pvalue = prettyValue mempty pexternal pcont
-      pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
+      -- pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
       -- if we had a PrettyPrintEnv, we could use that here
-      pexternal (ExternalFunction r _) = P.shown r
-  traceM $ "Running this program"
-  traceM $ P.render 80 (pir ir)
+      -- pexternal (ExternalFunction r _) = P.shown r
+  -- traceM $ "Running this program"
+  -- traceM $ P.render 80 (pir ir)
   supply <- newIORef 0
   m0 <- MV.new 256
   MV.set m0 (T "uninitialized")
