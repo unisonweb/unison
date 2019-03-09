@@ -32,6 +32,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MV
+import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
@@ -95,6 +96,8 @@ appendCont v (Req r cid args k) k2 = Req r cid args (Chain v k k2)
 
 data ExternalFunction =
   ExternalFunction R.Reference (Size -> Stack -> IO Value)
+instance Eq ExternalFunction where
+  ExternalFunction r _ == ExternalFunction r2 _ = r == r2
 instance External ExternalFunction where
   decompileExternal (ExternalFunction r _) = pure $ Term.ref () r
 
@@ -281,7 +284,9 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       . Leaf
       . External
       . ExternalFunction (R.Builtin name)
-  underapply name = FormClosure (Term.ref () $ R.Builtin name) []
+  underapply name =
+    let r = Term.ref () $ R.Builtin name :: Term SymbolC
+    in FormClosure (ABT.hash r) r []
   mk1
     :: Text
     -> (Size -> Z -> Stack -> IO a)
@@ -498,7 +503,7 @@ run ioHandler env ir = do
           -- f'' 4      -- should be the same thing as `f 1 2 3 4`
           --
           -- pushedArgs = [mostRecentlyApplied, ..., firstApplied]
-          Specialize lam@(Term.LamsNamed' vs body) pushedArgs -> let
+          Specialize hash lam@(Term.LamsNamed' vs body) pushedArgs -> let
             pushedArgs' :: [ (SymbolC, Value)] -- head is the latest argument
             pushedArgs' = reverse (drop (length pushedArgs) vs `zip` argvs) ++ pushedArgs
             vsRemaining = drop (length pushedArgs') vs
@@ -506,15 +511,15 @@ run ioHandler env ir = do
               (reverse (fmap (,Nothing) vsRemaining) ++
                fmap (second Just) pushedArgs')
               body
-            in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
-          Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
-          FormClosure tm pushedArgs -> let
+            in done $ Lam (arity - nargs) (Specialize hash lam pushedArgs') compiled
+          Specialize _ e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
+          FormClosure hash tm pushedArgs -> let
             pushedArgs' = reverse argvs ++ pushedArgs
             arity' = arity - nargs
             allArgs = replicate arity' Nothing ++ map Just pushedArgs'
             bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
             in done $ Lam (arity - nargs)
-                       (FormClosure tm pushedArgs')
+                       (FormClosure hash tm pushedArgs')
                        (specializeIR bound body)
     call size m (Cont k) [arg] = do
       v <- at size arg m

@@ -7,6 +7,7 @@
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
+{-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
 {-# Language DoAndIfThenElse #-}
@@ -26,6 +27,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
+import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
@@ -86,7 +88,26 @@ data Value e cont
   | Requested (Req e cont)
   | Cont cont
   | UninitializedLetRecSlot Symbol [(Symbol, IR e cont)] (IR e cont)
-  deriving (Eq)
+
+instance (Eq cont, Eq e) => Eq (Value e cont) where
+  I x == I y = x == y
+  F x == F y = x == y
+  N x == N y = x == y
+  B x == B y = x == y
+  T x == T y = x == y
+  Lam n us _ == Lam n2 us2 _ = n == n2 && us == us2
+  Data r1 cid1 vs1 == Data r2 cid2 vs2 = r1 == r2 && cid1 == cid2 && vs1 == vs2
+  Sequence vs == Sequence vs2 = vs == vs2
+  Ref _ _ io1 == Ref _ _ io2 = io1 == io2
+  Pure x == Pure y = x == y
+  Requested r1 == Requested r2 = r1 == r2
+  Cont k1 == Cont k2 = k1 == k2
+  _ == _ = False
+
+instance (Eq cont, Eq e) => Eq (UnderapplyStrategy e cont) where
+  FormClosure h _ vs == FormClosure h2 _ vs2 = h == h2 && vs == vs2
+  Specialize h _ vs == Specialize h2 _ vs2 = h == h2 && vs == vs2
+  _ == _ = False
 
 -- would have preferred to make pattern synonyms
 maybeToOptional :: Maybe (Value e cont) -> Value e cont
@@ -126,16 +147,16 @@ pair (a, b) = Data DD.pairRef 0 [a, b]
 -- to anything when all the arguments are available.
 
 data UnderapplyStrategy e cont
-  = FormClosure (Term SymbolC) [Value e cont] -- head is the latest argument
-  | Specialize (Term SymbolC) [(SymbolC, Value e cont)] -- same
-  deriving (Eq, Show)
+  = FormClosure Hash (Term SymbolC) [Value e cont] -- head is the latest argument
+  | Specialize Hash (Term SymbolC) [(SymbolC, Value e cont)] -- same
+  deriving (Show)
 
 decompileUnderapplied :: (External e, External cont) => UnderapplyStrategy e cont -> DS (Term Symbol)
 decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
-  FormClosure lam vals ->
+  FormClosure _ lam vals ->
     Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse decompileImpl vals
-  Specialize lam symvals -> do
+  Specialize _ lam symvals -> do
     lam <- Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse (decompileImpl . snd) symvals
     pure $ Term.betaReduce lam
@@ -255,7 +276,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
     LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
-    ir @ (Let _ _ _ _) ->
+    ir@(Let _ _ _ _) ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
       block = unlets ir
@@ -417,7 +438,7 @@ compile0 env bound t =
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
-        (Specialize (void t) [])
+        (Specialize (ABT.hash t) (void t) [])
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
     Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body) (freeSlots body)
@@ -466,8 +487,9 @@ compile0 env bound t =
                         ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
         Just 0 -> con 0 r cid []
         -- Just 0 -> Leaf . Val $ Data "Optional" 0
-        Just arity -> Leaf . Val $ Lam arity (FormClosure (src r cid) []) ir
+        Just arity -> Leaf . Val $ Lam arity (FormClosure (ABT.hash s) s []) ir
           where
+          s = src r cid
           -- if `arity` is 1, then `Slot 0` is the sole argument.
           -- if `arity` is 2, then `Slot 1` is the first arg, and `Slot 0`
           -- get the second arg, etc.
@@ -762,7 +784,9 @@ builtins = Map.fromList $ arity0 <> arityN
   where
   -- slot = Leaf . Slot
   val = Leaf . Val
-  underapply name = FormClosure (Term.ref() $ R.Builtin name) []
+  underapply name =
+    let r = Term.ref() $ R.Builtin name :: Term SymbolC
+    in FormClosure (ABT.hash r) r []
   var = Var.named "x"
   arity0 = [ (R.Builtin name, val $ value) | (name, value) <-
         [ ("Text.empty", T "")
