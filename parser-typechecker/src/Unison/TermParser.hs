@@ -205,9 +205,11 @@ placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 vector :: Var v => TermP v -> TermP v
-vector p = f <$> reserved "[" <*> elements <*> reserved "]"
+vector p = f <$> reserved "[" <*> elements <*> trailing
   where
-    elements = sepBy (reserved ",") p
+    trailing = optional semi *> reserved "]"
+    sep = P.try $ optional semi *> reserved "," <* optional semi
+    elements = sepBy sep p
     f open elems close = Term.vector (ann open <> ann close) elems
 
 termLeaf :: forall v. Var v => TermP v
