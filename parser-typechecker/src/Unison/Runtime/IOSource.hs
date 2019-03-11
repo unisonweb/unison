@@ -10,10 +10,13 @@ import Text.RawString.QQ (r)
 import Unison.FileParsers (parseAndSynthesizeFile)
 import Unison.Parser (Ann(..))
 import Unison.Symbol (Symbol)
+import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
+import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Var as Var
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
@@ -24,6 +27,23 @@ typecheckedFile = let
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
     (Just (_, Just file), _) -> file
+
+typeNamed :: String -> R.Reference
+typeNamed s =
+  case Map.lookup (Var.nameds s) (UF.dataDeclarations' typecheckedFile) of
+    Nothing -> error $ "No builtin type called: " <> s
+    Just (r, _) -> r
+
+abilityNamed :: String -> R.Reference
+abilityNamed s =
+  case Map.lookup (Var.nameds s) (UF.effectDeclarations' typecheckedFile) of
+    Nothing -> error $ "No builtin ability called: " <> s
+    Just (r, _) -> r
+
+ioReference, bufferModeReference :: R.Reference
+ioReference = abilityNamed "IO"
+bufferModeReference = typeNamed "BufferMode"
+-- .. todo - fill in the rest of these
 
 source :: Text
 source = fromString [r|
