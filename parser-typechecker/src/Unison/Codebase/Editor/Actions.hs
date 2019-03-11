@@ -248,12 +248,12 @@ loop = do
           _ <- success
           currentBranch .= b
         ExecuteI input ->
-          let augment uf = uf { UF.watches = [(Var.nameds "__main__", term)] }
+          let augment uf = uf { UF.watches = [(Var.nameds "main_", term)] }
               term =
-                Term.apps' (Term.var External (Var.named "_main_"))
+                Term.apps' (Term.var External (Var.named "main__"))
                            [DD.unitTerm External]
           in withFile "execute command"
-                   ("_main_ : '{IO} ()\n_main_ = () -> " <> Text.pack input) $
+                   ("main_ : '{IO} ()\nmain_ x = " <> Text.pack input) $
                    \_ unisonFile ->
                       eval . Execute (view currentBranch s) . augment $
                         UF.discardTypes unisonFile
