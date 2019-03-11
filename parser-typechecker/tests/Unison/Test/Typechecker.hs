@@ -104,7 +104,7 @@ makePassingTest
 makePassingTest rt how filepath = scope shortName $ do
   let valueFile = replaceExtension filepath "ur"
   source <- io $ unpack <$> Data.Text.IO.readFile filepath
-  let r = decodeResult source $ parseAndSynthesizeAsFile shortName source
+  let r = decodeResult source $ parseAndSynthesizeAsFile [] shortName source
   rFileExists <- io $ doesFileExist valueFile
   case (rFileExists, r) of
     (True, Right file) -> do

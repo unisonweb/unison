@@ -55,13 +55,13 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
-import qualified Unison.Term as Term
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
 import qualified Unison.Codebase as Codebase
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
@@ -91,9 +91,9 @@ loop = do
     latestFile'        <- use latestFile
     currentBranch'     <- use currentBranch
     e                  <- eval Input
-    let withFile sourceName text k = do
-          Result notes r <- eval
-            (Typecheck (view currentBranch s) sourceName text)
+    let withFile ambient sourceName text k = do
+          Result notes r <- eval $
+            Typecheck ambient (view currentBranch s) sourceName text
           case r of
             -- Parsing failed
             Nothing ->
@@ -116,7 +116,7 @@ loop = do
           then modifying latestFile $ (fmap (const False) <$>)
           else do
             eval (Notify $ FileChangeEvent sourceName text)
-            withFile sourceName text $ \errorEnv unisonFile -> do
+            withFile [] sourceName text $ \errorEnv unisonFile -> do
               eval (Notify $ Typechecked sourceName errorEnv unisonFile)
               (bindings, e) <-
                 eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
@@ -248,15 +248,12 @@ loop = do
           _ <- success
           currentBranch .= b
         ExecuteI input ->
-          let augment uf = uf { UF.watches = [(Var.nameds "main_", term)] }
-              term =
-                Term.apps' (Term.var External (Var.named "main__"))
-                           [DD.unitTerm External]
-          in withFile "execute command"
-                   ("main_ : '{IO} ()\nmain_ x = " <> Text.pack input) $
-                   \_ unisonFile ->
-                      eval . Execute (view currentBranch s) . augment $
-                        UF.discardTypes unisonFile
+          withFile [Type.ref External $ Reference.DerivedId DD.ioHash]
+                   "execute command"
+                   ("main_ = " <> Text.pack input) $
+                     \_ unisonFile ->
+                        eval . Execute (view currentBranch s) $
+                          UF.discardTypes unisonFile
         QuitI -> quit
        where
         success       = respond $ Success input

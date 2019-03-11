@@ -280,7 +280,8 @@ data Command i v a where
     -> UF.TypecheckedUnisonFile v Ann
     -> Command i v (SlurpResult v)
 
-  Typecheck :: Branch
+  Typecheck :: [Type.AnnotatedType v Ann]
+            -> Branch
             -> SourceName
             -> Source
             -> Command i v (TypecheckingResult v)
@@ -599,13 +600,14 @@ fileToBranch handleCollisions codebase branch uf = do
 
 typecheck
   :: (Monad m, Var v)
-  => Codebase m v Ann
+  => [Type.AnnotatedType v Ann]
+  -> Codebase m v Ann
   -> Names
   -> SourceName
   -> Text
   -> m (TypecheckingResult v)
-typecheck codebase names sourceName src =
-  Result.getResult $ parseAndSynthesizeFile
+typecheck ambient codebase names sourceName src =
+  Result.getResult $ parseAndSynthesizeFile ambient
     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
     names
     (unpack sourceName)
@@ -661,8 +663,8 @@ commandLine awaitInput rt notifyUser codebase command = do
     Notify output -> notifyUser output
     SlurpFile handler branch unisonFile ->
       fileToBranch handler codebase branch unisonFile
-    Typecheck branch sourceName source ->
-      typecheck codebase (Branch.toNames branch) sourceName source
+    Typecheck ambient branch sourceName source ->
+      typecheck ambient codebase (Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName

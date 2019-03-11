@@ -636,14 +636,14 @@ run ioHandler env ir = do
       m <- MV.clone m2
       m <- MV.grow m 256
       pure (size2, m)
+    loop (RRequest (Req ref cid vs k)) = do
+      ioResult <- ioHandler ref cid vs
+      x <- callContinuation 0 m0 k ioResult
+      loop x
+    loop a = pure a
 
   r <- go 0 m0 ir
-  case r of
-    RRequest (Req ref cid vs k) -> do
-      ioResult <- ioHandler ref cid vs
-      callContinuation 0 m0 k ioResult
-    a -> pure a
-
+  loop r
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"

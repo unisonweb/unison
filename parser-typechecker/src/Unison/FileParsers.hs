@@ -79,7 +79,8 @@ convertNotes (Typechecker.Notes es is) =
 
 parseAndSynthesizeFile
   :: (Var v, Monad m)
-  => (Set Reference -> m (TL.TypeLookup v Ann))
+  => [Type v]
+  -> (Set Reference -> m (TL.TypeLookup v Ann))
   -> Names
   -> FilePath
   -> Text
@@ -87,22 +88,24 @@ parseAndSynthesizeFile
        (Seq (Note v Ann))
        m
        (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
-parseAndSynthesizeFile typeLookupf names filePath src = do
+parseAndSynthesizeFile ambient typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
   let refs = UF.dependencies parsedUnisonFile names
   typeLookup <- lift . lift $ typeLookupf refs
-  let (Result notes' r) = synthesizeFile typeLookup names parsedUnisonFile
+  let (Result notes' r) =
+        synthesizeFile ambient typeLookup names parsedUnisonFile
   tell notes' *> pure (errorEnv, r)
 
 synthesizeFile
   :: forall v
    . Var v
-  => TL.TypeLookup v Ann
+  => [Type v]
+  -> TL.TypeLookup v Ann
   -> Names
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile preexistingTypes preexistingNames unisonFile = do
+synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
@@ -119,7 +122,7 @@ synthesizeFile preexistingTypes preexistingNames unisonFile = do
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
     lookupTypes = localTypes <> preexistingTypes
-    env0 = (Typechecker.Env Intrinsic [] lookupTypes fqnsByShortName)
+    env0 = (Typechecker.Env Intrinsic ambient lookupTypes fqnsByShortName)
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend

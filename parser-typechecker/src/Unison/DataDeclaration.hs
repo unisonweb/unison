@@ -9,36 +9,40 @@
 
 module Unison.DataDeclaration where
 
-import Safe (atMay)
-import Data.List (sortOn)
-import Unison.Hash (Hash)
+import           Safe                           ( atMay )
+import           Data.List                      ( sortOn )
+import           Unison.Hash                    ( Hash )
 import           Data.Functor
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import           Prelude hiding (cycle)
-import           Prelude.Extras (Show1)
-import qualified Unison.ABT as ABT
-import           Unison.Hashable (Accumulate, Hashable1)
-import qualified Unison.Hashable as Hashable
-import qualified Unison.Name as Name
-import           Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import           Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Unison.Term as Term
-import           Unison.Term (AnnotatedTerm, AnnotatedTerm2)
-import           Unison.Type (AnnotatedType)
-import qualified Unison.Type as Type
-import           Unison.Var (Var)
-import Data.Text (Text)
-import qualified Unison.Var as Var
-import Unison.Names (Names)
-import Unison.Names as Names
-import Unison.Symbol (Symbol)
-import qualified Unison.Pattern as Pattern
--- import Debug.Trace
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Prelude                 hiding ( cycle )
+import           Prelude.Extras                 ( Show1 )
+import qualified Unison.ABT                    as ABT
+import           Unison.Hash                   as Hash
+import           Unison.Hashable                ( Accumulate
+                                                , Hashable1
+                                                )
+import qualified Unison.Hashable               as Hashable
+import qualified Unison.Name                   as Name
+import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent )
+import qualified Unison.Referent               as Referent
+import qualified Unison.Term                   as Term
+import           Unison.Term                    ( AnnotatedTerm
+                                                , AnnotatedTerm2
+                                                )
+import           Unison.Type                    ( AnnotatedType )
+import qualified Unison.Type                   as Type
+import           Unison.Var                     ( Var )
+import           Data.Text                      ( Text )
+import qualified Unison.Var                    as Var
+import           Unison.Names                   ( Names )
+import           Unison.Names                  as Names
+import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Pattern                as Pattern
 
 type DataDeclaration v = DataDeclaration' v ()
 
@@ -286,6 +290,14 @@ builtinDataDecls = hashDecls $
     ((), v "Optional.Some", Type.foralls() [v "a"]
       (var "a" `arr` Type.app' (var "Optional") (var "a")))
    ]
+
+ioHash :: Reference.Id
+ioHash = Reference.Id
+  (Hash.unsafeFromBase58
+    "525sNixZKpeYWYAr8UFEUkYmATSbfuYkEWgnCa6xFr33JrZxra8jJtShxhtytDisdBSoCE6gtqDRkw67nRnSQXDx"
+  )
+  0
+  1
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
