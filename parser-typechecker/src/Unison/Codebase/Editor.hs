@@ -14,7 +14,7 @@ module Unison.Codebase.Editor where
 
 import           Data.Char                      ( toLower )
 import Data.List (sortOn, isSuffixOf, isPrefixOf)
-import           Control.Monad                  ( forM_, forM, foldM, filterM)
+import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
 import           Control.Monad.Extra            ( ifM )
 import Data.Foldable (toList)
 import           Data.Bifunctor                 ( bimap, second )
@@ -147,7 +147,7 @@ data Input
   | ChooseUpdateForTermI Referent Referent
   | ChooseUpdateForTypeI Reference Reference
   -- execute an IO object with arguments
-  -- | ExecuteI Name [String]
+  | ExecuteI String
   -- other
   | SlurpFileI AllowUpdates
   | ListBranchesI
@@ -356,7 +356,7 @@ data Command i v a where
 
   Propagate :: Branch -> Command i v Branch
 
-  -- Execute :: Reference.Id -> Command i v (IO ())
+  Execute :: Branch -> UF.UnisonFile v Ann -> Command i v ()
 
 data Outcome
   -- New definition that was added to the branch
@@ -663,14 +663,7 @@ commandLine awaitInput rt notifyUser codebase command = do
       fileToBranch handler codebase branch unisonFile
     Typecheck branch sourceName source ->
       typecheck codebase (Branch.toNames branch) sourceName source
-    Evaluate branch unisonFile -> do
-      let codeLookup = Codebase.toCodeLookup codebase
-      selfContained <- Codebase.makeSelfContained'
-        codeLookup
-        (Branch.head branch)
-        unisonFile
-      let noCache = const (pure Nothing)
-      Runtime.evaluateWatches codeLookup noCache rt selfContained
+    Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branchName             -> newBranch codebase branchName
@@ -693,6 +686,14 @@ commandLine awaitInput rt notifyUser codebase command = do
     Propagate b -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
+    Execute branch uf -> void $ evalUnisonFile branch uf
+  evalUnisonFile branch unisonFile = do
+    let codeLookup = Codebase.toCodeLookup codebase
+    selfContained <- Codebase.makeSelfContained' codeLookup
+                                                 (Branch.head branch)
+                                                 unisonFile
+    let noCache = const (pure Nothing)
+    Runtime.evaluateWatches codeLookup noCache rt selfContained
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do
