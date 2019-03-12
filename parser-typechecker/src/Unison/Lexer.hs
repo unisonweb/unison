@@ -388,7 +388,7 @@ wordyId :: String -> Either Err (String, String)
 wordyId s = qualifiedId False s wordyId0 wordyId0
 
 wordyIdStartChar :: Char -> Bool
-wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
+wordyIdStartChar ch = isAlphaNum ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
