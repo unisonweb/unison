@@ -79,16 +79,19 @@ main
    . Var v
   => FilePath
   -> BranchName
+  -> Branch
   -> Maybe FilePath
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranchName _initialFile startRuntime codebase = do
+main dir currentBranchName baseBranch _initialFile startRuntime codebase = do
   currentBranch <- Codebase.getBranch codebase currentBranchName
   eventQueue    <- Q.newIO
   currentBranch <- case currentBranch of
     Nothing ->
-      Codebase.syncBranch codebase currentBranchName Codebase.builtinBranch
+      Codebase.syncBranch codebase
+                          currentBranchName
+                          (Codebase.builtinBranch <> baseBranch)
         <* (  putStrLn
            $  "☝️  I found no branch named '"
            <> Text.unpack currentBranchName
@@ -99,7 +102,9 @@ main dir currentBranchName _initialFile startRuntime codebase = do
     runtime                  <- startRuntime
     branchRef                <- newIORef (currentBranch, currentBranchName)
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef branchRef) eventQueue codebase
+    cancelWatchBranchUpdates <- watchBranchUpdates (readIORef branchRef)
+                                                   eventQueue
+                                                   codebase
     let patternMap =
           Map.fromList
             $   validInputs
@@ -107,24 +112,33 @@ main dir currentBranchName _initialFile startRuntime codebase = do
         getInput = do
           (branch, branchName) <- readIORef branchRef
           getUserInput patternMap codebase branch branchName
-    let awaitInput = do
-          -- Race the user input and file watch.
-          Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-            Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-            x      -> pure x
-        cleanup = do
-          Runtime.terminate runtime
-          cancelFileSystemWatch
-          cancelWatchBranchUpdates
-        loop :: Actions.LoopState v -> IO ()
-        loop state = do
-          writeIORef branchRef (Actions._currentBranch state, Actions._currentBranchName state)
-          let
-            free :: Free.Free (E.Command (Either E.Event Input) v) (Maybe (), Actions.LoopState v)
+    let
+      awaitInput = do
+        -- Race the user input and file watch.
+        Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+          Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+          x      -> pure x
+      cleanup = do
+        Runtime.terminate runtime
+        cancelFileSystemWatch
+        cancelWatchBranchUpdates
+      loop :: Actions.LoopState v -> IO ()
+      loop state = do
+        writeIORef
+          branchRef
+          (Actions._currentBranch state, Actions._currentBranchName state)
+        let free
+              :: Free.Free
+                   (E.Command (Either E.Event Input) v)
+                   (Maybe (), Actions.LoopState v)
             free = runStateT (runMaybeT Actions.loop) state
-          (o, state') <-
-            E.commandLine awaitInput runtime (notifyUser dir) codebase free
-          case o of
-            Nothing -> pure ()
-            Just () -> loop state'
-    (`finally` cleanup) $ loop (Actions.loopState0 currentBranch currentBranchName)
+        (o, state') <- E.commandLine awaitInput
+                                     runtime
+                                     (notifyUser dir)
+                                     codebase
+                                     free
+        case o of
+          Nothing -> pure ()
+          Just () -> loop state'
+    (`finally` cleanup)
+      $ loop (Actions.loopState0 currentBranch currentBranchName)
