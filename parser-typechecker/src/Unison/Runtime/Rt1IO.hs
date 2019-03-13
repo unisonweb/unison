@@ -16,6 +16,7 @@ import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Reader           ( ReaderT
                                                 , runReaderT
                                                 )
+import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
 import           Data.List                      ( genericIndex )
 import           Data.Map                       ( Map )
@@ -45,6 +46,8 @@ import qualified Unison.Hash                   as Hash
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( prettyTop )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
+import qualified Unison.UnisonFile             as UF
+import qualified Unison.Runtime.IOSource       as IOSrc
 
 type GUID = Text
 type IOState = MVar HandleMap
@@ -147,11 +150,11 @@ runtime = Runtime terminate eval
   terminate :: IO ()
   terminate = pure ()
   eval
-    :: (Monoid a)
-    => CL.CodeLookup IO Symbol a
-    -> Term.AnnotatedTerm Symbol a
-    -> IO (Term.Term Symbol)
-  eval cl term = do
+    :: CL.CodeLookup IO Symbol () -> Term.Term Symbol -> IO (Term.Term Symbol)
+  eval cl' term = do
+    let
+      cl =
+        void (CL.fromUnisonFile $ UF.discardTypes IOSrc.typecheckedFile) <> cl'
     -- traceM $ Pretty.render 80 (prettyTop mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
     mmap <- newMVar
