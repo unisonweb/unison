@@ -19,6 +19,7 @@ import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
 import Data.Foldable
 import Data.Functor (void)
+import Data.HashTable.IO (BasicHashTable)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
@@ -33,6 +34,7 @@ import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
+import qualified Data.HashTable.IO as HT
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -78,6 +80,7 @@ toSymbolC s = SymbolC False s
 
 -- Values, in normal form
 type RefID = Int
+
 data Value e cont
   = I Int64 | F Double | N Word64 | B Bool | T Text
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
@@ -88,6 +91,28 @@ data Value e cont
   | Requested (Req e cont)
   | Cont cont
   | UninitializedLetRecSlot Symbol [(Symbol, IR e cont)] (IR e cont)
+
+instance (CycleEq e, CycleEq cont) => CycleEq (UnderapplyStrategy e cont) where
+  cycleEq ht us us2 = undefined
+
+instance (CycleEq e, CycleEq cont) => CycleEq (Value e cont) where
+  cycleEq _ _ (I x) (I y) = pure (x == y)
+  cycleEq _ _ (F x) (F y) = pure (x == y)
+  cycleEq _ _ (N x) (N y) = pure (x == y)
+  cycleEq _ _ (B x) (B y) = pure (x == y)
+  cycleEq _ _ (T x) (T y) = pure (x == y)
+  cycleEq e n (Lam arity1 us _) (Lam arity2 us2 _) =
+    if arity1 == arity2 then cycleEq e n us us2
+    else pure False
+  cycleEq e n (Data r1 c1 vs1) (Data r2 c2 vs2) =
+    if r1 == r2 && c1 == c2 then go e n vs1 vs2
+    else pure False
+    where
+    go _ _ [] [] = pure True
+    go e n (h1:t1) (h2:t2) = cycleEq e n h1 h2 >>= \b ->
+      if b then go e n t1 t2
+      else pure False
+--   cycleEq e n (Sequence v1) (Sequence v2) =
 
 instance (Eq cont, Eq e) => Eq (Value e cont) where
   I x == I y = x == y

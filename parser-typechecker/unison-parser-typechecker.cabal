@@ -118,6 +118,7 @@ library
     Unison.Util.Relation
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
+    Unison.Util.CyclicEq
     Unison.Var
 
   build-depends:
@@ -142,6 +143,7 @@ library
     free,
     fsnotify,
     hashable,
+    hashtables,
     haskeline,
     io-streams,
     lens,
@@ -150,6 +152,7 @@ library
     monad-loops,
     mtl,
     murmur-hash,
+    mutable-containers,
     network,
     process,
     megaparsec,
