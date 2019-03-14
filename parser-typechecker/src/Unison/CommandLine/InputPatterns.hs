@@ -81,6 +81,8 @@ validInputs =
         , "lists all definitions with a name similar to 'foo' in the current branch.")
       , ( "`find foo bar`"
         , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
+      , ( "`find -l foo bar`"
+        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
       ]
     )
     (pure . SearchByNameI)

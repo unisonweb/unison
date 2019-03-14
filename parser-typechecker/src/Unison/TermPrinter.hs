@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -11,6 +12,7 @@ import           Data.Foldable                  ( fold
 import           Data.Maybe                     ( fromMaybe
                                                 , isJust
                                                 )
+import           Data.String                    ( IsString, fromString )
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN' )
@@ -19,7 +21,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.NamePrinter             ( prettyHashQualified )
+import           Unison.NamePrinter             ( prettyHashQualified, prettyHashQualified' )
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import qualified Unison.Referent               as Referent
@@ -29,7 +31,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
-import           Unison.Util.Pretty             ( Pretty )
+import           Unison.Util.Pretty             ( Pretty, ColorText )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
@@ -117,7 +119,7 @@ data InfixContext
 
 -}
 
-prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty String
+prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
 prettyTop env = pretty env (ac (-1) Normal)
 
 pretty
@@ -125,12 +127,12 @@ pretty
   => PrettyPrintEnv
   -> AmbientContext
   -> AnnotatedTerm v a
-  -> Pretty String
+  -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . prettyHashQualified $ name
       where name = HQ.fromVar v
-    Ref' r -> parenIfInfix name ic . prettyHashQualified $ name
+    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
       where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
@@ -223,7 +225,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
   commaList = sepList ("," <> PP.softbreak)
 
-  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm v a)] -> AnnotatedTerm v a -> Pretty String
+  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm v a)] -> AnnotatedTerm v a -> Pretty ColorText
   printLet sc bs e =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
@@ -239,6 +241,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
     isBlank _ = False
 
+  printCase :: Var v => MatchCase a (AnnotatedTerm v a) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` pretty n (ac 0 Block) body
     where
@@ -274,8 +277,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
   -- starting at `f2`.
   binaryApps
     :: Var v => [(AnnotatedTerm v a, AnnotatedTerm v a)]
-             -> Pretty String
-             -> Pretty String
+             -> Pretty ColorText
+             -> Pretty ColorText
   binaryApps xs last = unbroken `PP.orElse` broken
    -- todo: use `PP.column2` in the case where we need to break
    where
@@ -289,7 +292,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     r a f = [pretty n (ac 3 Normal) a,
              pretty n (AmbientContext 10 Normal Infix) f]
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> String
+pretty' ::
+  Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
 pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal) t
 pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal) t
 
@@ -299,7 +303,7 @@ prettyPattern
   -> Int
   -> [v]
   -> Pattern loc
-  -> (Pretty String, [v])
+  -> (Pretty ColorText, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
@@ -346,7 +350,8 @@ prettyPattern n p vs patt = case patt of
         , eventual_tail)
   t -> (l "error: " <> l (show t), vs)
  where
-  l = PP.lit
+  l :: IsString s => String -> s
+  l = fromString
   patterns vs (pat : pats) =
     let (printed     , tail_vs      ) = prettyPattern n (-1) vs pat
         (rest_printed, eventual_tail) = patterns tail_vs pats
@@ -370,7 +375,7 @@ a + b = ...
 
 -}
 prettyBinding ::
-  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty String
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty ColorText
 prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
@@ -400,20 +405,20 @@ prettyBinding env v term = go (symbolic && isBinary term) term where
     _                  -> False -- unhittable
 
 prettyBinding'
-  :: Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> String
+  :: Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 
-paren :: Bool -> Pretty String -> Pretty String
+paren :: IsString s => Bool -> Pretty s -> Pretty s
 paren True  s = PP.group $ "(" <> s <> ")"
 paren False s = PP.group s
 
 parenIfInfix
-  :: HQ.HashQualified -> InfixContext -> Pretty String -> Pretty String
+  :: IsString s => HQ.HashQualified -> InfixContext -> (Pretty s -> Pretty s)
 parenIfInfix name ic =
   if isSymbolic name && ic == NonInfix then paren True else id
 
-l :: String -> Pretty String
-l = PP.lit
+l :: IsString s => String -> Pretty s
+l = fromString
 
 -- b :: String -> Pretty String
 -- b = Breakable

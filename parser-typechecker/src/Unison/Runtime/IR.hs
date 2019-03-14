@@ -26,7 +26,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
-import Unison.NamePrinter (prettyHashQualified)
+import Unison.NamePrinter (prettyHashQualified')
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.Monoid (intercalateMap)
@@ -41,6 +41,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -273,11 +274,11 @@ prettyIR ppe prettyE prettyCont ir = pir ir
       P.surroundCommas "[" "]" (pz <$> vs)
     Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
     Construct r cid args -> P.parenthesize $
-      ("Construct " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Construct " <> prettyHashQualified' (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Request r cid args -> P.parenthesize $
-      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Handle h body -> P.parenthesize $
@@ -312,14 +313,14 @@ prettyValue ppe prettyE prettyCont v = pv v
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
     Data r cid vs -> P.parenthesize $
-      ("Data " <> prettyHashQualified (PPE.patternName ppe r cid)) `P.hang`
+      ("Data " <> prettyHashQualified' (PPE.patternName ppe r cid)) `P.hang`
         P.surroundCommas "[" "]" (pv <$> vs)
     Sequence vs -> P.surroundCommas "[" "]" (pv <$> vs)
     Ref id name _ -> P.parenthesize $
       P.sep " " ["Ref", P.shown id, P.shown name]
     Pure v -> P.surroundCommas "{" "}" [pv v]
     Requested (Req r cid vs cont) -> P.parenthesize $
-      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
         `P.hang`
         P.spaced [
           P.surroundCommas "[" "]" (pv <$> vs),
@@ -438,7 +439,7 @@ compile0 env bound t =
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Vector' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
-              <> (P.render 80 . TP.prettyTop mempty $ void t)
+              <> (CT.toPlain . P.render 80 . TP.prettyTop mempty $ void t)
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =

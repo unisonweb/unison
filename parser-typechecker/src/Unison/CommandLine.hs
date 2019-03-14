@@ -64,7 +64,7 @@ watchPrinter src ppe ann term isHit = P.bracket $ let
       <> fromString extra <> "⧩"
       <> (if isHit then P.bold " (using cache)" else ""),
     P.indentN (lineNumWidth + length extra)
-      . P.green . P.map fromString $ TermPrinter.prettyTop ppe term
+      . P.green $ TermPrinter.prettyTop ppe term
   ]
 
 allow :: FilePath -> Bool

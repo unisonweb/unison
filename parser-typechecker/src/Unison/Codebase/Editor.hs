@@ -185,13 +185,15 @@ data TermResult' v a =
 data TypeResult' v a =
   TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
   deriving (Eq, Show)
-pattern Tm h t r as = Tm' (TermResult' h t r as)
-pattern Tp h t r as = Tp' (TypeResult' h t r as)
+pattern Tm n t r as = Tm' (TermResult' n t r as)
+pattern Tp n t r as = Tp' (TypeResult' n t r as)
 
-searchResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
-searchResult' f g = \case
+foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
+foldResult' f g = \case
   Tm' tm -> f tm
   Tp' tp -> g tp
+
+type ListDetailed = Bool
 
 data Output v
   = Success Input
@@ -206,7 +208,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfDefinitions Branch [SearchResult' v Ann]
+  | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]

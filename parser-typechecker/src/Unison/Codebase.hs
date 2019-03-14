@@ -186,7 +186,7 @@ prettyBinding
   -> HashQualified
   -> Referent
   -> Branch0
-  -> m (Maybe (Pretty String))
+  -> m (Maybe (Pretty ColorText))
 prettyBinding _ _ (Referent.Ref (Reference.Builtin _)) _ = pure Nothing
 prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
   go =<< getTerm cb r
@@ -209,7 +209,7 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty String)
+  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty ColorText)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds

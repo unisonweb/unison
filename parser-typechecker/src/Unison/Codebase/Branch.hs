@@ -338,14 +338,25 @@ hashQualifyTypeName numHashChars n rs =
 hashQualifiedTermName :: Branch0 -> Name -> Referent -> HashQualified
 hashQualifiedTermName b n r =
   if length (termsNamed n b) > 1 then -- name is conflicted
-    HQ.take (numHashChars b) $ HashQualified.fromNamedReferent n r
+    hashQualifiedTermName' b n r
   else HashQualified.fromName n
 
+-- always apply hash qualifier
+hashQualifiedTermName' :: Branch0 -> Name -> Referent -> HashQualified
+hashQualifiedTermName' b n r =
+  HQ.take (numHashChars b) $ HashQualified.fromNamedReferent n r
+
+-- apply hashqualifier only if type name is conflicted
 hashQualifiedTypeName :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName b n r =
   if length (typesNamed n b) > 1 then -- name is conflicted
-    HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
+    hashQualifiedTypeName' b n r
   else HashQualified.fromName n
+
+-- always apply hash qualifier
+hashQualifiedTypeName' :: Branch0 -> Name -> Reference -> HashQualified
+hashQualifiedTypeName' b n r =
+  HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
@@ -359,6 +370,8 @@ oldNamesForType numHashChars ref
   . R.lookupRan ref
   . (view $ oldNamespaceL . types)
 
+
+-- todo: (transitively) where is this definition used?
 numHashChars :: Branch0 -> Int
 numHashChars = const 3 -- todo: use trie to find depth of branching
 -- but then this will be expensive, so avoid calling it on every lookup

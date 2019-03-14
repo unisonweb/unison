@@ -42,8 +42,11 @@ import           Unison.CommandLine            (backtick, backtickEOS,
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
-import           Unison.NamePrinter            (prettyHashQualified, prettyName,
-                                                styleHashQualified)
+import           Unison.NamePrinter            (prettyHashQualified,
+                                                prettyHashQualified',
+                                                prettyName,
+                                                styleHashQualified,
+                                                styleHashQualified')
 import qualified Unison.Names                  as Names
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError,
@@ -141,8 +144,8 @@ notifyUser dir o = case o of
             then P.bold ("* " <> P.text n)
             else "  " <> P.text n
         in  intercalateMap "\n" go (sort branches)
-  ListOfDefinitions branch results -> do
-    listOfDefinitions (Branch.head branch) results
+  ListOfDefinitions branch results withHashes -> do
+    listOfDefinitions (Branch.head branch) results withHashes
   SlurpOutput s -> slurpOutput s
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
@@ -160,7 +163,7 @@ notifyUser dir o = case o of
       --       defs in the codebase.  In some cases it's fine for bindings to
       --       shadow codebase names, but you don't want it to capture them in
       --       the decompiled output.
-      let prettyBindings = P.map fromString . P.bracket . P.lines $
+      let prettyBindings = P.bracket . P.lines $
             P.wrap "The watch expression(s) reference these definitions:" : "" :
             [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
             | (v, b) <- bindings]
@@ -288,8 +291,7 @@ displayDefinitions outputLoc ppe terms types =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
-      RegularThing tm -> P.map fromString $
-        TermPrinter.prettyBinding ppe n tm
+      RegularThing tm -> TermPrinter.prettyBinding ppe n tm
   go2 (r, dt) =
     let n = PPE.typeName ppe r in
     case dt of
@@ -313,14 +315,44 @@ unsafePrettyTermResultSig' ppe = \case
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
+-- produces:
+-- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
+-- Optional.None, Maybe.Nothing : Maybe a
+unsafePrettyTermResultSigFull' :: Var v =>
+  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+unsafePrettyTermResultSigFull' ppe = \case
+  E.TermResult' hq (Just typ) r aliases -> P.lines $
+    [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
+    , P.commas (fmap greyHash . sortOn (/= hq) $ toList aliases) <> " : " <> TypePrinter.pretty ppe (-1) typ
+    , mempty
+    ]
+  _ -> error "Don't pass Nothing"
+  where greyHash = styleHashQualified' id P.hiBlack
+
 prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
+-- produces:
+-- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
+-- type Optional
+-- type Maybe
+prettyTypeResultHeaderFull' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
+  P.lines stuff <> P.newline
+  where
+  stuff =
+    (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
+      fmap (\name -> prettyDeclTriple (name, r, dt))
+           (sortOn (/= name) (toList aliases))
+    where greyHash = styleHashQualified' id P.hiBlack
+
+
+-- todo: maybe delete this
 prettyAliases ::
   (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
 prettyAliases aliases = if length aliases < 2 then mempty else
-  (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified . toList) aliases <> P.newline
+  (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
 prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
@@ -418,8 +450,9 @@ todoOutput (Branch.head -> branch) todo =
       , formatMissingStuff corruptTerms corruptTypes
       ]
 
-listOfDefinitions :: Var v => Branch0 -> [E.SearchResult' v a] -> IO ()
-listOfDefinitions branch results = do
+listOfDefinitions ::
+  Var v => Branch0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
+listOfDefinitions branch detailed results = do
   putPrettyLn . P.lines . P.nonEmpty $ prettyResults ++
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
@@ -432,9 +465,13 @@ listOfDefinitions branch results = do
   where
   ppe  = Branch.prettyPrintEnv branch
   prettyResults =
-    map (E.searchResult' (unsafePrettyTermResultSig' ppe) prettyTypeResultHeader')
-        (filter (not . missingType) results)
-  -- typeResults = map prettyDeclTriple types
+    map (E.foldResult' renderTerm renderType) (filter (not.missingType) results)
+    where
+      (renderTerm, renderType) =
+        if detailed then
+          (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
+        else
+          (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
   missingType (E.Tm _ Nothing _ _)          = True
   missingType (E.Tp _ (MissingThing _) _ _) = True
   missingType _                             = False
