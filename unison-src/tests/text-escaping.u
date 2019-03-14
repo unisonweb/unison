@@ -1,0 +1,10 @@
+id x = x
+
+x = id ("\n")
+
+find : Text -> Text
+find s = case (Text.take 1 s) of
+  "\n" -> "found"
+  _   -> "not found"
+
+> (x, find "\nbar")
