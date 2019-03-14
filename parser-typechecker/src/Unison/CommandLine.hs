@@ -138,7 +138,7 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss)
+  fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss id)
 
 -- workaround for https://github.com/judah/haskeline/issues/100
 -- if the common prefix of all the completions is smaller than
@@ -155,6 +155,13 @@ fixupCompletion q cs@(h:t) = let
   in if length overallCommonPrefix < length q
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
+
+autoCompleteHashQualified :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualified b (HQ.fromString -> query) =
+  makeCompletion <$> Find.prefixFindInBranch b query
+  where
+  makeCompletion (sr, p) =
+    prettyCompletion (HQ.toString . SR.name $ sr, p)
 
 parseInput
   :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input

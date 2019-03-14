@@ -28,7 +28,6 @@ import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
-import qualified Text.Regex.TDFA               as RE
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -269,6 +268,8 @@ updateCollisionHandler = const True
 addCollisionHandler :: CollisionHandler
 addCollisionHandler = const False
 
+data SearchMode = FuzzySearch | ExactSearch
+
 data Command i v a where
   Input :: Command i v i
 
@@ -348,10 +349,10 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Return a list of definitions whose names match the given queries.
-  SearchBranch :: Branch -> [HashQualified] -> Command i v [SearchResult' v Ann]
+  -- Return a list of definitions whose names fuzzy match the given queries.
+  SearchBranch ::
+    Branch -> [HashQualified] -> SearchMode -> Command i v [SearchResult' v Ann]
 
-  --
   ListBranch :: Branch -> Command i v [SearchResult' v Ann]
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
@@ -685,12 +686,15 @@ commandLine awaitInput rt notifyUser codebase command = do
       -- sort by name, then by searchresult (i.e. tm vs tp)
       let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
       loadSearchResults codebase results
-    SearchBranch (Branch.head -> branch) queries -> do
-      let termResults =
-            Branch.searchTermNamespace branch fuzzyNameDistance queries
-          typeResults =
-            Branch.searchTypeNamespace branch fuzzyNameDistance queries
-      loadSearchResults codebase . fmap snd . toList $ typeResults <> termResults
+    SearchBranch (Branch.head -> branch) queries searchMode ->
+      let exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+          fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+            case Find.fuzzyFindMatchArray q [n] id of
+              [] -> Nothing
+              (m, _) : _ -> Just m
+      in loadSearchResults codebase $ case searchMode of
+        ExactSearch -> Branch.searchBranch branch exactNameDistance queries
+        FuzzySearch -> Branch.searchBranch branch fuzzyNameDistance queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
@@ -768,13 +772,6 @@ loadDefinitions code refs = do
           Nothing -> pure (r, MissingThing id)
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
-
-
-fuzzyNameDistance :: Name -> Name -> Maybe RE.MatchArray
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-  case Find.fuzzyFindMatchArray q [n] id of
-    [] -> Nothing
-    (m, _) : _ -> Just m
 
 -- | Put all the builtins into the codebase
 initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m Branch

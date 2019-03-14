@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.Util.Find where
+module Unison.Util.Find (fuzzyFinder, fuzzyFindInBranch, fuzzyFindMatchArray, prefixFindInBranch) where
 
 -- import           Debug.Trace
 import           Data.Foldable                (toList)
@@ -10,6 +10,7 @@ import qualified Data.List                    as List
 import           Data.Maybe                   (catMaybes, fromJust)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
+import           Data.String                  (fromString)
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
@@ -30,16 +31,16 @@ import qualified Unison.Util.Pretty           as P
 import qualified Unison.Util.Relation         as R
 
 
-fuzzyFinder :: String -> [String] -> [(String, P.Pretty P.ColorText)]
-fuzzyFinder query items = fuzzyFinder' query items id
-
-fuzzyFinder' :: forall a.
+fuzzyFinder :: forall a.
   String -> [a] -> (a -> String) -> [(a, P.Pretty P.ColorText)]
-fuzzyFinder' query items render =
+fuzzyFinder query items render =
   sortAndCleanup $ fuzzyFindMatchArray query items render
   where
   sortAndCleanup = List.map snd . List.sortOn fst
 
+-- This logic was split out of fuzzyFinder because the `RE.MatchArray` has an
+-- `Ord` instance that helps us sort the fuzzy matches in a nice way. (see
+-- comment below.)  `Editor.fuzzyNameDistance` uses this `Ord` instance.
 fuzzyFindMatchArray :: forall a.
   String -> [a] -> (a -> String)
   -> [(RE.MatchArray, (a, P.Pretty P.ColorText))]
@@ -75,6 +76,38 @@ fuzzyFindMatchArray query items render =
   -- c. the item itself for alphabetical ranking
   -- Ord MatchArray already provides a. and b.  todo: c.
 
+prefixFindInBranch ::
+  Branch0 -> HashQualified -> [(SearchResult, P.Pretty P.ColorText)]
+prefixFindInBranch b hq = fmap getName $
+  case HQ.toName hq of
+    -- query string includes a name component, so do a prefix find on that
+    Just (Name.toString -> n) ->
+      filter (filterName n) filteredCandidates
+    -- no name component, so just filter by hash
+    Nothing -> filteredCandidates
+  where
+  filterName n sr =
+    -- fromJust is safe here because entries from the namespace will have names.
+    fromString n `Name.isPrefixOf` (fromJust . HQ.toName . SR.name) sr
+  getName sr = (sr, prettyHashQualified (SR.name sr))
+  filteredCandidates :: [SearchResult]
+  filteredCandidates = typeCandidates <> termCandidates
+  -- filter branch by hash
+  typeCandidates =
+    fmap typeResult . filterTypes . R.toList . Branch.typeNamespace $ b
+  termCandidates =
+    fmap termResult . filterTerms . R.toList . Branch.termNamespace $ b
+  filterTerms = case HQ.toHash hq of
+    Just sh -> List.filter $ SH.isPrefixOf sh . Referent.toShortHash . snd
+    Nothing -> id
+  filterTypes = case HQ.toHash hq of
+    Just sh -> List.filter $ SH.isPrefixOf sh . Reference.toShortHash. snd
+    Nothing -> id
+  typeResult (n, r) = SR.typeResult (Branch.hashQualifiedTypeName b n r) r
+                                    (Branch.hashNamesForType r b)
+  termResult (n, r) = SR.termResult (Branch.hashQualifiedTermName b n r) r
+                                    (Branch.hashNamesForTerm r b)
+
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch :: Branch0
                   -> HashQualified
@@ -82,7 +115,7 @@ fuzzyFindInBranch :: Branch0
 fuzzyFindInBranch b hq =
   case HQ.toName hq of
     Just (Name.toString -> n) ->
-      fuzzyFinder' n candidates
+      fuzzyFinder n candidates
         (fromJust . fmap Name.toString . HQ.toName . SR.name)
     Nothing -> fmap getName candidates
   where

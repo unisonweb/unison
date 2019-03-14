@@ -876,53 +876,58 @@ asSearchResults b =
   tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
 
 -- note: I expect these two functions will go away
-searchTermNamespace :: forall score. Ord score =>
-  Branch0
-  -> (Name -> Name -> Maybe score)
-  -> [HashQualified]
-  -> Set (Maybe score, SearchResult)
-searchTermNamespace b score queries = foldMap do1query queries
+searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
+searchBranch b score queries =
+  fmap snd . toList $
+    searchTermNamespace b score queries <> searchTypeNamespace b score queries
   where
-  do1query :: HashQualified -> Set (Maybe score, SearchResult)
-  do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
-  score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
-  score1hq query (name, ref) = case query of
-    HQ.NameOnly qn ->
-      pair qn
-    HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
-      pair qn
-    HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
-      Set.singleton (Nothing, result)
-    _ -> mempty
+  searchTermNamespace :: forall score. Ord score =>
+    Branch0
+    -> (Name -> Name -> Maybe score)
+    -> [HashQualified]
+    -> Set (Maybe score, SearchResult)
+  searchTermNamespace b score queries = foldMap do1query queries
     where
-    result = SR.termResult (hashQualifiedTermName b name ref) ref (aliases ref)
-    pair qn = case score qn name of
-      Just score -> Set.singleton (Just score, result)
-      Nothing -> mempty
-  aliases r = hashNamesForTerm r b
+    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
+    score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+    score1hq query (name, ref) = case query of
+      HQ.NameOnly qn ->
+        pair qn
+      HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+        pair qn
+      HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+        Set.singleton (Nothing, result)
+      _ -> mempty
+      where
+      result = SR.termResult (hashQualifiedTermName b name ref) ref (aliases ref)
+      pair qn = case score qn name of
+        Just score -> Set.singleton (Just score, result)
+        Nothing -> mempty
+    aliases r = hashNamesForTerm r b
 
-searchTypeNamespace :: forall score. Ord score =>
-  Branch0
-  -> (Name -> Name -> Maybe score)
-  -> [HashQualified]
-  -> Set (Maybe score, SearchResult)
-searchTypeNamespace b score queries = foldMap do1query queries
-  where
-  do1query :: HashQualified -> Set (Maybe score, SearchResult)
-  do1query q = foldMap (score1hq q) (R.toList . typeNamespace $ b)
-  -- hashNamesForTerm r b
-  score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
-  score1hq query (name, ref) = case query of
-    HQ.NameOnly qn ->
-      pair qn
-    HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
-      pair qn
-    HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
-      Set.singleton (Nothing, result)
-    _ -> mempty
+  searchTypeNamespace :: forall score. Ord score =>
+    Branch0
+    -> (Name -> Name -> Maybe score)
+    -> [HashQualified]
+    -> Set (Maybe score, SearchResult)
+  searchTypeNamespace b score queries = foldMap do1query queries
     where
-    result = SR.typeResult (hashQualifiedTypeName b name ref) ref (aliases ref)
-    pair qn = case score qn name of
-      Just score -> Set.singleton (Just score, result)
-      Nothing -> mempty
-  aliases r = hashNamesForType r b
+    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query q = foldMap (score1hq q) (R.toList . typeNamespace $ b)
+    -- hashNamesForTerm r b
+    score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+    score1hq query (name, ref) = case query of
+      HQ.NameOnly qn ->
+        pair qn
+      HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+        pair qn
+      HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+        Set.singleton (Nothing, result)
+      _ -> mempty
+      where
+      result = SR.typeResult (hashQualifiedTypeName b name ref) ref (aliases ref)
+      pair qn = case score qn name of
+        Just score -> Set.singleton (Just score, result)
+        Nothing -> mempty
+    aliases r = hashNamesForType r b
