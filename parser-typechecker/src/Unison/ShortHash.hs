@@ -13,6 +13,12 @@ data ShortHash
   | ShortHash { prefix :: Text, cycle :: Maybe Text, cid :: Maybe Text }
   deriving (Eq, Ord)
 
+-- currently unused
+isConstructor :: ShortHash -> Bool
+isConstructor = \case
+  ShortHash _ _ (Just _) -> True
+  _ -> False
+
 -- Parse a string like those described in Referent.fromText:
 -- examples:
 -- `##Text.take` — builtins don’t have cycles

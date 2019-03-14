@@ -142,13 +142,13 @@ loop = do
             respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
         SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) ->
-            (eval $ SearchBranch currentBranch' qs)
+            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
               >>= respond . ListOfDefinitions currentBranch' True
         SearchByNameI (map HQ.fromString -> qs) ->
-            (eval $ SearchBranch currentBranch' qs)
+            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
               >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval $ SearchBranch currentBranch' qs
+          results <- eval $ SearchBranch currentBranch' qs Editor.ExactSearch
           let termTypes :: Map.Map Reference (Editor.Type v Ann)
               termTypes = Map.fromList
                 [ (r, t)

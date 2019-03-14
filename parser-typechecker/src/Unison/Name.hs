@@ -1,4 +1,4 @@
-module Unison.Name (Name(..), unsafeFromText, toString, fromString, toVar, unsafeFromVar) where
+module Unison.Name (Name(..), unsafeFromText, toString, fromString, toVar, unsafeFromVar, isPrefixOf) where
 
 import           Data.String (IsString, fromString)
 import           Data.Text   (Text)
@@ -22,6 +22,9 @@ unsafeFromVar = unsafeFromText . Var.name
 
 toString :: Name -> String
 toString = Text.unpack . toText
+
+isPrefixOf :: Name -> Name -> Bool
+a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
 
 instance Show Name where
   show = toString
