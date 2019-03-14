@@ -27,6 +27,9 @@ import Data.Word (Word64)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
+import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
+import Unison.Util.Monoid (intercalateMap)
+import qualified System.Mem.StableName as S
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -38,12 +41,12 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
+import qualified Unison.Util.CyclicEq as CEQ
 import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
 -- import Debug.Trace
-import Unison.Util.Monoid (intercalateMap)
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
 type IR = IR.IR ExternalFunction Continuation
@@ -422,7 +425,6 @@ run ioHandler env ir = do
       LtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x < y))
       LtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x <= y))
       EqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x == y))
-
       AddF i j -> do x <- atf size i m; y <- atf size j m; done (F (x + y))
       SubF i j -> do x <- atf size i m; y <- atf size j m; done (F (x - y))
       MultF i j -> do x <- atf size i m; y <- atf size j m; done (F (x * y))
@@ -432,6 +434,13 @@ run ioHandler env ir = do
       LtF i j -> do x <- atf size i m; y <- atf size j m; done (B (x < y))
       LtEqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x <= y))
       EqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x == y))
+      EqU i j -> do
+        -- todo: these can be reused
+        t1 <- CEQ.new 8
+        t2 <- CEQ.new 8
+        x <- at size i m
+        y <- at size j m
+        RDone . B <$> cyclicEq t1 t2 x y
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =
@@ -652,3 +661,24 @@ run ioHandler env ir = do
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"
+
+instance CyclicEq ExternalFunction where
+  cyclicEq _ _ (ExternalFunction r _) (ExternalFunction r2 _) = pure (r == r2)
+
+instance CyclicEq Continuation where
+  cyclicEq h1 h2 k1 k2 = do
+    n1 <- S.makeStableName k1
+    n2 <- S.makeStableName k2
+    if n1 == n2 then pure True
+    else case (k1, k2) of
+      (WrapHandler v1 k1, WrapHandler v2 k2) -> do
+        b <- cyclicEq h1 h2 v1 v2
+        if b then cyclicEq h1 h2 k1 k2
+        else pure False
+      (Chain _ k1 k2, Chain _ k1a k2a) -> do
+        b <- cyclicEq h1 h2 k1 k1a
+        if b then cyclicEq h1 h2 k2 k2a
+        else pure False
+      (One _needed1 _size1 _s1 _ir1, One _needed2 _size2 _s2 _ir2) ->
+        error "todo - fill CyclicEq Continuation"
+      _ -> pure False

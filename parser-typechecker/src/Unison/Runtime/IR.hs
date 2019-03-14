@@ -19,7 +19,6 @@ import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
 import Data.Foldable
 import Data.Functor (void)
-import Data.HashTable.IO (BasicHashTable)
 import Data.IORef
 import Data.Int (Int64)
 import Data.Map (Map)
@@ -32,9 +31,9 @@ import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
-import qualified Data.HashTable.IO as HT
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
@@ -45,6 +44,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.Util.CyclicEq as CEQ
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -91,28 +91,6 @@ data Value e cont
   | Requested (Req e cont)
   | Cont cont
   | UninitializedLetRecSlot Symbol [(Symbol, IR e cont)] (IR e cont)
-
-instance (CycleEq e, CycleEq cont) => CycleEq (UnderapplyStrategy e cont) where
-  cycleEq ht us us2 = undefined
-
-instance (CycleEq e, CycleEq cont) => CycleEq (Value e cont) where
-  cycleEq _ _ (I x) (I y) = pure (x == y)
-  cycleEq _ _ (F x) (F y) = pure (x == y)
-  cycleEq _ _ (N x) (N y) = pure (x == y)
-  cycleEq _ _ (B x) (B y) = pure (x == y)
-  cycleEq _ _ (T x) (T y) = pure (x == y)
-  cycleEq e n (Lam arity1 us _) (Lam arity2 us2 _) =
-    if arity1 == arity2 then cycleEq e n us us2
-    else pure False
-  cycleEq e n (Data r1 c1 vs1) (Data r2 c2 vs2) =
-    if r1 == r2 && c1 == c2 then go e n vs1 vs2
-    else pure False
-    where
-    go _ _ [] [] = pure True
-    go e n (h1:t1) (h2:t2) = cycleEq e n h1 h2 >>= \b ->
-      if b then go e n t1 t2
-      else pure False
---   cycleEq e n (Sequence v1) (Sequence v2) =
 
 instance (Eq cont, Eq e) => Eq (Value e cont) where
   I x == I y = x == y
@@ -225,6 +203,8 @@ data IR' ann z
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
+  -- Universals
+  | EqU z z -- universal equality
   -- Control flow
 
   -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
@@ -301,6 +281,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
     LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
+    EqU a b -> P.parenthesize $ "EqU" `P.hang` P.spaced [pz a, pz b]
     ir@(Let _ _ _ _) ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
@@ -645,6 +626,7 @@ boundVarsIR = \case
   GtEqF _ _ -> mempty
   LtEqF _ _ -> mempty
   EqF _ _ -> mempty
+  EqU _ _ -> mempty
   MakeSequence _ -> mempty
   Construct _ _ _ -> mempty
   Request _ _ _ -> mempty
@@ -691,6 +673,7 @@ decompileIR stack = \case
   GtEqF x y -> builtin "Float.>=" [x,y]
   LtEqF x y -> builtin "Float.<=" [x,y]
   EqF x y -> builtin "Float.==" [x,y]
+  EqU x y -> builtin "Universal.==" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
@@ -866,6 +849,8 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
         , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
+        , ("Universal.==", 2, EqU (Slot 1) (Slot 0))
+
         , ("Boolean.not", 1, Not (Slot 0))
         ]]
 
@@ -913,3 +898,57 @@ instance Monoid (CompilationEnv e cont) where
   mappend c1 c2 = CompilationEnv ir ctor where
     ir = toIR' c1 <> toIR' c2
     ctor = constructorArity' c1 <> constructorArity' c2
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (UnderapplyStrategy e cont) where
+  cyclicEq h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
+    if hash1 == hash2 then cyclicEq h1 h2 vs1 vs2
+    else pure False
+  cyclicEq h1 h2 (Specialize hash1 _ vs1) (Specialize hash2 _ vs2) =
+    if hash1 == hash2 then cyclicEq h1 h2 (snd <$> vs1) (snd <$> vs2)
+    else pure False
+  cyclicEq _ _ _ _ = pure False
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (Req e cont) where
+  cyclicEq h1 h2 (Req r1 c1 vs1 k1) (Req r2 c2 vs2 k2) =
+    if r1 == r2 && c1 == c2 then do
+      b <- cyclicEq h1 h2 vs1 vs2
+      if b then cyclicEq h1 h2 k1 k2
+      else pure False
+    else pure False
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
+  cyclicEq _ _ (I x) (I y) = pure (x == y)
+  cyclicEq _ _ (F x) (F y) = pure (x == y)
+  cyclicEq _ _ (N x) (N y) = pure (x == y)
+  cyclicEq _ _ (B x) (B y) = pure (x == y)
+  cyclicEq _ _ (T x) (T y) = pure (x == y)
+  cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
+    if arity1 == arity2 then cyclicEq h1 h2 us us2
+    else pure False
+  cyclicEq h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =
+    if r1 == r2 && c1 == c2 then cyclicEq h1 h2 vs1 vs2
+    else pure False
+  cyclicEq h1 h2 (Sequence v1) (Sequence v2) = cyclicEq h1 h2 v1 v2
+  cyclicEq h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
+    if io1 == io2 then pure True
+    else do
+      a <- CEQ.lookup r1 h1
+      b <- CEQ.lookup r2 h2
+      case (a,b) of
+        -- We haven't encountered these refs before, descend into them and
+        -- compare contents.
+        (Nothing, Nothing) -> do
+          CEQ.insertEnd r1 h1
+          CEQ.insertEnd r2 h2
+          r1 <- readIORef io1
+          r2 <- readIORef io2
+          cyclicEq h1 h2 r1 r2
+        -- We've encountered these refs before, compare the positions where
+        -- they were first encountered
+        (Just r1, Just r2) -> pure (r1 == r2)
+        _ -> pure False
+  cyclicEq h1 h2 (Pure a) (Pure b) = cyclicEq h1 h2 a b
+  cyclicEq h1 h2 (Requested r1) (Requested r2) = cyclicEq h1 h2 r1 r2
+  cyclicEq h1 h2 (Cont k1) (Cont k2) = cyclicEq h1 h2 k1 k2
+  cyclicEq _ _ _ _ = pure False
+
