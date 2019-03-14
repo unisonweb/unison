@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -42,18 +43,20 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                   ( NameChangeResult)
                                                 , collateReferences
                                                 )
-import qualified Unison.Codebase.Editor         as Editor
-import qualified Unison.HashQualified as HQ
+import qualified Unison.Codebase.Editor        as Editor
+import qualified Unison.DataDeclaration        as DD
+import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
-import           Unison.Parser                  ( Ann )
+import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
-import qualified Unison.Term as Term
+import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -88,6 +91,21 @@ loop = do
     latestFile'        <- use latestFile
     currentBranch'     <- use currentBranch
     e                  <- eval Input
+    let withFile ambient sourceName text k = do
+          Result notes r <- eval $
+            Typecheck ambient (view currentBranch s) sourceName text
+          case r of
+            -- Parsing failed
+            Nothing ->
+              respond $ ParseErrors
+                text
+                [ err | Result.Parsing err <- toList notes ]
+            Just (errorEnv, r) ->
+              let h = respond $ TypeErrors
+                        text
+                        errorEnv
+                        [ err | Result.TypeError err <- toList notes ]
+               in maybe h (k errorEnv) r
     case e of
       Left (UnisonBranchChanged names) ->
         when (Set.member currentBranchName' names)
@@ -98,40 +116,21 @@ loop = do
           then modifying latestFile $ (fmap (const False) <$>)
           else do
             eval (Notify $ FileChangeEvent sourceName text)
-            Result notes r <- eval
-              (Typecheck (view currentBranch s) sourceName text)
-            case r of
-              -- Parsing failed
-              Nothing ->
-                respond $ ParseErrors
-                  text
-                  [ err | Result.Parsing err <- toList notes ]
-              Just (errorEnv, r) -> case r of
-                -- Typing failed
-                Nothing ->
-                  respond $ TypeErrors
-                    text
-                    errorEnv
-                    [ err | Result.TypeError err <- toList notes ]
-                -- A unison file has changed
-                Just unisonFile -> do
-                  eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-                  (bindings, e) <-
-                    eval
-                      ( Evaluate (view currentBranch s)
-                      $ UF.discardTypes unisonFile
-                      )
-                  let e' = Map.map go e
-                      go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-                  -- todo: this would be a good spot to update the cache
-                  -- with all the (hash, eval) pairs, even if it's just an
-                  -- in-memory cache
-                  eval . Notify $ Evaluated text
-                    (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
-                    bindings
-                    e'
-                  latestFile .= Just (Text.unpack sourceName, False)
-                  latestTypecheckedFile .= Just unisonFile
+            withFile [] sourceName text $ \errorEnv unisonFile -> do
+              eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+              (bindings, e) <-
+                eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
+              let e' = Map.map go e
+                  go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
+              -- todo: this would be a good spot to update the cache
+              -- with all the (hash, eval) pairs, even if it's just an
+              -- in-memory cache
+              eval . Notify $ Evaluated text
+                (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+                bindings
+                e'
+              latestFile .= Just (Text.unpack sourceName, False)
+              latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
         -- ls with no arguments
         SearchByNameI [] ->
@@ -248,8 +247,13 @@ loop = do
           _ <- eval $ SyncBranch currentBranchName' b
           _ <- success
           currentBranch .= b
-        -- ExecuteI name args ->
-
+        ExecuteI input ->
+          withFile [Type.ref External $ Reference.DerivedId DD.ioHash]
+                   "execute command"
+                   ("main_ = " <> Text.pack input) $
+                     \_ unisonFile ->
+                        eval . Execute (view currentBranch s) $
+                          UF.discardTypes unisonFile
         QuitI -> quit
        where
         success       = respond $ Success input

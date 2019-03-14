@@ -132,6 +132,11 @@ validInputs =
     (\ws -> if not $ null ws
                then Left $ warn "`todo` doesn't take any arguments."
                else pure $ TodoI)
+  , InputPattern "execute" [] [(True, noCompletions)]
+    "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
+    (\ws -> if null ws
+               then Left $ warn "`execute` needs a Unison language expression."
+               else pure . ExecuteI $ intercalate " " ws)
   , InputPattern "quit" ["exit"] []
       "Exits the Unison command line interface."
       (\case

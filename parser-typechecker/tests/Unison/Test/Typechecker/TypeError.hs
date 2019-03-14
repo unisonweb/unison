@@ -52,7 +52,7 @@ noYieldsError s ex = not $ yieldsError s ex
 
 yieldsError :: forall v a. Var v => String -> ErrorExtractor v Ann a -> Bool
 yieldsError s ex = let
-  Result notes (Just _) = Common.parseAndSynthesizeAsFile "> test" s
+  Result notes (Just _) = Common.parseAndSynthesizeAsFile [] "> test" s
   notes' :: [C.ErrorNote v Ann]
   notes' = [ n | Result.TypeError n <- toList notes ]
   in any (isJust . Ex.extract ex) notes'

@@ -26,6 +26,10 @@ import           System.IO                      ( Handle
                                                 , IOMode(..)
                                                 , openFile
                                                 , hClose
+                                                , hPutStr
+                                                , stdin
+                                                , stdout
+                                                , stderr
                                                 )
 import           Unison.Symbol
 import qualified Unison.Reference              as R
@@ -102,15 +106,6 @@ constructorName' cl hash cid = do
   go (DataDeclaration _ _ ctors) =
     pure . Var.name $ view _2 $ genericIndex ctors cid
 
--- TODO: Put the actual hashes of these types in here
-ioHash :: R.Id
-ioHash = R.Id
-  (Hash.unsafeFromBase58
-    "3aEd7hZ5DUwcKcTij4Ba8fUzs6B85euZ9Zcs2iNHxyG9UyDYUzXqgENLo9HNzqRKgXBg7B1eA2nNB1sxMcbqCa15"
-  )
-  0
-  1
-
 ioModeHash :: R.Id
 ioModeHash = R.Id (Hash.unsafeFromBase58 "abracadabra1") 0 1
 
@@ -131,10 +126,20 @@ handleIO cid = (constructorName ioHash cid >>=) . flip go
     liftIO $ maybe (pure ()) hClose hh
     deleteUnisonHandle handle
     pure IR.unit
-  go "IO.printLine" [IR.T string] = do
-    liftIO . putStrLn $ Text.unpack string
+  go "IO.putText" [IR.Data _ _ [IR.T handle], IR.T string] = do
+    hh <- getHaskellHandle handle
+    case hh of
+      Just h  -> liftIO . hPutStr h $ Text.unpack string
+      Nothing -> pure ()
     pure IR.unit
-  go _ _ = undefined
+  go a b =
+    error
+      $  "IO handler called with cid "
+      <> show cid
+      <> " and "
+      <> show a
+      <> " args "
+      <> show b
 
 runtime :: Runtime Symbol
 runtime = Runtime terminate eval
@@ -148,8 +153,9 @@ runtime = Runtime terminate eval
     -> IO (Term.Term Symbol)
   eval cl term = do
     -- traceM $ Pretty.render 80 (prettyTop mempty term)
-    cenv            <- RT.compilationEnv cl term -- in `m`
-    mmap            <- newMVar mempty
+    cenv <- RT.compilationEnv cl term -- in `m`
+    mmap <- newMVar
+      $ Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)]
     RT.RDone result <- RT.run (handleIO' $ S mmap cl)
                               cenv
                               (IR.compile cenv $ Term.amap (const ()) term)
