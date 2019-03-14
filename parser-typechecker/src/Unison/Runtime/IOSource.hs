@@ -48,6 +48,8 @@ bufferModeReference = typeNamed "BufferMode"
 source :: Text
 source = fromString [r|
 
+type Either a b = Left a | Right b
+
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell
 -- file handles and map those to Unison handles.
@@ -70,10 +72,18 @@ namespace IO where
   stderr: Handle
   stderr = Handle "stderr"
 
+  rethrow : (Either IOError a) -> {IO} a
+  rethrow x = case x of
+    Either.Left e -> IO.throw e
+    Either.Right a -> a
+
   printLine : Text -> {IO} ()
   printLine t =
-    IO.putText stdout t
-    IO.putText stdout "\n"
+    rethrow (IO.putText stdout t)
+    rethrow (IO.putText stdout "\n")
+
+  readLine : '{IO} Text
+  readLine = '(rethrow (IO.getText stdin))
 
 -- IO Modes from the Haskell API
 type IOMode = Read | Write | Append | ReadWrite
@@ -122,37 +132,34 @@ type HostAddress = HostAddress Int
 -- Internet protocol v4 socket address
 type SocketAddress = SocketAddress HostAddress PortNumber
 
-
 ability IO where
 
   -- Basic file IO
-  openFile : FilePath -> IOMode ->{IO} Handle
-  closeFile : Handle ->{IO} ()
-  isEOF : Handle ->{IO} Boolean
-  isFileOpen : Handle ->{IO} Boolean
+  openFile : FilePath -> IOMode ->{IO} (Either IOError Handle)
+  closeFile : Handle ->{IO} (Either IOError ())
+  isEOF : Handle ->{IO} (Either IOError Boolean)
+  isFileOpen : Handle ->{IO} (Either IOError Boolean)
 
   -- Text input and output
 
   --getChar : Handle ->{IO} Char
-  getLine : Handle ->{IO} Text
+  getLine : Handle ->{IO} (Either IOError Text)
   -- Get the entire contents of the file as text
-  getText : Handle ->{IO} Text
+  getText : Handle ->{IO} (Either IOError Text)
   -- putChar : Handle -> Char ->{IO} ()
-  putText : Handle -> Text ->{IO} ()
+  putText : Handle -> Text ->{IO} (Either IOError ())
 
-  -- Handling I/O errors.
-  -- Question: can we do better?
+  -- Note: `catch` is just a library function
   throw : IOError ->{IO} a
-  catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
 
   -- File positioning
-  isSeekable : Handle ->{IO} Boolean
-  seek : Handle -> SeekMode -> Int ->{IO} ()
-  position : Handle ->{IO} Int
+  isSeekable : Handle ->{IO} (Either IOError Boolean)
+  seek : Handle -> SeekMode -> Int ->{IO} (Either IOError ())
+  position : Handle ->{IO} (Either IOError Int)
 
   -- File buffering
-  getBuffering : Handle ->{IO} (Optional BufferMode)
-  setBuffering : Handle -> Optional BufferMode ->{IO} ()
+  getBuffering : Handle ->{IO} Either IOError (Optional BufferMode)
+  setBuffering : Handle -> Optional BufferMode ->{IO} (Either IOError ())
 
   -- Should we expose mutable arrays for byte buffering?
   -- Inclined to say no, although that sounds a lot like
@@ -165,22 +172,22 @@ ability IO where
   -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
   -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
 
-  systemTime : {IO} EpochTime
+  systemTime : {IO} (Either IOError EpochTime)
 
 
   -- File system operations
-  getCurrentDirectory : {IO} FilePath
-  setCurrentDirectory : FilePath ->{IO} ()
-  directoryContents : FilePath ->{IO} [FilePath]
-  fileExists : FilePath -> {IO} Boolean
-  isDirectory : FilePath ->{IO} Boolean
-  createDirectory : FilePath ->{IO} ()
-  removeDirectory : FilePath ->{IO} ()
-  renameDirectory : FilePath -> FilePath -> {IO} ()
-  removeFile : FilePath ->{IO} ()
-  renameFile : FilePath -> FilePath ->{IO} ()
-  getFileTimestamp : FilePath ->{IO} EpochTime
-  getFileSize : FilePath ->{IO} Nat
+  getCurrentDirectory : {IO} (Either IOError FilePath)
+  setCurrentDirectory : FilePath ->{IO} (Either IOError ())
+  directoryContents : FilePath ->{IO} Either IOError [FilePath]
+  fileExists : FilePath -> {IO} (Either IOError Boolean)
+  isDirectory : FilePath ->{IO} (Either IOError Boolean)
+  createDirectory : FilePath ->{IO} (Either IOError ())
+  removeDirectory : FilePath ->{IO} (Either IOError ())
+  renameDirectory : FilePath -> FilePath -> {IO} (Either IOError ())
+  removeFile : FilePath ->{IO} (Either IOError ())
+  renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
+  getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
+  getFileSize : FilePath ->{IO} (Either IOError Nat)
 
 
   -- Network I/O
@@ -189,19 +196,19 @@ ability IO where
   -- and socket types (stream, raw, etc)
 
   -- Creates a socket and binds it to a the given local port
-  serverSocket : SocketAddress -> {IO} Socket
+  serverSocket : SocketAddress -> {IO} (Either IOError Socket)
 
   -- Creates a socket connected to the given remote address
-  clientSocket : SocketAddress -> {IO} Socket
+  clientSocket : SocketAddress -> {IO} (Either IOError Socket)
 
-  socketToHandle : Socket ->{IO} Handle
-  handleToSocket : Handle ->{IO} Socket
-  closeSocket : Socket ->{IO} ()
+  socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
+  handleToSocket : Handle ->{IO} (Either IOError Socket)
+  closeSocket : Socket ->{IO} (Either IOError ())
 
   -- Accept a connection on a socket.
   -- Returns a socket that can send and receive data on a new connection,
   -- together with the remote host information.
-  accept : Socket ->{IO} (Socket, SocketAddress)
+  accept : Socket ->{IO} Either IOError (Socket, SocketAddress)
 
   -- Returns the number of bytes actually sent
   -- send : Socket -> Bytes ->{IO} Int
