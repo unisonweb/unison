@@ -43,7 +43,6 @@ import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -167,18 +166,6 @@ putTypeDeclaration c rid decl = do
     Left  ed -> DD.effectConstructorTerms rid ed
     Right dd -> DD.dataConstructorTerms rid dd
   where go (r, tm, typ) = putTerm c r tm typ
-
--- | Put all the builtins into the codebase
-initialize :: (Var.Var v, Monad m) => Codebase m v Ann -> m ()
-initialize c = do
-  traverse_ goData   Builtin.builtinDataDecls
-  traverse_ goEffect Builtin.builtinEffectDecls
- where
-  go f (_, (ref, decl)) = case ref of
-    Reference.DerivedId id -> putTypeDeclaration c id (f decl)
-    _                      -> pure ()
-  goEffect = go Left
-  goData   = go Right
 
 prettyBinding
   :: (Var.Var v, Monad m)

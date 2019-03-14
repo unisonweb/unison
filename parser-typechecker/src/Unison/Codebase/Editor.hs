@@ -16,7 +16,9 @@ import           Data.Char                      ( toLower )
 import Data.List (sortOn, isSuffixOf, isPrefixOf)
 import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
 import           Control.Monad.Extra            ( ifM )
-import Data.Foldable (toList)
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
 import           Data.Bifunctor                 ( bimap, second )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
@@ -56,6 +58,8 @@ import           Unison.Result                  ( Note
 import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Symbol                  ( Symbol )
 import           Unison.Util.Relation          (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
@@ -616,7 +620,11 @@ typecheck ambient codebase names sourceName src =
     src
 
 builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames B.names) mempty
+builtinBranch = Branch.append
+  (  Branch.fromNames B.names
+  <> Branch.fromTypecheckedFile IOSource.typecheckedFile
+  )
+  mempty
 
 newBranch :: Monad m => Codebase m v a -> BranchName -> m Bool
 newBranch codebase branchName = forkBranch codebase builtinBranch branchName
@@ -768,6 +776,19 @@ fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   case Find.fuzzyFindMatchArray q [n] id of
     [] -> Nothing
     (m, _) : _ -> Just m
+
+-- | Put all the builtins into the codebase
+initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m Branch
+initializeCodebase c = do
+  traverse_ (go Right) B.builtinDataDecls
+  traverse_ (go Left)  B.builtinEffectDecls
+  r <- fileToBranch updateCollisionHandler c mempty IOSource.typecheckedFile
+  pure $ updatedBranch r
+ where
+  go :: (t -> Decl Symbol Ann) -> (a, (Reference.Reference, t)) -> m ()
+  go f (_, (ref, decl)) = case ref of
+    Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
+    _                      -> pure ()
 
 -- todo: probably don't use this anywhere
 nameDistance :: Name -> Name -> Maybe Int
