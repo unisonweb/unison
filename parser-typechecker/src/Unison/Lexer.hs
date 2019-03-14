@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# Language ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Unison.Lexer where
 

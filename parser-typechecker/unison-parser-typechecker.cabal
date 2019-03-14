@@ -170,6 +170,7 @@ library
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  extensions: LambdaCase
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields

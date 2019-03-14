@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, LambdaCase, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards #-}
 
 module Unison.Codebase.Serialization.V0 where
 

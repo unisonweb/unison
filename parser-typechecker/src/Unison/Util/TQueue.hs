@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 module Unison.Util.TQueue where
 
 import Data.Word (Word64)

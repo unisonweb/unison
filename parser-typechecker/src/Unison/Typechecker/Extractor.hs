@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveFunctor       #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Typechecker.Extractor where
