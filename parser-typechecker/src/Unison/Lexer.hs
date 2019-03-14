@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# Language BangPatterns, LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Unison.Lexer where
 
@@ -89,7 +89,15 @@ instance Applicative Token where
 type Line = Int
 type Column = Int
 
-data Pos = Pos {-# Unpack #-} !Line !Column deriving (Eq,Ord,Show)
+data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
+
+instance Semigroup Pos where (<>) = mappend
+
+instance Monoid Pos where
+  mempty = Pos 0 0
+  Pos line col `mappend` Pos line2 col2 =
+    if line2 == 0 then Pos line (col + col2)
+    else Pos (line + line2) col2
 
 line :: Pos -> Line
 line (Pos line _) = line
@@ -279,8 +287,8 @@ lexer0 scope rem =
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
       -- string literals and backticked identifiers
       '"' : rem -> case splitStringLit rem of
-        Right (lit, rem) -> let end = inc . incBy lit . inc $ pos in
-          Token (Textual lit) pos end : goWhitespace l end (pop rem)
+        Right (delta, lit, rem) -> let end = pos <> delta in
+          Token (Textual lit) pos end : goWhitespace l end rem
         Left (TextLiteralMissingClosingQuote _) -> [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
         Left err -> [Token (Err err) pos pos]
       '`' : rem -> case wordyId rem of
@@ -321,15 +329,18 @@ matchKeyword' keywords s = case span (not . isSep) s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
--- Split into a string literal and the remainder
+-- Split into a string literal and the remainder, and a delta which includes
+-- both the starting and ending `"` character
 -- The input string should only start with a '"' if the string literal is empty
-splitStringLit :: String -> Either Err (String, String)
-splitStringLit ('\\':s:rem) = case parseEscapeChar s of
-  (Just e) -> appendFst e <$> splitStringLit rem
-  Nothing  -> Left $ InvalidEscapeCharacter s
-splitStringLit ('"':rem)    = Right ("", '"':rem)
-splitStringLit (x:rem)      = appendFst x <$> splitStringLit rem
-splitStringLit []           = Left $ TextLiteralMissingClosingQuote ""
+splitStringLit :: String -> Either Err (Pos, String, String)
+splitStringLit rem0 = go (inc mempty) "" rem0 where
+  -- n tracks the raw character delta of this literal
+  go !n !acc ('\\':s:rem) = case parseEscapeChar s of
+    Just e -> go (inc . inc $ n) (e:acc) rem
+    Nothing  -> Left $ InvalidEscapeCharacter s
+  go !n !acc ('"':rem)    = Right (inc n, reverse acc, rem)
+  go !n !acc (x:rem)      = go (inc n) (x:acc) rem
+  go _ _ []               = Left $ TextLiteralMissingClosingQuote ""
 
 appendFst :: Char -> (String, a) -> (String, a)
 appendFst c (s, r) = (c : s, r)
