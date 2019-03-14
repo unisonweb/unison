@@ -1,5 +1,4 @@
 {-# Language BangPatterns #-}
-{-# Language LambdaCase #-}
 {-# Language OverloadedStrings #-}
 {-# Language Strict #-}
 {-# Language StrictData #-}

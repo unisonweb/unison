@@ -2,7 +2,6 @@
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language FlexibleContexts #-}
-{-# Language LambdaCase #-}
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}

@@ -1,8 +1,6 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE LambdaCase        #-}
-
 
 module Unison.Reference
   (Reference,

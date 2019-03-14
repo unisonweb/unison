@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Unison.NamePrinter where
 
 import           Data.String          (IsString, fromString)
