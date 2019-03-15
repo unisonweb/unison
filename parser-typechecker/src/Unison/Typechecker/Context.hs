@@ -879,11 +879,7 @@ checkPattern tx ty | debugEnabled && traceShow ("checkPattern"::String, tx, ty) 
 checkPattern scrutineeType0 p =
   lift (ungeneralize scrutineeType0) >>= \scrutineeType -> case p of
     Pattern.Unbound _    -> pure []
-    Pattern.Var     _loc -> do
-      v  <- getAdvance p
-      v' <- lift $ freshenVar v
-      lift . appendContext $ context [Ann v' scrutineeType]
-      pure [(v, v')]
+    Pattern.Var     _loc -> checkAdvance scrutineeType (getAdvance p) Nothing
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
@@ -910,11 +906,7 @@ checkPattern scrutineeType0 p =
       st            <- lift $ applyM scrutineeType
       lift $ subtype overall st
       pure vs
-    Pattern.As _loc p' -> do
-      v  <- getAdvance p
-      v' <- lift $ freshenVar v
-      lift . appendContext $ context [Ann v' scrutineeType]
-      ((v, v') :) <$> checkPattern scrutineeType p'
+    Pattern.As _loc p' -> checkAdvance scrutineeType (getAdvance p) (Just p')
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
         v <- freshNamed "v"
@@ -959,8 +951,22 @@ checkPattern scrutineeType0 p =
             _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
           ctorOutputType
+    Pattern.Sequence loc ps -> do
+      vt <- lift $ do
+        v <- freshNamed "v"
+        let vt = Type.existentialp loc v
+        appendContext $ context [existential v]
+        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        applyM vt
+      join <$> traverse ((checkAdvance vt (lift (freshNamed "v"))) . Just) ps
     _ -> lift . compilerCrash $ MalformedPattern p
  where
+  checkAdvance scrutineeType advance mp = do
+    v  <- advance
+    v' <- lift $ freshenVar v
+    lift . appendContext $ context [Ann v' scrutineeType]
+    ((v, v') :) <$> maybe (pure []) (checkPattern scrutineeType) mp
+
   getAdvance p = do
     vs <- get
     case vs of

@@ -21,7 +21,8 @@ import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
-import           Unison.Parser
+import           Unison.Parser hiding (seq)
+import qualified Unison.Parser as Parser (seq)
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
@@ -98,7 +99,7 @@ parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = constructor <|> leaf
   where
   leaf = literal <|> varOrAs <|> unbound <|>
-         parenthesizedOrTuplePattern <|> effect
+         parenthesizedOrTuplePattern <|> seq' <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
@@ -124,6 +125,8 @@ parsePattern = constructor <|> leaf
     guard . isUpper . head . L.payload $ s
     pure s
 
+  unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
+
   effectBind0 = do
     name <- ctorName
     leaves <- many leaf
@@ -137,10 +140,9 @@ parsePattern = constructor <|> leaf
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownEffectConstructor name
-    pure $ case unzip leaves of
-      (patterns, vs) ->
-         (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont,
-          join vs ++ vsp)
+    pure $
+      let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
+      in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
     go (p, vs) = (Pattern.EffectPure (ann p) p, vs)
@@ -158,11 +160,15 @@ parsePattern = constructor <|> leaf
     case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
-          go pairs = case unzip pairs of
-            (patterns, vs) ->
-              let loc = foldl (<>) (ann t) $ map ann patterns
-              in (Pattern.Constructor loc ref cid patterns, join vs)
+          go = unzipPatterns f
+          f patterns vs =
+            let loc = foldl (<>) (ann t) $ map ann patterns
+            in (Pattern.Constructor loc ref cid patterns, vs)
       Nothing -> customFailure $ UnknownDataConstructor t
+
+  seq' :: P v (Pattern Ann, [(Ann, v)])
+  seq' = Parser.seq f leaf
+    where f loc = unzipPatterns ((,) . Pattern.Sequence loc)
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
@@ -204,12 +210,7 @@ placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 seq :: Var v => TermP v -> TermP v
-seq p = f <$> reserved "[" <*> elements <*> trailing
-  where
-    trailing = optional semi *> reserved "]"
-    sep = P.try $ optional semi *> reserved "," <* optional semi
-    elements = sepBy sep p
-    f open elems close = Term.seq (ann open <> ann close) elems
+seq = Parser.seq Term.seq
 
 termLeaf :: forall v. Var v => TermP v
 termLeaf = do

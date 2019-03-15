@@ -1,0 +1,11 @@
+foo : [Nat] -> ()
+foo v = case v of
+  [] -> ()
+  [a, b] -> ()
+  [1, 2, 3] -> ()
+
+bar : [Text] -> ()
+bar v = case v of
+  ["foo"] -> ()
+  [] -> ()
+  ["a", "b", "c"] -> ()

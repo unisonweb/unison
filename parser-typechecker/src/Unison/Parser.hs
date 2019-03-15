@@ -296,6 +296,14 @@ tupleOrParenthesized p unit pair = do
     go [t] _ _ = t
     go as s e  = foldr pair (unit (ann s <> ann e)) as
 
+seq :: Var v => (Ann -> [a] -> a) -> P v a -> P v a
+seq f p = f' <$> reserved "[" <*> elements <*> trailing
+  where
+    f' open elems close = f (ann open <> ann close) elems
+    trailing = optional semi *> reserved "]"
+    sep = P.try $ optional semi *> reserved "," <* optional semi
+    elements = sepBy sep p
+
 chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where
   go1 = p >>= go2

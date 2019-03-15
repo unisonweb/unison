@@ -1,0 +1,14 @@
+length : [Nat] -> Nat
+length v = case v of
+  [] -> 0
+  [a] -> 1
+  [a, b] -> 2
+  [a, b, c] -> 3
+
+> length [1, 2]
+
+bar : [Text] -> ()
+bar v = case v of
+  ["foo"] -> ()
+  [] -> ()
+  ["a", "b", "c"] -> ()
