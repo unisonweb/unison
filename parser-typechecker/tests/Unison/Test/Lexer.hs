@@ -38,6 +38,23 @@ test = scope "lexer" . tests $
         expected = [Open "if", WordyId "x", Close, Open "then", WordyId "y", Close, Open "else", WordyId "z", Close]
     in tests $ map (`t` expected) [ex1, ex2, ex3, ex4]
 
+  -- directly close empty = block
+  , let ex = unlines
+          [ "test ="
+          , ""
+          , "x = 1"]
+    in t ex [ WordyId "test", Open "=", Close, Semi,
+              WordyId "x", Open "=", Numeric "1", Close]
+
+  -- directly close nested empty blocks
+  , let ex = unlines
+          [ "test ="
+          , "  test2 ="
+          , ""
+          , "x = 1"]
+    in t ex [ WordyId "test",Open "=",WordyId "test2",Open "=",Close,Close,Semi,
+              WordyId "x",Open "=",Numeric "1",Close]
+
   , let ex = unlines [ "if a then b"
                      , "else if c then d"
                      , "else if e then f"

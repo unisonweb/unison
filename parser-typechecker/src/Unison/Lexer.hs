@@ -236,7 +236,15 @@ lexer0 scope rem =
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
-        let pos' = incBy spaces pos in go ((b, column pos') : l) pos' rem
+        let topcol = top l
+            pos'   = incBy spaces pos
+            col'   = column pos'
+        in
+          if b == "=" && col' <= topcol then
+            -- force closing by introducing a fake col +1 layout
+            popLayout0 ((b, col' + 1) : l) pos' rem
+          else
+            go ((b, col') : l) pos' rem
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
