@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -5,16 +6,22 @@
 
 module Unison.Runtime.Rt1IO where
 
-import           Control.Lens
+import           Control.Exception              ( try
+                                                , IOException
+                                                )
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
                                                 , readMVar
                                                 , newMVar
                                                 )
+import           Control.Lens
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Reader           ( ReaderT
                                                 , runReaderT
+                                                )
+import           Control.Monad.Except           ( ExceptT(..)
+                                                , runExceptT
                                                 )
 import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
@@ -41,7 +48,6 @@ import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.DataDeclaration
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
-import qualified Unison.Hash                   as Hash
 -- import Debug.Trace
 -- import qualified Unison.Util.Pretty            as Pretty
 -- import           Unison.TermPrinter             ( prettyTop )
@@ -52,7 +58,7 @@ import qualified Unison.Runtime.IOSource       as IOSrc
 type GUID = Text
 type IOState = MVar HandleMap
 
-type UIO ann a = ReaderT (S ann) IO a
+type UIO ann a = ExceptT IOException (ReaderT (S ann) IO) a
 type HandleMap = Map GUID Handle
 
 data S a = S
@@ -91,7 +97,7 @@ getHaskellHandle h = do
 constructorName :: R.Id -> IR.ConstructorId -> UIO a Text
 constructorName hash cid = do
   cl <- view codeLookup
-  lift $ constructorName' cl hash cid
+  lift . lift $ constructorName' cl hash cid
 
 constructorName'
   :: (Var v, Monad m)
@@ -109,30 +115,36 @@ constructorName' cl hash cid = do
   go (DataDeclaration _ _ ctors) =
     pure . Var.name $ view _2 $ genericIndex ctors cid
 
-ioModeHash :: R.Id
-ioModeHash = R.Id (Hash.unsafeFromBase58 "abracadabra1") 0 1
-
 handleIO' :: S a -> R.Reference -> IR.ConstructorId -> [RT.Value] -> IO RT.Value
 handleIO' s rid cid vs = case rid of
-  R.DerivedId x | x == ioHash -> runReaderT (handleIO cid vs) s
+  R.DerivedId x | x == IOSrc.ioHash -> flip runReaderT s $ do
+    ev <- runExceptT $ handleIO cid vs
+    case ev of
+      Left  e -> pure $ Data IOSrc.eitherReference
+      Right v -> undefined
   _ -> fail $ "This ability is not an I/O ability: " <> show rid
 
+reraiseIO :: IO a -> UIO x a
+reraiseIO a = ExceptT . lift $ try @IOException $ liftIO a
+
 handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
-handleIO cid = (constructorName ioHash cid >>=) . flip go
+handleIO cid args = do
+  cname <- constructorName IOSrc.ioHash cid
+  go cname args
  where
   go "IO.openFile" [IR.T filePath, IR.Data _ mode _] = do
-    n <- constructorName ioModeHash mode
-    h <- liftIO . openFile (Text.unpack filePath) $ haskellMode n
+    n <- constructorName IOSrc.ioModeHash mode
+    h <- reraiseIO . openFile (Text.unpack filePath) $ haskellMode n
     newUnisonHandle h
   go "IO.closeFile" [IR.T handle] = do
     hh <- getHaskellHandle handle
-    liftIO $ maybe (pure ()) hClose hh
+    reraiseIO $ maybe (pure ()) hClose hh
     deleteUnisonHandle handle
     pure IR.unit
   go "IO.putText" [IR.Data _ _ [IR.T handle], IR.T string] = do
     hh <- getHaskellHandle handle
     case hh of
-      Just h  -> liftIO . hPutStr h $ Text.unpack string
+      Just h  -> reraiseIO . hPutStr h $ Text.unpack string
       Nothing -> pure ()
     pure IR.unit
   go a b =

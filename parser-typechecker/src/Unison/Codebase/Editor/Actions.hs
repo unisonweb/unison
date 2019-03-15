@@ -255,7 +255,7 @@ loop = do
           _ <- success
           currentBranch .= b
         ExecuteI input ->
-          withFile [Type.ref External $ Reference.DerivedId DD.ioHash]
+          withFile [Type.ref External $ ioReference]
                    "execute command"
                    ("main_ = " <> Text.pack input) $
                      \_ unisonFile ->

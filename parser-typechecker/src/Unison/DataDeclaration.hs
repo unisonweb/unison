@@ -20,7 +20,6 @@ import qualified Data.Set                      as Set
 import           Prelude                 hiding ( cycle )
 import           Prelude.Extras                 ( Show1 )
 import qualified Unison.ABT                    as ABT
-import           Unison.Hash                   as Hash
 import           Unison.Hashable                ( Accumulate
                                                 , Hashable1
                                                 )
@@ -290,14 +289,6 @@ builtinDataDecls = hashDecls $
     ((), v "Optional.Some", Type.foralls() [v "a"]
       (var "a" `arr` Type.app' (var "Optional") (var "a")))
    ]
-
-ioHash :: Reference.Id
-ioHash = Reference.Id
-  (Hash.unsafeFromBase58
-    "525sNixZKpeYWYAr8UFEUkYmATSbfuYkEWgnCa6xFr33JrZxra8jJtShxhtytDisdBSoCE6gtqDRkw67nRnSQXDx"
-  )
-  0
-  1
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)

@@ -40,9 +40,17 @@ abilityNamed s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-ioReference, bufferModeReference :: R.Reference
+ioHash, eitherHash, ioModeHash :: R.Id
+ioHash = R.unsafeId ioReference
+eitherHash = R.unsafeId eitherReference
+ioModeHash = R.unsafeId ioModeReference
+
+ioReference, bufferModeReference, eitherReference, ioModeReference :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
+eitherReference = typeNamed "Either"
+ioModeReference = typeNamed "IOMode"
+
 -- .. todo - fill in the rest of these
 
 source :: Text
