@@ -1,6 +1,5 @@
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
@@ -43,7 +42,6 @@ import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Parser                  ( Ann )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -168,25 +166,13 @@ putTypeDeclaration c rid decl = do
     Right dd -> DD.dataConstructorTerms rid dd
   where go (r, tm, typ) = putTerm c r tm typ
 
--- | Put all the builtins into the codebase
-initialize :: (Var.Var v, Monad m) => Codebase m v Ann -> m ()
-initialize c = do
-  traverse_ goData   Builtin.builtinDataDecls
-  traverse_ goEffect Builtin.builtinEffectDecls
- where
-  go f (_, (ref, decl)) = case ref of
-    Reference.DerivedId id -> putTypeDeclaration c id (f decl)
-    _                      -> pure ()
-  goEffect = go Left
-  goData   = go Right
-
 prettyBinding
   :: (Var.Var v, Monad m)
   => Codebase m v a
   -> HashQualified
   -> Referent
   -> Branch0
-  -> m (Maybe (Pretty String))
+  -> m (Maybe (Pretty ColorText))
 prettyBinding _ _ (Referent.Ref (Reference.Builtin _)) _ = pure Nothing
 prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
   go =<< getTerm cb r
@@ -209,7 +195,7 @@ prettyBinding cb name r0@(Referent.Ref r1@(Reference.DerivedId r)) b =
 prettyBinding _ _ r _ = error $ "unpossible " ++ show r
 
 prettyBindings :: (Var.Var v, Monad m)
-  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty String)
+  => Codebase m v a -> [(HashQualified,Referent)] -> Branch0 -> m (Pretty ColorText)
 prettyBindings cb tms b = do
   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
   pure $ PP.linesSpaced ds

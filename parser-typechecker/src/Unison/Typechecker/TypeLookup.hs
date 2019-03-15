@@ -2,13 +2,14 @@ module Unison.Typechecker.TypeLookup where
 
 import Control.Applicative ((<|>))
 import Data.Map (Map)
-import qualified Data.Map as Map
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
 import Unison.Type (AnnotatedType)
-import qualified Unison.DataDeclaration as DD
+import Unison.Var (Var)
+import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Referent as Referent
 
 type Type v a = AnnotatedType v a
 type DataDeclaration v a = DD.DataDeclaration' v a
@@ -22,6 +23,10 @@ data TypeLookup v a =
              , dataDecls :: Map Reference (DataDeclaration v a)
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
+
+builtinTypeLookup :: Var v => TypeLookup v ()
+builtinTypeLookup = TypeLookup mempty decls mempty where
+  decls = Map.fromList [ (r, dd) | (_, r, dd) <- DD.builtinDataDecls ]
 
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of

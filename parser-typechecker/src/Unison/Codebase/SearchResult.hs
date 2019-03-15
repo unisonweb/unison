@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.SearchResult where

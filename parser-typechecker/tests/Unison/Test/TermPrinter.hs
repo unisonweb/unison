@@ -14,6 +14,7 @@ import Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Util.ColorText as CT
 
 get_names :: PPE.PrettyPrintEnv
 get_names = PPE.fromNames Unison.Builtin.names
@@ -26,7 +27,8 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = pretty get_names (ac (-1) Normal) input_term
+       prettied = fmap (CT.toPlain) $
+        pretty get_names (ac (-1) Normal) input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -70,7 +72,8 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
+       prettied = fmap (CT.toPlain) $ 
+        prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied

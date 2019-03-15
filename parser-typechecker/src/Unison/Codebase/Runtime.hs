@@ -26,10 +26,8 @@ import Unison.DataDeclaration (pattern TupleTerm', tupleTerm)
 data Runtime v = Runtime
   { terminate :: IO ()
   , evaluate
-      :: forall a
-      .  Monoid a
-      => CL.CodeLookup IO v a
-      -> AnnotatedTerm v a
+      :: CL.CodeLookup IO v ()
+      -> Term v
       -> IO (Term v)
   }
 

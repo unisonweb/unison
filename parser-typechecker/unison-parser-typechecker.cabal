@@ -85,6 +85,7 @@ library
     Unison.Runtime.IR
     Unison.Runtime.Rt1
     Unison.Runtime.Rt1IO
+    Unison.Runtime.IOSource
     Unison.Runtime.Vector
     Unison.Runtime.SparseVector
     Unison.Settings
@@ -158,6 +159,7 @@ library
     megaparsec,
     prelude-extras,
     random,
+    raw-strings-qq,
     regex-base,
     regex-tdfa,
     safe,
@@ -171,6 +173,7 @@ library
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  extensions: LambdaCase
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields

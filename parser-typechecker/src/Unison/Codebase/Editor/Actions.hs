@@ -63,6 +63,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
 import qualified Unison.Codebase as Codebase
+-- import Debug.Trace
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -135,13 +136,19 @@ loop = do
         -- ls with no arguments
         SearchByNameI [] ->
           (eval $ ListBranch currentBranch') >>=
-            respond . ListOfDefinitions currentBranch'
+            respond . ListOfDefinitions currentBranch' False
+        SearchByNameI ["-l"] ->
+          (eval $ ListBranch currentBranch') >>=
+            respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
-        SearchByNameI (fmap HQ.fromString -> qs) ->
-          (eval $ SearchBranch currentBranch' qs)
-            >>= respond . ListOfDefinitions currentBranch'
+        SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) ->
+            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
+              >>= respond . ListOfDefinitions currentBranch' True
+        SearchByNameI (map HQ.fromString -> qs) ->
+            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
+              >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval $ SearchBranch currentBranch' qs
+          results <- eval $ SearchBranch currentBranch' qs Editor.ExactSearch
           let termTypes :: Map.Map Reference (Editor.Type v Ann)
               termTypes = Map.fromList
                 [ (r, t)

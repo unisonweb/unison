@@ -1,15 +1,16 @@
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts    #-}
 
 module Unison.TypePrinter where
 
+import qualified Data.ListLike                 as LL
 import           Data.Maybe            (isJust)
-import           Data.String           (fromString)
+import           Data.String           (IsString, fromString)
 import qualified Data.Text             as Text
 import           Unison.HashQualified  (HashQualified)
-import           Unison.NamePrinter    (prettyHashQualified)
+import           Unison.NamePrinter    (prettyHashQualified, prettyHashQualified')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
@@ -42,16 +43,16 @@ import qualified Unison.DataDeclaration as DD
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
+pretty :: (IsString s, LL.ListLike s Char, Var v) => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty s
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
 pretty n p tp = case tp of
-  Var' v     -> l $ Text.unpack (Var.name v)
-  Ref' r     -> prettyHashQualified $ (PrettyPrintEnv.typeName n r)
-  Cycle' _ _ -> l $ "error" -- TypeParser does not currently emit Cycle
-  Abs' _     -> l $ "error" -- TypeParser does not currently emit Abs
-  Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
+  Var' v     -> PP.text (Var.name v)
+  Ref' r     -> prettyHashQualified' $ (PrettyPrintEnv.typeName n r)
+  Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
+  Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
+  Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
   App' (Ref' (Builtin "Sequence")) x ->
     PP.group $ l "[" <> pretty n 0 x <> l "]"
   DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
@@ -103,9 +104,8 @@ pretty n p tp = case tp of
   parenNoGroup False s = s
 
   -- parenNest useParen contents = PP.Nest "  " $ paren useParen contents
-
-  l = PP.lit
-
+  l :: IsString s => String -> s
+  l = fromString
   -- b = Breakable
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String

@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -16,7 +15,9 @@ import           Data.Char                      ( toLower )
 import Data.List (sortOn, isSuffixOf, isPrefixOf)
 import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
 import           Control.Monad.Extra            ( ifM )
-import Data.Foldable (toList)
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
 import           Data.Bifunctor                 ( bimap, second )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
@@ -27,7 +28,6 @@ import qualified Data.Set as Set
 import           Data.Text                      ( Text
                                                 , unpack
                                                 )
-import qualified Text.Regex.TDFA               as RE
 import qualified Unison.Builtin                as B
 import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
@@ -56,6 +56,8 @@ import           Unison.Result                  ( Note
 import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Symbol                  ( Symbol )
 import           Unison.Util.Relation          (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
@@ -185,13 +187,15 @@ data TermResult' v a =
 data TypeResult' v a =
   TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
   deriving (Eq, Show)
-pattern Tm h t r as = Tm' (TermResult' h t r as)
-pattern Tp h t r as = Tp' (TypeResult' h t r as)
+pattern Tm n t r as = Tm' (TermResult' n t r as)
+pattern Tp n t r as = Tp' (TypeResult' n t r as)
 
-searchResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
-searchResult' f g = \case
+foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
+foldResult' f g = \case
   Tm' tm -> f tm
   Tp' tp -> g tp
+
+type ListDetailed = Bool
 
 data Output v
   = Success Input
@@ -206,7 +210,7 @@ data Output v
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
   | ListOfBranches BranchName [BranchName]
-  | ListOfDefinitions Branch [SearchResult' v Ann]
+  | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
@@ -263,6 +267,8 @@ updateCollisionHandler = const True
 -- All collisions get left alone and are not added to successes.
 addCollisionHandler :: CollisionHandler
 addCollisionHandler = const False
+
+data SearchMode = FuzzySearch | ExactSearch
 
 data Command i v a where
   Input :: Command i v i
@@ -343,10 +349,10 @@ data Command i v a where
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Return a list of definitions whose names match the given queries.
-  SearchBranch :: Branch -> [HashQualified] -> Command i v [SearchResult' v Ann]
+  -- Return a list of definitions whose names fuzzy match the given queries.
+  SearchBranch ::
+    Branch -> [HashQualified] -> SearchMode -> Command i v [SearchResult' v Ann]
 
-  --
   ListBranch :: Branch -> Command i v [SearchResult' v Ann]
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
@@ -614,7 +620,11 @@ typecheck ambient codebase names sourceName src =
     src
 
 builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames B.names) mempty
+builtinBranch = Branch.append
+  (  Branch.fromNames B.names
+  <> Branch.fromTypecheckedFile IOSource.typecheckedFile
+  )
+  mempty
 
 newBranch :: Monad m => Codebase m v a -> BranchName -> m Bool
 newBranch codebase branchName = forkBranch codebase builtinBranch branchName
@@ -676,12 +686,15 @@ commandLine awaitInput rt notifyUser codebase command = do
       -- sort by name, then by searchresult (i.e. tm vs tp)
       let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
       loadSearchResults codebase results
-    SearchBranch (Branch.head -> branch) queries -> do
-      let termResults =
-            Branch.searchTermNamespace branch fuzzyNameDistance queries
-          typeResults =
-            Branch.searchTypeNamespace branch fuzzyNameDistance queries
-      loadSearchResults codebase . fmap snd . toList $ typeResults <> termResults
+    SearchBranch (Branch.head -> branch) queries searchMode ->
+      let exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+          fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+            case Find.fuzzyFindMatchArray q [n] id of
+              [] -> Nothing
+              (m, _) : _ -> Just m
+      in loadSearchResults codebase $ case searchMode of
+        ExactSearch -> Branch.searchBranch branch exactNameDistance queries
+        FuzzySearch -> Branch.searchBranch branch fuzzyNameDistance queries
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     Todo b -> doTodo codebase (Branch.head b)
@@ -760,12 +773,18 @@ loadDefinitions code refs = do
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
 
-
-fuzzyNameDistance :: Name -> Name -> Maybe RE.MatchArray
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-  case Find.fuzzyFindMatchArray q [n] id of
-    [] -> Nothing
-    (m, _) : _ -> Just m
+-- | Put all the builtins into the codebase
+initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m Branch
+initializeCodebase c = do
+  traverse_ (go Right) B.builtinDataDecls
+  traverse_ (go Left)  B.builtinEffectDecls
+  r <- fileToBranch updateCollisionHandler c mempty IOSource.typecheckedFile
+  pure $ updatedBranch r
+ where
+  go :: (t -> Decl Symbol Ann) -> (a, (Reference.Reference, t)) -> m ()
+  go f (_, (ref, decl)) = case ref of
+    Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
+    _                      -> pure ()
 
 -- todo: probably don't use this anywhere
 nameDistance :: Name -> Name -> Maybe Int

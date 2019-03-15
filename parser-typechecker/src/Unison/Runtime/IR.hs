@@ -2,7 +2,6 @@
 {-# Language DeriveFunctor #-}
 {-# Language DeriveTraversable #-}
 {-# Language FlexibleContexts #-}
-{-# Language LambdaCase #-}
 {-# Language OverloadedStrings #-}
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
@@ -28,7 +27,7 @@ import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Hash (Hash)
-import Unison.NamePrinter (prettyHashQualified)
+import Unison.NamePrinter (prettyHashQualified')
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
@@ -44,6 +43,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.CyclicEq as CEQ
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
@@ -300,11 +300,11 @@ prettyIR ppe prettyE prettyCont ir = pir ir
       P.surroundCommas "[" "]" (pz <$> vs)
     Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
     Construct r cid args -> P.parenthesize $
-      ("Construct " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Construct " <> prettyHashQualified' (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Request r cid args -> P.parenthesize $
-      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Handle h body -> P.parenthesize $
@@ -339,14 +339,14 @@ prettyValue ppe prettyE prettyCont v = pv v
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
     Data r cid vs -> P.parenthesize $
-      ("Data " <> prettyHashQualified (PPE.patternName ppe r cid)) `P.hang`
+      ("Data " <> prettyHashQualified' (PPE.patternName ppe r cid)) `P.hang`
         P.surroundCommas "[" "]" (pv <$> vs)
     Sequence vs -> P.surroundCommas "[" "]" (pv <$> vs)
     Ref id name _ -> P.parenthesize $
       P.sep " " ["Ref", P.shown id, P.shown name]
     Pure v -> P.surroundCommas "{" "}" [pv v]
     Requested (Req r cid vs cont) -> P.parenthesize $
-      ("Request " <> prettyHashQualified (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
         `P.hang`
         P.spaced [
           P.surroundCommas "[" "]" (pv <$> vs),
@@ -465,7 +465,7 @@ compile0 env bound t =
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Vector' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
-              <> (P.render 80 . TP.prettyTop mempty $ void t)
+              <> (CT.toPlain . P.render 80 . TP.prettyTop mempty $ void t)
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl) =
@@ -649,7 +649,7 @@ decompileIR stack = \case
   LtI x y -> builtin "Int.<" [x,y]
   GtEqI x y -> builtin "Int.>=" [x,y]
   LtEqI x y -> builtin "Int.<=" [x,y]
-  EqI x y -> builtin "Int.==" [x,y]
+  EqI x y -> builtin "Int.equal" [x,y]
   SignumI x -> builtin "Int.signum" [x]
   NegateI x -> builtin "Int.negate" [x]
   ModI x y -> builtin "Int.mod" [x,y]
@@ -662,7 +662,7 @@ decompileIR stack = \case
   LtN x y -> builtin "Nat.<" [x,y]
   GtEqN x y -> builtin "Nat.>=" [x,y]
   LtEqN x y -> builtin "Nat.<=" [x,y]
-  EqN x y -> builtin "Nat.==" [x,y]
+  EqN x y -> builtin "Nat.equal" [x,y]
   ModN x y -> builtin "Nat.mod" [x,y]
   AddF x y -> builtin "Float.+" [x,y]
   SubF x y -> builtin "Float.-" [x,y]
@@ -672,7 +672,7 @@ decompileIR stack = \case
   LtF x y -> builtin "Float.<" [x,y]
   GtEqF x y -> builtin "Float.>=" [x,y]
   LtEqF x y -> builtin "Float.<=" [x,y]
-  EqF x y -> builtin "Float.==" [x,y]
+  EqF x y -> builtin "Float.equal" [x,y]
   EqU x y -> builtin "Universal.==" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
@@ -810,7 +810,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.>", 2, GtI (Slot 1) (Slot 0))
         , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
         , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
-        , ("Int.==", 2, EqI (Slot 1) (Slot 0))
+        , ("Int.equal", 2, EqI (Slot 1) (Slot 0))
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
@@ -830,7 +830,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
         , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
         , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
-        , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
+        , ("Nat.equal", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
         , ("Nat.isEven", 1, let' var (ModN (Slot 0) (Val (N 2)))
@@ -847,7 +847,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Float.>", 2, GtF (Slot 1) (Slot 0))
         , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
         , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
-        , ("Float.==", 2, EqF (Slot 1) (Slot 0))
+        , ("Float.equal", 2, EqF (Slot 1) (Slot 0))
 
         , ("Universal.==", 2, EqU (Slot 1) (Slot 0))
 

@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -727,8 +726,10 @@ renderType
   -> AnnotatedText a
 renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
  where
-  paren :: (IsString a, Semigroup a) => Bool -> a -> a
-  paren test s = if test then "(" <> s <> ")" else s
+  wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
+  wrap start end test s = if test then start <> s <> end else s
+  paren = wrap "(" ")"
+  curly = wrap "{" "}"
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showTypeRef env r
     Type.Arrow' i (Type.Effect1' e o) ->
@@ -739,7 +740,7 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
     Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
       "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f' : args)
-    Type.Effects' es   -> commas (go 0) es
+    Type.Effects' es   -> curly (p >= 3) $ commas (go 0) es
     Type.Effect' es t  -> case es of
       [] -> go p t
       _  -> "{" <> commas (go 0) es <> "} " <> go 3 t
@@ -957,8 +958,8 @@ prettyParseError s = \case
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
-    , "),"
-    , ", but there wasn't one.  Maybe check your indentation:\n"
+    , "), "
+    , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
   go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok

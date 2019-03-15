@@ -1,6 +1,5 @@
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -73,7 +72,7 @@ validInputs =
       _ -> Left . warn . P.wrap $ "Use `fork foo` to create the branch 'foo'"
                                 <> "from the current branch."
     )
-  , InputPattern "find" ["ls","list"] [(True, definitionQueryArg)]
+  , InputPattern "find" ["ls","list"] [(True, fuzzyDefinitionQueryArg)]
     (P.wrapColumn2
       [ ("`find`"
         , "lists all definitions in the current branch.")
@@ -81,6 +80,8 @@ validInputs =
         , "lists all definitions with a name similar to 'foo' in the current branch.")
       , ( "`find foo bar`"
         , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
+      , ( "`find -l foo bar`"
+        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
       ]
     )
     (pure . SearchByNameI)
@@ -91,14 +92,14 @@ validInputs =
       _ -> Left . warn . P.wrap $
         "Use `merge foo` to merge the branch 'foo' into the current branch."
     )
-  , InputPattern "view" [] [(False, definitionQueryArg)]
+  , InputPattern "view" [] [(False, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . ShowDefinitionI E.ConsoleLocation)
-  , InputPattern "edit" [] [(False, definitionQueryArg)]
+  , InputPattern "edit" [] [(False, exactDefinitionQueryArg)]
       "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
       (pure . ShowDefinitionI E.LatestFileLocation)
   , InputPattern "rename" ["mv"]
-    [(False, definitionQueryArg), (False, noCompletions)]
+    [(False, exactDefinitionQueryArg), (False, noCompletions)]
     "`rename foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> Right $ RenameUnconflictedI
@@ -108,7 +109,7 @@ validInputs =
       _ -> Left . P.warnCallout $ P.wrap
         "`rename` takes two arguments, like `rename oldname newname`.")
   , InputPattern "alias" ["cp"]
-    [(False, definitionQueryArg), (False, noCompletions)]
+    [(False, exactDefinitionQueryArg), (False, noCompletions)]
     "`alias foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> Right $ AliasUnconflictedI
@@ -160,10 +161,15 @@ branchArg = ArgumentType "branch" $ \q codebase _b -> do
   let bs = Text.unpack <$> branches
   pure $ fuzzyComplete q bs
 
-definitionQueryArg :: ArgumentType
-definitionQueryArg =
-  ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
+fuzzyDefinitionQueryArg :: ArgumentType
+fuzzyDefinitionQueryArg =
+  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) -> do
     pure $ fuzzyCompleteHashQualified b q
+
+exactDefinitionQueryArg :: ArgumentType
+exactDefinitionQueryArg =
+  ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
+    pure $ autoCompleteHashQualified b q
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "a word" noSuggestions
