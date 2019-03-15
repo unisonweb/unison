@@ -958,8 +958,8 @@ prettyParseError s = \case
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
-    , "),"
-    , ", but there wasn't one.  Maybe check your indentation:\n"
+    , "), "
+    , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
   go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
