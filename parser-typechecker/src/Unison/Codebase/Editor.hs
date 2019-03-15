@@ -331,13 +331,10 @@ data Command i v a where
   -- Loads a branch by name from the codebase, returning `Nothing` if not found.
   LoadBranch :: BranchName -> Command i v (Maybe Branch)
 
-  -- Returns `False` if a branch by that name already exists.
-  NewBranch :: BranchName -> Command i v Bool
-
-  -- Create a new branch which is a copy of the given branch, and assign the
-  -- forked branch the given name. Returns `False` if the forked branch name
-  -- already exists.
-  ForkBranch :: Branch -> BranchName -> Command i v Bool
+  -- Create a new/forked branch which is a copy of the given branch, and
+  -- assign the new branch the given name. Returns `False` and does nothing
+  -- if a branch by that name already exists.
+  NewBranch :: Branch -> BranchName -> Command i v Bool
 
   -- Merges the branch with the existing branch with the given name. Returns
   -- `False` if no branch with that name exists, `True` otherwise.
@@ -626,8 +623,8 @@ builtinBranch = Branch.append
   )
   mempty
 
-newBranch :: Monad m => Codebase m v a -> BranchName -> m Bool
-newBranch codebase branchName = forkBranch codebase builtinBranch branchName
+newBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
+newBranch codebase branch branchName = forkBranch codebase branch branchName
 
 forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 forkBranch codebase branch branchName = do
@@ -678,8 +675,7 @@ commandLine awaitInput rt notifyUser codebase command = do
     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
-    NewBranch  branchName             -> newBranch codebase branchName
-    ForkBranch  branch     branchName -> forkBranch codebase branch branchName
+    NewBranch  branch branchName      -> newBranch codebase branch branchName
     SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     ListBranch (Branch.head -> b) -> do
@@ -773,13 +769,12 @@ loadDefinitions code refs = do
           Just d -> pure (r, RegularThing d)
   pure (terms, types)
 
--- | Put all the builtins into the codebase
-initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m Branch
+-- | Write all of the builtins into the codebase
+initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m ()
 initializeCodebase c = do
   traverse_ (go Right) B.builtinDataDecls
   traverse_ (go Left)  B.builtinEffectDecls
-  r <- fileToBranch updateCollisionHandler c mempty IOSource.typecheckedFile
-  pure $ updatedBranch r
+  void $ fileToBranch updateCollisionHandler c mempty IOSource.typecheckedFile
  where
   go :: (t -> Decl Symbol Ann) -> (a, (Reference.Reference, t)) -> m ()
   go f (_, (ref, decl)) = case ref of
