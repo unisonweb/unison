@@ -226,6 +226,8 @@ data Output v
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
   | TodoOutput Branch (TodoOutput v Ann)
+  -- new/unrepresented references followed by old/removed
+  | BustedBuiltins (Set Reference) (Set Reference)
   deriving (Show)
 
 type SourceFileContents = Text
@@ -616,6 +618,7 @@ typecheck ambient codebase names sourceName src =
     (unpack sourceName)
     src
 
+-- Contains all the builtins
 builtinBranch :: Branch
 builtinBranch = Branch.append
   (  Branch.fromNames B.names

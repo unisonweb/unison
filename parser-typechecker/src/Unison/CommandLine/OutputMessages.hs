@@ -203,6 +203,31 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
+  BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
+    -- todo: this could be prettier!  Have a nice list like `find` gives, but
+    -- that requires querying the codebase to determine term types.  Probably
+    -- the only built-in types will be primitive types like `Int`, so no need
+    -- to look up decl types.
+    -- When we add builtin terms, they may depend on new derived types, so
+    -- these derived types should be added to the branch too; but not
+    -- necessarily ever be automatically deprecated.  (A library curator might
+    -- deprecate them; more work needs to go into the idea of sharing deprecations and stuff.
+    putPrettyLn . P.warnCallout . P.lines $
+      case (new, old) of
+        ([],[]) -> error "BustedBuiltins busted, as there were no busted builtins."
+        ([], old) ->
+          P.wrap "This branch includes some builtins that are considered deprecated. Use the `delete-old-builtins` command when you're ready to work on eliminating them from your branch:"
+            : ""
+            : fmap (P.text . Reference.toText) old
+        (new, []) -> P.wrap "This version of Unison provides builtins that are not part of your branch. Use `add-builtins` to add them:"
+          : "" : fmap (P.text . Reference.toText) new
+        (new@(_:_), old@(_:_)) -> P.wrap "This version of Unison supports a different set of builtins than this branch uses.  You can use `add-builtins` to add the new builtins, and `delete-old-builtins` to begin a refactor to fix things up."
+          : "Deprecated:" `P.hang`
+              P.lines (fmap (P.text . Reference.toText) old)
+          : "New:" `P.hang`
+              P.lines (fmap (P.text . Reference.toText) new)
+          : []
+
 
  where
   renderFileName = P.group . P.blue . fromString

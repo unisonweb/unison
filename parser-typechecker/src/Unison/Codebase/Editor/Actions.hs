@@ -292,6 +292,7 @@ loop = do
         Just branch -> do
           currentBranch .= branch
           currentBranchName .= branchName
+      checkForBuiltinsMismatch
     quit = MaybeT $ pure Nothing
 
 eval :: Command i v a -> Action i v a
@@ -305,6 +306,22 @@ withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 
 respond :: Output v -> Action i v ()
 respond output = eval $ Notify output
+
+checkForBuiltinsMismatch :: Action i v ()
+checkForBuiltinsMismatch = do
+  b <- use currentBranch
+  when (not $ all null [new b, old b]) $
+    respond $ BustedBuiltins (new b) (old b)
+  where
+  -- Builtin references in the "empty" branch, but not in the current branch
+  new b = refs Editor.builtinBranch `Set.difference` refs b
+  -- Builtin references in the current branch, but not in the empty branch
+  -- Todo: filter away the structural types from this list; they don't need
+  -- to be deleted.  For nominal / unique types, let's think about it.
+  old b = refs b `Set.difference` refs Editor.builtinBranch
+  refs = Branch.allNamedReferences . Branch.head
+
+
 
 aliasUnconflicted
   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
