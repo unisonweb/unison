@@ -31,6 +31,7 @@ import Unison.NamePrinter (prettyHashQualified')
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
+import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Data.Map as Map
@@ -44,7 +45,8 @@ import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
 import qualified Unison.Util.ColorText as CT
-import qualified Unison.Util.CyclicEq as CEQ
+import qualified Unison.Util.CyclicOrd as COrd
+import qualified Unison.Util.Hashtable as HT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -932,14 +934,14 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
     if io1 == io2 then pure True
     else do
-      a <- CEQ.lookup r1 h1
-      b <- CEQ.lookup r2 h2
+      a <- HT.lookup r1 h1
+      b <- HT.lookup r2 h2
       case (a,b) of
         -- We haven't encountered these refs before, descend into them and
         -- compare contents.
         (Nothing, Nothing) -> do
-          CEQ.insertEnd r1 h1
-          CEQ.insertEnd r2 h2
+          HT.insertEnd r1 h1
+          HT.insertEnd r2 h2
           r1 <- readIORef io1
           r2 <- readIORef io2
           cyclicEq h1 h2 r1 r2
@@ -952,3 +954,74 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq h1 h2 (Cont k1) (Cont k2) = cyclicEq h1 h2 k1 k2
   cyclicEq _ _ _ _ = pure False
 
+constructorId :: Value e cont -> Int
+constructorId v = case v of
+  I _ -> 0
+  F _ -> 1
+  N _ -> 2
+  B _ -> 3
+  T _ -> 4
+  Lam _ _ _ -> 5
+  Data _ _ _ -> 6
+  Sequence _ -> 7
+  Pure _ -> 8
+  Requested _ -> 9
+  Ref _ _ _ -> 10
+  Cont _ -> 11
+  UninitializedLetRecSlot _ _ _ -> 12
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
+  cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
+    COrd.bothOrd' h1 h2 hash1 hash2 vs1 vs2
+  cyclicOrd h1 h2 (Specialize hash1 _ vs1) (Specialize hash2 _ vs2) =
+    COrd.bothOrd' h1 h2 hash1 hash2 (map snd vs1) (map snd vs2)
+  cyclicOrd _ _ (FormClosure _ _ _) _ = pure LT
+  cyclicOrd _ _ (Specialize _ _ _) _  = pure GT
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Req e cont) where
+  cyclicOrd h1 h2 (Req r1 c1 vs1 k1) (Req r2 c2 vs2 k2) = case compare r1 r2 of
+    EQ -> do
+      o <- COrd.bothOrd' h1 h2 c1 c2 vs1 vs2
+      o <- case o of
+        EQ -> cyclicOrd h1 h2 k1 k2
+        _ -> pure o
+      case o of
+        EQ -> pure (r1 `compare` r2)
+        _ -> pure o
+    c -> pure c
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
+  cyclicOrd _ _ (I x) (I y) = pure (x `compare` y)
+  cyclicOrd _ _ (F x) (F y) = pure (x `compare` y)
+  cyclicOrd _ _ (N x) (N y) = pure (x `compare` y)
+  cyclicOrd _ _ (B x) (B y) = pure (x `compare` y)
+  cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
+  cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
+    COrd.bothOrd' h1 h2 arity1 arity2 us us2
+  cyclicOrd h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =
+    COrd.bothOrd' h1 h2 c1 c2 vs1 vs2 >>= \o -> case o of
+      EQ -> pure (r1 `compare` r2)
+      _ -> pure o
+  cyclicOrd h1 h2 (Sequence v1) (Sequence v2) = cyclicOrd h1 h2 v1 v2
+  cyclicOrd h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
+    if io1 == io2 then pure EQ
+    else do
+      a <- HT.lookup r1 h1
+      b <- HT.lookup r2 h2
+      case (a,b) of
+        -- We haven't encountered these refs before, descend into them and
+        -- compare contents.
+        (Nothing, Nothing) -> do
+          HT.insertEnd r1 h1
+          HT.insertEnd r2 h2
+          r1 <- readIORef io1
+          r2 <- readIORef io2
+          cyclicOrd h1 h2 r1 r2
+        -- We've encountered these refs before, compare the positions where
+        -- they were first encountered
+        (Just r1, Just r2) -> pure (r1 `compare` r2)
+        _ -> pure $ a `compare` b
+  cyclicOrd h1 h2 (Pure a) (Pure b) = cyclicOrd h1 h2 a b
+  cyclicOrd h1 h2 (Requested r1) (Requested r2) = cyclicOrd h1 h2 r1 r2
+  cyclicOrd h1 h2 (Cont k1) (Cont k2) = cyclicOrd h1 h2 k1 k2
+  cyclicOrd _ _ v1 v2 = pure $ constructorId v1 `compare` constructorId v2

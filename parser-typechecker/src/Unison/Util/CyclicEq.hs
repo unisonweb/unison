@@ -5,50 +5,30 @@
 
 module Unison.Util.CyclicEq where
 
-import Data.HashTable.IO (BasicHashTable)
-import Data.Hashable (Hashable)
 import Data.Vector (Vector)
-import qualified Data.HashTable.IO as HT
-import qualified Data.Mutable as M
 import qualified Data.Vector as V
-
-data HashTable k v =
-  HashTable {
-    table :: BasicHashTable k v,
-    sizeRef  :: M.IOPRef Int
-  }
+import qualified Unison.Util.Hashtable as HT
 
 class CyclicEq a where
   -- Map from `Ref` ID to position in the stream
   -- If a ref is encountered again, we use its mapped ID
-  cyclicEq :: HashTable Int Int -> HashTable Int Int -> a -> a -> IO Bool
+  cyclicEq :: HT.Hashtable Int Int -> HT.Hashtable Int Int -> a -> a -> IO Bool
 
-new :: Int -> IO (HashTable k v)
-new size = do
-  t <- HT.newSized size
-  r <- M.newRef 0
-  pure (HashTable t r)
+bothEq' :: (Eq a, CyclicEq b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+  -> a -> a -> b -> b -> IO Bool
+bothEq' h1 h2 a1 a2 b1 b2 =
+  if a1 == a2 then cyclicEq h1 h2 b1 b2
+  else pure False
 
-lookup :: (Hashable k, Eq k) => k -> HashTable k v -> IO (Maybe v)
-lookup k t = HT.lookup (table t) k
-
-insert :: (Hashable k, Eq k) => k -> v -> HashTable k v -> IO ()
-insert k v t = do
-  HT.insert (table t) k v
-  M.modifyRef (sizeRef t) (1 +)
-
-size :: HashTable k v -> IO Int
-size h = M.readRef (sizeRef h)
-
-insertEnd :: (Hashable k, Eq k) => k -> HashTable k Int -> IO ()
-insertEnd k t = do
-  n <- size t
-  insert k n t
+bothEq ::
+  (CyclicEq a, CyclicEq b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+  -> a -> a -> b -> b -> IO Bool
+bothEq h1 h2 a1 a2 b1 b2 = cyclicEq h1 h2 a1 a2 >>= \b ->
+  if b then cyclicEq h1 h2 b1 b2
+  else pure False
 
 instance CyclicEq a => CyclicEq [a] where
-  cyclicEq h1 h2 (x:xs) (y:ys) = cyclicEq h1 h2 x y >>= \b ->
-    if b then cyclicEq h1 h2 xs ys
-    else pure False
+  cyclicEq h1 h2 (x:xs) (y:ys) = bothEq h1 h2 x y xs ys
   cyclicEq _ _ [] [] = pure True
   cyclicEq _ _ _ _   = pure False
 

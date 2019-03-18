@@ -111,6 +111,7 @@ library
     Unison.Util.Free
     Unison.Util.Find
     Unison.Util.Logger
+    Unison.Util.Hashtable
     Unison.Util.Histogram
     Unison.Util.Menu
     Unison.Util.Monoid
@@ -120,6 +121,7 @@ library
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CyclicEq
+    Unison.Util.CyclicOrd
     Unison.Var
 
   build-depends:
