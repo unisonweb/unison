@@ -6,6 +6,7 @@
 --
 -- Whatever it is, it has a type that conforms to Text.
 
+use Universal ==
 
 f blah =
   case blah of

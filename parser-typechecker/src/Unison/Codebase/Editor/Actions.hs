@@ -11,7 +11,7 @@ module Unison.Codebase.Editor.Actions where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( when )
+import           Control.Monad                  ( unless, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 , get
@@ -62,7 +62,6 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
-import qualified Unison.Codebase as Codebase
 -- import Debug.Trace
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
@@ -232,7 +231,7 @@ loop = do
           eval ListBranches >>= respond . ListOfBranches currentBranchName'
         SwitchBranchI branchName       -> switchBranch branchName
         ForkBranchI   targetBranchName -> ifM
-          (eval $ ForkBranch currentBranch' targetBranchName)
+          (eval $ NewBranch currentBranch' targetBranchName)
           (outputSuccess *> switchBranch targetBranchName)
           (respond $ BranchAlreadyExists targetBranchName)
         MergeBranchI inputBranchName ->
@@ -268,22 +267,26 @@ loop = do
    where
     doMerge branchName b = do
       updated <- eval $ SyncBranch branchName b
-      when (not updated) $ do
-        _       <- eval $ NewBranch branchName
-        updated <- eval $ SyncBranch branchName b
-        when (not updated) (disappearingBranchBomb branchName)
+      -- updated is False if `branchName` doesn't exist.
+      -- Not sure why you were updating a nonexistent branch, but under the
+      -- assumption that it just got deleted somehow, I guess, we'll write
+      -- it to disk now.
+      unless updated $ do
+        written <- eval $ NewBranch b branchName
+        unless written (disappearingBranchBomb branchName)
     disappearingBranchBomb branchName =
       error
         $  "The branch named "
         <> Text.unpack branchName
         <> " disappeared from storage. "
         <> "I tried to put it back, but couldn't. Everybody panic!"
+    -- todo: when `branch` becomes purely switchBranch and not newBranch, fix this up.
     switchBranch branchName = do
       branch <- eval $ LoadBranch branchName
       case branch of
         Nothing -> do
-          let newBranch = Codebase.builtinBranch
-          _ <- eval $ NewBranch branchName
+          let newBranch = Editor.builtinBranch
+          _ <- eval $ NewBranch newBranch branchName
           currentBranch .= newBranch
           currentBranchName .= branchName
         Just branch -> do

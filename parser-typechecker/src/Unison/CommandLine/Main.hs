@@ -78,19 +78,18 @@ main
    . Var v
   => FilePath
   -> BranchName
-  -> Branch
   -> Maybe FilePath
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranchName baseBranch _initialFile startRuntime codebase = do
+main dir currentBranchName _initialFile startRuntime codebase = do
   currentBranch <- Codebase.getBranch codebase currentBranchName
   eventQueue    <- Q.newIO
   currentBranch <- case currentBranch of
     Nothing ->
       Codebase.syncBranch codebase
                           currentBranchName
-                          (Codebase.builtinBranch <> baseBranch)
+                          E.builtinBranch
         <* (  putStrLn
            $  "☝️  I found no branch named '"
            <> Text.unpack currentBranchName
