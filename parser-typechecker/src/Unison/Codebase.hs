@@ -333,9 +333,6 @@ makeSelfContained code b term = do
 branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase
 
-builtinBranch :: Branch
-builtinBranch = Branch.append (Branch.fromNames Builtin.names) mempty
-
 -- Predicate of Relation a b here is "a depends on b".
 -- Dependents are in the domain and dependencies in the range.
 type DependencyGraph = R.Relation Reference Reference

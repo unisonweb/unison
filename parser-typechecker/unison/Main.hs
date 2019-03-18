@@ -23,10 +23,9 @@ main = do
       scratchFilePath   = "."
       theCodebase =
         FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
-      launch baseBranch = CommandLine.main
+      launch = CommandLine.main
         scratchFilePath
         initialBranchName
-        baseBranch
         (headMay args)
         (pure Rt1.runtime)
         theCodebase
@@ -34,8 +33,8 @@ main = do
   when (not exists) $ do
     putStrLn $ "☝️  No codebase exists here so I'm initializing one in: " <> codebasePath
     FileCodebase.initialize codebasePath
-  baseBranch <- Editor.initializeCodebase theCodebase
-  launch baseBranch
+  Editor.initializeCodebase theCodebase
+  launch
 
 formatAnn :: S.Format Ann
 formatAnn = S.Format (pure External) (\_ -> pure ())
