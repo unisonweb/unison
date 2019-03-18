@@ -1,15 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# Language TemplateHaskell #-}
 {-# Language QuasiQuotes #-}
 
 module Unison.Runtime.IOSource where
 
 import Control.Monad.Identity (runIdentity, Identity)
+import Data.List (elemIndex, genericIndex)
 import Data.String (fromString)
 import Data.Text (Text)
 import Text.RawString.QQ (r)
 import Unison.FileParsers (parseAndSynthesizeFile)
 import Unison.Parser (Ann(..))
 import Unison.Symbol (Symbol)
+import Unison.Codebase.CodeLookup (CodeLookup(..))
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.DataDeclaration as DD
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Reference as R
@@ -28,6 +33,9 @@ typecheckedFile = let
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
     (Just (_, Just file), _) -> file
 
+codeLookup :: CodeLookup Symbol Identity Ann
+codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+
 typeNamed :: String -> R.Reference
 typeNamed s =
   case Map.lookup (Var.nameds s) (UF.dataDeclarations' typecheckedFile) of
@@ -45,11 +53,62 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference :: R.Reference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference
+  :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
 eitherReference = typeNamed "Either"
 ioModeReference = typeNamed "IOMode"
+optionReference = typeNamed "Optional"
+errorReference = typeNamed "IOError"
+errorTypeReference = typeNamed "ErrorType"
+
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
+eitherLeftId = constructorNamed eitherReference "Either.Left"
+eitherRightId = constructorNamed eitherReference "Either.Right"
+someId = constructorNamed optionReference "Optional.Some"
+noneId = constructorNamed optionReference "Optional.None"
+ioErrorId = constructorNamed errorReference "IOError.IOError"
+
+mkErrorType :: Text -> DD.ConstructorId
+mkErrorType = constructorNamed errorTypeReference
+
+alreadyExistsId, noSuchThingId, resourceBusyId, resourceExhaustedId, eofId, illegalOperationId, permissionDeniedId, userErrorId
+  :: DD.ConstructorId
+alreadyExistsId = mkErrorType "IOErrorType.AlreadyExists"
+noSuchThingId = mkErrorType "IOErrorType.NoSuchThing"
+resourceBusyId = mkErrorType "IOErrorType.ResourceBusy"
+resourceExhaustedId = mkErrorType "IOErrorType.ResourceExhausted"
+eofId = mkErrorType "IOErrorType.EOF"
+illegalOperationId = mkErrorType "IOErrorType.IllegalOperation"
+permissionDeniedId = mkErrorType "IOErrorType.PermissionDenied"
+userErrorId = mkErrorType "IOErrorType.UserError"
+
+constructorNamed :: R.Reference -> Text -> DD.ConstructorId
+constructorNamed ref name =
+  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
+    Nothing ->
+      error
+        $  "There's a bug in the Unison runtime. Couldn't find type "
+        <> show ref
+    Just decl ->
+      case elemIndex name . DD.constructorNames $ TL.asDataDecl decl of
+        Nothing ->
+          error
+            $  "Unison runtime bug. The type "
+            <> show ref
+            <> " has no constructor named "
+            <> show name
+        Just c -> c
+
+constructorName :: R.Reference -> DD.ConstructorId -> Text
+constructorName ref cid =
+  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
+    Nothing ->
+      error
+        $  "There's a bug in the Unison runtime. Couldn't find type "
+        <> show ref
+    Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
 
 -- .. todo - fill in the rest of these
 
@@ -57,6 +116,8 @@ source :: Text
 source = fromString [r|
 
 type Either a b = Left a | Right b
+
+type Optional a = None | Some a
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell
@@ -111,13 +172,7 @@ type ErrorLocation = ErrorLocation Text
 type ErrorDescription = ErrorDescription Text
 type FilePath = FilePath Text
 
-type IOError =
-  IOError
-    (Optional Handle)
-    IOErrorType
-    ErrorLocation
-    ErrorDescription
-    (Optional FilePath)
+type IOError = IOError IOErrorType Text
 
 type SeekMode = Absolute | Relative | FromEnd
 

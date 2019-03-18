@@ -211,7 +211,7 @@ arity _ = 0
 -- Creates a `CompilationEnv` by pulling out all the constructor arities for
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
-  => CL.CodeLookup m Symbol a
+  => CL.CodeLookup Symbol m a
   -> Term.AnnotatedTerm Symbol a
   -> m CompilationEnv
 compilationEnv env t = do

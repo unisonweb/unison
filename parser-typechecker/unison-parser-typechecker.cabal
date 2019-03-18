@@ -150,6 +150,7 @@ library
     lens,
     ListLike,
     memory,
+    mmorph,
     monad-loops,
     mtl,
     murmur-hash,

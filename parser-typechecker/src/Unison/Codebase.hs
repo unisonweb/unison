@@ -219,7 +219,7 @@ typeLookupForDependencies codebase refs = foldM go mempty refs
 -- todo: add some tests on this guy?
 transitiveDependencies
   :: (Monad m, Var v)
-  => CL.CodeLookup m v a
+  => CL.CodeLookup v m a
   -> Set Reference
   -> Reference
   -> m (Set Reference)
@@ -246,7 +246,7 @@ transitiveDependencies code seen0 r = if Set.member r seen0
                                          (DD.dependencies dd)
         _ -> pure seen
 
-toCodeLookup :: Codebase m v a -> CL.CodeLookup m v a
+toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
 -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
@@ -254,7 +254,7 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 -- `UnisonFile`.
 makeSelfContained'
   :: forall m v a . (Monad m, Monoid a, Var v)
-  => CL.CodeLookup m v a
+  => CL.CodeLookup v m a
   -> Branch0
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
@@ -300,7 +300,7 @@ makeSelfContained' code b uf = do
 -- all transitive dependencies
 makeSelfContained
   :: forall m v a . (Monad m, Monoid a, Var v)
-  => CL.CodeLookup m v a
+  => CL.CodeLookup v m a
   -> Branch0
   -> Term v a
   -> m (UF.UnisonFile v a)

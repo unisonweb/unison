@@ -44,7 +44,6 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
-import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
@@ -55,6 +54,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
+import qualified Unison.Runtime.IOSource      as IOSource
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -254,7 +254,7 @@ loop = do
           _ <- success
           currentBranch .= b
         ExecuteI input ->
-          withFile [Type.ref External $ ioReference]
+          withFile [Type.ref External $ IOSource.ioReference]
                    "execute command"
                    ("main_ = " <> Text.pack input) $
                      \_ unisonFile ->

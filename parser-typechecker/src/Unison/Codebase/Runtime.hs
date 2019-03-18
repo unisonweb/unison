@@ -26,7 +26,7 @@ import Unison.DataDeclaration (pattern TupleTerm', tupleTerm)
 data Runtime v = Runtime
   { terminate :: IO ()
   , evaluate
-      :: CL.CodeLookup IO v ()
+      :: CL.CodeLookup v IO ()
       -> Term v
       -> IO (Term v)
   }
@@ -44,7 +44,7 @@ type IsCacheHit = Bool
 evaluateWatches
   :: forall v a
    . Var v
-  => CL.CodeLookup IO v a
+  => CL.CodeLookup v IO a
   -> (Reference -> IO (Maybe (Term v)))
   -> Runtime v
   -> UnisonFile v a

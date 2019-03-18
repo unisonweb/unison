@@ -133,7 +133,7 @@ builtinDataDecls =
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []
 
-codeLookup :: (Applicative m, Var v) => CodeLookup m v Ann
+codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
 codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure
     $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
