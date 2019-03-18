@@ -649,7 +649,7 @@ decompileIR stack = \case
   LtI x y -> builtin "Int.<" [x,y]
   GtEqI x y -> builtin "Int.>=" [x,y]
   LtEqI x y -> builtin "Int.<=" [x,y]
-  EqI x y -> builtin "Int.equal" [x,y]
+  EqI x y -> builtin "Int.==" [x,y]
   SignumI x -> builtin "Int.signum" [x]
   NegateI x -> builtin "Int.negate" [x]
   ModI x y -> builtin "Int.mod" [x,y]
@@ -662,7 +662,7 @@ decompileIR stack = \case
   LtN x y -> builtin "Nat.<" [x,y]
   GtEqN x y -> builtin "Nat.>=" [x,y]
   LtEqN x y -> builtin "Nat.<=" [x,y]
-  EqN x y -> builtin "Nat.equal" [x,y]
+  EqN x y -> builtin "Nat.==" [x,y]
   ModN x y -> builtin "Nat.mod" [x,y]
   AddF x y -> builtin "Float.+" [x,y]
   SubF x y -> builtin "Float.-" [x,y]
@@ -672,7 +672,7 @@ decompileIR stack = \case
   LtF x y -> builtin "Float.<" [x,y]
   GtEqF x y -> builtin "Float.>=" [x,y]
   LtEqF x y -> builtin "Float.<=" [x,y]
-  EqF x y -> builtin "Float.equal" [x,y]
+  EqF x y -> builtin "Float.==" [x,y]
   EqU x y -> builtin "Universal.==" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
