@@ -207,6 +207,7 @@ data IR' ann z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
   -- Universals
   | EqU z z -- universal equality
+  | CompareU z z -- universal ordering
   -- Control flow
 
   -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
@@ -284,6 +285,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
     EqU a b -> P.parenthesize $ "EqU" `P.hang` P.spaced [pz a, pz b]
+    CompareU a b -> P.parenthesize $ "CompareU" `P.hang` P.spaced [pz a, pz b]
     ir@(Let _ _ _ _) ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
@@ -629,6 +631,7 @@ boundVarsIR = \case
   LtEqF _ _ -> mempty
   EqF _ _ -> mempty
   EqU _ _ -> mempty
+  CompareU _ _ -> mempty
   MakeSequence _ -> mempty
   Construct _ _ _ -> mempty
   Request _ _ _ -> mempty
@@ -676,6 +679,7 @@ decompileIR stack = \case
   LtEqF x y -> builtin "Float.<=" [x,y]
   EqF x y -> builtin "Float.==" [x,y]
   EqU x y -> builtin "Universal.==" [x,y]
+  CompareU x y -> builtin "Universal.compare" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
@@ -852,7 +856,15 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
         , ("Universal.==", 2, EqU (Slot 1) (Slot 0))
-
+        , ("Universal.compare", 2, CompareU (Slot 1) (Slot 0))
+        , ("Universal.<", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                      (LtI (Slot 0) (Val (I 0))))
+        , ("Universal.>", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                      (GtI (Slot 0) (Val (I 0))))
+        , ("Universal.>=", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                       (GtEqI (Slot 0) (Val (I 0))))
+        , ("Universal.<=", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                       (LtEqI (Slot 0) (Val (I 0))))
         , ("Boolean.not", 1, Not (Slot 0))
         ]]
 

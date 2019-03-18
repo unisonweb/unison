@@ -27,6 +27,7 @@ import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
+import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import qualified System.Mem.StableName as S
 import qualified Data.Map as Map
@@ -440,6 +441,17 @@ run ioHandler env ir = do
         x <- at size i m
         y <- at size j m
         RDone . B <$> cyclicEq t1 t2 x y
+      CompareU i j -> do
+        -- todo: these can be reused
+        t1 <- HT.new 8
+        t2 <- HT.new 8
+        x <- at size i m
+        y <- at size j m
+        o <- cyclicOrd t1 t2 x y
+        pure . RDone . I $ case o of
+          EQ -> 0
+          LT -> -1
+          GT -> 1
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =
@@ -664,6 +676,9 @@ instance Show ExternalFunction where
 instance CyclicEq ExternalFunction where
   cyclicEq _ _ (ExternalFunction r _) (ExternalFunction r2 _) = pure (r == r2)
 
+instance CyclicOrd ExternalFunction where
+  cyclicOrd _ _ (ExternalFunction r _) (ExternalFunction r2 _) = pure (r `compare` r2)
+
 instance CyclicEq Continuation where
   cyclicEq h1 h2 k1 k2 = do
     n1 <- S.makeStableName k1
@@ -681,3 +696,27 @@ instance CyclicEq Continuation where
       (One _needed1 _size1 _s1 _ir1, One _needed2 _size2 _s2 _ir2) ->
         error "todo - fill CyclicEq Continuation"
       _ -> pure False
+
+instance CyclicOrd Continuation where
+  cyclicOrd h1 h2 k1 k2 = do
+    n1 <- S.makeStableName k1
+    n2 <- S.makeStableName k2
+    if n1 == n2 then pure EQ
+    else case (k1, k2) of
+      (WrapHandler v1 k1, WrapHandler v2 k2) -> do
+        b <- cyclicOrd h1 h2 v1 v2
+        if b == EQ then cyclicOrd h1 h2 k1 k2
+        else pure b
+      (Chain _ k1 k2, Chain _ k1a k2a) -> do
+        b <- cyclicOrd h1 h2 k1 k1a
+        if b == EQ then cyclicOrd h1 h2 k2 k2a
+        else pure b
+      (One _needed1 _size1 _s1 _ir1, One _needed2 _size2 _s2 _ir2) ->
+        error "todo - fill CyclicOrd Continuation"
+      _ -> pure $ continuationConstructorId k1 `compare` continuationConstructorId k2
+
+continuationConstructorId :: Continuation -> Int
+continuationConstructorId k = case k of
+  One _ _ _ _ -> 0
+  Chain _ _ _ -> 1
+  WrapHandler _ _ -> 2
