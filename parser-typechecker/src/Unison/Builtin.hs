@@ -203,6 +203,7 @@ builtins0 = Map.fromList $
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
       , ("Float.floor", "Float -> Int")
+      , ("Universal.==", "a -> a -> Boolean")
 
       , ("Boolean.not", "Boolean -> Boolean")
 
