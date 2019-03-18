@@ -119,7 +119,9 @@ library
     Unison.Util.Relation
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
+    Unison.Util.CycleTable
     Unison.Util.CyclicEq
+    Unison.Util.CyclicOrd
     Unison.Var
 
   build-depends:
