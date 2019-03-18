@@ -45,8 +45,8 @@ import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
 import qualified Unison.Util.ColorText as CT
+import qualified Unison.Util.CycleTable as CyT
 import qualified Unison.Util.CyclicOrd as COrd
-import qualified Unison.Util.Hashtable as HT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -946,14 +946,14 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
     if io1 == io2 then pure True
     else do
-      a <- HT.lookup r1 h1
-      b <- HT.lookup r2 h2
+      a <- CyT.lookup r1 h1
+      b <- CyT.lookup r2 h2
       case (a,b) of
         -- We haven't encountered these refs before, descend into them and
         -- compare contents.
         (Nothing, Nothing) -> do
-          HT.insertEnd r1 h1
-          HT.insertEnd r2 h2
+          CyT.insertEnd r1 h1
+          CyT.insertEnd r2 h2
           r1 <- readIORef io1
           r2 <- readIORef io2
           cyclicEq h1 h2 r1 r2
@@ -1018,14 +1018,14 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
     if io1 == io2 then pure EQ
     else do
-      a <- HT.lookup r1 h1
-      b <- HT.lookup r2 h2
+      a <- CyT.lookup r1 h1
+      b <- CyT.lookup r2 h2
       case (a,b) of
         -- We haven't encountered these refs before, descend into them and
         -- compare contents.
         (Nothing, Nothing) -> do
-          HT.insertEnd r1 h1
-          HT.insertEnd r2 h2
+          CyT.insertEnd r1 h1
+          CyT.insertEnd r2 h2
           r1 <- readIORef io1
           r2 <- readIORef io2
           cyclicOrd h1 h2 r1 r2

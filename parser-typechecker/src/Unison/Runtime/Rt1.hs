@@ -41,7 +41,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
-import qualified Unison.Util.Hashtable as HT
+import qualified Unison.Util.CycleTable as CT
 import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
@@ -436,15 +436,15 @@ run ioHandler env ir = do
       EqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x == y))
       EqU i j -> do
         -- todo: these can be reused
-        t1 <- HT.new 8
-        t2 <- HT.new 8
+        t1 <- CT.new 8
+        t2 <- CT.new 8
         x <- at size i m
         y <- at size j m
         RDone . B <$> cyclicEq t1 t2 x y
       CompareU i j -> do
         -- todo: these can be reused
-        t1 <- HT.new 8
-        t2 <- HT.new 8
+        t1 <- CT.new 8
+        t2 <- CT.new 8
         x <- at size i m
         y <- at size j m
         o <- cyclicOrd t1 t2 x y

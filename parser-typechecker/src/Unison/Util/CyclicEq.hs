@@ -7,21 +7,29 @@ module Unison.Util.CyclicEq where
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import qualified Unison.Util.Hashtable as HT
+import qualified Unison.Util.CycleTable as CT
 
+{-
+ Typeclass used for comparing potentially cyclic types for equality.
+ Cyclic types may refer to themselves indirectly, so something is needed to
+ prevent an infinite loop in these cases. The basic idea: when a subexpression
+ is first examined, its "id" (represented as some `Int`) may be added to the
+ mutable hash table along with its position. The next time that same id is
+ encountered, it will be compared based on this position.
+ -}
 class CyclicEq a where
   -- Map from `Ref` ID to position in the stream
   -- If a ref is encountered again, we use its mapped ID
-  cyclicEq :: HT.Hashtable Int Int -> HT.Hashtable Int Int -> a -> a -> IO Bool
+  cyclicEq :: CT.CycleTable Int Int -> CT.CycleTable Int Int -> a -> a -> IO Bool
 
-bothEq' :: (Eq a, CyclicEq b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+bothEq' :: (Eq a, CyclicEq b) => CT.CycleTable Int Int -> CT.CycleTable Int Int
   -> a -> a -> b -> b -> IO Bool
 bothEq' h1 h2 a1 a2 b1 b2 =
   if a1 == a2 then cyclicEq h1 h2 b1 b2
   else pure False
 
 bothEq ::
-  (CyclicEq a, CyclicEq b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+  (CyclicEq a, CyclicEq b) => CT.CycleTable Int Int -> CT.CycleTable Int Int
   -> a -> a -> b -> b -> IO Bool
 bothEq h1 h2 a1 a2 b1 b2 = cyclicEq h1 h2 a1 a2 >>= \b ->
   if b then cyclicEq h1 h2 b1 b2

@@ -6,24 +6,25 @@
 module Unison.Util.CyclicOrd where
 
 import Data.Vector (Vector)
-import Unison.Util.Hashtable (Hashtable)
+import Unison.Util.CycleTable (CycleTable)
 import qualified Data.Vector as V
-import qualified Unison.Util.Hashtable as HT
+import qualified Unison.Util.CycleTable as CT
 
+-- Same idea as `CyclicEq`, but for ordering.
 class CyclicOrd a where
   -- Map from `Ref` ID to position in the stream
   -- If a ref is encountered again, we use its mapped ID
-  cyclicOrd :: Hashtable Int Int -> Hashtable Int Int -> a -> a -> IO Ordering
+  cyclicOrd :: CycleTable Int Int -> CycleTable Int Int -> a -> a -> IO Ordering
 
 bothOrd' ::
-  (Ord a, CyclicOrd b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+  (Ord a, CyclicOrd b) => CT.CycleTable Int Int -> CT.CycleTable Int Int
   -> a -> a -> b -> b -> IO Ordering
 bothOrd' h1 h2 a1 a2 b1 b2 = case compare a1 a2 of
   EQ -> cyclicOrd h1 h2 b1 b2
   c -> pure c
 
 bothOrd ::
-  (CyclicOrd a, CyclicOrd b) => HT.Hashtable Int Int -> HT.Hashtable Int Int
+  (CyclicOrd a, CyclicOrd b) => CT.CycleTable Int Int -> CT.CycleTable Int Int
   -> a -> a -> b -> b -> IO Ordering
 bothOrd h1 h2 a1 a2 b1 b2 = cyclicOrd h1 h2 a1 a2 >>= \b ->
   if b == EQ then cyclicOrd h1 h2 b1 b2
