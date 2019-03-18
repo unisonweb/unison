@@ -1,3 +1,5 @@
+use Universal ==
+
 r11 : Nat
 r11 = case 1 of
   1 | 2 == 3 -> 4

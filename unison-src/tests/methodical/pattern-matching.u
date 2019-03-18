@@ -1,4 +1,6 @@
 
+use Universal ==
+
 -- PATTERN MATCHING
 
 pat1 x y p = case p of x0 -> (x0, x, y, p)

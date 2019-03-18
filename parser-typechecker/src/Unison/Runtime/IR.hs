@@ -810,7 +810,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.>", 2, GtI (Slot 1) (Slot 0))
         , ("Int.<=", 2, LtEqI (Slot 1) (Slot 0))
         , ("Int.>=", 2, GtEqI (Slot 1) (Slot 0))
-        , ("Int.equal", 2, EqI (Slot 1) (Slot 0))
+        , ("Int.==", 2, EqI (Slot 1) (Slot 0))
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
@@ -830,7 +830,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Nat.>", 2, GtN (Slot 1) (Slot 0))
         , ("Nat.<=", 2, LtEqN (Slot 1) (Slot 0))
         , ("Nat.>=", 2, GtEqN (Slot 1) (Slot 0))
-        , ("Nat.equal", 2, EqN (Slot 1) (Slot 0))
+        , ("Nat.==", 2, EqN (Slot 1) (Slot 0))
         , ("Nat.increment", 1, AddN (Val (N 1)) (Slot 0))
         , ("Nat.mod", 2, ModN (Slot 1) (Slot 0))
         , ("Nat.isEven", 1, let' var (ModN (Slot 0) (Val (N 2)))
@@ -847,7 +847,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Float.>", 2, GtF (Slot 1) (Slot 0))
         , ("Float.<=", 2, LtEqF (Slot 1) (Slot 0))
         , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
-        , ("Float.equal", 2, EqF (Slot 1) (Slot 0))
+        , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
         , ("Universal.==", 2, EqU (Slot 1) (Slot 0))
 
