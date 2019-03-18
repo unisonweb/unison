@@ -160,6 +160,7 @@ data Input
   | ShowDefinitionI OutputLocation [String]
   | TodoI
   | PropagateI
+  | UpdateBuiltinsI
   | QuitI
   deriving (Show)
 
@@ -227,6 +228,8 @@ data Output v
                        [(Reference, DisplayThing (Decl v Ann))]
   | TodoOutput Branch (TodoOutput v Ann)
   -- new/unrepresented references followed by old/removed
+  -- todo: eventually replace these sets with [SearchResult' v Ann]
+  -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   deriving (Show)
 
@@ -340,6 +343,9 @@ data Command i v a where
 
   -- Merges the branch with the existing branch with the given name. Returns
   -- `False` if no branch with that name exists, `True` otherwise.
+  -- Question: Should SyncBranch return a Maybe Branch instead of a Bool?
+  --           Is it possible for the result on disk to end up different from
+  --           this input branch without triggering a new branch file event?
   SyncBranch :: BranchName -> Branch -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state.
@@ -620,11 +626,13 @@ typecheck ambient codebase names sourceName src =
 
 -- Contains all the builtins
 builtinBranch :: Branch
-builtinBranch = Branch.append
+builtinBranch = Branch.one builtinBranch0
+
+builtinBranch0 :: Branch0
+builtinBranch0 =
   (  Branch.fromNames B.names
   <> Branch.fromTypecheckedFile IOSource.typecheckedFile
   )
-  mempty
 
 newBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 newBranch codebase branch branchName = forkBranch codebase branch branchName

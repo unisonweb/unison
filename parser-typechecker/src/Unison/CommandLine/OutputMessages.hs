@@ -69,7 +69,7 @@ import qualified Unison.Var                    as Var
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
   Success (MergeBranchI _) ->
-    putPrettyLn $ P.bold "Merged. " <> "Here's what's `todo` after the merge:"
+    putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> backtick "todo" <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe terms types ->
     displayDefinitions outputLoc ppe terms types
@@ -84,7 +84,7 @@ notifyUser dir o = case o of
       $  "I'm currently watching for definitions in .u files under the"
       <> renderFileName dir
       <> "directory. Make sure you've updated something there before using the"
-      <> P.bold "`add`" <> "or" <> P.bold "`update`"
+      <> backtick "add" <> "or" <> backtick "update"
       <> "commands."
   UnknownBranch branchName ->
     putPrettyLn
@@ -216,20 +216,18 @@ notifyUser dir o = case o of
       case (new, old) of
         ([],[]) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap "This branch includes some builtins that are considered deprecated. Use the `delete-old-builtins` command when you're ready to work on eliminating them from your branch:"
+          P.wrap ("This branch includes some builtins that are considered deprecated. Use the " <> backtick "update-builtins" <> " command when you're ready to work on eliminating them from your branch:")
             : ""
             : fmap (P.text . Reference.toText) old
-        (new, []) -> P.wrap "This version of Unison provides builtins that are not part of your branch. Use `add-builtins` to add them:"
+        (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> backtick "update-builtins" <> " to add them:")
           : "" : fmap (P.text . Reference.toText) new
-        (new@(_:_), old@(_:_)) -> P.wrap "This version of Unison supports a different set of builtins than this branch uses.  You can use `add-builtins` to add the new builtins, and `delete-old-builtins` to begin a refactor to fix things up."
-          : "Deprecated:" `P.hang`
-              P.lines (fmap (P.text . Reference.toText) old)
-          : "New:" `P.hang`
+        (new@(_:_), old@(_:_)) -> P.wrap ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use " <> backtick "update-builtins" <> " to add the ones you're missing and deprecate the ones I'm missing. 😉")
+          : "You're missing:" `P.hang`
               P.lines (fmap (P.text . Reference.toText) new)
+          : "I'm missing:" `P.hang`
+              P.lines (fmap (P.text . Reference.toText) old)
           : []
-
-
- where
+  where
   renderFileName = P.group . P.blue . fromString
   nameChange cmd pastTenseCmd oldName newName r = do
     when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
@@ -244,7 +242,7 @@ notifyUser dir o = case o of
            <> "to" <> P.green (prettyName newName)
            <> "because of conflicts.")
       <> "\n\n"
-      <> tip "Use `todo` to view more information on conflicts and remaining work."
+      <> tip ("Use " <> backtick "todo" <> " to view more information on conflicts and remaining work.")
     when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
       (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
            <> "to" <> P.green (prettyName newName)
@@ -253,8 +251,7 @@ notifyUser dir o = case o of
            <> "already exist(s).")
       <> "\n\n"
       <> tip
-         ("Use" <> P.group ("`rename " <> prettyName newName <> " <newname>`") <>
-           "to make" <> prettyName newName <> "available.")
+         ("Use" <> backtick ("rename " <> prettyName newName <> " <newname>") <> "to make" <> prettyName newName <> "available.")
     where
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
@@ -304,8 +301,8 @@ displayDefinitions outputLoc ppe terms types =
         P.indentN 2 code,
         "",
         P.wrap $
-          "You can edit them there, then do `update` to replace the" <>
-          "definitions currently in this branch."
+          "You can edit them there, then do" <> backtick "update" <>
+          "to replace the definitions currently in this branch."
        ]
   code = P.sep "\n\n" (prettyTypes <> prettyTerms)
   prettyTerms = map go terms
@@ -394,9 +391,10 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
     showConflictedNames "types" conflictedTypeNames,
     showConflictedNames "terms" conflictedTermNames,
     tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
-        <> P.group ("`view " <> P.sep " " (prettyName <$> take 3 allNames) <> "`")
-        <> "to see the conflicting defintions, then use `rename`"
-        <> "and/or `replace` to resolve the conflicts."
+        <> backtick ("view " <> P.sep " " (prettyName <$> take 3 allNames))
+        <> "to see the conflicting defintions, then use "
+        <> backtick "rename" <> "and/or " <> backtick "replace"
+        <> "to resolve the conflicts."
   ]
   where
     allNames = toList (conflictedTermNames <> conflictedTypeNames)
@@ -628,7 +626,7 @@ slurpOutput s =
         (P.column2 [ (P.text $ Var.name v, "is a constructor for " <> go r)
                    | (v, r) <- Map.toList ctorCollisions ])
         <> "\n\n"
-        <> tip "You can `rename` these constructors to free up the names for your new definitions.")
+        <> tip ("You can " <> backtick "rename" <> " these constructors to free up the names for your new definitions."))
     where
       ctorCollisions = E.termExistingConstructorCollisions s
       go r = prettyHashQualified (PPE.typeName ppe (Referent.toReference r))
@@ -641,7 +639,7 @@ slurpOutput s =
           | (v, rs) <- Map.toList ctorExistingTermCollisions ]
         )
         <> "\n\n"
-        <> tip "You can `rename` existing definitions to free up the names for your new definitions."
+        <> tip "You can " <> backtick "rename" <> " existing definitions to free up the names for your new definitions."
     where
     ctorExistingTermCollisions = E.constructorExistingTermCollisions s
     commaRefs rs = P.wrap $ P.commas (map go rs)
@@ -656,3 +654,10 @@ slurpOutput s =
     where
       blockedTerms = Map.keys (E.termsWithBlockedDependencies s)
       blockedTypes = Map.keys (E.typesWithBlockedDependencies s)
+
+-- todo: future replacement for `backtick` ?
+-- quoteCommand :: P.Pretty P.ColorText -> P.Pretty P.ColorText
+-- quoteCommand p = P.group $ "`" <> p <> "`"
+-- quoteCommand p = P.group $ "`> " <> p <> "`"
+-- quoteCommand p = P.group $ "" <> P.bold p <> ""
+-- quoteCommandEOS

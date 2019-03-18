@@ -144,6 +144,9 @@ validInputs =
         [] -> pure QuitI
         _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
       )
+  , InputPattern "update-builtins" [] []
+      "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
+      (const $ pure $ UpdateBuiltinsI)
   ]
   where
   allTargets = Set.fromList [Names.TermName, Names.TypeName]
