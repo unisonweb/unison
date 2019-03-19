@@ -46,7 +46,7 @@ use Sequence ++
 
 Sequence.map : (a ->{e} b) -> [a] ->{e} [b]
 Sequence.map f as =
-  go f acc as i = case at i as of
+  go f acc as i = case Sequence.at i as of
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
@@ -62,7 +62,7 @@ Monoid.orElse m a = case a of
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  go acc a b = case at 0 a of
+  go acc a b = case Sequence.at 0 a of
     None -> acc ++ b
     Some hd1 -> case at 0 b of
       None -> acc ++ a
