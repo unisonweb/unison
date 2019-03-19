@@ -38,6 +38,8 @@ import           Unison.CommandLine            (backtick, backtickEOS,
                                                 bigproblem, putPrettyLn,
                                                 putPrettyLn', tip, warn,
                                                 watchPrinter)
+import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
+import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
@@ -69,7 +71,7 @@ import qualified Unison.Var                    as Var
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
   Success (MergeBranchI _) ->
-    putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> backtick "todo" <> " after the merge:"
+    putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe terms types ->
     displayDefinitions outputLoc ppe terms types
@@ -84,7 +86,7 @@ notifyUser dir o = case o of
       $  "I'm currently watching for definitions in .u files under the"
       <> renderFileName dir
       <> "directory. Make sure you've updated something there before using the"
-      <> backtick "add" <> "or" <> backtick "update"
+      <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
   UnknownBranch branchName ->
     putPrettyLn
@@ -135,9 +137,9 @@ notifyUser dir o = case o of
       <> "\n\n"
       <> (  tip
          $  "You can switch to that branch via"
-         <> backtick ("branch " <> P.text b)
+         <> makeExample IP.branch [P.text b]
          <> "or delete it via"
-         <> backtickEOS ("branch.delete " <> P.text b)
+         <> makeExample IP.branchDelete [P.text b]
          )
   ListOfBranches current branches ->
     putPrettyLn
@@ -224,12 +226,12 @@ notifyUser dir o = case o of
       case (new, old) of
         ([],[]) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This branch includes some builtins that are considered deprecated. Use the " <> backtick "update-builtins" <> " command when you're ready to work on eliminating them from your branch:")
+          P.wrap ("This branch includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your branch:")
             : ""
             : fmap (P.text . Reference.toText) old
-        (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> backtick "update-builtins" <> " to add them:")
+        (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
           : "" : fmap (P.text . Reference.toText) new
-        (new@(_:_), old@(_:_)) -> P.wrap ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use " <> backtick "update-builtins" <> " to add the ones you're missing and deprecate the ones I'm missing. 😉")
+        (new@(_:_), old@(_:_)) -> P.wrap ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use " <> makeExample' IP.updateBuiltins <> " to add the ones you're missing and deprecate the ones I'm missing. 😉")
           : "You're missing:" `P.hang`
               P.lines (fmap (P.text . Reference.toText) new)
           : "I'm missing:" `P.hang`
@@ -250,7 +252,7 @@ notifyUser dir o = case o of
            <> "to" <> P.green (prettyName newName)
            <> "because of conflicts.")
       <> "\n\n"
-      <> tip ("Use " <> backtick "todo" <> " to view more information on conflicts and remaining work.")
+      <> tip ("Use " <> makeExample' IP.todo <> " to view more information on conflicts and remaining work.")
     when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
       (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
            <> "to" <> P.green (prettyName newName)
@@ -259,7 +261,7 @@ notifyUser dir o = case o of
            <> "already exist(s).")
       <> "\n\n"
       <> tip
-         ("Use" <> backtick ("rename " <> prettyName newName <> " <newname>") <> "to make" <> prettyName newName <> "available.")
+         ("Use" <> makeExample IP.rename [prettyName newName, "<newname>"] <> "to make" <> prettyName newName <> "available.")
     where
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
@@ -309,7 +311,7 @@ displayDefinitions outputLoc ppe terms types =
         P.indentN 2 code,
         "",
         P.wrap $
-          "You can edit them there, then do" <> backtick "update" <>
+          "You can edit them there, then do" <> makeExample' IP.update <>
           "to replace the definitions currently in this branch."
        ]
   code = P.sep "\n\n" (prettyTypes <> prettyTerms)
@@ -398,10 +400,10 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
   unlessM (null allNames) $ P.callout "❓" . P.sep "\n\n" . P.nonEmpty $ [
     showConflictedNames "types" conflictedTypeNames,
     showConflictedNames "terms" conflictedTermNames,
-    tip $ "This occurs when merging branches that both indepenently introduce the same name. Use "
-        <> backtick ("view " <> P.sep " " (prettyName <$> take 3 allNames))
+    tip $ "This occurs when merging branches that both independently introduce the same name. Use "
+        <> makeExample IP.view (prettyName <$> take 3 allNames)
         <> "to see the conflicting defintions, then use "
-        <> backtick "rename" <> "and/or " <> backtick "replace"
+        <> makeExample' IP.rename <> "and/or " <> makeExample' IP.replace
         <> "to resolve the conflicts."
   ]
   where
@@ -419,7 +421,7 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
           <> "in branches that have been merged into this branch."
           <> "You'll have to tell me what to use as the new definition:",
     P.indentN 2 (P.lines (formatConflict <$> editConflicts)),
-    tip $ "Use " <> backtick ("resolve-edit " <> name (head editConflicts) <> " <replacement>") <> " to pick a replacement." -- todo: eventually something with `edit`
+    tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
     ]
   where
     name = either (typeName . fst) (termName . fst)
@@ -588,7 +590,7 @@ slurpOutput s =
         (prettyDeclHeader <$> toList conflictedTypes) ++
         TypePrinter.prettySignatures' ppe (filterTermTypes conflictedTerms))
     <> "\n\n"
-    <> tip ("Use " <> backtick ("view " <> sampleName) <> " to view the conflicting definitions and " <> backtick ("rename " <> sampleNameHash <> " " <> sampleNewName) <> " to give each definition a distinct name. Alternatively, use " <> backtick ("resolve " <> sampleNameHash) <> "to make" <> backtick sampleNameHash <> " the canonical " <> backtick sampleName <> "and remove the name from the other definitions.")
+    <> tip ("Use " <> makeExample IP.view [sampleName] <> " to view the conflicting definitions and " <> makeExample IP.rename [sampleNameHash,  sampleNewName] <> " to give each definition a distinct name. Alternatively, use " <> makeExample IP.resolve [sampleNameHash] <> "to make" <> backtick sampleNameHash <> " the canonical " <> backtick sampleName <> "and remove the name from the other definitions.")
     where
     sampleName =
       P.text . head . fmap Var.name . toList $ (conflictedTypes <> conflictedTerms)
@@ -619,7 +621,7 @@ slurpOutput s =
           ]
       ])
       <> "\n\n"
-      <> tip ("Use " <> backtick ("alias " <> sampleOldName <> " " <> sampleNewName) <> "to create an additional name for this definition.")
+      <> tip ("Use " <> makeExample IP.alias [sampleOldName, sampleNewName] <> "to create an additional name for this definition.")
     where
       f = listToMaybe . Map.toList . R.domain
       Just (prettyName -> sampleNewName,
@@ -634,7 +636,7 @@ slurpOutput s =
         (P.column2 [ (P.text $ Var.name v, "is a constructor for " <> go r)
                    | (v, r) <- Map.toList ctorCollisions ])
         <> "\n\n"
-        <> tip ("You can " <> backtick "rename" <> " these constructors to free up the names for your new definitions."))
+        <> tip ("You can " <> makeExample' IP.rename <> " these constructors to free up the names for your new definitions."))
     where
       ctorCollisions = E.termExistingConstructorCollisions s
       go r = prettyHashQualified (PPE.typeName ppe (Referent.toReference r))
@@ -647,7 +649,7 @@ slurpOutput s =
           | (v, rs) <- Map.toList ctorExistingTermCollisions ]
         )
         <> "\n\n"
-        <> tip "You can " <> backtick "rename" <> " existing definitions to free up the names for your new definitions."
+        <> tip "You can " <> makeExample' IP.rename <> " existing definitions to free up the names for your new definitions."
     where
     ctorExistingTermCollisions = E.constructorExistingTermCollisions s
     commaRefs rs = P.wrap $ P.commas (map go rs)
