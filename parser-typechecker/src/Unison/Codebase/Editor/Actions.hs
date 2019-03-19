@@ -289,9 +289,11 @@ loop = do
           _ <- eval $ NewBranch newBranch branchName
           currentBranch .= newBranch
           currentBranchName .= branchName
+          respond $ CreatedBranch $ branchName
         Just branch -> do
           currentBranch .= branch
           currentBranchName .= branchName
+          respond $ SwitchedBranch $ branchName
     quit = MaybeT $ pure Nothing
 
 eval :: Command i v a -> Action i v a
