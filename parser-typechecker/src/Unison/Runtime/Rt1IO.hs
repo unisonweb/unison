@@ -26,12 +26,15 @@ import           Control.Monad.Except           ( ExceptT(..)
                                                 )
 import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
+import           Data.Int                       ( Int64 )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
+import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
 import           System.IO                      ( Handle
                                                 , IOMode(..)
+                                                , SeekMode(..)
                                                 , openFile
                                                 , hClose
                                                 , hPutStr
@@ -39,6 +42,11 @@ import           System.IO                      ( Handle
                                                 , stdout
                                                 , stderr
                                                 , hIsEOF
+                                                , hGetLine
+                                                , hGetContents
+                                                , hIsSeekable
+                                                , hSeek
+                                                , hTell
                                                 )
 import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
@@ -96,6 +104,9 @@ getHaskellHandle h = do
   v <- liftIO $ readMVar m
   pure $ Map.lookup h v
 
+getHaskellHandleOrThrow :: Text -> UIO a Handle
+getHaskellHandleOrThrow h = getHaskellHandle h >>= maybe throwHandleClosed pure
+
 constructLeft :: RT.Value -> RT.Value
 constructLeft v = IR.Data IOSrc.eitherReference IOSrc.eitherLeftId [v]
 
@@ -123,6 +134,13 @@ convertErrorType (SysError.ioeGetErrorType -> e)
   | SysError.isPermissionErrorType e       = IOSrc.permissionDeniedId
   | otherwise                              = IOSrc.userErrorId
 
+haskellSeekMode :: Text -> SeekMode
+haskellSeekMode mode = case mode of
+  "SeekMode.Absolute" -> AbsoluteSeek
+  "SeekMode.Relative" -> RelativeSeek
+  "SeekMode.FromEnd"  -> SeekFromEnd
+  _                   -> error . Text.unpack $ "Unknown seek mode " <> mode
+
 constructIoError :: IOError -> RT.Value
 constructIoError e = IR.Data
   IOSrc.errorReference
@@ -143,8 +161,12 @@ handleIO' s rid cid vs = case rid of
 reraiseIO :: IO a -> UIO x a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a
 
-swallow :: (a -> IO ()) -> Maybe a -> UIO ann ()
-swallow f = reraiseIO . maybe (pure ()) f
+throwHandleClosed :: UIO x a
+throwHandleClosed = throwError $ SysError.mkIOError
+  SysError.illegalOperationErrorType
+  "handle is closed"
+  Nothing
+  Nothing
 
 handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
 handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
@@ -157,26 +179,44 @@ handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
     newUnisonHandle h
   go "IO.closeFile" [IR.Data _ 0 [IR.T handle]] = do
     hh <- getHaskellHandle handle
-    swallow hClose hh
+    reraiseIO $ maybe (pure ()) hClose hh
     deleteUnisonHandle handle
     pure IR.unit
   go "IO.putText" [IR.Data _ 0 [IR.T handle], IR.T string] = do
-    hh <- getHaskellHandle handle
-    swallow (`hPutStr` Text.unpack string) hh
+    hh <- getHaskellHandleOrThrow handle
+    reraiseIO . hPutStr hh $ Text.unpack string
     pure IR.unit
   go "IO.isFileEOF" [IR.Data _ 0 [IR.T handle]] = do
-    hh       <- getHaskellHandle handle
-    isClosed <- case hh of
-      Just h  -> reraiseIO $ hIsEOF h
-      Nothing -> throwError $ SysError.mkIOError
-        SysError.illegalOperationErrorType
-        "handle is closed"
-        Nothing
-        Nothing
-    pure $ IR.B isClosed
+    hh    <- getHaskellHandleOrThrow handle
+    isEOF <- reraiseIO $ hIsEOF hh
+    pure $ IR.B isEOF
+  go "IO.isFileOpen" [IR.Data _ 0 [IR.T handle]] =
+    IR.B . isJust <$> getHaskellHandle handle
+  go "IO.getLine" [IR.Data _ 0 [IR.T handle]] = do
+    hh   <- getHaskellHandleOrThrow handle
+    line <- reraiseIO $ hGetLine hh
+    pure . IR.T $ Text.pack line
+  go "IO.getText" [IR.Data _ 0 [IR.T handle]] = do
+    hh   <- getHaskellHandleOrThrow handle
+    text <- reraiseIO $ hGetContents hh
+    pure . IR.T $ Text.pack text
+  go "IO.isSeekable" [IR.Data _ 0 [IR.T handle]] = do
+    hh       <- getHaskellHandleOrThrow handle
+    seekable <- reraiseIO $ hIsSeekable hh
+    pure $ IR.B seekable
+  go "IO.seek" [IR.Data _ 0 [IR.T handle], IR.Data _ seekMode [], IR.I int] =
+    do
+      hh <- getHaskellHandleOrThrow handle
+      let mode = IOSrc.constructorName IOSrc.seekModeReference seekMode
+      reraiseIO . hSeek hh (haskellSeekMode mode) $ fromIntegral int
+      pure $ IR.unit
+  go "IO.position" [IR.Data _ 0 [IR.T handle]] = do
+    hh  <- getHaskellHandleOrThrow handle
+    pos <- reraiseIO $ hTell hh
+    pure . IR.I $ fromIntegral pos
   go a b =
     error
-      $  "IO handler called with cid "
+      $  "IO handler called with unimplemented cid "
       <> show cid
       <> " and "
       <> show a

@@ -53,7 +53,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference
   :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
@@ -62,6 +62,7 @@ ioModeReference = typeNamed "IOMode"
 optionReference = typeNamed "Optional"
 errorReference = typeNamed "IOError"
 errorTypeReference = typeNamed "IOErrorType"
+seekModeReference = typeNamed "SeekMode"
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
