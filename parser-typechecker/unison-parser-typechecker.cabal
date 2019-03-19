@@ -118,7 +118,6 @@ library
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation
-    Unison.Util.Sequence
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable
