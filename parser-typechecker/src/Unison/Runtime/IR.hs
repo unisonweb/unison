@@ -36,6 +36,7 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
@@ -44,6 +45,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.CycleTable as CyT
 import qualified Unison.Util.CyclicOrd as COrd
@@ -84,7 +86,7 @@ toSymbolC s = SymbolC False s
 type RefID = Int
 
 data Value e cont
-  = I Int64 | F Double | N Word64 | B Bool | T Text
+  = I Int64 | F Double | N Word64 | B Bool | T Text | Bs Bytes.Bytes
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
   | Sequence (Vector (Value e cont))
@@ -100,6 +102,7 @@ instance (Eq cont, Eq e) => Eq (Value e cont) where
   N x == N y = x == y
   B x == B y = x == y
   T x == T y = x == y
+  Bs x == Bs y = x == y
   Lam n us _ == Lam n2 us2 _ = n == n2 && us == us2
   Data r1 cid1 vs1 == Data r2 cid2 vs2 = r1 == r2 && cid1 == cid2 && vs1 == vs2
   Sequence vs == Sequence vs2 = vs == vs2
@@ -339,6 +342,7 @@ prettyValue ppe prettyE prettyCont v = pv v
     N n -> P.shown n
     B b -> if b then "true" else "false"
     T t -> P.shown t
+    Bs bs -> P.shown bs
     Lam arity _u b -> P.parenthesize $
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
@@ -546,6 +550,9 @@ decompileImpl v = case v of
   F n -> pure $ Term.float () n
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
+  Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
+    bsv = Term.vector'() . Vector.fromList $
+            [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
   Lam _ f _ -> decompileUnderapplied f
   Data r cid args ->
     Term.apps' <$> pure (Term.constructor() r cid)
@@ -805,6 +812,7 @@ builtins = Map.fromList $ arity0 <> arityN
   arity0 = [ (R.Builtin name, val $ value) | (name, value) <-
         [ ("Text.empty", T "")
         , ("Sequence.empty", Sequence mempty)
+        , ("Bytes.empty", Bs mempty)
         ] ]
   arityN = [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
        (name, arity, ir) <-
@@ -892,6 +900,7 @@ instance (Show e, Show cont) => Show (Value e cont) where
   show (N n) = show n
   show (B b) = show b
   show (T t) = show t
+  show (Bs bs) = show bs
   show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " (" <> show ir <> "))"
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
   show (Sequence vs) = "[" <> intercalateMap ", " show vs <> "]"
@@ -936,6 +945,7 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq _ _ (N x) (N y) = pure (x == y)
   cyclicEq _ _ (B x) (B y) = pure (x == y)
   cyclicEq _ _ (T x) (T y) = pure (x == y)
+  cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
   cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     if arity1 == arity2 then cyclicEq h1 h2 us us2
     else pure False
@@ -973,14 +983,15 @@ constructorId v = case v of
   N _ -> 2
   B _ -> 3
   T _ -> 4
-  Lam _ _ _ -> 5
-  Data _ _ _ -> 6
-  Sequence _ -> 7
-  Pure _ -> 8
-  Requested _ -> 9
-  Ref _ _ _ -> 10
-  Cont _ -> 11
-  UninitializedLetRecSlot _ _ _ -> 12
+  Bs _ -> 5
+  Lam _ _ _ -> 6
+  Data _ _ _ -> 7
+  Sequence _ -> 8
+  Pure _ -> 9
+  Requested _ -> 10
+  Ref _ _ _ -> 11
+  Cont _ -> 12
+  UninitializedLetRecSlot _ _ _ -> 13
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
   cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
@@ -1008,6 +1019,7 @@ instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
   cyclicOrd _ _ (N x) (N y) = pure (x `compare` y)
   cyclicOrd _ _ (B x) (B y) = pure (x `compare` y)
   cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
+  cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
   cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     COrd.bothOrd' h1 h2 arity1 arity2 us us2
   cyclicOrd h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =

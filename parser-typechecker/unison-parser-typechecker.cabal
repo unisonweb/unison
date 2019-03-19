@@ -106,6 +106,7 @@ library
     Unison.Typechecker.TypeLookup
     Unison.UnisonFile
     Unison.Util.AnnotatedText
+    Unison.Util.Bytes
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
@@ -143,6 +144,7 @@ library
     edit-distance,
     extra,
     filepath,
+    fingertree,
     free,
     fsnotify,
     hashable,
@@ -208,8 +210,8 @@ executable tests
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
-    Unison.Test.Common
     Unison.Test.ColorText
+    Unison.Test.Common
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.Lexer
@@ -222,6 +224,7 @@ executable tests
     Unison.Test.Typechecker
     Unison.Test.Typechecker.Components
     Unison.Test.Typechecker.TypeError
+    Unison.Test.Util.Bytes
 
   build-depends:
     base,

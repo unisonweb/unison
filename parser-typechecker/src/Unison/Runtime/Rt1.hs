@@ -30,6 +30,7 @@ import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
 import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import qualified System.Mem.StableName as S
+import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -42,6 +43,7 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
 import qualified Unison.Util.CycleTable as CT
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
@@ -140,6 +142,11 @@ att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
   v -> fail $ "type error, expecting T, got " <> show v
+
+atbs :: Size -> Z -> Stack -> IO Bytes.Bytes
+atbs size i m = at size i m >>= \case
+  Bs v -> pure v
+  v -> fail $ "type error, expecting Bytes, got: " <> show v
 
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
@@ -268,6 +275,18 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Sequence.drop" atn ats (pure . Sequence) (Vector.drop . fromIntegral)
     , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
     , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Vector.length)
+
+    , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
+        Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
+    , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
+    , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
+    , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
+    , mk1 "Bytes.toSequence" atbs (pure . Sequence)
+        (\bs -> Vector.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
+    , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
+    , mk2 "Bytes.at" atn atbs pure $ \i bs ->
+      IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
+    , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
 
     , mk1 "Float.ceiling"  atf (pure . I) ceiling
     , mk1 "Float.floor"    atf (pure . I) floor
