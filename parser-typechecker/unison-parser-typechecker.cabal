@@ -106,6 +106,7 @@ library
     Unison.Typechecker.TypeLookup
     Unison.UnisonFile
     Unison.Util.AnnotatedText
+    Unison.Util.Bytes
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
@@ -144,6 +145,7 @@ library
     edit-distance,
     extra,
     filepath,
+    fingertree,
     free,
     fsnotify,
     hashable,
