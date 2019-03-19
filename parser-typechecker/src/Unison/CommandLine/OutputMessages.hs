@@ -93,6 +93,9 @@ notifyUser dir o = case o of
       $  "I don't know of a branch named "
       <> P.red (P.text branchName)
       <> "."
+  CreatedBranch branchName ->
+    putPrettyLn $ "Created the new branch " <> backtickEOS (P.text branchName)
+  SwitchedBranch _branchName -> pure () -- putPrettyLn "Switched."
   RenameOutput oldName newName r -> do
     nameChange "rename" "renamed" oldName newName r
   AliasOutput existingName newName r -> do
