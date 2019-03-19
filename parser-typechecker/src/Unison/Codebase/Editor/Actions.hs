@@ -324,6 +324,8 @@ updateBuiltins b
   --      they would never be able to come back. :-\
   --   ok, we'll fix the story for neverending edits later;
   --   todo: reevaluate this after that.
+  -- todo: remove deprecations for newly added terms?
+            -- what if user intentionally removed
   = over (Branch.namespaceL . Branch.terms) (Relation.||> oldRefts)
   . over (Branch.namespaceL . Branch.types) (Relation.||> oldRefs)
   . over (Branch.namespaceL . Branch.terms) (<> newTerms)

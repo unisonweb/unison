@@ -209,10 +209,31 @@ notifyUser dir o = case o of
       "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
   ListEdits branch -> do
-    -- let ppe = Branch.prettyPrintEnv branch
-    -- todo: use the ppe
-    putStrLn . show . Branch.editedTypes $ branch
-    putStrLn . show . Branch.editedTerms $ branch
+    let
+      ppe = Branch.prettyPrintEnv branch
+      types = Branch.editedTypes branch
+      terms = Branch.editedTerms branch
+
+      prettyTermEdit (r, TermEdit.Deprecate) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> (deprecated)")
+      prettyTermEdit (r, TermEdit.Replace r' _typing) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> " <> (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
+      prettyTypeEdit (r, TypeEdit.Deprecate) =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> (deprecated)")
+      prettyTypeEdit (r, TypeEdit.Replace r') =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
+    when (not . R.null . Branch.editedTypes $ branch) $
+       putPrettyLn $ "Edited Types:" `P.hang`
+        P.column2 (fmap prettyTypeEdit . R.toList . Branch.editedTypes $ branch)
+    when (not . R.null . Branch.editedTerms $ branch) $
+       putPrettyLn $ "Edited Terms:" `P.hang`
+        P.column2 (fmap prettyTermEdit . R.toList . Branch.editedTerms $ branch)
+    when (R.null types && R.null terms)
+         (putPrettyLn "Nothing has been edited in this branch.")
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
