@@ -1,0 +1,66 @@
+
+use Universal == < > >=
+use Optional None Some
+
+-- Sorted maps, represented as a pair of sequences
+-- Use binary search to do lookups and find insertion points
+-- This relies on the underlying sequence having efficient
+-- slicing and concatenation
+type Map k v = Map [k] [v]
+
+use Map Map
+
+search : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+search hit bot top =
+  if bot >= top then None
+  else
+    mid = (bot + top) / 2
+    case hit mid of
+      +0 -> Some mid
+      -1 -> search hit bot mid
+      +1 -> search hit (mid + 1) top
+
+namespace Search where
+
+  indexOf : a -> [a] -> Optional Nat
+  indexOf a s =
+    ao = Some a
+    search (i -> ao `compare` Sequence.at i s) 0 (size s)
+
+> ex = [0,2,4,6,77]
+> ex2 = [0,2,4,6,77,192,3838,12000]
+> ex3 = [1,2,3,6,8,9,12,14,15,16,17]
+
+> Sequence.map (e -> indexOf e ex) ex
+> Sequence.map (e -> indexOf e ex2) ex2
+> Sequence.map (e -> indexOf e ex2) ex3
+-- > indexOf 2 ex
+
+Sequence.map : (a -> b) -> [a] -> [b]
+Sequence.map f a =
+  go i as acc = case Sequence.at i as of
+    None -> acc
+    Some a -> go (i + 1) as (acc `snoc` f a)
+  go 0 a []
+
+namespace Map where
+
+  empty : Map k v
+  empty = Map [] []
+
+  singleton : k -> v -> Map k v
+  singleton k v = Map [k] [v]
+
+  lookup : k -> Map k v -> Optional v
+  lookup k m = case m of
+    Map ks vs -> case indexOf k ks of
+      None -> None
+      Some i -> at i vs
+
+  keys : Map k v -> [k]
+  keys m = case m of Map ks _ -> ks
+
+  values : Map k v -> [v]
+  values m = case m of Map _ vs -> vs
+
+> 1 + 1
