@@ -36,12 +36,12 @@ flatten :: Bytes -> Bytes
 flatten b = snoc mempty (B.concat (chunks b))
 
 take :: Int -> Bytes -> Bytes
-take n (Bytes bs) = go (T.takeUntil (> Sum n) bs) where
-  go s = Bytes $ case T.viewr s of
-    sl T.:> last ->
-      if T.measure sl == Sum n then s
-      else sl T.|> B.take (n - getSum (T.measure sl)) last
-    _ -> s
+take n (Bytes bs) = go (T.split (> Sum n) bs) where
+  go (ok, s) = Bytes $ case T.viewl s of
+    last T.:< _ ->
+      if T.measure ok == Sum n then ok
+      else ok T.|> B.take (n - getSum (T.measure ok)) last
+    _ -> ok
 
 drop :: Int -> Bytes -> Bytes
 drop n b0@(Bytes bs) = go (T.dropUntil (> Sum n) bs) where
@@ -59,6 +59,9 @@ at i bs = case drop i bs of
 toWord8s :: Bytes -> [Word8]
 toWord8s bs = catMaybes [ at i bs | i <- [0..(size bs - 1)] ]
 
+fromWord8s :: [Word8] -> Bytes
+fromWord8s bs = snoc mempty (B.pack bs)
+
 instance Monoid Bytes where
   mempty = Bytes mempty
   mappend (Bytes b1) (Bytes b2) = Bytes (b1 `mappend` b2)
@@ -68,3 +71,5 @@ instance Semigroup Bytes where (<>) = mappend
 instance T.Measured (Sum Int) B.ByteString where
   measure b = Sum (B.length b)
 
+instance Show Bytes where
+  show bs = show (toWord8s bs)
