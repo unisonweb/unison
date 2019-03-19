@@ -102,11 +102,12 @@ allTypeNames =
     <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
 
-isBuiltinTerm :: Name -> Bool
-isBuiltinTerm n = Map.member n $ Names.termNames names
+-- Is this a term (as opposed to a type)
+isBuiltinTerm :: R.Reference -> Bool
+isBuiltinTerm r = Map.member r (builtins0 @Symbol)
 
-isBuiltinType :: Name -> Bool
-isBuiltinType n = Map.member n $ Names.typeNames names
+isBuiltinType :: R.Reference -> Bool
+isBuiltinType r = elem r . fmap snd $ builtinTypes
 
 typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =
