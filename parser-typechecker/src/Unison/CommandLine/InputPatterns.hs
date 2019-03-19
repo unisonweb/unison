@@ -146,7 +146,10 @@ validInputs =
       )
   , InputPattern "update-builtins" [] []
       "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
-      (const $ pure $ UpdateBuiltinsI)
+      (const . pure $ UpdateBuiltinsI)
+  , InputPattern "edit.list" [] []
+      "Lists all the edits in the current branch."
+      (const . pure $ ListEditsI)
   ]
   where
   allTargets = Set.fromList [Names.TermName, Names.TypeName]

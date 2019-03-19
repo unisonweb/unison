@@ -161,6 +161,7 @@ data Input
   | TodoI
   | PropagateI
   | UpdateBuiltinsI
+  | ListEditsI
   | QuitI
   deriving (Show)
 
@@ -227,6 +228,7 @@ data Output v
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
   | TodoOutput Branch (TodoOutput v Ann)
+  | ListEdits Branch0
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.

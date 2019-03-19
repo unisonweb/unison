@@ -203,6 +203,11 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
+  ListEdits branch -> do
+    -- let ppe = Branch.prettyPrintEnv branch
+    -- todo: use the ppe
+    putStrLn . show . Branch.editedTypes $ branch
+    putStrLn . show . Branch.editedTerms $ branch
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

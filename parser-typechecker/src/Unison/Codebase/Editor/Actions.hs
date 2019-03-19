@@ -263,6 +263,9 @@ loop = do
         UpdateBuiltinsI -> do
           modifyCurrentBranch0 updateBuiltins
           checkTodo
+        ListEditsI -> do
+          (Branch.head -> b) <- use currentBranch
+          respond $ ListEdits b
         QuitI -> quit
        where
         success       = respond $ Success input
