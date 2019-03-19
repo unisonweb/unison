@@ -166,9 +166,13 @@ parsePattern = constructor <|> leaf
             in (Pattern.Constructor loc ref cid patterns, vs)
       Nothing -> customFailure $ UnknownDataConstructor t
 
-  seq' :: P v (Pattern Ann, [(Ann, v)])
-  seq' = Parser.seq f leaf
-    where f loc = unzipPatterns ((,) . Pattern.Sequence loc)
+  seqLiteral = Parser.seq f leaf
+    where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
+
+  seqUncons = f <$> leaf <*> reserved "+:" <*> leaf
+    where f (head, vh) _ (tail, vt) = (Pattern.SequenceUncons (ann head <> ann tail) head tail, vh ++ vt)
+
+  seq' = seqLiteral <|> seqUncons
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p

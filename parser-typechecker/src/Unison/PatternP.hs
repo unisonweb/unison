@@ -17,7 +17,8 @@ pattern Constructor loc r cid ps = P.ConstructorP loc r cid ps
 pattern As loc p = P.AsP loc p
 pattern EffectPure loc p = P.EffectPureP loc p
 pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
-pattern Sequence loc ps = P.SequenceP loc ps
+pattern SequenceLiteral loc ps = P.SequenceLiteralP loc ps
+pattern SequenceUncons loc ph pt = P.SequenceUnconsP loc ph pt
 
 loc :: P.PatternP loc -> loc
 loc = P.loc

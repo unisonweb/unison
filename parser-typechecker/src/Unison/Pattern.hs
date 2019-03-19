@@ -41,7 +41,8 @@ data PatternP loc
   | AsP loc (PatternP loc)
   | EffectPureP loc (PatternP loc)
   | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
-  | SequenceP loc [PatternP loc]
+  | SequenceLiteralP loc [PatternP loc]
+  | SequenceUnconsP loc (PatternP loc) (PatternP loc)
     deriving (Generic,Functor,Foldable,Traversable)
 
 instance Show (PatternP loc) where
@@ -58,7 +59,8 @@ instance Show (PatternP loc) where
   show (EffectPureP _ k) = "EffectPure " <> show k
   show (EffectBindP _ r i ps k) =
     "EffectBind " <> intercalate " " [show r, show i, show ps, show k]
-  show (SequenceP _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
+  show (SequenceLiteralP _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
+  show (SequenceUnconsP _ ph pt) = "Vector " <> show ph <> " +: " <> show pt
 
 loc :: PatternP loc -> loc
 loc p = head $ Foldable.toList p
@@ -69,7 +71,8 @@ setLoc p loc = case p of
   EffectPureP _ a -> EffectPureP loc a
   AsP _ a -> AsP loc a
   ConstructorP _ a b c -> ConstructorP loc a b c
-  SequenceP _ ps -> SequenceP loc ps
+  SequenceLiteralP _ ps -> SequenceLiteralP loc ps
+  SequenceUnconsP _ ph pt -> SequenceUnconsP loc ph pt
   x -> fmap (const loc) x
 
 pattern Unbound = UnboundP ()
@@ -83,7 +86,8 @@ pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
 pattern EffectBind r cid ps k = EffectBindP () r cid ps k
-pattern Sequence ps = SequenceP () ps
+pattern Sequence ps = SequenceLiteralP () ps
+pattern VectorUncons ph pt = SequenceUnconsP () ph pt
 
 instance H.Hashable (PatternP p) where
   tokens (UnboundP _) = [H.Tag 0]
@@ -99,7 +103,8 @@ instance H.Hashable (PatternP p) where
     [H.Tag 8, H.accumulateToken r, H.Nat $ fromIntegral n, H.accumulateToken args, H.accumulateToken k]
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
   tokens (TextP _ t) = H.Tag 10 : H.tokens t
-  tokens (SequenceP _ ps) = H.Tag 11 : concatMap H.tokens ps
+  tokens (SequenceLiteralP _ ps) = H.Tag 11 : concatMap H.tokens ps
+  tokens (SequenceUnconsP _ ph pt) = H.Tag 12 : H.tokens ph ++ H.tokens pt
 
 instance Eq (PatternP loc) where
   UnboundP _ == UnboundP _ = True
@@ -113,7 +118,8 @@ instance Eq (PatternP loc) where
   EffectBindP _ r ctor ps k == EffectBindP _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
   AsP _ p == AsP _ q = p == q
   TextP _ t == TextP _ t2 = t == t2
-  SequenceP _ ps == SequenceP _ ps2 = ps == ps2
+  SequenceLiteralP _ ps == SequenceLiteralP _ ps2 = ps == ps2
+  SequenceUnconsP _ ph pt == SequenceUnconsP _ ph2 pt2 = ph == ph2 && pt == pt2
   _ == _ = False
 
 

@@ -951,7 +951,7 @@ checkPattern scrutineeType0 p =
             _ -> lift . compilerCrash $ PatternMatchFailure
         _ -> lift . compilerCrash $ EffectConstructorHadMultipleEffects
           ctorOutputType
-    Pattern.Sequence loc ps -> do
+    Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshNamed "v"
         let vt = Type.existentialp loc v
