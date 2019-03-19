@@ -7,7 +7,7 @@
 
 module Unison.Runtime.Rt1IO where
 
-import           Control.Exception              ( try )
+import           Control.Exception              ( try, throwIO, Exception )
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
                                                 , readMVar
@@ -22,6 +22,7 @@ import           Control.Monad.Reader           ( ReaderT
                                                 )
 import           Control.Monad.Except           ( ExceptT(..)
                                                 , runExceptT
+                                                , throwError
                                                 )
 import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
@@ -37,8 +38,10 @@ import           System.IO                      ( Handle
                                                 , stdin
                                                 , stdout
                                                 , stderr
+                                                , hIsEOF
                                                 )
 import qualified System.IO.Error               as SysError
+import           Type.Reflection                ( Typeable )
 import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.Symbol
 import qualified Unison.Reference              as R
@@ -50,6 +53,12 @@ import qualified Unison.Term                   as Term
 -- import           Unison.TermPrinter             ( prettyTop )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 import qualified Unison.Runtime.IOSource       as IOSrc
+
+-- TODO: Make this exception more structured?
+data UnisonRuntimeException = UnisonRuntimeException Text
+  deriving (Typeable, Show)
+
+instance Exception UnisonRuntimeException
 
 type GUID = Text
 type IOState = MVar HandleMap
@@ -134,25 +143,37 @@ handleIO' s rid cid vs = case rid of
 reraiseIO :: IO a -> UIO x a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a
 
+swallow :: (a -> IO ()) -> Maybe a -> UIO ann ()
+swallow f = reraiseIO . maybe (pure ()) f
+
 handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
-handleIO cid args =
-  go (IOSrc.constructorName IOSrc.ioReference cid) args
+handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
  where
-  go "IO.openFile" [IR.T filePath, IR.Data _ mode _] = do
-    let n = IOSrc.constructorName IOSrc.ioReference mode
+  go "IO.throw" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
+    liftIO . throwIO $ UnisonRuntimeException message
+  go "IO.openFile" [IR.Data _ 0 [IR.T filePath], IR.Data _ mode _] = do
+    let n = IOSrc.constructorName IOSrc.ioModeReference mode
     h <- reraiseIO . openFile (Text.unpack filePath) $ haskellMode n
     newUnisonHandle h
-  go "IO.closeFile" [IR.T handle] = do
+  go "IO.closeFile" [IR.Data _ 0 [IR.T handle]] = do
     hh <- getHaskellHandle handle
-    reraiseIO $ maybe (pure ()) hClose hh
+    swallow hClose hh
     deleteUnisonHandle handle
     pure IR.unit
-  go "IO.putText" [IR.Data _ _ [IR.T handle], IR.T string] = do
+  go "IO.putText" [IR.Data _ 0 [IR.T handle], IR.T string] = do
     hh <- getHaskellHandle handle
-    case hh of
-      Just h  -> reraiseIO . hPutStr h $ Text.unpack string
-      Nothing -> pure ()
+    swallow (`hPutStr` Text.unpack string) hh
     pure IR.unit
+  go "IO.isFileEOF" [IR.Data _ 0 [IR.T handle]] = do
+    hh       <- getHaskellHandle handle
+    isClosed <- case hh of
+      Just h  -> reraiseIO $ hIsEOF h
+      Nothing -> throwError $ SysError.mkIOError
+        SysError.illegalOperationErrorType
+        "handle is closed"
+        Nothing
+        Nothing
+    pure $ IR.B isClosed
   go a b =
     error
       $  "IO handler called with cid "

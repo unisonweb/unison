@@ -61,7 +61,7 @@ eitherReference = typeNamed "Either"
 ioModeReference = typeNamed "IOMode"
 optionReference = typeNamed "Optional"
 errorReference = typeNamed "IOError"
-errorTypeReference = typeNamed "ErrorType"
+errorTypeReference = typeNamed "IOErrorType"
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
@@ -200,7 +200,7 @@ ability IO where
   -- Basic file IO
   openFile : FilePath -> IOMode ->{IO} (Either IOError Handle)
   closeFile : Handle ->{IO} (Either IOError ())
-  isEOF : Handle ->{IO} (Either IOError Boolean)
+  isFileEOF : Handle ->{IO} (Either IOError Boolean)
   isFileOpen : Handle ->{IO} (Either IOError Boolean)
 
   -- Text input and output
