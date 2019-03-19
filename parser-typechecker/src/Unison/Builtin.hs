@@ -131,7 +131,7 @@ builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
+  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -212,6 +212,19 @@ builtins0 = Map.fromList $
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
       , ("Float.floor", "Float -> Int")
+      , ("Universal.==", "a -> a -> Boolean")
+
+      -- Universal.compare intended as a low level function that just returns
+      -- `Int` rather than some Ordering data type. If we want, later,
+      -- could provide a pure Unison wrapper for Universal.compare that
+      -- returns a proper data type.
+      --
+      -- 0 is equal, < 0 is less than, > 0 is greater than
+      , ("Universal.compare", "a -> a -> Int")
+      , ("Universal.>", "a -> a -> Boolean")
+      , ("Universal.<", "a -> a -> Boolean")
+      , ("Universal.>=", "a -> a -> Boolean")
+      , ("Universal.<=", "a -> a -> Boolean")
 
       , ("Boolean.not", "Boolean -> Boolean")
 
@@ -226,6 +239,16 @@ builtins0 = Map.fromList $
       , ("Text.>=", "Text -> Text -> Boolean")
       , ("Text.<", "Text -> Text -> Boolean")
       , ("Text.>", "Text -> Text -> Boolean")
+
+      , ("Bytes.empty", "Bytes")
+      , ("Bytes.fromSequence", "[Nat] -> Bytes")
+      , ("Bytes.++", "Bytes -> Bytes -> Bytes")
+      , ("Bytes.take", "Nat -> Bytes -> Bytes")
+      , ("Bytes.drop", "Nat -> Bytes -> Bytes")
+      , ("Bytes.at", "Nat -> Bytes -> Optional Nat")
+      , ("Bytes.toSequence", "Bytes -> [Nat]")
+      , ("Bytes.size", "Bytes -> Nat")
+      , ("Bytes.flatten", "Bytes -> Bytes")
 
       , ("Sequence.empty", "[a]")
       , ("Sequence.cons", "a -> [a] -> [a]")

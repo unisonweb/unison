@@ -6,6 +6,7 @@
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
+{-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
 {-# Language DoAndIfThenElse #-}
@@ -25,13 +26,17 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Word (Word64)
+import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified')
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
+import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
+import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Vector as Vector
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
@@ -40,7 +45,10 @@ import qualified Unison.Reference as R
 import qualified Unison.Runtime.ANF as ANF
 import qualified Unison.Term as Term
 import qualified Unison.TermPrinter as TP
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Util.ColorText as CT
+import qualified Unison.Util.CycleTable as CyT
+import qualified Unison.Util.CyclicOrd as COrd
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
 -- import Debug.Trace
@@ -76,8 +84,9 @@ toSymbolC s = SymbolC False s
 
 -- Values, in normal form
 type RefID = Int
+
 data Value e cont
-  = I Int64 | F Double | N Word64 | B Bool | T Text
+  = I Int64 | F Double | N Word64 | B Bool | T Text | Bs Bytes.Bytes
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
   | Sequence (Vector (Value e cont))
@@ -86,7 +95,27 @@ data Value e cont
   | Requested (Req e cont)
   | Cont cont
   | UninitializedLetRecSlot Symbol [(Symbol, IR e cont)] (IR e cont)
-  deriving (Eq)
+
+instance (Eq cont, Eq e) => Eq (Value e cont) where
+  I x == I y = x == y
+  F x == F y = x == y
+  N x == N y = x == y
+  B x == B y = x == y
+  T x == T y = x == y
+  Bs x == Bs y = x == y
+  Lam n us _ == Lam n2 us2 _ = n == n2 && us == us2
+  Data r1 cid1 vs1 == Data r2 cid2 vs2 = r1 == r2 && cid1 == cid2 && vs1 == vs2
+  Sequence vs == Sequence vs2 = vs == vs2
+  Ref _ _ io1 == Ref _ _ io2 = io1 == io2
+  Pure x == Pure y = x == y
+  Requested r1 == Requested r2 = r1 == r2
+  Cont k1 == Cont k2 = k1 == k2
+  _ == _ = False
+
+instance (Eq cont, Eq e) => Eq (UnderapplyStrategy e cont) where
+  FormClosure h _ vs == FormClosure h2 _ vs2 = h == h2 && vs == vs2
+  Specialize h _ vs == Specialize h2 _ vs2 = h == h2 && vs == vs2
+  _ == _ = False
 
 -- would have preferred to make pattern synonyms
 maybeToOptional :: Maybe (Value e cont) -> Value e cont
@@ -126,16 +155,16 @@ pair (a, b) = Data DD.pairRef 0 [a, b]
 -- to anything when all the arguments are available.
 
 data UnderapplyStrategy e cont
-  = FormClosure (Term SymbolC) [Value e cont] -- head is the latest argument
-  | Specialize (Term SymbolC) [(SymbolC, Value e cont)] -- same
-  deriving (Eq, Show)
+  = FormClosure Hash (Term SymbolC) [Value e cont] -- head is the latest argument
+  | Specialize Hash (Term SymbolC) [(SymbolC, Value e cont)] -- same
+  deriving (Show)
 
 decompileUnderapplied :: (External e, External cont) => UnderapplyStrategy e cont -> DS (Term Symbol)
 decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
-  FormClosure lam vals ->
+  FormClosure _ lam vals ->
     Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse decompileImpl vals
-  Specialize lam symvals -> do
+  Specialize _ lam symvals -> do
     lam <- Term.apps' (Term.vmap underlyingSymbol lam) . reverse <$>
       traverse (decompileImpl . snd) symvals
     pure $ Term.betaReduce lam
@@ -179,6 +208,9 @@ data IR' ann z
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
+  -- Universals
+  | EqU z z -- universal equality
+  | CompareU z z -- universal ordering
   -- Control flow
 
   -- `Let` has an `ann` associated with it, e.g `ann = Set Int` which is the
@@ -255,7 +287,9 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     GtEqF a b -> P.parenthesize $ "GtEqF" `P.hang` P.spaced [pz a, pz b]
     LtEqF a b -> P.parenthesize $ "LtEqF" `P.hang` P.spaced [pz a, pz b]
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
-    ir @ (Let _ _ _ _) ->
+    EqU a b -> P.parenthesize $ "EqU" `P.hang` P.spaced [pz a, pz b]
+    CompareU a b -> P.parenthesize $ "CompareU" `P.hang` P.spaced [pz a, pz b]
+    ir@(Let _ _ _ _) ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
       block = unlets ir
@@ -308,6 +342,7 @@ prettyValue ppe prettyE prettyCont v = pv v
     N n -> P.shown n
     B b -> if b then "true" else "false"
     T t -> P.shown t
+    Bs bs -> P.shown bs
     Lam arity _u b -> P.parenthesize $
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
@@ -417,7 +452,7 @@ compile0 env bound t =
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
-        (Specialize (void t) [])
+        (Specialize (ABT.hash t) (void t) [])
         (compile0 env (ABT.annotation body) (void body))
     Term.Or' x y -> Or (toZ "or" t x) (go y)
     Term.Let1Named' v b body -> Let (underlyingSymbol v) (go b) (go body) (freeSlots body)
@@ -466,8 +501,9 @@ compile0 env bound t =
                         ++ "to compile this constructor: " ++ show (r, cid) ++ "\n" ++ show (constructorArity' env)
         Just 0 -> con 0 r cid []
         -- Just 0 -> Leaf . Val $ Data "Optional" 0
-        Just arity -> Leaf . Val $ Lam arity (FormClosure (src r cid) []) ir
+        Just arity -> Leaf . Val $ Lam arity (FormClosure (ABT.hash s) s []) ir
           where
+          s = src r cid
           -- if `arity` is 1, then `Slot 0` is the sole argument.
           -- if `arity` is 2, then `Slot 1` is the first arg, and `Slot 0`
           -- get the second arg, etc.
@@ -514,6 +550,9 @@ decompileImpl v = case v of
   F n -> pure $ Term.float () n
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
+  Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
+    bsv = Term.vector'() . Vector.fromList $
+            [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
   Lam _ f _ -> decompileUnderapplied f
   Data r cid args ->
     Term.apps' <$> pure (Term.constructor() r cid)
@@ -598,6 +637,8 @@ boundVarsIR = \case
   GtEqF _ _ -> mempty
   LtEqF _ _ -> mempty
   EqF _ _ -> mempty
+  EqU _ _ -> mempty
+  CompareU _ _ -> mempty
   MakeSequence _ -> mempty
   Construct _ _ _ -> mempty
   Request _ _ _ -> mempty
@@ -644,6 +685,8 @@ decompileIR stack = \case
   GtEqF x y -> builtin "Float.>=" [x,y]
   LtEqF x y -> builtin "Float.<=" [x,y]
   EqF x y -> builtin "Float.==" [x,y]
+  EqU x y -> builtin "Universal.==" [x,y]
+  CompareU x y -> builtin "Universal.compare" [x,y]
   Let v b body _ -> do
     b' <- decompileIR stack b
     body' <- decompileIR (v:stack) body
@@ -762,11 +805,14 @@ builtins = Map.fromList $ arity0 <> arityN
   where
   -- slot = Leaf . Slot
   val = Leaf . Val
-  underapply name = FormClosure (Term.ref() $ R.Builtin name) []
+  underapply name =
+    let r = Term.ref() $ R.Builtin name :: Term SymbolC
+    in FormClosure (ABT.hash r) r []
   var = Var.named "x"
   arity0 = [ (R.Builtin name, val $ value) | (name, value) <-
         [ ("Text.empty", T "")
         , ("Sequence.empty", Sequence mempty)
+        , ("Bytes.empty", Bs mempty)
         ] ]
   arityN = [ (R.Builtin name, Leaf . Val $ Lam arity (underapply name) ir) |
        (name, arity, ir) <-
@@ -817,6 +863,16 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Float.>=", 2, GtEqF (Slot 1) (Slot 0))
         , ("Float.==", 2, EqF (Slot 1) (Slot 0))
 
+        , ("Universal.==", 2, EqU (Slot 1) (Slot 0))
+        , ("Universal.compare", 2, CompareU (Slot 1) (Slot 0))
+        , ("Universal.<", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                      (LtI (Slot 0) (Val (I 0))))
+        , ("Universal.>", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                      (GtI (Slot 0) (Val (I 0))))
+        , ("Universal.>=", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                       (GtEqI (Slot 0) (Val (I 0))))
+        , ("Universal.<=", 2, let' var (CompareU (Slot 1) (Slot 0))
+                                       (LtEqI (Slot 0) (Val (I 0))))
         , ("Boolean.not", 1, Not (Slot 0))
         ]]
 
@@ -844,6 +900,7 @@ instance (Show e, Show cont) => Show (Value e cont) where
   show (N n) = show n
   show (B b) = show b
   show (T t) = show t
+  show (Bs bs) = show bs
   show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " (" <> show ir <> "))"
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
   show (Sequence vs) = "[" <> intercalateMap ", " show vs <> "]"
@@ -864,3 +921,131 @@ instance Monoid (CompilationEnv e cont) where
   mappend c1 c2 = CompilationEnv ir ctor where
     ir = toIR' c1 <> toIR' c2
     ctor = constructorArity' c1 <> constructorArity' c2
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (UnderapplyStrategy e cont) where
+  cyclicEq h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
+    if hash1 == hash2 then cyclicEq h1 h2 vs1 vs2
+    else pure False
+  cyclicEq h1 h2 (Specialize hash1 _ vs1) (Specialize hash2 _ vs2) =
+    if hash1 == hash2 then cyclicEq h1 h2 (snd <$> vs1) (snd <$> vs2)
+    else pure False
+  cyclicEq _ _ _ _ = pure False
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (Req e cont) where
+  cyclicEq h1 h2 (Req r1 c1 vs1 k1) (Req r2 c2 vs2 k2) =
+    if r1 == r2 && c1 == c2 then do
+      b <- cyclicEq h1 h2 vs1 vs2
+      if b then cyclicEq h1 h2 k1 k2
+      else pure False
+    else pure False
+
+instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
+  cyclicEq _ _ (I x) (I y) = pure (x == y)
+  cyclicEq _ _ (F x) (F y) = pure (x == y)
+  cyclicEq _ _ (N x) (N y) = pure (x == y)
+  cyclicEq _ _ (B x) (B y) = pure (x == y)
+  cyclicEq _ _ (T x) (T y) = pure (x == y)
+  cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
+  cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
+    if arity1 == arity2 then cyclicEq h1 h2 us us2
+    else pure False
+  cyclicEq h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =
+    if r1 == r2 && c1 == c2 then cyclicEq h1 h2 vs1 vs2
+    else pure False
+  cyclicEq h1 h2 (Sequence v1) (Sequence v2) = cyclicEq h1 h2 v1 v2
+  cyclicEq h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
+    if io1 == io2 then pure True
+    else do
+      a <- CyT.lookup r1 h1
+      b <- CyT.lookup r2 h2
+      case (a,b) of
+        -- We haven't encountered these refs before, descend into them and
+        -- compare contents.
+        (Nothing, Nothing) -> do
+          CyT.insertEnd r1 h1
+          CyT.insertEnd r2 h2
+          r1 <- readIORef io1
+          r2 <- readIORef io2
+          cyclicEq h1 h2 r1 r2
+        -- We've encountered these refs before, compare the positions where
+        -- they were first encountered
+        (Just r1, Just r2) -> pure (r1 == r2)
+        _ -> pure False
+  cyclicEq h1 h2 (Pure a) (Pure b) = cyclicEq h1 h2 a b
+  cyclicEq h1 h2 (Requested r1) (Requested r2) = cyclicEq h1 h2 r1 r2
+  cyclicEq h1 h2 (Cont k1) (Cont k2) = cyclicEq h1 h2 k1 k2
+  cyclicEq _ _ _ _ = pure False
+
+constructorId :: Value e cont -> Int
+constructorId v = case v of
+  I _ -> 0
+  F _ -> 1
+  N _ -> 2
+  B _ -> 3
+  T _ -> 4
+  Bs _ -> 5
+  Lam _ _ _ -> 6
+  Data _ _ _ -> 7
+  Sequence _ -> 8
+  Pure _ -> 9
+  Requested _ -> 10
+  Ref _ _ _ -> 11
+  Cont _ -> 12
+  UninitializedLetRecSlot _ _ _ -> 13
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
+  cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
+    COrd.bothOrd' h1 h2 hash1 hash2 vs1 vs2
+  cyclicOrd h1 h2 (Specialize hash1 _ vs1) (Specialize hash2 _ vs2) =
+    COrd.bothOrd' h1 h2 hash1 hash2 (map snd vs1) (map snd vs2)
+  cyclicOrd _ _ (FormClosure _ _ _) _ = pure LT
+  cyclicOrd _ _ (Specialize _ _ _) _  = pure GT
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Req e cont) where
+  cyclicOrd h1 h2 (Req r1 c1 vs1 k1) (Req r2 c2 vs2 k2) = case compare r1 r2 of
+    EQ -> do
+      o <- COrd.bothOrd' h1 h2 c1 c2 vs1 vs2
+      o <- case o of
+        EQ -> cyclicOrd h1 h2 k1 k2
+        _ -> pure o
+      case o of
+        EQ -> pure (r1 `compare` r2)
+        _ -> pure o
+    c -> pure c
+
+instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Value e cont) where
+  cyclicOrd _ _ (I x) (I y) = pure (x `compare` y)
+  cyclicOrd _ _ (F x) (F y) = pure (x `compare` y)
+  cyclicOrd _ _ (N x) (N y) = pure (x `compare` y)
+  cyclicOrd _ _ (B x) (B y) = pure (x `compare` y)
+  cyclicOrd _ _ (T x) (T y) = pure (x `compare` y)
+  cyclicOrd _ _ (Bs x) (Bs y) = pure (x `compare` y)
+  cyclicOrd h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
+    COrd.bothOrd' h1 h2 arity1 arity2 us us2
+  cyclicOrd h1 h2 (Data r1 c1 vs1) (Data r2 c2 vs2) =
+    COrd.bothOrd' h1 h2 c1 c2 vs1 vs2 >>= \o -> case o of
+      EQ -> pure (r1 `compare` r2)
+      _ -> pure o
+  cyclicOrd h1 h2 (Sequence v1) (Sequence v2) = cyclicOrd h1 h2 v1 v2
+  cyclicOrd h1 h2 (Ref r1 _ io1) (Ref r2 _ io2) =
+    if io1 == io2 then pure EQ
+    else do
+      a <- CyT.lookup r1 h1
+      b <- CyT.lookup r2 h2
+      case (a,b) of
+        -- We haven't encountered these refs before, descend into them and
+        -- compare contents.
+        (Nothing, Nothing) -> do
+          CyT.insertEnd r1 h1
+          CyT.insertEnd r2 h2
+          r1 <- readIORef io1
+          r2 <- readIORef io2
+          cyclicOrd h1 h2 r1 r2
+        -- We've encountered these refs before, compare the positions where
+        -- they were first encountered
+        (Just r1, Just r2) -> pure (r1 `compare` r2)
+        _ -> pure $ a `compare` b
+  cyclicOrd h1 h2 (Pure a) (Pure b) = cyclicOrd h1 h2 a b
+  cyclicOrd h1 h2 (Requested r1) (Requested r2) = cyclicOrd h1 h2 r1 r2
+  cyclicOrd h1 h2 (Cont k1) (Cont k2) = cyclicOrd h1 h2 k1 k2
+  cyclicOrd _ _ v1 v2 = pure $ constructorId v1 `compare` constructorId v2

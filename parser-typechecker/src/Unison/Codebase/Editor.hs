@@ -201,6 +201,8 @@ type ListDetailed = Bool
 
 data Output v
   = Success Input
+  | CreatedBranch BranchName
+  | SwitchedBranch BranchName
   | NoUnisonFile
   | UnknownBranch BranchName
   | RenameOutput Name Name NameChangeResult

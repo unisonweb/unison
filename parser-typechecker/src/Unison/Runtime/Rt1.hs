@@ -26,22 +26,29 @@ import Data.Word (Word64)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
+import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
+import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
+import Unison.Util.Monoid (intercalateMap)
+import qualified System.Mem.StableName as S
+import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Data.Vector.Mutable as MV
+import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Reference as R
 import qualified Unison.Runtime.IR as IR
 import qualified Unison.Term as Term
+import qualified Unison.Util.CycleTable as CT
+import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
 -- import Debug.Trace
-import Unison.Util.Monoid (intercalateMap)
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
 type IR = IR.IR ExternalFunction Continuation
@@ -94,6 +101,8 @@ appendCont v (Req r cid args k) k2 = Req r cid args (Chain v k k2)
 
 data ExternalFunction =
   ExternalFunction R.Reference (Size -> Stack -> IO Value)
+instance Eq ExternalFunction where
+  ExternalFunction r _ == ExternalFunction r2 _ = r == r2
 instance External ExternalFunction where
   decompileExternal (ExternalFunction r _) = pure $ Term.ref () r
 
@@ -133,6 +142,11 @@ att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
   v -> fail $ "type error, expecting T, got " <> show v
+
+atbs :: Size -> Z -> Stack -> IO Bytes.Bytes
+atbs size i m = at size i m >>= \case
+  Bs v -> pure v
+  v -> fail $ "type error, expecting Bytes, got: " <> show v
 
 ats :: Size -> Z -> Stack -> IO (Vector Value)
 ats size i m = at size i m >>= \case
@@ -262,6 +276,18 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
     , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Vector.length)
 
+    , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
+        Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
+    , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
+    , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
+    , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
+    , mk1 "Bytes.toSequence" atbs (pure . Sequence)
+        (\bs -> Vector.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
+    , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
+    , mk2 "Bytes.at" atn atbs pure $ \i bs ->
+      IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
+    , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
+
     , mk1 "Float.ceiling"  atf (pure . I) ceiling
     , mk1 "Float.floor"    atf (pure . I) floor
     , mk1 "Float.round"    atf (pure . I) round
@@ -280,7 +306,9 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       . Leaf
       . External
       . ExternalFunction (R.Builtin name)
-  underapply name = FormClosure (Term.ref () $ R.Builtin name) []
+  underapply name =
+    let r = Term.ref () $ R.Builtin name :: Term SymbolC
+    in FormClosure (ABT.hash r) r []
   mk1
     :: Text
     -> (Size -> Z -> Stack -> IO a)
@@ -416,7 +444,6 @@ run ioHandler env ir = do
       LtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x < y))
       LtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x <= y))
       EqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x == y))
-
       AddF i j -> do x <- atf size i m; y <- atf size j m; done (F (x + y))
       SubF i j -> do x <- atf size i m; y <- atf size j m; done (F (x - y))
       MultF i j -> do x <- atf size i m; y <- atf size j m; done (F (x * y))
@@ -426,6 +453,24 @@ run ioHandler env ir = do
       LtF i j -> do x <- atf size i m; y <- atf size j m; done (B (x < y))
       LtEqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x <= y))
       EqF i j -> do x <- atf size i m; y <- atf size j m; done (B (x == y))
+      EqU i j -> do
+        -- todo: these can be reused
+        t1 <- CT.new 8
+        t2 <- CT.new 8
+        x <- at size i m
+        y <- at size j m
+        RDone . B <$> cyclicEq t1 t2 x y
+      CompareU i j -> do
+        -- todo: these can be reused
+        t1 <- CT.new 8
+        t2 <- CT.new 8
+        x <- at size i m
+        y <- at size j m
+        o <- cyclicOrd t1 t2 x y
+        pure . RDone . I $ case o of
+          EQ -> 0
+          LT -> -1
+          GT -> 1
 
     runHandler :: Size -> Stack -> Value -> IR -> IO Result
     runHandler size m handler body =
@@ -497,7 +542,7 @@ run ioHandler env ir = do
           -- f'' 4      -- should be the same thing as `f 1 2 3 4`
           --
           -- pushedArgs = [mostRecentlyApplied, ..., firstApplied]
-          Specialize lam@(Term.LamsNamed' vs body) pushedArgs -> let
+          Specialize hash lam@(Term.LamsNamed' vs body) pushedArgs -> let
             pushedArgs' :: [ (SymbolC, Value)] -- head is the latest argument
             pushedArgs' = reverse (drop (length pushedArgs) vs `zip` argvs) ++ pushedArgs
             vsRemaining = drop (length pushedArgs') vs
@@ -505,15 +550,15 @@ run ioHandler env ir = do
               (reverse (fmap (,Nothing) vsRemaining) ++
                fmap (second Just) pushedArgs')
               body
-            in done $ Lam (arity - nargs) (Specialize lam pushedArgs') compiled
-          Specialize e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
-          FormClosure tm pushedArgs -> let
+            in done $ Lam (arity - nargs) (Specialize hash lam pushedArgs') compiled
+          Specialize _ e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
+          FormClosure hash tm pushedArgs -> let
             pushedArgs' = reverse argvs ++ pushedArgs
             arity' = arity - nargs
             allArgs = replicate arity' Nothing ++ map Just pushedArgs'
             bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
             in done $ Lam (arity - nargs)
-                       (FormClosure tm pushedArgs')
+                       (FormClosure hash tm pushedArgs')
                        (specializeIR bound body)
     call size m (Cont k) [arg] = do
       v <- at size arg m
@@ -646,3 +691,51 @@ run ioHandler env ir = do
 
 instance Show ExternalFunction where
   show _ = "ExternalFunction"
+
+instance CyclicEq ExternalFunction where
+  cyclicEq _ _ (ExternalFunction r _) (ExternalFunction r2 _) = pure (r == r2)
+
+instance CyclicOrd ExternalFunction where
+  cyclicOrd _ _ (ExternalFunction r _) (ExternalFunction r2 _) = pure (r `compare` r2)
+
+instance CyclicEq Continuation where
+  cyclicEq h1 h2 k1 k2 = do
+    n1 <- S.makeStableName k1
+    n2 <- S.makeStableName k2
+    if n1 == n2 then pure True
+    else case (k1, k2) of
+      (WrapHandler v1 k1, WrapHandler v2 k2) -> do
+        b <- cyclicEq h1 h2 v1 v2
+        if b then cyclicEq h1 h2 k1 k2
+        else pure False
+      (Chain _ k1 k2, Chain _ k1a k2a) -> do
+        b <- cyclicEq h1 h2 k1 k1a
+        if b then cyclicEq h1 h2 k2 k2a
+        else pure False
+      (One _needed1 _size1 _s1 _ir1, One _needed2 _size2 _s2 _ir2) ->
+        error "todo - fill CyclicEq Continuation"
+      _ -> pure False
+
+instance CyclicOrd Continuation where
+  cyclicOrd h1 h2 k1 k2 = do
+    n1 <- S.makeStableName k1
+    n2 <- S.makeStableName k2
+    if n1 == n2 then pure EQ
+    else case (k1, k2) of
+      (WrapHandler v1 k1, WrapHandler v2 k2) -> do
+        b <- cyclicOrd h1 h2 v1 v2
+        if b == EQ then cyclicOrd h1 h2 k1 k2
+        else pure b
+      (Chain _ k1 k2, Chain _ k1a k2a) -> do
+        b <- cyclicOrd h1 h2 k1 k1a
+        if b == EQ then cyclicOrd h1 h2 k2 k2a
+        else pure b
+      (One _needed1 _size1 _s1 _ir1, One _needed2 _size2 _s2 _ir2) ->
+        error "todo - fill CyclicOrd Continuation"
+      _ -> pure $ continuationConstructorId k1 `compare` continuationConstructorId k2
+
+continuationConstructorId :: Continuation -> Int
+continuationConstructorId k = case k of
+  One _ _ _ _ -> 0
+  Chain _ _ _ -> 1
+  WrapHandler _ _ -> 2
