@@ -51,6 +51,10 @@ atomicLogger = do
     let dummy = foldl' (\_ ch -> ch == 'a') True msg
     in dummy `seq` bracket (takeMVar lock) (\_ -> putMVar lock ()) (\_ -> putStrLn msg)
 
+expect' :: HasCallStack => Bool -> Test ()
+expect' False = crash "unexpected"
+expect' True = pure ()
+
 expect :: HasCallStack => Bool -> Test ()
 expect False = crash "unexpected"
 expect True = ok

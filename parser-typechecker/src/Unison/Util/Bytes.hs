@@ -11,12 +11,25 @@ import Data.Monoid (Sum(..))
 import Data.Word (Word8)
 import Prelude hiding (drop)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.FingerTree as T
 
+-- Bytes type represented as a finger tree of ByteStrings.
+-- Can be efficiently sliced and indexed, using the byte count
+-- annotation at each subtree.
 newtype Bytes = Bytes (T.FingerTree (Sum Int) B.ByteString)
 
 null :: Bytes -> Bool
 null (Bytes bs) = T.null bs
+
+empty :: Bytes
+empty = Bytes mempty
+
+fromByteString :: B.ByteString -> Bytes
+fromByteString b = snoc empty b
+
+toByteString :: Bytes -> B.ByteString
+toByteString b = B.concat (chunks b)
 
 size :: Bytes -> Int
 size (Bytes bs) = getSum (T.measure bs)
@@ -47,7 +60,7 @@ drop :: Int -> Bytes -> Bytes
 drop n b0@(Bytes bs) = go (T.dropUntil (> Sum n) bs) where
   go s = Bytes $ case T.viewl s of
     head T.:< tail ->
-      if T.measure tail == Sum n then s
+      if (size b0 - getSum (T.measure s)) == n then s
       else B.drop (n - (size b0 - getSum (T.measure s))) head T.<| tail
     _ -> s
 
@@ -60,7 +73,7 @@ toWord8s :: Bytes -> [Word8]
 toWord8s bs = catMaybes [ at i bs | i <- [0..(size bs - 1)] ]
 
 fromWord8s :: [Word8] -> Bytes
-fromWord8s bs = snoc mempty (B.pack bs)
+fromWord8s bs = fromByteString (B.pack bs)
 
 instance Monoid Bytes where
   mempty = Bytes mempty
@@ -73,3 +86,14 @@ instance T.Measured (Sum Int) B.ByteString where
 
 instance Show Bytes where
   show bs = show (toWord8s bs)
+
+instance Eq Bytes where
+  b1 == b2 | size b1 == size b2 = go b1 b2
+    where
+    go b1 b2 = BL.fromChunks (chunks b1) == BL.fromChunks (chunks b2)
+  _ == _ = False
+
+-- Lexicographical ordering
+instance Ord Bytes where
+  b1 `compare` b2 =
+    BL.fromChunks (chunks b1) `compare` BL.fromChunks (chunks b2)

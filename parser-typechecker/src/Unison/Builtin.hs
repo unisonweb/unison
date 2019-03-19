@@ -122,7 +122,7 @@ builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
+  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -230,6 +230,16 @@ builtins0 = Map.fromList $
       , ("Text.>=", "Text -> Text -> Boolean")
       , ("Text.<", "Text -> Text -> Boolean")
       , ("Text.>", "Text -> Text -> Boolean")
+
+      , ("Bytes.empty", "Bytes")
+      , ("Bytes.fromSequence", "[Nat] -> Bytes")
+      , ("Bytes.++", "Bytes -> Bytes -> Bytes")
+      , ("Bytes.take", "Nat -> Bytes -> Bytes")
+      , ("Bytes.drop", "Nat -> Bytes -> Bytes")
+      , ("Bytes.at", "Nat -> Bytes -> Optional Nat")
+      , ("Bytes.toSequence", "Bytes -> [Nat]")
+      , ("Bytes.size", "Bytes -> Nat")
+      , ("Bytes.flatten", "Bytes -> Bytes")
 
       , ("Sequence.empty", "[a]")
       , ("Sequence.cons", "a -> [a] -> [a]")
