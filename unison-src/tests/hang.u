@@ -1,5 +1,5 @@
 
-use Universal ==
+use Universal == <
 
 type Future a = Future ('{Remote} a)
 

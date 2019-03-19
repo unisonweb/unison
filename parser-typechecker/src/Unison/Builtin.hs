@@ -205,6 +205,18 @@ builtins0 = Map.fromList $
       , ("Float.floor", "Float -> Int")
       , ("Universal.==", "a -> a -> Boolean")
 
+      -- Universal.compare intended as a low level function that just returns
+      -- `Int` rather than some Ordering data type. If we want, later,
+      -- could provide a pure Unison wrapper for Universal.compare that
+      -- returns a proper data type.
+      --
+      -- 0 is equal, < 0 is less than, > 0 is greater than
+      , ("Universal.compare", "a -> a -> Int")
+      , ("Universal.>", "a -> a -> Boolean")
+      , ("Universal.<", "a -> a -> Boolean")
+      , ("Universal.>=", "a -> a -> Boolean")
+      , ("Universal.<=", "a -> a -> Boolean")
+
       , ("Boolean.not", "Boolean -> Boolean")
 
       , ("Text.empty", "Text")
