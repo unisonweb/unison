@@ -17,7 +17,7 @@ import           Data.Int (Int64)
 import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
-import           Prelude hiding (and, or)
+import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
@@ -204,18 +204,18 @@ boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
 placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
-vector :: Var v => TermP v -> TermP v
-vector p = f <$> reserved "[" <*> elements <*> trailing
+seq :: Var v => TermP v -> TermP v
+seq p = f <$> reserved "[" <*> elements <*> trailing
   where
     trailing = optional semi *> reserved "]"
     sep = P.try $ optional semi *> reserved "," <* optional semi
     elements = sepBy sep p
-    f open elems close = Term.vector (ann open <> ann close) elems
+    f open elems close = Term.seq (ann open <> ann close) elems
 
 termLeaf :: forall v. Var v => TermP v
 termLeaf = do
   e <- asum [hashLit, prefixTerm, text, number, boolean,
-             tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
+             tupleOrParenthesizedTerm, keywordBlock, placeholder, seq term,
              delayQuote, bang]
   q <- optional (reserved "?")
   case q of

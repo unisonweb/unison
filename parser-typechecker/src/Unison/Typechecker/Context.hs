@@ -765,7 +765,7 @@ synthesize e = scope (InSynthesize e) $
     ctx <- getContext
     (vs, ft) <- ungeneralize' ft
     scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
-  go (Term.Vector' v) = do
+  go (Term.Sequence' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     case Foldable.toList v of
       [] -> pure ft

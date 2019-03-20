@@ -1,0 +1,177 @@
+
+use Universal == < > >=
+use Optional None Some
+
+-- Sorted maps, represented as a pair of sequences
+-- Use binary search to do lookups and find insertion points
+-- This relies on the underlying sequence having efficient
+-- slicing and concatenation
+type Map k v = Map [k] [v]
+
+use Map Map
+
+namespace Search where
+
+  indexOf : a -> [a] -> Optional Nat
+  indexOf a s =
+    ao = Some a
+    Search.exact (i -> ao `compare` Sequence.at i s) 0 (size s)
+
+  lubIndexOf' : a -> Nat -> [a] -> Nat
+  lubIndexOf' a start s =
+    ao = Some a
+    Search.lub (i -> ao `compare` Sequence.at i s) start (size s)
+
+  lubIndexOf : a -> [a] -> Nat
+  lubIndexOf a s = lubIndexOf' a 0 s
+
+  lub : (Nat -> Int) -> Nat -> Nat -> Nat
+  lub hit bot top =
+    if bot >= top then top
+    else
+      mid = (bot + top) / 2
+      case hit mid of
+        +0 -> mid
+        -1 -> lub hit bot mid
+        +1 -> lub hit (mid + 1) top
+
+  exact : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+  exact hit bot top =
+    if bot >= top then None
+    else
+      mid = (bot + top) / 2
+      case hit mid of
+        +0 -> Some mid
+        -1 -> exact hit bot mid
+        +1 -> exact hit (mid + 1) top
+
+ex = [0,2,4,6,77]
+ex2 = [0,2,4,6,77,192,3838,12000]
+ex3 = [1,2,3,6,8,9,12,14,15,16,17]
+> lubIndexOf 1009 ex3
+
+-- > Sequence.map (e -> indexOf e ex) ex
+-- > Sequence.map (e -> indexOf e ex2) ex2
+-- > Sequence.map (e -> indexOf e ex2) ex3
+-- > indexOf 2 ex
+
+namespace Sequence where
+
+  map : (a -> b) -> [a] -> [b]
+  map f a =
+    go i as acc = case Sequence.at i as of
+      None -> acc
+      Some a -> go (i + 1) as (acc `snoc` f a)
+    go 0 a []
+
+  zip : [a] -> [b] -> [(a,b)]
+  zip as bs =
+    go acc i = case (at i as, at i bs) of
+      (None,_) -> acc
+      (_,None) -> acc
+      (Some a, Some b) -> go (acc `snoc` (a,b)) (i + 1)
+    go [] 0
+
+  insert : Nat -> a -> [a] -> [a]
+  insert i a as = take i as ++ [a] ++ drop i as
+
+  replace : Nat -> a -> [a] -> [a]
+  replace i a as = take i as ++ [a] ++ drop (i + 1) as
+
+  slice : Nat -> Nat -> [a] -> [a]
+  slice start stopExclusive s =
+    take (stopExclusive `Nat.drop` start) (drop start s)
+
+  unsafeAt : Nat -> [a] -> a
+  unsafeAt n as = case at n as of
+    Some a -> a
+    None -> Debug.watch "oh noes" (unsafeAt n as) -- Debug.crash "oh noes!"
+
+> m = Map.fromSequence [("hi", 1), ("bye", 2)]
+> Sequence.slice 2 8 [0,1,2,3,4,5,6,7]
+> m `union` Map.fromSequence [("hiya", 1), ("bob", 99), ("carol", 100)]
+> Map.lookup "bye" m
+
+namespace Map where
+
+  empty : Map k v
+  empty = Map [] []
+
+  singleton : k -> v -> Map k v
+  singleton k v = Map [k] [v]
+
+  fromSequence : [(k,v)] -> Map k v
+  fromSequence kvs =
+    go acc i = case Sequence.at i kvs of
+      None -> acc
+      Some (k,v) -> go (insert k v acc) (i + 1)
+    go empty 0
+
+  toSequence : Map k v -> [(k,v)]
+  toSequence m = Sequence.zip (keys m) (values m)
+
+  lookup : k -> Map k v -> Optional v
+  lookup k m = case m of
+    Map ks vs -> case indexOf k ks of
+      None -> None
+      Some i -> at i vs
+
+  insert : k -> v -> Map k v -> Map k v
+  insert k v m = case m of Map ks vs ->
+    i = lubIndexOf k ks
+    case at i ks of
+      Some k' ->
+        if k == k' then Map ks (Sequence.replace i v vs)
+        else Map (Sequence.insert i k ks) (Sequence.insert i v vs)
+      None -> Map (ks `snoc` k) (vs `snoc` v)
+
+  map : (v -> v2) -> Map k v -> Map k v2
+  map f m = Map (keys m) (Sequence.map f (values m))
+
+  union : Map k v -> Map k v -> Map k v
+  union = unionWith (_ v -> v)
+
+  unionWith : (v -> v -> v) -> Map k v -> Map k v -> Map k v
+  unionWith f m1 m2 = case (m1, m2) of (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = case (at i k1, at j k2) of
+      (None, _) -> Map (ko ++ drop j k2) (vo ++ drop j v2)
+      (_, None) -> Map (ko ++ drop i k1) (vo ++ drop i v1)
+      (Some kx, Some ky) ->
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (Sequence.unsafeAt i v1) (Sequence.unsafeAt j v2))
+        else if kx < ky then
+          i' = lubIndexOf' ky i k1
+          go i' j (ko ++ slice i i' k1) (vo ++ slice i i' v1)
+        else
+          j' = lubIndexOf' kx j k2
+          go i j' (ko ++ slice j j' k2) (vo ++ slice j j' v2)
+    go 0 0 [] []
+
+  intersect : Map k v -> Map k v -> Map k v
+  intersect = intersectWith (_ v -> v)
+
+  intersectWith : (v -> v -> v2) -> Map k v -> Map k v -> Map k v2
+  intersectWith f m1 m2 = case (m1, m2) of (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = case (at i k1, at j k2) of
+      (None, _) -> Map ko vo
+      (_, None) -> Map ko vo
+      (Some kx, Some ky) ->
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (Sequence.unsafeAt i v1) (Sequence.unsafeAt j v2))
+        else if kx < ky then
+          i' = lubIndexOf' ky i k1
+          go i' j ko vo
+        else
+          j' = lubIndexOf' kx j k2
+          go i j' ko vo
+    go 0 0 [] []
+
+  keys : Map k v -> [k]
+  keys m = case m of Map ks _ -> ks
+
+  values : Map k v -> [v]
+  values m = case m of Map _ vs -> vs

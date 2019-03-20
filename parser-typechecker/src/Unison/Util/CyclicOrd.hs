@@ -5,9 +5,11 @@
 
 module Unison.Util.CyclicOrd where
 
+import Data.Foldable (toList)
 import Data.Vector (Vector)
 import Unison.Util.CycleTable (CycleTable)
 import qualified Data.Vector as V
+import qualified Data.Sequence as S
 import qualified Unison.Util.CycleTable as CT
 
 -- Same idea as `CyclicEq`, but for ordering.
@@ -35,6 +37,9 @@ instance CyclicOrd a => CyclicOrd [a] where
   cyclicOrd _ _ [] []  = pure EQ
   cyclicOrd _ _ [] _   = pure LT
   cyclicOrd _ _ _ []   = pure GT
+
+instance CyclicOrd a => CyclicOrd (S.Seq a) where
+  cyclicOrd h1 h2 xs ys = cyclicOrd h1 h2 (toList xs) (toList ys)
 
 instance CyclicOrd a => CyclicOrd (Vector a) where
   cyclicOrd h1 h2 xs ys = go 0 h1 h2 xs ys

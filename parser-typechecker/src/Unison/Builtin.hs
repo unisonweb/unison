@@ -75,6 +75,7 @@ constructorType r =
   else error "a builtin term referenced a constructor for a non-builtin type"
   where f = (==r) . fst . snd
 
+-- todo: does this need to be refactored if we have mutually recursive decls
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
   let (v, dd) = either (error . showParseError s) id $
@@ -82,6 +83,13 @@ parseDataDeclAsBuiltin s =
       [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
   in (v, (r, const Intrinsic <$> dd'))
 
+-- Todo: These definitions and groupings of builtins are getting a little
+-- confusing.  Sort out these labrinthine definitions!
+-- We have primitive types and primitive terms, but the types of the
+-- primitive terms sometimes reference decls, and not just primitive types.
+-- Primitive types and primitive terms can be deprecated in future iterations
+-- of the typechecker and runtime, but the builtin decls don't become
+-- deprecated in the same sense.  So (to do a deprecation check on these)
 names0 :: Names
 names0 = Names.fromTypes builtinTypes
 
@@ -94,11 +102,12 @@ allTypeNames =
     <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
 
-isBuiltinTerm :: Name -> Bool
-isBuiltinTerm n = Map.member n $ Names.termNames names
+-- Is this a term (as opposed to a type)
+isBuiltinTerm :: R.Reference -> Bool
+isBuiltinTerm r = Map.member r (builtins0 @Symbol)
 
-isBuiltinType :: Name -> Bool
-isBuiltinType n = Map.member n $ Names.typeNames names
+isBuiltinType :: R.Reference -> Bool
+isBuiltinType r = elem r . fmap snd $ builtinTypes
 
 typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =

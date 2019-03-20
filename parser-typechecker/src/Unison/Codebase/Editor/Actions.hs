@@ -44,6 +44,9 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
@@ -61,6 +64,7 @@ import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
@@ -241,13 +245,10 @@ loop = do
             ok     <- eval $ SyncBranch currentBranchName' merged
             if ok
               then do
-                todo <- eval $ Todo merged
-                _    <- success
-                _    <- respond $ TodoOutput merged todo
                 currentBranch .= merged
+                checkTodo
               else respond (UnknownBranch inputBranchName)
-        TodoI ->
-          eval (Todo currentBranch') >>= respond . TodoOutput currentBranch'
+        TodoI -> checkTodo
         PropagateI -> do
           b <- eval . Propagate $ currentBranch'
           _ <- eval $ SyncBranch currentBranchName' b
@@ -260,6 +261,12 @@ loop = do
                      \_ unisonFile ->
                         eval . Execute (view currentBranch s) $
                           UF.discardTypes unisonFile
+        UpdateBuiltinsI -> do
+          modifyCurrentBranch0 updateBuiltins
+          checkTodo
+        ListEditsI -> do
+          (Branch.head -> b) <- use currentBranch
+          respond $ ListEdits b
         QuitI -> quit
        where
         success       = respond $ Success input
@@ -294,6 +301,7 @@ loop = do
           currentBranch .= branch
           currentBranchName .= branchName
           respond $ SwitchedBranch $ branchName
+      checkForBuiltinsMismatch
     quit = MaybeT $ pure Nothing
 
 eval :: Command i v a -> Action i v a
@@ -307,6 +315,68 @@ withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 
 respond :: Output v -> Action i v ()
 respond output = eval $ Notify output
+
+updateBuiltins :: Branch0 -> Branch0
+updateBuiltins b
+  -- This branch should include:
+  --   names for all refs missing from existing branch
+  --   ~~deprecations for the missing references~~
+  --   no, can't just be deprecations for the missing references,
+  --      they would never be able to come back. :-\
+  --   ok, we'll fix the story for neverending edits later;
+  --   todo: reevaluate this after that.
+  -- todo: remove deprecations for newly added terms?
+            -- what if user intentionally removed
+  = over (Branch.namespaceL . Branch.terms) (Relation.||> oldRefts)
+  . over (Branch.namespaceL . Branch.types) (Relation.||> oldRefs)
+  . over (Branch.namespaceL . Branch.terms) (<> newTerms)
+  . over (Branch.namespaceL . Branch.types) (<> newTypes)
+  . over (Branch.editedTermsL) (<> deprecatedTerms)
+  . over (Branch.editedTypesL) (<> deprecatedTypes)
+  $ b
+  where
+  newTerms =
+    (Branch.termNamespace . Branch.head) Editor.builtinBranch
+      Relation.|> (Set.map Referent.Ref newRefs)
+  newTypes =
+    (Branch.typeNamespace . Branch.head) Editor.builtinBranch
+      Relation.|> newRefs
+  deprecatedTerms =
+    Relation.fromList [ (r, TermEdit.Deprecate) | r <- toList oldRefs ]
+  deprecatedTypes =
+    Relation.fromList [ (r, TypeEdit.Deprecate) | r <- toList oldRefs ]
+
+  -- Builtin references in the "empty" branch, but not in the current branch
+  newRefs = refs Editor.builtinBranch0 `Set.difference` refs b
+  -- Builtin references in the current branch, but not in the empty branch
+  -- Todo: filter away the structural types from this list; they don't need
+  -- to be deleted.  For nominal / unique types, let's think about it?
+  oldRefts = Set.map (Referent.Ref) oldRefs
+  oldRefs = Set.fromList [r | r@(Reference.Builtin _) <- toList $ oldRefs']
+  oldRefs' = refs b `Set.difference` refs Editor.builtinBranch0
+  refs = Branch.allNamedReferences
+
+
+checkForBuiltinsMismatch :: Action i v ()
+checkForBuiltinsMismatch = do
+  b <- use currentBranch
+  when (not $ all null [new b, old b]) $
+    respond $ BustedBuiltins (new b) (old b)
+  where
+  -- Builtin references in the "empty" branch, but not in the current branch
+  new b = refs Editor.builtinBranch `Set.difference` refs b
+  -- Builtin references in the current branch, but not in the empty branch
+  -- Todo: filter away the structural types from this list; they don't need
+  -- to be deleted.  For nominal / unique types, let's think about it.
+  old b = Set.fromList [r | r@(Reference.Builtin _) <- toList $ old' b]
+  old' b = refs b `Set.difference` refs Editor.builtinBranch
+  refs = Branch.allNamedReferences . Branch.head
+
+checkTodo :: Action i v ()
+checkTodo = do
+  b <- use currentBranch
+  eval (Todo b) >>= respond . TodoOutput b
+
 
 aliasUnconflicted
   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
@@ -385,6 +455,7 @@ renameUnconflicted nameTargets oldName newName =
               mempty
             )
 
+-- todo: should this go away?
 merging :: BranchName -> Branch -> Action i v () -> Action i v ()
 merging targetBranchName b success =
   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch

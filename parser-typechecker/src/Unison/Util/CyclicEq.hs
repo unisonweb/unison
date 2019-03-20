@@ -5,8 +5,10 @@
 
 module Unison.Util.CyclicEq where
 
+import Data.Foldable (toList)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Sequence as S
 import qualified Unison.Util.CycleTable as CT
 
 {-
@@ -39,6 +41,11 @@ instance CyclicEq a => CyclicEq [a] where
   cyclicEq h1 h2 (x:xs) (y:ys) = bothEq h1 h2 x y xs ys
   cyclicEq _ _ [] [] = pure True
   cyclicEq _ _ _ _   = pure False
+
+instance CyclicEq a => CyclicEq (S.Seq a) where
+  cyclicEq h1 h2 xs ys =
+    if S.length xs == S.length ys then cyclicEq h1 h2 (toList xs) (toList ys)
+    else pure False
 
 instance CyclicEq a => CyclicEq (Vector a) where
   cyclicEq h1 h2 xs ys =

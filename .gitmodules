@@ -1,0 +1,4 @@
+[submodule "yaks/haskeline"]
+	path = yaks/haskeline
+	url = https://github.com/aryairani/haskeline.git
+	branch = topic/align-ansi-completions
