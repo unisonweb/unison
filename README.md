@@ -33,12 +33,14 @@ Still here? All right then! Let's get to it.
 
 A brief code tour
 -----
+First, checkout unison with `--recursive`:
+`git checkout --recursive https://github.com/unisonweb/unison.git`
 
-First, a bit of orientation. Here's the directory structure:
+Next, a bit of orientation. Here's the directory structure:
 
+* `editor-support/` includes some very basic and probably incomplete text edit support (read: syntax highlighting)
 * `yaks/` has subprojects for various utilties not specific to Unison (the result of ["yak-shaving"](https://en.wiktionary.org/wiki/yak_shaving)). Once mature, each of these might be moved to independent projects and published on Hackage.
-* `parser-typechecker/` has the Unison syntax tree, parser, and typechecker. Depends on `yaks/`
-* `runtime-jvm/` has the JVM based runtime
+* `parser-typechecker/` has the meat: the Unison syntax tree, parser, typechecker, and runtime. Depends on `yaks/`
 
 Building using Stack
 -----
@@ -48,10 +50,10 @@ If these instructions don't work for you or are incomplete, please file an issue
 The build uses [Stack](http://docs.haskellstack.org/). If you don't already have it installed, [follow the install instructions](http://docs.haskellstack.org/en/stable/README.html#how-to-install) for your platform.  (Hint: `brew update && brew install stack`)
 
 ```sh
-$ git clone https://github.com/unisonweb/unison.git
+$ git clone --recursive https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # we'll want to know this version if you run into trouble
-$ stack build && stack exec tests
+$ stack build && stack exec tests && stack exec unison
 ```
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
