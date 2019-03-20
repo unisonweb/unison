@@ -291,7 +291,6 @@ s <| r = fromList
   filtrar x = M.filterWithKey (\k _ -> k == x) dr
   dr = domain r  -- just to memoize the value
 
-
 -- | Range restriction for a relation. Modeled on z.
 (|>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 r |> t = fromList
@@ -301,6 +300,14 @@ r |> t = fromList
   filtrar x = M.filterWithKey (\k _ -> k == x) rr
   rr = range r   -- just to memoize the value
 
+
+-- Restrict the range to not include these `b`s
+(||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+r ||> t = fromList [ (a,b) | (a,b) <- toList r, not (b `S.member` t)]
+
+-- Restrict the domain to not include these `a`
+(<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+s <|| r = fromList [ (a,b) | (a,b) <- toList r, not (a `S.member` s)]
 
 -- Note:
 --

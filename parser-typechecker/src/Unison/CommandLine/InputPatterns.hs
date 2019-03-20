@@ -36,23 +36,75 @@ showPatternHelp i = P.lines [
      else ""),
   P.wrap $ I.help i ]
 
-validInputs :: [InputPattern]
-validInputs =
-  [ InputPattern
-      "help" ["?"] [(True, commandNameArg)]
-      "`help` shows general help and `help <cmd>` shows help for one command."
-      (\case
-        [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
-        [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
-          Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
-          Just pat -> Left $ I.help pat
-        _ -> Left $ warn "Use `help <cmd>` or `help`.")
-  , InputPattern "add" [] []
-    "`add` adds to the codebase all the definitions from the most recently typechecked file."
+-- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
+makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
+makeExample p args =
+  backtick (intercalateMap " " id (fromString (patternName p) : args))
+
+makeExample' :: InputPattern -> P.Pretty CT.ColorText
+makeExample' p = makeExample p []
+
+makeExampleEOS ::
+  InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
+makeExampleEOS p args = P.group $
+  backtick (intercalateMap " " id (fromString (patternName p) : args)) <> "."
+
+
+updateBuiltins :: InputPattern
+updateBuiltins = InputPattern "builtins.update" [] []
+  "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
+  (const . pure $ UpdateBuiltinsI)
+
+todo :: InputPattern
+todo = InputPattern "todo" [] []
+  "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
+  (\ws -> if not $ null ws
+             then Left $ warn "`todo` doesn't take any arguments."
+             else pure $ TodoI)
+
+add :: InputPattern
+add = InputPattern "add" [] []
+ "`add` adds to the codebase all the definitions from the most recently typechecked file."
+ (\ws -> if not $ null ws
+   then Left $ warn "`add` doesn't take any arguments."
+   else pure $ SlurpFileI False)
+
+view :: InputPattern
+view = InputPattern "view" [] [(False, exactDefinitionQueryArg)]
+      "`view foo` prints the definition of `foo`."
+      (pure . ShowDefinitionI E.ConsoleLocation)
+rename :: InputPattern
+rename = InputPattern "rename" ["mv"]
+    [(False, exactDefinitionQueryArg), (False, noCompletions)]
+    "`rename foo bar` renames `foo` to `bar`."
+    (\case
+      [oldName, newName] -> Right $ RenameUnconflictedI
+        allTargets
+        (fromString oldName)
+        (fromString newName)
+      _ -> Left . P.warnCallout $ P.wrap
+        "`rename` takes two arguments, like `rename oldname newname`.")
+alias :: InputPattern
+alias = InputPattern "alias" ["cp"]
+    [(False, exactDefinitionQueryArg), (False, noCompletions)]
+    "`alias foo bar` introduces `bar` with the same definition as `foo`."
+    (\case
+      [oldName, newName] -> Right $ AliasUnconflictedI
+        allTargets
+        (fromString oldName)
+        (fromString newName)
+      _ -> Left . warn $ P.wrap
+        "`alias` takes two arguments, like `alias oldname newname`."
+    )
+update :: InputPattern
+update = InputPattern "update" [] []
+    "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
     (\ws -> if not $ null ws
-      then Left $ warn "`add` doesn't take any arguments."
-      else pure $ SlurpFileI False)
-  , InputPattern "branch" [] [(True, branchArg)]
+      then Left $ warn "`update` doesn't take any arguments."
+      else pure $ SlurpFileI True
+    )
+branch :: InputPattern
+branch = InputPattern "branch" [] [(True, branchArg)]
     (P.wrapColumn2
       [ ("`branch`",      "lists all branches in the codebase.")
       , ( "`branch foo`", "switches to the branch named 'foo', creating it first if it doesn't exist.")
@@ -64,6 +116,37 @@ validInputs =
       _ -> Left . warn . P.wrap $  "Use `branch` to list all branches "
              <> "or `branch foo` to switch to or create the branch 'foo'."
     )
+
+branchDelete,replace,resolve :: InputPattern
+branchDelete = InputPattern "branch.delete" [] [(True, branchArg)]
+  "`branch.delete <foo>` deletes the branch `foo`"
+  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+replace = InputPattern "replace" []
+          [ (False, exactDefinitionQueryArg)
+          , (False, exactDefinitionQueryArg) ]
+  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace"
+    <> "uses of `foo#abc` with `foo#def`")
+  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+resolve = InputPattern "resolve" [] [(False, exactDefinitionQueryArg)]
+  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo`,"
+   <> "in cases of conflict, and begins a refactor to replace references to all"
+   <> "other `foo`s to `foo#abc`.")
+  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+
+
+validInputs :: [InputPattern]
+validInputs =
+  [ InputPattern
+      "help" ["?"] [(True, commandNameArg)]
+      "`help` shows general help and `help <cmd>` shows help for one command."
+      (\case
+        [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
+        [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
+          Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
+          Just pat -> Left $ I.help pat
+        _ -> Left $ warn "Use `help <cmd>` or `help`.")
+  , add
+  , branch
   , InputPattern "fork" [] [(False, branchArg)]
     (P.wrap
      "`fork foo` creates the branch 'foo' as a fork of the current branch.")
@@ -92,47 +175,17 @@ validInputs =
       _ -> Left . warn . P.wrap $
         "Use `merge foo` to merge the branch 'foo' into the current branch."
     )
-  , InputPattern "view" [] [(False, exactDefinitionQueryArg)]
-      "`view foo` prints the definition of `foo`."
-      (pure . ShowDefinitionI E.ConsoleLocation)
+  , view
   , InputPattern "edit" [] [(False, exactDefinitionQueryArg)]
       "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
       (pure . ShowDefinitionI E.LatestFileLocation)
-  , InputPattern "rename" ["mv"]
-    [(False, exactDefinitionQueryArg), (False, noCompletions)]
-    "`rename foo bar` renames `foo` to `bar`."
-    (\case
-      [oldName, newName] -> Right $ RenameUnconflictedI
-        allTargets
-        (fromString oldName)
-        (fromString newName)
-      _ -> Left . P.warnCallout $ P.wrap
-        "`rename` takes two arguments, like `rename oldname newname`.")
-  , InputPattern "alias" ["cp"]
-    [(False, exactDefinitionQueryArg), (False, noCompletions)]
-    "`alias foo bar` introduces `bar` with the same definition as `foo`."
-    (\case
-      [oldName, newName] -> Right $ AliasUnconflictedI
-        allTargets
-        (fromString oldName)
-        (fromString newName)
-      _ -> Left . warn $ P.wrap
-        "`alias` takes two arguments, like `alias oldname newname`."
-    )
-  , InputPattern "update" [] []
-    "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
-    (\ws -> if not $ null ws
-      then Left $ warn "`update` doesn't take any arguments."
-      else pure $ SlurpFileI True
-    )
+  , rename
+  , alias
+  , update
   , InputPattern "propagate" [] []
     "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
     (const $ pure PropagateI)
-  , InputPattern "todo" [] []
-    "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
-    (\ws -> if not $ null ws
-               then Left $ warn "`todo` doesn't take any arguments."
-               else pure $ TodoI)
+  , todo
   , InputPattern "execute" [] [(True, noCompletions)]
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
     (\ws -> if null ws
@@ -144,9 +197,14 @@ validInputs =
         [] -> pure QuitI
         _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
       )
+  , updateBuiltins
+  , InputPattern "edit.list" [] []
+      "Lists all the edits in the current branch."
+      (const . pure $ ListEditsI)
   ]
-  where
-  allTargets = Set.fromList [Names.TermName, Names.TypeName]
+
+allTargets :: Set.Set Names.NameTarget
+allTargets = Set.fromList [Names.TermName, Names.TypeName]
 
 commandNames :: [String]
 commandNames = patternName <$> validInputs
