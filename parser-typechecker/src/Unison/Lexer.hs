@@ -281,6 +281,10 @@ lexer0 scope rem =
         | (op == '\'' || op == '!')
         && (isSpace c || isAlphaNum c || Set.member c delimiters) ->
           Token (Reserved [op]) pos (inc pos) : goWhitespace l (inc pos) rem
+      c1 : c2 : rem@(c3 : _)
+        | isSpace c3 && Set.member [c1, c2] seqOps ->
+          let op = [c1, c2]
+          in Token (Reserved op) pos (incBy op pos) : goWhitespace l (inc pos) rem
       ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
         Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
       '@' : rem ->
@@ -307,6 +311,7 @@ lexer0 scope rem =
                 Token (Open "->") pos end : pushLayout "->" l end rem
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
+
       -- string literals and backticked identifiers
       '"' : rem -> case splitStringLit rem of
         Right (delta, lit, rem) -> let end = pos <> delta in
@@ -514,6 +519,9 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?"
+
+seqOps :: Set String
+seqOps = Set.fromList ["+:", ":+", "++"]
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

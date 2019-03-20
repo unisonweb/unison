@@ -528,7 +528,7 @@ compile0 env bound t =
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
-        Pattern.Sequence ps -> PatternSequence (compilePattern <$> ps)
+        Pattern.SequenceLiteral ps -> PatternSequence (compilePattern <$> ps)
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO

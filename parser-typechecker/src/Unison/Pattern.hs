@@ -60,7 +60,7 @@ instance Show (PatternP loc) where
   show (EffectBindP _ r i ps k) =
     "EffectBind " <> intercalate " " [show r, show i, show ps, show k]
   show (SequenceLiteralP _ ps) = "Sequence " <> intercalate ", " (fmap show ps)
-  show (SequenceUnconsP _ ph pt) = "Vector " <> show ph <> " +: " <> show pt
+  show (SequenceUnconsP _ ph pt) = "Sequence " <> show ph <> " +: " <> show pt
 
 loc :: PatternP loc -> loc
 loc p = head $ Foldable.toList p
@@ -86,8 +86,8 @@ pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
 pattern EffectBind r cid ps k = EffectBindP () r cid ps k
-pattern Sequence ps = SequenceLiteralP () ps
-pattern VectorUncons ph pt = SequenceUnconsP () ph pt
+pattern SequenceLiteral ps = SequenceLiteralP () ps
+pattern SequenceUncons ph pt = SequenceUnconsP () ph pt
 
 instance H.Hashable (PatternP p) where
   tokens (UnboundP _) = [H.Tag 0]
