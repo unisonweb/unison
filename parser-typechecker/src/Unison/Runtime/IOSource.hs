@@ -184,17 +184,12 @@ type BufferMode = Line | Block (Optional Nat)
 type EpochTime = EpochTime Nat
 
 -- Either a host name e.g., "unisonweb.org" or a numeric host address
--- string consisting of a dotted decimal IPv4 address or an IPv6 address
+-- string consisting of a dotted decimal IPv4 address
 -- e.g., "192.168.0.1".
 type HostName = HostName Text
 
-type PortNumber = Nat
-
--- Represents a 32-bit host address
-type HostAddress = HostAddress Int
-
--- Internet protocol v4 socket address
-type SocketAddress = SocketAddress HostAddress PortNumber
+-- For example a port number like "8080"
+type ServiceName = ServiceName Text
 
 ability IO where
 
@@ -254,32 +249,36 @@ ability IO where
   getFileSize : FilePath ->{IO} (Either IOError Nat)
 
 
-  -- Network I/O
+  -- Simple TCP Networking
 
-  -- Glossing over address families (ipv4, ipv6),
-  -- and socket types (stream, raw, etc)
+  -- Create a socket bound to the given local address.
+  -- If a hostname is not given, this will use any available host.
+  serverSocket : Optional HostName ->
+                 ServiceName -> {IO} (Either IOError Socket)
+  -- Start listening for connections
+  listen : Socket ->{IO} ()
 
-  -- Creates a socket and binds it to a the given local port
-  serverSocket : SocketAddress -> {IO} (Either IOError Socket)
+  -- Create a socket connected to the given remote address
+  clientSocket : HostName ->
+                 ServiceName ->{IO} (Either IOError Socket)
 
-  -- Creates a socket connected to the given remote address
-  clientSocket : SocketAddress -> {IO} (Either IOError Socket)
-
-  socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
-  handleToSocket : Handle ->{IO} (Either IOError Socket)
   closeSocket : Socket ->{IO} (Either IOError ())
+
+  --socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
+  --handleToSocket : Handle ->{IO} (Either IOError Socket)
 
   -- Accept a connection on a socket.
   -- Returns a socket that can send and receive data on a new connection,
   -- together with the remote host information.
-  accept : Socket ->{IO} Either IOError (Socket, SocketAddress)
+  accept : Socket ->{IO} (Either IOError Socket)
 
   -- Returns the number of bytes actually sent
-  -- send : Socket -> Bytes ->{IO} Int
+  send : Socket -> Bytes ->{IO} (Either IOError ())
+
+  -- Read the spefified number of bytes from the socket.
+  receive : Socket -> Int ->{IO} (Either IOError Bytes)
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int
 
-  -- Read the spefified number of bytes from the socket.
-  -- receive : Socket -> Int ->{IO} Bytes
 |]

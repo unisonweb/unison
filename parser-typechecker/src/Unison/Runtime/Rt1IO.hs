@@ -7,7 +7,10 @@
 
 module Unison.Runtime.Rt1IO where
 
-import           Control.Exception              ( try, throwIO, Exception )
+import           Control.Exception              ( try
+                                                , throwIO
+                                                , Exception
+                                                )
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
                                                 , readMVar
@@ -24,14 +27,18 @@ import           Control.Monad.Except           ( ExceptT(..)
                                                 , runExceptT
                                                 , throwError
                                                 )
+import           Data.Bifunctor                 ( first
+                                                , second
+                                                )
+import           Data.Foldable                  ( traverse_ )
 import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
-import           Data.Int                       ( Int64 )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
+import qualified Network.Simple.TCP            as Net
 import           System.IO                      ( Handle
                                                 , IOMode(..)
                                                 , SeekMode(..)
@@ -51,6 +58,7 @@ import           System.IO                      ( Handle
 import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
 import qualified Unison.Codebase.CodeLookup    as CL
+import           Unison.DataDeclaration        as DD
 import           Unison.Symbol
 import qualified Unison.Reference              as R
 import qualified Unison.Runtime.Rt1            as RT
@@ -69,10 +77,11 @@ data UnisonRuntimeException = UnisonRuntimeException Text
 instance Exception UnisonRuntimeException
 
 type GUID = Text
-type IOState = MVar HandleMap
+type IOState = MVar (HandleMap, SocketMap)
 
 type UIO ann a = ExceptT IOError (ReaderT (S ann) IO) a
 type HandleMap = Map GUID Handle
+type SocketMap = Map GUID Net.Socket
 
 data S a = S { _ioState :: IOState }
 
@@ -90,22 +99,38 @@ newUnisonHandle :: Handle -> UIO a RT.Value
 newUnisonHandle h = do
   t <- liftIO $ genText
   m <- view ioState
-  liftIO . modifyMVar_ m $ pure . Map.insert t h
+  liftIO . modifyMVar_ m $ pure . first (Map.insert t h)
+  pure $ IR.T t
+
+newUnisonSocket :: Net.Socket -> UIO a RT.Value
+newUnisonSocket s = do
+  t <- liftIO $ genText
+  m <- view ioState
+  liftIO . modifyMVar_ m $ pure . second (Map.insert t s)
   pure $ IR.T t
 
 deleteUnisonHandle :: Text -> UIO a ()
 deleteUnisonHandle h = do
-  m <- view ioState
-  liftIO . modifyMVar_ m $ pure . Map.delete h
+  m <- view $ ioState
+  liftIO . modifyMVar_ m $ pure . first (Map.delete h)
 
 getHaskellHandle :: Text -> UIO a (Maybe Handle)
 getHaskellHandle h = do
-  m <- view ioState
+  m <- view $ ioState
   v <- liftIO $ readMVar m
-  pure $ Map.lookup h v
+  pure . Map.lookup h $ fst v
 
 getHaskellHandleOrThrow :: Text -> UIO a Handle
 getHaskellHandleOrThrow h = getHaskellHandle h >>= maybe throwHandleClosed pure
+
+getHaskellSocket :: Text -> UIO a (Maybe Net.Socket)
+getHaskellSocket s = do
+  m <- view $ ioState
+  v <- liftIO $ readMVar m
+  pure . Map.lookup s $ snd v
+
+getHaskellSocketOrThrow :: Text -> UIO a Net.Socket
+getHaskellSocketOrThrow s = getHaskellSocket s >>= maybe throwSocketClosed pure
 
 constructLeft :: RT.Value -> RT.Value
 constructLeft v = IR.Data IOSrc.eitherReference IOSrc.eitherLeftId [v]
@@ -120,8 +145,11 @@ constructNone :: RT.Value
 constructNone = IR.Data IOSrc.optionReference IOSrc.noneId []
 
 convertMaybe :: Maybe (RT.Value) -> RT.Value
-convertMaybe Nothing = constructNone
+convertMaybe Nothing  = constructNone
 convertMaybe (Just v) = constructSome v
+
+constructPair :: RT.Value -> RT.Value -> RT.Value
+constructPair a b = IR.Data DD.pairRef 0 [a, b]
 
 convertErrorType :: IOError -> IR.ConstructorId
 convertErrorType (SysError.ioeGetErrorType -> e)
@@ -140,6 +168,12 @@ haskellSeekMode mode = case mode of
   "SeekMode.Relative" -> RelativeSeek
   "SeekMode.FromEnd"  -> SeekFromEnd
   _                   -> error . Text.unpack $ "Unknown seek mode " <> mode
+
+hostPreference :: [RT.Value] -> Net.HostPreference
+hostPreference []                        = Net.HostAny
+hostPreference [IR.Data _ _ [IR.T host]] = Net.Host $ Text.unpack host
+hostPreference x =
+  error $ "Runtime bug! Not a valid host preference: " <> show x
 
 constructIoError :: IOError -> RT.Value
 constructIoError e = IR.Data
@@ -162,11 +196,14 @@ reraiseIO :: IO a -> UIO x a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a
 
 throwHandleClosed :: UIO x a
-throwHandleClosed = throwError $ SysError.mkIOError
-  SysError.illegalOperationErrorType
-  "handle is closed"
-  Nothing
-  Nothing
+throwHandleClosed = throwError $ illegalOperation "handle is closed"
+
+throwSocketClosed :: UIO x a
+throwSocketClosed = throwError $ illegalOperation "socket is closed"
+
+illegalOperation :: String -> IOError
+illegalOperation msg =
+  SysError.mkIOError SysError.illegalOperationErrorType msg Nothing Nothing
 
 handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
 handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
@@ -214,6 +251,21 @@ handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
     hh  <- getHaskellHandleOrThrow handle
     pos <- reraiseIO $ hTell hh
     pure . IR.I $ fromIntegral pos
+  go "IO.serverSocket" [IR.Data _ _ mayHost, IR.Data _ _ [IR.T port]] = do
+    (s, _) <- reraiseIO
+      $ Net.bindSock (hostPreference mayHost) (Text.unpack port)
+    newUnisonSocket s
+  go "IO.listen" [IR.Data _ _ [IR.T socket]] = do
+    hs <- getHaskellSocketOrThrow socket
+    reraiseIO $ Net.listenSock hs 2048
+    pure $ IR.unit
+  go "IO.clientSocket" [IR.Data _ _ [IR.T host], IR.Data _ _ [IR.T port]] = do
+    (s, _) <- reraiseIO . Net.connectSock (Text.unpack host) $ Text.unpack port
+    newUnisonSocket s
+  go "IO.closeSocket" [IR.Data _ _ [IR.T socket]] = do
+    hs <- getHaskellSocket socket
+    reraiseIO $ traverse_ Net.closeSock hs
+    pure IR.unit
   go a b =
     error
       $  "IO handler called with unimplemented cid "
@@ -235,7 +287,9 @@ runtime = Runtime terminate eval
     -- traceM $ Pretty.render 80 (prettyTop mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
     mmap <- newMVar
-      $ Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)]
+      ( Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)]
+      , Map.empty
+      )
     RT.RDone result <- RT.run (handleIO' $ S mmap)
                               cenv
                               (IR.compile cenv $ Term.amap (const ()) term)

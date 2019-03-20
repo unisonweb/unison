@@ -160,6 +160,7 @@ library
     murmur-hash,
     mutable-containers,
     network,
+    network-simple,
     process,
     megaparsec,
     prelude-extras,
