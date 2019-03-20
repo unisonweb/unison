@@ -20,11 +20,13 @@ import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..))
 import           Data.Foldable                  ( foldl'
                                                 , toList
+                                                , traverse_
                                                 )
-import           Data.Maybe                     ( catMaybes, fromMaybe )
+import           Data.Maybe                     ( catMaybes, fromMaybe, fromJust )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
+import           Data.Tuple.Extra               ((&&&))
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.ABT as ABT
@@ -44,6 +46,8 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
+import           Unison.Codebase.SearchResult  (SearchResult)
+import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.DataDeclaration        as DD
@@ -65,7 +69,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
--- import Debug.Trace
+import Debug.Trace
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -77,14 +81,16 @@ data LoopState v
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
-      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann) }
+      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
+      , _lastInput :: Maybe Input
+      }
 
 type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
 loopState0 :: Branch -> BranchName -> LoopState v
-loopState0 b bn = LoopState b bn Nothing Nothing
+loopState0 b bn = LoopState b bn Nothing Nothing Nothing
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
@@ -247,6 +253,17 @@ loop = do
                 currentBranch .= merged
                 checkTodo
               else respond (UnknownBranch inputBranchName)
+        DeleteBranchI branchNames ->
+          withBranches branchNames $ \bnbs -> do
+          uniqueToDelete <- prettyUniqueDefinitions bnbs
+          let deleteBranches = traverse_ (eval . DeleteBranch)
+          if (currentBranchName' `elem` branchNames) then
+                  respond DeletingCurrentBranch
+          else if null uniqueToDelete then deleteBranches branchNames
+          else ifM (confirmedCommand input)
+                   (deleteBranches branchNames)
+                   (respond . DeleteBranchConfirmation $ uniqueToDelete)
+
         TodoI -> checkTodo
         PropagateI -> do
           b <- eval . Propagate $ currentBranch'
@@ -270,6 +287,9 @@ loop = do
        where
         success       = respond $ Success input
         outputSuccess = eval . Notify $ Success input
+    case e of
+      Right input -> lastInput .= Just input
+      _ -> pure ()
    where
     doMerge branchName b = do
       updated <- eval $ SyncBranch branchName b
@@ -306,14 +326,68 @@ loop = do
 eval :: Command i v a -> Action i v a
 eval = lift . lift . Free.eval
 
+confirmedCommand :: Input -> Action i v Bool
+confirmedCommand i = do
+  i0 <- use lastInput
+  pure $ Just i == i0
+
 loadBranch :: BranchName -> Action i v (Maybe Branch)
 loadBranch = eval . LoadBranch
 
 withBranch :: BranchName -> (Branch -> Action i v ()) -> Action i v ()
 withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 
+withBranches :: [BranchName] -> ([(BranchName, Branch)] -> Action i v ()) -> Action i v ()
+withBranches branchNames f = do
+  branches :: [Maybe Branch] <- traverse (eval . LoadBranch) branchNames
+  if any null branches
+  then traverse_ (respond . UnknownBranch)
+          [name | (name, Nothing) <- branchNames `zip` branches]
+  else f (branchNames `zip` fmap fromJust branches)
+
 respond :: Output v -> Action i v ()
 respond output = eval $ Notify output
+
+-- Collects the definitions that are not named in any branch outside the inputs.
+-- It collects all the references within the branches that *aren't* specified,
+-- and then reports if the branches that *are* specified contain any references
+-- that don't exist anywhere else.
+prettyUniqueDefinitions :: forall i v.
+  [(BranchName, Branch)] -> Action i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
+
+-- prettyUniqueDefinitions = error "todo"
+prettyUniqueDefinitions queryBNBs = do
+    let (branchNames, _) = unzip queryBNBs
+    otherBranchNames <- filter (`notElem` branchNames) <$> eval ListBranches
+    otherKnownReferences :: Set Reference <-
+      Set.filter derived
+        . mconcat
+        . fmap (Branch.allNamedReferences . Branch.head)
+        . ((Editor.builtinBranch):) -- remember to not care about builtins
+        . catMaybes
+        <$> traverse loadBranch otherBranchNames
+    (traverse . traverse) -- traverse over `[]` and `(BranchName,)`
+      (sequence -- over (PPE,)
+        . go (traceShowId otherKnownReferences)
+        . Branch.head)
+      queryBNBs
+  where
+  go :: Set Reference
+     -> Branch0
+     -> (PPE.PrettyPrintEnv, Action i v [Editor.SearchResult' v Ann])
+  go known =
+    Branch.prettyPrintEnv &&& eval . LoadSearchResults . pickResults known
+  derived = \case
+    Reference.DerivedId _ -> True
+    _ -> False
+  pickResults :: Set Reference -> Branch0 -> [SearchResult]
+  pickResults known = filter (unknownNonCon known) . Branch.asSearchResults
+  unknownNonCon :: Set Reference -> SearchResult -> Bool
+  unknownNonCon known = \case
+    SR.Tp' _ r _ -> Set.member r known
+    SR.Tm' _ (Referent.Ref r) _ -> Set.member r known
+    SR.Tm' _ (Referent.Con _ _) _ -> False
+    _ -> error "impossible, the pattern above should be complete"
 
 updateBuiltins :: Branch0 -> Branch0
 updateBuiltins b

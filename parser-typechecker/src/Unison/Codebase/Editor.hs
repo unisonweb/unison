@@ -157,20 +157,22 @@ data Input
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
+  | DeleteBranchI [BranchName]
   | ShowDefinitionI OutputLocation [String]
   | TodoI
   | PropagateI
   | UpdateBuiltinsI
   | ListEditsI
   | QuitI
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
   = ConsoleLocation
   | LatestFileLocation
-  | FileLocation FilePath deriving Show
+  | FileLocation FilePath
   -- ClipboardLocation
+  deriving (Eq, Show)
 
 
 -- Whether or not updates are allowed during file slurping
@@ -213,6 +215,9 @@ data Output v
   -- `name` refers to more than one `nameTarget`
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
+  | DeletingCurrentBranch
+  | DeleteBranchConfirmation
+      [(BranchName, (PPE.PrettyPrintEnv, [SearchResult' v Ann]))]
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
@@ -352,6 +357,8 @@ data Command i v a where
   --           this input branch without triggering a new branch file event?
   SyncBranch :: BranchName -> Branch -> Command i v Bool
 
+  DeleteBranch :: BranchName -> Command i v ()
+
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
   -- * A name with more than one referent.
@@ -367,6 +374,8 @@ data Command i v a where
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+
+  LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
   Todo :: Branch -> Command i v (TodoOutput v Ann)
 
@@ -706,8 +715,10 @@ commandLine awaitInput rt notifyUser codebase command = do
       in loadSearchResults codebase $ case searchMode of
         ExactSearch -> Branch.searchBranch branch exactNameDistance queries
         FuzzySearch -> Branch.searchBranch branch fuzzyNameDistance queries
+    DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
+    LoadSearchResults results -> loadSearchResults codebase results
     Todo b -> doTodo codebase (Branch.head b)
     Propagate b -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
