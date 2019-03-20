@@ -106,7 +106,7 @@ serializeTerm x = do
         putWord8 6
         serializeBoolean b
         incPosition
-      Vector v -> do
+      Sequence v -> do
         elementPositions <- traverse serializeTerm v
         putTag
         putWord8 7

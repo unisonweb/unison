@@ -21,7 +21,7 @@ import Data.Int (Int64)
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Traversable (for)
-import Data.Vector (Vector)
+import Data.Sequence (Seq)
 import Data.Word (Word64)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
@@ -34,7 +34,7 @@ import qualified Data.ByteString as BS
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Vector as Vector
+import qualified Data.Sequence as Sequence
 import qualified Data.Vector.Mutable as MV
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
@@ -148,7 +148,7 @@ atbs size i m = at size i m >>= \case
   Bs v -> pure v
   v -> fail $ "type error, expecting Bytes, got: " <> show v
 
-ats :: Size -> Z -> Stack -> IO (Vector Value)
+ats :: Size -> Z -> Stack -> IO (Seq Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
   v -> fail $ "type error, expecting Sequence, got: " <> show v
@@ -267,14 +267,14 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
 
     , mk2 "Sequence.at" atn ats (pure . IR.maybeToOptional)
-      $ flip (Vector.!?)
+      $ Sequence.lookup
       . fromIntegral
-    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Vector.cons)
-    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Vector.snoc)
-    , mk2 "Sequence.take" atn ats (pure . Sequence) (Vector.take . fromIntegral)
-    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Vector.drop . fromIntegral)
+    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Sequence.<|)
+    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Sequence.|>)
+    , mk2 "Sequence.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
+    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
     , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
-    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Vector.length)
+    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Sequence.length)
 
     , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
         Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
@@ -282,7 +282,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
     , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
     , mk1 "Bytes.toSequence" atbs (pure . Sequence)
-        (\bs -> Vector.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
+        (\bs -> Sequence.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
     , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
     , mk2 "Bytes.at" atn atbs pure $ \i bs ->
       IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
@@ -393,7 +393,7 @@ run ioHandler env ir = do
         e@RMatchFail -> error $ show e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
-        done . Sequence . Vector.fromList =<< traverse (\i -> at size i m) vs
+        done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
       Construct r cid args ->
         done . Data r cid =<< traverse (\i -> at size i m) args
       Request r cid args ->

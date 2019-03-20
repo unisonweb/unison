@@ -24,8 +24,8 @@ import           Data.Set (Set, union)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Vector (Vector)
-import qualified Data.Vector as Vector
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Sequence
 import           Data.Word (Word64)
 import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
@@ -71,7 +71,7 @@ data F typeVar typeAnn patternAnn a
   | Handle a a
   | App a a
   | Ann a (Type.AnnotatedType typeVar typeAnn)
-  | Vector (Vector a)
+  | Sequence (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -227,7 +227,7 @@ pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
 -- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
-pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
+pattern Sequence' xs <- (ABT.out -> ABT.Tm (Sequence xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
@@ -320,11 +320,11 @@ and a x y = ABT.tm' a (And x y)
 or :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 or a x y = ABT.tm' a (Or x y)
 
-vector :: Ord v => a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
-vector a es = vector' a (Vector.fromList es)
+seq :: Ord v => a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
+seq a es = seq' a (Sequence.fromList es)
 
-vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
-vector' a es = ABT.tm' a (Vector es)
+seq' :: Ord v => a -> Seq (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
+seq' a es = ABT.tm' a (Sequence es)
 
 apps :: Ord v => AnnotatedTerm2 vt at ap v a -> [(a, AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a
 apps f = foldl' (\f (a,t) -> app a f t) f
@@ -581,7 +581,7 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
   f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
   f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
-  f t@(Vector _)  = Writer.tell [Type.vectorRef] *> pure t
+  f t@(Sequence _) = Writer.tell [Type.vectorRef] *> pure t
   f t             = pure t
 
 referencedDataDeclarations
@@ -742,9 +742,9 @@ instance Var v => Hashable1 (F v a p) where
                     error "handled above, but GHC can't figure this out"
                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-                  Vector as -> tag 5 : varint (Vector.length as) : map
+                  Sequence as -> tag 5 : varint (Sequence.length as) : map
                     (hashed . hash)
-                    (Vector.toList as)
+                    (toList as)
                   Lam a         -> [tag 6, hashed (hash a)]
                   -- note: we use `hashCycle` to ensure result is independent of
                   -- let binding order
@@ -788,7 +788,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
-  Vector v == Vector v2 = v == v2
+  Sequence v == Sequence v2 = v == v2
   If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
   And a b == And a2 b2 = a == a2 && b == b2
   Or a b == Or a2 b2 = a == a2 && b == b2
@@ -812,7 +812,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s ":" <> showsPrec 0 k
     go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
     go _ (Lam    body  ) = showParen True (s "λ " <> showsPrec 0 body)
-    go _ (Vector vs    ) = showListWith (showsPrec 0) (Vector.toList vs)
+    go _ (Sequence vs    ) = showListWith (showsPrec 0) (toList vs)
     go _ (Blank  b     ) = case b of
       B.Blank                        -> s "_"
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
