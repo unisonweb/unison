@@ -11,7 +11,7 @@ module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, minimizeCyclesOr
 import Data.Bifunctor (second)
 import Data.Foldable hiding (and,or)
 import Data.List hiding (and,or)
-import Prelude hiding (abs,and,or)
+import Prelude hiding (abs,and,or,seq)
 import Unison.Term
 import Unison.Var (Var)
 import Data.Set (Set)
@@ -163,8 +163,8 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go (Let1Named' v b e) = let1' False [(v, go b)] (go e)
   -- top = False because we don't care to emit typechecker notes about TLDs
   go (LetRecNamed' bs e) = letRec' False (fmap (second go) bs) (go e)
-  go e@(Vector' vs) =
+  go e@(Sequence' vs) =
     if all isLeaf vs then e
-    else fixup (ABT.freeVars e) (vector (ann e)) (toList vs)
+    else fixup (ABT.freeVars e) (seq (ann e)) (toList vs)
   go e@(Ann' tm typ) = Term.ann (ann e) (go tm) typ
   go e = error $ "ANF.term: I thought we got all of these\n" <> show e

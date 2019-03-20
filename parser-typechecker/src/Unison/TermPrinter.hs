@@ -164,7 +164,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal) x <> l "?"
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ l "'" <> pretty n (ac 11 Normal) x
-    Vector' xs -> PP.group $
+    Sequence' xs -> PP.group $
       "[" <> optSpace
           <> intercalateMap ("," <> PP.softbreak <> optSpace)
                             (pretty n (ac 0 Normal))

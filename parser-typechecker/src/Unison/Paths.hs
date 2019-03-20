@@ -5,13 +5,12 @@ module Unison.Paths where
 
 import Data.List
 import Data.Maybe
-import Data.Vector ((//))
 import GHC.Generics
 import Unison.ABT (V)
 import Unison.Term (Term)
 import Unison.Type (Type)
 import Unison.Var (Var)
-import qualified Data.Vector as Vector
+import qualified Data.Sequence as Sequence
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as E
 import qualified Unison.Type as T
@@ -97,9 +96,9 @@ focus1 e = ABT.Path go'
     )
   go Bound (Type (T.ForallNamed' v body)) = Just
     (Var v, \v -> Type <$> (T.forall () <$> asVar v <*> pure (wt body)), [])
-  go (Index i) (Term (E.Vector' vs)) | i < Vector.length vs && i >= 0 = Just
-    ( Term (vs `Vector.unsafeIndex` i)
-    , \e -> (\e -> Term $ E.vector' () $ fmap w vs // [(i, e)]) <$> asTerm e
+  go (Index i) (Term (E.Sequence' vs)) | i < Sequence.length vs && i >= 0 = Just
+    ( Term (vs `Sequence.index` i)
+    , \e -> (\e -> Term $ E.seq' () $ Sequence.update i e (fmap w vs)) <$> asTerm e
     , []
     )
   go (Binding i) (Term (E.Let1NamedTop' top v b body)) | i <= 0 = Just
@@ -165,11 +164,11 @@ insertTerm at ctx = do
   let at' = init at
   (parent,set,_) <- focus at' (Term ctx)
   case parent of
-    Term (E.Vector' vs) -> do
+    Term (E.Sequence' vs) -> do
       i <- listToMaybe [i | Index i <- [last at]]
-      let v2 = E.vector'() ((E.vmap ABT.Bound <$> Vector.take (i+1) vs) `mappend`
-                          Vector.singleton (E.blank ()) `mappend`
-                          (E.vmap ABT.Bound <$> Vector.drop (i+1) vs))
+      let v2 = E.seq'() ((E.vmap ABT.Bound <$> Sequence.take (i+1) vs) `mappend`
+                          pure (E.blank ()) `mappend`
+                          (E.vmap ABT.Bound <$> Sequence.drop (i+1) vs))
       asTerm =<< set (Term v2)
     _ -> Nothing -- todo - allow other types of insertions, like \x -> y to \x x2 -> y
 

@@ -36,7 +36,7 @@ import Unison.Util.Monoid (intercalateMap)
 import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Vector as Vector
+import qualified Data.Sequence as Sequence
 import qualified Unison.ABT as ABT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Pattern as Pattern
@@ -89,7 +89,7 @@ data Value e cont
   = I Int64 | F Double | N Word64 | B Bool | T Text | Bs Bytes.Bytes
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
-  | Sequence (Vector (Value e cont))
+  | Sequence (Sequence.Seq (Value e cont))
   | Ref RefID Symbol (IORef (Value e cont))
   | Pure (Value e cont)
   | Requested (Req e cont)
@@ -471,7 +471,7 @@ compile0 env bound t =
     Term.If' cond ifT ifF -> If (toZ "cond" t cond) (go ifT) (go ifF)
     Term.Var' _ -> Leaf $ toZ "var" t t
     Term.Ref' (toIR env -> Just ir) -> ir
-    Term.Vector' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
+    Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
               <> (CT.toPlain . P.render 80 . TP.prettyTop mempty $ void t)
     where
@@ -551,13 +551,13 @@ decompileImpl v = case v of
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
   Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
-    bsv = Term.vector'() . Vector.fromList $
+    bsv = Term.seq'() . Sequence.fromList $
             [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
   Lam _ f _ -> decompileUnderapplied f
   Data r cid args ->
     Term.apps' <$> pure (Term.constructor() r cid)
                <*> traverse decompileImpl (toList args)
-  Sequence vs -> Term.vector' () <$> traverse decompileImpl vs
+  Sequence vs -> Term.seq' () <$> traverse decompileImpl vs
   Ref id symbol ioref -> do
     seen <- gets snd
     symbol <- pure $ Var.freshenId (fromIntegral id) symbol
@@ -698,7 +698,7 @@ decompileIR stack = \case
     body' <- decompileIR stack' body
     pure $ Term.letRec' False bs' body'
   MakeSequence args ->
-    Term.vector() <$> traverse decompileZ args
+    Term.seq() <$> traverse decompileZ args
   Apply lam args ->
     Term.apps' <$> decompileIR stack lam <*> traverse decompileZ args
   Construct r cid args ->
