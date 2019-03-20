@@ -46,7 +46,6 @@ import           Unison.Codebase.Editor         ( Command(..)
 import qualified Unison.Codebase.Editor        as Editor
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
