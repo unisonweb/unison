@@ -69,7 +69,6 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
@@ -157,20 +156,22 @@ data Input
   | SwitchBranchI BranchName
   | ForkBranchI BranchName
   | MergeBranchI BranchName
+  | DeleteBranchI [BranchName]
   | ShowDefinitionI OutputLocation [String]
   | TodoI
   | PropagateI
   | UpdateBuiltinsI
   | ListEditsI
   | QuitI
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
   = ConsoleLocation
   | LatestFileLocation
-  | FileLocation FilePath deriving Show
+  | FileLocation FilePath
   -- ClipboardLocation
+  deriving (Eq, Show)
 
 
 -- Whether or not updates are allowed during file slurping
@@ -213,6 +214,9 @@ data Output v
   -- `name` refers to more than one `nameTarget`
   | ConflictedName BranchName NameTarget Name
   | BranchAlreadyExists BranchName
+  | DeletingCurrentBranch
+  | DeleteBranchConfirmation
+      [(BranchName, (PPE.PrettyPrintEnv, [SearchResult' v Ann]))]
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)
@@ -352,21 +356,19 @@ data Command i v a where
   --           this input branch without triggering a new branch file event?
   SyncBranch :: BranchName -> Branch -> Command i v Bool
 
+  DeleteBranch :: BranchName -> Command i v ()
+
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
   -- * A name with more than one referent.
   -- *
   GetConflicts :: Branch -> Command i v Branch0
 
-  -- Return a list of definitions whose names fuzzy match the given queries.
-  SearchBranch ::
-    Branch -> [HashQualified] -> SearchMode -> Command i v [SearchResult' v Ann]
-
-  ListBranch :: Branch -> Command i v [SearchResult' v Ann]
-
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+
+  LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
   Todo :: Branch -> Command i v (TodoOutput v Ann)
 
@@ -693,21 +695,10 @@ commandLine awaitInput rt notifyUser codebase command = do
     NewBranch  branch branchName      -> newBranch codebase branch branchName
     SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
-    ListBranch (Branch.head -> b) -> do
-      -- sort by name, then by searchresult (i.e. tm vs tp)
-      let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
-      loadSearchResults codebase results
-    SearchBranch (Branch.head -> branch) queries searchMode ->
-      let exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
-          fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-            case Find.fuzzyFindMatchArray q [n] id of
-              [] -> Nothing
-              (m, _) : _ -> Just m
-      in loadSearchResults codebase $ case searchMode of
-        ExactSearch -> Branch.searchBranch branch exactNameDistance queries
-        FuzzySearch -> Branch.searchBranch branch fuzzyNameDistance queries
+    DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
+    LoadSearchResults results -> loadSearchResults codebase results
     Todo b -> doTodo codebase (Branch.head b)
     Propagate b -> do
       b0 <- Codebase.propagate codebase (Branch.head b)

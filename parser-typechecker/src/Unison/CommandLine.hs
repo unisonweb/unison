@@ -14,6 +14,7 @@ module Unison.CommandLine where
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forever, when)
+import           Data.Foldable                   (toList)
 import           Data.List                       (isSuffixOf)
 import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
@@ -179,6 +180,18 @@ parseInput patterns ss = case ss of
 
 prompt :: String
 prompt = "> "
+
+-- `plural [] "cat" "cats" = "cats"`
+-- `plural ["meow"] "cat" "cats" = "cat"`
+-- `plural ["meow", "meow"] "cat" "cats" = "cats"`
+plural :: Foldable f => f a -> b -> b -> b
+plural items one other = case toList items of
+  _ : [] -> one
+  _ -> other
+
+plural' :: Integral a => a -> b -> b -> b
+plural' 1 one _other = one
+plural' _ _one other = other
 
 -- like putPrettyLn' but prints a blank line before and after.
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()

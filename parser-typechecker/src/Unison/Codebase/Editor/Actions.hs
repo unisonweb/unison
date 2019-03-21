@@ -20,11 +20,14 @@ import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..))
 import           Data.Foldable                  ( foldl'
                                                 , toList
+                                                , traverse_
                                                 )
-import           Data.Maybe                     ( catMaybes, fromMaybe )
+import Data.List (sortOn)
+import           Data.Maybe                     ( catMaybes, fromMaybe, fromJust )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
+import           Data.Tuple.Extra               ((&&&))
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import qualified Unison.ABT as ABT
@@ -37,6 +40,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
+                                                , SearchMode(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
@@ -44,10 +48,14 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
+import           Unison.Codebase.SearchResult  (SearchResult)
+import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.DataDeclaration        as DD
+import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
@@ -61,11 +69,11 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
--- import Debug.Trace
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -77,14 +85,16 @@ data LoopState v
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
-      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann) }
+      , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
+      , _lastInput :: Maybe Input
+      }
 
 type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
 loopState0 :: Branch -> BranchName -> LoopState v
-loopState0 b bn = LoopState b bn Nothing Nothing
+loopState0 b bn = LoopState b bn Nothing Nothing Nothing
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
@@ -137,20 +147,23 @@ loop = do
       Right input -> case input of
         -- ls with no arguments
         SearchByNameI [] ->
-          (eval $ ListBranch currentBranch') >>=
-            respond . ListOfDefinitions currentBranch' False
+          (eval . LoadSearchResults $ listBranch currentBranch')
+            >>= respond . ListOfDefinitions currentBranch' False
         SearchByNameI ["-l"] ->
-          (eval $ ListBranch currentBranch') >>=
-            respond . ListOfDefinitions currentBranch' True
+          (eval . LoadSearchResults $ listBranch currentBranch')
+            >>= respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
         SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) ->
-            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
-              >>= respond . ListOfDefinitions currentBranch' True
+          (eval . LoadSearchResults $
+            searchBranch currentBranch' qs Editor.FuzzySearch)
+            >>= respond . ListOfDefinitions currentBranch' True
         SearchByNameI (map HQ.fromString -> qs) ->
-            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
-              >>= respond . ListOfDefinitions currentBranch' False
+          (eval . LoadSearchResults $
+            searchBranch currentBranch' qs Editor.FuzzySearch)
+            >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval $ SearchBranch currentBranch' qs Editor.ExactSearch
+          results <- eval . LoadSearchResults $
+                              searchBranch currentBranch' qs Editor.ExactSearch
           let termTypes :: Map.Map Reference (Editor.Type v Ann)
               termTypes = Map.fromList
                 [ (r, t)
@@ -247,6 +260,18 @@ loop = do
                 currentBranch .= merged
                 checkTodo
               else respond (UnknownBranch inputBranchName)
+        DeleteBranchI branchNames ->
+          withBranches branchNames $ \bnbs -> do
+          uniqueToDelete <- prettyUniqueDefinitions bnbs
+          let deleteBranches b =
+                traverse (eval . DeleteBranch) b >> respond (Success input)
+          if (currentBranchName' `elem` branchNames) then
+                  respond DeletingCurrentBranch
+          else if null uniqueToDelete then deleteBranches branchNames
+          else ifM (confirmedCommand input)
+                   (deleteBranches branchNames)
+                   (respond . DeleteBranchConfirmation $ uniqueToDelete)
+
         TodoI -> checkTodo
         PropagateI -> do
           b <- eval . Propagate $ currentBranch'
@@ -270,6 +295,9 @@ loop = do
        where
         success       = respond $ Success input
         outputSuccess = eval . Notify $ Success input
+    case e of
+      Right input -> lastInput .= Just input
+      _ -> pure ()
    where
     doMerge branchName b = do
       updated <- eval $ SyncBranch branchName b
@@ -306,14 +334,80 @@ loop = do
 eval :: Command i v a -> Action i v a
 eval = lift . lift . Free.eval
 
+confirmedCommand :: Input -> Action i v Bool
+confirmedCommand i = do
+  i0 <- use lastInput
+  pure $ Just i == i0
+
 loadBranch :: BranchName -> Action i v (Maybe Branch)
 loadBranch = eval . LoadBranch
+
+listBranch :: Branch -> [SearchResult]
+listBranch (Branch.head -> b) =
+  sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+
+-- Return a list of definitions whose names fuzzy match the given queries.
+searchBranch :: Branch -> [HashQualified] -> SearchMode -> [SearchResult]
+searchBranch (Branch.head -> b) queries = \case
+  ExactSearch -> Branch.searchBranch b exactNameDistance queries
+  FuzzySearch -> Branch.searchBranch b fuzzyNameDistance queries
+  where
+  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+    case Find.fuzzyFindMatchArray q [n] id of
+      [] -> Nothing
+      (m, _) : _ -> Just m
+
 
 withBranch :: BranchName -> (Branch -> Action i v ()) -> Action i v ()
 withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 
+withBranches :: [BranchName] -> ([(BranchName, Branch)] -> Action i v ()) -> Action i v ()
+withBranches branchNames f = do
+  branches :: [Maybe Branch] <- traverse (eval . LoadBranch) branchNames
+  if any null branches
+  then traverse_ (respond . UnknownBranch)
+          [name | (name, Nothing) <- branchNames `zip` branches]
+  else f (branchNames `zip` fmap fromJust branches)
+
 respond :: Output v -> Action i v ()
 respond output = eval $ Notify output
+
+-- Collects the definitions that are not named in any branch outside the inputs.
+-- It collects all the references within the branches that *aren't* specified,
+-- and then reports if the branches that *are* specified contain any references
+-- that don't exist anywhere else.
+prettyUniqueDefinitions :: forall i v.
+  [(BranchName, Branch)] -> Action i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
+prettyUniqueDefinitions queryBNBs = do
+    let (branchNames, _) = unzip queryBNBs
+    otherBranchNames <- filter (`notElem` branchNames) <$> eval ListBranches
+    otherKnownReferences :: Set Reference <-
+      mconcat
+        . fmap (Branch.allNamedReferences . Branch.head)
+        . ((Editor.builtinBranch):) -- we dont care about saving these
+        . catMaybes
+        <$> traverse loadBranch otherBranchNames
+    raw <- (traverse . traverse) -- traverse over `[]` and `(BranchName,)`
+      (sequence -- traverse over (PPE,)
+        . go otherKnownReferences
+        . Branch.head)
+      queryBNBs
+    -- remove empty entries like this one: ("test4",(PrettyPrintEnv,[]))
+    pure . filter (not . null . snd . snd) $ raw
+  where
+  go :: Set Reference
+     -> Branch0
+     -> (PPE.PrettyPrintEnv, Action i v [Editor.SearchResult' v Ann])
+  go known =
+    Branch.prettyPrintEnv &&& eval . LoadSearchResults . pickResults known
+  pickResults :: Set Reference -> Branch0 -> [SearchResult]
+  pickResults known = filter (keep known) . Branch.asSearchResults
+  keep :: Set Reference -> SearchResult -> Bool
+  keep known = \case
+    SR.Tp' _ r@(Reference.DerivedId _) _ -> Set.notMember r known
+    SR.Tm' _ (Referent.Ref r@(Reference.DerivedId _)) _ -> Set.notMember r known
+    _ -> False
 
 updateBuiltins :: Branch0 -> Branch0
 updateBuiltins b
