@@ -69,7 +69,6 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
-import Debug.Trace
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -256,7 +255,8 @@ loop = do
         DeleteBranchI branchNames ->
           withBranches branchNames $ \bnbs -> do
           uniqueToDelete <- prettyUniqueDefinitions bnbs
-          let deleteBranches = traverse_ (eval . DeleteBranch)
+          let deleteBranches b =
+                traverse (eval . DeleteBranch) b >> respond (Success input)
           if (currentBranchName' `elem` branchNames) then
                   respond DeletingCurrentBranch
           else if null uniqueToDelete then deleteBranches branchNames
@@ -354,40 +354,35 @@ respond output = eval $ Notify output
 -- that don't exist anywhere else.
 prettyUniqueDefinitions :: forall i v.
   [(BranchName, Branch)] -> Action i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
-
--- prettyUniqueDefinitions = error "todo"
 prettyUniqueDefinitions queryBNBs = do
     let (branchNames, _) = unzip queryBNBs
     otherBranchNames <- filter (`notElem` branchNames) <$> eval ListBranches
     otherKnownReferences :: Set Reference <-
-      Set.filter derived
-        . mconcat
+      mconcat
         . fmap (Branch.allNamedReferences . Branch.head)
-        . ((Editor.builtinBranch):) -- remember to not care about builtins
+        . ((Editor.builtinBranch):) -- we dont care about saving these
         . catMaybes
         <$> traverse loadBranch otherBranchNames
-    (traverse . traverse) -- traverse over `[]` and `(BranchName,)`
-      (sequence -- over (PPE,)
-        . go (traceShowId otherKnownReferences)
+    raw <- (traverse . traverse) -- traverse over `[]` and `(BranchName,)`
+      (sequence -- traverse over (PPE,)
+        . go otherKnownReferences
         . Branch.head)
       queryBNBs
+    -- remove empty entries like this one: ("test4",(PrettyPrintEnv,[]))
+    pure . filter (not . null . snd . snd) $ raw
   where
   go :: Set Reference
      -> Branch0
      -> (PPE.PrettyPrintEnv, Action i v [Editor.SearchResult' v Ann])
   go known =
     Branch.prettyPrintEnv &&& eval . LoadSearchResults . pickResults known
-  derived = \case
-    Reference.DerivedId _ -> True
-    _ -> False
   pickResults :: Set Reference -> Branch0 -> [SearchResult]
-  pickResults known = filter (unknownNonCon known) . Branch.asSearchResults
-  unknownNonCon :: Set Reference -> SearchResult -> Bool
-  unknownNonCon known = \case
-    SR.Tp' _ r _ -> Set.member r known
-    SR.Tm' _ (Referent.Ref r) _ -> Set.member r known
-    SR.Tm' _ (Referent.Con _ _) _ -> False
-    _ -> error "impossible, the pattern above should be complete"
+  pickResults known = filter (keep known) . Branch.asSearchResults
+  keep :: Set Reference -> SearchResult -> Bool
+  keep known = \case
+    SR.Tp' _ r@(Reference.DerivedId _) _ -> Set.notMember r known
+    SR.Tm' _ (Referent.Ref r@(Reference.DerivedId _)) _ -> Set.notMember r known
+    _ -> False
 
 updateBuiltins :: Branch0 -> Branch0
 updateBuiltins b
