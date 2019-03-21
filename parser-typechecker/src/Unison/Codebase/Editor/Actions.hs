@@ -22,6 +22,7 @@ import           Data.Foldable                  ( foldl'
                                                 , toList
                                                 , traverse_
                                                 )
+import Data.List (sortOn)
 import           Data.Maybe                     ( catMaybes, fromMaybe, fromJust )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
@@ -39,6 +40,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
+                                                , SearchMode(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
@@ -51,7 +53,9 @@ import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.DataDeclaration        as DD
+import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names                  as Names
@@ -65,6 +69,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
@@ -142,20 +147,23 @@ loop = do
       Right input -> case input of
         -- ls with no arguments
         SearchByNameI [] ->
-          (eval $ ListBranch currentBranch') >>=
-            respond . ListOfDefinitions currentBranch' False
+          (eval . LoadSearchResults $ listBranch currentBranch')
+            >>= respond . ListOfDefinitions currentBranch' False
         SearchByNameI ["-l"] ->
-          (eval $ ListBranch currentBranch') >>=
-            respond . ListOfDefinitions currentBranch' True
+          (eval . LoadSearchResults $ listBranch currentBranch')
+            >>= respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
         SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) ->
-            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
-              >>= respond . ListOfDefinitions currentBranch' True
+          (eval . LoadSearchResults $
+            searchBranch currentBranch' qs Editor.FuzzySearch)
+            >>= respond . ListOfDefinitions currentBranch' True
         SearchByNameI (map HQ.fromString -> qs) ->
-            (eval $ SearchBranch currentBranch' qs Editor.FuzzySearch)
-              >>= respond . ListOfDefinitions currentBranch' False
+          (eval . LoadSearchResults $
+            searchBranch currentBranch' qs Editor.FuzzySearch)
+            >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval $ SearchBranch currentBranch' qs Editor.ExactSearch
+          results <- eval . LoadSearchResults $
+                              searchBranch currentBranch' qs Editor.ExactSearch
           let termTypes :: Map.Map Reference (Editor.Type v Ann)
               termTypes = Map.fromList
                 [ (r, t)
@@ -333,6 +341,23 @@ confirmedCommand i = do
 
 loadBranch :: BranchName -> Action i v (Maybe Branch)
 loadBranch = eval . LoadBranch
+
+listBranch :: Branch -> [SearchResult]
+listBranch (Branch.head -> b) =
+  sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+
+-- Return a list of definitions whose names fuzzy match the given queries.
+searchBranch :: Branch -> [HashQualified] -> SearchMode -> [SearchResult]
+searchBranch (Branch.head -> b) queries = \case
+  ExactSearch -> Branch.searchBranch b exactNameDistance queries
+  FuzzySearch -> Branch.searchBranch b fuzzyNameDistance queries
+  where
+  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+    case Find.fuzzyFindMatchArray q [n] id of
+      [] -> Nothing
+      (m, _) : _ -> Just m
+
 
 withBranch :: BranchName -> (Branch -> Action i v ()) -> Action i v ()
 withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f

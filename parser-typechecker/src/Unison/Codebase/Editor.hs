@@ -69,7 +69,6 @@ import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
@@ -364,12 +363,6 @@ data Command i v a where
   -- * A name with more than one referent.
   -- *
   GetConflicts :: Branch -> Command i v Branch0
-
-  -- Return a list of definitions whose names fuzzy match the given queries.
-  SearchBranch ::
-    Branch -> [HashQualified] -> SearchMode -> Command i v [SearchResult' v Ann]
-
-  ListBranch :: Branch -> Command i v [SearchResult' v Ann]
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
@@ -702,19 +695,6 @@ commandLine awaitInput rt notifyUser codebase command = do
     NewBranch  branch branchName      -> newBranch codebase branch branchName
     SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
-    ListBranch (Branch.head -> b) -> do
-      -- sort by name, then by searchresult (i.e. tm vs tp)
-      let results = sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
-      loadSearchResults codebase results
-    SearchBranch (Branch.head -> branch) queries searchMode ->
-      let exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
-          fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-            case Find.fuzzyFindMatchArray q [n] id of
-              [] -> Nothing
-              (m, _) : _ -> Just m
-      in loadSearchResults codebase $ case searchMode of
-        ExactSearch -> Branch.searchBranch branch exactNameDistance queries
-        FuzzySearch -> Branch.searchBranch branch fuzzyNameDistance queries
     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
