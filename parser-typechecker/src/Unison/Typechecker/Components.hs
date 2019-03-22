@@ -3,7 +3,7 @@ module Unison.Typechecker.Components (minimize, minimize') where
 import           Control.Arrow ((&&&))
 import           Data.Bifunctor (first)
 import           Data.Function (on)
-import           Data.List (groupBy, sortBy)
+import           Data.List (groupBy, sortBy, sortOn)
 import           Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as Nel
 import qualified Data.Map as Map
@@ -41,7 +41,19 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
   in  if not $ null dupes
         then Left $ Nel.fromList dupes
         else
-          let cs             = ABT.components bindings
+          let cs0            = ABT.components bindings
+              -- within a cycle, we put the lambdas first, so
+              -- unguarded definitions can refer to these lambdas, example:
+              --
+              --   foo x = blah + 1 + x
+              --   blah = foo 10
+              --
+              -- Here `foo` and `blah` are part of a cycle, but putting `foo`
+              -- first at least lets the program run (though it has an infinite
+              -- loop).
+              cs = map (sortOn lambdasFirst) cs0 where
+                lambdasFirst (_, Term.Lam' _) = 0 :: Int
+                lambdasFirst _ = 1
               varAnnotations = Map.fromList ((\((a, v), _) -> (v, a)) <$> bs)
               annotationFor v = fromJust $ Map.lookup v varAnnotations
               annotatedVar v = (annotationFor v, v)
