@@ -90,6 +90,13 @@ fromVar = fromText . Var.name
 toVar :: Var v => HashQualified -> v
 toVar = Var.named . toText
 
+-- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
+requalify :: HashQualified -> Referent -> HashQualified
+requalify hq r = case hq of
+  NameOnly n -> fromNamedReferent n r
+  HashQualified n _ -> fromNamedReferent n r
+  HashOnly _ -> fromReferent r
+
 instance IsString HashQualified where
   fromString = fromText . Text.pack
 

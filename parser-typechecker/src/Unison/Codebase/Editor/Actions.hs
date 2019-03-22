@@ -87,6 +87,7 @@ data LoopState v
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
       , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
       , _lastInput :: Maybe Input
+      , _numberedArgs :: [String]
       }
 
 type SkipNextUpdate = Bool
@@ -94,7 +95,7 @@ type SkipNextUpdate = Bool
 makeLenses ''LoopState
 
 loopState0 :: Branch -> BranchName -> LoopState v
-loopState0 b bn = LoopState b bn Nothing Nothing Nothing
+loopState0 b bn = LoopState b bn Nothing Nothing Nothing []
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
@@ -146,20 +147,26 @@ loop = do
               latestTypecheckedFile .= Just unisonFile
       Right input -> case input of
         -- ls with no arguments
-        SearchByNameI [] ->
-          (eval . LoadSearchResults $ listBranch currentBranch')
+        SearchByNameI [] -> do
+          let results = listBranch currentBranch'
+          numberedArgs .= fmap searchResultToHQString results
+          eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' False
-        SearchByNameI ["-l"] ->
-          (eval . LoadSearchResults $ listBranch currentBranch')
+        SearchByNameI ["-l"] -> do
+          let results = listBranch currentBranch'
+          numberedArgs .= fmap searchResultToHQString results
+          eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
-        SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) ->
-          (eval . LoadSearchResults $
-            searchBranch currentBranch' qs Editor.FuzzySearch)
+        SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
+          let results = searchBranch currentBranch' qs Editor.FuzzySearch
+          numberedArgs .= fmap searchResultToHQString results
+          eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' True
-        SearchByNameI (map HQ.fromString -> qs) ->
-          (eval . LoadSearchResults $
-            searchBranch currentBranch' qs Editor.FuzzySearch)
+        SearchByNameI (map HQ.fromString -> qs) -> do
+          let results = searchBranch currentBranch' qs Editor.FuzzySearch
+          numberedArgs .= fmap searchResultToHQString results
+          eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
           results <- eval . LoadSearchResults $
@@ -345,6 +352,12 @@ loadBranch = eval . LoadBranch
 listBranch :: Branch -> [SearchResult]
 listBranch (Branch.head -> b) =
   sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+
+searchResultToHQString :: SearchResult -> String
+searchResultToHQString = \case
+  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
+  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 searchBranch :: Branch -> [HashQualified] -> SearchMode -> [SearchResult]

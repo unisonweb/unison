@@ -533,7 +533,7 @@ listOfDefinitions' :: Var v
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
 listOfDefinitions' ppe detailed results =
-  P.lines . P.nonEmpty $ prettyResults ++
+  P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
@@ -543,8 +543,12 @@ listOfDefinitions' ppe detailed results =
                                 (P.text . Referent.toText)) missingBuiltins))
     ]
   where
+  prettyNumberedResults =
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+  -- todo: group this by namespace
   prettyResults =
-    map (E.foldResult' renderTerm renderType) (filter (not.missingType) results)
+    map (E.foldResult' renderTerm renderType)
+        (filter (not.missingType) results)
     where
       (renderTerm, renderType) =
         if detailed then

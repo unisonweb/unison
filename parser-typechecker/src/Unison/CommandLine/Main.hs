@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns #-}
 
 
 module Unison.CommandLine.Main where
@@ -23,6 +24,7 @@ import           Data.Maybe                        (fromMaybe, listToMaybe)
 import           Data.String                       (fromString)
 import qualified Data.Text                         as Text
 import           Prelude                           hiding (readFile, writeFile)
+import           Safe
 import qualified System.Console.Haskeline          as Line
 import           Unison.Codebase                   (Codebase)
 import qualified Unison.Codebase                   as Codebase
@@ -48,18 +50,25 @@ getUserInput
   -> Codebase m v a
   -> Branch
   -> BranchName
+  -> [String]
   -> m Input
-getUserInput patterns codebase branch branchName = Line.runInputT settings $ do
-  line <- Line.getInputLine $
-    P.toANSI 80 (P.green (P.text branchName <> fromString prompt))
-  case line of
-    Nothing -> pure QuitI
-    Just l  -> case parseInput patterns $ words l of
-      Left msg -> lift $ do
-        liftIO $ putPrettyLn msg
-        getUserInput patterns codebase branch branchName
-      Right i -> pure i
+getUserInput patterns codebase branch branchName numberedArgs =
+  Line.runInputT settings $ do
+    line <- Line.getInputLine $
+      P.toANSI 80 (P.green (P.text branchName <> fromString prompt))
+    case line of
+      Nothing -> pure QuitI
+      Just l -> case parseInput patterns . fmap expandNumber . words $ l of
+        Left msg -> lift $ do
+          liftIO $ putPrettyLn msg
+          getUserInput patterns codebase branch branchName numberedArgs
+        Right i -> pure i
  where
+  expandNumber s = case readMay s of
+    Just i -> case atMay numberedArgs (i - 1) of
+      Just s -> s
+      Nothing -> show i
+    Nothing -> s
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
@@ -99,6 +108,7 @@ main dir currentBranchName _initialFile startRuntime codebase = do
   do
     runtime                  <- startRuntime
     branchRef                <- newIORef (currentBranch, currentBranchName)
+    numberedArgsRef          <- newIORef []
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (readIORef branchRef)
                                                    eventQueue
@@ -109,7 +119,8 @@ main dir currentBranchName _initialFile startRuntime codebase = do
             >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
         getInput = do
           (branch, branchName) <- readIORef branchRef
-          getUserInput patternMap codebase branch branchName
+          numberedArgs <- readIORef numberedArgsRef
+          getUserInput patternMap codebase branch branchName numberedArgs
     let
       awaitInput = do
         -- Race the user input and file watch.
@@ -137,6 +148,8 @@ main dir currentBranchName _initialFile startRuntime codebase = do
                                      free
         case o of
           Nothing -> pure ()
-          Just () -> loop state'
+          Just () -> do
+            writeIORef numberedArgsRef (Actions._numberedArgs state')
+            loop state'
     (`finally` cleanup)
       $ loop (Actions.loopState0 currentBranch currentBranchName)
