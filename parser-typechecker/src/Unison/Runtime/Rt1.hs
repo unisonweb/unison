@@ -35,6 +35,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
+import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
@@ -205,7 +206,7 @@ force v = pure v
 
 data Result
   = RRequest Req
-  | RMatchFail {- maybe add more info here. -}
+  | RMatchFail Size [Value] Value
   | RDone Value
   deriving Show
 
@@ -390,7 +391,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@RMatchFail -> error $ show e
+        e@(RMatchFail _ _ _) -> error $ show e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -502,7 +503,7 @@ run ioHandler env ir = do
         m <- push size (Requested req) m
         result <- call (size + 1) m handler [Slot 0]
         case result of
-          RMatchFail -> pure $ RRequest (wrapHandler handler req)
+          RMatchFail _ _ _ -> pure $ RRequest (wrapHandler handler req)
           r -> pure r
       RDone v -> do
         m <- push size (Pure v) m
@@ -649,7 +650,9 @@ run ioHandler env ir = do
               if cond then go size' m body
               else tryCases size scrute m remainingCases
             Nothing -> go size' m body
-    tryCases _ _ _ _ = pure RMatchFail
+    tryCases sz scrute m _ = do
+      stack <- V.freeze m
+      pure $ RMatchFail sz (V.toList stack) scrute
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
     -- binding, then evaluate each binding and set that `Ref` to its result.

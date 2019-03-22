@@ -87,6 +87,7 @@ data Codebase m v a =
            -- branch on disk, or creates a new branch if there's no existing
            -- branch with that name
            , syncBranch         :: BranchName -> Branch -> m Branch
+           , deleteBranch       :: BranchName -> m ()
            , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl :: Reference -> m (Set Reference.Id)

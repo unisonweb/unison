@@ -166,10 +166,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic }
       paren (p >= 11) $ l "'" <> pretty n (ac 11 Normal) x
     Sequence' xs -> PP.group $
       "[" <> optSpace
-          <> intercalateMap ("," <> PP.softbreak <> optSpace)
+          <> intercalateMap ("," <> PP.softbreak <> optSpace <> optSpace)
                             (pretty n (ac 0 Normal))
                             xs
-        <> "]"
+        <> optSpace <> "]"
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
       if height > 0 then PP.lines [

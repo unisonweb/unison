@@ -37,7 +37,7 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine            (backtick, backtickEOS,
                                                 bigproblem, putPrettyLn,
                                                 putPrettyLn', tip, warn,
-                                                watchPrinter)
+                                                watchPrinter, plural)
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.HashQualified          as HQ
@@ -139,8 +139,25 @@ notifyUser dir o = case o of
          $  "You can switch to that branch via"
          <> makeExample IP.branch [P.text b]
          <> "or delete it via"
-         <> makeExample IP.branchDelete [P.text b]
+         <> makeExample IP.deleteBranch [P.text b]
          )
+  DeletingCurrentBranch ->
+    putPrettyLn . P.warnCallout . P.wrap $
+      "Please use " <> makeExample' IP.branch <> " to switch to a different branch before deleting this one."
+  DeleteBranchConfirmation uniqueDeletions ->
+    let
+      pretty (branchName, (ppe, results)) =
+        header $ listOfDefinitions' ppe False results
+        where
+        header = plural uniqueDeletions id ((P.text branchName <> ":") `P.hang`)
+
+    in putPrettyLn . P.warnCallout
+      $ P.wrap ("The"
+      <> plural uniqueDeletions "branch contains" "branches contain"
+      <> "definitions that don't exist in any other branches:")
+      <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
+      <> P.newline
+      <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfBranches current branches ->
     putPrettyLn
       $ let
@@ -505,8 +522,18 @@ todoOutput (Branch.head -> branch) todo =
 
 listOfDefinitions ::
   Var v => Branch0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
-listOfDefinitions branch detailed results = do
-  putPrettyLn . P.lines . P.nonEmpty $ prettyResults ++
+listOfDefinitions branch detailed results =
+  putPrettyLn $ listOfDefinitions' ppe detailed results
+  where
+  ppe = Branch.prettyPrintEnv branch
+
+listOfDefinitions' :: Var v
+                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
+                   -> E.ListDetailed
+                   -> [E.SearchResult' v a]
+                   -> P.Pretty P.ColorText
+listOfDefinitions' ppe detailed results =
+  P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
@@ -516,9 +543,12 @@ listOfDefinitions branch detailed results = do
                                 (P.text . Referent.toText)) missingBuiltins))
     ]
   where
-  ppe  = Branch.prettyPrintEnv branch
+  prettyNumberedResults =
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+  -- todo: group this by namespace
   prettyResults =
-    map (E.foldResult' renderTerm renderType) (filter (not.missingType) results)
+    map (E.foldResult' renderTerm renderType)
+        (filter (not.missingType) results)
     where
       (renderTerm, renderType) =
         if detailed then

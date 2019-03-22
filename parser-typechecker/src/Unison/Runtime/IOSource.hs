@@ -256,7 +256,7 @@ ability IO where
   serverSocket : Optional HostName ->
                  ServiceName -> {IO} (Either IOError Socket)
   -- Start listening for connections
-  listen : Socket ->{IO} ()
+  listen : Socket ->{IO} (Either IOError ())
 
   -- Create a socket connected to the given remote address
   clientSocket : HostName ->
@@ -268,11 +268,10 @@ ability IO where
   --handleToSocket : Handle ->{IO} (Either IOError Socket)
 
   -- Accept a connection on a socket.
-  -- Returns a socket that can send and receive data on a new connection,
-  -- together with the remote host information.
+  -- Returns a socket that can send and receive data on a new connection
   accept : Socket ->{IO} (Either IOError Socket)
 
-  -- Returns the number of bytes actually sent
+  -- Send some bytes to a socket.
   send : Socket -> Bytes ->{IO} (Either IOError ())
 
   -- Read the spefified number of bytes from the socket.

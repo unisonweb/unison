@@ -20,8 +20,7 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (Input (..))
 import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
-import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern, aliases, patternName),
-                                                  noSuggestions)
+import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern))
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.Names                    as Names
 import qualified Unison.Util.ColorText           as CT
@@ -30,16 +29,16 @@ import qualified Unison.Util.Pretty              as P
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
-  P.bold (fromString $ patternName i) <> fromString
-    (if not . null $ aliases i
-     then " (or " <> intercalate ", " (aliases i) <> ")"
+  P.bold (fromString $ I.patternName i) <> fromString
+    (if not . null $ I.aliases i
+     then " (or " <> intercalate ", " (I.aliases i) <> ")"
      else ""),
   P.wrap $ I.help i ]
 
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
 makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
 makeExample p args =
-  backtick (intercalateMap " " id (fromString (patternName p) : args))
+  backtick (intercalateMap " " id (fromString (I.patternName p) : args))
 
 makeExample' :: InputPattern -> P.Pretty CT.ColorText
 makeExample' p = makeExample p []
@@ -47,7 +46,10 @@ makeExample' p = makeExample p []
 makeExampleEOS ::
   InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
 makeExampleEOS p args = P.group $
-  backtick (intercalateMap " " id (fromString (patternName p) : args)) <> "."
+  backtick (intercalateMap " " id (fromString (I.patternName p) : args)) <> "."
+
+helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
+helpFor p = I.parse help [I.patternName p]
 
 
 updateBuiltins :: InputPattern
@@ -96,6 +98,7 @@ alias = InputPattern "alias" ["cp"]
       _ -> Left . warn $ P.wrap
         "`alias` takes two arguments, like `alias oldname newname`."
     )
+
 update :: InputPattern
 update = InputPattern "update" [] []
     "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
@@ -103,6 +106,7 @@ update = InputPattern "update" [] []
       then Left $ warn "`update` doesn't take any arguments."
       else pure $ SlurpFileI True
     )
+
 branch :: InputPattern
 branch = InputPattern "branch" [] [(True, branchArg)]
     (P.wrapColumn2
@@ -117,10 +121,13 @@ branch = InputPattern "branch" [] [(True, branchArg)]
              <> "or `branch foo` to switch to or create the branch 'foo'."
     )
 
-branchDelete,replace,resolve :: InputPattern
-branchDelete = InputPattern "branch.delete" [] [(True, branchArg)]
+deleteBranch,replace,resolve :: InputPattern
+deleteBranch = InputPattern "branch.delete" [] [(True, branchArg)]
   "`branch.delete <foo>` deletes the branch `foo`"
-  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+  (\(fmap Text.pack -> ws) -> case ws of
+    [] -> helpFor deleteBranch
+    ws -> pure $ DeleteBranchI ws)
+
 replace = InputPattern "replace" []
           [ (False, exactDefinitionQueryArg)
           , (False, exactDefinitionQueryArg) ]
@@ -133,18 +140,20 @@ resolve = InputPattern "resolve" [] [(False, exactDefinitionQueryArg)]
    <> "other `foo`s to `foo#abc`.")
   (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
 
+help :: InputPattern
+help = InputPattern
+    "help" ["?"] [(True, commandNameArg)]
+    "`help` shows general help and `help <cmd>` shows help for one command."
+    (\case
+      [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
+      [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
+        Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
+        Just pat -> Left $ I.help pat
+      _ -> Left $ warn "Use `help <cmd>` or `help`.")
 
 validInputs :: [InputPattern]
 validInputs =
-  [ InputPattern
-      "help" ["?"] [(True, commandNameArg)]
-      "`help` shows general help and `help <cmd>` shows help for one command."
-      (\case
-        [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
-        [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
-          Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
-          Just pat -> Left $ I.help pat
-        _ -> Left $ warn "Use `help <cmd>` or `help`.")
+  [ help
   , add
   , branch
   , InputPattern "fork" [] [(False, branchArg)]
@@ -201,13 +210,14 @@ validInputs =
   , InputPattern "edit.list" [] []
       "Lists all the edits in the current branch."
       (const . pure $ ListEditsI)
+  , deleteBranch
   ]
 
 allTargets :: Set.Set Names.NameTarget
 allTargets = Set.fromList [Names.TermName, Names.TypeName]
 
 commandNames :: [String]
-commandNames = patternName <$> validInputs
+commandNames = I.patternName <$> validInputs
 
 commandNameArg :: ArgumentType
 commandNameArg =
@@ -230,4 +240,4 @@ exactDefinitionQueryArg =
     pure $ autoCompleteHashQualified b q
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType "a word" noSuggestions
+noCompletions = ArgumentType "a word" I.noSuggestions

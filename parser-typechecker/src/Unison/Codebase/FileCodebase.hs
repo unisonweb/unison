@@ -39,6 +39,7 @@ import           System.Directory               ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 , listDirectory
                                                 , removeFile
+                                                , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -258,6 +259,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         overwriteBranch name newBranch
         pure newBranch
 
+      deleteBranch name = removeDirectoryRecursive (branchPath path name)
+
+
       dependents :: Reference -> IO (Set Reference.Id)
       dependents r = do
         d  <- dir
@@ -304,6 +308,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branches
                getBranch
                mergeBranch
+               deleteBranch
                branchUpdates
                dependents
                builtinTypeAnnotation

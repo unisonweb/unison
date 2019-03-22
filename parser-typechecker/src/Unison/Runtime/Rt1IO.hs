@@ -39,6 +39,7 @@ import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
 import qualified Network.Simple.TCP            as Net
+--import qualified Network.Socket                as Sock
 import           System.IO                      ( Handle
                                                 , IOMode(..)
                                                 , SeekMode(..)
@@ -290,8 +291,9 @@ runtime = Runtime terminate eval
       ( Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)]
       , Map.empty
       )
-    RT.RDone result <- RT.run (handleIO' $ S mmap)
+    r <- RT.run (handleIO' $ S mmap)
                               cenv
                               (IR.compile cenv $ Term.amap (const ()) term)
-    decompiled <- IR.decompile result
-    pure decompiled
+    case r of
+      RT.RDone result -> IR.decompile result
+      e -> fail $ show e
