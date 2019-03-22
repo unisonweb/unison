@@ -51,9 +51,7 @@ minimize (Term.LetRecNamedAnnotatedTop' isTop ann bs e) =
               -- Here `foo` and `blah` are part of a cycle, but putting `foo`
               -- first at least lets the program run (though it has an infinite
               -- loop).
-              cs = map (sortOn lambdasFirst) cs0 where
-                lambdasFirst (_, Term.Lam' _) = 0 :: Int
-                lambdasFirst _ = 1
+              cs = sortOn (\(_,e) -> Term.arity e == 0) <$> cs0
               varAnnotations = Map.fromList ((\((a, v), _) -> (v, a)) <$> bs)
               annotationFor v = fromJust $ Map.lookup v varAnnotations
               annotatedVar v = (annotationFor v, v)
