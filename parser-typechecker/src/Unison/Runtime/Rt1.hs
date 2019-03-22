@@ -35,7 +35,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Sequence as Sequence
-import qualified Data.Vector as V
 import qualified Data.Vector.Mutable as MV
 import qualified Unison.ABT as ABT
 import qualified Unison.Codebase.CodeLookup as CL
@@ -650,9 +649,8 @@ run ioHandler env ir = do
               if cond then go size' m body
               else tryCases size scrute m remainingCases
             Nothing -> go size' m body
-    tryCases sz scrute m _ = do
-      stack <- V.freeze m
-      pure $ RMatchFail sz (V.toList stack) scrute
+    tryCases sz scrute _ _ =
+      pure $ RMatchFail sz [] scrute
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
     -- binding, then evaluate each binding and set that `Ref` to its result.

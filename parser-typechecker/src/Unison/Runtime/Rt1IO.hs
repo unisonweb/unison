@@ -190,7 +190,7 @@ handleIO' s rid cid vs = case rid of
     ev <- runExceptT $ handleIO cid vs
     case ev of
       Left  e -> pure . constructLeft $ constructIoError e
-      Right v -> pure v
+      Right v -> pure $ constructRight v
   _ -> fail $ "This ability is not an I/O ability: " <> show rid
 
 reraiseIO :: IO a -> UIO x a
