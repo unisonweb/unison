@@ -275,7 +275,7 @@ ability IO where
   send : Socket -> Bytes ->{IO} (Either IOError ())
 
   -- Read the spefified number of bytes from the socket.
-  receive : Socket -> Int ->{IO} (Either IOError Bytes)
+  receive : Socket -> Int ->{IO} (Either IOError (Optional Bytes))
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int

@@ -39,6 +39,7 @@ import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
 import qualified Network.Simple.TCP            as Net
+import qualified Network.Socket                as Sock
 --import qualified Network.Socket                as Sock
 import           System.IO                      ( Handle
                                                 , IOMode(..)
@@ -70,6 +71,7 @@ import qualified Unison.Term                   as Term
 -- import           Unison.TermPrinter             ( prettyTop )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 import qualified Unison.Runtime.IOSource       as IOSrc
+import qualified Unison.Util.Bytes             as Bytes
 
 -- TODO: Make this exception more structured?
 data UnisonRuntimeException = UnisonRuntimeException Text
@@ -267,6 +269,18 @@ handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
     hs <- getHaskellSocket socket
     reraiseIO $ traverse_ Net.closeSock hs
     pure IR.unit
+  go "IO.accept" [IR.Data _ _ [IR.T socket]] = do
+    hs   <- getHaskellSocketOrThrow socket
+    conn <- reraiseIO $ Sock.accept hs
+    newUnisonSocket $ fst conn
+  go "IO.send" [IR.Data _ _ [IR.T socket], IR.Bs bs] = do
+    hs <- getHaskellSocketOrThrow socket
+    reraiseIO . Net.send hs $ Bytes.toByteString bs
+    pure IR.unit
+  go "IO.receive" [IR.Data _ _ [IR.T socket], IR.N n] = do
+    hs <- getHaskellSocketOrThrow socket
+    bs <- reraiseIO . Net.recv hs $ fromIntegral n
+    pure . convertMaybe $ IR.Bs . Bytes.fromByteString <$> bs
   go a b =
     error
       $  "IO handler called with unimplemented cid "
