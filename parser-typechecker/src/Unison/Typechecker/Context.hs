@@ -73,6 +73,7 @@ import           Unison.DataDeclaration         ( DataDeclaration'
 import qualified Unison.DataDeclaration        as DD
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
+import           Unison.PrettyPrintEnv          (typecheckedPrefix)
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import           Unison.Term                    ( AnnotatedTerm' )
@@ -779,7 +780,12 @@ synthesize e = scope (InSynthesize e) $
     when top $ noteTopLevelType e binding t
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
-    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
+    -- The typechecked closed expression is treated as a new builtin for purposes
+    -- of typechecking the body of the let. The `typecheckedPrefix` can be
+    -- recognized by whatever prints out the builtin.
+    -- TODO: it would be better to just give the builtin constructor more
+    -- structure, so information like this could be stashed there
+    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (typecheckedPrefix <> Var.name v')) t)
     synthesize e
   go (Term.Let1Top' top binding e) = do
     -- note: no need to freshen binding, it can't refer to v

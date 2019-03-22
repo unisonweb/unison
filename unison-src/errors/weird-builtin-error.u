@@ -1,0 +1,7 @@
+
+t : x -> x -> x
+t a _ = a
+
+blah x y = t x y
+
+> blah 10 "hi"

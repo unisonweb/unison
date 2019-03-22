@@ -4,14 +4,16 @@ module Unison.PrettyPrintEnv where
 
 import Control.Applicative ((<|>))
 import Data.Maybe (fromMaybe)
-import Unison.Reference (Reference)
+import Unison.Reference (Reference(Builtin))
 import qualified Data.Map as Map
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
+import qualified Unison.Name as Name
 import Unison.Names (Names)
 import qualified Unison.Names as Names
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Data.Text as Text
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -52,9 +54,19 @@ fromTermNames tms = let
 -- todo: these need to be a dynamic length, but we need additional info
 todoHashLength :: Int
 todoHashLength = 10
+
 termName :: PrettyPrintEnv -> Referent -> HashQualified
-termName env r =
-  fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)
+termName env r = case r of
+  -- The typechecker turns previously typechecked definitions into new
+  -- builtins, prefixed by `typecheckedPrefix` when typechecking dependents
+  -- This strips off the prefix and uses it as the name
+  Referent.Ref (Builtin b) | typecheckedPrefix `Text.isPrefixOf` b ->
+    HQ.fromName (Name.unsafeFromText (Text.drop (Text.length typecheckedPrefix) b))
+  _ -> fromMaybe (HQ.take todoHashLength $ HQ.fromReferent r) (terms env r)
+
+-- See `Context.hs` for where this is used
+typecheckedPrefix :: Text.Text
+typecheckedPrefix = "typechecked."
 
 typeName :: PrettyPrintEnv -> Reference -> HashQualified
 typeName env r =
