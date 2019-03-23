@@ -246,6 +246,18 @@ lexer0 scope rem =
           else
             go ((b, col') : l) pos' rem
 
+    -- Computes the number of elements to pop from the layout stack to reach
+    -- a layout opened by `s`.
+    --closeTo :: String -> Layout -> Int
+    --closeTo _ [] = 0
+    --closeTo s ((h,_):_tl) = 1 -- if s == h then 1 else undefined -- 1 + closeTo s tl
+
+    closeTo' :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    closeTo' _s close l pos rem =
+      replicate 1 (Token Close pos (incBy close pos)) ++
+      [Token (Reserved close) pos (incBy close pos)] ++
+      goWhitespace (drop 1 l) (inc pos) rem
+
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go l pos rem = case rem of
@@ -255,12 +267,10 @@ lexer0 scope rem =
       -- but the effectBind pattern contains an `->`, and we
       -- didn't want an `->` within an effectBind to introduce a block.
       -- case blah of {State.get -> k} -> <layout block>
-      '{' : rem ->
-        Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
-      '}' : rem ->
-        Token Close pos (inc pos)
-          : Token (Reserved "}") pos (inc pos)
-          : goWhitespace (drop 1 l) (inc pos) rem
+      '{' : rem -> Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
+      '}' : rem -> closeTo' "{" "}" l pos rem
+      '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "{" l (inc pos) rem
+      ')' : rem -> closeTo' "(" ")" l pos rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
