@@ -68,8 +68,7 @@ effectList :: Var v => TypeP v
 effectList = do
   open <- openBlockWith "{"
   es <- sepBy (reserved ",") valueType
-  _ <- closeBlock
-  close <- reserved "}"
+  close <- closeBlock
   pure $ Type.effects (ann open <> ann close) es
 
 sequenceTyp :: Var v => TypeP v

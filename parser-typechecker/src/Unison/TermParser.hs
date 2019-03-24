@@ -148,8 +148,7 @@ parsePattern = constructor <|> leaf
   effect = do
     start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
-    _ <- closeBlock
-    end <- reserved "}"
+    end <- closeBlock
     pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
@@ -251,7 +250,7 @@ term4 = f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 infixApp = label "infixApp" $
-  chainl1 term4 (f <$> fmap var infixVar)
+  chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
     where
       f op lhs rhs =
         Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
