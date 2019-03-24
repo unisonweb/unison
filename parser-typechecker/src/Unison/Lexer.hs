@@ -246,10 +246,18 @@ lexer0 scope rem =
           else
             go ((b, col') : l) pos' rem
 
-    -- Closes a layout block with the given `close` token, e.g. `)` or `}`
-    closeWith :: String -> Layout -> Pos -> [Char] -> [Token Lexeme]
-    closeWith close l pos rem =
-      Token Close pos (incBy close pos) : goWhitespace (drop 1 l) (inc pos) rem
+    -- Figure out how many elements must be popped from the layout stack
+    -- before finding a matching `Open` token
+    findClose :: String -> Layout -> Int
+    findClose _ [] = 0
+    findClose s ((h,_):tl) = if s == h then 1 else 1 + findClose s tl
+
+    -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
+    close :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    close open close l pos rem = let
+      n = findClose open l
+      closes = replicate n $ Token Close pos (incBy close pos)
+      in closes ++ goWhitespace (drop n l) (inc pos) rem
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
@@ -262,9 +270,9 @@ lexer0 scope rem =
       -- Note: within {}'s, `->` does not open a block, since `->` is used
       -- inside request patterns like `{State.set s -> k}`
       '{' : rem -> Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
-      '}' : rem -> closeWith "}" l pos rem
+      '}' : rem -> close "{" "}" l pos rem
       '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
-      ')' : rem -> closeWith ")" l pos rem
+      ')' : rem -> close "(" ")" l pos rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
