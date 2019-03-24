@@ -153,6 +153,9 @@ namespace Map where
   toSequence : Map k v -> [(k,v)]
   toSequence m = Sequence.zip (keys m) (values m)
 
+  size : Map k v -> Nat
+  size s = Sequence.size (keys s)
+
   lookup : k -> Map k v -> Optional v
   lookup k m = case m of
     Map ks vs -> case indexOf k ks of
@@ -242,6 +245,9 @@ namespace Set where
   empty : Set k
   empty = Set Map.empty
 
+  underlying : Set k -> Map k ()
+  underlying s = case s of Set s -> s
+
   toMap : (k -> v) -> Set k -> Map k v
   toMap f s = case s of Set (Map ks vs) -> Map ks (map f ks)
 
@@ -256,6 +262,15 @@ namespace Set where
 
   insert : k -> Set k -> Set k
   insert k s = case s of Set s -> Set (Map.insert k () s)
+
+  union : Set k -> Set k -> Set k
+  union s1 s2 = Set (Map.union (underlying s1) (underlying s2))
+
+  size : Set k -> Nat
+  size s = Map.size (underlying s)
+
+  intersect : Set k -> Set k -> Set k
+  intersect s1 s2 = Set (Map.intersect (underlying s1) (underlying s2))
 
 Optional.orDefault : a -> Optional a -> a
 Optional.orDefault a o = case o of
