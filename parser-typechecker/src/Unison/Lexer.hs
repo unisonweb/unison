@@ -246,6 +246,7 @@ lexer0 scope rem =
           else
             go ((b, col') : l) pos' rem
 
+    -- Closes a layout block with the given `close` token, e.g. `)` or `}`
     closeWith :: String -> Layout -> Pos -> [Char] -> [Token Lexeme]
     closeWith close l pos rem =
       Token Close pos (incBy close pos) : goWhitespace (drop 1 l) (inc pos) rem
@@ -254,11 +255,12 @@ lexer0 scope rem =
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
-      -- we wanted `->` to be able to introduce a layout block
-      -- if the top block name on the layout stack is an `of`
-      -- but the effectBind pattern contains an `->`, and we
-      -- didn't want an `->` within an effectBind to introduce a block.
-      -- case blah of {State.get -> k} -> <layout block>
+      -- '{' and '(' both introduce a block, which is closed by '}' and ')'
+      -- The lexer doesn't distinguish among closing blocks: all the ways of
+      -- closing a block emit the same sort of token, `Close`.
+      --
+      -- Note: within {}'s, `->` does not open a block, since `->` is used
+      -- inside request patterns like `{State.set s -> k}`
       '{' : rem -> Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
       '}' : rem -> closeWith "}" l pos rem
       '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
