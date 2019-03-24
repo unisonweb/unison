@@ -269,7 +269,7 @@ sepBy1 sep pb = P.sepBy1 pb sep
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
   where
-    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (openBlockWith "(" *> symbolyId) <* closeBlock <* reserved ")")
+    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =
@@ -289,7 +289,7 @@ tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
     open <- openBlockWith "("
     es <- sepBy (reserved "," *> optional semi) p
-    close <- optional semi *> closeBlock *> reserved ")"
+    close <- optional semi *> closeBlock
     pure $ go es open close
   where
     go [t] _ _ = t

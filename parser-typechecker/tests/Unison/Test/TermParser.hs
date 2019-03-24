@@ -169,7 +169,7 @@ unitTests =
  , t (sepBy s w) "uno"
  , t (sepBy s w) "uno + dos"
  , t (sepBy s w) "uno + dos * tres"
- , t (openBlockWith "(" *> sepBy s w <* closeBlock <* reserved ")") "(uno + dos + tres)"
+ , t (openBlockWith "(" *> sepBy s w <* closeBlock) "(uno + dos + tres)"
  , t TP.term "( 0 )"
  ]
  where

@@ -148,8 +148,7 @@ parsePattern = constructor <|> leaf
   effect = do
     start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
-    _ <- closeBlock
-    end <- reserved "}"
+    end <- closeBlock
     pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do

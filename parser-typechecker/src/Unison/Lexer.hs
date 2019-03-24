@@ -248,9 +248,7 @@ lexer0 scope rem =
 
     closeWith :: String -> Layout -> Pos -> [Char] -> [Token Lexeme]
     closeWith close l pos rem =
-      replicate 1 (Token Close pos (incBy close pos)) ++
-      [Token (Reserved close) pos (incBy close pos)] ++
-      goWhitespace (drop 1 l) (inc pos) rem
+      Token Close pos (incBy close pos) : goWhitespace (drop 1 l) (inc pos) rem
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
