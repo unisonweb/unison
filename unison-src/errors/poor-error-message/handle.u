@@ -1,8 +1,8 @@
----Parsing/typechecking...
----Token {payload = Close, start = Pos 27 5, end = Pos 27 5} :| []
----bootstrap: /Users/pchiusano/work/unison/unison-src/tests/state2.u:27:5:
----unexpected Close
----   27 |     let
+--Parsing/typechecking...
+--Token {payload = Close, start = Pos 27 5, end = Pos 27 5} :| []
+--bootstrap: /Users/pchiusano/work/unison/unison-src/tests/state2.u:27:5:
+--unexpected Close
+--   27 |     let
 --
 
 type Optional a = None | Some a
