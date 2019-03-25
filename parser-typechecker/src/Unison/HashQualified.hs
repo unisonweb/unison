@@ -2,45 +2,58 @@
 
 module Unison.HashQualified where
 
-import           Data.Maybe       (isJust)
-import           Data.String      (IsString, fromString)
-import           Data.Text        (Text)
-import qualified Data.Text        as Text
-import           Prelude          hiding (take)
-import           Unison.Name      (Name)
-import qualified Unison.Name      as Name
-import           Unison.Reference (Reference)
-import qualified Unison.Reference as Reference
-import           Unison.Referent  (Referent)
-import qualified Unison.Referent  as Referent
-import           Unison.ShortHash (ShortHash)
-import qualified Unison.ShortHash as SH
-import           Unison.Var       (Var)
-import qualified Unison.Var       as Var
+import           Data.Maybe                     ( isJust
+                                                , fromMaybe
+                                                )
+import           Data.String                    ( IsString
+                                                , fromString
+                                                )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import           Prelude                 hiding ( take )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent )
+import qualified Unison.Referent               as Referent
+import           Unison.ShortHash               ( ShortHash )
+import qualified Unison.ShortHash              as SH
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 
 data HashQualified
   = NameOnly Name | HashOnly ShortHash | HashQualified Name ShortHash
   deriving (Eq, Ord)
 
+stripNamespace :: Text -> HashQualified -> HashQualified
+stripNamespace namespace hq = case hq of
+  NameOnly name         -> NameOnly $ strip name
+  HashQualified name sh -> HashQualified (strip name) sh
+  ho                    -> ho
+ where
+  strip name =
+    fromMaybe name $ Name.stripPrefix (Name.Name $ namespace <> ".") name
+
 toName :: HashQualified -> Maybe Name
 toName = \case
-  NameOnly name -> Just name
+  NameOnly name        -> Just name
   HashQualified name _ -> Just name
-  HashOnly _ -> Nothing
+  HashOnly _           -> Nothing
 
 hasName :: HashQualified -> Bool
 hasName = isJust . toName
 
 toHash :: HashQualified -> Maybe ShortHash
 toHash = \case
-  NameOnly _ -> Nothing
+  NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh
-  HashOnly sh -> Just sh
+  HashOnly sh        -> Just sh
 
 take :: Int -> HashQualified -> HashQualified
 take i = \case
-  n@(NameOnly _) -> n
-  HashOnly s -> HashOnly (SH.take i s)
+  n@(NameOnly _)    -> n
+  HashOnly s        -> HashOnly (SH.take i s)
   HashQualified n s -> HashQualified n (SH.take i s)
 
 toString :: HashQualified -> String
@@ -52,28 +65,25 @@ fromString = fromText . Text.pack
 -- Parses possibly-hash-qualified into structured type.
 -- Won't crash, but also doesn't validate against base58 or the codebase.
 fromText :: Text -> HashQualified
-fromText t =
-  case Text.breakOn "#" t of
-    (name, "")   -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
-    ("", hash)   -> HashOnly (SH.unsafeFromText hash)   -- safe bc breakOn #
-    (name, hash) -> HashQualified (Name.unsafeFromText name)
-                                  (SH.unsafeFromText hash)
+fromText t = case Text.breakOn "#" t of
+  (name, ""  ) -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
+  (""  , hash) -> HashOnly (SH.unsafeFromText hash)   -- safe bc breakOn #
+  (name, hash) ->
+    HashQualified (Name.unsafeFromText name) (SH.unsafeFromText hash)
 
 toText :: HashQualified -> Text
 toText = \case
-  NameOnly name -> Name.toText name
+  NameOnly name           -> Name.toText name
   HashQualified name hash -> Name.toText name <> SH.toText hash
-  HashOnly ref -> Text.pack (show ref)
+  HashOnly ref            -> Text.pack (show ref)
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
 fromNamedReferent :: Name -> Referent -> HashQualified
-fromNamedReferent n r =
-  HashQualified n (Referent.toShortHash r)
+fromNamedReferent n r = HashQualified n (Referent.toShortHash r)
 
 -- Returns the full reference in the hash.  Use HQ.take to just get a prefix
 fromNamedReference :: Name -> Reference -> HashQualified
-fromNamedReference n r =
-  HashQualified n (Reference.toShortHash r)
+fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 
 fromReferent :: Referent -> HashQualified
 fromReferent = HashOnly . Referent.toShortHash
@@ -93,9 +103,9 @@ toVar = Var.named . toText
 -- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
 requalify :: HashQualified -> Referent -> HashQualified
 requalify hq r = case hq of
-  NameOnly n -> fromNamedReferent n r
+  NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
-  HashOnly _ -> fromReferent r
+  HashOnly _        -> fromReferent r
 
 instance IsString HashQualified where
   fromString = fromText . Text.pack

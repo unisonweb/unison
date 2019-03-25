@@ -153,7 +153,7 @@ namespace IO where
     rethrow (IO.putText stdout "\n")
 
   readLine : '{IO} Text
-  readLine = '(rethrow (IO.getText stdin))
+  readLine = '(rethrow (IO.getLine stdin))
 
 -- IO Modes from the Haskell API
 type IOMode = Read | Write | Append | ReadWrite
