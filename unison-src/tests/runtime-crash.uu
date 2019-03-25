@@ -1,0 +1,28 @@
+
+use Optional None Some
+
+namespace Sequence where
+
+  iterateWhile : (a -> Boolean) -> (a -> a) -> a -> [a]
+  iterateWhile p f a =
+    unfold a (a -> if p a then Some (a, f a) else None)
+
+  unfold : s -> (s -> Optional (a, s)) -> [a]
+  unfold s f =
+    go acc s f = case f s of
+      None -> acc
+      Some (a,s) -> go (acc `snoc` a) s f
+    go [] s f
+
+sliding : Nat -> Text -> [Text]
+sliding k t =
+  use Nat.>=
+  iterateWhile (t -> Text.size t >= k) (Text.drop 1) t
+
+> sliding 2 "Unison"
+
+---
+
+gives a runtime error - 
+
+unison: user error (type error, expecting N, got True)
