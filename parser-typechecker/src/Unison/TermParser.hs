@@ -16,6 +16,7 @@ import           Data.Foldable (asum)
 import           Data.Int (Int64)
 import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
+import qualified Data.Set as Set (toList)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
@@ -98,8 +99,8 @@ matchCase = do
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
 parsePattern = constructor <|> leaf
   where
-  leaf = literal <|> varOrAs <|> unbound <|>
-         parenthesizedOrTuplePattern <|> seq' <|> effect
+  leaf = literal <|> seq' <|> varOrAs <|> unbound <|>
+         parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
@@ -169,8 +170,12 @@ parsePattern = constructor <|> leaf
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
-  seqUncons = f <$> leaf <*> reserved "+:" <*> leaf
-    where f (head, vh) _ (tail, vt) = (Pattern.SequenceUncons (ann head <> ann tail) head tail, vh ++ vt)
+  seqOp = asum $ fmap reserved (Set.toList L.seqOps)
+
+  seqUncons = do
+    (head, vh) <- P.try $ leaf <* seqOp
+    (tail, vt) <- leaf
+    pure $ (Pattern.SequenceUncons (ann head <> ann tail) head tail, vh ++ vt)
 
   seq' = seqLiteral <|> seqUncons
 

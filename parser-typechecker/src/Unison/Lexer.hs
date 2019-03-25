@@ -284,7 +284,8 @@ lexer0 scope rem =
       c1 : c2 : rem@(c3 : _)
         | isSpace c3 && Set.member [c1, c2] seqOps ->
           let op = [c1, c2]
-          in Token (Reserved op) pos (incBy op pos) : goWhitespace l (inc pos) rem
+              pos' = incBy op $ inc pos
+          in Token (Reserved op) pos pos' : goWhitespace l pos' rem
       ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
         Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
       '@' : rem ->

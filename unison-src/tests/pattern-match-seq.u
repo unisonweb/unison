@@ -1,6 +1,2 @@
-length : [Nat] -> Nat
-length v = case v of
-  [] -> 0
-  -- _ +: t -> 1 + (length t)
-
--- > length []
+foo v = case v of
+  h +: t -> ()
