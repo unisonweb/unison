@@ -51,6 +51,14 @@ namespace Sequence where
   reverse : [a] -> [a]
   reverse as = foldl (acc a -> cons a acc) [] as
 
+  indexed : [a] -> [(a, Nat)]
+  indexed as = as `zip` range 0 (size as)
+
+  sortBy : (a -> b) -> [a] -> [a]
+  sortBy f as =
+    tweak p = (f (at1 p), at2 p, at1 p)
+    Heap.sort (map tweak (indexed as)) |> map at3
+
   halve : [a] -> ([a], [a])
   halve s =
     n = size s / 2
@@ -163,6 +171,9 @@ a |> f = f a
 
 (<|) : (a -> b) -> a -> b
 f <| a = f a
+
+id : a -> a
+id a = a
 
 namespace Map where
 
