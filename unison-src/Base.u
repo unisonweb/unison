@@ -1,0 +1,388 @@
+
+use Universal == < > >=
+use Optional None Some
+
+namespace Sequence where
+
+  map : (a -> b) -> [a] -> [b]
+  map f a =
+    go i as acc = case Sequence.at i as of
+      None -> acc
+      Some a -> go (i + 1) as (acc `snoc` f a)
+    go 0 a []
+
+  zip : [a] -> [b] -> [(a,b)]
+  zip as bs =
+    go acc i = case (at i as, at i bs) of
+      (None,_) -> acc
+      (_,None) -> acc
+      (Some a, Some b) -> go (acc `snoc` (a,b)) (i + 1)
+    go [] 0
+
+  insert : Nat -> a -> [a] -> [a]
+  insert i a as = take i as ++ [a] ++ drop i as
+
+  replace : Nat -> a -> [a] -> [a]
+  replace i a as = take i as ++ [a] ++ drop (i + 1) as
+
+  slice : Nat -> Nat -> [a] -> [a]
+  slice start stopExclusive s =
+    take (stopExclusive `Nat.drop` start) (drop start s)
+
+  unsafeAt : Nat -> [a] -> a
+  unsafeAt n as = case at n as of
+    Some a -> a
+    None -> Debug.watch "oh noes" (unsafeAt n as) -- Debug.crash "oh noes!"
+
+  foldl : (b -> a -> b) -> b -> [a] -> b
+  foldl f b as =
+    go b i = case Sequence.at i as of
+      None -> b
+      Some a -> go (f b a) (i + 1)
+    go b 0
+
+  foldb : (a -> b) -> (b -> b -> b) -> b -> [a] -> b
+  foldb f op z as =
+    if Sequence.size as == 0 then z
+    else if Sequence.size as == 1 then f (unsafeAt 0 as)
+    else case halve as of (left, right) ->
+       foldb f op z left `op` foldb f op z right
+
+  reverse : [a] -> [a]
+  reverse as = foldl (acc a -> cons a acc) [] as
+
+  indexed : [a] -> [(a, Nat)]
+  indexed as = as `zip` range 0 (size as)
+
+  sortBy : (a -> b) -> [a] -> [a]
+  sortBy f as =
+    tweak p = (f (at1 p), at2 p, at1 p)
+    Heap.sort (map tweak (indexed as)) |> map at3
+
+  halve : [a] -> ([a], [a])
+  halve s =
+    n = size s / 2
+    (take n s, drop n s)
+
+  unfold : s -> (s -> Optional (a, s)) -> [a]
+  unfold s0 f =
+    go f s acc = case f s of
+      None -> acc
+      Some (a, s) -> go f s (acc `snoc` a)
+    go f s0 []
+
+  uncons : [a] -> Optional (a, [a])
+  uncons as = case at 0 as of
+    None -> None
+    Some a -> Some (a, drop 1 as)
+
+  unsnoc : [a] -> Optional ([a], a)
+  unsnoc as =
+    i = size as `drop` 1
+    case at i as of
+      None -> None
+      Some a -> Some (take i as, a)
+
+  join : [[a]] -> [a]
+  join = foldl (++) []
+
+  flatMap : (a -> [b]) -> [a] -> [b]
+  flatMap f as = join (map f as)
+
+  range : Nat -> Nat -> [Nat]
+  range start stopExclusive =
+    f i = if i < stopExclusive then Some (i, i + 1) else None
+    unfold start f
+
+  distinct : [a] -> [a]
+  distinct as =
+    go i seen acc = case Sequence.at i as of
+      None -> acc
+      Some a -> if Set.contains a seen then go (i + 1) seen acc
+                else go (i + 1) (Set.insert a seen) (acc `snoc` a)
+    go 0 Set.empty []
+
+-- > Sequence.foldb "" (t t2 -> "(" ++ t ++ " " ++ t2 ++ ")") (x -> x) ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Gerald", "Henry"]
+
+-- Sorted maps, represented as a pair of sequences
+-- Use binary search to do lookups and find insertion points
+-- This relies on the underlying sequence having efficient
+-- slicing and concatenation
+type Map k v = Map [k] [v]
+
+use Map Map
+
+namespace Search where
+
+  indexOf : a -> [a] -> Optional Nat
+  indexOf a s =
+    ao = Some a
+    Search.exact (i -> ao `compare` Sequence.at i s) 0 (size s)
+
+  lubIndexOf' : a -> Nat -> [a] -> Nat
+  lubIndexOf' a start s =
+    ao = Some a
+    Search.lub (i -> ao `compare` Sequence.at i s) start (size s)
+
+  lubIndexOf : a -> [a] -> Nat
+  lubIndexOf a s = lubIndexOf' a 0 s
+
+  lub : (Nat -> Int) -> Nat -> Nat -> Nat
+  lub hit bot top =
+    if bot >= top then top
+    else
+      mid = (bot + top) / 2
+      case hit mid of
+        +0 -> mid
+        -1 -> lub hit bot mid
+        +1 -> lub hit (mid + 1) top
+
+  exact : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+  exact hit bot top =
+    if bot >= top then None
+    else
+      mid = (bot + top) / 2
+      case hit mid of
+        +0 -> Some mid
+        -1 -> exact hit bot mid
+        +1 -> exact hit (mid + 1) top
+
+-- > ex = [0,2,4,6,77,192,3838,12000]
+-- > Sequence.map (e -> indexOf e ex) ex
+-- > lubIndexOf 193 ex
+
+use Pair Pair
+
+namespace Tuple where
+  at1 : Pair a b -> a
+  at1 p = case p of Pair a _ -> a
+
+  at2 : Pair a (Pair b c) -> b
+  at2 p = case p of Pair _ (Pair b _) -> b
+
+  at3 : Pair a (Pair b (Pair c d)) -> c
+  at3 p = case p of Pair _ (Pair _ (Pair c _)) -> c
+
+  at4 : Pair a (Pair b (Pair c (Pair d e))) -> d
+  at4 p = case p of Pair _ (Pair _ (Pair _ (Pair d _))) -> d
+
+(|>) : a -> (a -> b) -> b
+a |> f = f a
+
+(<|) : (a -> b) -> a -> b
+f <| a = f a
+
+id : a -> a
+id a = a
+
+namespace Map where
+
+  empty : Map k v
+  empty = Map [] []
+
+  singleton : k -> v -> Map k v
+  singleton k v = Map [k] [v]
+
+  fromSequence : [(k,v)] -> Map k v
+  fromSequence kvs =
+    go acc i = case Sequence.at i kvs of
+      None -> acc
+      Some (k,v) -> go (insert k v acc) (i + 1)
+    go empty 0
+
+  toSequence : Map k v -> [(k,v)]
+  toSequence m = Sequence.zip (keys m) (values m)
+
+  size : Map k v -> Nat
+  size s = Sequence.size (keys s)
+
+  lookup : k -> Map k v -> Optional v
+  lookup k m = case m of
+    Map ks vs -> case Search.indexOf k ks of
+      None -> None
+      Some i -> at i vs
+
+  contains : k -> Map k v -> Boolean
+  contains k m = case m of Map ks _ -> case Search.indexOf k ks of
+    None -> false
+    _ -> true
+
+  insert : k -> v -> Map k v -> Map k v
+  insert k v m = case m of Map ks vs ->
+    use Search lubIndexOf
+    i = lubIndexOf k ks
+    case at i ks of
+      Some k' ->
+        if k == k' then Map ks (Sequence.replace i v vs)
+        else Map (Sequence.insert i k ks) (Sequence.insert i v vs)
+      None -> Map (ks `snoc` k) (vs `snoc` v)
+
+  map : (v -> v2) -> Map k v -> Map k v2
+  map f m = Map (keys m) (Sequence.map f (values m))
+
+  union : Map k v -> Map k v -> Map k v
+  union = unionWith (_ v -> v)
+
+  unionWith : (v -> v -> v) -> Map k v -> Map k v -> Map k v
+  unionWith f m1 m2 = case (m1, m2) of (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = case (at i k1, at j k2) of
+      (None, _) -> Map (ko ++ drop j k2) (vo ++ drop j v2)
+      (_, None) -> Map (ko ++ drop i k1) (vo ++ drop i v1)
+      (Some kx, Some ky) ->
+        use Sequence slice unsafeAt
+        use Search lubIndexOf'
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (unsafeAt i v1) (unsafeAt j v2))
+        else if kx < ky then
+          i' = lubIndexOf' ky i k1
+          go i' j (ko ++ slice i i' k1) (vo ++ slice i i' v1)
+        else
+          j' = lubIndexOf' kx j k2
+          go i j' (ko ++ slice j j' k2) (vo ++ slice j j' v2)
+    go 0 0 [] []
+
+  intersect : Map k v -> Map k v -> Map k v
+  intersect = intersectWith (_ v -> v)
+
+  intersectWith : (v -> v -> v2) -> Map k v -> Map k v -> Map k v2
+  intersectWith f m1 m2 = case (m1, m2) of (Map k1 v1, Map k2 v2) ->
+    go i j ko vo = case (at i k1, at j k2) of
+      (None, _) -> Map ko vo
+      (_, None) -> Map ko vo
+      (Some kx, Some ky) ->
+        if kx == ky then
+          go (i + 1) (j + 1)
+             (ko `snoc` kx)
+             (vo `snoc` f (Sequence.unsafeAt i v1) (Sequence.unsafeAt j v2))
+        else if kx < ky then
+          i' = Search.lubIndexOf' ky i k1
+          go i' j ko vo
+        else
+          j' = Search.lubIndexOf' kx j k2
+          go i j' ko vo
+    go 0 0 [] []
+
+  keys : Map k v -> [k]
+  keys m = case m of Map ks _ -> ks
+
+  values : Map k v -> [v]
+  values m = case m of Map _ vs -> vs
+
+namespace Multimap where
+
+  insert : k -> v -> Map k [v] -> Map k [v]
+  insert k v m = case Map.lookup k m of
+    None -> Map.insert k [v] m
+    Some vs -> Map.insert k (vs `snoc` v) m
+
+  lookup : k -> Map k [v] -> [v]
+  lookup k m = Optional.orDefault [] (Map.lookup k m)
+
+type Set a = Set (Map a ())
+use Set Set
+
+namespace Set where
+
+  empty : Set k
+  empty = Set Map.empty
+
+  underlying : Set k -> Map k ()
+  underlying s = case s of Set s -> s
+
+  toMap : (k -> v) -> Set k -> Map k v
+  toMap f s = case s of Set (Map ks vs) -> Map ks (Sequence.map f ks)
+
+  fromSequence : [k] -> Set k
+  fromSequence ks = Set (Map.fromSequence (Sequence.map (k -> (k,())) ks))
+
+  toSequence : Set k -> [k]
+  toSequence s = case s of Set (Map ks _) -> ks
+
+  contains : k -> Set k -> Boolean
+  contains k s = case s of Set m -> Map.contains k m
+
+  insert : k -> Set k -> Set k
+  insert k s = case s of Set s -> Set (Map.insert k () s)
+
+  union : Set k -> Set k -> Set k
+  union s1 s2 = Set (Map.union (underlying s1) (underlying s2))
+
+  size : Set k -> Nat
+  size s = Map.size (underlying s)
+
+  intersect : Set k -> Set k -> Set k
+  intersect s1 s2 = Set (Map.intersect (underlying s1) (underlying s2))
+
+type Heap k v = Heap Nat k v [Heap k v]
+use Heap Heap
+
+namespace Heap where
+
+  singleton : k -> v -> Heap k v
+  singleton k v = Heap 1 k v []
+
+  size : Heap k v -> Nat
+  size h = case h of Heap n _ _ _ -> n
+
+  union : Heap k v -> Heap k v -> Heap k v
+  union h1 h2 = case (h1, h2) of
+    (Heap n k1 v1 hs1, Heap m k2 v2 hs2) ->
+      if k1 >= k2 then Heap (n + m) k1 v1 (cons h2 hs1)
+      else Heap (n + m) k2 v2 (cons h1 hs2)
+
+  pop : Heap k v -> Optional (Heap k v)
+  pop h =
+    go h subs =
+      use Sequence drop size unsafeAt
+      if size subs == 0 then h
+      else if size subs == 1 then h `union` unsafeAt 0 subs
+      else union h (unsafeAt 0 subs) `union` go (unsafeAt 1 subs) (drop 2 subs)
+    case uncons (children h) of
+      None -> None
+      Some (s0, subs) -> Some (go s0 subs)
+
+  children : Heap k v -> [Heap k v]
+  children h = case h of Heap _ _ _ cs -> cs
+
+  max : Heap k v -> (k, v)
+  max h = case h of Heap _ k v _ -> (k, v)
+
+  maxKey : Heap k v -> k
+  maxKey h = case h of Heap _ k _ _ -> k
+
+  fromSequence : [(k,v)] -> Optional (Heap k v)
+  fromSequence kvs =
+    op a b = case a of
+      None -> b
+      Some a -> case b of
+        None -> Some a
+        Some b -> Some (union a b)
+    single kv = Some (singleton (Tuple.at1 kv) (Tuple.at2 kv))
+    Sequence.foldb single op None kvs
+
+  fromKeys : [a] -> Optional (Heap a a)
+  fromKeys as = fromSequence (Sequence.map (a -> (a,a)) as)
+
+  sortDescending : [a] -> [a]
+  sortDescending as =
+    step o = case o of
+      None -> None
+      Some h -> Some (max h, pop h)
+    Sequence.unfold (fromKeys as) step |> Sequence.map Tuple.at1
+
+  sort : [a] -> [a]
+  sort as = sortDescending as |> reverse
+
+-- > sort [11,9,8,4,5,6,7,3,2,10,1]
+
+Optional.map : (a -> b) -> Optional a -> Optional b
+Optional.map f o = case o of
+  None -> None
+  Some a -> Some (f a)
+
+Optional.orDefault : a -> Optional a -> a
+Optional.orDefault a o = case o of
+  None -> a
+  Some a -> a

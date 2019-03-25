@@ -232,7 +232,9 @@ lexer0 scope rem =
     -- pushes its column onto the layout stack
     pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
     pushLayout b l pos rem = span' isSpace rem $ \case
-      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
+      (_spaces, '-':'-':'-':_rem) ->
+        -- short circuit - everything after `---` is ignored
+        popLayout0 ((b,column pos):l) pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
@@ -246,21 +248,33 @@ lexer0 scope rem =
           else
             go ((b, col') : l) pos' rem
 
+    -- Figure out how many elements must be popped from the layout stack
+    -- before finding a matching `Open` token
+    findClose :: String -> Layout -> Int
+    findClose _ [] = 0
+    findClose s ((h,_):tl) = if s == h then 1 else 1 + findClose s tl
+
+    -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
+    close :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    close open close l pos rem = let
+      n = findClose open l
+      closes = replicate n $ Token Close pos (incBy close pos)
+      in closes ++ goWhitespace (drop n l) (inc pos) rem
+
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
-      -- we wanted `->` to be able to introduce a layout block
-      -- if the top block name on the layout stack is an `of`
-      -- but the effectBind pattern contains an `->`, and we
-      -- didn't want an `->` within an effectBind to introduce a block.
-      -- case blah of {State.get -> k} -> <layout block>
-      '{' : rem ->
-        Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
-      '}' : rem ->
-        Token Close pos (inc pos)
-          : Token (Reserved "}") pos (inc pos)
-          : goWhitespace (drop 1 l) (inc pos) rem
+      -- '{' and '(' both introduce a block, which is closed by '}' and ')'
+      -- The lexer doesn't distinguish among closing blocks: all the ways of
+      -- closing a block emit the same sort of token, `Close`.
+      --
+      -- Note: within {}'s, `->` does not open a block, since `->` is used
+      -- inside request patterns like `{State.set s -> k}`
+      '{' : rem -> Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
+      '}' : rem -> close "{" "}" l pos rem
+      '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
+      ')' : rem -> close "(" ")" l pos rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
