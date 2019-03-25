@@ -22,8 +22,8 @@ repository:
       2: {name: 'punctuation.definition.entity.unison'}
       3: {name: 'punctuation.definition.list.begin.unison'}
       4: {name: 'punctuation.definition.list.end.unison'}
-      5: {name: 'punctuation.definition.effect.begin.unison'}
-      6: {name: 'punctuation.definition.effect.end.unison'}
+      5: {name: 'punctuation.definition.ability.begin.unison'}
+      6: {name: 'punctuation.definition.ability.end.unison'}
       7: {name: 'punctuation.operator.assignment.as.unison'}
       8: {name: 'punctuation.separator.pipe.unison'}
   if:
@@ -31,7 +31,7 @@ repository:
     captures: {2: {name: 'keyword.control.unison'}}
   annotation:
     name: 'meta.function.type-declaration.unison'
-    match: '(\\S+)\\s+(:)(?=\\s)'
+    match: '(\\S+)\\s*(:)(?=\\s)'
     captures:
       1: {name: 'entity.name.function.unison' }
       2: {name: 'keyword.other.colon.unison' }
@@ -45,7 +45,7 @@ repository:
     captures:
       2: {name: 'keyword.control.case.unison'}
   unsorted_keywords:
-    match: '(\\s|^)(let|alias|handle|in|namespace|type|effect|where)(?=\\s|$)'
+    match: '(\\s|^)(let|alias|handle|in|namespace|type|ability|where)(?=\\s|$)'
     captures:
       2: {name: 'keyword.control.unison'}
 
