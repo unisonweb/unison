@@ -367,8 +367,8 @@ displayDefinitions outputLoc ppe terms types =
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing decl -> case decl of
-        Left _ability -> DeclPrinter.prettyEffectHeader n <> " -- todo"
-        Right d       -> DeclPrinter.prettyDataDecl ppe r n d
+        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
+        Right d -> DeclPrinter.prettyDataDecl ppe r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "
