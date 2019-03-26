@@ -60,6 +60,7 @@ library
     Unison.CommandLine.OutputMessages
     Unison.ConstructorType
     Unison.DataDeclaration
+    Unison.DeclPrinter
     Unison.FileParser
     Unison.FileParsers
     Unison.Hash

@@ -27,6 +27,7 @@ import           Data.Text.IO                  (readFile, writeFile)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
+import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch, Branch0)
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor        (DisplayThing (..), Input (..),
@@ -40,6 +41,7 @@ import           Unison.CommandLine            (backtick, backtickEOS,
                                                 watchPrinter, plural)
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
@@ -316,13 +318,11 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
-
-
 displayDefinitions :: Var v =>
   Maybe FilePath
   -> PPE.PrettyPrintEnv
   -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
-  -> [(Reference.Reference, DisplayThing (Either a2 b))]
+  -> [(Reference.Reference, DisplayThing (Codebase.Decl v a1))]
   -> IO ()
 displayDefinitions outputLoc ppe terms types =
   maybe displayOnly scratchAndDisplay outputLoc
@@ -367,8 +367,8 @@ displayDefinitions outputLoc ppe terms types =
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing decl -> case decl of
-        Left _ability -> TypePrinter.prettyEffectHeader n <> " -- todo"
-        Right _d      -> TypePrinter.prettyDataHeader n <> " -- todo"
+        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
+        Right d -> DeclPrinter.prettyDataDecl ppe r n d
   builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
   missing n r = P.wrap (
     "-- The name " <> prettyHashQualified n <> " is assigned to the "
@@ -427,11 +427,11 @@ prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.wrap $ TypePrinter.prettyDataHeader name <> "(built-in)"
+   BuiltinThing -> P.wrap $ DeclPrinter.prettyDataHeader name <> "(built-in)"
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
-     Left _ability -> TypePrinter.prettyEffectHeader name
-     Right _data   -> TypePrinter.prettyDataHeader name
+     Left _ability -> DeclPrinter.prettyEffectHeader name
+     Right _data   -> DeclPrinter.prettyDataHeader name
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
@@ -597,8 +597,8 @@ slurpOutput s =
     | v <- toList vs
     , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
   prettyDeclHeader v = case UF.getDecl' file v of
-    Just (Left _)  -> TypePrinter.prettyEffectHeader (HQ.fromVar v)
-    Just (Right _) -> TypePrinter.prettyDataHeader (HQ.fromVar v)
+    Just (Left _)  -> DeclPrinter.prettyEffectHeader (HQ.fromVar v)
+    Just (Right _) -> DeclPrinter.prettyDataHeader (HQ.fromVar v)
     Nothing        -> error "Wat."
   addedMsg =
     unlessM (null addedTypes && null addedTerms) . P.okCallout $
