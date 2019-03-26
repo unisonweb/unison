@@ -130,7 +130,7 @@ data Input
   -- high-level manipulation of names
   = AliasUnconflictedI (Set NameTarget) Name Name
   | RenameUnconflictedI (Set NameTarget) Name Name
-  | UnnameAllI NameTarget Name
+  | UnnameAllI (Set NameTarget) Name
   -- low-level manipulation of names
   | AddTermNameI Referent Name
   | AddTypeNameI Reference Name

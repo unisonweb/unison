@@ -236,8 +236,8 @@ loop = do
           aliasUnconflicted targets existingName newName
         RenameUnconflictedI targets oldName newName ->
           renameUnconflicted targets oldName newName
-        UnnameAllI nameTarget name -> modifyCurrentBranch0 $
-          Branch.unnameAll nameTarget name
+        UnnameAllI nameTargets name -> modifyCurrentBranch0 $ \b ->
+          foldl' (\b t -> Branch.unnameAll t name b) b nameTargets
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just uf' -> do

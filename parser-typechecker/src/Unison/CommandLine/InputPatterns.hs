@@ -11,6 +11,7 @@
 module Unison.CommandLine.InputPatterns where
 
 -- import Debug.Trace
+import           Unison.Name                   as Name
 import           Data.List                       (intercalate)
 import qualified Data.Set                        as Set
 import           Data.String                     (fromString)
@@ -75,6 +76,7 @@ view :: InputPattern
 view = InputPattern "view" [] [(False, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . ShowDefinitionI E.ConsoleLocation)
+
 rename :: InputPattern
 rename = InputPattern "rename" ["mv"]
     [(False, exactDefinitionQueryArg), (False, noCompletions)]
@@ -86,6 +88,16 @@ rename = InputPattern "rename" ["mv"]
         (fromString newName)
       _ -> Left . P.warnCallout $ P.wrap
         "`rename` takes two arguments, like `rename oldname newname`.")
+
+unname :: InputPattern
+unname = InputPattern "unname" ["rm"]
+    [(False, exactDefinitionQueryArg)]
+    "`unname foo` removes the name `foo` from the namespace."
+    (\case
+      [name] -> Right $ UnnameAllI allTargets (Name.fromString name)
+      _ -> Left . P.warnCallout $ P.wrap
+        "`unname` takes one arguments, like `unname name`.")
+
 alias :: InputPattern
 alias = InputPattern "alias" ["cp"]
     [(False, exactDefinitionQueryArg), (False, noCompletions)]
@@ -189,6 +201,7 @@ validInputs =
       "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
       (pure . ShowDefinitionI E.LatestFileLocation)
   , rename
+  , unname
   , alias
   , update
   , InputPattern "propagate" [] []
