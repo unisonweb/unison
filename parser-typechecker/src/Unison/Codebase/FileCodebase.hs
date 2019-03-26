@@ -29,7 +29,7 @@ import           Data.List                      ( isSuffixOf
                                                 )
 import           Data.List.Split                ( splitOn )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes, isJust )
+import           Data.Maybe                     ( catMaybes, fromMaybe, isJust )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
@@ -39,6 +39,7 @@ import           System.Directory               ( createDirectoryIfMissing
                                                 , doesDirectoryExist
                                                 , listDirectory
                                                 , removeFile
+                                                , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
@@ -55,8 +56,6 @@ import           Unison.Codebase                ( Codebase(Codebase)
                                                 )
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Name                   as Name
-import           Unison.Name                    ( Name )
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V0
                                                as V0
@@ -129,23 +128,28 @@ isValidBranchDirectory :: FilePath -> IO Bool
 isValidBranchDirectory path =
   not . null <$> filesInPathMatchingExtension path ".ubf"
 
-termDir, declDir:: FilePath -> Reference.Id -> FilePath
+termDir, declDir :: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
 
-encodeBuiltinName :: Name -> FilePath
-encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8 . Name.toText
+encodeBuiltinName :: Text -> FilePath
+encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
 
-decodeBuiltinName :: FilePath -> Maybe Name
+decodeBuiltinName :: FilePath -> Maybe Text
 decodeBuiltinName p =
-  Name.unsafeFromText . decodeUtf8 . Hash.toBytes <$>
-    Hash.fromBase58 (Text.pack p)
+  decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
 
-builtinTermDir, builtinTypeDir :: FilePath -> Name -> FilePath
+builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
 builtinTermDir path name =
   path </> "terms" </> "_builtin" </> encodeBuiltinName name
 builtinTypeDir path name =
   path </> "types" </> "_builtin" </> encodeBuiltinName name
+builtinDir :: FilePath -> Reference -> Maybe FilePath
+builtinDir path r@(Reference.Builtin name) =
+  if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
+  else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
+  else Nothing
+builtinDir _ _ = Nothing
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -168,6 +172,7 @@ touchDependentFile dependent fp = do
   createDirectoryIfMissing True (fp </> "dependents")
   writeFile (fp </> "dependents" </> componentId dependent) ""
 
+-- todo: this is base58-i-n ?
 parseHash :: String -> Maybe Reference.Id
 parseHash s = case splitOn "-" s of
   [h]       -> makeId h 0 1
@@ -190,9 +195,15 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
       putTerm h e typ = do
         S.putWithParentDirs (V0.putTerm putV putA) (termPath path h) e
         S.putWithParentDirs (V0.putType putV putA) (typePath path h) typ
-        let declDependencies = Term.referencedDataDeclarations e
+        let declDependencies :: Set Reference
+            declDependencies = Term.referencedDataDeclarations e
               <> Term.referencedEffectDeclarations e
         -- Add the term as a dependent of its dependencies
+        let err = "FileCodebase.putTerm found reference to unknown builtin."
+            deps = Term.dependencies' e
+        traverse_
+          (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
+          [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
         traverse_ (touchDependentFile h . termDir path)
           $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
         traverse_ (touchDependentFile h . declDir path)
@@ -248,6 +259,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         overwriteBranch name newBranch
         pure newBranch
 
+      deleteBranch name = removeDirectoryRecursive (branchPath path name)
+
+
       dependents :: Reference -> IO (Set Reference.Id)
       dependents r = do
         d  <- dir
@@ -258,8 +272,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         else pure Set.empty
        where
         dir = case r of
-          Reference.Builtin (Name.unsafeFromText -> name) ->
-            pure $ (if Builtin.isBuiltinTerm name
+          Reference.Builtin name ->
+            pure $ (if Builtin.isBuiltinTerm r
                     then builtinTermDir
                     else builtinTypeDir) path name
           Reference.DerivedId id -> do
@@ -294,6 +308,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branches
                getBranch
                mergeBranch
+               deleteBranch
                branchUpdates
                dependents
                builtinTypeAnnotation

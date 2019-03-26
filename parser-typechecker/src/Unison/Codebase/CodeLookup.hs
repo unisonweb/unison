@@ -1,6 +1,7 @@
 module Unison.Codebase.CodeLookup where
 
 import Control.Applicative
+import Control.Monad.Morph
 import qualified Data.Map                      as Map
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.UnisonFile              as UF
@@ -12,7 +13,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 
 type Decl v a = TL.Decl v a
 
-fromUnisonFile :: (Var v, Monad m) => UnisonFile v a -> CodeLookup m v a
+fromUnisonFile :: (Var v, Monad m) => UnisonFile v a -> CodeLookup v m a
 fromUnisonFile uf = CodeLookup tm ty where
   tm id = pure $ Map.lookup id termMap
   ty id = pure $ Map.lookup id typeMap1 <|> Map.lookup id typeMap2
@@ -27,23 +28,26 @@ fromUnisonFile uf = CodeLookup tm ty where
                             (_, (Reference.DerivedId id, e)) <-
                             Map.toList (Term.hashComponents tmm) ]
 
-data CodeLookup m v a
+data CodeLookup v m a
   = CodeLookup {
       getTerm :: Reference.Id -> m (Maybe (AnnotatedTerm v a)),
       getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
    }
 
-instance (Ord v, Functor m) => Functor (CodeLookup m v) where
+instance MFunctor (CodeLookup v) where
+  hoist f (CodeLookup tm tp) = CodeLookup (f . tm) (f . tp)
+
+instance (Ord v, Functor m) => Functor (CodeLookup v m) where
   fmap f cl = CodeLookup tm ty where
     tm id = fmap (Term.amap f) <$> getTerm cl id
     ty id = fmap md <$> getTypeDeclaration cl id
     md (Left e) = Left (f <$> e)
     md (Right d) = Right (f <$> d)
 
-instance Monad m => Semigroup (CodeLookup m v a) where
+instance Monad m => Semigroup (CodeLookup v m a) where
   (<>) = mappend
 
-instance Monad m => Monoid (CodeLookup m v a) where
+instance Monad m => Monoid (CodeLookup v m a) where
   mempty = CodeLookup (const $ pure Nothing) (const $ pure Nothing)
   c1 `mappend` c2 = CodeLookup tm ty where
     tm id = do

@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.TypeParser where
@@ -14,6 +13,7 @@ import           Unison.Parser
 import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
+import qualified Unison.DataDeclaration as DD
 
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
@@ -48,7 +48,7 @@ delayed = do
   q <- reserved "'"
   t <- effect <|> type2
   pure $ Type.arrow (Ann (L.start q) (end $ ann t))
-                    (Type.unit (ann q))
+                    (DD.unitType (ann q))
                     t
 
 type2 :: Var v => TypeP v
@@ -68,8 +68,7 @@ effectList :: Var v => TypeP v
 effectList = do
   open <- openBlockWith "{"
   es <- sepBy (reserved ",") valueType
-  _ <- closeBlock
-  close <- reserved "}"
+  close <- closeBlock
   pure $ Type.effects (ann open <> ann close) es
 
 sequenceTyp :: Var v => TypeP v
@@ -81,11 +80,11 @@ sequenceTyp = do
   pure $ Type.app a (Type.vector a) t
 
 tupleOrParenthesizedType :: Var v => TypeP v -> TypeP v
-tupleOrParenthesizedType rec = tupleOrParenthesized rec Type.unit pair
+tupleOrParenthesizedType rec = tupleOrParenthesized rec DD.unitType pair
   where
     pair t1 t2 =
       let a = ann t1 <> ann t2
-      in Type.app a (Type.app (ann t1) (Type.pair a) t1) t2
+      in Type.app a (Type.app (ann t1) (DD.pairType a) t1) t2
 
 --  valueType ::= ... | Arrow valueType computationType
 arrow :: Var v => TypeP v -> TypeP v

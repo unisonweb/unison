@@ -1,0 +1,17 @@
+effect State s where
+  get : {State s} s
+  set : s -> {State s} ()
+
+effect Console where
+  read : {Console} (Optional Text)
+  write : Text -> {Console} ()
+
+namespace Console where
+  state : s -> Effect (State s) a -> a
+  state s c = case c of
+    {State.get -> k} -> handle state s in k s
+    {State.set s' -> k} -> handle state s' in k ()
+    {a} -> a
+
+multiHandler : s -> [w] -> Nat -> Effect {State s, Console} a -> ()
+multiHandler _ _ _ _ = ()

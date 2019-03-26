@@ -14,3 +14,5 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Chris Gibbs (@atacratic) - Pretty-printer
 * Noah Haasis (@noahhaasis) - Tool that makes improving the error messages easier
 * Francis De Brabandere (@francisdb)
+* Matt Dziuban (@mrdziuban)
+* Ben Fradet (@BenFradet)

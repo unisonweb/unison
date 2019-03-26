@@ -249,7 +249,7 @@ reserved w = label w $ queryToken getReserved
 -- Parse a placeholder or typed hole
 blank :: Var v => P v (L.Token String)
 blank = label "blank" $ queryToken getBlank
-  where getBlank (L.Blank s) = Just s
+  where getBlank (L.Blank s) = Just ('_' : s)
         getBlank _           = Nothing
 
 numeric :: Var v => P v (L.Token String)
@@ -269,7 +269,7 @@ sepBy1 sep pb = P.sepBy1 pb sep
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
   where
-    prefixOp = wordyId <|> label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
+    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =
@@ -287,9 +287,9 @@ string = queryToken getString
 
 tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
-    open <- reserved "("
-    es <- sepBy (reserved ",") p
-    close <- optional semi *> reserved ")"
+    open <- openBlockWith "("
+    es <- sepBy (reserved "," *> optional semi) p
+    close <- optional semi *> closeBlock
     pure $ go es open close
   where
     go [t] _ _ = t

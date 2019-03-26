@@ -1,15 +1,16 @@
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts    #-}
 
 module Unison.TypePrinter where
 
+import qualified Data.ListLike                 as LL
 import           Data.Maybe            (isJust)
-import           Data.String           (fromString)
+import           Data.String           (IsString, fromString)
 import qualified Data.Text             as Text
 import           Unison.HashQualified  (HashQualified)
-import           Unison.NamePrinter    (prettyHashQualified)
+import           Unison.NamePrinter    (prettyHashQualified, prettyHashQualified')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
@@ -18,6 +19,7 @@ import           Unison.Util.Pretty    (ColorText, Pretty)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
+import qualified Unison.DataDeclaration as DD
 
 {- Explanation of precedence handling
 
@@ -41,21 +43,26 @@ import qualified Unison.Var            as Var
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty String
+pretty
+  :: (IsString s, LL.ListLike s Char, Var v)
+  => PrettyPrintEnv
+  -> Int
+  -> AnnotatedType v a
+  -> Pretty s
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
 pretty n p tp = case tp of
-  Var' v     -> l $ Text.unpack (Var.name v)
-  Ref' r     -> prettyHashQualified $ (PrettyPrintEnv.typeName n r)
-  Cycle' _ _ -> l $ "error" -- TypeParser does not currently emit Cycle
-  Abs' _     -> l $ "error" -- TypeParser does not currently emit Abs
-  Ann' _ _   -> l $ "error" -- TypeParser does not currently emit Ann
+  Var' v     -> PP.text (Var.name v)
+  Ref' r     -> prettyHashQualified' $ (PrettyPrintEnv.typeName n r)
+  Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
+  Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
+  Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
   App' (Ref' (Builtin "Sequence")) x ->
     PP.group $ l "[" <> pretty n 0 x <> l "]"
-  Tuple' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
+  DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
     [pretty n 10 x, "()"]
-  Tuple' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
+  DD.TupleType' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
   Apps' f xs -> PP.parenthesizeIf (p >= 10) $ pretty n 9 f `PP.hang` PP.spaced
     (pretty n 10 <$> xs)
   Effect1' e t ->
@@ -68,7 +75,7 @@ pretty n p tp = case tp of
       $         ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
       `PP.hang` pretty n (-1) body
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
-    EffectfulArrows' (Ref' UnitRef) rest -> arrows True True rest
+    EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest ->
       PP.parenthesizeIf (p >= 0) $ pretty n 0 fst <> arrows False False rest
     _ -> l "error"
@@ -82,8 +89,8 @@ pretty n p tp = case tp of
       <> effects mes
       <> if (isJust mes) || (not delay) && (not first) then l " " else mempty
 
-  arrows delay first [(mes, Ref' UnitRef)] = arrow delay first mes <> l "()"
-  arrows delay first ((mes, Ref' UnitRef) : rest) =
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> l "()"
+  arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
     arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
   arrows delay first ((mes, arg) : rest) =
     arrow delay first mes
@@ -102,15 +109,15 @@ pretty n p tp = case tp of
   parenNoGroup False s = s
 
   -- parenNest useParen contents = PP.Nest "  " $ paren useParen contents
-
-  l = PP.lit
-
+  l :: IsString s => String -> s
+  l = fromString
   -- b = Breakable
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
 pretty' (Just width) n t = PP.render width $ pretty n (-1) t
 pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
 
+-- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified, AnnotatedType v a)]
@@ -121,6 +128,7 @@ prettySignatures' env ts = PP.align
   | (name, typ) <- ts
   ]
 
+-- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
   :: Var v => PrettyPrintEnv
   -> [([HashQualified], AnnotatedType v a)]
@@ -151,8 +159,3 @@ prettySignaturesAlt env ts = PP.lines $
   PP.group <$> prettySignaturesAlt' env ts
 
 
-prettyDataHeader :: HashQualified -> Pretty ColorText
-prettyDataHeader name = PP.bold "type " <> prettyHashQualified name
-
-prettyEffectHeader :: HashQualified -> Pretty ColorText
-prettyEffectHeader name = PP.bold "ability " <> prettyHashQualified name

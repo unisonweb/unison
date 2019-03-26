@@ -199,11 +199,17 @@ pattern Tm' f <- Term _ _ (Tm f)
 pattern CycleA' a avs t <- Term _ a (Cycle (AbsNA' avs t))
 pattern AbsNA' avs body <- (unabsA -> (avs, body))
 pattern Ann' t r <- Term _ _ (Ann t r)
+pattern Abs1NA' avs body <- (unabs1A -> Just (avs, body))
 
 unabsA :: Term f v a -> ([(a,v)], Term f v a)
 unabsA (Term _ a (Abs hd body)) =
   let (tl, body') = unabsA body in ((a,hd) : tl, body')
 unabsA t = ([], t)
+
+unabs1A :: Term f v a -> Maybe ([(a,v)], Term f v a)
+unabs1A t = case unabsA t of
+  ([], _) -> Nothing
+  x -> Just x
 
 v' :: Var v => Text -> v
 v' = Var.named

@@ -1,9 +1,8 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, LambdaCase, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards #-}
 
 module Unison.Codebase.Serialization.V0 where
 
 -- import qualified Data.Text as Text
-import qualified Data.Vector                   as Vector
 import qualified Unison.PatternP               as Pattern
 import           Unison.PatternP                ( Pattern )
 import           Control.Applicative            ( liftA2
@@ -44,6 +43,7 @@ import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Data.ByteString               as B
 import qualified Data.Map                      as Map
+import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.Causal        as Causal
@@ -369,7 +369,7 @@ putTerm putVar putA typ = putABT putVar putA go typ where
       -> putWord8 9 *> putChild f *> putChild arg
     Term.Ann e t
       -> putWord8 10 *> putChild e *> putType putVar putA t
-    Term.Vector vs
+    Term.Sequence vs
       -> putWord8 11 *> putFoldable vs putChild
     Term.If cond t f
       -> putWord8 12 *> putChild cond *> putChild t *> putChild f
@@ -405,7 +405,7 @@ getTerm getVar getA = getABT getVar getA go where
     8 -> Term.Handle <$> getChild <*> getChild
     9 -> Term.App <$> getChild <*> getChild
     10 -> Term.Ann <$> getChild <*> getType getVar getA
-    11 -> Term.Vector . Vector.fromList <$> getList getChild
+    11 -> Term.Sequence . Sequence.fromList <$> getList getChild
     12 -> Term.If <$> getChild <*> getChild <*> getChild
     13 -> Term.And <$> getChild <*> getChild
     14 -> Term.Or <$> getChild <*> getChild

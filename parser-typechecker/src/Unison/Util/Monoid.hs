@@ -16,3 +16,6 @@ fromMaybe (Just a) = a
 whenM :: Monoid a => Bool -> a -> a
 whenM True a = a
 whenM False _ = mempty
+
+unlessM :: Monoid a => Bool -> a -> a
+unlessM b = whenM (not b)

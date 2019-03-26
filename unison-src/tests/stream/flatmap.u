@@ -1,7 +1,0 @@
-a |> f = f a
-ones = Stream.constant 1
-
-> Stream.from-nat 0
-  |> Stream.flat-map (n -> Stream.take n ones |> Stream.cons 7)
-  |> Stream.take 10
-  |> Stream.sum-nat

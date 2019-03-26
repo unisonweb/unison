@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -33,6 +32,7 @@ import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
 import qualified Unison.DataDeclaration       as DD
+import Unison.DataDeclaration (pattern TupleType')
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -726,19 +726,21 @@ renderType
   -> AnnotatedText a
 renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
  where
-  paren :: (IsString a, Semigroup a) => Bool -> a -> a
-  paren test s = if test then "(" <> s <> ")" else s
+  wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
+  wrap start end test s = if test then start <> s <> end else s
+  paren = wrap "(" ")"
+  curly = wrap "{" "}"
   renderType0 env f p t = f (ABT.annotation t) $ case t of
     Type.Ref' r -> showTypeRef env r
     Type.Arrow' i (Type.Effect1' e o) ->
       paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
     Type.Arrow' i o -> paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
     Type.Ann'   t k -> paren True $ go 1 t <> " : " <> renderKind k
-    Type.Tuple' ts  -> paren True $ commas (go 0) ts
+    TupleType' ts  -> paren True $ commas (go 0) ts
     Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
       "[" <> go 0 arg <> "]"
     Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f' : args)
-    Type.Effects' es   -> commas (go 0) es
+    Type.Effects' es   -> curly (p >= 3) $ commas (go 0) es
     Type.Effect' es t  -> case es of
       [] -> go p t
       _  -> "{" <> commas (go 0) es <> "} " <> go 3 t
@@ -956,8 +958,8 @@ prettyParseError s = \case
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
-    , "),"
-    , ", but there wasn't one.  Maybe check your indentation:\n"
+    , "), "
+    , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
   go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok

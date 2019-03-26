@@ -1,12 +1,12 @@
 --IO/State2 effect
 effect IO where
-  launch-missiles : {IO} ()
+  launchMissiles : {IO} ()
 
 foo : () -> {IO} ()
 foo unit =
-  inc-by : Int -> {IO, State Int} ()
-  inc-by i =
-    IO.launch-missiles -- OK, since declared by `inc-by` signature
+  incBy : Int -> {IO, State Int} ()
+  incBy i =
+    IO.launchMissiles -- OK, since declared by `incBy` signature
     y = State.get
     State.put (y Int.+ i)
   ()

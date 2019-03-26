@@ -9,7 +9,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Unison.Term where
 
@@ -25,8 +24,8 @@ import           Data.Set (Set, union)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Vector (Vector)
-import qualified Data.Vector as Vector
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Sequence
 import           Data.Word (Word64)
 import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
@@ -72,7 +71,7 @@ data F typeVar typeAnn patternAnn a
   | Handle a a
   | App a a
   | Ann a (Type.AnnotatedType typeVar typeAnn)
-  | Vector (Vector a)
+  | Sequence (Seq a)
   | If a a a
   | And a a
   | Or a a
@@ -224,13 +223,14 @@ pattern And' x y <- (ABT.out -> ABT.Tm (And x y))
 pattern Or' x y <- (ABT.out -> ABT.Tm (Or x y))
 pattern Handle' h body <- (ABT.out -> ABT.Tm (Handle h body))
 pattern Apps' f args <- (unApps -> Just (f, args))
+-- begin pretty-printer helper patterns
 pattern AppsPred' f args <- (unAppsPred -> Just (f, args))
 pattern BinaryApp' f arg1 arg2 <- (unBinaryApp -> Just (f, arg1, arg2))
 pattern BinaryApps' apps lastArg <- (unBinaryApps -> Just (apps, lastArg))
 pattern BinaryAppsPred' apps lastArg <- (unBinaryAppsPred -> Just (apps, lastArg))
+-- end pretty-printer helper patterns
 pattern Ann' x t <- (ABT.out -> ABT.Tm (Ann x t))
-pattern Vector' xs <- (ABT.out -> ABT.Tm (Vector xs))
-pattern Tuple' xs <- (unTuple' -> Just xs)
+pattern Sequence' xs <- (ABT.out -> ABT.Tm (Sequence xs))
 pattern Lam' subst <- ABT.Tm' (Lam (ABT.Abs' subst))
 pattern LamNamed' v body <- (ABT.out -> ABT.Tm (Lam (ABT.Term _ _ (ABT.Abs v body))))
 pattern LamsNamed' vs body <- (unLams' -> Just (vs, body))
@@ -281,27 +281,6 @@ nat a d = ABT.tm' a (Nat d)
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
 
-unit :: Var v => a -> AnnotatedTerm v a
-unit ann = constructor ann Type.unitRef 0
-
-tupleCons :: (Ord v, Semigroup a)
-          => AnnotatedTerm2 vt at ap v a
-          -> AnnotatedTerm2 vt at ap v a
-          -> AnnotatedTerm2 vt at ap v a
-tupleCons hd tl =
-  apps' (constructor (ABT.annotation hd) Type.pairRef 0) [hd, tl]
-
-tuple :: (Var v, Monoid a) => [AnnotatedTerm v a] -> AnnotatedTerm v a
-tuple = foldr tupleCons (unit mempty)
-
--- delayed terms are just lambdas that take a single `()` arg
--- `force` calls the function
-force :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
-force a au e = app a e (unit au)
-
-delay :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
-delay a e = lam a (Var.named "()") e
-
 watch :: (Var v, Semigroup a) => a -> String -> AnnotatedTerm v a -> AnnotatedTerm v a
 watch a note e =
   apps' (builtin a "Debug.watch") [text a (Text.pack note), e]
@@ -344,11 +323,11 @@ and a x y = ABT.tm' a (And x y)
 or :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 or a x y = ABT.tm' a (Or x y)
 
-vector :: Ord v => a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
-vector a es = vector' a (Vector.fromList es)
+seq :: Ord v => a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
+seq a es = seq' a (Sequence.fromList es)
 
-vector' :: Ord v => a -> Vector (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
-vector' a es = ABT.tm' a (Vector es)
+seq' :: Ord v => a -> Seq (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
+seq' a es = ABT.tm' a (Sequence es)
 
 apps :: Ord v => AnnotatedTerm2 vt at ap v a -> [(a, AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a
 apps f = foldl' (\f (a,t) -> app a f t) f
@@ -401,7 +380,7 @@ letRec'
   -> AnnotatedTerm' vt v a
 letRec' isTop bindings body =
   letRec isTop
-    (foldMap (ABT.annotation . snd) bindings)
+    (foldMap (ABT.annotation . snd) bindings <> ABT.annotation body)
     [ ((ABT.annotation b, v), b) | (v,b) <- bindings ]
     body
 
@@ -526,31 +505,35 @@ unAppsPred (t, pred) = case go t [] of [] -> Nothing; f:args -> Just (f,args)
   go _ [] = []
   go fn args = fn:args
 
-unBinaryApp :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a,
-                                                     AnnotatedTerm2 vt at ap v a,
-                                                     AnnotatedTerm2 vt at ap v a)
+unBinaryApp :: AnnotatedTerm2 vt at ap v a
+            -> Maybe (AnnotatedTerm2 vt at ap v a,
+                      AnnotatedTerm2 vt at ap v a,
+                      AnnotatedTerm2 vt at ap v a)
 unBinaryApp t = case unApps t of
   Just (f, [arg1, arg2]) -> Just (f, arg1, arg2)
   _                      -> Nothing
 
 -- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
-unBinaryApps :: AnnotatedTerm2 vt at ap v a -> Maybe ([(AnnotatedTerm2 vt at ap v a,
-                                                        AnnotatedTerm2 vt at ap v a)],
-                                                      AnnotatedTerm2 vt at ap v a)
+unBinaryApps :: AnnotatedTerm2 vt at ap v a
+             -> Maybe ([(AnnotatedTerm2 vt at ap v a,
+                        AnnotatedTerm2 vt at ap v a)],
+                        AnnotatedTerm2 vt at ap v a)
 unBinaryApps t = unBinaryAppsPred (t, \_ -> True)
 
 -- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
-unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) ->
-                      Maybe ([(AnnotatedTerm2 vt at ap v a,
-                               AnnotatedTerm2 vt at ap v a)],
-                              AnnotatedTerm2 vt at ap v a)
+unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a
+                    ,AnnotatedTerm2 vt at ap v a -> Bool)
+                 -> Maybe ([(AnnotatedTerm2 vt at ap v a,
+                             AnnotatedTerm2 vt at ap v a)],
+                           AnnotatedTerm2 vt at ap v a)
 unBinaryAppsPred (t, pred) = case unBinaryApp t of
   Just (f, x, y) | pred f -> case unBinaryAppsPred (x, pred) of
                                Just (as, xLast) -> Just ((xLast, f) : as, y)
                                Nothing          -> Just ([(x, f)], y)
   _                       -> Nothing
 
-unLams' :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLams' :: AnnotatedTerm2 vt at ap v a
+        -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
 unLams' t = unLamsPred' (t, (\_ -> True))
 
 -- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
@@ -567,12 +550,6 @@ unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) 
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
-
-unTuple' :: AnnotatedTerm2 vt at ap v a -> Maybe [AnnotatedTerm2 vt at ap v a]
-unTuple' t = case t of
-  Apps' (Constructor' Type.PairRef 0) [fst, snd] -> (fst :) <$> unTuple' snd
-  Constructor' Type.UnitRef 0 -> Just []
-  _ -> Nothing
 
 unReqOrCtor :: AnnotatedTerm2 vt at ap v a -> Maybe (Reference, Int)
 unReqOrCtor (Constructor' r cid) = Just (r, cid)
@@ -607,7 +584,7 @@ dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
   f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
   f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
-  f t@(Vector _)  = Writer.tell [Type.vectorRef] *> pure t
+  f t@(Sequence _) = Writer.tell [Type.vectorRef] *> pure t
   f t             = pure t
 
 referencedDataDeclarations
@@ -670,6 +647,15 @@ updateDependencies u tm = ABT.rebuildUp go tm
 betaReduce :: Var v => Term v -> Term v
 betaReduce (App' (Lam' f) arg) = ABT.bind f arg
 betaReduce e = e
+
+betaNormalForm :: Var v => Term v -> Term v
+betaNormalForm (App' f a) = betaNormalForm (betaReduce (app() (betaNormalForm f) a))
+betaNormalForm e = e
+
+-- x -> f x => f
+etaNormalForm :: Eq v => Term v -> Term v
+etaNormalForm (LamNamed' v (App' f (Var' v'))) | v == v' = etaNormalForm f
+etaNormalForm t = t
 
 -- This converts `Reference`s it finds that are in the input `Map`
 -- back to free variables
@@ -759,9 +745,9 @@ instance Var v => Hashable1 (F v a p) where
                     error "handled above, but GHC can't figure this out"
                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
-                  Vector as -> tag 5 : varint (Vector.length as) : map
+                  Sequence as -> tag 5 : varint (Sequence.length as) : map
                     (hashed . hash)
-                    (Vector.toList as)
+                    (toList as)
                   Lam a         -> [tag 6, hashed (hash a)]
                   -- note: we use `hashCycle` to ensure result is independent of
                   -- let binding order
@@ -805,7 +791,7 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
-  Vector v == Vector v2 = v == v2
+  Sequence v == Sequence v2 = v == v2
   If a b c == If a2 b2 c2 = a == a2 && b == b2 && c == c2
   And a b == And a2 b2 = a == a2 && b == b2
   Or a b == Or a2 b2 = a == a2 && b == b2
@@ -829,7 +815,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
     go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s ":" <> showsPrec 0 k
     go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
     go _ (Lam    body  ) = showParen True (s "λ " <> showsPrec 0 body)
-    go _ (Vector vs    ) = showListWith (showsPrec 0) (Vector.toList vs)
+    go _ (Sequence vs    ) = showListWith (showsPrec 0) (toList vs)
     go _ (Blank  b     ) = case b of
       B.Blank                        -> s "_"
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)

@@ -44,7 +44,7 @@ data UnisonFile v a = UnisonFile {
 
 -- Converts a file to a single let rec with a body of `()`.
 uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
-uberTerm uf = Term.letRec' True (terms uf <> watches uf) (Term.unit mempty)
+uberTerm uf = Term.letRec' True (terms uf <> watches uf) (DD.unitTerm mempty)
 
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a

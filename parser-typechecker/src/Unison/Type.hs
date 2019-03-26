@@ -152,17 +152,8 @@ pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
 pattern Cycle' xs t <- ABT.Cycle' xs t
 pattern Abs' subst <- ABT.Abs' subst
-pattern Tuple' ts <- (unTuple -> Just ts)
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
-pattern UnitRef <- (unUnitRef -> True)
-pattern PairRef <- (unPairRef -> True)
-pattern OptionalRef <- (unOptionalRef -> True)
-
-unUnitRef,unPairRef,unOptionalRef :: Reference -> Bool
-unUnitRef = (== Unison.Type.unitRef)
-unPairRef = (== Unison.Type.pairRef)
-unOptionalRef = (== Unison.Type.optionalRef)
 
 unPure :: Ord v => AnnotatedType v a -> Maybe (AnnotatedType v a)
 unPure (Effect'' [] t) = Just t
@@ -193,12 +184,6 @@ unForalls t = go t []
   where go (ForallNamed' v body) vs = go body (v:vs)
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
-
-unTuple :: Var v => AnnotatedType v a -> Maybe [AnnotatedType v a]
-unTuple t = case t of
-  Apps' (Ref' PairRef) [fst, snd] -> (fst :) <$> unTuple snd
-  Ref' UnitRef -> Just []
-  _ -> Nothing
 
 unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
@@ -238,17 +223,6 @@ derivedBase58 r a = ref a r
 
 derivedBase58' :: Text -> Reference
 derivedBase58' base58 = Reference.derivedBase58 base58 0 1
-
--- todo: use correct hashes here and hook these up everywhere
-unitRef, pairRef, optionalRef :: Reference
-unitRef = derivedBase58' "3RmFgofLaDzZJgTRZVHvR4fVm2uySKXTS8PvdzzCarQ4HK5fhLmhhY4DsgiVM8iR5EtWiePhkrdB9v3ScavAvCHz"
-pairRef = derivedBase58' "2tWjVAuc7y9ycWkiC1x89DCxrnCAPSWhS4xBZJ3b7oQDFFczHtPgjCpnypU7t8Hx567nFmdX7Ga1m9P21DHr8Y1Y"
-optionalRef = derivedBase58' "5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms64GrQhN7BgvHbmUbtmCxrWinBh19Zr9oH4SSm5rRdttJYa"
-
-unit, pair, optional :: Ord v => a -> AnnotatedType v a
-unit = flip ref unitRef
-pair = flip ref pairRef
-optional = flip ref optionalRef
 
 intRef, natRef, floatRef, booleanRef, textRef, streamRef, vectorRef :: Reference
 intRef = Reference.Builtin "Int"
@@ -296,9 +270,22 @@ arrow
   :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 arrow a i o = ABT.tm' a (Arrow i o)
 
+app' :: (Ord v, Semigroup a) => AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+app' f arg = app (ABT.annotation f <> ABT.annotation arg) f arg
+
+apps' :: (Semigroup a, Ord v) => AnnotatedType v a -> [AnnotatedType v a] -> AnnotatedType v a
+apps' f args = foldl app' f args
+
 ann
   :: Ord v => a -> AnnotatedType v a -> K.AnnotatedKind v a -> AnnotatedType v a
 ann a e t = ABT.tm' a (Ann e t)
+
+arrow'
+  :: (Semigroup a, Ord v)
+  => AnnotatedType v a
+  -> AnnotatedType v a
+  -> AnnotatedType v a
+arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
 
 forall :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
 forall a v body = ABT.tm' a (Forall (ABT.abs' a v body))

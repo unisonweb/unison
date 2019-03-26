@@ -30,7 +30,7 @@ file
   -> Result
        (Seq (Note Symbol Ann))
        (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile Symbol Ann))
-file = parseAndSynthesizeAsFile ""
+file = parseAndSynthesizeAsFile [] ""
 
 t :: String -> Type Symbol
 t = B.t
@@ -43,13 +43,15 @@ env = Typechecker.Env Intrinsic [] B.typeLookup mempty
 
 parseAndSynthesizeAsFile
   :: Var v
-  => FilePath
+  => [Type v]
+  -> FilePath
   -> String
-  -> Result (Seq (Note v Ann))
-            (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile v Ann))
-parseAndSynthesizeAsFile filename s =
-  FP.parseAndSynthesizeFile
-    (\_deps -> pure B.typeLookup)
-    B.names
-    filename
-    (Text.pack s)
+  -> Result
+       (Seq (Note v Ann))
+       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile v Ann))
+parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
+  ambient
+  (\_deps -> pure B.typeLookup)
+  B.names
+  filename
+  (Text.pack s)

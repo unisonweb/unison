@@ -1,0 +1,32 @@
+ability Zing where
+  zing : Nat -> {Zing} (Nat -> Nat)
+  zing2 : Nat -> Nat ->{Zing} (Nat -> Nat -> [Nat])
+
+unzing z = case z of
+  {a} -> a
+  {Zing.zing n -> k} -> handle unzing in k (x -> x `drop` n)
+  {Zing.zing2 n1 n2 -> k} -> handle unzing in k (n3 n4 -> [n1, n2, n3, n4])
+
+--exacth = handle unzing in
+--  f = Zing.zing 3
+--  f 20 + 1
+--
+--overapplyh = handle unzing in
+--  Zing.zing 3 20 + 1
+
+-- SEQUENCES with abilities
+
+-- sequence1 = handle unzing in [Zing.zing 1 4]
+
+-- gives incorrect results
+sequence2 = handle unzing in
+  zonk = Zing.zing 1
+  subtract10 = Zing.zing 10
+  -- zonk somehow refers to subtract10 here
+  zoot = zonk
+  [zoot 40]
+
+-- bombs
+-- sequence3 = handle unzing in [Zing.zing 1 4, Zing.zing 2 4, Zing.zing 3 4, Zing.zing 4 4]
+
+> sequence2

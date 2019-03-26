@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language LambdaCase, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# Language BangPatterns, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 
 module Unison.Lexer where
 
@@ -89,7 +89,15 @@ instance Applicative Token where
 type Line = Int
 type Column = Int
 
-data Pos = Pos {-# Unpack #-} !Line !Column deriving (Eq,Ord,Show)
+data Pos = Pos {-# Unpack #-} !Line {-# Unpack #-} !Column deriving (Eq,Ord,Show)
+
+instance Semigroup Pos where (<>) = mappend
+
+instance Monoid Pos where
+  mempty = Pos 0 0
+  Pos line col `mappend` Pos line2 col2 =
+    if line2 == 0 then Pos line (col + col2)
+    else Pos (line + line2) col2
 
 line :: Pos -> Line
 line (Pos line _) = line
@@ -224,27 +232,49 @@ lexer0 scope rem =
     -- pushes its column onto the layout stack
     pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
     pushLayout b l pos rem = span' isSpace rem $ \case
-      (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
+      (_spaces, '-':'-':'-':_rem) ->
+        -- short circuit - everything after `---` is ignored
+        popLayout0 ((b,column pos):l) pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         pushLayout b l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) ->
-        let pos' = incBy spaces pos in go ((b, column pos') : l) pos' rem
+        let topcol = top l
+            pos'   = incBy spaces pos
+            col'   = column pos'
+        in
+          if b == "=" && col' <= topcol then
+            -- force closing by introducing a fake col +1 layout
+            popLayout0 ((b, col' + 1) : l) pos' rem
+          else
+            go ((b, col') : l) pos' rem
+
+    -- Figure out how many elements must be popped from the layout stack
+    -- before finding a matching `Open` token
+    findClose :: String -> Layout -> Int
+    findClose _ [] = 0
+    findClose s ((h,_):tl) = if s == h then 1 else 1 + findClose s tl
+
+    -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
+    close :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    close open close l pos rem = let
+      n = findClose open l
+      closes = replicate n $ Token Close pos (incBy close pos)
+      in closes ++ goWhitespace (drop n l) (inc pos) rem
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
-      -- we wanted `->` to be able to introduce a layout block
-      -- if the top block name on the layout stack is an `of`
-      -- but the effectBind pattern contains an `->`, and we
-      -- didn't want an `->` within an effectBind to introduce a block.
-      -- case blah of {State.get -> k} -> <layout block>
-      '{' : rem ->
-        Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
-      '}' : rem ->
-        Token Close pos (inc pos)
-          : Token (Reserved "}") pos (inc pos)
-          : goWhitespace (drop 1 l) (inc pos) rem
+      -- '{' and '(' both introduce a block, which is closed by '}' and ')'
+      -- The lexer doesn't distinguish among closing blocks: all the ways of
+      -- closing a block emit the same sort of token, `Close`.
+      --
+      -- Note: within {}'s, `->` does not open a block, since `->` is used
+      -- inside request patterns like `{State.set s -> k}`
+      '{' : rem -> Token (Open "{") pos (inc pos) : pushLayout "{" l (inc pos) rem
+      '}' : rem -> close "{" "}" l pos rem
+      '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
+      ')' : rem -> close "(" ")" l pos rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
@@ -279,8 +309,8 @@ lexer0 scope rem =
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
       -- string literals and backticked identifiers
       '"' : rem -> case splitStringLit rem of
-        Right (lit, rem) -> let end = inc . incBy lit . inc $ pos in
-          Token (Textual lit) pos end : goWhitespace l end (pop rem)
+        Right (delta, lit, rem) -> let end = pos <> delta in
+          Token (Textual lit) pos end : goWhitespace l end rem
         Left (TextLiteralMissingClosingQuote _) -> [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
         Left err -> [Token (Err err) pos pos]
       '`' : rem -> case wordyId rem of
@@ -321,15 +351,18 @@ matchKeyword' keywords s = case span (not . isSep) s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
--- Split into a string literal and the remainder
+-- Split into a string literal and the remainder, and a delta which includes
+-- both the starting and ending `"` character
 -- The input string should only start with a '"' if the string literal is empty
-splitStringLit :: String -> Either Err (String, String)
-splitStringLit ('\\':s:rem) = case parseEscapeChar s of
-  (Just e) -> appendFst e <$> splitStringLit rem
-  Nothing  -> Left $ InvalidEscapeCharacter s
-splitStringLit ('"':rem)    = Right ("", '"':rem)
-splitStringLit (x:rem)      = appendFst x <$> splitStringLit rem
-splitStringLit []           = Left $ TextLiteralMissingClosingQuote ""
+splitStringLit :: String -> Either Err (Pos, String, String)
+splitStringLit rem0 = go (inc mempty) "" rem0 where
+  -- n tracks the raw character delta of this literal
+  go !n !acc ('\\':s:rem) = case parseEscapeChar s of
+    Just e -> go (inc . inc $ n) (e:acc) rem
+    Nothing  -> Left $ InvalidEscapeCharacter s
+  go !n !acc ('"':rem)    = Right (inc n, reverse acc, rem)
+  go !n !acc (x:rem)      = go (inc n) (x:acc) rem
+  go _ _ []               = Left $ TextLiteralMissingClosingQuote ""
 
 appendFst :: Char -> (String, a) -> (String, a)
 appendFst c (s, r) = (c : s, r)
@@ -388,7 +421,7 @@ wordyId :: String -> Either Err (String, String)
 wordyId s = qualifiedId False s wordyId0 wordyId0
 
 wordyIdStartChar :: Char -> Bool
-wordyIdStartChar ch = isAlphaNum ch || isEmoji ch
+wordyIdStartChar ch = isAlphaNum ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =

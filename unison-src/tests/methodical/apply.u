@@ -1,0 +1,43 @@
+-- FUNCTION APPLICATION. There are several cases to check:
+--  * Exact application, underapplication, overapplication
+--  * Closure formation (used by data types and builtins) vs specialization
+--  * Overapplication yielding a request
+
+fn p1 p2 p3 p4 = [p1, p2, p3, p4]
+
+exact =
+  p1 = 1
+  p2 = 2
+  fn p1 p2 3 4
+
+underapply0 =
+  f = fn 1
+  f 2 3 4
+
+underapply1 =
+  f = fn 1 2
+  f 3 4
+
+underapply2 =
+  f = fn 1 2 3
+  f 4
+
+fn2 p1 p2 =
+  f p3 p4 = [p1, p2] ++ [p3, p4]
+  f
+
+exact1 =
+  f = fn2 1 2
+  f 3 4
+
+overapply1 = fn2 1 2 3 4
+
+overapply2 =
+  f = fn2 1 2 3
+  f 4
+
+overapplyN =
+  id x = x
+  id id id id id 99
+
+> (exact, underapply0, underapply1, underapply2, exact1, overapply1, overapply2, overapplyN)

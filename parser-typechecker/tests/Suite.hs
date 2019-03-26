@@ -16,6 +16,7 @@ import qualified Unison.Test.TypePrinter as TypePrinter
 import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.ColorText as ColorText
+import qualified Unison.Test.Util.Bytes as Bytes
 
 test :: Test ()
 test = tests
@@ -30,10 +31,14 @@ test = tests
   , DataDeclaration.test
   , Range.test
   , ColorText.test
+  , Bytes.test
  ]
 
 main :: IO ()
 main = do
   args <- getArgs
   mapM_ (`hSetEncoding` utf8) [stdout, stdin, stderr]
-  runOnly (case args of [] -> ""; [prefix] -> prefix) test
+  case args of
+    [] -> runOnly "" test
+    [prefix] -> runOnly prefix test
+    [seed, prefix] -> rerunOnly (read seed) prefix test

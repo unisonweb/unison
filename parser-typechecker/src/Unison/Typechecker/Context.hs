@@ -765,7 +765,7 @@ synthesize e = scope (InSynthesize e) $
     ctx <- getContext
     (vs, ft) <- ungeneralize' ft
     scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
-  go (Term.Vector' v) = do
+  go (Term.Sequence' v) = do
     ft <- vectorConstructorOfArity (Foldable.length v)
     case Foldable.toList v of
       [] -> pure ft
@@ -886,6 +886,8 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.nat loc) scrutineeType $> mempty
     Pattern.Float loc _ ->
       lift $ subtype (Type.float loc) scrutineeType $> mempty
+    Pattern.Text loc _ ->
+      lift $ subtype (Type.text loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
       udct <- lift $ ungeneralize dct
@@ -1574,4 +1576,3 @@ instance MonadReader (MEnv v loc) (M v loc) where
 instance Alternative (M v loc) where
   empty = liftResult empty
   a <|> b = a `orElse` b
-

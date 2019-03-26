@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveTraversable   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Util.Pretty (
    Pretty,
@@ -15,6 +16,7 @@ module Unison.Util.Pretty (
    warnCallout, fatalCallout, okCallout,
    column2,
    commas,
+   commented,
    oxfordCommas,
    dashed,
    flatMap,
@@ -34,6 +36,7 @@ module Unison.Util.Pretty (
    map,
    nest,
    newline,
+   nonEmpty,
    numbered,
    orElse,
    orElses,
@@ -47,16 +50,21 @@ module Unison.Util.Pretty (
    rightPad,
    sep,
    sepSpaced,
+   shown,
    softbreak,
    spaceIfBreak,
-   spacesIfBreak,
    spaced,
    spacedMap,
+   spacesIfBreak,
+   string,
    surroundCommas,
    text,
    toANSI,
+   toAnsiUnbroken,
    toPlain,
+   toPlainUnbroken,
    wrap,
+   wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
    border
@@ -139,8 +147,14 @@ group p = Pretty (delta p) (Group p)
 toANSI :: Width -> Pretty CT.ColorText -> String
 toANSI avail p = CT.toANSI (render avail p)
 
+toAnsiUnbroken :: Pretty ColorText -> String
+toAnsiUnbroken p = CT.toANSI (renderUnbroken p)
+
 toPlain :: Width -> Pretty CT.ColorText -> String
 toPlain avail p = CT.toPlain (render avail p)
+
+toPlainUnbroken :: Pretty ColorText -> String
+toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 
 renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound
@@ -175,7 +189,7 @@ render availableWidth p = go mempty [Right p] where
     in maxCol (cur' <> delta p) < availableWidth
 
 newline :: IsString s => Pretty s
-newline = lit' (chDelta '\n') (fromString "\n")
+newline = "\n"
 
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
@@ -231,6 +245,12 @@ sepSpaced between = sep (between <> softbreak)
 sep :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sep between = intercalateMap between id
 
+nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
+nonEmpty (toList -> l) = case l of
+  (out -> Empty) : t -> nonEmpty t
+  h : t -> h : nonEmpty t
+  [] -> []
+
 parenthesize :: IsString s => Pretty s -> Pretty s
 parenthesize p = group $ "(" <> p <> ")"
 
@@ -244,13 +264,22 @@ lines = intercalateMap newline id
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)
 
+prefixed :: (Foldable f, LL.ListLike s Char, IsString s)
+         => Pretty s -> Pretty s -> f (Pretty s) -> Pretty s
+prefixed first rest =
+  intercalateMap newline (\b -> first <> indentAfterNewline rest b)
+
 bulleted
   :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
-bulleted = intercalateMap newline (\b -> "* " <> indentAfterNewline "  " b)
+bulleted = prefixed "* " "  "
 
 dashed
   :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
-dashed = intercalateMap newline (\b -> "- " <> indentAfterNewline "  " b)
+dashed = prefixed "- " "  "
+
+commented
+  :: (Foldable f, LL.ListLike s Char, IsString s) => f (Pretty s) -> Pretty s
+commented = prefixed "-- " "-- "
 
 numbered
   :: (Foldable f, LL.ListLike s Char, IsString s)
@@ -271,6 +300,13 @@ column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
 
+wrapColumn2 ::
+  (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
+wrapColumn2 rows = lines (align rows) where
+  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+    in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
+       | (l, r) <- rows]
+
 align :: (LL.ListLike s Char, IsString s)
   => [(Pretty s, Pretty s)]
   -> [Pretty s]
@@ -290,6 +326,12 @@ align' rows = alignedRows
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
+
+string :: IsString s => String -> Pretty s
+string = fromString
+
+shown :: (Show a, IsString s) => a -> Pretty s
+shown = fromString . show
 
 hang'
   :: (LL.ListLike s Char, IsString s)

@@ -7,7 +7,6 @@
 
 module Unison.TermParser where
 
--- import           Debug.Trace
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
@@ -18,7 +17,7 @@ import           Data.Int (Int64)
 import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
-import           Prelude hiding (and, or)
+import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
@@ -34,6 +33,7 @@ import qualified Unison.TypeParser as TypeParser
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Names as Names
+import qualified Unison.DataDeclaration as DD
 import Unison.Names (Names)
 
 import Debug.Trace
@@ -99,15 +99,16 @@ parsePattern = constructor <|> leaf
   where
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
-  literal = (,[]) <$> asum [true, false, number]
+  literal = (,[]) <$> asum [true, false, number, text]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
+  text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
-  unit ann = (Pattern.Constructor ann Type.unitRef 0 [], [])
+  unit ann = (Pattern.Constructor ann DD.unitRef 0 [], [])
   pair (p1, v1) (p2, v2) =
-    (Pattern.Constructor (ann p1 <> ann p2) Type.pairRef 0 [p1, p2],
+    (Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2],
      v1 ++ v2)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
@@ -147,8 +148,7 @@ parsePattern = constructor <|> leaf
   effect = do
     start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
-    _ <- closeBlock
-    end <- reserved "}"
+    end <- closeBlock
     pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
@@ -203,16 +203,18 @@ boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
 placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
-vector :: Var v => TermP v -> TermP v
-vector p = f <$> reserved "[" <*> elements <*> reserved "]"
+seq :: Var v => TermP v -> TermP v
+seq p = f <$> reserved "[" <*> elements <*> trailing
   where
-    elements = sepBy (reserved ",") p
-    f open elems close = Term.vector (ann open <> ann close) elems
+    trailing = optional semi *> reserved "]"
+    sep = P.try $ optional semi *> reserved "," <* optional semi
+    elements = sepBy sep p
+    f open elems close = Term.seq (ann open <> ann close) elems
 
 termLeaf :: forall v. Var v => TermP v
 termLeaf = do
   e <- asum [hashLit, prefixTerm, text, number, boolean,
-             tupleOrParenthesizedTerm, keywordBlock, placeholder, vector term,
+             tupleOrParenthesizedTerm, keywordBlock, placeholder, seq term,
              delayQuote, bang]
   q <- optional (reserved "?")
   case q of
@@ -224,13 +226,13 @@ delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
   start <- reserved "'"
   e <- termLeaf
-  pure $ Term.delay (ann start <> ann e) e
+  pure $ DD.delayTerm (ann start <> ann e) e
 
 bang :: Var v => TermP v
 bang = P.label "bang" $ do
   start <- reserved "!"
   e <- termLeaf
-  pure $ Term.force (ann start <> ann e) (ann start) e
+  pure $ DD.forceTerm (ann start <> ann e) (ann start) e
 
 and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
   where f kw x y = Term.and (ann kw <> ann y) x y
@@ -248,7 +250,7 @@ term4 = f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 infixApp = label "infixApp" $
-  chainl1 term4 (f <$> fmap var infixVar)
+  chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
     where
       f op lhs rhs =
         Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
@@ -441,11 +443,11 @@ number' i u f = fmap go numeric
       | otherwise = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
-tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term Term.unit pair
+tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
   where
     pair t1 t2 =
       Term.app (ann t1 <> ann t2)
         (Term.app (ann t1)
-                  (Term.constructor (ann t1 <> ann t2) Type.pairRef 0)
+                  (Term.constructor (ann t1 <> ann t2) DD.pairRef 0)
                   t1)
         t2

@@ -8,30 +8,19 @@ language: generic
 cache:
   directories:
   - $HOME/.stack
-  - $HOME/.ivy2/cache
-  - $HOME/.sbt
-  - $HOME/.coursier
 
 before_cache:
-# Cleanup the cached directories to avoid unnecessary cache updates
-- find $HOME/.ivy2/cache -name "ivydata-*.properties" -delete
-- find $HOME/.sbt        -name "*.lock"               -delete
+# Do any cleanup here to avoid caching junk.
 
 before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-# Download paulp/sbt-extras because Travis CI's copy is 3 years old as of this writing
-- curl -Ls https://git.io/sbt > ~/.local/bin/sbt && chmod 0755 ~/.local/bin/sbt
 
 install:
 - stack ghc -- --version
-- travis_wait stack --no-terminal setup
-- travis_wait stack --no-terminal test --only-snapshot
 - travis_wait stack --no-terminal build
-- (cd runtime-jvm; sbt compile)
 
 script:
 - stack --no-terminal exec tests
-- (cd runtime-jvm; sbt benchmark/compile test)

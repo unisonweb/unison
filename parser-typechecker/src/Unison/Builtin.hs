@@ -7,12 +7,15 @@
 module Unison.Builtin where
 
 import           Control.Arrow                  ( first )
-import           Control.Applicative            ( liftA2 )
+import           Control.Applicative            ( liftA2
+                                                , (<|>)
+                                                )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.ABT                    as ABT
+import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -72,6 +75,7 @@ constructorType r =
   else error "a builtin term referenced a constructor for a non-builtin type"
   where f = (==r) . fst . snd
 
+-- todo: does this need to be refactored if we have mutually recursive decls
 parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
 parseDataDeclAsBuiltin s =
   let (v, dd) = either (error . showParseError s) id $
@@ -79,6 +83,13 @@ parseDataDeclAsBuiltin s =
       [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
   in (v, (r, const Intrinsic <$> dd'))
 
+-- Todo: These definitions and groupings of builtins are getting a little
+-- confusing.  Sort out these labrinthine definitions!
+-- We have primitive types and primitive terms, but the types of the
+-- primitive terms sometimes reference decls, and not just primitive types.
+-- Primitive types and primitive terms can be deprecated in future iterations
+-- of the typechecker and runtime, but the builtin decls don't become
+-- deprecated in the same sense.  So (to do a deprecation check on these)
 names0 :: Names
 names0 = Names.fromTypes builtinTypes
 
@@ -91,11 +102,12 @@ allTypeNames =
     <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
 
-isBuiltinTerm :: Name -> Bool
-isBuiltinTerm n = Map.member n $ Names.termNames names
+-- Is this a term (as opposed to a type)
+isBuiltinTerm :: R.Reference -> Bool
+isBuiltinTerm r = Map.member r (builtins0 @Symbol)
 
-isBuiltinType :: Name -> Bool
-isBuiltinType n = Map.member n $ Names.typeNames names
+isBuiltinType :: R.Reference -> Bool
+isBuiltinType r = elem r . fmap snd $ builtinTypes
 
 typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =
@@ -119,26 +131,24 @@ builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Stream", "Effect"]
+  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
 builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
-builtinDataDecls = l
-  where
-    l = [ (Var.named "()",
-            (Type.unitRef,
-             DD.mkDataDecl' Intrinsic [] [(Intrinsic,
-                                           Var.named "()",
-                                           Type.unit Intrinsic)]))
-    -- todo: figure out why `type () = ()` doesn't parse:
-    -- l = [ parseDataDeclAsBuiltin "type () = ()"
-        , parseDataDeclAsBuiltin "type Pair a b = Pair a b"
-        , parseDataDeclAsBuiltin "type Optional a = None | Some a"
-        ]
+builtinDataDecls =
+  [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
 
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []
+
+codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
+codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
+  pure
+    $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
+    <|> lookup
+          r
+          [ (r, Left x) | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
 
 toSymbol :: Var v => R.Reference -> v
 toSymbol (R.Builtin txt) = Var.named txt
@@ -171,8 +181,8 @@ builtins0 = Map.fromList $
       , ("Int.>=", "Int -> Int -> Boolean")
       , ("Int.==", "Int -> Int -> Boolean")
       , ("Int.increment", "Int -> Int")
-      , ("Int.is-even", "Int -> Boolean")
-      , ("Int.is-odd", "Int -> Boolean")
+      , ("Int.isEven", "Int -> Boolean")
+      , ("Int.isOdd", "Int -> Boolean")
       , ("Int.signum", "Int -> Int")
       , ("Int.negate", "Int -> Int")
       , ("Int.truncate0", "Int -> Nat")
@@ -189,8 +199,8 @@ builtins0 = Map.fromList $
       , ("Nat.>=", "Nat -> Nat -> Boolean")
       , ("Nat.==", "Nat -> Nat -> Boolean")
       , ("Nat.increment", "Nat -> Nat")
-      , ("Nat.is-even", "Nat -> Boolean")
-      , ("Nat.is-odd", "Nat -> Boolean")
+      , ("Nat.isEven", "Nat -> Boolean")
+      , ("Nat.isOdd", "Nat -> Boolean")
 
       , ("Float.+", "Float -> Float -> Float")
       , ("Float.-", "Float -> Float -> Float")
@@ -201,7 +211,20 @@ builtins0 = Map.fromList $
       , ("Float.<=", "Float -> Float -> Boolean")
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
-      , ("Float.floor", "Float -> Float -> Int")
+      , ("Float.floor", "Float -> Int")
+      , ("Universal.==", "a -> a -> Boolean")
+
+      -- Universal.compare intended as a low level function that just returns
+      -- `Int` rather than some Ordering data type. If we want, later,
+      -- could provide a pure Unison wrapper for Universal.compare that
+      -- returns a proper data type.
+      --
+      -- 0 is equal, < 0 is less than, > 0 is greater than
+      , ("Universal.compare", "a -> a -> Int")
+      , ("Universal.>", "a -> a -> Boolean")
+      , ("Universal.<", "a -> a -> Boolean")
+      , ("Universal.>=", "a -> a -> Boolean")
+      , ("Universal.<=", "a -> a -> Boolean")
 
       , ("Boolean.not", "Boolean -> Boolean")
 
@@ -217,30 +240,15 @@ builtins0 = Map.fromList $
       , ("Text.<", "Text -> Text -> Boolean")
       , ("Text.>", "Text -> Text -> Boolean")
 
-      , ("Stream.empty", "Stream a")
-      , ("Stream.single", "a -> Stream a")
-      , ("Stream.constant", "a -> Stream a")
-      , ("Stream.from-int", "Int -> Stream Int")
-      , ("Stream.from-nat", "Nat -> Stream Nat")
-      , ("Stream.cons", "a -> Stream a -> Stream a")
-      , ("Stream.take", "Nat -> Stream a -> Stream a")
-      , ("Stream.drop", "Nat -> Stream a -> Stream a")
-      , ("Stream.take-while", "(a ->{} Boolean) -> Stream a -> Stream a")
-      , ("Stream.drop-while", "(a ->{} Boolean) -> Stream a -> Stream a")
-      , ("Stream.map", "(a ->{} b) -> Stream a -> Stream b")
-      , ("Stream.flat-map", "(a ->{} Stream b) -> Stream a -> Stream b")
-      , ("Stream.fold-left", "b -> (b ->{} a ->{} b) -> Stream a -> b")
-      , ("Stream.iterate", "a -> (a -> a) -> Stream a")
-      , ("Stream.reduce", "a -> (a ->{} a ->{} a) -> Stream a -> a")
-      , ("Stream.toSequence", "Stream a -> Sequence a")
-      , ("Stream.filter", "(a ->{} Boolean) -> Stream a -> Stream a")
-      , ("Stream.scan-left", "b -> (b ->{} a ->{} b) -> Stream a -> Stream b")
-      , ("Stream.sum-int", "Stream Int -> Int")
-      , ("Stream.sum-nat", "Stream Nat -> Nat")
-      , ("Stream.sum-float", "Stream Float -> Float")
-      , ("Stream.append", "Stream a -> Stream a -> Stream a")
-      , ("Stream.zip-with", "(a ->{} b ->{} c) -> Stream a -> Stream b -> Stream c")
-      , ("Stream.unfold", "(a ->{} Optional (b, a)) -> b -> Stream a")
+      , ("Bytes.empty", "Bytes")
+      , ("Bytes.fromSequence", "[Nat] -> Bytes")
+      , ("Bytes.++", "Bytes -> Bytes -> Bytes")
+      , ("Bytes.take", "Nat -> Bytes -> Bytes")
+      , ("Bytes.drop", "Nat -> Bytes -> Bytes")
+      , ("Bytes.at", "Nat -> Bytes -> Optional Nat")
+      , ("Bytes.toSequence", "Bytes -> [Nat]")
+      , ("Bytes.size", "Bytes -> Nat")
+      , ("Bytes.flatten", "Bytes -> Bytes")
 
       , ("Sequence.empty", "[a]")
       , ("Sequence.cons", "a -> [a] -> [a]")
@@ -252,5 +260,7 @@ builtins0 = Map.fromList $
       , ("Sequence.at", "Nat -> [a] -> Optional a")
 
       , ("Debug.watch", "Text -> a -> a")
+      , ("Effect.pure", "a -> Effect e a") -- Effect ambient e a
+      , ("Effect.bind", "'{e} a -> (a ->{ambient} b) -> Effect e a") -- Effect ambient e a
       ]
   ]
