@@ -87,6 +87,7 @@ fromName n = NameOnly n
 fromVar :: Var v => v -> HashQualified
 fromVar = fromText . Var.name
 
+-- warning: this implementation may include the hash.  is that ok?
 toVar :: Var v => HashQualified -> v
 toVar = Var.named . toText
 

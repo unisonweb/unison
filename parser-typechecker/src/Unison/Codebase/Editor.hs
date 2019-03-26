@@ -150,7 +150,7 @@ data Input
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
-  | SlurpFileI AllowUpdates
+  | SlurpFileI AllowUpdates [HashQualified]
   | ListBranchesI
   | SearchByNameI [String]
   | SwitchBranchI BranchName
@@ -217,6 +217,8 @@ data Output v
   | DeletingCurrentBranch
   | DeleteBranchConfirmation
       [(BranchName, (PPE.PrettyPrintEnv, [SearchResult' v Ann]))]
+  | AddTransitivelyConfirmation
+      PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | ListOfBranches BranchName [BranchName]
   | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
   | SlurpOutput (SlurpResult v)

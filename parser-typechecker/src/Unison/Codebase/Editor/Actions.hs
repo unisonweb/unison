@@ -55,6 +55,7 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.ShortHash              as SH
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.Names                   ( NameTarget )
@@ -73,8 +74,9 @@ import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
+import Unison.Util.TransitiveClosure (transitiveClosure')
 import           Unison.Var                     ( Var )
-
+import Debug.Trace
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
 data LoopState v
@@ -238,18 +240,64 @@ loop = do
           renameUnconflicted targets oldName newName
         UnnameAllI nameTarget name -> modifyCurrentBranch0 $
           Branch.unnameAll nameTarget name
-        SlurpFileI allowUpdates -> case uf of
+        SlurpFileI allowUpdates query -> case uf of
           Nothing -> respond NoUnisonFile
-          Just uf' -> do
-            let collisionHandler = if allowUpdates
+          Just uf -> let
+            -- 1. convert the query HQs to a list of refs.
+            -- 2. compute the closure of the refs
+            -- 3. if the refs = the closure of the refs, then add the refs.
+            -- 4. otherwise prompt the user to reissue to add the closure.
+            branch0 = Branch.head currentBranch'
+            refs :: Set Reference
+            refs = Set.fromList (toList termRefMap <> toList typeRefMap)
+            termRefMap = fmap (\(r,_,_) -> r) $ UF.hashTerms uf
+            typeRefMap = fmap fst (UF.dataDeclarations' uf)
+                      <> fmap fst (UF.effectDeclarations' uf)
+            closedDeps = transitiveClosure'
+                          (flip Relation.lookupDom (UF.dependencies' uf))
+                          queryRefs
+            fileClosedDeps = Set.intersection closedDeps refs
+            queryRefs = Set.unions $ fmap wrangle query
+              where
+              multiMatchCrash sh = error $ "todo (a non-crashing error): " <> SH.toString sh <> " matches multiple definitions in the file: " <> show termRefMap
+              wrangle = \case
+                HQ.NameOnly n -> refsNamed n
+                HQ.HashOnly sh -> match1 sh refs
+                HQ.HashQualified n sh -> match1 sh (refsNamed n)
+              match1 :: SH.ShortHash -> Set Reference -> Set Reference
+              match1 sh refs =
+                case [r | r <- toList refs
+                        , sh `SH.isPrefixOf` Reference.toShortHash r] of
+                  [] -> mempty
+                  [r] -> Set.singleton r
+                  _ -> multiMatchCrash sh
+              refsNamed ( Name.toVar -> v) =
+                Set.fromList
+                  $ toList (Map.lookup v termRefMap)
+                  <> toList (Map.lookup v typeRefMap)
+            uf' = if null query then uf else UF.filterTLCs keep uf
+            keep r = Set.member r closedDeps && not (Branch.contains branch0 r)
+            ppe = PPE.fromNames (UF.typecheckedToNames uf')
+                <> Branch.prettyPrintEnv branch0
+            reprompt = respond (AddTransitivelyConfirmation ppe uf')
+            proceed = do
+              let
+                collisionHandler = if allowUpdates
                   then Editor.updateCollisionHandler
                   else Editor.addCollisionHandler
-            updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
-            let branch' = updatedBranch updateo
-            -- Don't bother doing anything if the branch is unchanged by the slurping
-            when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
-            eval . Notify $ SlurpOutput updateo
-            currentBranch .= branch'
+              updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
+              let branch' = updatedBranch updateo
+              -- Don't bother doing anything if the branch is unchanged by the slurping
+              when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
+              eval . Notify $ SlurpOutput updateo
+              currentBranch .= branch'
+            in
+            if fileClosedDeps == queryRefs then proceed
+            else do
+              traceShowM queryRefs
+              traceShowM fileClosedDeps
+              traceShowM closedDeps
+              ifM (confirmedCommand input) proceed reprompt
         ListBranchesI ->
           eval ListBranches >>= respond . ListOfBranches currentBranchName'
         SwitchBranchI branchName       -> switchBranch branchName

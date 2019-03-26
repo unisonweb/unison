@@ -22,6 +22,7 @@ import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
 import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern))
 import qualified Unison.CommandLine.InputPattern as I
+import qualified Unison.HashQualified            as HQ
 import qualified Unison.Names                    as Names
 import qualified Unison.Util.ColorText           as CT
 import           Unison.Util.Monoid              (intercalateMap)
@@ -67,9 +68,12 @@ todo = InputPattern "todo" [] []
 add :: InputPattern
 add = InputPattern "add" [] []
  "`add` adds to the codebase all the definitions from the most recently typechecked file."
- (\ws -> if not $ null ws
-   then Left $ warn "`add` doesn't take any arguments."
-   else pure $ SlurpFileI False)
+ (\(fmap HQ.fromString -> hqs) -> pure $ SlurpFileI False hqs)
+
+update :: InputPattern
+update = InputPattern "update" [] []
+    "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
+    (\(fmap HQ.fromString -> hqs) -> pure $ SlurpFileI True hqs)
 
 view :: InputPattern
 view = InputPattern "view" [] [(False, exactDefinitionQueryArg)]
@@ -97,14 +101,6 @@ alias = InputPattern "alias" ["cp"]
         (fromString newName)
       _ -> Left . warn $ P.wrap
         "`alias` takes two arguments, like `alias oldname newname`."
-    )
-
-update :: InputPattern
-update = InputPattern "update" [] []
-    "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
-    (\ws -> if not $ null ws
-      then Left $ warn "`update` doesn't take any arguments."
-      else pure $ SlurpFileI True
     )
 
 branch :: InputPattern

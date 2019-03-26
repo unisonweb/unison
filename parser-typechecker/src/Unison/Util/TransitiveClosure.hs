@@ -22,6 +22,9 @@ transitiveClosure getDependencies open =
           go (Set.insert h closed) (toList deps ++ t)
   in go Set.empty (toList open)
 
+transitiveClosure' :: Ord a => (a -> Set a) -> Set a -> Set a
+transitiveClosure' f as = runIdentity $ transitiveClosure (pure . f) as
+
 transitiveClosure1 :: forall m a. (Monad m, Ord a)
                    => (a -> m (Set a)) -> a -> m (Set a)
 transitiveClosure1 f a = transitiveClosure f (Set.singleton a)

@@ -158,6 +158,12 @@ notifyUser dir o = case o of
       <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
       <> P.newline
       <> P.wrap "Please repeat the same command to confirm the deletion."
+  AddTransitivelyConfirmation ppe transitiveUF ->
+    putPrettyLn . P.warnCallout . P.lines $
+      [ P.wrap "I would need to add all of these dependencies:"
+      , P.lit (prettyTypecheckedFile transitiveUF ppe)
+      , P.wrap "Please repeat the same command to confirm the transitive additions."
+      ]
   ListOfBranches current branches ->
     putPrettyLn
       $ let
@@ -315,8 +321,6 @@ formatMissingStuff terms types =
     P.wrap "The following types weren't found in the codebase:"
     <> "\n\n"
     <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
-
-
 
 displayDefinitions :: Var v =>
   Maybe FilePath
@@ -527,6 +531,7 @@ listOfDefinitions branch detailed results =
   where
   ppe = Branch.prettyPrintEnv branch
 
+-- todo: arya document this implementation better
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed

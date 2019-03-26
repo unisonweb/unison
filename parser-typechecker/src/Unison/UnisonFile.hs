@@ -125,11 +125,23 @@ declsToTypeLookup uf = TL.TypeLookup mempty
                           (wrangle (effectDeclarations uf))
   where wrangle = Map.fromList . Map.elems
 
+-- warning: this doesn't include non-ctor terms.  is that ok?
+-- currently only being used in `synthesizeFile`
 toNames :: Var v => UnisonFile v a -> Names
 toNames (UnisonFile {..}) = datas <> effects
   where
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
+
+typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
+typecheckedToNames uf@(TypecheckedUnisonFile {..}) = terms <> datas <> effects
+  where
+  terms = Names.fromTerms
+    [ (Name.unsafeFromVar v, Referent.Ref r)  | (v, (r, _, _)) <- Map.toList ht]
+    where ht = hashTerms uf
+  datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations')
+  effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations')
+
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
@@ -175,6 +187,23 @@ bindBuiltins names uf@(UnisonFile d e ts ws) = let
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
 constructorType = TL.constructorType . declsToTypeLookup
+
+-- todo: what was this for again?  Oh, to be able to add just
+filterTLCs :: forall v a. Var v =>
+  (Reference -> Bool) -> TypecheckedUnisonFile v a -> TypecheckedUnisonFile v a
+filterTLCs keep file = assertClosed file'
+  where
+  assertClosed = id -- error "todo"
+  file' = TypecheckedUnisonFile
+    (Map.filter (keep . fst) $ dataDeclarations' file)
+    (Map.filter (keep . fst) $ effectDeclarations' file)
+    (let terms = hashTerms file
+         wrangle component = [ (v, tm, tp)
+                             | (v, tm, tp) <- component
+                             , (r, _, _) <- toList $ Map.lookup v terms
+                             , keep r]
+     in fmap wrangle (topLevelComponents file))
+    []
 
 filterVars
   :: Var v
