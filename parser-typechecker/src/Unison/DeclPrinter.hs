@@ -68,22 +68,19 @@ prettyDataDecl
   -> DataDeclaration' v a
   -> Pretty ColorText
 prettyDataDecl env r name dd =
-  P.hang header . P.sep (" |" <> P.softbreak) $ constructor <$> zip
+  (header <>) . P.sep (" | " `P.orElse` "\n  | ") $ constructor <$> zip
     [0 ..]
     (DD.constructors' dd)
  where
   constructor (n, (_, _, (Type.ForallsNamed' _ t))) = constructor' n t
   constructor (n, (_, _, t)                       ) = constructor' n t
-  constructor' n t =
-    P.sep " "
-      $ prettyPattern env r name n
-      : (TypePrinter.pretty env 10 <$> case Type.unArrows t of
-          Nothing -> mempty
-          Just ts -> init ts
-        )
+  constructor' n t = case Type.unArrows t of
+    Nothing -> prettyPattern env r name n
+    Just ts -> P.group . P.hang' (prettyPattern env r name n) "      "
+             $ P.spaced (TypePrinter.pretty env 10 <$> init ts)
   header =
     P.sep " " (prettyDataHeader name : (P.text . Var.name <$> DD.bound dd))
-      <> " ="
+      <> (" = " `P.orElse` "\n  = ")
 
 prettyDataHeader :: HashQualified -> Pretty ColorText
 prettyDataHeader name = P.bold "type " <> prettyHashQualified name

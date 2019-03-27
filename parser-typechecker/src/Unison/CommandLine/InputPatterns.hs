@@ -168,7 +168,7 @@ validInputs =
   [ help
   , add
   , branch
-  , InputPattern "fork" [] [(False, branchArg)]
+  , InputPattern "fork" [] [(False, noCompletions)]
     (P.wrap
      "`fork foo` creates the branch 'foo' as a fork of the current branch.")
     (\case
