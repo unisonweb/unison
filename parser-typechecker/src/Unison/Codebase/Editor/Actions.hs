@@ -236,8 +236,16 @@ loop = do
           aliasUnconflicted targets existingName newName
         RenameUnconflictedI targets oldName newName ->
           renameUnconflicted targets oldName newName
-        UnnameAllI nameTargets name -> modifyCurrentBranch0 $ \b ->
-          foldl' (\b t -> Branch.unnameAll t name b) b nameTargets
+        UnnameAllI hqs -> do
+          modifyCurrentBranch0 $ \b ->
+            let wrangle b hq = doTerms (doTypes b)
+                  where
+                  doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
+                  doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
+                  doTerm b (n, r) = Branch.deleteTermName r n b
+                  doType b (n, r) = Branch.deleteTypeName r n b
+            in foldl' wrangle b hqs
+          respond $ Success input
         SlurpFileI allowUpdates -> case uf of
           Nothing -> respond NoUnisonFile
           Just uf' -> do
@@ -569,6 +577,11 @@ merging targetBranchName b success =
 
 modifyCurrentBranch0 :: (Branch0 -> Branch0) -> Action i v ()
 modifyCurrentBranch0 f = modifyCurrentBranchM (\b -> pure $ Branch.modify f b)
+
+modifyCurrentBranch0M :: (Branch0 -> Action i v Branch0) -> Action i v ()
+modifyCurrentBranch0M f = modifyCurrentBranchM $ \b -> do
+  b0' <- f $ Branch.head b
+  pure $ Branch.append b0' b
 
 modifyCurrentBranchM :: (Branch -> Action i v Branch) -> Action i v ()
 modifyCurrentBranchM f = do

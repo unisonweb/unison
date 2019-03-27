@@ -11,7 +11,6 @@
 module Unison.CommandLine.InputPatterns where
 
 -- import Debug.Trace
-import           Unison.Name                   as Name
 import           Data.List                       (intercalate)
 import qualified Data.Set                        as Set
 import           Data.String                     (fromString)
@@ -23,6 +22,7 @@ import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
 import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern))
 import qualified Unison.CommandLine.InputPattern as I
+import qualified Unison.HashQualified as HQ
 import qualified Unison.Names                    as Names
 import qualified Unison.Util.ColorText           as CT
 import           Unison.Util.Monoid              (intercalateMap)
@@ -51,7 +51,6 @@ makeExampleEOS p args = P.group $
 
 helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
 helpFor p = I.parse help [I.patternName p]
-
 
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern "builtins.update" [] []
@@ -94,9 +93,10 @@ unname = InputPattern "unname" ["rm"]
     [(False, exactDefinitionQueryArg)]
     "`unname foo` removes the name `foo` from the namespace."
     (\case
-      [name] -> Right $ UnnameAllI allTargets (Name.fromString name)
-      _ -> Left . P.warnCallout $ P.wrap
-        "`unname` takes one arguments, like `unname name`.")
+      [] -> Left . P.warnCallout $ P.wrap
+        "`unname` takes one or more arguments, like `unname name`."
+      (Set.fromList . fmap HQ.fromString -> query) -> Right $ UnnameAllI query
+    )
 
 alias :: InputPattern
 alias = InputPattern "alias" ["cp"]
