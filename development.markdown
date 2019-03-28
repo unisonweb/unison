@@ -2,39 +2,20 @@ These are commands that will likely be useful during development.
 
 __General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
 
-_Disclaimer_ The getting-started instructions on this page have not yet been tested from a 'clean install'.  If they don't work for you, please get in touch via [gitter](https://gitter.im/unisonweb/unison) so we can help.  If you have any fixes to the process, please send us a PR!
+_Disclaimer_ If you have trouble getting started, please get in touch via [gitter](https://gitter.im/unisonweb/unison) so we can help.  If you have any fixes to the process, please send us a PR!
 
 ## Running Unison
 
-To get cracking with typechecking and running Unison functions,
-* do the prerequisites mentioned in the list below
-* run `./scripts/test.sh` if you haven't done it yet
-* from the root directory of a clone of the Unison repo, run `./scripts/unisonloop.sh unison-src` - that fires up the codebase editor and watches for file changes in the `unison-src` directory
-* once a file is typechecked, you can do `add` to add it to the codebase
-* and then `view` to view a definition.
+To get cracking with Unison,
+* [Install `stack`](https://docs.haskellstack.org/en/stable/README/#how-to-install).
+* `stack build` will build the project.
+* After building, `stack exec unison` will fire up the codebase editor, create a codebase in the current directory, and watch for `.u` file changes.  If you want to run it in a different directory, just add `unison` to your `PATH`, after finding it with `find .stack-work -name unison -type f`.  (For me, this finds two, they both work, but have different contents.  ¯\\\_(ツ)\_/¯ )
+* Once a file is typechecked, you can do `add` to add it to the codebase,
+* and then `view` to view a definition, or `help` for more ideas.
 
-## Haskell
+### What if you want a profiled build?
 
-### Prerequisites
-If you don't have haskell yet, visit [this page](https://docs.haskellstack.org/en/stable/README/#how-to-install) to install stack, which will then get it for you when you run the commands below.
-
-### Working with the parser/typechecker
-
-For doing compilation you can do:
-
-    stack repl unison-parser-typechecker
-
-You can also do:
-
-    stack build unison-parser-typechecker && stack exec tests
-
-If you want to run the tests outside the REPL. The `stack exec tests` takes an optional command line arg specifying the test prefix. In the REPL, you can also do:
-
-    > import EasyTest as ET
-    > ET.runOnly "typechecker" Main.test
-
-What if you want a profiled build? Do:
-
+Do:
     stack build --executable-profiling --library-profiling --ghc-options="-fprof-auto -rtsopts" unison-parser-typechecker
 
 Again you can leave off the flag. To run an executable with profiling enabled, do:
