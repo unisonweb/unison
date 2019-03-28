@@ -273,6 +273,7 @@ loop = do
             if ok
               then do
                 currentBranch .= merged
+                respond $ Success input -- a merge-specific message
                 checkTodo
               else respond (UnknownBranch inputBranchName)
         DeleteBranchI branchNames ->
