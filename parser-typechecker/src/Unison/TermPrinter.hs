@@ -36,8 +36,6 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
---TODO use imports to trim fully qualified names
-
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
 data AmbientContext = AmbientContext
@@ -437,3 +435,140 @@ isSymbolic' name = case symbolyId . Name.toString $ name of
 
 ac :: Int -> BlockContext -> AmbientContext
 ac prec bc = AmbientContext prec bc NonInfix
+
+-- # FQN elision
+--
+-- TODO actually implement this
+--
+-- The term pretty-printer inserts `use` statements in some circumstances, to
+-- avoid the need for using fully-qualified names (FQNs) everywhere.  The 
+-- following is an explanation and specification, as developed in issue #285.  
+--
+-- As an example, instead of 
+--
+--   foo p q r = if p 
+--               then Util.bar q
+--               else Util.bar r
+-- 
+-- we actually output the following.
+-- 
+--   foo p q r = use Util bar
+--               if p 
+--                 then bar q
+--                 else bar r
+--
+-- Here, the `use` statement `use Util bar` has been inserted at the start of 
+-- the block statement containing the `if`.  Within that scope, `Util.bar` can
+-- be referred to just with `bar`.  We say `Util` is the prefix, and `bar` is 
+-- the suffix.  
+--
+-- When choosing where to place `use` statements, the pretty-printer tries to
+-- - float them down, deeper into the syntax tree, to keep them visually close
+--   to the use sites ('usages') of the names involved, but also tries to
+-- - minimize the number of repetitions of `use` statements for the same names
+--   by floating them up, towards the top of the syntax tree, so that one 
+--   `use` statement takes effect over more name usages.
+--
+-- It avoids 'shadowing', so for example won't produce output like the 
+-- following.
+-- 
+--   foo p q r = use My bar
+--               if p 
+--                 then bar q
+--                 else Your.bar r
+--   
+-- Here `My.bar` is imported with a `use` statement, but `Your.bar` is not - 
+-- `Your.bar` is shadowing `My.bar`.  We avoid this because it would be easy
+-- to misread `bar` as meaning `Your.bar`.  
+--
+-- Avoiding shadowing means that a `use` statement is only emitted for a name
+-- when the suffix is unique, across all the names referenced in the scope of
+-- the `use` statement.
+--
+-- We don't emit a `use` statement for a name if it only occurs once within
+-- the scope (unless it's an infix operator, since they look nicer without
+-- a namespace qualifier.)
+--
+-- The emitted code does not depend on Type-Driven Name Resolution (TDNR).
+-- For example, we emit
+--   foo = use Nat.+
+--         1 + 2
+-- even though TDNR means that `foo = 1 + 2` would have had the same
+-- meaning.  That avoids the reader having to run typechecker logic in their
+-- head in order to know what functions are being called.  
+--
+-- Multi-level name qualification is allowed - like `Foo.Bar.baz`.  The
+-- pretty-printer tries to strip off as many sections of the prefix as 
+-- possible, without causing a clash with other names.  If more sections
+-- can be stripped off, further down the tree, then it does this too, taking
+-- care to avoid emitting any `use` statements that never actually affect 
+-- anything.  
+--
+-- ## Specification
+--
+-- We output a `use` statement for prefix P and suffix S at a given scope if
+--   - the scope is a block statement (so the `use` is syntactically valid)
+--   - the number of usages of the thing referred to by P.S within the scope
+--     - is > 1, or
+--     - is 1, and S is an infix operator
+--   - [uniqueness] there is no other Q with Q.S used in that scope
+--   - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
+--     satisfies uniqueness
+--   - [narrowness] there is no block statement further down inside this one
+--     which contains all of the usages, and
+--   - [usefulness] the name will actually be used in this scope, in the form
+--     enabled by this `use` statement.
+--
+-- The last clause can fail, for example, if we `use A X.c` (avoiding a clash
+-- with `Y.c`, but there is a deeper block statement that contains all the
+-- usages of `X.c` and none of `Y.c`, at which we insert a `use X c`. In this
+-- case, we want to avoid inserting the superfluous `use A X.c`, and just
+-- make it `use A.X c` further down - hence the last clause in the spec.
+--
+-- Use statements in a block statement are sorted alphabetically by prefix.
+-- Suffixes covered by a single use statement are sorted alphabetically.
+-- Rather than letting a single use statement overflow a printed line, we
+-- instead (TODO).
+--
+-- ## Algorithm
+--
+-- Bubbling up from the leaves of the syntax tree, we calculate for each
+-- node, a `Map Suffix (Map Prefix Int)` (the 'suffix map'), where the `Int`
+-- is the number of usages of Prefix.Suffix at/under that node.  (Note that 
+-- a usage of `A.B.c` corresponds to two entries in the outer map.)
+-- 
+-- Once we have this decoration on all the terms, we start pretty-printing.
+-- As we recurse back down through the tree, we keep a `Map FQN Suffix` (the
+-- 'FQN map'), to record the effect of all the `use` statements we've added 
+-- in the nodes above.  When outputting names, we check this map to work out 
+-- how to render them, using any suffix we find, or else falling back to the 
+-- FQN.  At each block statement, each suffix in that term's suffix map is a
+-- candidate to be imported with a use statement, subject to the various 
+-- rules in the specification.
+--
+-- Actually, in the suffix map, we also keep the maximum of the usage counts
+-- of all block-statements underneath this term.  That allows us to check
+-- the 'narrowness' rule.  And we keep a copy of the suffix map for the 
+-- block-statement that attains this maximum.  That allows us to check the 
+-- 'usefulness' rule.
+--
+-- # Semantics of imports
+--
+-- Here is some background on how imports work.  TODO is this all true today?
+--
+-- `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More 
+-- generally, `use` is followed by a FQN prefix, then the local suffix. 
+-- Concatenate the FQN prefix with the local suffix, with a dot between them,
+-- and you get the FQN, which is bound to the name equal to the local suffix.
+--
+-- `use XYZ blah qux` is equivalent to the two statements (and this 
+-- generalizes for any N symbols):
+--   use XYZ blah
+--   use XYZ qux
+--
+-- This syntax works the same even if XYZ or blah have dots in them, so:
+-- `use Util.External My.Foo` brings `Util.External.My.Foo` into scope, bound 
+-- to the name `My.Foo`.
+--
+-- That's it. No wildcard imports, imports that do renaming, etc. We can 
+-- consider adding some features like this later.
