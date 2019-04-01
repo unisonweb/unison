@@ -20,7 +20,7 @@ import           Control.Monad.State               (runStateT)
 import           Data.IORef
 import           Data.Map                          (Map)
 import qualified Data.Map                          as Map
-import           Data.Maybe                        (fromMaybe, listToMaybe)
+import           Data.Maybe                        (fromMaybe)
 import           Data.String                       (fromString)
 import qualified Data.Text                         as Text
 import           Prelude                           hiding (readFile, writeFile)
@@ -35,7 +35,8 @@ import qualified Unison.Codebase.Editor.Actions    as Actions
 import           Unison.Codebase.Runtime           (Runtime)
 import qualified Unison.Codebase.Runtime           as Runtime
 import           Unison.CommandLine
-import           Unison.CommandLine.InputPattern   (ArgumentType (suggestions), InputPattern (aliases, args, patternName))
+import           Unison.CommandLine.InputPattern   (ArgumentType (suggestions), InputPattern (aliases, patternName))
+import qualified Unison.CommandLine.InputPattern   as IP
 import           Unison.CommandLine.InputPatterns  (validInputs)
 import           Unison.CommandLine.OutputMessages (notifyUser)
 import           Unison.Parser                     (Ann)
@@ -77,8 +78,8 @@ getUserInput patterns codebase branch branchName numberedArgs =
     -- User has finished a command name; use completions for that command
       else case words $ reverse prev of
         h : t -> fromMaybe (pure []) $ do
-          p            <- Map.lookup h patterns
-          (_, argType) <- listToMaybe $ drop (length t) (args p)
+          p       <- Map.lookup h patterns
+          argType <- IP.argType p (length t)
           pure $ suggestions argType word codebase branch
         _ -> pure []
 
