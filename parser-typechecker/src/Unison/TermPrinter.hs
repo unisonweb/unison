@@ -454,8 +454,8 @@ ac prec bc = AmbientContext prec bc NonInfix
 -- 
 --   foo p q r = use Util bar
 --               if p 
---                 then bar q
---                 else bar r
+--               then bar q
+--               else bar r
 --
 -- Here, the `use` statement `use Util bar` has been inserted at the start of 
 -- the block statement containing the `if`.  Within that scope, `Util.bar` can
@@ -474,8 +474,8 @@ ac prec bc = AmbientContext prec bc NonInfix
 -- 
 --   foo p q r = use My bar
 --               if p 
---                 then bar q
---                 else Your.bar r
+--               then bar q
+--               else Your.bar r
 --   
 -- Here `My.bar` is imported with a `use` statement, but `Your.bar` is not - 
 -- `Your.bar` is shadowing `My.bar`.  We avoid this because it would be easy
@@ -491,7 +491,7 @@ ac prec bc = AmbientContext prec bc NonInfix
 --
 -- The emitted code does not depend on Type-Driven Name Resolution (TDNR).
 -- For example, we emit
---   foo = use Nat.+
+--   foo = use Nat (+)
 --         1 + 2
 -- even though TDNR means that `foo = 1 + 2` would have had the same
 -- meaning.  That avoids the reader having to run typechecker logic in their
@@ -521,8 +521,8 @@ ac prec bc = AmbientContext prec bc NonInfix
 --
 -- The last clause can fail, for example, if we `use A X.c` (avoiding a clash
 -- with `Y.c`, but there is a deeper block statement that contains all the
--- usages of `X.c` and none of `Y.c`, at which we insert a `use X c`. In this
--- case, we want to avoid inserting the superfluous `use A X.c`, and just
+-- usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
+-- this case, we want to avoid inserting the superfluous `use A X.c`, and just
 -- make it `use A.X c` further down - hence the last clause in the spec.
 --
 -- Use statements in a block statement are sorted alphabetically by prefix.

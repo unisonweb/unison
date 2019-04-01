@@ -381,4 +381,74 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "Stream.fold-left 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
+
+-- FQN elision tests
+  , pending $
+    tc_breaks 80 "if foo\n\
+                 \then\n\
+                 \  use A x\n\
+                 \  f x x\n\
+                 \else\n\
+                 \  use B y\n\
+                 \  f y y"
+  , pending $
+    tc_breaks 80 "if foo\n\
+                 \then\n\
+                 \  use A x\n\
+                 \  f x x\n\
+                 \else\n\
+                 \  use B x\n\
+                 \  f x x"
+  , pending $
+    tc_breaks 80 "use A x\n\
+                 \if foo then f x x else g x x"
+  , pending $
+    tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
+  , pending $
+    tc_breaks 80 "if foo then f A.x A.x B.x else y"  
+  , pending $
+    tc_breaks 80 "if p\n\
+                 \then\n\
+                 \  use A x\n\
+                 \  if foo then f x x else g x x\n\
+                 \else q"
+  , pending $
+    tc_breaks 80 "use A x\n\
+                 \if p\n\
+                 \then\n\
+                 \  if foo then f x x else g x x\n\
+                 \else x"                
+  , pending $
+    tc_breaks 80 "if foo then A.f x else y"               
+  , pending $
+    tc_breaks 80 "if foo then\n\
+                 \  use A (+)\n\
+                 \  x + y\n\
+                 \else y"
+  , pending $
+    tc_breaks 80 "if p\n\
+                 \then\n\
+                 \  use A x\n\
+                 \  use B y z\n\
+                 \  f z z y y x x\n\
+                 \else q"
+  , pending $
+    tc_breaks 80 "if foo\n\
+                 \then\n\
+                 \  use A.X c\n\
+                 \  use AA.PP.QQ e\n\
+                 \  f c c e e\n\
+                 \else\n\
+                 \  use A.B.X f\n\
+                 \  use A.B X.d Y.d\n\
+                 \  g X.d X.d Y.d Y.d f f"
+  , pending $
+    tc_breaks 80 "if foo\n\
+                 \then\n\
+                 \  use A.X c\n\
+                 \  f c c\n\
+                 \else\n\
+                 \  use A X.c YY.c\n\
+                 \  g X.c X.c YY.c YY.c"
+
   ]
