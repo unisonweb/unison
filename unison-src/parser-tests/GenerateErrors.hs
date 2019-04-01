@@ -15,23 +15,8 @@ import qualified Unison.Util.ColorText    as Color
 import           Unison.Var               ( Var )
 
 
-unisonFilesInDir :: FilePath -> IO [String]
-unisonFilesInDir p = do
-  files <- listDirectory p
-  pure $ filter ((==) ".u" . takeExtension) files
-
-unisonFilesInCurrDir :: IO [String]
-unisonFilesInCurrDir = getCurrentDirectory >>= unisonFilesInDir
-
-errorFileName :: String -> String
-errorFileName n = dropExtension n ++ ".message.txt"
-
-emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
-emitAsPlainTextTo src e f = writeFile f plainErr
-  where plainErr = Color.toPlain $ prettyParseError src e
-
-printError :: Var v => String -> Err v -> IO ()
-printError src e = putStrLn $ B.showParseError src e
+main :: IO ()
+main =  unisonFilesInCurrDir >>= mapM_ processFile
 
 processFile :: FilePath -> IO ()
 processFile f = do
@@ -44,5 +29,21 @@ processFile f = do
     Right _  -> putStrLn $
       "Error: " ++ f ++ " parses successfully but none of the files in this directory should parse"
 
-main :: IO ()
-main =  unisonFilesInCurrDir >>= mapM_ processFile
+unisonFilesInCurrDir :: IO [String]
+unisonFilesInCurrDir = getCurrentDirectory >>= unisonFilesInDir
+
+unisonFilesInDir :: FilePath -> IO [String]
+unisonFilesInDir p = do
+  files <- listDirectory p
+  pure $ filter ((==) ".u" . takeExtension) files
+
+errorFileName :: String -> String
+errorFileName n = dropExtension n ++ ".message.txt"
+
+emitAsPlainTextTo :: Var v => String -> Err v -> FilePath -> IO ()
+emitAsPlainTextTo src e f = writeFile f plainErr
+  where plainErr = Color.toPlain $ prettyParseError src e
+
+printError :: Var v => String -> Err v -> IO ()
+printError src e = putStrLn $ B.showParseError src e
+
