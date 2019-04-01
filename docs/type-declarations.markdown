@@ -67,6 +67,33 @@ _Structural + Unique:_ No.
 _Structural + Opaque:_ No.
 _Unique + Opaque:_ Sure why not.  In fact, should opaque types always have a guid too?
 
+## Misc scenarios / questions:
+
+I was just editing some Haskell code.
+```haskell
+-- InputPatterns accept some fixed number of Required arguments of various
+-- types, followed by a variable number of a single type of argument.
+data IsOptional
+  = Optional -- 0 or 1, at the end
+  | Required -- 1, at the start
+  | ZeroPlus -- 0 or more, at the end
+  | OnePlus -- 1 or more, at the end
+  deriving Show
+```
+
+I decided to move `Required` to the top for clarity since, as the comments state, InputPattern arg lists start with some number of `Required` arguments.
+
+```haskell
+data IsOptional
+  = Optional -- 0 or 1, at the end
+  | Required -- 1, at the start
+  | ZeroPlus -- 0 or more, at the end
+  | OnePlus -- 1 or more, at the end
+  deriving Show
+```
+I still want this to be the same type.  None of the semantics have changed, I just reordered the constructors for readability.  I don't think this would be possible with any of our current proposed type implementations.  Yes, I could create a new unique type, and refactor everything to use that, but that strikes me as unappealing, especially from a code-sharing perspective.  
+
+Thoughts?
 
 ## Old stuff: Algebraic Types?
 
