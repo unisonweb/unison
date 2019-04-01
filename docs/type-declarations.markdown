@@ -65,7 +65,7 @@ Notes re Scala opaque types:
 
 _Structural + Unique:_ No.
 _Structural + Opaque:_ No.
-_Unique + Opaque:_ Sure why not.  In fact, should opaque types always have a guid too?
+_Unique + Opaque:_ Sure why not.  Example where you want Opaque without Unique: `SortedSet` -- the exposed methods define the semantics.  Example where you want Unique + Opaque: `Socket`, `Handle` -- the exposed methods may necessarily dictate that the two types are not the same.
 
 ## Misc scenarios / questions:
 
