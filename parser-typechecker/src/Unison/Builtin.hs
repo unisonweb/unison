@@ -211,7 +211,19 @@ builtins0 = Map.fromList $
       , ("Float.<=", "Float -> Float -> Boolean")
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
+
+      -- Trigonmetric Functions
+      , ("Float.acos", "Float -> Float")
+      , ("Float.asin", "Float -> Float")
+      , ("Float.atan", "Float -> Float")
+      , ("Float.atan2", "Float -> Float -> Float")
+      , ("Float.cos", "Float -> Float")
+      , ("Float.sin", "Float -> Float")
+      , ("Float.tan", "Float -> Float")
+
+      , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
+      , ("Float.round", "Float -> Int")
       , ("Universal.==", "a -> a -> Boolean")
 
       -- Universal.compare intended as a low level function that just returns

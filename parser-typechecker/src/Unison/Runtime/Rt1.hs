@@ -288,10 +288,19 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
     , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
 
-    , mk1 "Float.ceiling"  atf (pure . I) ceiling
-    , mk1 "Float.floor"    atf (pure . I) floor
-    , mk1 "Float.round"    atf (pure . I) round
-    , mk1 "Float.truncate" atf (pure . I) truncate
+    -- Trigonometric functions
+    , mk1 "Float.acos"          atf (pure . F) acos
+    , mk1 "Float.asin"          atf (pure . F) asin
+    , mk1 "Float.atan"          atf (pure . F) atan
+    , mk2 "Float.atan2"     atf atf (pure . F) atan2
+    , mk1 "Float.cos"           atf (pure . F) cos
+    , mk1 "Float.sin"           atf (pure . F) sin
+    , mk1 "Float.tan"           atf (pure . F) tan
+
+    , mk1 "Float.ceiling"       atf (pure . I) ceiling
+    , mk1 "Float.floor"         atf (pure . I) floor
+    , mk1 "Float.round"         atf (pure . I) round
+    , mk1 "Float.truncate"      atf (pure . I) truncate
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
     ]
