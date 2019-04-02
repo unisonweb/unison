@@ -904,7 +904,7 @@ asSearchResults b =
 -- note: I expect these two functions will go away
 searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
 searchBranch b score queries =
-  fmap snd . toList $
+  toList . Set.map snd $
     searchTermNamespace b score queries <> searchTypeNamespace b score queries
   where
   searchTermNamespace :: forall score. Ord score =>
