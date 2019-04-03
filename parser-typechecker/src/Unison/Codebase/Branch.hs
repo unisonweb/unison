@@ -16,6 +16,7 @@ import           Control.Lens
 import           Control.Monad            (join)
 import           Data.Bifunctor           (bimap)
 import           Data.Foldable
+import           Data.List.Extra          (nubOrd)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
@@ -902,9 +903,10 @@ asSearchResults b =
   tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
 
 -- note: I expect these two functions will go away
+-- Returns matching search results ordered by score
 searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
 searchBranch b score queries =
-  toList . Set.map snd $
+  nubOrd . fmap snd . toList $
     searchTermNamespace b score queries <> searchTypeNamespace b score queries
   where
   searchTermNamespace :: forall score. Ord score =>
