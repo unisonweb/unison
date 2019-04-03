@@ -310,6 +310,10 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.log"           atf (pure . F) log
     , mk2 "Float.logBase"   atf atf (pure . F) logBase
 
+    -- Power Functions
+    , mk2 "Float.pow"       atf atf (pure . F) (**)
+    , mk1 "Float.sqrt"          atf (pure . F) sqrt
+
     , mk1 "Float.ceiling"       atf (pure . I) ceiling
     , mk1 "Float.floor"         atf (pure . I) floor
     , mk1 "Float.round"         atf (pure . I) round

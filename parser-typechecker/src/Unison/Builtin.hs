@@ -234,6 +234,10 @@ builtins0 = Map.fromList $
       , ("Float.log", "Float -> Float")
       , ("Float.logBase", "Float -> Float -> Float")
 
+      -- Power Functions
+      , ("Float.pow", "Float -> Float -> Float")
+      , ("Float.sqrt", "Float -> Float")
+
       , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
       , ("Float.round", "Float -> Int")
