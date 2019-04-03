@@ -1,0 +1,9 @@
+use Float acos asin atan atan2 cos sin tan
+
+> (cos 0.0,
+   sin 0.0,
+   tan 0.0,
+   acos (cos 0.0),
+   asin (sin 0.0),
+   atan (tan 0.0),
+   atan2 0.0 0.0)

@@ -211,7 +211,46 @@ builtins0 = Map.fromList $
       , ("Float.<=", "Float -> Float -> Boolean")
       , ("Float.>=", "Float -> Float -> Boolean")
       , ("Float.==", "Float -> Float -> Boolean")
+
+      -- Trigonmetric Functions
+      , ("Float.acos", "Float -> Float")
+      , ("Float.asin", "Float -> Float")
+      , ("Float.atan", "Float -> Float")
+      , ("Float.atan2", "Float -> Float -> Float")
+      , ("Float.cos", "Float -> Float")
+      , ("Float.sin", "Float -> Float")
+      , ("Float.tan", "Float -> Float")
+
+      -- Hyperbolic Functions
+      , ("Float.acosh", "Float -> Float")
+      , ("Float.asinh", "Float -> Float")
+      , ("Float.atanh", "Float -> Float")
+      , ("Float.cosh", "Float -> Float")
+      , ("Float.sinh", "Float -> Float")
+      , ("Float.tanh", "Float -> Float")
+
+      -- Exponential Functions
+      , ("Float.exp", "Float -> Float")
+      , ("Float.log", "Float -> Float")
+      , ("Float.logBase", "Float -> Float -> Float")
+
+      -- Power Functions
+      , ("Float.pow", "Float -> Float -> Float")
+      , ("Float.sqrt", "Float -> Float")
+
+      -- Rounding and Remainder Functions
+      , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
+      , ("Float.round", "Float -> Int")
+      , ("Float.truncate", "Float -> Int")
+
+      -- Float Utils
+      , ("Float.abs", "Float -> Float")
+      , ("Float.max", "Float -> Float -> Float")
+      , ("Float.min", "Float -> Float -> Float")
+      , ("Float.toText", "Float -> Text")
+      , ("Float.fromText", "Text -> Optional Float")
+
       , ("Universal.==", "a -> a -> Boolean")
 
       -- Universal.compare intended as a low level function that just returns
