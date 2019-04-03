@@ -297,6 +297,14 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.sin"           atf (pure . F) sin
     , mk1 "Float.tan"           atf (pure . F) tan
 
+    -- Hyperbolic functions
+    , mk1 "Float.acosh"         atf (pure . F) acosh
+    , mk1 "Float.asinh"         atf (pure . F) asinh
+    , mk1 "Float.atanh"         atf (pure . F) atanh
+    , mk1 "Float.cosh"          atf (pure . F) cosh
+    , mk1 "Float.sinh"          atf (pure . F) sinh
+    , mk1 "Float.tanh"          atf (pure . F) tanh
+
     , mk1 "Float.ceiling"       atf (pure . I) ceiling
     , mk1 "Float.floor"         atf (pure . I) floor
     , mk1 "Float.round"         atf (pure . I) round

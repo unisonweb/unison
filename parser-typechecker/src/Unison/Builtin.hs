@@ -221,6 +221,14 @@ builtins0 = Map.fromList $
       , ("Float.sin", "Float -> Float")
       , ("Float.tan", "Float -> Float")
 
+      -- Hyperbolic Functions
+      , ("Float.acosh", "Float -> Float")
+      , ("Float.asinh", "Float -> Float")
+      , ("Float.atanh", "Float -> Float")
+      , ("Float.cosh", "Float -> Float")
+      , ("Float.sinh", "Float -> Float")
+      , ("Float.tanh", "Float -> Float")
+
       , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
       , ("Float.round", "Float -> Int")
