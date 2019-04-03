@@ -29,7 +29,6 @@ import qualified Unison.UnisonFile as UF
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
--- import Debug.Trace
 
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
@@ -80,9 +79,10 @@ stanza = watchExpression <|> binding <|> namespace
   where
   watchExpression = do
     ann <- watched
+    _ <- closed
     msum [
-     WatchBinding ann <$> TermParser.binding,
-     WatchExpression ann <$> TermParser.blockTerm ]
+      WatchBinding ann <$> TermParser.binding,
+      WatchExpression ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
   namespace = tweak <$> TermParser.namespaceBlock where
     tweak ns = Bindings (TermParser.toBindings [ns])
@@ -93,6 +93,12 @@ watched = P.try $ do
   guard (op == Just ">")
   tok <- anyToken
   pure (ann tok)
+
+closed :: Var v => P v ()
+closed = P.try $ do
+  op <- optional (L.payload <$> P.lookAhead closeBlock)
+  case op of Just () -> P.customFailure EmptyWatch
+             _ -> pure ()
 
 terminateTerm :: Var v => AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
