@@ -249,6 +249,7 @@ builtins0 = Map.fromList $
       , ("Float.max", "Float -> Float -> Float")
       , ("Float.min", "Float -> Float -> Float")
       , ("Float.toText", "Float -> Text")
+      , ("Float.fromText", "Text -> Optional Float")
 
       , ("Universal.==", "a -> a -> Boolean")
 

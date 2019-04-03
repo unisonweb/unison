@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Sequence (Seq)
 import Data.Word (Word64)
+import Text.Read (readMaybe)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
@@ -325,6 +326,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Float.max"       atf atf (pure . F) max
     , mk2 "Float.min"       atf atf (pure . F) min
     , mk1 "Float.toText"        atf (pure . T) (Text.pack . show)
+    , mk1 "Float.fromText"      att (pure . IR.maybeToOptional . fmap F) (
+        (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
     ]
