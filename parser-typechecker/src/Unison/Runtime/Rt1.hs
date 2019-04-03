@@ -305,6 +305,11 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.sinh"          atf (pure . F) sinh
     , mk1 "Float.tanh"          atf (pure . F) tanh
 
+    -- Exponential functions
+    , mk1 "Float.exp"           atf (pure . F) exp
+    , mk1 "Float.log"           atf (pure . F) log
+    , mk2 "Float.logBase"   atf atf (pure . F) logBase
+
     , mk1 "Float.ceiling"       atf (pure . I) ceiling
     , mk1 "Float.floor"         atf (pure . I) floor
     , mk1 "Float.round"         atf (pure . I) round

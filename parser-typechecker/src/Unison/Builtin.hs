@@ -229,6 +229,11 @@ builtins0 = Map.fromList $
       , ("Float.sinh", "Float -> Float")
       , ("Float.tanh", "Float -> Float")
 
+      -- Exponential Functions
+      , ("Float.exp", "Float -> Float")
+      , ("Float.log", "Float -> Float")
+      , ("Float.logBase", "Float -> Float -> Float")
+
       , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
       , ("Float.round", "Float -> Int")
