@@ -314,10 +314,17 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Float.pow"       atf atf (pure . F) (**)
     , mk1 "Float.sqrt"          atf (pure . F) sqrt
 
+    -- Rounding and Remainder Functions
     , mk1 "Float.ceiling"       atf (pure . I) ceiling
     , mk1 "Float.floor"         atf (pure . I) floor
     , mk1 "Float.round"         atf (pure . I) round
     , mk1 "Float.truncate"      atf (pure . I) truncate
+
+    -- Float Utils
+    , mk1 "Float.abs"           atf (pure . F) abs
+    , mk2 "Float.max"       atf atf (pure . F) max
+    , mk2 "Float.min"       atf atf (pure . F) min
+    , mk1 "Float.toText"        atf (pure . T) (Text.pack . show)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
     ]

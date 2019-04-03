@@ -238,9 +238,18 @@ builtins0 = Map.fromList $
       , ("Float.pow", "Float -> Float -> Float")
       , ("Float.sqrt", "Float -> Float")
 
+      -- Rounding and Remainder Functions
       , ("Float.ceiling", "Float -> Int")
       , ("Float.floor", "Float -> Int")
       , ("Float.round", "Float -> Int")
+      , ("Float.truncate", "Float -> Int")
+
+      -- Float Utils
+      , ("Float.abs", "Float -> Float")
+      , ("Float.max", "Float -> Float -> Float")
+      , ("Float.min", "Float -> Float -> Float")
+      , ("Float.toText", "Float -> Text")
+
       , ("Universal.==", "a -> a -> Boolean")
 
       -- Universal.compare intended as a low level function that just returns
