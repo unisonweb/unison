@@ -962,6 +962,8 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
+  go (Parser.EmptyWatch) =
+    "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
   go (Parser.UnknownDataConstructor   tok) = unknownConstructor "data" tok
   unknownConstructor
