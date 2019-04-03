@@ -1163,7 +1163,7 @@ subtype tx ty = scope (InSubtype tx ty) $
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
   go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
-    subtype i1 i2; ctx' <- getContext
+    subtype i2 i1; ctx' <- getContext
     subtype (apply ctx' o1) (apply ctx' o2)
   go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
     subtype x1 x2; ctx' <- getContext
