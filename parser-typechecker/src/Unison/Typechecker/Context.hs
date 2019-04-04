@@ -84,7 +84,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypeVar                as TypeVar
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
-import qualified Unison.TypePrinter            as TP
+-- import qualified Unison.TypePrinter            as TP
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = AnnotatedType (TypeVar v loc) loc
@@ -807,15 +807,10 @@ synthesize e = scope (InSynthesize e) $
     appendContext $
       context [existential i, existential e, existential o, Ann arg it]
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    if Term.isLam body' then do
-      traceM $ "Nested lambda taking arg: " <> show (ABT.variable body)
-      withEffects0 [] $ check body' ot
-    else withEffects0 [et] $ check body' ot
+    if Term.isLam body' then withEffects0 [] $ check body' ot
+    else                     withEffects0 [et] $ check body' ot
     ctx <- getContext
     let t = Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
-    traceM $ "Lambda with arg " <> show (ABT.variable body) <> " was synthesized."
-    traceM $ "It had type: " <> TP.pretty' (Just 80) mempty (apply ctx t)
-    -- todo - generalize over `et` if its unsolved?
     pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
@@ -1157,9 +1152,6 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext
-    traceM $ "In check, the Sub case, which just uses subtype `a <: t`"
-    traceM $ "a = " <> TP.pretty' (Just 80) mempty (apply ctx a)
-    traceM $ "t = " <> TP.pretty' (Just 80) mempty (apply ctx t)
     subtype (apply ctx a) (apply ctx t)
 
 -- | `subtype ctx t1 t2` returns successfully if `t1` is a subtype of `t2`.
