@@ -10,11 +10,19 @@ module Unison.Runtime.Rt1IO where
 import           Control.Exception              ( try
                                                 , throwIO
                                                 , Exception
+                                                , finally
+                                                , bracket
+                                                )
+import           Control.Concurrent             ( ThreadId
+                                                , forkIO
+                                                , killThread
                                                 )
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
                                                 , readMVar
                                                 , newMVar
+                                                , newEmptyMVar
+                                                , takeMVar
                                                 )
 import           Control.Lens
 import           Control.Monad.Trans            ( lift )
@@ -22,13 +30,11 @@ import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Morph            ( hoist )
 import           Control.Monad.Reader           ( ReaderT
                                                 , runReaderT
+                                                , ask
                                                 )
 import           Control.Monad.Except           ( ExceptT(..)
                                                 , runExceptT
                                                 , throwError
-                                                )
-import           Data.Bifunctor                 ( first
-                                                , second
                                                 )
 import           Data.Foldable                  ( traverse_ )
 import           Data.Functor                   ( void )
@@ -72,6 +78,7 @@ import qualified Unison.Term                   as Term
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
+import qualified Unison.Var                    as Var
 
 -- TODO: Make this exception more structured?
 data UnisonRuntimeException = UnisonRuntimeException Text
@@ -80,15 +87,22 @@ data UnisonRuntimeException = UnisonRuntimeException Text
 instance Exception UnisonRuntimeException
 
 type GUID = Text
-type IOState = MVar (HandleMap, SocketMap)
 
-type UIO ann a = ExceptT IOError (ReaderT (S ann) IO) a
+data IOState = IOState
+  { _handleMap :: HandleMap
+  , _socketMap :: SocketMap
+  , _threadMap :: ThreadMap
+  }
+
+type UIO a = ExceptT IOError (ReaderT S IO) a
 type HandleMap = Map GUID Handle
 type SocketMap = Map GUID Net.Socket
+type ThreadMap = Map GUID ThreadId
 
-data S a = S { _ioState :: IOState }
+data S = S { _ioState :: MVar IOState }
 
 makeLenses 'S
+makeLenses 'IOState
 
 haskellMode :: Text -> IOMode
 haskellMode mode = case mode of
@@ -98,41 +112,41 @@ haskellMode mode = case mode of
   "IOMode.ReadWrite" -> ReadWriteMode
   _                  -> error . Text.unpack $ "Unknown IO mode " <> mode
 
-newUnisonHandle :: Handle -> UIO a RT.Value
+newUnisonHandle :: Handle -> UIO RT.Value
 newUnisonHandle h = do
   t <- liftIO $ genText
   m <- view ioState
-  liftIO . modifyMVar_ m $ pure . first (Map.insert t h)
+  liftIO . modifyMVar_ m $ pure . (over handleMap) (Map.insert t h)
   pure $ IR.T t
 
-newUnisonSocket :: Net.Socket -> UIO a RT.Value
+newUnisonSocket :: Net.Socket -> UIO RT.Value
 newUnisonSocket s = do
   t <- liftIO $ genText
   m <- view ioState
-  liftIO . modifyMVar_ m $ pure . second (Map.insert t s)
+  liftIO . modifyMVar_ m $ pure . (over socketMap) (Map.insert t s)
   pure $ IR.T t
 
-deleteUnisonHandle :: Text -> UIO a ()
+deleteUnisonHandle :: Text -> UIO ()
 deleteUnisonHandle h = do
   m <- view $ ioState
-  liftIO . modifyMVar_ m $ pure . first (Map.delete h)
+  liftIO . modifyMVar_ m $ pure . (over handleMap) (Map.delete h)
 
-getHaskellHandle :: Text -> UIO a (Maybe Handle)
+getHaskellHandle :: Text -> UIO (Maybe Handle)
 getHaskellHandle h = do
   m <- view $ ioState
   v <- liftIO $ readMVar m
-  pure . Map.lookup h $ fst v
+  pure . Map.lookup h $ view handleMap v
 
-getHaskellHandleOrThrow :: Text -> UIO a Handle
+getHaskellHandleOrThrow :: Text -> UIO Handle
 getHaskellHandleOrThrow h = getHaskellHandle h >>= maybe throwHandleClosed pure
 
-getHaskellSocket :: Text -> UIO a (Maybe Net.Socket)
+getHaskellSocket :: Text -> UIO (Maybe Net.Socket)
 getHaskellSocket s = do
   m <- view $ ioState
   v <- liftIO $ readMVar m
-  pure . Map.lookup s $ snd v
+  pure . Map.lookup s $ view socketMap v
 
-getHaskellSocketOrThrow :: Text -> UIO a Net.Socket
+getHaskellSocketOrThrow :: Text -> UIO Net.Socket
 getHaskellSocketOrThrow s = getHaskellSocket s >>= maybe throwSocketClosed pure
 
 constructLeft :: RT.Value -> RT.Value
@@ -186,30 +200,36 @@ constructIoError e = IR.Data
   , IR.T . Text.pack $ show e
   ]
 
-handleIO' :: S a -> R.Reference -> IR.ConstructorId -> [RT.Value] -> IO RT.Value
-handleIO' s rid cid vs = case rid of
+handleIO'
+  :: RT.CompilationEnv
+  -> S
+  -> R.Reference
+  -> IR.ConstructorId
+  -> [RT.Value]
+  -> IO RT.Value
+handleIO' cenv s rid cid vs = case rid of
   R.DerivedId x | x == IOSrc.ioHash -> flip runReaderT s $ do
-    ev <- runExceptT $ handleIO cid vs
+    ev <- runExceptT $ handleIO cenv cid vs
     case ev of
       Left  e -> pure . constructLeft $ constructIoError e
       Right v -> pure $ constructRight v
   _ -> fail $ "This ability is not an I/O ability: " <> show rid
 
-reraiseIO :: IO a -> UIO x a
+reraiseIO :: IO a -> UIO a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a
 
-throwHandleClosed :: UIO x a
+throwHandleClosed :: UIO a
 throwHandleClosed = throwError $ illegalOperation "handle is closed"
 
-throwSocketClosed :: UIO x a
+throwSocketClosed :: UIO a
 throwSocketClosed = throwError $ illegalOperation "socket is closed"
 
 illegalOperation :: String -> IOError
 illegalOperation msg =
   SysError.mkIOError SysError.illegalOperationErrorType msg Nothing Nothing
 
-handleIO :: IR.ConstructorId -> [RT.Value] -> UIO a RT.Value
-handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
+handleIO :: RT.CompilationEnv -> IR.ConstructorId -> [RT.Value] -> UIO RT.Value
+handleIO cenv cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
  where
   go "IO.throw" [IR.Data _ _ [IR.Data _ _ [], IR.T message]] =
     liftIO . throwIO $ UnisonRuntimeException message
@@ -281,6 +301,33 @@ handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
     hs <- getHaskellSocketOrThrow socket
     bs <- reraiseIO . Net.recv hs $ fromIntegral n
     pure . convertMaybe $ IR.Bs . Bytes.fromByteString <$> bs
+  go "IO.fork" [IR.Lam _ _ ir] = do
+    s    <- ask
+    t    <- liftIO genText
+    lock <- liftIO newEmptyMVar
+    m    <- view ioState
+    id   <- reraiseIO . forkIO . void $ do
+      void $ takeMVar lock
+      forceThunk cenv s ir
+        `finally` modifyMVar_ m (pure . (over threadMap) (Map.delete t))
+    liftIO . modifyMVar_ m $ pure . (over threadMap) (Map.insert t id)
+    pure $ IR.T t
+  go "IO.kill" [IR.Data _ _ [IR.T thread]] = do
+    m   <- view ioState
+    map <- liftIO $ view threadMap <$> readMVar m
+    liftIO $ case Map.lookup thread map of
+      Nothing -> pure IR.unit
+      Just ht -> do
+        killThread ht
+        pure IR.unit
+  go "IO.bracket" [IR.Lam _ _ acquire, IR.Lam _ _ release, IR.Lam _ _ use] = do
+    s <- ask
+    let resultToVal (RT.RDone v) = pure v
+        resultToVal v = fail $ "IO bracket expected a value but got " <> show v
+    reraiseIO $ resultToVal =<< bracket
+      (resultToVal =<< forceThunk cenv s acquire)
+      (lamToHask cenv s release)
+      (lamToHask cenv s use)
   go a b =
     error
       $  "IO handler called with unimplemented cid "
@@ -289,6 +336,13 @@ handleIO cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
       <> show a
       <> " args "
       <> show b
+
+forceThunk :: RT.CompilationEnv -> S -> RT.IR -> IO RT.Result
+forceThunk cenv s ir = lamToHask cenv s ir IR.unit
+
+lamToHask :: RT.CompilationEnv -> S -> RT.IR -> RT.Value -> IO RT.Result
+lamToHask cenv s ir val = RT.run (handleIO' cenv s) cenv $ task val
+  where task x = IR.Let (Var.named "_") (IR.Leaf (IR.Val x)) ir mempty
 
 runtime :: Runtime Symbol
 runtime = Runtime terminate eval
@@ -301,13 +355,13 @@ runtime = Runtime terminate eval
     let cl = void (hoist (pure . runIdentity) IOSrc.codeLookup) <> cl'
     -- traceM $ Pretty.render 80 (prettyTop mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
-    mmap <- newMVar
-      ( Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)]
-      , Map.empty
-      )
-    r <- RT.run (handleIO' $ S mmap)
-                              cenv
-                              (IR.compile cenv $ Term.amap (const ()) term)
+    mmap <- newMVar $ IOState
+      (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
+      Map.empty
+      Map.empty
+    r <- RT.run (handleIO' cenv $ S mmap)
+                cenv
+                (IR.compile cenv $ Term.amap (const ()) term)
     case r of
       RT.RDone result -> IR.decompile result
-      e -> fail $ show e
+      e               -> fail $ show e

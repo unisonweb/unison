@@ -191,6 +191,9 @@ type HostName = HostName Text
 -- For example a port number like "8080"
 type ServiceName = ServiceName Text
 
+-- Thread IDs are strings for now. Need nominal/opaque types.
+type ThreadId = ThreadId Text
+
 ability IO where
 
   -- Basic file IO
@@ -279,5 +282,12 @@ ability IO where
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int
+
+  -- Threading
+  fork : '{IO} a ->{IO} (Either IOError ThreadId)
+
+  kill : ThreadId ->{IO} (Either IOError ())
+
+  bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
 
 |]
