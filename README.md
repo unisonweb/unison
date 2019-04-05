@@ -33,8 +33,8 @@ Still here? All right then! Let's get to it.
 
 A brief code tour
 -----
-First, checkout unison with `--recursive`:
-`git checkout --recursive https://github.com/unisonweb/unison.git`
+First, clone unison with `--recursive`:
+`git clone --recursive https://github.com/unisonweb/unison.git`
 
 Next, a bit of orientation. Here's the directory structure:
 
