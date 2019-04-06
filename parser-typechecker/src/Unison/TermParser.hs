@@ -16,7 +16,6 @@ import           Data.Foldable (asum)
 import           Data.Int (Int64)
 import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
-import qualified Data.Set as Set (toList)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
@@ -170,14 +169,13 @@ parsePattern = constructor <|> leaf
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
-  seqOp = asum $ fmap reserved (Set.toList L.seqOps)
+  seqOp = f <$> parse
+    where
+      f ((h, vh), op, (t, vt)) = (Pattern.SequenceOp (ann h <> ann t) h op t, vh ++ vt)
+      seqOp' = L.parseSeqOp (\op -> op <$ reserved (show op))
+      parse = P.try $ (,,) <$> leaf <*> seqOp' <*> leaf
 
-  seqUncons = do
-    (head, vh) <- P.try $ leaf <* seqOp
-    (tail, vt) <- leaf
-    pure $ (Pattern.SequenceUncons (ann head <> ann tail) head tail, vh ++ vt)
-
-  seq' = seqLiteral <|> seqUncons
+  seq' = seqLiteral <|> seqOp
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p

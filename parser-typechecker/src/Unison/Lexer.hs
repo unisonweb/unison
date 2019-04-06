@@ -4,6 +4,7 @@
 
 module Unison.Lexer where
 
+import           Control.Applicative ((<|>), Alternative)
 import           Control.Lens.TH (makePrisms)
 import           Control.Monad (join)
 import qualified Control.Monad.State as S
@@ -281,11 +282,10 @@ lexer0 scope rem =
         | (op == '\'' || op == '!')
         && (isSpace c || isAlphaNum c || Set.member c delimiters) ->
           Token (Reserved [op]) pos (inc pos) : goWhitespace l (inc pos) rem
-      c1 : c2 : rem@(c3 : _)
-        | isSpace c3 && Set.member [c1, c2] seqOps ->
-          let op = [c1, c2]
-              pos' = incBy op $ inc pos
-          in Token (Reserved op) pos pos' : goWhitespace l pos' rem
+      (parseSeqOp . matchSeqOp -> Just op) ->
+        let op' = show op
+            pos' = incBy op' $ inc pos
+        in Token (Reserved op') pos pos' : goWhitespace l pos' rem
       ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
         Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
       '@' : rem ->
@@ -521,8 +521,21 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?"
 
-seqOps :: Set String
-seqOps = Set.fromList ["+:", ":+", "++"]
+data SeqOp = Cons
+           | Snoc
+           | Concat
+           deriving (Eq)
+
+instance Show SeqOp where
+  show Cons   = "+:"
+  show Snoc   = ":+"
+  show Concat = "++"
+
+matchSeqOp :: String -> SeqOp -> Maybe SeqOp
+matchSeqOp s op = if ((show op) <> " ") `isPrefixOf` s then Just op else Nothing
+
+parseSeqOp :: Alternative m => (SeqOp -> m SeqOp) -> m SeqOp
+parseSeqOp f = f Cons <|> f Snoc <|> f Concat
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""
