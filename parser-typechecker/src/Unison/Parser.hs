@@ -301,6 +301,7 @@ chainr1 p op = go1 where
   go1 = p >>= go2
   go2 hd = do { op <- op; tl <- go1; pure $ op hd tl } <|> pure hd
 
+-- Parse `p` 1+ times, combining with `op`
 chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
