@@ -6,7 +6,7 @@ Brief document discussing Unison's algebraic effects.
 * Within an abilities list, type variables like `{e1, e2}` can be instantiated to sets of abilities, so we should think of the `{}` as just taking the union of all the sets contained therein. `IO` within `{IO}` is really the singleton set.
 * Unison's typechecker prevents calling a function whose required abilities aren't available in the currrent expression. We say that at each subexpression of the program, there's an _ambient_ set of abilities available, and when calling a function `f : a ->{e1,e2} b`, the ambient abilities must be at least as big as as `{e1, e2}` (according to the subtyping judgement). Verifying that these requested abilities are available is called an "ability check".
 * The ambient abilities at a subterm is defined to be equal to the required abilities on the type of the _nearest enclosing lambda_. For instance, within the body of a lambda of type `a ->{Remote} b`, `{Remote}` is the ambient set.
-* `handle` blocks append new abilities to the ambient based on the abilities that the handler eliminates. So a handler `h : Request {IO} a -> b` will grant access to `IO` within the `body` of `handle h in body`.
+* Okay the above isn't quite right because `handle` blocks prepend new abilities to the ambient based on the abilities that the handler eliminates. So a handler `h : Request {IO} a -> b` will grant access to `IO` within the `body` of `handle h in body`. So the ambient set is really the required abilities on the type of the nearest enclosing lambda, plus the abilities eliminated by enclosing handlers.
 
 Here are a few examples:
 
