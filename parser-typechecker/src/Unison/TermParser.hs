@@ -95,8 +95,9 @@ matchCase = do
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op list
+parsePattern = chainl1 (constructor <|> leaf) patternInfixApp
   where
+  patternInfixApp = f <$>
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
@@ -242,6 +243,11 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
+
+seqOp :: Var v => P v SeqOp
+seqOp t = (Snoc <$ reserved ":+")
+        <|> (Cons <$ reserved "+:")
+        -- <|> (Concat <$ reserved "++")
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
