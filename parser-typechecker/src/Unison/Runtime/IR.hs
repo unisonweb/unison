@@ -24,7 +24,6 @@ import Data.Map (Map)
 import Data.Maybe (isJust,fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified')
@@ -175,7 +174,7 @@ decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
 data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
-  | PatternSequence (Vector Pattern)
+  | PatternSequence [Pattern]
   | PatternPure Pattern
   | PatternBind R.Reference ConstructorId [Pattern] Pattern
   | PatternAs Pattern
@@ -529,6 +528,7 @@ compile0 env bound t =
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
+        Pattern.SequenceLiteral ps -> PatternSequence (compilePattern <$> ps)
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
