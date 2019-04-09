@@ -390,6 +390,7 @@ existentializeArrows freshVar t = ABT.visit go t
     Effect1' _ _ -> Nothing
     _ -> Just $ do
       e <- freshVar
+      a <- existentializeArrows freshVar a
       b <- existentializeArrows freshVar b
       let ann = ABT.annotation t
       pure $ arrow ann a (effect ann [var ann e] b)

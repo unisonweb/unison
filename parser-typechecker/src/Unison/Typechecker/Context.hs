@@ -763,7 +763,9 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
     Type.existentializeArrows (extendExistentialTV "𝛆") t
-  go (Term.Ann' e' t) = t <$ check e' t
+  go (Term.Ann' e' t) = do
+    t <- Type.existentializeArrows (extendExistentialTV "𝛆") t
+    t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
@@ -1080,7 +1082,7 @@ ungeneralize' t = pure ([], t)
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
 generalizeExistentials ctx t =
-  foldr gen (Type.removePureEffects $ apply ctx t) (unsolved ctx)
+  foldr gen (apply ctx t) (unsolved ctx)
   where
     gen e t =
       if TypeVar.Existential B.Blank e `ABT.isFreeIn` t
