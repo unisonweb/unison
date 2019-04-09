@@ -388,8 +388,11 @@ existentializeArrows freshVar t = ABT.visit go t
   where
   go t@(Arrow' a b) = case b of
     Effect1' _ _ -> Nothing
-    _ -> Just . fmap (arrow (ABT.annotation t) a)
-              $ existentializeArrows freshVar b
+    _ -> Just $ do
+      e <- freshVar
+      b <- existentializeArrows freshVar b
+      let ann = ABT.annotation t
+      pure $ arrow ann a (effect ann [var ann e] b)
   go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set

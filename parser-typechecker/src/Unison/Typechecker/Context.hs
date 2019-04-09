@@ -84,7 +84,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypeVar                as TypeVar
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
--- import qualified Unison.TypePrinter            as TP
+import qualified Unison.TypePrinter            as TP
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = AnnotatedType (TypeVar v loc) loc
@@ -1040,8 +1040,12 @@ annotateLetRecBindings isTop letrec =
     -- annotate each term variable w/ corresponding existential
     -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
     let f (v, binding) = case binding of
-          Term.Ann' _ t | useUserAnnotations ->
-            Type.existentializeArrows (extendExistentialTV "𝛆") $ apply ctx t
+          Term.Ann' _ t | useUserAnnotations -> do
+            traceM $ "before: "
+                   <> TP.pretty' (Just 80) mempty (apply ctx t)
+            t2 <- Type.existentializeArrows (extendExistentialTV "𝛆") $ apply ctx t
+            traceM $ "after: " <> TP.pretty' (Just 80) mempty t2
+            pure t2
           _ -> do
             vt <- extendExistential v
             pure $ Type.existential' (loc binding) B.Blank vt
