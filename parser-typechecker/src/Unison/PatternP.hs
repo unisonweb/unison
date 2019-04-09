@@ -20,6 +20,11 @@ pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
 pattern SequenceLiteral loc ps = P.SequenceLiteralP loc ps
 pattern SequenceOp loc ph op pt = P.SequenceOpP loc ph op pt
 
+type SeqOp = P.SeqOp
+pattern Snoc = P.Snoc
+pattern Cons = P.Cons
+-- pattern Concat = P.Concat
+
 loc :: P.PatternP loc -> loc
 loc = P.loc
 
