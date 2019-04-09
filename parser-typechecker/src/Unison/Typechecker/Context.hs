@@ -1525,6 +1525,19 @@ isSubtype' type1 type2 = do
   appendContext $ context (Var <$> Set.toList vars)
   succeeds $ subtype type1 type2
 
+isRedundant :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
+isRedundant userType inferredType = do
+  ctx0 <- getContext
+  userType' <- Type.existentializeArrows (extendExistentialTV "isRedundant") userType
+  ctx1 <- getContext
+  b1 <- isSubtype' userType' inferredType
+  if b1 then do
+    setContext ctx1
+    b2 <- isSubtype' inferredType userType'
+    setContext ctx0
+    pure b2
+  else pure False
+
 -- Public interface to `isSubtype`
 isSubtype
   :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
