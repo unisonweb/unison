@@ -359,96 +359,10 @@ dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
--- Adds effect polymorphism to a type signature. That is, converts a signature like:
---
--- map : (a -> b) -> List a -> List b
---
--- to:
---
--- map : (a ->{e} b) ->{e} List a ->{e} (List b)
---
--- The `arity` is the number of arguments the function takes which
--- are assumed to be pure. Applying `generalizeEffects 2` to the
--- signature of `map` would give:
--- map : (a ->{e} b) -> List a ->{e} List b
---
--- Notice the arrow before `List a` has no effects on it. This is
--- a strictly more general type, as it's equivalent to:
---
--- map : ∀ a b e e2 . (a ->{e} b) ->{e2} List a ->{e} List b
---
--- `1` is a conservative lower bound, but if you have a type formed
--- from a lambda like `x y -> ...`, then it's safe to assume arity 2.
--- Without `arity`, it's not safe to assume that partial applications
--- of a function type are all pure except the last one. For instance,
--- consider:
---
--- hof : (a -> a) -> a -> [a] -> [a]
---
--- Can we generalize this to `(a ->{e} a) -> a -> List a ->{e} List a` ?
--- Not necessarily, since the implementation of `hof` could be:
--- hof f a =
---   out = [f a]
---   as -> out
---
--- In general, higher order function types might apply some of their input
--- functions before receiving all the arguments to the function, so if
--- we make any of these input functions effectful, some of the partial
--- applications of the function type may need to become effectful in the same way.
---
--- If the function result mentions effects anywhere (if it contains any `{}`),
--- we leave the signature alone as it's unclear what transformation the user might
--- want. The user is responsible for using effect variables as they wish.
-generalizeEffects :: forall v a . Var v => Int -> AnnotatedType v a -> AnnotatedType v a
-generalizeEffects _arity t | usesEffects t = t
-generalizeEffects  arity t =
-  let
-    at = ABT.annotation t
-    e = ABT.freshEverywhere t (Var.named "𝛆")
-    evar = var at e
-    ev t = effect at [evar] t
-    go :: Int -> AnnotatedType v a -> AnnotatedType v a
-    go remPure t = let at = ABT.annotation t in case t of
-      Arrow' i o -> case o of
-        Effect' _ _ -> t
-        _ | remPure <= 0 -> arrow at (go 0 i) (ev $ go 0 o)
-          | otherwise    -> arrow at (go 0 i) (go (remPure - 1) o)
-      Ann' t k -> ann at (go remPure t) k
-      Effect1' e e2 -> effect1 at (go 0 e) (go 0 e2)
-      Effects' es -> effects at (go 0 <$> es)
-      ForallNamed' v body -> forall at v (go remPure body)
-      _ -> t
-    t' = go (arity - 1) t
-    tr = if Set.member e (ABT.freeVars t') then forall at e t'
-         else t'
-  in tr
-
 usesEffects :: Var v => AnnotatedType v a -> Bool
 usesEffects t = getAny . getConst $ ABT.visit go t where
   go (Effect1' _ _) = Just (Const (Any True))
   go _ = Nothing
-
-ungeneralizeEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
-ungeneralizeEffects t = case functionResult t of
-  Just (Effect' [Var' e] _)
-    | Var.name e == "𝛆" -> stripE e t
-    | otherwise -> t
-    where
-    isVar v (Var' e) = e == v
-    isVar _ _ = False
-    unE :: Var v => v -> AnnotatedType v a -> Maybe (AnnotatedType v a)
-    unE e et@(Effect' es v) = case filter (not . isVar e) es of
-      [] -> Just (ABT.visitPure (unE e) v)
-      es -> Just (effect (ABT.annotation et) es (ABT.visitPure (unE e) v))
-    unE _ _ = Nothing
-    stripE :: Var v => v -> AnnotatedType v a -> AnnotatedType v a
-    stripE e t = ABT.visitPure (unE e) t
-    -- a bit more restrictive version which requires that the effects be forall'd
-    -- stripE e t@(ForallNamed' e0 body) | e == e0 = ABT.visitPure (unE e) body
-    --                                   | otherwise = t
-    -- stripE _e t = t
-  Just _ -> t
-  Nothing -> t
 
 -- Returns free effect variables in the given type, for instance, in:
 --
@@ -466,6 +380,18 @@ freeEffectVars t =
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go _ = pure []
 
+existentializeArrows :: (Var v, Monad m)
+                     => m v
+                     -> AnnotatedType v a
+                     -> m (AnnotatedType v a)
+existentializeArrows freshVar t = ABT.visit go t
+  where
+  go t@(Arrow' a b) = case b of
+    Effect1' _ _ -> Nothing
+    _ -> Just . fmap (arrow (ABT.annotation t) a)
+              $ existentializeArrows freshVar b
+  go _ = Nothing
+
 -- Remove free effect variables from the type that are in the set
 removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 removeEffectVars removals t =
@@ -473,7 +399,9 @@ removeEffectVars removals t =
       t' = ABT.substs ((,z) <$> Set.toList removals) t
       removeEmpty t@(Effect1' e v) =
         let es = flattenEffects e
-        in Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+        in case es of
+             [] -> Just (ABT.visitPure removeEmpty v)
+             _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
@@ -491,9 +419,6 @@ functionResult t = go False t where
   go inArr (ForallNamed' _ body) = go inArr body
   go _inArr (Arrow' _i o) = go True o
   go inArr t = if inArr then Just t else Nothing
-
-generalizeEffects' :: Var v => AnnotatedType v a -> AnnotatedType v a
-generalizeEffects' = generalizeEffects 1
 
 
 -- | Bind all free variables that start with a lowercase letter with an outer `forall`.

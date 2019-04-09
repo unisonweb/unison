@@ -615,6 +615,10 @@ extendExistential v = do
   modifyContext (pure . extend (Existential B.Blank v'))
   pure v'
 
+extendExistentialTV :: Var v => Text -> M v loc (TypeVar v loc)
+extendExistentialTV name =
+  TypeVar.Existential B.Blank <$> extendExistential (Var.named name)
+
 extendMarker :: (Var v, Ord loc) => v -> M v loc v
 extendMarker v = do
   v' <- freshenVar v
@@ -755,10 +759,10 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
   go (Term.Constructor' r cid) = do
     t <- getDataConstructorType r cid
-    pure $ Type.generalizeEffects (Type.arity t) t
+    Type.existentializeArrows (extendExistentialTV "𝛆") t
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
-    pure $ Type.generalizeEffects (Type.arity t) t
+    Type.existentializeArrows (extendExistentialTV "𝛆") t
   go (Term.Ann' e' t) = t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
@@ -1029,35 +1033,33 @@ annotateLetRecBindings isTop letrec =
     (bindings, body) <- letrec freshenVar
     let vs = map fst bindings
     -- generate a fresh existential variable `e1, e2 ...` for each binding
-    es  <- traverse freshenVar vs
     e1  <- freshNamed "bindings-start"
     ctx <- getContext
+    appendContext $ context [Marker e1]
     -- Introduce these existentials into the context and
     -- annotate each term variable w/ corresponding existential
     -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
-    let f e (_, binding) = case binding of
-          -- TODO: Think about whether `apply` here is always correct
-          -- Used to have a guard that would only do this if t had no free vars
-          Term.Ann' _ t | useUserAnnotations -> apply ctx t
-          _ -> Type.existential' (loc binding) B.Blank e
-    let bindingTypes   = zipWith f es bindings
-        bindingArities = Term.arity . snd <$> bindings
-    appendContext $ context
-      (Marker e1 : map existential es ++ zipWith Ann vs bindingTypes)
+    let f (v, binding) = case binding of
+          Term.Ann' _ t | useUserAnnotations ->
+            Type.existentializeArrows (extendExistentialTV "𝛆") $ apply ctx t
+          _ -> do
+            vt <- extendExistential v
+            pure $ Type.existential' (loc binding) B.Blank vt
+    bindingTypes <- traverse f bindings
+    let bindingArities = Term.arity . snd <$> bindings
+    appendContext $ context (zipWith Ann vs bindingTypes)
     -- check each `bi` against `ei`; sequencing resulting contexts
     Foldable.for_ (zip bindings bindingTypes) $ \((_, b), t) -> check b t
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
     -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
     (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
-    let gen bindingType arity =
-          Type.generalizeEffects arity $ generalizeExistentials ctx2 bindingType
+    let gen bindingType _arity = generalizeExistentials ctx2 bindingType
         bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
         annotations             = zipWith Ann vs bindingTypesGeneralized
     marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
     doRetract (Marker e1)
     appendContext . context $ marker : annotations
     pure (marker, body, vs `zip` bindingTypesGeneralized)
-
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
@@ -1468,7 +1470,7 @@ annotateRefs synth = ABT.visit f where
   f r@(Term.Ann' (Term.Ref' _) _) = Just (pure r)
   f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ge <$> synth h))
     where ra = ABT.annotation r
-          ge t = ABT.vmap TypeVar.Universal $ Type.generalizeEffects (Type.arity t) t
+          ge t = ABT.vmap TypeVar.Universal $ t
   f _ = Nothing
 
 run
@@ -1486,11 +1488,6 @@ run builtinLoc ambient datas effects m =
     . const
     $ pure True
 
-generalizeEffectSignatures :: Var v => Term v loc -> Term v loc
-generalizeEffectSignatures t = ABT.rebuildUp go t
-  where go (Term.Ann e t) = Term.Ann e (Type.generalizeEffects (Term.arity e) t)
-        go e = e
-
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
                   -> Term v loc
@@ -1500,7 +1497,7 @@ synthesizeClosed' abilities term = do
   ctx0 <- getContext
   setContext $ context []
   v <- extendMarker $ Var.named "start"
-  t <- withEffects0 abilities (synthesize $ generalizeEffectSignatures term)
+  t <- withEffects0 abilities (synthesize term)
   ctx <- getContext
   -- retract will cause notes to be written out for
   -- any `Blank`-tagged existentials passing out of scope

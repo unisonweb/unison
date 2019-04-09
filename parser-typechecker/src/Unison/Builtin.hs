@@ -58,9 +58,7 @@ t :: Var v => String -> Type v
 t s = ABT.amap (const Intrinsic) .
           Names.bindType names . either (error . showParseError s) tweak $
           Parser.run (Parser.root TypeParser.valueType) s mempty
-  -- lowercase vars become forall'd, and we assume the function is pure up
-  -- until it returns its result.
-  where tweak = Type.generalizeEffects 100000 . Type.generalizeLowercase
+  where tweak = Type.generalizeLowercase
 
 -- parse a term, hard-coding the builtins defined in this file
 tm :: Var v => String -> Term v

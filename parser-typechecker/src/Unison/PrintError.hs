@@ -279,7 +279,7 @@ renderTypeError e env src = case e of
     ]
   FunctionApplication {..}
     -> let
-         fte         = Type.ungeneralizeEffects ft
+         fte         = Type.removePureEffects ft
          fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
          showVar (v, _t) = Set.member v fteFreeVars
          solvedVars' = filter showVar solvedVars
@@ -442,14 +442,14 @@ renderTypeError e env src = case e of
            , annotatedAsErrorSite src termSite
            , "\n"
            , "Its type is: "
-           , style ErrorSite (renderType' env (Type.ungeneralizeEffects i))
+           , style ErrorSite (renderType' env (Type.removePureEffects i))
            , ".\n\n"
            , case o of
              Type.Existential' _ _ ->
                "It can be replaced with a value of any type.\n"
              _ ->
                "A well-typed replacement must conform to: "
-                 <> style Type2 (renderType' env (Type.ungeneralizeEffects o))
+                 <> style Type2 (renderType' env (Type.removePureEffects o))
                  <> ".\n"
            ]
   UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV -> mconcat
@@ -724,7 +724,7 @@ renderType
   -> (loc -> AnnotatedText a -> AnnotatedText a)
   -> Type.AnnotatedType v loc
   -> AnnotatedText a
-renderType env f t = renderType0 env f (0 :: Int) (Type.ungeneralizeEffects t)
+renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
  where
   wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
   wrap start end test s = if test then start <> s <> end else s

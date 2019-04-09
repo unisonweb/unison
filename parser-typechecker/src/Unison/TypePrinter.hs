@@ -74,7 +74,7 @@ pretty n p tp = case tp of
       paren True
       $         ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
       `PP.hang` pretty n (-1) body
-  t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
+  t@(Arrow' _ _) -> case removePureEffects t of
     EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest ->
       PP.parenthesizeIf (p >= 0) $ pretty n 0 fst <> arrows False False rest
