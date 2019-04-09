@@ -96,9 +96,18 @@ matchCase = do
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op list
+parsePattern =
+  chainl1 (constructor <|> seqLiteral <|> leaf) patternInfixApp
   where
-  leaf = literal <|> seq' <|> varOrAs <|> unbound <|>
+  patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
+                          ->(Pattern Ann, [(Ann, v)])
+                          ->(Pattern Ann, [(Ann, v)]))
+  patternInfixApp = f <$> seqOp
+    where
+    f op (l, lvs) (r, rvs) =
+      (Pattern.SequenceOp (ann l <> ann r) l op r, lvs ++ rvs)
+
+  leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
@@ -168,14 +177,6 @@ parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op li
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
-
-  seqOp = f <$> parse
-    where
-      f ((h, vh), op, (t, vt)) = (Pattern.SequenceOp (ann h <> ann t) h op t, vh ++ vt)
-      seqOp' = L.parseSeqOp (\op -> op <$ reserved (show op))
-      parse = P.try $ (,,) <$> leaf <*> seqOp' <*> leaf
-
-  seq' = seqLiteral <|> seqOp
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
@@ -250,6 +251,12 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
+
+seqOp :: Var v => P v Pattern.SeqOp
+seqOp =
+  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))
+  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:"))
+  -- <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf

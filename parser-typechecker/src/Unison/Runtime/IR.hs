@@ -516,6 +516,7 @@ compile0 env bound t =
         e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
       compileCase (Term.MatchCase pat guard rhs@(ABT.unabs -> (vs,_))) =
           (compilePattern pat, underlyingSymbol <$> vs, go <$> guard, go rhs)
+      compilePattern :: Pattern.Pattern -> Pattern
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
         Pattern.Var -> PatternVar
@@ -528,7 +529,17 @@ compile0 env bound t =
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
-        Pattern.SequenceLiteral ps -> PatternSequence (compilePattern <$> ps)
+        Pattern.SequenceLiteral ps ->
+          PatternSequence (compilePattern <$> ps)
+        Pattern.SequenceOp l op r -> case op of
+          Pattern.Cons ->
+            case compilePattern r of
+              PatternSequence rs -> PatternSequence (compilePattern l : rs)
+              other -> error $ "rhs was " <> show other <> "!"
+          Pattern.Snoc ->
+            case compilePattern l of
+              PatternSequence ls -> PatternSequence (ls ++ [compilePattern r])
+              other -> error $ "lhs was " <> show other <> "!"
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO

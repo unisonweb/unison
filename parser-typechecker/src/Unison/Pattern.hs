@@ -8,7 +8,6 @@ import Data.Text (Text)
 import Data.Word (Word64)
 import Data.Foldable as Foldable
 import GHC.Generics
-import qualified Unison.Lexer as L (SeqOp)
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 
@@ -43,8 +42,13 @@ data PatternP loc
   | EffectPureP loc (PatternP loc)
   | EffectBindP loc !Reference !Int [PatternP loc] (PatternP loc)
   | SequenceLiteralP loc [PatternP loc]
-  | SequenceOpP loc (PatternP loc) !L.SeqOp (PatternP loc)
+  | SequenceOpP loc (PatternP loc) !SeqOp (PatternP loc)
     deriving (Generic,Functor,Foldable,Traversable)
+
+data SeqOp = Cons
+           | Snoc
+           -- | Concat
+           deriving (Eq, Show)
 
 instance Show (PatternP loc) where
   show (UnboundP _  ) = "Unbound"
