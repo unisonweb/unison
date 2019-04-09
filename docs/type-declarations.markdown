@@ -37,10 +37,12 @@ The identity of a structural type is determined by normalizing the constructor o
 ## Unique types
 Unique types are have extrinsic semantics, not completely defined by the constructor types.  Their representation includes a GUID, along with the constructors.  The constructors types need not be unique.  The GUID is typically auto-generated, but can be specified as part of the type declaration, in order to use a textual representation to declare an identical type.
 
+```haskell
 unique type Day = Mon | Tue | Wed | ...
 
 unique[<guid>]
 type Day = Mon | Tue | Wed | ...
+```
 
 Order of constructors having the same type is stable, but the relative constructor order of differently typed constructors is (currently) unspecified.
 
@@ -48,7 +50,7 @@ Order of constructors having the same type is stable, but the relative construct
 
 An opaque type has a structure and a block of terms that can inspect structure. The hash of those terms is part of the type ID.  They have a flag in the decl so typechecker can prevent access.
 
-```
+``` haskell
 opaque type Socket = Socket Nat
 opaque type Handle = Handle Text
 ```
@@ -70,6 +72,7 @@ _Unique + Opaque:_ Sure why not.  Example where you want Opaque without Unique: 
 ## Misc scenarios / questions:
 
 I was just editing some Haskell code.
+
 ```haskell
 -- InputPatterns accept some fixed number of Required arguments of various
 -- types, followed by a variable number of a single type of argument.
@@ -94,6 +97,8 @@ data IsOptional
 I still want this to be the same type.  None of the semantics have changed, I just reordered the constructors for readability.  I don't think this would be possible with any of our current proposed type implementations.  Yes, I could create a new unique type, and refactor everything to use that, but that strikes me as unappealing, especially from a code-sharing perspective.  
 
 Thoughts?
+
+* @pchiusano - I'd say that "constructor display order" should be a bit of metadata that can be attached to a data declaration, and you should be able to edit this metadata somehow (perhaps by default, the `add` / `update` command can suggest "metadata edits" in reponse to this sort of thing).
 
 ## Old stuff: Algebraic Types?
 
