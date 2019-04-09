@@ -31,7 +31,7 @@ repository:
     captures: {2: {name: 'keyword.control.unison'}}
   annotation:
     name: 'meta.function.type-declaration.unison'
-    match: '(\\S+)\\s*(:)(?=\\s)'
+    match: '([^\\r\\n\\t\\f\\v \"]+)\\s*(:)(?=\\s)'
     captures:
       1: {name: 'entity.name.function.unison' }
       2: {name: 'keyword.other.colon.unison' }
