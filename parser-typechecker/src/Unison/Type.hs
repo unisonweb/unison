@@ -402,6 +402,8 @@ removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 removeEffectVars removals t =
   let z = effects (ABT.annotation t) []
       t' = ABT.substs ((,z) <$> Set.toList removals) t
+      -- leave explicitly empty `{}` alone
+      removeEmpty (Effect1' (Effects' []) _) = Nothing
       removeEmpty t@(Effect1' e v) =
         let es = flattenEffects e
         in case es of

@@ -55,7 +55,7 @@ pretty n p tp = go n p (removePureEffects tp)
   where
   go :: PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty s
   go n p tp = case tp of
-    Var' v     -> PP.text (Var.name v)
+    Var' v     -> PP.text (Var.shortName v)
     Ref' r     -> prettyHashQualified' $ (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
@@ -74,7 +74,7 @@ pretty n p tp = go n p (removePureEffects tp)
       then go n p body
       else
         paren True
-        $         ("∀ " <> PP.text (Var.name v) <> ".")
+        $         ("∀ " <> PP.text (Var.shortName v) <> ".")
         `PP.hang` go n (-1) body
     t@(Arrow' _ _) -> case t of
       EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
