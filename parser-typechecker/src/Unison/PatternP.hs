@@ -23,7 +23,7 @@ pattern SequenceOp loc ph op pt = P.SequenceOpP loc ph op pt
 type SeqOp = P.SeqOp
 pattern Snoc = P.Snoc
 pattern Cons = P.Cons
--- pattern Concat = P.Concat
+pattern Concat = P.Concat
 
 loc :: P.PatternP loc -> loc
 loc = P.loc

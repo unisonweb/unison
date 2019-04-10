@@ -168,13 +168,18 @@ decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
       traverse (decompileImpl . snd) symvals
     pure $ Term.betaReduce lam
 
+type SeqOp = Pattern.SeqOp
+pattern Snoc = Pattern.Snoc
+pattern Cons = Pattern.Cons
+pattern Concat = Pattern.Concat
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
 data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
-  | PatternSequence [Pattern]
+  | PatternSequenceLiteral [Pattern]
+  | PatternSequenceOp Pattern Pattern.SeqOp Pattern
   | PatternPure Pattern
   | PatternBind R.Reference ConstructorId [Pattern] Pattern
   | PatternAs Pattern
@@ -529,17 +534,8 @@ compile0 env bound t =
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
-        Pattern.SequenceLiteral ps ->
-          PatternSequence (compilePattern <$> ps)
-        Pattern.SequenceOp l op r -> case op of
-          Pattern.Cons ->
-            case compilePattern r of
-              PatternSequence rs -> PatternSequence (compilePattern l : rs)
-              other -> error $ "rhs was " <> show other <> "!"
-          Pattern.Snoc ->
-            case compilePattern l of
-              PatternSequence ls -> PatternSequence (ls ++ [compilePattern r])
-              other -> error $ "lhs was " <> show other <> "!"
+        Pattern.SequenceLiteral ps -> PatternSequenceLiteral (compilePattern <$> ps)
+        Pattern.SequenceOp l op r -> PatternSequenceOp (compilePattern l) op (compilePattern r)
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
@@ -748,13 +744,8 @@ decompileIR stack = \case
     PatternT t -> Pattern.Text t
     PatternData r cid pats ->
       Pattern.Constructor r cid (d <$> pats)
-    PatternSequence v -> error "todo" v
-      -- case vec of
-      --   head +: tail -> ...
-      --   init :+ last -> ...
-      --   [] -> ...
-      --   [1,2,3] -> ...
-      --   [1,2,3] ++ mid ++ [7,8,9] -> ... maybe?
+    PatternSequenceLiteral ps -> Pattern.SequenceLiteral $ decompilePattern <$> ps
+    PatternSequenceOp l op r -> Pattern.SequenceOp (decompilePattern l) op (decompilePattern r)
     PatternPure pat -> Pattern.EffectPure (d pat)
     PatternBind r cid pats k ->
       Pattern.EffectBind r cid (d <$> pats) (d k)

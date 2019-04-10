@@ -47,7 +47,7 @@ data PatternP loc
 
 data SeqOp = Cons
            | Snoc
-           -- | Concat
+           | Concat
            deriving (Eq, Show)
 
 instance Show (PatternP loc) where

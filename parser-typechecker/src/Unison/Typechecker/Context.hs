@@ -898,6 +898,7 @@ checkPattern scrutineeType0 p =
         applyM vt
       join <$> traverse (checkPattern vt) ps
     Pattern.SequenceOp loc l op r -> do
+      let (locL, locR) = (Pattern.loc l, Pattern.loc r)
       vt <- lift $ do
         v <- freshNamed "v"
         let vt = Type.existentialp loc v
@@ -910,15 +911,18 @@ checkPattern scrutineeType0 p =
       case op of
         Pattern.Cons -> do
           lvs <- checkPattern vt l
-          let locR = Pattern.loc r
           -- todo: same `Type.vector loc` thing
           rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
           pure $ lvs ++ rvs
         Pattern.Snoc -> do
-          let locL = Pattern.loc l
           -- todo: same `Type.vector loc` thing
           lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
           rvs <- checkPattern vt r
+          pure $ lvs ++ rvs
+        Pattern.Concat -> do
+          -- todo: same `Type.vector loc` thing
+          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
+          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
           pure $ lvs ++ rvs
         c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message

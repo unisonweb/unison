@@ -256,7 +256,7 @@ seqOp :: Var v => P v Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))
   <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:"))
-  -- <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
+  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
