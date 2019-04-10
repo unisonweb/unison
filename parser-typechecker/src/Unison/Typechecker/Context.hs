@@ -761,12 +761,12 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
   go (Term.Constructor' r cid) = do
     t <- getDataConstructorType r cid
-    Type.existentializeArrows (extendExistentialTV "𝛆") t
+    existentializeArrows t
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
-    Type.existentializeArrows (extendExistentialTV "𝛆") t
+    existentializeArrows t
   go (Term.Ann' e' t) = do
-    t <- Type.existentializeArrows (extendExistentialTV "𝛆") t
+    t <- existentializeArrows t
     t <$ check e' t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
@@ -1046,8 +1046,7 @@ annotateLetRecBindings isTop letrec =
     -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
     let f (v, binding) = case binding of
           Term.Ann' _ t | useUserAnnotations -> do
-            t2 <- Type.existentializeArrows (extendExistentialTV "𝛆")
-                $ apply ctx t
+            t2 <- existentializeArrows $ apply ctx t
             pure t2
           _ -> do
             vt <- extendExistential v
@@ -1067,6 +1066,14 @@ annotateLetRecBindings isTop letrec =
     doRetract (Marker e1)
     appendContext . context $ marker : annotations
     pure (marker, body, vs `zip` bindingTypesGeneralized)
+
+existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
+existentializeArrows t = do
+  traceM ""
+  traceM $ "before: " <> TP.pretty' (Just 90) mempty t
+  t <- Type.existentializeArrows (extendExistentialTV "𝛆") t
+  traceM $ "after: " <> TP.pretty' (Just 90) mempty t
+  pure t
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 ungeneralize t = snd <$> ungeneralize' t
@@ -1125,7 +1132,9 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     x <- ABT.freshen body freshenVar
     modifyContext' (extend (Ann x i))
     let Type.Effect'' es ot = o
-    withEffects0 es $ check (ABT.bindInheritAnnotation body (Term.var () x)) ot
+    body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
+    if Term.isLam body' then withEffects0 [] $ check body' ot
+    else                     withEffects0 es $ check body' ot
     doRetract $ Ann x i
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
@@ -1506,7 +1515,6 @@ synthesizeClosed' abilities term = do
   setContext $ context []
   v <- extendMarker $ Var.named "start"
   t <- withEffects0 abilities (synthesize term)
-  traceM $ "synthesizeClosed' returned " <> TP.pretty' (Just 90) mempty t
   ctx <- getContext
   -- retract will cause notes to be written out for
   -- any `Blank`-tagged existentials passing out of scope
@@ -1549,7 +1557,7 @@ isRedundant
   -> M v loc Bool
 isRedundant userType inferredType = do
   ctx0 <- getContext
-  userType' <- Type.existentializeArrows (extendExistentialTV "isRedundant") userType
+  userType' <- existentializeArrows userType
   ctx1 <- getContext
   b1 <- isSubtype' userType' inferredType
   if b1 then do
