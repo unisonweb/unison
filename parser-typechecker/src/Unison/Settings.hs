@@ -9,4 +9,7 @@ renderTermMaxLength :: Int
 renderTermMaxLength = 20
 
 demoHideVarNumber :: Bool
-demoHideVarNumber = True
+demoHideVarNumber = False
+
+removePureEffects :: Bool
+removePureEffects = False

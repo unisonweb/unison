@@ -51,8 +51,7 @@ pretty
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
-pretty n p tp = go n p (id tp)
--- pretty n p tp = go n p (removePureEffects tp)
+pretty n p tp = go n p (removePureEffects tp)
   where
   go :: PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty s
   go n p tp = case tp of

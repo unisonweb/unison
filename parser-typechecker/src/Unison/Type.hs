@@ -37,6 +37,7 @@ import           Unison.TypeVar (TypeVar)
 import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
+import qualified Unison.Settings as Settings
 
 -- | Base functor for types in the Unison language
 data F a
@@ -410,7 +411,8 @@ removeEffectVars removals t =
   in ABT.visitPure removeEmpty t'
 
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
-removePureEffects t =
+removePureEffects t | not Settings.removePureEffects = t
+                    | otherwise =
   removeEffectVars (Set.filter isPure (freeEffectVars t)) t
   where
     -- If an effect variable is mentioned only once, it is on
