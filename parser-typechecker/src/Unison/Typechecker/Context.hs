@@ -32,6 +32,7 @@ module Unison.Typechecker.Context
   , apply
   , isEqual
   , isSubtype
+  , isRedundant
   , Suggestion(..)
   , isExact
   )
@@ -718,17 +719,18 @@ noteTopLevelType
   -> Type v loc
   -> M v loc ()
 noteTopLevelType e binding typ = case binding of
-  Term.Ann' strippedBinding annotatedType -> do
+  Term.Ann' strippedBinding _ -> do
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
-    -- TODO: We're kind of assuming that `annotatedType` is the same as `typ`.
-    -- Is that actually true?
-    let redundant = case inferred of
-          Nothing -> False
-          Just t  -> t == annotatedType
-    btw $ TopLevelComponent
-      [(ABT.variable e, Type.generalizeAndUnTypeVar annotatedType, redundant)]
+    case inferred of
+      Nothing -> btw $ TopLevelComponent
+        [(ABT.variable e, Type.generalizeAndUnTypeVar typ, False)]
+      Just inferred -> do
+        redundant <- isRedundant typ inferred
+        btw $ TopLevelComponent
+          [(ABT.variable e, Type.generalizeAndUnTypeVar typ, redundant)]
+  -- The signature didn't exist, so was definitely redundant
   _ -> btw $ TopLevelComponent
-    [(ABT.variable e, Type.generalizeAndUnTypeVar typ, False)]
+    [(ABT.variable e, Type.generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -783,10 +785,12 @@ synthesize e = scope (InSynthesize e) $
       v1 : _ ->
         scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
   go (Term.Let1Top' top binding e) | Set.null (ABT.freeVars binding) = do
+    traceM $ "top level closed definition " <> show (ABT.variable e)
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
     abilities <- getAbilities
     t  <- synthesizeClosed' abilities binding
+    traceM $ "inferred type " <> TP.pretty' (Just 80) mempty t
     when top $ noteTopLevelType e binding t
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
@@ -1020,12 +1024,11 @@ annotateLetRecBindings isTop letrec =
     -- convert from typechecker TypeVar back to regular `v` vars
     let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
-      -- If the types (snd vts) are the same, then we know that the annotations
-      -- were redundant, and we discard them.
-      Just (_, _, vts') | fmap snd vts == fmap snd vts' ->
-        btw $ TopLevelComponent ((\(a, b) -> (a, b, True)) . unTypeVar <$> vts)
+      Just (_, _, vts') -> do
+        r <- all id <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
+        btw $ TopLevelComponent ((\(a,b) -> (a,b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
-      _otherwise -> btw
+      Nothing -> btw
         $ TopLevelComponent ((\(a, b) -> (a, b, False)) . unTypeVar <$> vts)
     pure (marker, body)
   -- If this isn't a top-level letrec, then we don't have to do anything special
@@ -1043,10 +1046,8 @@ annotateLetRecBindings isTop letrec =
     -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
     let f (v, binding) = case binding of
           Term.Ann' _ t | useUserAnnotations -> do
-            traceM $ "before: "
-                   <> TP.pretty' (Just 80) mempty (apply ctx t)
-            t2 <- Type.existentializeArrows (extendExistentialTV "𝛆") $ apply ctx t
-            traceM $ "after: " <> TP.pretty' (Just 80) mempty t2
+            t2 <- Type.existentializeArrows (extendExistentialTV "𝛆")
+                $ apply ctx t
             pure t2
           _ -> do
             vt <- extendExistential v
@@ -1504,6 +1505,7 @@ synthesizeClosed' abilities term = do
   setContext $ context []
   v <- extendMarker $ Var.named "start"
   t <- withEffects0 abilities (synthesize term)
+  traceM $ "synthesizeClosed' returned " <> TP.pretty' (Just 90) mempty t
   ctx <- getContext
   -- retract will cause notes to be written out for
   -- any `Blank`-tagged existentials passing out of scope
@@ -1525,7 +1527,25 @@ isSubtype' type1 type2 = do
   appendContext $ context (Var <$> Set.toList vars)
   succeeds $ subtype type1 type2
 
-isRedundant :: (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc Bool
+-- `isRedundant userType inferredType` returns `True` if the `userType`
+-- matches inferred and `Right` if the annotation actually constrains the
+-- inferred type. If `Left` is returned, we use the type variable names
+-- chosen by `userType`, but augment it with any ability type variables
+-- added by the inferred type.
+--
+-- Example: `userType` is `Nat -> Nat`, `inferredType` is `∀ a . a ->{IO} a`.
+--           In this case, the signature isn't redundant, and we return
+--           `Left (Nat ->{IO} Nat)`.
+-- Example: `userType` is (`∀ a . a -> a`) and inferred is `∀ z e . z ->{e} z`.
+--           In this case, the signature IS redundant, and we return
+--           `Right (∀ a e . a ->{e} a)`, using the type variable names provided
+--           by the user, except for the effect variables which the user asked
+--           to be inferred by using an unadorned `->`.
+isRedundant
+  :: (Var v, Ord loc)
+  => Type v loc
+  -> Type v loc
+  -> M v loc Bool
 isRedundant userType inferredType = do
   ctx0 <- getContext
   userType' <- Type.existentializeArrows (extendExistentialTV "isRedundant") userType
@@ -1536,7 +1556,7 @@ isRedundant userType inferredType = do
     b2 <- isSubtype' inferredType userType'
     setContext ctx0
     pure b2
-  else pure False
+  else False <$ setContext ctx0
 
 -- Public interface to `isSubtype`
 isSubtype
