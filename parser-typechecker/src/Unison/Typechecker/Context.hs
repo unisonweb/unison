@@ -354,8 +354,8 @@ solved (Context ctx) = [(v, sa) | (Solved _ v sa, _) <- ctx]
 unsolved :: Context v loc -> [v]
 unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
 
-unsolved' :: Context v loc -> [(B.Blank loc, v)]
-unsolved' (Context ctx) = [(b,v) | (Existential b v, _) <- ctx]
+-- unsolved' :: Context v loc -> [(B.Blank loc, v)]
+-- unsolved' (Context ctx) = [(b,v) | (Existential b v, _) <- ctx]
 
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
@@ -1271,7 +1271,6 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         es' <- traverse (\e -> freshenVar (nameFrom "e" e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
-            -- t = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
         modifyContext' $ replace (existential v)
                                  (context $ (existential <$> es') ++ [s])
@@ -1368,31 +1367,33 @@ abilityCheck' [] [] = pure ()
 abilityCheck' ambient0 requested0 = go ambient0 requested0 where
   go _ambient [] = pure ()
   go ambient0 (r:rs) = do
+    -- Note: if applyM returns an existential, it's unsolved
     ambient <- traverse applyM ambient0
     r <- applyM r
-    -- 1. Look in ambient to see if `r` has an exact match in the head of `r`.
+    -- 1. Look in ambient for exact match of head of `r`
     case find (headMatch r) ambient of
       -- 2a. If yes for `a` in ambient, do `subtype amb r` and done.
       Just amb -> do
         subtype amb r `orElse` die r
         go ambient rs
       -- 2b. If no:
-      Nothing -> do
-        ctx <- getContext
-        -- find first unsolved existential, 'e, that appears in ambient
-        let unsolveds = unsolved' ctx
-            ambFlat = Set.fromList (ambient >>= Type.flattenEffects >>= vars)
-            vars (Type.Var' (TypeVar.Existential _ v)) = [v]
-            vars _ = []
-            intersection = [ (b,v) | (b,v) <- unsolveds, Set.member v ambFlat ]
-        case listToMaybe intersection of
-          Just (b, e') -> do
-            -- introduce fresh existential 'e2 to context
-            e2' <- extendExistential e'
-            let et2 = Type.effects (loc r) [r, Type.existentialp (loc r) e2']
-            instantiateR et2 b e' `orElse` die r
-            go ambient rs
-          _ -> die r
+      Nothing -> case r of
+        -- It's an unsolved existential, instantiate it to all of ambient
+        Type.Existential' b v ->
+          let et2 = Type.effects (loc r) ambient
+          in instantiateR et2 b v
+        _ -> -- find unsolved existential, 'e, that appears in ambient
+          let unsolveds = (ambient >>= Type.flattenEffects >>= vars)
+              vars (Type.Var' (TypeVar.Existential b v)) = [(b,v)]
+              vars _ = []
+          in case listToMaybe unsolveds of
+            Just (b, e') -> do
+              -- introduce fresh existential 'e2 to context
+              e2' <- extendExistential e'
+              let et2 = Type.effects (loc r) [r, Type.existentialp (loc r) e2']
+              instantiateR et2 b e' `orElse` die r
+              go ambient rs
+            _ -> die r
 
   headMatch :: Type v loc -> Type v loc -> Bool
   headMatch (Type.App' f _) (Type.App' f2 _) = headMatch f f2
