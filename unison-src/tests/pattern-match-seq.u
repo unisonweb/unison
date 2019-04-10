@@ -1,17 +1,23 @@
+use Optional None Some
+
+lenLit : [a] -> Nat
 lenLit l = case l of
   [] -> 0
   [_] -> 1
   [_, _] -> 2
   [_, _, _] -> 3
 
+lenCons : [a] -> Nat
 lenCons l = case l of
   [] -> 0
   _ +: t -> 1 + lenCons t
 
+lenSnoc : [a] -> Nat
 lenSnoc l = case l of
   [] -> 0
   t :+ _ -> 1 + lenSnoc t
 
+lenConcat : [a] -> Nat
 lenConcat l = case l of
   [] -> 0
   [_] ++ t -> 1 + lenConcat t
@@ -20,3 +26,38 @@ lenConcat l = case l of
 > lenCons [1, 2, 3, 4, 5, 6, 7]
 > lenSnoc [1, 2, 3, 4, 5]
 > lenConcat [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+head : [a] -> Optional a
+head l = case l of
+  h +: _ -> Some h
+  _ -> None
+
+> head []
+> head [1, 2, 3]
+
+firstTwo : [a] -> Optional (a, a)
+firstTwo l = case l of
+  x +: (y +: _) -> Some (x, y)
+  _ -> None
+
+> firstTwo []
+> firstTwo [1]
+> firstTwo [1, 2, 3]
+
+lastTwo : [a] -> Optional (a, a)
+lastTwo l = case l of
+  _ :+ x :+ y -> Some (x, y)
+  _ -> None
+
+> lastTwo []
+> lastTwo [1]
+> lastTwo [1, 2, 3]
+
+middle : [a] -> Optional [a]
+middle l = case l of
+  [_] ++ m ++ [_] -> Some m
+  _ -> None
+
+> middle []
+> middle [1, 2]
+> middle [1, 2, 3, 4, 5, 6]

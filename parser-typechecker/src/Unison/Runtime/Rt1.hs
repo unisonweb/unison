@@ -671,12 +671,12 @@ run ioHandler env ir = do
           f t1 t2 = liftA2 (++) (tryCase t1) (tryCase t2)
 
           concat :: Pattern -> Pattern -> Maybe [Value]
-          concat (PatternSequenceLiteral ps) _ = concat' (length ps) l r
-          concat _ (PatternSequenceLiteral ps) = concat' (length args - length ps) r l
+          concat lit@(PatternSequenceLiteral ps) other = concat' (length ps) lit other
+          concat other lit@(PatternSequenceLiteral ps) = concat' (length args - length ps) other lit
           concat _ _ = Nothing
 
           concat' :: Int -> Pattern -> Pattern -> Maybe [Value]
-          concat' i l' r' = f (IR.Sequence a1, l') (IR.Sequence a2, r') where (a1, a2) = Sequence.splitAt i args
+          concat' i p1 p2 = f (IR.Sequence a1, p1) (IR.Sequence a2, p2) where (a1, a2) = Sequence.splitAt i args
         -- where concat (PatternSequenceLiteral ps) p =
       (Pure v, PatternPure p) -> tryCase (v, p)
       (Pure _, PatternBind _ _ _ _) -> Nothing

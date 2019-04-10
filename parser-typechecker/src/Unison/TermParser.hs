@@ -252,6 +252,16 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
 
+-- TODO - Cons should be right associative, others should be left
+-- seqOp
+--   :: Var v
+--   => (Pattern.SeqOp -> (Pattern Ann, [(Ann, v)]) -> (Pattern Ann, [(Ann, v)]) -> (Pattern Ann, [(Ann, v)]))
+--   -> P v (Pattern Ann, [(Ann, v)])
+--   -> P v (Pattern Ann, [(Ann, v)])
+-- seqOp f leaf =
+--   (g chainr1 Pattern.Cons "+:" g) <|> (g chainl1 Pattern.Snoc ":+" g) <|> (g chainl1 Pattern.Concat "++" g)
+--   where g parse op sym = parse leaf (f <$> (op <$ matchToken (L.SymbolyId sym)))
+
 seqOp :: Var v => P v Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))

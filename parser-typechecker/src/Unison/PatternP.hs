@@ -18,7 +18,7 @@ pattern As loc p = P.AsP loc p
 pattern EffectPure loc p = P.EffectPureP loc p
 pattern EffectBind loc r c args k = P.EffectBindP loc r c args k
 pattern SequenceLiteral loc ps = P.SequenceLiteralP loc ps
-pattern SequenceOp loc ph op pt = P.SequenceOpP loc ph op pt
+pattern SequenceOp loc l op r = P.SequenceOpP loc l op r
 
 type SeqOp = P.SeqOp
 pattern Snoc = P.Snoc
