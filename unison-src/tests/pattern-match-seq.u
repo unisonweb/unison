@@ -1,6 +1,22 @@
-len l = case l of
+lenLit l = case l of
   [] -> 0
-  [_] ++ t -> 1 + len t
-  -- _ +: t -> 1 + len t
+  [_] -> 1
+  [_, _] -> 2
+  [_, _, _] -> 3
 
-> len [1, 2, 3, 4, 5]
+lenCons l = case l of
+  [] -> 0
+  _ +: t -> 1 + lenCons t
+
+lenSnoc l = case l of
+  [] -> 0
+  t :+ _ -> 1 + lenSnoc t
+
+lenConcat l = case l of
+  [] -> 0
+  [_] ++ t -> 1 + lenConcat t
+
+> lenLit [1, 2, 3]
+> lenCons [1, 2, 3, 4, 5, 6, 7]
+> lenSnoc [1, 2, 3, 4, 5]
+> lenConcat [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]

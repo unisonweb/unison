@@ -37,7 +37,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..) )
+import           Control.Applicative            ( Alternative(..), liftA2 )
 import           Control.Monad
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
@@ -919,11 +919,16 @@ checkPattern scrutineeType0 p =
           lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
           rvs <- checkPattern vt r
           pure $ lvs ++ rvs
-        Pattern.Concat -> do
-          -- todo: same `Type.vector loc` thing
-          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
-          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
-          pure $ lvs ++ rvs
+        Pattern.Concat ->
+          case (l, r) of
+            (Pattern.SequenceLiteral _ _, _) -> f
+            (_, Pattern.SequenceLiteral _ _) -> f
+            -- TODO - improve error
+            (_, _) -> lift . failWith $ PatternArityMismatch loc (Type.app loc (Type.vector loc) vt) 2
+          where
+            f = liftA2 (++) (g locL l) (g locR r)
+            -- todo: same `Type.vector loc` thing
+            g l p = checkPattern (Type.app l (Type.vector l) vt) p
         c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
