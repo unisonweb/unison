@@ -767,7 +767,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
-      pure t
+      existentializeArrows t
     s -> compilerCrash $ FreeVarsInTypeAnnotation s
   go (Term.Ref' h) = compilerCrash $ UnannotatedReference h
   go (Term.Constructor' r cid) = do

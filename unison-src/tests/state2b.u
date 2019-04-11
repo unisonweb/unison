@@ -12,7 +12,7 @@ state s eff = case eff of
   { State.put snew -> k } -> handle (state snew) in k ()
   { a } -> (s, a)
 
-modify : (s -> s) -> {State s} ()
+modify : (s ->{} s) -> {State s} ()
 modify f = State.put (f State.get)
 
 increment : '{State Nat} ()
