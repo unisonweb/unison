@@ -1046,26 +1046,33 @@ annotateLetRecBindings isTop letrec =
   annotateLetRecBindings' useUserAnnotations = do
     (bindings, body) <- letrec freshenVar
     let vs = map fst bindings
-    -- generate a fresh existential variable `e1, e2 ...` for each binding
     e1  <- freshNamed "bindings-start"
     ctx <- getContext
     appendContext $ context [Marker e1]
-    -- Introduce these existentials into the context and
-    -- annotate each term variable w/ corresponding existential
-    -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
     let f (v, binding) = case binding of
+          -- If user has provided an annotation, we use that
           Term.Ann' e t | useUserAnnotations -> do
+            -- Arrows in `t` with no ability lists get an attached fresh
+            -- existential to allow inference of required abilities
             t2 <- existentializeArrows $ apply ctx t
             pure (Term.ann (loc binding) e t2, t2)
-          -- todo: need to refine the existential based on arity of
-          -- the binding
+          -- If we're not using an annotation, we make one up. There's 2 cases:
+
+          lam@(Term.Lam' _) ->
+            -- If `e` is a lambda of arity K, we immediately refine the
+            -- existential to `a1 ->{e1} a2 ... ->{eK} r`. This gives better
+            -- inference of the lambda's ability variables in conjunction with
+            -- handling of lambdas in `check` judgement.
+            (lam,) <$> existentialFunctionTypeFor lam
           e -> do
+            -- Anything else, just make up a fresh existential
+            -- which will be refined during typechecking of the binding
             vt <- extendExistential v
             pure $ (e, Type.existential' (loc binding) B.Blank vt)
     (bindings, bindingTypes) <- unzip <$> traverse f bindings
     let bindingArities = Term.arity <$> bindings
     appendContext $ context (zipWith Ann vs bindingTypes)
-    -- check each `bi` against `ei`; sequencing resulting contexts
+    -- check each `bi` against its type
     Foldable.for_ (zip bindings bindingTypes) $ \(b, t) -> check b t
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
     -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
@@ -1077,6 +1084,18 @@ annotateLetRecBindings isTop letrec =
     doRetract (Marker e1)
     appendContext . context $ marker : annotations
     pure (marker, body, vs `zip` bindingTypesGeneralized)
+
+existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
+  v <- extendExistential v
+  e <- extendExistential (Var.named "𝛆")
+  o <- existentialFunctionTypeFor body
+  pure $ Type.arrow (loc lam)
+                    (Type.existentialp (loc lam) v)
+                    (Type.effect (loc lam) [Type.existentialp (loc lam) e] o)
+existentialFunctionTypeFor e = do
+  v <- extendExistential (Var.named "𝑟")
+  pure $ Type.existentialp (loc e) v
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
