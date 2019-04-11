@@ -539,6 +539,19 @@ getEffectDeclarations = fromMEnv effectDecls
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
 
+withoutAbilityCheckForExact
+  :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
+withoutAbilityCheckForExact skip m = M go
+  where
+  go e = runM m $ e { abilityCheckMask = tweak (abilityCheckMask e) }
+  tweak mask t = do
+    skip <- applyM skip
+    t <- applyM t
+    if t == skip then do
+      traceM $ "skipped: " <> show t
+      pure False
+    else mask t
+
 -- run `m` without doing ability checks on requests which match `ambient0`
 -- are a subtype of `ambient0`.
 withoutAbilityCheckFor :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
@@ -785,12 +798,10 @@ synthesize e = scope (InSynthesize e) $
       v1 : _ ->
         scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
   go (Term.Let1Top' top binding e) | Set.null (ABT.freeVars binding) = do
-    traceM $ "top level closed definition " <> show (ABT.variable e)
     -- special case when it is definitely safe to generalize - binding contains
     -- no free variables, i.e. `let id x = x in ...`
     abilities <- getAbilities
     t  <- synthesizeClosed' abilities binding
-    traceM $ "inferred type " <> TP.pretty' (Just 80) mempty t
     when top $ noteTopLevelType e binding t
     v' <- ABT.freshen e freshenVar
     -- note: `Ann' (Ref'  _) t` synthesizes to `t`
@@ -1069,10 +1080,7 @@ annotateLetRecBindings isTop letrec =
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
-  traceM ""
-  traceM $ "before: " <> TP.pretty' (Just 90) mempty t
   t <- Type.existentializeArrows (extendExistentialTV "𝛆") t
-  traceM $ "after: " <> TP.pretty' (Just 90) mempty t
   pure t
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
