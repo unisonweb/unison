@@ -547,9 +547,7 @@ withoutAbilityCheckForExact skip m = M go
   tweak mask t = do
     skip <- applyM skip
     t <- applyM t
-    if t == skip then do
-      traceM $ "skipped: " <> show t
-      pure False
+    if t == skip then pure False
     else mask t
 
 -- run `m` without doing ability checks on requests which match `ambient0`
@@ -1059,6 +1057,8 @@ annotateLetRecBindings isTop letrec =
           Term.Ann' e t | useUserAnnotations -> do
             t2 <- existentializeArrows $ apply ctx t
             pure (Term.ann (loc binding) e t2, t2)
+          -- todo: need to refine the existential based on arity of
+          -- the binding
           e -> do
             vt <- extendExistential v
             pure $ (e, Type.existential' (loc binding) B.Blank vt)
@@ -1136,25 +1136,17 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     x <- extendUniversal =<< ABT.freshen body freshenTypeVar
     check e (ABT.bindInheritAnnotation body (Type.universal x))
     doRetract $ Universal x
-  go (Term.Lam' body) t@(Type.Arrow' i o) = do -- =>I
+  go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
-    i' <- applyM i
-    traceM ""
-    traceM $ "<lam> := " <> TP.pretty' (Just 90) mempty t
-    traceM $ show (ABT.variable body) <> " = "
-          <> TP.pretty' (Just 90) mempty i'
-    modifyContext' (extend (Ann x i'))
+    modifyContext' (extend (Ann x i))
     let Type.Effect'' es ot = o
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
     if Term.isLam body' then do
-      traceM $ "ignoring " <> TP.pretty' (Just 90) mempty
-               (Type.effects (loc ot) es)
-      getContext >>= traceM . show
       withEffects0 [] $
         foldr withoutAbilityCheckForExact (check body' ot) es
     else
       withEffects0 es $ check body' ot
-    doRetract $ Ann x i'
+    doRetract $ Ann x i
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
