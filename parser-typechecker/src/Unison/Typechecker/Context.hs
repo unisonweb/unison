@@ -1056,17 +1056,17 @@ annotateLetRecBindings isTop letrec =
     -- annotate each term variable w/ corresponding existential
     -- [marker e1, 'e1, 'e2, ... v1 : 'e1, v2 : 'e2 ...]
     let f (v, binding) = case binding of
-          Term.Ann' _ t | useUserAnnotations -> do
+          Term.Ann' e t | useUserAnnotations -> do
             t2 <- existentializeArrows $ apply ctx t
-            pure t2
-          _ -> do
+            pure (Term.ann (loc binding) e t2, t2)
+          e -> do
             vt <- extendExistential v
-            pure $ Type.existential' (loc binding) B.Blank vt
-    bindingTypes <- traverse f bindings
-    let bindingArities = Term.arity . snd <$> bindings
+            pure $ (e, Type.existential' (loc binding) B.Blank vt)
+    (bindings, bindingTypes) <- unzip <$> traverse f bindings
+    let bindingArities = Term.arity <$> bindings
     appendContext $ context (zipWith Ann vs bindingTypes)
     -- check each `bi` against `ei`; sequencing resulting contexts
-    Foldable.for_ (zip bindings bindingTypes) $ \((_, b), t) -> check b t
+    Foldable.for_ (zip bindings bindingTypes) $ \(b, t) -> check b t
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
     -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
     (_, _, ctx2) <- breakAt (Marker e1) <$> getContext
@@ -1136,14 +1136,25 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     x <- extendUniversal =<< ABT.freshen body freshenTypeVar
     check e (ABT.bindInheritAnnotation body (Type.universal x))
     doRetract $ Universal x
-  go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
+  go (Term.Lam' body) t@(Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
-    modifyContext' (extend (Ann x i))
+    i' <- applyM i
+    traceM ""
+    traceM $ "<lam> := " <> TP.pretty' (Just 90) mempty t
+    traceM $ show (ABT.variable body) <> " = "
+          <> TP.pretty' (Just 90) mempty i'
+    modifyContext' (extend (Ann x i'))
     let Type.Effect'' es ot = o
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-    if Term.isLam body' then withEffects0 [] $ check body' ot
-    else                     withEffects0 es $ check body' ot
-    doRetract $ Ann x i
+    if Term.isLam body' then do
+      traceM $ "ignoring " <> TP.pretty' (Just 90) mempty
+               (Type.effects (loc ot) es)
+      getContext >>= traceM . show
+      withEffects0 [] $
+        foldr withoutAbilityCheckForExact (check body' ot) es
+    else
+      withEffects0 es $ check body' ot
+    doRetract $ Ann x i'
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1590,8 +1601,9 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     TypeVar.Existential _ x -> "'" ++ show x
-  show (Solved _ v t) = "'"++Text.unpack (Var.shortName v)++" = "++show t
-  show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show t
+  show (Solved _ v t) = "'"++Text.unpack (Var.shortName v)++" = "++TP.pretty' Nothing mempty (Type.getPolytype t)
+  show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++
+                   TP.pretty' Nothing mempty t
   show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
@@ -1600,8 +1612,8 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem _ctx (Var v) = case v of
       TypeVar.Universal x -> "@" <> show x
       TypeVar.Existential _ x -> "'" ++ show x
-    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.shortName v)++" = "++ show (apply ctx t)
-    showElem ctx (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ show (apply ctx t)
+    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.shortName v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
+    showElem ctx (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
     showElem _ (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
