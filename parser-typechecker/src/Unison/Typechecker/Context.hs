@@ -550,22 +550,6 @@ withoutAbilityCheckForExact skip m = M go
     if t == skip then pure False
     else mask t
 
--- run `m` without doing ability checks on requests which match `ambient0`
--- are a subtype of `ambient0`.
-withoutAbilityCheckFor :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckFor ft _ | debugEnabled && traceShow ("withoutAbilityCheckFor"::String, ft) False = undefined
-withoutAbilityCheckFor ambient0 m = do
-  abilities <- filterM wouldNotCollide =<< getAbilities
-  withEffects0 abilities m2
-  where
-    m2 = M (\menv -> runM m $ menv { abilityCheckMask = go (abilityCheckMask menv) })
-    go mask t = (False <$ subtype ambient0 t) `orElse` mask t
-    wouldNotCollide t = do
-      ctx <- getContext
-      ok <- (False <$ subtype ambient0 t) `orElse` pure True
-      setContext ctx
-      pure ok
-
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
 
@@ -1192,7 +1176,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       t'
     ctx <- getContext
     let et = apply ctx (Type.existentialp l e)
-    withoutAbilityCheckFor et
+    withoutAbilityCheckForExact et
       . withEffects [et]
       . check body
       . apply ctx
