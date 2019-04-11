@@ -12,4 +12,4 @@ demoHideVarNumber :: Bool
 demoHideVarNumber = False
 
 removePureEffects :: Bool
-removePureEffects = False
+removePureEffects = True

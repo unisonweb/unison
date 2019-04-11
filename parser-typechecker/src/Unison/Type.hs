@@ -349,6 +349,10 @@ flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
 generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
 generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
 
+unforall :: AnnotatedType v a -> AnnotatedType v a
+unforall (ForallsNamed' _ t) = t
+unforall t = t
+
 generalizeAndUnTypeVar :: Ord v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
 generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
 
@@ -409,18 +413,20 @@ removeEffectVars removals t =
         in case es of
              [] -> Just (ABT.visitPure removeEmpty v)
              _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+      removeEmpty t@(Forall' _) = Just t
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  removeEffectVars (Set.filter isPure (freeEffectVars t)) t
+  generalize $ removeEffectVars (Set.filter isPure (freeEffectVars tu)) tu
   where
+    tu = unforall t
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
-    isPure v = ABT.occurrences v t <= 1
+    isPure v = ABT.occurrences v tu <= 1
 
 functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
 functionResult t = go False t where
