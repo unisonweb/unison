@@ -423,6 +423,12 @@ renderTypeError e env src = case e of
     , annotatedAsErrorSite src abilityCheckFailureSite
     , debugSummary note
     ]
+  UnguardedLetRecCycle vs locs _ -> mconcat
+    [ "These definitions depend on each other cyclically but aren't guarded "
+    , "by a lambda: " <> intercalateMap ", " renderVar vs
+    , "\n"
+    , showSourceMaybes src [ (,ErrorSite) <$> rangeForAnnotated loc | loc <- locs ]]
+
   UnknownType {..} -> mconcat
     [ "I don't know about the type "
     , style ErrorSite (renderVar unknownTypeV)

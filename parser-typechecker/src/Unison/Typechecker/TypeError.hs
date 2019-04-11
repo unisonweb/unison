@@ -60,6 +60,9 @@ data TypeError v loc
                         , abilityCheckFailureSite :: loc
                         , note                    :: C.ErrorNote v loc
                         }
+  | UnguardedLetRecCycle { cycle :: [v]
+                         , cycleLocs :: [loc]
+                         , note :: C.ErrorNote v loc }
   | UnknownType { unknownTypeV :: v
                 , typeSite     :: loc
                 , note         :: C.ErrorNote v loc
@@ -94,7 +97,8 @@ typeInfoFromNote n = case n of
   C.TopLevelComponent defs -> Just $ TopLevelComponent defs
   _ -> Nothing
 
-allErrors :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
+allErrors
+  :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 allErrors = asum
   [ and
   , or
@@ -107,6 +111,7 @@ allErrors = asum
   , applyingNonFunction
   , generalMismatch
   , abilityCheckFailure
+  , unguardedCycle
   , unknownType
   , unknownTerm
   ]
@@ -166,6 +171,13 @@ and = booleanMismatch0 AndMismatch (Ex.inSynthesizeApp >> Ex.inAndApp)
 or = booleanMismatch0 OrMismatch (Ex.inSynthesizeApp >> Ex.inOrApp)
 cond = booleanMismatch0 CondMismatch Ex.inIfCond
 matchGuard = booleanMismatch0 GuardMismatch Ex.inMatchGuard
+
+unguardedCycle :: Ex.ErrorExtractor v loc (TypeError v loc)
+unguardedCycle = do
+  n <- Ex.errorNote
+  C.UnguardedLetRecCycle vs es <- Ex.cause
+  let loc = ABT.annotation . snd <$> es
+  pure $ UnguardedLetRecCycle vs loc n
 
 -- | helper function to support `and` / `or` / `cond`
 booleanMismatch0 :: (Var v, Ord loc)
