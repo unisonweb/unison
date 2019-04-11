@@ -257,6 +257,8 @@ data Cause v loc
   | PatternArityMismatch loc (Type v loc) Int
   -- A variable is defined twice in the same block
   | DuplicateDefinitions (NonEmpty (v, [loc]))
+  -- A let rec where things that aren't guarded cyclicly depend on each other
+  | UnguardedLetRecCycle [v] [(v, Term v loc)]
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -1057,7 +1059,10 @@ annotateLetRecBindings isTop letrec =
     let bindingArities = Term.arity <$> bindings
     appendContext $ context (zipWith Ann vs bindingTypes)
     -- check each `bi` against its type
-    Foldable.for_ (zip bindings bindingTypes) $ \(b, t) -> check b t
+    Foldable.for_ (zip bindings bindingTypes) $ \(b, t) ->
+      -- note: elements of a cycle have to be pure, otherwise order of effects
+      -- is unclear and chaos ensues
+      withEffects0 [] (check b t)
     ensureGuardedCycle (vs `zip` bindings)
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
     -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
@@ -1070,10 +1075,17 @@ annotateLetRecBindings isTop letrec =
     appendContext . context $ marker : annotations
     pure (marker, body, vs `zip` bindingTypesGeneralized)
 
-ensureGuardedCycle :: [(v, Term v loc)] -> M v loc ()
-ensureGuardedCycle _bindings = pure ()
-  -- todo: require that non-lambdas in the cycle may only depend on lambdas,
-  -- not on any other non-lambdas
+ensureGuardedCycle :: Var v => [(v, Term v loc)] -> M v loc ()
+ensureGuardedCycle bindings = let
+  -- We make sure that nonLambdas can depend only on lambdas, not on each other
+  nonLambdas = Set.fromList [ v | (v, b) <- bindings, Term.arity b == 0 ]
+  (notok, ok) = partition f bindings
+  f (v, b) =
+    if Set.member v nonLambdas then
+      not $ Set.null (ABT.freeVars b `Set.intersection` nonLambdas)
+    else False
+  in if length ok == length bindings then pure ()
+     else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
 existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do

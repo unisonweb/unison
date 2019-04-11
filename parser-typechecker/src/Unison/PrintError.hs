@@ -610,6 +610,9 @@ renderTypeError e env src = case e of
       mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
     C.IllFormedType c ->
       mconcat ["IllFormedType\n", "  context:\n", renderContext env c]
+    C.UnguardedLetRecCycle vs _ts ->
+      "Unguarded cycle of definitions: " <>
+      foldMap renderVar vs
     C.UnknownSymbol loc v -> mconcat
       [ "UnknownSymbol: "
       , annotatedToEnglish loc
