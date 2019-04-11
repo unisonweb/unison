@@ -1,0 +1,64 @@
+--State2 effect
+
+type Optional a = None | Some a
+
+effect State s where
+  put : s -> {State s} ()
+  get : {State s} s
+
+state : s -> Effect (State s) a -> (s, a)
+state s eff = case eff of
+  { State.get -> k } -> handle (state s) in k s
+  { State.put snew -> k } -> handle (state snew) in k ()
+  { a } -> (s, a)
+
+modify2 : (s -> s) ->{State s} ()
+modify2 f =
+  s = State.get
+  s2 = f s
+  State.put s2
+
+modify3 : (s -> s) -> ()
+modify3 f =
+  s = State.get
+  s2 = f s
+  State.put s2
+
+---
+
+It's struggling to figure out that the `s` that `f` works on has to be
+the same `s` the `{State s}`. 
+
+Sorry, you hit an error we didn't make a nice message for yet.
+
+Here is a summary of the Note:
+
+  simple cause:
+    TypeMismatch
+  context:
+  Γ
+    |start58|
+    'start58
+    's68
+    ':instR-x:67 = State
+    ':e:66 = State s68
+    '𝛆59 = State s68
+    @s61
+    f62 : s61 ->{State s68} s61
+    's64 = s61
+    s63 : s61
+  path:
+    InInstantiateR t=s61 v=s68
+    InInstantiateR t=State s61 v=:e:66
+    InInstantiateR t=State s61 v=𝛆59
+    InSynthesizeApp t=s61 -> s61, e=Var s-63, n=1
+    InFunctionCall vs=[], f=Var f-62, ft=s61 -> s61, es=[Var s-63]
+    InSynthesize e=Var f-62 Var s-63
+    InCheck e=(let Var f-62 Var s-..., t=()
+    InCheck e=Cycle (s. (s2. (let ..., t=()
+    InCheck e=(λ (f. Cycle (s. (s2..., t=(s61 -> s61) ->{State s61} ()
+    InCheck e=(λ (f. Cycle (s. (s2..., t=(s -> s) ->{State s} ()
+    InSynthesize e=(λ (f. Cycle (s. (s2...
+    InSynthesize e=(let (λ (f. Cycle (s...
+    InSynthesize e=Cycle (state. (modif...
+
