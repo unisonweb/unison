@@ -1,0 +1,13 @@
+
+x = y + 1
+y = x + 1
+
+> x
+
+---
+
+Currently crashes the runtime with a
+
+unison: user error (type error, expecting N, got (UninitializedLetRecSlot x in [y,x]))
+
+
