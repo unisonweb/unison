@@ -48,6 +48,7 @@ data F a
   | Effect a a
   | Effects [a]
   | Forall a
+  | Exists a
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 instance Eq1 F where (==#) = (==)
@@ -60,6 +61,7 @@ instance Eq a => Eq (F a) where
   Effect es t == Effect es2 t2 = es == es2 && t == t2
   Effects es1 == Effects es2 = es1 == es2
   Forall a == Forall b = a == b
+  Exists a == Exists b = a == b
   _ == _ = False
 
 
@@ -112,8 +114,11 @@ pattern Effect'' es t <- (unEffect0 -> (es, t))
 -- Effect0' may match zero effects
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern Exists' subst <- ABT.Tm' (Exists (ABT.Abs' subst))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
+pattern ExistsNamed' v body <- ABT.Tm' (Exists (ABT.out -> ABT.Abs v body))
+pattern ExistsNamedN' vs body <- (unExists -> Just (vs, body))
 pattern Var' v <- ABT.Var' v
 pattern Cycle' xs t <- ABT.Cycle' xs t
 pattern Abs' subst <- ABT.Abs' subst
@@ -148,7 +153,13 @@ unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
 unForalls t = go t []
   where go (ForallNamed' v body) vs = go body (v:vs)
         go _body [] = Nothing
-        go body vs = Just(reverse vs, body)
+        go body vs = Just (reverse vs, body)
+
+unExists :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unExists t = go t []
+  where go (ExistsNamed' v body) vs = go body (v:vs)
+        go _body [] = Nothing
+        go body vs = Just (reverse vs, body)
 
 unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
@@ -246,6 +257,9 @@ ann a e t = ABT.tm' a (Ann e t)
 forall :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
 forall a v body = ABT.tm' a (Forall (ABT.abs' a v body))
 
+exists :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
+exists a v body = ABT.tm' a (Exists (ABT.abs' a v body))
+
 iff :: Var v => Type v
 iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
   where aa = ABT.v' "a"
@@ -302,6 +316,9 @@ forall' a vs body = foldr (forall a) body (Var.named <$> vs)
 
 foralls :: Var v => a -> [v] -> AnnotatedType v a -> AnnotatedType v a
 foralls a vs body = foldr (forall a) body vs
+
+exists' :: Var v => a -> [Text] -> AnnotatedType v a -> AnnotatedType v a
+exists' a vs body = foldr (exists a) body (Var.named <$> vs)
 
 -- Note: `a -> b -> c` parses as `a -> (b -> c)`
 -- the annotation associated with `b` will be the annotation for the `b -> c`
@@ -461,6 +478,8 @@ instance Hashable1 F where
         in [tag 4] ++ map hashed hs
       Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
       Forall a -> [tag 6, hashed (hash a)]
+      Exists a -> [tag 7, hashed (hash a)]
+
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
@@ -478,5 +497,8 @@ instance Show a => Show (F a) where
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body
+    go p (Exists body) = case p of
+      0 -> showsPrec p body
+      _ -> showParen True $ s"∃ " <> showsPrec 0 body
     (<>) = (.)
     s = showString

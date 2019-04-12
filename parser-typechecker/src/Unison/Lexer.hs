@@ -490,7 +490,7 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|;"
 
 keywords :: Set String
 keywords = Set.fromList [
-  "if", "then", "else", "forall", "∀",
+  "if", "then", "else", "forall", "∀", "exists", "∃",
   "handle", "in",
   "where", "use",
   "and", "or", "true", "false",

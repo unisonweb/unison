@@ -16,6 +16,7 @@ import           Unison.Reference      (pattern Builtin)
 import           Unison.Type
 import           Unison.Util.Pretty    (ColorText, Pretty)
 import qualified Unison.Util.Pretty    as PP
+import           Unison.Util.Monoid    ( intercalateMap )
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.DataDeclaration as DD
@@ -78,12 +79,14 @@ pretty0 n p tp = go n p tp
     Effect1' e t ->
       PP.parenthesizeIf (p >= 10) $ go n 9 e <> " " <> go n 10 t
     Effects' es         -> effects (Just es)
-    ForallNamed' v body -> if (p < 0)
-      then go n p body
-      else
-        paren True
-        $         ("∀ " <> PP.text (Var.shortName v) <> ".")
-        `PP.hang` go n (-1) body
+    ForallsNamed' vs body ->
+      if (p < 0) then go n p body
+      else paren True $
+           ("∀ " <> intercalateMap " " (PP.text . Var.shortName) vs <> ".")
+          `PP.hang` go n (-1) body
+    ExistsNamedN' vs body -> paren (p >= 0) $
+      ("∃ " <> intercalateMap " " (PP.text . Var.shortName) vs <> ".") `PP.hang`
+      go n (-1) body
     t@(Arrow' _ _) -> case t of
       EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
       EffectfulArrows' fst rest ->

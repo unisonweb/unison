@@ -29,6 +29,7 @@ module Unison.Util.Pretty (
    indentAfterNewline,
    indentN,
    indentNAfterNewline,
+   intercalateMap,
    leftPad,
    lines,
    linesSpaced,

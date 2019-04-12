@@ -23,7 +23,7 @@ type TypeP v = P v (AnnotatedType v Ann)
 -- the right of a function arrow:
 --   valueType ::= Int | Text | App valueType valueType | Arrow valueType computationType
 valueType :: Var v => TypeP v
-valueType = forall type1 <|> type1
+valueType = forall type1 <|> exists type1 <|> type1
 
 -- Computation
 -- computationType ::= [{effect*}] valueType
@@ -97,11 +97,19 @@ arrow rec =
 -- "forall a b . List a -> List b -> Maybe Text"
 forall :: Var v => TypeP v -> TypeP v
 forall rec = do
-    kw <- reserved "forall" <|> reserved "∀"
-    vars <- fmap (fmap L.payload) . some $ varName
-    _ <- matchToken $ L.SymbolyId "."
-    t <- rec
-    pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
+  kw <- reserved "forall" <|> reserved "∀"
+  vars <- fmap (fmap L.payload) . some $ varName
+  _ <- matchToken $ L.SymbolyId "."
+  t <- rec
+  pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
+
+exists :: Var v => TypeP v -> TypeP v
+exists rec = do
+  kw <- reserved "exists" <|> reserved "∃"
+  vars <- fmap (fmap L.payload) . some $ varName
+  _ <- matchToken $ L.SymbolyId "."
+  t <- rec
+  pure $ Type.exists' (ann kw <> ann t) (fmap Text.pack vars) t
 
 varName :: Var v => P v (L.Token String)
 varName = do
