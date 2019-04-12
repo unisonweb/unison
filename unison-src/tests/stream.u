@@ -9,13 +9,13 @@ use Universal ==
 
 namespace Stream where
 
-  unfold : s -> (s ->{} Optional (a, s)) -> Stream e a ()
-  unfold s f = Stream 'let
+  -- unfold : s -> (s ->{} Optional (a, s)) -> Stream e a ()
+  unfold s f =
     step s = case f s of
       None        -> ()
       Some (a, s) -> emit a
                      step s
-    step s
+    Stream '(step s)
 
   run : Stream e a r ->{e, Emit a} r
   run s = case s of Stream c -> !c
@@ -28,8 +28,8 @@ namespace Stream where
   from : Nat -> Stream e Nat ()
   from n = unfold n (n -> Some (n, n + 1))
 
-  take : Nat -> Stream {} a () -> Stream {} a ()
-  take n s = Stream 'let
+  -- take : Nat -> Stream {} a () -> Stream {} a ()
+  take n s =
     step n e = case e of
       {Emit.emit a -> k} ->
         if n Nat.== 0 then ()
@@ -37,18 +37,16 @@ namespace Stream where
           Emit.emit a
           handle step (n `drop` 1) in k ()
       {r} -> ()
-
-    handle step n in run s
+    Stream ' handle step n in run s
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
-  map f s = Stream 'let
+  map f s =
     step e = case e of
       {r} -> r
       {Emit.emit a -> k} ->
         Emit.emit (f a)
         handle step in k ()
-
-    handle step in run s
+    Stream ' handle step in run s
 
   -- toSeq : Stream {e} a r ->{e} [a]
   toSeq s =
@@ -64,9 +62,9 @@ namespace Stream where
       Some h -> Some (h, drop 1 a)
     unfold a step
 
-> toSeq (Stream.take 20 (Stream.map (x -> x + 10) (from 0)))
-> toSeq (Stream.fromSeq [1,2,3] ++ Stream.fromSeq [4,5,6])
-> toSeq (Stream.take 20 (from 0))
+> toSeq (Stream.take 7 (Stream.map (x -> x + 10) (from 0)))
+-- > toSeq (Stream.fromSeq [1,2,3] ++ Stream.fromSeq [4,5,6])
+-- > toSeq (Stream.take 20 (from 0))
 
 -- run two thunks in sequence
 a !! b =
