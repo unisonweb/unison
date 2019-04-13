@@ -760,6 +760,8 @@ renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
                        if not Settings.debugRevealForalls
         then go 0 body
         else "forall " <> spaces renderVar vs <> " . " <> go 1 body
+    Type.ExistsNamedN' vs body ->
+      paren (p >= 1) $ "exists " <> spaces renderVar vs <> " . " <> go 1 body
     Type.Var' v -> renderVar v
     _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
     where go = renderType0 env f

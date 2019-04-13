@@ -477,11 +477,17 @@ wellformedType c t = wellformed c && case t of
   Type.Forall' t' ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t' (Type.universal' (ABT.annotation t) v))
+  Type.Exists' t' ->
+    let (v,ctx2) = extendExistential c
+    in wellformedType ctx2 (ABT.bind t' (Type.existentialp (ABT.annotation t) v))
+
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
   extendUniversal ctx = case Var.freshIn (usedVars ctx) (Var.named "var") of
     v -> (v, extend (Universal v) ctx)
+  extendExistential ctx = case Var.freshIn (usedVars ctx) (Var.named "var") of
+    v -> (v, extend (Existential B.Blank v) ctx)
 
 -- | Return the `Info` associated with the last element of the context, or the zero `Info`.
 info :: Context v loc -> Info v
@@ -641,6 +647,7 @@ apply ctx t = case t of
   Type.Effect1' e t -> Type.effect1 a (apply ctx e) (apply ctx t)
   Type.Effects' es -> Type.effects a (map (apply ctx) es)
   Type.ForallNamed' v t' -> Type.forall a v (apply ctx t')
+  Type.ExistsNamed' v t' -> Type.exists a v (apply ctx t')
   _ -> error $ "Match error in Context.apply: " ++ show t
   where a = ABT.annotation t
 
@@ -1157,6 +1164,10 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     x <- extendUniversal =<< ABT.freshen body freshenTypeVar
     check e (ABT.bindInheritAnnotation body (Type.universal x))
     doRetract $ Universal x
+  go e (Type.Exists' body) = do -- ExistsI, exactly analogous to ForallI
+    x <- extendMarker =<< ABT.freshen body freshenTypeVar
+    check e (ABT.bindInheritAnnotation body (Type.existentialp() x))
+    doRetract $ Marker x
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
     modifyContext' (extend (Ann x i))
@@ -1225,16 +1236,27 @@ subtype tx ty = scope (InSubtype tx ty) $
   go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
     subtype x1 x2; ctx' <- getContext
     subtype (apply ctx' y1) (apply ctx' y2)
-  go _ t (Type.Forall' t2) = do
-    v' <- extendUniversal =<< ABT.freshen t2 freshenTypeVar
-    t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
-    subtype t t2
-    doRetract (Universal v')
   go _ (Type.Forall' t) t2 = do
     v <- extendMarker =<< ABT.freshen t freshenTypeVar
     t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
     ctx' <- getContext
     subtype (apply ctx' t) t2
+    doRetract (Marker v)
+  go _ t (Type.Forall' t2) = do
+    v' <- extendUniversal =<< ABT.freshen t2 freshenTypeVar
+    t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
+    subtype t t2
+    doRetract (Universal v')
+  go _ (Type.Exists' t) t2 = do
+    v' <- extendUniversal =<< ABT.freshen t freshenTypeVar
+    t <- pure $ ABT.bindInheritAnnotation t (Type.universal v')
+    subtype t t2
+    doRetract (Universal v')
+  go _ t (Type.Exists' t2) = do
+    v <- extendMarker =<< ABT.freshen t2 freshenTypeVar
+    t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.existential B.Blank v)
+    ctx' <- getContext
+    subtype t (apply ctx' t2)
     doRetract (Marker v)
   go _ (Type.Effect1' e1 a1) (Type.Effect1' e2 a2) = do
     subtype e1 e2

@@ -1,0 +1,20 @@
+
+any : exists a . a
+any = "Any type is a subtype of exists a . a"
+
+any2 : ∃ x. x
+any2 = 42
+
+id : a -> a
+id x = x
+
+---
+
+doesn't work yet, but should
+
+-- Can consume an exists with a universally quantified function -
+
+> id (any : exists e . e)
+-- > id any2
+
+
