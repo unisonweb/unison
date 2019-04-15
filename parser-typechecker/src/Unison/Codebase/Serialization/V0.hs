@@ -65,6 +65,7 @@ import qualified Unison.DataDeclaration        as DataDeclaration
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
+import qualified Unison.Var                    as Var
 
 -- ABOUT THIS FORMAT:
 --
@@ -294,10 +295,10 @@ getType getVar getA = getABT getVar getA go where
     _ -> unknownTag "getType" tag
 
 putSymbol :: MonadPut m => Symbol -> m ()
-putSymbol (Symbol id name) = putLength id *> putText name
+putSymbol v@(Symbol id name) = putLength id *> putText (Var.name v)
 
 getSymbol :: MonadGet m => m Symbol
-getSymbol = Symbol <$> getLength <*> getText
+getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of

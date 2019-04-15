@@ -1617,10 +1617,10 @@ instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
     TypeVar.Universal x -> "@" <> show x
     TypeVar.Existential _ x -> "'" ++ show x
-  show (Solved _ v t) = "'"++Text.unpack (Var.shortName v)++" = "++TP.pretty' Nothing mempty (Type.getPolytype t)
-  show (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++
+  show (Solved _ v t) = "'"++Text.unpack (Var.name v)++" = "++TP.pretty' Nothing mempty (Type.getPolytype t)
+  show (Ann v t) = Text.unpack (Var.name v) ++ " : " ++
                    TP.pretty' Nothing mempty t
-  show (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
+  show (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 instance (Ord loc, Var v) => Show (Context v loc) where
   show ctx@(Context es) = "Γ\n  " ++ (intercalate "\n  " . map (showElem ctx . fst)) (reverse es)
@@ -1628,9 +1628,9 @@ instance (Ord loc, Var v) => Show (Context v loc) where
     showElem _ctx (Var v) = case v of
       TypeVar.Universal x -> "@" <> show x
       TypeVar.Existential _ x -> "'" ++ show x
-    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.shortName v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
-    showElem ctx (Ann v t) = Text.unpack (Var.shortName v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
-    showElem _ (Marker v) = "|"++Text.unpack (Var.shortName v)++"|"
+    showElem ctx (Solved _ v (Type.Monotype t)) = "'"++Text.unpack (Var.name v)++" = "++ TP.pretty' Nothing mempty (apply ctx t)
+    showElem ctx (Ann v t) = Text.unpack (Var.name v) ++ " : " ++ TP.pretty' Nothing mempty (apply ctx t)
+    showElem _ (Marker v) = "|"++Text.unpack (Var.name v)++"|"
 
 -- MEnv v loc -> (Seq (ErrorNote v loc), (a, Env v loc))
 instance Monad (M v loc) where

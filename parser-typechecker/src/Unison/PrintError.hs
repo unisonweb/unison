@@ -436,7 +436,7 @@ renderTypeError e env src = case e of
     , annotatedAsErrorSite src typeSite
     ]
   UnknownTerm {..}
-    | Type.isArrow expectedType && Var.isKind Var.askInfo unknownTermV
+    | Type.isArrow expectedType && Var.typeOf unknownTermV == Var.AskInfo
     -> let Type.Arrow' i o = case expectedType of
              Type.ForallsNamed' _ body -> body
              _                         -> expectedType
@@ -458,7 +458,7 @@ renderTypeError e env src = case e of
                  <> style Type2 (renderType' env (Type.removePureEffects o))
                  <> ".\n"
            ]
-  UnknownTerm {..} | Var.isKind Var.missingResult unknownTermV -> mconcat
+  UnknownTerm {..} | Var.typeOf unknownTermV == Var.MissingResult -> mconcat
     [ "I found a block that ends with a binding instead of an expression at "
     , annotatedToEnglish termSite
     , ":\n\n"
@@ -694,7 +694,7 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
   <> intercalateMap "\n    " (showElem ctx . fst) (reverse es)
  where
   shortName :: (Var v, IsString loc) => v -> loc
-  shortName = fromString . Text.unpack . Var.shortName
+  shortName = fromString . Text.unpack . Var.name
   showElem
     :: (Var v, Ord loc)
     => C.Context v loc
@@ -781,10 +781,7 @@ commas :: (IsString a, Monoid a) => (b -> a) -> [b] -> a
 commas = intercalateMap ", "
 
 renderVar :: (IsString a, Var v) => v -> a
-renderVar =
-  fromString
-    . Text.unpack
-    . (if Settings.demoHideVarNumber then Var.name else Var.shortName)
+renderVar = fromString . Text.unpack . Var.name
 
 renderVar' :: (Var v, Annotated a) => Env -> C.Context v a -> v -> String
 renderVar' env ctx v = case C.lookupSolved ctx v of

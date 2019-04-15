@@ -3,7 +3,7 @@
 module Unison.Var where
 
 import Data.Set (Set)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Data.Word (Word64)
@@ -12,34 +12,53 @@ import Unison.Util.Monoid (intercalateMap)
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
 --
---   * `name (named n) == n`:
---     `name` returns the name set by `named`.
+--   * `typeOf (typed n) == n`
 --   * `Set.notMember (freshIn vs v) vs`:
 --     `freshIn` returns a variable not used in the `Set`
---   * `name (freshIn vs v) == name v`:
+--   * `typeOf (freshIn vs v) == typeOf v`:
 --     `freshIn` does not alter the name
---   * `Set.notMember (qualifiedName $ freshIn vs v) (Set.map qualifiedName vs)`:
---     `qualifiedName` incorporates all additional id info from freshening into
---     the name of the variable.
---   * `clear (freshIn vs v) === clear (freshIn vs (named (name v)))`:
---     `clear` strips any auxiliary information and returns a variable that behaves
---     as if it has been built solely via calls to `named` and `freshIn`. The `===`
---     is full equality, comparing any auxiliary info as well as qualified name.
---   * `clear v == v`, according to Haskell equality. In other words, no auxiliary
---     info attached to `v` values may participate in the `Eq` or `Ord` instances,
---     it is 'just' metadata.
---
 class (Show v, Eq v, Ord v) => Var v where
-  named :: Text -> v
-  rename :: Text -> v -> v
-  name :: v -> Text
-  clear :: v -> v
-  qualifiedName :: v -> Text
+  typed :: Type -> v
+  retype :: Type -> v -> v
+  typeOf :: v -> Type
+  freshId :: v -> Word64
   freshIn :: Set v -> v -> v
   freshenId :: Word64 -> v -> v
 
+named :: Var v => Text -> v
+named n = typed (User n)
+
+name :: Var v => v -> Text
+name v = case typeOf v of
+  User n -> n
+  Inference Ability -> "𝕖" <> pack (show (freshId v))
+  Inference Input -> "𝕒" <> pack (show (freshId v))
+  Inference Output -> "𝕣" <> pack (show (freshId v))
+  Inference Other -> "𝕩" <> pack (show (freshId v))
+  MissingResult -> "_" <> pack (show (freshId v))
+  AskInfo -> "?" <> pack (show (freshId v))
+
+askInfo :: Var v => v
+askInfo = typed AskInfo
+
+missingResult :: Var v => v
+missingResult = typed MissingResult
+
+data Type
+  -- User provided variables, these should generally be left alone
+  = User Text
+  -- Variables created during type inference
+  | Inference InferenceType
+  -- Variables created to finish a block that doesn't end with an expression
+  | MissingResult
+  -- Variables invented to query the typechecker for the type of subexpressions
+  | AskInfo
+  deriving (Eq,Ord,Show)
+
+data InferenceType = Ability | Input | Output | Other deriving (Eq,Ord,Show)
+
 reset :: Var v => v -> v
-reset v = named (name v)
+reset v = typed (typeOf v)
 
 unqualified :: Var v => v -> v
 unqualified = named . unqualifiedName
@@ -48,46 +67,16 @@ unqualifiedName :: Var v => v -> Text
 unqualifiedName = last . Text.splitOn "." . name
 
 namespaced :: Var v => [v] -> v
-namespaced vs = named $ intercalateMap "." qualifiedName vs
-
-type Kind = String
+namespaced vs = named $ intercalateMap "." name vs
 
 nameStr :: Var v => v -> String
 nameStr = Text.unpack . name
-
-kind :: Var v => v -> Kind
-kind v = case Text.unpack (name v) of
-  ':' : tl -> takeWhile (/= ':') tl
-  _ -> ""
-
-rekind :: Var v => Kind -> v -> v
-rekind "" v = v
-rekind k v  = rename (Text.pack $ k ++ (Text.unpack $ name v)) v
-
-missingResult :: Var v => v -> v
-missingResult = rekind ":missing-result:"
-
-askInfo :: Var v => v -> v
-askInfo = rekind ":info:"
-
-unknown :: Var v => v -> v
-unknown = rekind ""
-
-unknownK :: Kind
-unknownK = ""
-
-isKind :: Var v => (v -> v) -> v -> Bool
-isKind f v = kind (f $ named "-") == kind v
 
 nameds :: Var v => String -> v
 nameds s = named (Text.pack s)
 
 joinDot :: Var v => v -> v -> v
-joinDot v v2 = named (shortName v `mappend` "." `mappend` shortName v2)
-
-shortName :: Var v => v -> Text
-shortName v | named (name v) == v = name v
-shortName v = qualifiedName v
+joinDot v v2 = named (name v `mappend` "." `mappend` name v2)
 
 freshes :: Var v => Set v -> [v] -> [v]
 freshes _ [] = []
