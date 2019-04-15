@@ -40,17 +40,7 @@ ex =
 
 > ex
 
----
-
 modify2 : (s -> s) ->{State s} ()
-modify2 f =
-  s = State.get
-  s2 = f s
-  State.put s2
-
----
-
-modify2 : (s -> s) -> ()
 modify2 f =
   s = State.get
   s2 = f s
