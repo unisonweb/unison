@@ -17,7 +17,7 @@ import           Data.String                    ( IsString, fromString )
 import           Data.Text                      ( Text )
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
-import           Unison.ABT                     ( pattern AbsN' )
+import           Unison.ABT                     ( pattern AbsN', annotation, reannotateUp )
 import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
@@ -49,7 +49,6 @@ data AmbientContext = AmbientContext
     precedence :: Int
   , blockContext :: BlockContext
   , infixContext :: InfixContext
---TODO should imports actually be part of PrettyPrintEnv?
   , imports :: Imports
   }
 
@@ -555,12 +554,6 @@ ac prec bc im = AmbientContext prec bc NonInfix im
 -- candidate to be imported with a use statement, subject to the various 
 -- rules in the specification.
 --
--- Actually, in the usages map, we also keep the maximum of the usage counts
--- of all block-statements underneath this term.  That allows us to check
--- the 'narrowness' rule.  And we keep a copy of the usages map for the 
--- block-statement that attains this maximum.  That allows us to check the 
--- 'usefulness' rule.
---
 -- # Semantics of imports
 --
 -- Here is some background on how imports work.  TODO is this all true today?
@@ -592,29 +585,28 @@ type Imports = Map Name Suffix
 
 data PrintAnnotation = PrintAnnotation
   {
-    -- Data for each suffix that appears in/under this term.  
-    usages :: Map Suffix SuffixData
+    -- For each suffix that appears in/under this term, the set of prefixes 
+    -- used with that suffix, and how many times each occurs.  
+    usages :: Map Suffix (Map Prefix Int)
   }
 
-data SuffixData = SuffixData
-  {
-    -- The prefixes used with this suffix, and how many times each occurs.
-    countsByPrefix :: Map Prefix Int
+instance Semigroup PrintAnnotation where
+  (PrintAnnotation { usages = _ } ) <> (PrintAnnotation { usages = _ } ) = error "todo"
 
-    -- The maximum of the usage counts of all block-statements underneath this term, and 
-    -- the PrintAnnotation for the child term that attains it.
-  , maxChildUsageCount :: Int
-  , childWithMaxUsages :: PrintAnnotation
-  }
+instance Monoid PrintAnnotation where
+  mempty = PrintAnnotation { usages = Map.empty }
 
-printAnnotate :: AnnotatedTerm v a -> AnnotatedTerm v (a, PrintAnnotation)
-printAnnotate = \case
+suffixCounter :: AnnotatedTerm v a -> PrintAnnotation
+suffixCounter = \case
   -- TODO is it right to do this for Var?
   Var' _ -> error "todo" -- v
   Ref' _ -> error "todo" -- r
   Constructor' _ _ -> error "todo"  -- ref i
   Request' _ _ -> error "todo" -- ref i
-  _ -> error "map term over a functor instance in the a argument"
+  tm -> mempty
+  
+printAnnotate :: AnnotatedTerm v a -> AnnotatedTerm v (a, PrintAnnotation)
+printAnnotate = reannotateUp suffixCounter
 
 splitName :: Name -> (Prefix, Suffix)
 splitName = error "todo"

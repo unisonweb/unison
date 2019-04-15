@@ -448,6 +448,26 @@ transform f tm = case (out tm) of
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
 
+-- Rebuild the tree annotations upward, starting from the leaves,
+-- using the Monoid to choose the annotation at intermediate nodes
+reannotateUp :: (Ord v, Foldable f, Functor f, Monoid b)
+  => (Term f v a -> b)
+  -> Term f v a
+  -> Term f v (a, b)
+reannotateUp g t = case out t of
+  Var v -> annotatedVar (annotation t, g t) v
+  Cycle body ->
+    let body' = reannotateUp g body
+    in cycle' (annotation t, snd (annotation body')) body'
+  Abs v body ->
+    let body' = reannotateUp g body
+    in abs' (annotation t, snd (annotation body')) v body'
+  Tm body ->
+    let
+      body' = reannotateUp g <$> body
+      ann = g t <> foldMap (snd . annotation) body'
+    in tm' (annotation t, ann) body'
+
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
   t1 == t2 = go (out t1) (out t2) where
