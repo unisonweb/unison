@@ -46,7 +46,7 @@ data EditReason = EditReason EditSource (Optional Text)
 ```
 ### Managing multiple sets of edits
 
-Here is an imagined script for managing multiple sets of edits
+Here is a hand-wavy, imagined script for managing multiple sets of edits:
 
 ```
 master>
