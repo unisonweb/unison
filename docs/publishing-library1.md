@@ -8,7 +8,7 @@ Branches come from the `.unison` directory on disk, and `.unison` directories fr
 
 Each branch consists roughly of a `(Name, Reference)` "namespace" relation, and an `(Reference, Replacement)` "edits" relation.
 
-### Some problems with this:
+### Some problems with this
 
 * There are a lot of steps:
   * Download someone's repo
@@ -20,9 +20,9 @@ Each branch consists roughly of a `(Name, Reference)` "namespace" relation, and 
 * We incorporate and activate all of the incoming branch's edits, whether you want them or not.
   * Ditto
 
-Questions:
+### Question about collaborative edit semantics
 
-* If you rename `foo` to `bar`, and I upgrade `foo#a` to `foo#b` and share my work with you, should you end up with `bar#a` and `foo#b`, or just `bar#b`?
+If you rename `foo` to `bar`, and I upgrade `foo#a` to `foo#b` and share my work with you, should you end up with `bar#a` and `foo#b`, or just `bar#b`?
 
 ## What might be nicer?
 
@@ -329,16 +329,59 @@ TDNR candidates are `foo.bar.Bar.baz` and `blah.wah.Bar.baz`
 ##### Benefit: Organize your shared repo to arbitrary depth
 
 ```haskell
-import gh:aryairani/awesome-unison:treeish/alltheparsers/specificparser/submodule as M
+import gh:aryairani/awesome-unison/alltheparsers/specificparser/submodule as M
 ```
 
 #### What are the units of code sharing and collaboration?
 
 You can easily imagine exporting a subtree, but what if that subtree references definitions that are outside of it?  e.g. you want to share `/Foo/`, but `Foo.bar` references `/Quuz.quuzCount`?
 
+* Unison could warn you, and help you stage a subtree to publish. "I can collect all these referenced names into a subtree for you to bulk edit"
+
+* Unison could make up / choose some appropriate names based on the current tree:
+
+  ```haskell
+  namespace Imports where
+  	static import /libs/Foo as Abc -- this is replaced by a full/static copy of the names
+  	static import /temp/Bar as Xyz -- some other library code in this subtree uses
+  ```
+
+  ```
+  /projects/FaceDetector/V2> publish.set-destination.scoped .. gh:aryairani/face-detector
+  	I will publish /projects/FaceDetector to gh:aryairani/face-detector
+  /projects/FaceDetector/V2> publish
+  
+  	Syncing /projects/FaceDetector to gh:aryairani/face-detector
+  	Syncing / to gh:aryairani/private-repo
+  	
+  /projects/FaceDetector/V2>
+  ```
+
+  Elsewhere:
+
+  ```
+  libs> clone gh:aryairani/face-detector FaceDetector
+  libs> ls FaceDetector
+  
+    Imports.Abc.asdf : Blah -> Blah
+    Imports.Abc.ghjk : Blah -> Blah
+    Imports.Xyz.awww : Blah -> Blah
+  	V1.result
+  	...
+  	V2.result
+  	...
+  libs>
+  ```
+
+  
+
 # Sharing my code as library
 
-tbd
+TBD, but it will include: 
+
+* specifying which code
+* specifying the publication destination
+* juggling some credentials for the destination
 
 
 
