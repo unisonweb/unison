@@ -239,12 +239,12 @@ we get a temporary copy of the `gh:aryairani/either` branch (maybe greedily get 
 ####Hand-wavy example
 
 ```
-> clone gh:aryairani/libfoo
+/> clone gh:aryairani/libfoo
   Copied gh:aryairani/libfoo blah blah to /libfoo
-> undo
-> clone gh:aryairani/libfoo /libs/DeepLearning/Foo
+/> undo
+/> clone gh:aryairani/libfoo /libs/DeepLearning/Foo
   Copied gh:aryairani/libfoo blah blah to /libs/DeepLearning/Foo
->
+/>
 ```
 
 Sorry that I am using `/` and `.` interchangeably. 
@@ -258,7 +258,7 @@ Anyway, we have some kind of structure like:
 /libs/UJson
 /libs/Stream
 /libs/DeepLearning/Bar
-/libs/deeplearning/Foo
+/libs/DeepLearning/Foo
 /projects/BoringCrudApp
 /projects/ChordProgressions
 /projects/FaceDetector
@@ -269,7 +269,8 @@ Anyway, we have some kind of structure like:
 /projects> rename FaceDetector FaceDetector/V1
 /projects> cd FaceDetector
 /projects/FaceDetector> cp V1 V2
-/projects/FaceDetector> replace.scoped V2 /libs/deeplearning/libfoo/thing1 mything1
+-- <add mything1 to codebase>
+/projects/FaceDetector> replace.scoped V2 /libs/DeepLearning/Foo/thing1 mything1
 
   Noted replacement of thing1#af2 with mything#i9d within /projects/FaceDetector/V2.
 
@@ -341,11 +342,11 @@ You can easily imagine exporting a subtree, but what if that subtree references 
 * Unison could make up / choose some appropriate names based on the current tree:
 
   ```haskell
-  namespace Imports where
+  namespace Dependencies where
   	static import /libs/Foo as Abc -- this is replaced by a full/static copy of the names
   	static import /temp/Bar as Xyz -- some other library code in this subtree uses
   ```
-
+  In this next syntax block, I'm tagging subtrees with a publication location, to avoid needing to have separate unison repos on your local machine for each project.  e.g. One repo would have all your preferred customizations.
   ```
   /projects/FaceDetector/V2> publish.set-destination.scoped .. gh:aryairani/face-detector
   	I will publish /projects/FaceDetector to gh:aryairani/face-detector
@@ -363,9 +364,9 @@ You can easily imagine exporting a subtree, but what if that subtree references 
   libs> clone gh:aryairani/face-detector FaceDetector
   libs> ls FaceDetector
   
-    Imports.Abc.asdf : Blah -> Blah
-    Imports.Abc.ghjk : Blah -> Blah
-    Imports.Xyz.awww : Blah -> Blah
+    Dependencies.Abc.asdf : Blah -> Blah
+    Dependencies.Abc.ghjk : Blah -> Blah
+    Dependencies.Xyz.awww : Blah -> Blah
   	V1.result
   	...
   	V2.result

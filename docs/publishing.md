@@ -7,3 +7,4 @@ Thinking about a design for publishing Unison code revealed a nest of interrelat
 <!-- * [Upgrading my application with an updated library](publishing-library3.md) -->
 
 Each of these linked subtopics presents concerns, questions, and ideas, which we can weigh and collect into [our M1 proposal](publishing-M1.md).
+
