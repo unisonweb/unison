@@ -1,6 +1,6 @@
 # Design for Unison documentation and comments
 
-This is a rough design of a way to supply commentary and formal documentation for Unison code.
+This is a rough design of a way to supply commentary and formal documentation for Unison code. [Discuss here](https://github.com/unisonweb/unison/issues/462) and also be sure to view the raw markdown file for some embedded comments.
 
 ## Comments
 Comments in Unison can be either line comments or block comments. It’s probably only necessary to implement one of these for a first release of Unison, but ultimately we may want to offer both.
