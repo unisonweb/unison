@@ -12,7 +12,6 @@
 
 module Unison.Type where
 
-import Debug.Trace
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
@@ -401,16 +400,15 @@ existentializeArrows freshVar t = ABT.visit go t
 removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 removeEffectVars removals t =
   let z = effects () []
-      t'0 = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
-      t' = trace ("t' = " <> show t'0) t'0
+      t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
       -- leave explicitly empty `{}` alone
-      removeEmpty (Effect1' (Effects' []) _) = Nothing
+      removeEmpty (Effect1' (Effects' []) v) = Just (ABT.visitPure removeEmpty v)
       removeEmpty t@(Effect1' e v) =
-        let es = flattenEffects (trace ("BEFORE:   " <> show e) e)
-        in case trace ("AFTER:   " <> show es) es of
-             [] -> Just (ABT.visitPure removeEmpty v)
-             _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
-      removeEmpty t@(Forall' _) = Just t
+        case flattenEffects e of
+          [] -> Just (ABT.visitPure removeEmpty v)
+          es -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
+      removeEmpty t@(Effects' es) =
+        Just $ effects (ABT.annotation t) (es >>= flattenEffects)
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
@@ -419,11 +417,8 @@ removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
   generalize $ removeEffectVars (Set.filter isPure fvs) tu
   where
-    tu0 = unforall t
-    tu = trace ("tu = \n" <> show tu0) tu0
-    fvs0 = freeEffectVars tu `Set.difference` ABT.freeVars t
-    fvs = trace ("fvs = " <> show fvs0) fvs0
-    -- debug = TP.pretty' (Just 90) mempty
+    tu = unforall t
+    fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
