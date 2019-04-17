@@ -12,7 +12,7 @@
 
 module Unison.Type where
 
--- import Debug.Trace
+import Debug.Trace
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
@@ -127,8 +127,8 @@ unArrows t =
 unEffectfulArrows :: AnnotatedType v a ->
      Maybe (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
 unEffectfulArrows t = case t of Arrow' i o -> Just (i, go o); _ -> Nothing
-  where go (Effect1' (Effects' es) (Arrow' i o)) = (Just es, i) : go o
-        go (Effect1' (Effects' es) t) = [(Just es, t)]
+  where go (Effect1' (Effects' es) (Arrow' i o)) = (Just $ es >>= flattenEffects, i) : go o
+        go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
         go (Arrow' i o) = (Nothing, i) : go o
         go t = [(Nothing, t)]
 
@@ -346,8 +346,8 @@ unforall :: AnnotatedType v a -> AnnotatedType v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t
 
-generalizeAndUnTypeVar :: Ord v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
-generalizeAndUnTypeVar = ABT.vmap TypeVar.underlying . generalize
+generalizeAndUnTypeVar :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
+generalizeAndUnTypeVar = cleanup . ABT.vmap TypeVar.underlying . generalize
 
 toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
@@ -373,6 +373,9 @@ freeEffectVars t =
   Set.fromList . join . runIdentity $
     ABT.foreachSubterm go (snd <$> ABT.annotateBound t)
   where
+    go t@(Effects' es) =
+      let frees = Set.fromList [ v | Var' v <- es >>= flattenEffects ]
+      in pure . Set.toList $ frees `Set.difference` ABT.annotation t
     go t@(Effect1' e _) =
       let frees = Set.fromList [ v | Var' v <- flattenEffects e ]
       in pure . Set.toList $ frees `Set.difference` ABT.annotation t
@@ -397,13 +400,14 @@ existentializeArrows freshVar t = ABT.visit go t
 -- Remove free effect variables from the type that are in the set
 removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 removeEffectVars removals t =
-  let z = effects (ABT.annotation t) []
-      t' = ABT.substs ((,z) <$> Set.toList removals) t
+  let z = effects () []
+      t'0 = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
+      t' = trace ("t' = " <> show t'0) t'0
       -- leave explicitly empty `{}` alone
       removeEmpty (Effect1' (Effects' []) _) = Nothing
       removeEmpty t@(Effect1' e v) =
-        let es = flattenEffects e
-        in case es of
+        let es = flattenEffects (trace ("BEFORE:   " <> show e) e)
+        in case trace ("AFTER:   " <> show es) es of
              [] -> Just (ABT.visitPure removeEmpty v)
              _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure removeEmpty v)
       removeEmpty t@(Forall' _) = Just t
@@ -413,9 +417,13 @@ removeEffectVars removals t =
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize $ removeEffectVars (Set.filter isPure (freeEffectVars tu)) tu
+  generalize $ removeEffectVars (Set.filter isPure fvs) tu
   where
-    tu = unforall t
+    tu0 = unforall t
+    tu = trace ("tu = \n" <> show tu0) tu0
+    fvs0 = freeEffectVars tu `Set.difference` ABT.freeVars t
+    fvs = trace ("fvs = " <> show fvs0) fvs0
+    -- debug = TP.pretty' (Just 90) mempty
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
@@ -437,7 +445,7 @@ generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
 -- | This function removes all variable shadowing from the type and reduces
 -- fresh ids to the minimum possible to avoid ambiguity.
 cleanupVars1 :: Var v => AnnotatedType v a -> AnnotatedType v a
-cleanupVars1 t | not Settings.cleanupVars = t
+cleanupVars1 t | not Settings.cleanupTypes = t
 cleanupVars1 t = let
   varsByName = foldl' step Map.empty (ABT.allVars t)
   step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
@@ -460,7 +468,8 @@ cleanupAbilityLists t = ABT.visitPure go t where
   go _ = Nothing
 
 cleanup :: Var v => AnnotatedType v a -> AnnotatedType v a
-cleanup = cleanupVars1 . cleanupAbilityLists
+cleanup t | not Settings.cleanupTypes = t
+cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
 instance Hashable1 F where
   hash1 hashCycle hash e =
