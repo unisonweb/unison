@@ -46,13 +46,13 @@ serializeTerm x = do
     ABT.Var v -> do
       putTag
       putWord8 0
-      lengthEncode $ Var.qualifiedName v
+      lengthEncode $ Var.name v
       incPosition
     ABT.Abs v body -> do
       pbody <- serializeTerm body
       putTag
       putWord8 1
-      lengthEncode $ Var.qualifiedName v
+      lengthEncode $ Var.name v
       putBackref pbody
       incPosition
     ABT.Cycle body -> do

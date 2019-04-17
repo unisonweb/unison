@@ -295,7 +295,7 @@ getType getVar getA = getABT getVar getA go where
     _ -> unknownTag "getType" tag
 
 putSymbol :: MonadPut m => Symbol -> m ()
-putSymbol v@(Symbol id name) = putLength id *> putText (Var.name v)
+putSymbol v@(Symbol id _) = putLength id *> putText (Var.name v)
 
 getSymbol :: MonadGet m => m Symbol
 getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
