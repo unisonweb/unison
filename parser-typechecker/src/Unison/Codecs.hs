@@ -28,7 +28,7 @@ import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
-import           Unison.Var
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern

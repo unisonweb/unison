@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# Language ViewPatterns #-}
 
 module Unison.Var where
 
@@ -30,19 +31,36 @@ named n = typed (User n)
 
 name :: Var v => v -> Text
 name v = case typeOf v of
-  User n -> n
-  Inference Ability -> "𝕖" <> pack (show (freshId v))
-  Inference Input -> "𝕒" <> pack (show (freshId v))
-  Inference Output -> "𝕣" <> pack (show (freshId v))
-  Inference Other -> "𝕩" <> pack (show (freshId v))
-  MissingResult -> "_" <> pack (show (freshId v))
-  AskInfo -> "?" <> pack (show (freshId v))
+  User n -> n <> showid v
+  Inference Ability -> "𝕖" <> showid v
+  Inference Input -> "𝕒" <> showid v
+  Inference Output -> "𝕣" <> showid v
+  Inference Other -> "𝕩" <> showid v
+  Inference PatternPureE -> "𝕗" <> showid v
+  Inference PatternPureV -> "𝕧" <> showid v
+  Inference PatternBindE -> "𝕗" <> showid v
+  Inference PatternBindV -> "𝕧" <> showid v
+  MissingResult -> "_" <> showid v
+  Blank -> "_" <> showid v
+  AskInfo -> "?" <> showid v
+  where
+  showid (freshId -> 0) = ""
+  showid (freshId -> n) = pack (show n)
 
-askInfo :: Var v => v
+askInfo, missingResult, blank, inferInput, inferOutput, inferAbility,
+  inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
+  inferOther :: Var v => v
 askInfo = typed AskInfo
-
-missingResult :: Var v => v
 missingResult = typed MissingResult
+blank = typed Blank
+inferInput = typed (Inference Input)
+inferOutput = typed (Inference Output)
+inferAbility = typed (Inference Ability)
+inferPatternPureE = typed (Inference PatternPureE)
+inferPatternPureV = typed (Inference PatternPureV)
+inferPatternBindE = typed (Inference PatternBindE)
+inferPatternBindV = typed (Inference PatternBindV)
+inferOther = typed (Inference Other)
 
 data Type
   -- User provided variables, these should generally be left alone
@@ -53,9 +71,16 @@ data Type
   | MissingResult
   -- Variables invented to query the typechecker for the type of subexpressions
   | AskInfo
+  -- Variables invented for placeholder values inserted by user or by TDNR
+  | Blank
   deriving (Eq,Ord,Show)
 
-data InferenceType = Ability | Input | Output | Other deriving (Eq,Ord,Show)
+data InferenceType =
+  Ability | Input | Output |
+  PatternPureE | PatternPureV |
+  PatternBindE | PatternBindV |
+  Other
+  deriving (Eq,Ord,Show)
 
 reset :: Var v => v -> v
 reset v = typed (typeOf v)

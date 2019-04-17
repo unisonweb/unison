@@ -13,3 +13,6 @@ demoHideVarNumber = False
 
 removePureEffects :: Bool
 removePureEffects = True
+
+cleanupVars :: Bool
+cleanupVars = True

@@ -48,7 +48,7 @@ pretty
   -> Int
   -> AnnotatedType v a
   -> Pretty s
-pretty n p tp = pretty0 n p (removePureEffects tp)
+pretty n p tp = pretty0 n p (cleanupVars (removePureEffects tp))
 
 pretty0
   :: forall s v a . (IsString s, LL.ListLike s Char, Var v)

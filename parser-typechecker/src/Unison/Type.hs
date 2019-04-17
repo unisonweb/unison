@@ -12,7 +12,7 @@
 
 module Unison.Type where
 
--- import Debug.Trace
+import Debug.Trace
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
@@ -20,6 +20,8 @@ import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
 import qualified Data.Char as Char
 import           Data.List
+import           Data.List.Extra (nubOrd)
+import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
@@ -440,6 +442,19 @@ generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
 generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
+
+-- | This function removes all variable shadowing from the type and reduces
+-- fresh ids to the minimum possible to avoid ambiguity.
+cleanupVars :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupVars t | not Settings.cleanupVars = t
+cleanupVars t = let
+  varsByName = foldl' step Map.empty (ABT.allVars t)
+  step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
+  changedVars = Map.fromList [ (v, Var.freshenId i v)
+                             | (_, vs) <- Map.toList varsByName
+                             , (v,i) <- nubOrd vs `zip` [0..]]
+
+  in traceShow ("changedVars"::String, changedVars) $ ABT.changeVars changedVars t
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

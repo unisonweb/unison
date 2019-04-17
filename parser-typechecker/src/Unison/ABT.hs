@@ -15,6 +15,7 @@ import Control.Monad
 import Data.Word (Word64)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
+import Data.Map (Map)
 import Data.Maybe
 import Data.Ord
 import Data.Set (Set)
@@ -251,6 +252,15 @@ rename old new t0@(Term _ ann t) = case t of
   Abs v body -> if v == old then abs' ann v body
                 else abs' ann v (rename old new body)
   Tm v -> tm' ann (fmap (rename old new) v)
+
+changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
+changeVars m t = case out t of
+  Abs v body -> case Map.lookup v m of
+    Nothing -> abs' (annotation t) v (changeVars m body)
+    Just v' -> abs' (annotation t) v' (changeVars m (rename v v' body))
+  Cycle body -> cycle' (annotation t) (changeVars m body)
+  Var _ -> t
+  Tm v -> tm' (annotation t) (changeVars m <$> v)
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v

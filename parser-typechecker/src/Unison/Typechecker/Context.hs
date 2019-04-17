@@ -452,9 +452,6 @@ freshenTypeVar v = modEnv'
     in  (Var.freshenId id (TypeVar.underlying v), e { freshId = id + 1 })
   )
 
-freshNamed :: (Var v, Ord loc) => Text -> M v loc v
-freshNamed = freshenVar . Var.named
-
 -- | Check that the context is well formed, see Figure 7 of paper
 -- Since contexts are 'monotonic', we can compute an cache this efficiently
 -- as the context is built up, see implementation of `extend`.
@@ -613,9 +610,9 @@ extendExistential v = do
   modifyContext (pure . extend (Existential B.Blank v'))
   pure v'
 
-extendExistentialTV :: Var v => Text -> M v loc (TypeVar v loc)
-extendExistentialTV name =
-  TypeVar.Existential B.Blank <$> extendExistential (Var.named name)
+extendExistentialTV :: Var v => v -> M v loc (TypeVar v loc)
+extendExistentialTV v =
+  TypeVar.Existential B.Blank <$> extendExistential v
 
 extendMarker :: (Var v, Ord loc) => v -> M v loc v
 extendMarker v = do
@@ -747,7 +744,7 @@ synthesize e = scope (InSynthesize e) $
     Nothing -> compilerCrash $ UndeclaredTermVariable v ctx
     Just t -> pure t
   go (Term.Blank' blank) = do
-    v <- freshNamed "_"
+    v <- freshenVar Var.blank
     appendContext $ context [Existential blank v]
     pure $ Type.existential' l blank v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
@@ -804,8 +801,8 @@ synthesize e = scope (InSynthesize e) $
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
     [arg, i, e, o] <- sequence [ ABT.freshen body freshenVar
                                , freshenVar (ABT.variable body)
-                               , freshNamed "inferred-effect"
-                               , freshNamed "inferred-output" ]
+                               , freshenVar Var.inferAbility
+                               , freshenVar Var.inferOutput ]
     let it = Type.existential' l B.Blank i
         ot = Type.existential' l B.Blank o
         et = Type.existential' l B.Blank e
@@ -842,7 +839,7 @@ synthesize e = scope (InSynthesize e) $
     ctx <- getContext
     pure $ apply ctx outputType
   go h@(Term.Handle' _ _) = do
-    o <- freshNamed "o"
+    o <- freshenVar Var.inferOther
     appendContext $ context [existential o]
     let ot = Type.existential' l B.Blank o
     check h ot
@@ -858,7 +855,7 @@ checkCase :: forall v loc . (Var v, Ord loc)
 checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
   scrutineeType <- applyM scrutineeType
   outputType <- applyM outputType
-  m <- freshNamed "check-case"
+  m <- freshenVar Var.inferOther
   appendContext $ context [Marker m]
   let peel t = case t of
                 ABT.AbsN' vars bod -> (vars, bod)
@@ -922,8 +919,8 @@ checkPattern scrutineeType0 p =
       ((v, v') :) <$> checkPattern scrutineeType p'
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
-        v <- freshNamed "v"
-        e <- freshNamed "e"
+        v <- freshenVar Var.inferPatternPureV
+        e <- freshenVar Var.inferPatternPureE
         let vt = Type.existentialp loc v
         let et = Type.existentialp loc e
         appendContext $ context [existential v, existential e]
@@ -933,8 +930,8 @@ checkPattern scrutineeType0 p =
     Pattern.EffectBind loc ref cid args k -> do
       -- scrutineeType should be a supertype of `Effect e vt`
       -- for fresh existentials `e` and `vt`
-      e <- lift $ extendExistential (Var.named "ebind-e")
-      v <- lift $ extendExistential (Var.named "ebind-v")
+      e <- lift $ extendExistential Var.inferPatternBindE
+      v <- lift $ extendExistential Var.inferPatternBindV
       let evt = Type.effectV loc (loc, Type.existentialp loc e)
                                  (loc, Type.existentialp loc v)
       lift $ subtype evt scrutineeType
@@ -1032,7 +1029,7 @@ annotateLetRecBindings isTop letrec =
   annotateLetRecBindings' useUserAnnotations = do
     (bindings, body) <- letrec freshenVar
     let vs = map fst bindings
-    e1  <- freshNamed "bindings-start"
+    e1  <- freshenVar Var.inferOther
     ctx <- getContext
     appendContext $ context [Marker e1]
     let f (v, binding) = case binding of
@@ -1087,21 +1084,21 @@ ensureGuardedCycle bindings = let
   in if length ok == length bindings then pure ()
      else failWith $ UnguardedLetRecCycle (fst <$> notok) bindings
 
-existentialFunctionTypeFor :: (Var v) => Term v loc -> M v loc (Type v loc)
+existentialFunctionTypeFor :: Var v => Term v loc -> M v loc (Type v loc)
 existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
   v <- extendExistential v
-  e <- extendExistential (Var.named "𝛆")
+  e <- extendExistential Var.inferAbility
   o <- existentialFunctionTypeFor body
   pure $ Type.arrow (loc lam)
                     (Type.existentialp (loc lam) v)
                     (Type.effect (loc lam) [Type.existentialp (loc lam) e] o)
 existentialFunctionTypeFor e = do
-  v <- extendExistential (Var.named "𝑟")
+  v <- extendExistential Var.inferOutput
   pure $ Type.existentialp (loc e) v
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
-  t <- Type.existentializeArrows (extendExistentialTV "𝛆") t
+  t <- Type.existentializeArrows (extendExistentialTV Var.inferAbility) t
   pure t
 
 ungeneralize :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
@@ -1182,7 +1179,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go block@(Term.Handle' h body) t = do
     -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
     -- `body` should check against `i`
-    [e, i] <- sequence [freshNamed "e", freshNamed "i"]
+    [e, i] <- sequence [freshenVar Var.inferAbility, freshenVar Var.inferOther ]
     appendContext $ context [existential e, existential i]
     let l = loc block
     -- t <- applyM t
@@ -1299,8 +1296,8 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         applyM x >>= instantiateL B.Blank x'
         applyM y >>= instantiateL B.Blank y'
       Type.Effect1' es vt -> do
-        es' <- freshNamed "effect1-e"
-        vt' <- freshNamed "vt"
+        es' <- freshenVar Var.inferAbility
+        vt' <- freshenVar Var.inferOther
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
