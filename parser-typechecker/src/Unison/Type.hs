@@ -12,7 +12,7 @@
 
 module Unison.Type where
 
-import Debug.Trace
+-- import Debug.Trace
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
 import Data.Functor.Identity (runIdentity)
@@ -27,7 +27,7 @@ import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           GHC.Generics
-import           Prelude.Extras (Eq1(..),Show1(..))
+import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
 import           Unison.Blank
 import           Unison.Hashable (Hashable1)
@@ -50,20 +50,11 @@ data F a
   | Effect a a
   | Effects [a]
   | Forall a
-  deriving (Foldable,Functor,Generic,Generic1,Traversable)
+  deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
 
 instance Eq1 F where (==#) = (==)
+instance Ord1 F where compare1 = compare
 instance Show1 F where showsPrec1 = showsPrec
-instance Eq a => Eq (F a) where
-  Ref r == Ref r2 = r == r2
-  Arrow i o == Arrow i2 o2 = i == i2 && o == o2
-  Ann a k == Ann a2 k2 = a == a2 && k == k2
-  App f a == App f2 a2 = f == f2 && a == a2
-  Effect es t == Effect es2 t2 = es == es2 && t == t2
-  Effects es1 == Effects es2 = es1 == es2
-  Forall a == Forall b = a == b
-  _ == _ = False
-
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
 type Type v = AnnotatedType v ()
@@ -445,16 +436,31 @@ generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
 
 -- | This function removes all variable shadowing from the type and reduces
 -- fresh ids to the minimum possible to avoid ambiguity.
-cleanupVars :: Var v => AnnotatedType v a -> AnnotatedType v a
-cleanupVars t | not Settings.cleanupVars = t
-cleanupVars t = let
+cleanupVars1 :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupVars1 t | not Settings.cleanupVars = t
+cleanupVars1 t = let
   varsByName = foldl' step Map.empty (ABT.allVars t)
   step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
   changedVars = Map.fromList [ (v, Var.freshenId i v)
                              | (_, vs) <- Map.toList varsByName
                              , (v,i) <- nubOrd vs `zip` [0..]]
 
-  in traceShow ("changedVars"::String, changedVars) $ ABT.changeVars changedVars t
+  in ABT.changeVars changedVars t
+
+-- This removes duplicates and normalizes the order of ability lists
+cleanupAbilityLists :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupAbilityLists t = ABT.visitPure go t where
+  -- leave explicitly empty `{}` alone
+  go (Effect1' (Effects' []) _v) = Nothing
+  go t@(Effect1' e v) =
+    let es = Set.toList . Set.fromList $ flattenEffects e
+    in case es of
+         [] -> Just (ABT.visitPure go v)
+         _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
+  go _ = Nothing
+
+cleanup :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanup = cleanupVars1 . cleanupAbilityLists
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

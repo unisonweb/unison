@@ -17,13 +17,13 @@ import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Map (Map)
 import Data.Maybe
-import Data.Ord
+import Data.Ord (comparing)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
-import Prelude.Extras (Eq1(..), Show1(..))
+import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
 import Unison.Hashable (Accumulate,Hashable1,hash1)
 import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
@@ -470,6 +470,22 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
            in rename v1 v3 body1 == rename v2 v3 body2
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
+
+instance (Foldable f, Functor f, Ord1 f, Var v) => Ord (Term f v a) where
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+  t1 `compare` t2 = go (out t1) (out t2) where
+    go (Var v) (Var v2) = v `compare` v2
+    go (Cycle t1) (Cycle t2) = t1 `compare` t2
+    go (Abs v1 body1) (Abs v2 body2) =
+      if v1 == v2 then body1 `compare` body2
+      else let v3 = freshInBoth body1 body2 v1
+           in rename v1 v3 body1 `compare` rename v2 v3 body2
+    go (Tm f1) (Tm f2) = compare1 f1 f2
+    go t1 t2 = tag t1 `compare` tag t2
+    tag (Var _) = 0 :: Word
+    tag (Tm _) = 1
+    tag (Abs _ _) = 2
+    tag (Cycle _) = 3
 
 components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars

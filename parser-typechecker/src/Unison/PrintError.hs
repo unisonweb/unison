@@ -279,7 +279,7 @@ renderTypeError e env src = case e of
     ]
   FunctionApplication {..}
     -> let
-         fte         = Type.cleanupVars (Type.removePureEffects ft)
+         fte         = Type.cleanup (Type.removePureEffects ft)
          fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
          showVar (v, _t) = Set.member v fteFreeVars
          solvedVars' = filter showVar solvedVars
@@ -733,7 +733,7 @@ renderType
   -> (loc -> AnnotatedText a -> AnnotatedText a)
   -> Type.AnnotatedType v loc
   -> AnnotatedText a
-renderType env f t = renderType0 env f (0 :: Int) (Type.cleanupVars $ Type.removePureEffects t)
+renderType env f t = renderType0 env f (0 :: Int) (Type.cleanup $ Type.removePureEffects t)
  where
   wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
   wrap start end test s = if test then start <> s <> end else s
