@@ -52,7 +52,6 @@ import           Unison.Codebase.SearchResult  (SearchResult)
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.ShortHash              as SH
@@ -66,6 +65,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  (pattern Result)
+import qualified Unison.Runtime.IOSource      as IOSource
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -238,8 +238,16 @@ loop = do
           aliasUnconflicted targets existingName newName
         RenameUnconflictedI targets oldName newName ->
           renameUnconflicted targets oldName newName
-        UnnameAllI nameTarget name -> modifyCurrentBranch0 $
-          Branch.unnameAll nameTarget name
+        UnnameAllI hqs -> do
+          modifyCurrentBranch0 $ \b ->
+            let wrangle b hq = doTerms (doTypes b)
+                  where
+                  doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
+                  doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
+                  doTerm b (n, r) = Branch.deleteTermName r n b
+                  doType b (n, r) = Branch.deleteTypeName r n b
+            in foldl' wrangle b hqs
+          respond $ Success input
         SlurpFileI allowUpdates query -> case uf of
           Nothing -> respond NoUnisonFile
           Just uf -> let
@@ -313,6 +321,7 @@ loop = do
             if ok
               then do
                 currentBranch .= merged
+                respond $ Success input -- a merge-specific message
                 checkTodo
               else respond (UnknownBranch inputBranchName)
         DeleteBranchI branchNames ->
@@ -334,7 +343,7 @@ loop = do
           _ <- success
           currentBranch .= b
         ExecuteI input ->
-          withFile [Type.ref External $ Reference.DerivedId DD.ioHash]
+          withFile [Type.ref External $ IOSource.ioReference]
                    "execute command"
                    ("main_ = " <> Text.pack input) $
                      \_ unisonFile ->
@@ -617,6 +626,11 @@ merging targetBranchName b success =
 
 modifyCurrentBranch0 :: (Branch0 -> Branch0) -> Action i v ()
 modifyCurrentBranch0 f = modifyCurrentBranchM (\b -> pure $ Branch.modify f b)
+
+modifyCurrentBranch0M :: (Branch0 -> Action i v Branch0) -> Action i v ()
+modifyCurrentBranch0M f = modifyCurrentBranchM $ \b -> do
+  b0' <- f $ Branch.head b
+  pure $ Branch.append b0' b
 
 modifyCurrentBranchM :: (Branch -> Action i v Branch) -> Action i v ()
 modifyCurrentBranchM f = do

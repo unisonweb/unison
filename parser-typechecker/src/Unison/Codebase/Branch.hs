@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE TupleSections       #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Unison.Codebase.Branch where
@@ -15,6 +16,7 @@ import           Control.Lens
 import           Control.Monad            (join)
 import           Data.Bifunctor           (bimap)
 import           Data.Foldable
+import           Data.List.Extra          (nubOrd)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Set                 (Set)
@@ -357,6 +359,31 @@ hashQualifiedTypeName b n r =
 hashQualifiedTypeName' :: Branch0 -> Name -> Reference -> HashQualified
 hashQualifiedTypeName' b n r =
   HQ.take (numHashChars b) $ HashQualified.fromNamedReference n r
+
+-- todo: look around for places where this logic is duplicated, and call this
+-- Is `Branch.searchTermNamespace` an example?
+-- Is `Find.prefixFindInBranch` an example?
+resolveHQNameType :: Branch0 -> HashQualified -> Set (Name, Reference)
+resolveHQNameType b = \case
+  HQ.NameOnly n -> Set.map (n,) (typesNamed n b)
+  HQ.HashOnly sh -> R.toSet
+    . R.filterRan (SH.isPrefixOf sh . Reference.toShortHash)
+    $ typeNamespace b
+  HQ.HashQualified n sh -> R.toSet
+    . R.filterDom (==n)
+    . R.filterRan (SH.isPrefixOf sh . Reference.toShortHash)
+    $ typeNamespace b
+
+resolveHQNameTerm :: Branch0 -> HashQualified -> Set (Name, Referent)
+resolveHQNameTerm b = \case
+  HQ.NameOnly n -> Set.map (n,) (termsNamed n b)
+  HQ.HashOnly sh -> R.toSet
+    . R.filterRan (SH.isPrefixOf sh . Referent.toShortHash)
+    $ termNamespace b
+  HQ.HashQualified n sh -> R.toSet
+    . R.filterDom (==n)
+    . R.filterRan (SH.isPrefixOf sh . Referent.toShortHash)
+    $ termNamespace b
 
 oldNamesForTerm :: Int -> Referent -> Branch0 -> Set HashQualified
 oldNamesForTerm numHashChars ref
@@ -876,9 +903,10 @@ asSearchResults b =
   tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
 
 -- note: I expect these two functions will go away
+-- Returns matching search results ordered by score
 searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
 searchBranch b score queries =
-  fmap snd . toList $
+  nubOrd . fmap snd . toList $
     searchTermNamespace b score queries <> searchTypeNamespace b score queries
   where
   searchTermNamespace :: forall score. Ord score =>

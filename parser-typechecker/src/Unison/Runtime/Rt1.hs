@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Sequence (Seq)
 import Data.Word (Word64)
+import Text.Read (readMaybe)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
@@ -205,7 +206,7 @@ force v = pure v
 
 data Result
   = RRequest Req
-  | RMatchFail {- maybe add more info here. -}
+  | RMatchFail Size [Value] Value
   | RDone Value
   deriving Show
 
@@ -219,7 +220,7 @@ arity _ = 0
 -- Creates a `CompilationEnv` by pulling out all the constructor arities for
 -- types that are referenced by the given term, `t`.
 compilationEnv :: Monad m
-  => CL.CodeLookup m Symbol a
+  => CL.CodeLookup Symbol m a
   -> Term.AnnotatedTerm Symbol a
   -> m CompilationEnv
 compilationEnv env t = do
@@ -288,10 +289,45 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
     , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
 
-    , mk1 "Float.ceiling"  atf (pure . I) ceiling
-    , mk1 "Float.floor"    atf (pure . I) floor
-    , mk1 "Float.round"    atf (pure . I) round
-    , mk1 "Float.truncate" atf (pure . I) truncate
+    -- Trigonometric functions
+    , mk1 "Float.acos"          atf (pure . F) acos
+    , mk1 "Float.asin"          atf (pure . F) asin
+    , mk1 "Float.atan"          atf (pure . F) atan
+    , mk2 "Float.atan2"     atf atf (pure . F) atan2
+    , mk1 "Float.cos"           atf (pure . F) cos
+    , mk1 "Float.sin"           atf (pure . F) sin
+    , mk1 "Float.tan"           atf (pure . F) tan
+
+    -- Hyperbolic functions
+    , mk1 "Float.acosh"         atf (pure . F) acosh
+    , mk1 "Float.asinh"         atf (pure . F) asinh
+    , mk1 "Float.atanh"         atf (pure . F) atanh
+    , mk1 "Float.cosh"          atf (pure . F) cosh
+    , mk1 "Float.sinh"          atf (pure . F) sinh
+    , mk1 "Float.tanh"          atf (pure . F) tanh
+
+    -- Exponential functions
+    , mk1 "Float.exp"           atf (pure . F) exp
+    , mk1 "Float.log"           atf (pure . F) log
+    , mk2 "Float.logBase"   atf atf (pure . F) logBase
+
+    -- Power Functions
+    , mk2 "Float.pow"       atf atf (pure . F) (**)
+    , mk1 "Float.sqrt"          atf (pure . F) sqrt
+
+    -- Rounding and Remainder Functions
+    , mk1 "Float.ceiling"       atf (pure . I) ceiling
+    , mk1 "Float.floor"         atf (pure . I) floor
+    , mk1 "Float.round"         atf (pure . I) round
+    , mk1 "Float.truncate"      atf (pure . I) truncate
+
+    -- Float Utils
+    , mk1 "Float.abs"           atf (pure . F) abs
+    , mk2 "Float.max"       atf atf (pure . F) max
+    , mk2 "Float.min"       atf atf (pure . F) min
+    , mk1 "Float.toText"        atf (pure . T) (Text.pack . show)
+    , mk1 "Float.fromText"      att (pure . IR.maybeToOptional . fmap F) (
+        (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
     ]
@@ -390,7 +426,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@RMatchFail -> error $ show e
+        e@(RMatchFail _ _ _) -> error $ show e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -502,7 +538,7 @@ run ioHandler env ir = do
         m <- push size (Requested req) m
         result <- call (size + 1) m handler [Slot 0]
         case result of
-          RMatchFail -> pure $ RRequest (wrapHandler handler req)
+          RMatchFail _ _ _ -> pure $ RRequest (wrapHandler handler req)
           r -> pure r
       RDone v -> do
         m <- push size (Pure v) m
@@ -649,7 +685,8 @@ run ioHandler env ir = do
               if cond then go size' m body
               else tryCases size scrute m remainingCases
             Nothing -> go size' m body
-    tryCases _ _ _ _ = pure RMatchFail
+    tryCases sz scrute _ _ =
+      pure $ RMatchFail sz [] scrute
 
     -- To evaluate a `let rec`, we push an empty `Ref` onto the stack for each
     -- binding, then evaluate each binding and set that `Ref` to its result.

@@ -356,6 +356,9 @@ lam' a vs body = foldr (lam a) body vs
 lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 lam'' vs body = foldr (uncurry lam) body vs
 
+isLam :: AnnotatedTerm2 vt at ap v a -> Bool
+isLam t = arity t > 0
+
 arity :: AnnotatedTerm2 vt at ap v a -> Int
 arity (LamNamed' _ body) = 1 + arity body
 arity (Ann' e _) = arity e

@@ -43,7 +43,12 @@ import qualified Unison.DataDeclaration as DD
 
 -}
 
-pretty :: (IsString s, LL.ListLike s Char, Var v) => PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty s
+pretty
+  :: (IsString s, LL.ListLike s Char, Var v)
+  => PrettyPrintEnv
+  -> Int
+  -> AnnotatedType v a
+  -> Pretty s
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
@@ -154,8 +159,3 @@ prettySignaturesAlt env ts = PP.lines $
   PP.group <$> prettySignaturesAlt' env ts
 
 
-prettyDataHeader :: HashQualified -> Pretty ColorText
-prettyDataHeader name = PP.bold "type " <> prettyHashQualified name
-
-prettyEffectHeader :: HashQualified -> Pretty ColorText
-prettyEffectHeader name = PP.bold "ability " <> prettyHashQualified name

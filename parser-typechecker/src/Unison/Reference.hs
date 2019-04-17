@@ -18,6 +18,7 @@ module Unison.Reference
    readSuffix,
    showShort,
    toText,
+   unsafeId,
    toShortHash) where
 
 import           Control.Monad   (join)
@@ -58,6 +59,11 @@ data Reference
 pattern Derived h i n = DerivedId (Id h i n)
 
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
+
+unsafeId :: Reference -> Id
+unsafeId (Builtin b) =
+  error $ "Tried to get the hash of builtin " <> Text.unpack b <> "."
+unsafeId (DerivedId x) = x
 
 -- todo: move these to ShortHash module?
 -- but Show Reference currently depends on SH

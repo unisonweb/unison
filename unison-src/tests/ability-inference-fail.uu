@@ -1,0 +1,24 @@
+ability Emit a where
+  emit : a ->{Emit a} ()
+
+type Stream a = Stream ('{Emit a} ())
+
+use Stream Stream
+use Optional None Some
+
+namespace Stream where
+
+  unfold : s -> (s -> Optional (a, s)) -> Stream a
+  unfold s f = Stream 'let
+    -- step : (s -> Optional (a,s)) -> s ->{Emit a} ()
+    step f s = case f s of
+      None        -> ()
+      Some (a, s) -> emit a
+                     step f s
+    step f s
+
+---
+
+The expression in red  needs these abilities: {𝛆, 𝛆}, but this location only has access to the {Emit a} ability,
+
+   18 |       step f s

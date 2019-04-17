@@ -20,7 +20,7 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (Input (..))
 import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
-import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern))
+import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified            as HQ
 import qualified Unison.Names                    as Names
@@ -52,7 +52,6 @@ makeExampleEOS p args = P.group $
 helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
 helpFor p = I.parse help [I.patternName p]
 
-
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern "builtins.update" [] []
   "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
@@ -76,12 +75,14 @@ update = InputPattern "update" [] []
     (\(fmap HQ.fromString -> hqs) -> pure $ SlurpFileI True hqs)
 
 view :: InputPattern
-view = InputPattern "view" [] [(False, exactDefinitionQueryArg)]
+view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . ShowDefinitionI E.ConsoleLocation)
+
 rename :: InputPattern
 rename = InputPattern "rename" ["mv"]
-    [(False, exactDefinitionQueryArg), (False, noCompletions)]
+    [(Required, exactDefinitionQueryArg)
+    ,(Required, noCompletions)]
     "`rename foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> Right $ RenameUnconflictedI
@@ -90,9 +91,20 @@ rename = InputPattern "rename" ["mv"]
         (fromString newName)
       _ -> Left . P.warnCallout $ P.wrap
         "`rename` takes two arguments, like `rename oldname newname`.")
+
+unname :: InputPattern
+unname = InputPattern "unname" ["rm"]
+    [(OnePlus, exactDefinitionQueryArg)]
+    "`unname foo` removes the name `foo` from the namespace."
+    (\case
+      [] -> Left . P.warnCallout $ P.wrap
+        "`unname` takes one or more arguments, like `unname name`."
+      (Set.fromList . fmap HQ.fromString -> query) -> Right $ UnnameAllI query
+    )
+
 alias :: InputPattern
 alias = InputPattern "alias" ["cp"]
-    [(False, exactDefinitionQueryArg), (False, noCompletions)]
+    [(Required, exactDefinitionQueryArg), (Required, noCompletions)]
     "`alias foo bar` introduces `bar` with the same definition as `foo`."
     (\case
       [oldName, newName] -> Right $ AliasUnconflictedI
@@ -104,10 +116,10 @@ alias = InputPattern "alias" ["cp"]
     )
 
 branch :: InputPattern
-branch = InputPattern "branch" [] [(True, branchArg)]
+branch = InputPattern "branch" [] [(Optional, branchArg)]
     (P.wrapColumn2
-      [ ("`branch`",      "lists all branches in the codebase.")
-      , ( "`branch foo`", "switches to the branch named 'foo', creating it first if it doesn't exist.")
+      [ ("`branch`",     "lists all branches in the codebase.")
+      , ("`branch foo`", "switches to the branch named 'foo', creating it first if it doesn't exist.")
       ]
     )
     (\case
@@ -118,27 +130,23 @@ branch = InputPattern "branch" [] [(True, branchArg)]
     )
 
 deleteBranch,replace,resolve :: InputPattern
-deleteBranch = InputPattern "branch.delete" [] [(True, branchArg)]
+deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchArg)]
   "`branch.delete <foo>` deletes the branch `foo`"
-  (\(fmap Text.pack -> ws) -> case ws of
-    [] -> helpFor deleteBranch
-    ws -> pure $ DeleteBranchI ws)
+  (pure . DeleteBranchI . fmap Text.pack)
 
 replace = InputPattern "replace" []
-          [ (False, exactDefinitionQueryArg)
-          , (False, exactDefinitionQueryArg) ]
-  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace"
-    <> "uses of `foo#abc` with `foo#def`")
-  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
-resolve = InputPattern "resolve" [] [(False, exactDefinitionQueryArg)]
-  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo`,"
-   <> "in cases of conflict, and begins a refactor to replace references to all"
-   <> "other `foo`s to `foo#abc`.")
-  (\_ -> Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+          [ (Required, exactDefinitionQueryArg)
+          , (Required, exactDefinitionQueryArg) ]
+  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
+  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+
+resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
+  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
+  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
 
 help :: InputPattern
 help = InputPattern
-    "help" ["?"] [(True, commandNameArg)]
+    "help" ["?"] [(Optional, commandNameArg)]
     "`help` shows general help and `help <cmd>` shows help for one command."
     (\case
       [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
@@ -152,7 +160,7 @@ validInputs =
   [ help
   , add
   , branch
-  , InputPattern "fork" [] [(False, branchArg)]
+  , InputPattern "fork" [] [(Required, noCompletions)]
     (P.wrap
      "`fork foo` creates the branch 'foo' as a fork of the current branch.")
     (\case
@@ -160,7 +168,7 @@ validInputs =
       _ -> Left . warn . P.wrap $ "Use `fork foo` to create the branch 'foo'"
                                 <> "from the current branch."
     )
-  , InputPattern "find" ["ls","list"] [(True, fuzzyDefinitionQueryArg)]
+  , InputPattern "find" ["ls","list"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     (P.wrapColumn2
       [ ("`find`"
         , "lists all definitions in the current branch.")
@@ -173,7 +181,7 @@ validInputs =
       ]
     )
     (pure . SearchByNameI)
-  , InputPattern "merge" [] [(False, branchArg)]
+  , InputPattern "merge" [] [(Required, branchArg)]
     "`merge foo` merges the branch 'foo' into the current branch."
     (\case
       [b] -> pure . MergeBranchI $ Text.pack b
@@ -181,17 +189,18 @@ validInputs =
         "Use `merge foo` to merge the branch 'foo' into the current branch."
     )
   , view
-  , InputPattern "edit" [] [(False, exactDefinitionQueryArg)]
+  , InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
       "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
       (pure . ShowDefinitionI E.LatestFileLocation)
   , rename
+  , unname
   , alias
   , update
   , InputPattern "propagate" [] []
     "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
     (const $ pure PropagateI)
   , todo
-  , InputPattern "execute" [] [(True, noCompletions)]
+  , InputPattern "execute" [] []
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
     (\ws -> if null ws
                then Left $ warn "`execute` needs a Unison language expression."
@@ -236,4 +245,4 @@ exactDefinitionQueryArg =
     pure $ autoCompleteHashQualified b q
 
 noCompletions :: ArgumentType
-noCompletions = ArgumentType "a word" I.noSuggestions
+noCompletions = ArgumentType "word" I.noSuggestions

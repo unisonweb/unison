@@ -20,7 +20,6 @@ import qualified Data.Set                      as Set
 import           Prelude                 hiding ( cycle )
 import           Prelude.Extras                 ( Show1 )
 import qualified Unison.ABT                    as ABT
-import           Unison.Hash                   as Hash
 import           Unison.Hashable                ( Accumulate
                                                 , Hashable1
                                                 )
@@ -44,6 +43,8 @@ import           Unison.Names                  as Names
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
 
+type ConstructorId = Int
+
 type DataDeclaration v = DataDeclaration' v ()
 
 data DataDeclaration' v a = DataDeclaration {
@@ -53,18 +54,18 @@ data DataDeclaration' v a = DataDeclaration {
 } deriving (Eq, Show, Functor)
 
 generateConstructorRefs
-  :: (Reference -> Int -> Reference)
+  :: (Reference -> ConstructorId -> Reference)
   -> Reference.Id
   -> Int
-  -> [(Int, Reference)]
+  -> [(ConstructorId, Reference)]
 generateConstructorRefs hashCtor rid n =
   (\i -> (i, hashCtor (Reference.DerivedId rid) i)) <$> [0 .. n]
 
 -- Returns references to the constructors,
 -- along with the terms for those references and their types.
 constructorTerms
-  :: (Reference -> Int -> Reference)
-  -> (a -> Reference -> Int -> AnnotatedTerm v a)
+  :: (Reference -> ConstructorId -> Reference)
+  -> (a -> Reference -> ConstructorId -> AnnotatedTerm v a)
   -> Reference.Id
   -> DataDeclaration' v a
   -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
@@ -91,7 +92,7 @@ effectConstructorTerms rid ed =
 constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
 constructorTypes = (snd <$>) . constructors
 
-typeOfConstructor :: DataDeclaration' v a -> Int -> Maybe (AnnotatedType v a)
+typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (AnnotatedType v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
@@ -119,7 +120,7 @@ toNames0
   :: Var v
   => v
   -> Reference
-  -> (Reference -> Int -> Referent)
+  -> (Reference -> ConstructorId -> Referent)
   -> DataDeclaration' v a
   -> Names
 toNames0 typeSymbol r f dd =
@@ -290,14 +291,6 @@ builtinDataDecls = hashDecls $
     ((), v "Optional.Some", Type.foralls() [v "a"]
       (var "a" `arr` Type.app' (var "Optional") (var "a")))
    ]
-
-ioHash :: Reference.Id
-ioHash = Reference.Id
-  (Hash.unsafeFromBase58
-    "525sNixZKpeYWYAr8UFEUkYmATSbfuYkEWgnCa6xFr33JrZxra8jJtShxhtytDisdBSoCE6gtqDRkw67nRnSQXDx"
-  )
-  0
-  1
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)

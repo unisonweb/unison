@@ -1,15 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# Language TemplateHaskell #-}
 {-# Language QuasiQuotes #-}
 
 module Unison.Runtime.IOSource where
 
 import Control.Monad.Identity (runIdentity, Identity)
+import Data.List (elemIndex, genericIndex)
 import Data.String (fromString)
 import Data.Text (Text)
 import Text.RawString.QQ (r)
 import Unison.FileParsers (parseAndSynthesizeFile)
 import Unison.Parser (Ann(..))
 import Unison.Symbol (Symbol)
+import Unison.Codebase.CodeLookup (CodeLookup(..))
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.DataDeclaration as DD
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
 import qualified Unison.Reference as R
@@ -28,6 +33,9 @@ typecheckedFile = let
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
     (Just (_, Just file), _) -> file
 
+codeLookup :: CodeLookup Symbol Identity Ann
+codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+
 typeNamed :: String -> R.Reference
 typeNamed s =
   case Map.lookup (Var.nameds s) (UF.dataDeclarations' typecheckedFile) of
@@ -40,13 +48,77 @@ abilityNamed s =
     Nothing -> error $ "No builtin ability called: " <> s
     Just (r, _) -> r
 
-ioReference, bufferModeReference :: R.Reference
+ioHash, eitherHash, ioModeHash :: R.Id
+ioHash = R.unsafeId ioReference
+eitherHash = R.unsafeId eitherReference
+ioModeHash = R.unsafeId ioModeReference
+
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference
+  :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
+eitherReference = typeNamed "Either"
+ioModeReference = typeNamed "IOMode"
+optionReference = typeNamed "Optional"
+errorReference = typeNamed "IOError"
+errorTypeReference = typeNamed "IOErrorType"
+seekModeReference = typeNamed "SeekMode"
+
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
+eitherLeftId = constructorNamed eitherReference "Either.Left"
+eitherRightId = constructorNamed eitherReference "Either.Right"
+someId = constructorNamed optionReference "Optional.Some"
+noneId = constructorNamed optionReference "Optional.None"
+ioErrorId = constructorNamed errorReference "IOError.IOError"
+
+mkErrorType :: Text -> DD.ConstructorId
+mkErrorType = constructorNamed errorTypeReference
+
+alreadyExistsId, noSuchThingId, resourceBusyId, resourceExhaustedId, eofId, illegalOperationId, permissionDeniedId, userErrorId
+  :: DD.ConstructorId
+alreadyExistsId = mkErrorType "IOErrorType.AlreadyExists"
+noSuchThingId = mkErrorType "IOErrorType.NoSuchThing"
+resourceBusyId = mkErrorType "IOErrorType.ResourceBusy"
+resourceExhaustedId = mkErrorType "IOErrorType.ResourceExhausted"
+eofId = mkErrorType "IOErrorType.EOF"
+illegalOperationId = mkErrorType "IOErrorType.IllegalOperation"
+permissionDeniedId = mkErrorType "IOErrorType.PermissionDenied"
+userErrorId = mkErrorType "IOErrorType.UserError"
+
+constructorNamed :: R.Reference -> Text -> DD.ConstructorId
+constructorNamed ref name =
+  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
+    Nothing ->
+      error
+        $  "There's a bug in the Unison runtime. Couldn't find type "
+        <> show ref
+    Just decl ->
+      case elemIndex name . DD.constructorNames $ TL.asDataDecl decl of
+        Nothing ->
+          error
+            $  "Unison runtime bug. The type "
+            <> show ref
+            <> " has no constructor named "
+            <> show name
+        Just c -> c
+
+constructorName :: R.Reference -> DD.ConstructorId -> Text
+constructorName ref cid =
+  case runIdentity . getTypeDeclaration codeLookup $ R.unsafeId ref of
+    Nothing ->
+      error
+        $  "There's a bug in the Unison runtime. Couldn't find type "
+        <> show ref
+    Just decl -> genericIndex (DD.constructorNames $ TL.asDataDecl decl) cid
+
 -- .. todo - fill in the rest of these
 
 source :: Text
 source = fromString [r|
+
+type Either a b = Left a | Right b
+
+type Optional a = None | Some a
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell
@@ -70,10 +142,18 @@ namespace IO where
   stderr: Handle
   stderr = Handle "stderr"
 
+  rethrow : (Either IOError a) -> {IO} a
+  rethrow x = case x of
+    Either.Left e -> IO.throw e
+    Either.Right a -> a
+
   printLine : Text -> {IO} ()
   printLine t =
-    IO.putText stdout t
-    IO.putText stdout "\n"
+    rethrow (IO.putText stdout t)
+    rethrow (IO.putText stdout "\n")
+
+  readLine : '{IO} Text
+  readLine = '(rethrow (IO.getLine stdin))
 
 -- IO Modes from the Haskell API
 type IOMode = Read | Write | Append | ReadWrite
@@ -93,13 +173,7 @@ type ErrorLocation = ErrorLocation Text
 type ErrorDescription = ErrorDescription Text
 type FilePath = FilePath Text
 
-type IOError =
-  IOError
-    (Optional Handle)
-    IOErrorType
-    ErrorLocation
-    ErrorDescription
-    (Optional FilePath)
+type IOError = IOError IOErrorType Text
 
 type SeekMode = Absolute | Relative | FromEnd
 
@@ -110,49 +184,44 @@ type BufferMode = Line | Block (Optional Nat)
 type EpochTime = EpochTime Nat
 
 -- Either a host name e.g., "unisonweb.org" or a numeric host address
--- string consisting of a dotted decimal IPv4 address or an IPv6 address
+-- string consisting of a dotted decimal IPv4 address
 -- e.g., "192.168.0.1".
 type HostName = HostName Text
 
-type PortNumber = Nat
+-- For example a port number like "8080"
+type ServiceName = ServiceName Text
 
--- Represents a 32-bit host address
-type HostAddress = HostAddress Int
-
--- Internet protocol v4 socket address
-type SocketAddress = SocketAddress HostAddress PortNumber
-
+-- Thread IDs are strings for now. Need nominal/opaque types.
+type ThreadId = ThreadId Text
 
 ability IO where
 
   -- Basic file IO
-  openFile : FilePath -> IOMode ->{IO} Handle
-  closeFile : Handle ->{IO} ()
-  isEOF : Handle ->{IO} Boolean
-  isFileOpen : Handle ->{IO} Boolean
+  openFile : FilePath -> IOMode ->{IO} (Either IOError Handle)
+  closeFile : Handle ->{IO} (Either IOError ())
+  isFileEOF : Handle ->{IO} (Either IOError Boolean)
+  isFileOpen : Handle ->{IO} (Either IOError Boolean)
 
   -- Text input and output
 
   --getChar : Handle ->{IO} Char
-  getLine : Handle ->{IO} Text
+  getLine : Handle ->{IO} (Either IOError Text)
   -- Get the entire contents of the file as text
-  getText : Handle ->{IO} Text
+  getText : Handle ->{IO} (Either IOError Text)
   -- putChar : Handle -> Char ->{IO} ()
-  putText : Handle -> Text ->{IO} ()
+  putText : Handle -> Text ->{IO} (Either IOError ())
 
-  -- Handling I/O errors.
-  -- Question: can we do better?
+  -- Note: `catch` is just a library function
   throw : IOError ->{IO} a
-  catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
 
   -- File positioning
-  isSeekable : Handle ->{IO} Boolean
-  seek : Handle -> SeekMode -> Int ->{IO} ()
-  position : Handle ->{IO} Int
+  isSeekable : Handle ->{IO} (Either IOError Boolean)
+  seek : Handle -> SeekMode -> Int ->{IO} (Either IOError ())
+  position : Handle ->{IO} (Either IOError Int)
 
   -- File buffering
-  getBuffering : Handle ->{IO} (Optional BufferMode)
-  setBuffering : Handle -> Optional BufferMode ->{IO} ()
+  getBuffering : Handle ->{IO} Either IOError (Optional BufferMode)
+  setBuffering : Handle -> Optional BufferMode ->{IO} (Either IOError ())
 
   -- Should we expose mutable arrays for byte buffering?
   -- Inclined to say no, although that sounds a lot like
@@ -165,50 +234,60 @@ ability IO where
   -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
   -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
 
-  systemTime : {IO} EpochTime
+  systemTime : {IO} (Either IOError EpochTime)
 
 
   -- File system operations
-  getCurrentDirectory : {IO} FilePath
-  setCurrentDirectory : FilePath ->{IO} ()
-  directoryContents : FilePath ->{IO} [FilePath]
-  fileExists : FilePath -> {IO} Boolean
-  isDirectory : FilePath ->{IO} Boolean
-  createDirectory : FilePath ->{IO} ()
-  removeDirectory : FilePath ->{IO} ()
-  renameDirectory : FilePath -> FilePath -> {IO} ()
-  removeFile : FilePath ->{IO} ()
-  renameFile : FilePath -> FilePath ->{IO} ()
-  getFileTimestamp : FilePath ->{IO} EpochTime
-  getFileSize : FilePath ->{IO} Nat
+  getCurrentDirectory : {IO} (Either IOError FilePath)
+  setCurrentDirectory : FilePath ->{IO} (Either IOError ())
+  directoryContents : FilePath ->{IO} Either IOError [FilePath]
+  fileExists : FilePath -> {IO} (Either IOError Boolean)
+  isDirectory : FilePath ->{IO} (Either IOError Boolean)
+  createDirectory : FilePath ->{IO} (Either IOError ())
+  removeDirectory : FilePath ->{IO} (Either IOError ())
+  renameDirectory : FilePath -> FilePath -> {IO} (Either IOError ())
+  removeFile : FilePath ->{IO} (Either IOError ())
+  renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
+  getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
+  getFileSize : FilePath ->{IO} (Either IOError Nat)
 
 
-  -- Network I/O
+  -- Simple TCP Networking
 
-  -- Glossing over address families (ipv4, ipv6),
-  -- and socket types (stream, raw, etc)
+  -- Create a socket bound to the given local address.
+  -- If a hostname is not given, this will use any available host.
+  serverSocket : Optional HostName ->
+                 ServiceName -> {IO} (Either IOError Socket)
+  -- Start listening for connections
+  listen : Socket ->{IO} (Either IOError ())
 
-  -- Creates a socket and binds it to a the given local port
-  serverSocket : SocketAddress -> {IO} Socket
+  -- Create a socket connected to the given remote address
+  clientSocket : HostName ->
+                 ServiceName ->{IO} (Either IOError Socket)
 
-  -- Creates a socket connected to the given remote address
-  clientSocket : SocketAddress -> {IO} Socket
+  closeSocket : Socket ->{IO} (Either IOError ())
 
-  socketToHandle : Socket ->{IO} Handle
-  handleToSocket : Handle ->{IO} Socket
-  closeSocket : Socket ->{IO} ()
+  --socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
+  --handleToSocket : Handle ->{IO} (Either IOError Socket)
 
   -- Accept a connection on a socket.
-  -- Returns a socket that can send and receive data on a new connection,
-  -- together with the remote host information.
-  accept : Socket ->{IO} (Socket, SocketAddress)
+  -- Returns a socket that can send and receive data on a new connection
+  accept : Socket ->{IO} (Either IOError Socket)
 
-  -- Returns the number of bytes actually sent
-  -- send : Socket -> Bytes ->{IO} Int
+  -- Send some bytes to a socket.
+  send : Socket -> Bytes ->{IO} (Either IOError ())
+
+  -- Read the spefified number of bytes from the socket.
+  receive : Socket -> Int ->{IO} (Either IOError (Optional Bytes))
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int
 
-  -- Read the spefified number of bytes from the socket.
-  -- receive : Socket -> Int ->{IO} Bytes
+  -- Threading
+  fork : '{IO} a ->{IO} (Either IOError ThreadId)
+
+  kill : ThreadId ->{IO} (Either IOError ())
+
+  bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
+
 |]

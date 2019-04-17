@@ -95,7 +95,7 @@ matchCase = do
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = constructor <|> leaf
+parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op list
   where
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
@@ -148,8 +148,7 @@ parsePattern = constructor <|> leaf
   effect = do
     start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
-    _ <- closeBlock
-    end <- reserved "}"
+    end <- closeBlock
     pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
@@ -250,10 +249,11 @@ term4 = f <$> some termLeaf
     f (func:args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
+-- e.g. term4 + term4 - term4
 infixApp = label "infixApp" $
-  chainl1 term4 (f <$> fmap var infixVar)
+  chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
     where
-      f op lhs rhs =
+      f op = \lhs rhs ->
         Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)

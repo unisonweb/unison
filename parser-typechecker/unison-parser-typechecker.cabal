@@ -60,6 +60,7 @@ library
     Unison.CommandLine.OutputMessages
     Unison.ConstructorType
     Unison.DataDeclaration
+    Unison.DeclPrinter
     Unison.FileParser
     Unison.FileParsers
     Unison.Hash
@@ -154,11 +155,13 @@ library
     lens,
     ListLike,
     memory,
+    mmorph,
     monad-loops,
     mtl,
     murmur-hash,
     mutable-containers,
     network,
+    network-simple,
     process,
     megaparsec,
     prelude-extras,

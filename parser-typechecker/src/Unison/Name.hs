@@ -1,18 +1,29 @@
-module Unison.Name (Name(..), unsafeFromText, toString, fromString, toVar, unsafeFromVar, isPrefixOf) where
+module Unison.Name
+  ( Name(..)
+  , unsafeFromText
+  , toString
+  , fromString
+  , toVar
+  , unsafeFromVar
+  , isPrefixOf
+  , stripPrefix
+  )
+where
 
-import           Data.String (IsString, fromString)
-import           Data.Text   (Text)
-import qualified Data.Text   as Text
-import qualified Unison.Hashable as H
-import           Unison.Var  (Var)
-import qualified Unison.Var  as Var
+import           Data.String                    ( IsString
+                                                , fromString
+                                                )
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import qualified Unison.Hashable               as H
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 
 newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 
 unsafeFromText :: Text -> Name
 unsafeFromText t =
-  if Text.any (=='#') t then error $ "not a name: " <> show t
-  else Name t
+  if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
@@ -25,6 +36,10 @@ toString = Text.unpack . toText
 
 isPrefixOf :: Name -> Name -> Bool
 a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
+
+stripPrefix :: Name -> Name -> Maybe Name
+stripPrefix prefix name =
+  Name <$> Text.stripPrefix (toText prefix) (toText name)
 
 instance Show Name where
   show = toString

@@ -42,6 +42,7 @@ data Error v
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
+  | EmptyWatch
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -269,7 +270,7 @@ sepBy1 sep pb = P.sepBy1 pb sep
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
   where
-    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (reserved "(" *> symbolyId) <* reserved ")")
+    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =
@@ -287,9 +288,9 @@ string = queryToken getString
 
 tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
-    open <- reserved "("
-    es <- sepBy (reserved ",") p
-    close <- optional semi *> reserved ")"
+    open <- openBlockWith "("
+    es <- sepBy (reserved "," *> optional semi) p
+    close <- optional semi *> closeBlock
     pure $ go es open close
   where
     go [t] _ _ = t
@@ -300,6 +301,7 @@ chainr1 p op = go1 where
   go1 = p >>= go2
   go2 hd = do { op <- op; tl <- go1; pure $ op hd tl } <|> pure hd
 
+-- Parse `p` 1+ times, combining with `op`
 chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 

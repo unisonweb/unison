@@ -84,6 +84,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypeVar                as TypeVar
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+-- import qualified Unison.TypePrinter            as TP
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 type Type v loc = AnnotatedType (TypeVar v loc) loc
@@ -681,11 +682,15 @@ synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
     abilityCheck es
     o <$ check arg i
   go (Type.Existential' b a) = do -- a^App
-    [i,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "o"]
+    [i,e,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "synthsizeApp-refined-effect", ABT.v' "o"]
     let it = Type.existential' (loc ft) B.Blank i
         ot = Type.existential' (loc ft) B.Blank o
-        soln = Type.Monotype (Type.arrow (loc ft) it ot)
-        ctxMid = context [existential o, existential i, Solved b a soln]
+        et = Type.existential' (loc ft) B.Blank e
+        soln = Type.Monotype (Type.arrow (loc ft)
+                                         it
+                                         (Type.effect (loc ft) [et] ot))
+        ctxMid = context [existential o, existential e,
+                          existential i, Solved b a soln]
     modifyContext' $ replace (existential a) ctxMid
     synthesizeApp (Type.getPolytype soln) argp
   go _ = getContext >>= \ctx -> failWith $ TypeMismatch ctx
@@ -801,10 +806,12 @@ synthesize e = scope (InSynthesize e) $
         et = Type.existential' l B.Blank e
     appendContext $
       context [existential i, existential e, existential o, Ann arg it]
-    body <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
-    withEffects0 [et] $ check body ot
+    body' <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
+    if Term.isLam body' then withEffects0 [] $ check body' ot
+    else                     withEffects0 [et] $ check body' ot
     ctx <- getContext
-    pure $ Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
+    let t = Type.arrow l it (Type.effect l (apply ctx <$> [et]) ot)
+    pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
     (marker, e) <- annotateLetRecBindings isTop letrec
@@ -1163,7 +1170,7 @@ subtype tx ty = scope (InSubtype tx ty) $
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
   go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
-    subtype i1 i2; ctx' <- getContext
+    subtype i2 i1; ctx' <- getContext
     subtype (apply ctx' o1) (apply ctx' o2)
   go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
     subtype x1 x2; ctx' <- getContext

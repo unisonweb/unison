@@ -1,0 +1,39 @@
+
+use Nat drop >=
+use Optional None Some
+
+search : (Nat -> Int) -> Nat -> Nat -> Optional Nat
+search hit bot top =
+  go : Nat -> Nat -> Optional Nat
+  go bot top =
+    if bot >= top then None
+    else
+      mid = (bot + top) / 2
+      case hit mid of
+        +0 -> Some mid
+        -1 -> go bot (mid `drop` 1)
+        +1 -> go (mid + 1) top
+  go bot top
+
+---
+
+The expression in red needs the {𝛆3} ability, but this location only has access to the {𝛆13} ability,
+
+   12 |       case hit mid of
+
+What's going on here?
+
+The issue is that `search` gets effect generalized, turning it into the type
+`(Nat ->{e} Int) -> Nat -> Nat ->{e} Optional Nat`. This type is then used when
+checking the body of `search`. `go` gets effect generalized as well, turning
+into `Nat -> Nat ->{e2} Nat` (kind of silly), and the body is then checked against
+this type. It fails when the body calls `hit`, which has the outer `{e}` effect.
+
+It works when leaving off the `go` signature, since the effects can be inferred.
+
+Some ideas for a solution:
+
+* Don't do effect generalization at all.
+* When the user provides a signature that doesn't mention effects, still allow inference of effects, somehow. 
+* Don't do the effect generalization until after successful typechecking. That is, typecheck `search` without any generalization, and after that has succeeded, replace its type in the context with the generalized type. Thus, only definitions outside the current cycle of definitions get access to this generalization (and notably, inner functions don't have to deal with generalized types of their parent lambdas).
+
