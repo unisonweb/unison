@@ -31,7 +31,9 @@ named n = typed (User n)
 
 name :: Var v => v -> Text
 name v = case typeOf v of
-  User n -> n <> showid v
+  User n -> n -- <> showid v -- TODO: not correct, but this causes tests to pass
+                             -- suspect we are doing `Var.named (Var.name v)` or
+                             -- something
   Inference Ability -> "𝕖" <> showid v
   Inference Input -> "𝕒" <> showid v
   Inference Output -> "𝕣" <> showid v
