@@ -717,14 +717,14 @@ noteTopLevelType e binding typ = case binding of
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing -> btw $ TopLevelComponent
-        [(ABT.variable e, Type.generalizeAndUnTypeVar typ, False)]
+        [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
         btw $ TopLevelComponent
-          [(ABT.variable e, Type.generalizeAndUnTypeVar typ, redundant)]
+          [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
   _ -> btw $ TopLevelComponent
-    [(ABT.variable e, Type.generalizeAndUnTypeVar typ, True)]
+    [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -1018,10 +1018,10 @@ annotateLetRecBindings isTop letrec =
     case withoutAnnotations of
       Just (_, _, vts') -> do
         r <- all id <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
-        btw $ TopLevelComponent ((\(a,b) -> (a,b,r)) . unTypeVar <$> vts)
+        btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
-        $ TopLevelComponent ((\(a, b) -> (a, b, False)) . unTypeVar <$> vts)
+        $ TopLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
     pure (marker, body)
   -- If this isn't a top-level letrec, then we don't have to do anything special
   else (\(marker, body, _) -> (marker, body)) <$> annotateLetRecBindings' True
@@ -1278,7 +1278,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
       Type.Arrow' i o -> do -- InstLArr
-        [i',o'] <- traverse freshenVar [nameFrom "i" i, nameFrom "o" o]
+        [i',o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
                                                  (Type.existentialp (loc i) i')
                                                  (Type.existentialp (loc o) o')))
@@ -1287,7 +1287,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
         applyM o >>= instantiateL B.Blank o'
       Type.App' x y -> do -- analogue of InstLArr
-        [x', y'] <- traverse freshenVar [nameFrom "x" x, nameFrom "y" y]
+        [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
                                                   (Type.existentialp (loc x) x')
                                                   (Type.existentialp (loc y) y')))
@@ -1306,7 +1306,7 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         applyM es >>= instantiateL B.Blank es'
         applyM vt >>= instantiateL B.Blank vt'
       Type.Effects' es -> do
-        es' <- traverse (\e -> freshenVar (nameFrom "e" e)) es
+        es' <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
@@ -1320,9 +1320,9 @@ instantiateL blank v t = scope (InInstantiateL v t) $ do
         doRetract (Universal v)
       _ -> failWith $ TypeMismatch ctx
 
-nameFrom :: Var v => Text -> Type v loc -> v
-nameFrom _ (Type.Var' v) = Var.named (Var.name v)
-nameFrom ifNotVar _ = ABT.v' (":" `mappend` ifNotVar `mappend` ":")
+nameFrom :: Var v => v -> Type v loc -> v
+nameFrom _ (Type.Var' v) = TypeVar.underlying (Var.reset v)
+nameFrom ifNotVar _ = ifNotVar
 
 -- | Instantiate the given existential such that it is
 -- a supertype of the given type, updating the context
@@ -1338,7 +1338,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         maybe (failWith $ TypeMismatch ctx) setContext $
           solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v))
       Type.Arrow' i o -> do -- InstRArrow
-        [i', o'] <- traverse freshenVar [nameFrom "instR-i" i, nameFrom "instR-o" o]
+        [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype
                           (Type.arrow (loc t)
                             (Type.existentialp (loc i) i')
@@ -1352,14 +1352,14 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         -- 1. create foo', a', add these to the context
         -- 2. add v' = foo' a' to the context
         -- 3. recurse to refine the types of foo' and a'
-        [x', y'] <- traverse freshenVar [nameFrom "instR-x" x, nameFrom "instR-y" y]
+        [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
         modifyContext' $ replace (existential v) (context [existential y', existential x', s])
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
-        es' <- freshenVar (nameFrom "e" es)
-        vt' <- freshenVar (nameFrom "vt" vt)
+        es' <- freshenVar (nameFrom Var.inferAbility es)
+        vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)
         let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
                                       (Type.existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
@@ -1368,7 +1368,7 @@ instantiateR t blank v = scope (InInstantiateR t v) $
         applyM es >>= \es -> instantiateR es B.Blank es'
         applyM vt >>= \vt -> instantiateR vt B.Blank vt'
       Type.Effects' es -> do
-        es' <- traverse (\e -> freshenVar (nameFrom "e" e)) es
+        es' <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
         let locs = loc <$> es
             t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'

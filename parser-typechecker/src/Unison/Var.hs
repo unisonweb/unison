@@ -31,17 +31,17 @@ named n = typed (User n)
 
 name :: Var v => v -> Text
 name v = case typeOf v of
-  User n -> n -- <> showid v -- TODO: not correct, but this causes tests to pass
-                             -- suspect we are doing `Var.named (Var.name v)` or
-                             -- something
+  User n -> n <> showid v
   Inference Ability -> "𝕖" <> showid v
   Inference Input -> "𝕒" <> showid v
   Inference Output -> "𝕣" <> showid v
   Inference Other -> "𝕩" <> showid v
-  Inference PatternPureE -> "𝕗" <> showid v
+  Inference PatternPureE -> "𝕞" <> showid v
   Inference PatternPureV -> "𝕧" <> showid v
-  Inference PatternBindE -> "𝕗" <> showid v
+  Inference PatternBindE -> "𝕞" <> showid v
   Inference PatternBindV -> "𝕧" <> showid v
+  Inference TypeConstructor -> "𝕗" <> showid v
+  Inference TypeConstructorArg -> "𝕦" <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
   AskInfo -> "?" <> showid v
@@ -51,6 +51,7 @@ name v = case typeOf v of
 
 askInfo, missingResult, blank, inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
+  inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
 askInfo = typed AskInfo
 missingResult = typed MissingResult
@@ -62,6 +63,8 @@ inferPatternPureE = typed (Inference PatternPureE)
 inferPatternPureV = typed (Inference PatternPureV)
 inferPatternBindE = typed (Inference PatternBindE)
 inferPatternBindV = typed (Inference PatternBindV)
+inferTypeConstructor = typed (Inference TypeConstructor)
+inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
 data Type
@@ -81,6 +84,7 @@ data InferenceType =
   Ability | Input | Output |
   PatternPureE | PatternPureV |
   PatternBindE | PatternBindV |
+  TypeConstructor | TypeConstructorArg |
   Other
   deriving (Eq,Ord,Show)
 
