@@ -1,0 +1,32 @@
+use State get put
+use Writer tell
+
+> handle stateHandler "hello" in
+  handle writerHandler [] in
+  replicate 5 main
+
+main = '(tell get)
+
+replicate : Nat -> '{e} () -> {e} ()
+replicate n x =
+  if n Nat.== 0 then () else
+    !x
+    replicate (n `drop` 1) x
+
+effect State a where
+  get : {State a} a
+  put : a -> {State a} ()
+
+effect Writer w where
+  tell : w -> {Writer w} ()
+
+stateHandler : s -> Effect {State s} a -> (s, a)
+stateHandler s x = case x of
+  { State.get -> k } -> handle stateHandler s in k s
+  { State.put s -> k } -> handle stateHandler s in k ()
+  { a } -> (s, a)
+
+writerHandler : [w] -> Effect {Writer w} a -> ([w], a)
+writerHandler ww x = case x of
+  { Writer.tell w -> k } -> handle writerHandler (ww `snoc` w) in k ()
+  { a } -> (ww, a)

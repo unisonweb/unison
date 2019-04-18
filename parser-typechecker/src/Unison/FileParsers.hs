@@ -144,7 +144,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
         extractTopLevelBindings _                        = Map.empty
         tlcsFromTypechecker =
           uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
-        vars (v, _, _) = Var.name v
+          where vars (v, _, _) = Var.name v
         strippedTopLevelBinding (v, typ, redundant) = do
           tm <- case Map.lookup (Var.name v) topLevelBindings of
             Nothing ->

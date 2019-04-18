@@ -15,14 +15,15 @@ import Control.Monad
 import Data.Word (Word64)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
+import Data.Map (Map)
 import Data.Maybe
-import Data.Ord
+import Data.Ord (comparing)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
-import Prelude.Extras (Eq1(..), Show1(..))
+import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
 import Unison.Hashable (Accumulate,Hashable1,hash1)
 import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
@@ -51,13 +52,14 @@ unvar (Free v) = v
 unvar (Bound v) = v
 
 instance Var v => Var (V v) where
-  rename n2 = fmap (Var.rename n2)
-  named txt = Bound (Var.named txt)
-  name v = Var.name (unvar v)
-  qualifiedName v = Var.qualifiedName (unvar v)
+  typed t = Bound (Var.typed t)
+  retype t v = case v of
+    Free v -> Free (Var.retype t v)
+    Bound v -> Bound (Var.retype t v)
+  typeOf v = Var.typeOf (unvar v)
+  freshId v = Var.freshId (unvar v)
   freshIn s v = Var.freshIn (Set.map unvar s) <$> v
   freshenId id v = Var.freshenId id <$> v
-  clear v = Var.clear <$> v
 
 data Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
 
@@ -250,6 +252,17 @@ rename old new t0@(Term _ ann t) = case t of
   Abs v body -> if v == old then abs' ann v body
                 else abs' ann v (rename old new body)
   Tm v -> tm' ann (fmap (rename old new) v)
+
+changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f v a
+changeVars m t = case out t of
+  Abs v body -> case Map.lookup v m of
+    Nothing -> abs' (annotation t) v (changeVars m body)
+    Just v' -> abs' (annotation t) v' (changeVars m body)
+  Cycle body -> cycle' (annotation t) (changeVars m body)
+  Var v -> case Map.lookup v m of
+    Nothing -> t
+    Just v -> annotatedVar (annotation t) v
+  Tm v -> tm' (annotation t) (changeVars m <$> v)
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
@@ -460,6 +473,22 @@ instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
     go (Tm f1) (Tm f2) = f1 ==# f2
     go _ _ = False
 
+instance (Foldable f, Functor f, Ord1 f, Var v) => Ord (Term f v a) where
+  -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
+  t1 `compare` t2 = go (out t1) (out t2) where
+    go (Var v) (Var v2) = v `compare` v2
+    go (Cycle t1) (Cycle t2) = t1 `compare` t2
+    go (Abs v1 body1) (Abs v2 body2) =
+      if v1 == v2 then body1 `compare` body2
+      else let v3 = freshInBoth body1 body2 v1
+           in rename v1 v3 body1 `compare` rename v2 v3 body2
+    go (Tm f1) (Tm f2) = compare1 f1 f2
+    go t1 t2 = tag t1 `compare` tag t2
+    tag (Var _) = 0 :: Word
+    tag (Tm _) = 1
+    tag (Abs _ _) = 2
+    tag (Cycle _) = 3
+
 components :: Var v => [(v, Term f v a)] -> [[(v, Term f v a)]]
 components = Components.components freeVars
 
@@ -502,8 +531,8 @@ hashComponents termFromHash termsByName = let
     in (h, sortedComponent') : go newHashes rest
   in if Set.null escapedVars then go Map.empty sccs
      else error $ "can't hashComponents if bindings have free variables:\n  "
-               ++ show (map Var.qualifiedName (Set.toList escapedVars))
-               ++ "\n  " ++ show (map Var.qualifiedName (Map.keys termsByName))
+               ++ show (map Var.name (Set.toList escapedVars))
+               ++ "\n  " ++ show (map Var.name (Map.keys termsByName))
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
@@ -529,7 +558,7 @@ hash t = hash' [] t where
             ind = findIndex lookup env
             hashInt :: Int -> h
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show (Var.qualifiedName v)
+            die = error $ "unknown var in environment: " ++ show (Var.name v)
                         ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
@@ -568,5 +597,5 @@ instance (Show1 f, Var v) => Show (Term f v a) where
   showsPrec p (Term _ _ out) = case out of
     Var v -> (\x -> "Var " ++ show v ++ x)
     Cycle body -> ("Cycle " ++) . showsPrec p body
-    Abs v body -> showParen True $ (Text.unpack (Var.shortName v) ++) . showString ". " . showsPrec p body
+    Abs v body -> showParen True $ (Text.unpack (Var.name v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

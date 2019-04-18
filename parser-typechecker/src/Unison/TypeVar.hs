@@ -28,11 +28,10 @@ instance Show v => Show (TypeVar b v) where
   show (Existential _ v) = "'" ++ show v
 
 instance Var v => Var (TypeVar b v) where
-  rename n (Universal v) = Universal (Var.rename n v)
-  rename n (Existential b v) = Existential b (Var.rename n v)
-  named txt = Universal (Var.named txt)
-  name v = Var.name (underlying v)
-  qualifiedName v = Var.qualifiedName (underlying v)
+  typed t = Universal (Var.typed t)
+  typeOf v = Var.typeOf (underlying v)
+  freshId v = Var.freshId (underlying v)
+  retype t (Universal v) = Universal $ Var.retype t v
+  retype t (Existential b v) = Existential b $ Var.retype t v
   freshIn s v = Var.freshIn (Set.map underlying s) <$> v
   freshenId id v = Var.freshenId id <$> v
-  clear v = Var.clear <$> v
