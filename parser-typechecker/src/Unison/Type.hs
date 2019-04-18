@@ -437,18 +437,35 @@ generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
--- | This function removes all variable shadowing from the type and reduces
--- fresh ids to the minimum possible to avoid ambiguity.
-cleanupVars1 :: Var v => AnnotatedType v a -> AnnotatedType v a
-cleanupVars1 t | not Settings.cleanupTypes = t
-cleanupVars1 t = let
-  varsByName = foldl' step Map.empty (ABT.allVars t)
+-- | This function removes all variable shadowing from the types and reduces
+-- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
+-- two different types.
+cleanupVars :: Var v => [AnnotatedType v a] -> [AnnotatedType v a]
+cleanupVars ts | not Settings.cleanupTypes = ts
+cleanupVars ts = let
+  changedVars = cleanupVarsMap ts
+  in cleanupVars1' changedVars <$> ts
+
+-- Compute a variable replacement map from a collection of types, which
+-- can be passed to `cleanupVars1'`. This is used to cleanup variable ids
+-- for multiple related types, like when reporting a type error.
+cleanupVarsMap :: Var v => [AnnotatedType v a] -> Map.Map v v
+cleanupVarsMap ts = let
+  varsByName = foldl' step Map.empty (ts >>= ABT.allVars)
   step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
   changedVars = Map.fromList [ (v, Var.freshenId i v)
                              | (_, vs) <- Map.toList varsByName
                              , (v,i) <- nubOrd vs `zip` [0..]]
+  in changedVars
 
-  in ABT.changeVars changedVars t
+cleanupVars1' :: Var v => Map.Map v v -> AnnotatedType v a -> AnnotatedType v a
+cleanupVars1' = ABT.changeVars
+
+-- | This function removes all variable shadowing from the type and reduces
+-- fresh ids to the minimum possible to avoid ambiguity.
+cleanupVars1 :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupVars1 t | not Settings.cleanupTypes = t
+cleanupVars1 t = let [t'] = cleanupVars [t] in t'
 
 -- This removes duplicates and normalizes the order of ability lists
 cleanupAbilityLists :: Var v => AnnotatedType v a -> AnnotatedType v a
@@ -461,6 +478,9 @@ cleanupAbilityLists t = ABT.visitPure go t where
          [] -> Just (ABT.visitPure go v)
          _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
   go _ = Nothing
+
+cleanups :: Var v => [AnnotatedType v a] -> [AnnotatedType v a]
+cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
 cleanup :: Var v => AnnotatedType v a -> AnnotatedType v a
 cleanup t | not Settings.cleanupTypes = t

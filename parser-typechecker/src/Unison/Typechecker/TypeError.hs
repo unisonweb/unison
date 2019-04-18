@@ -4,7 +4,8 @@
 module Unison.Typechecker.TypeError where
 
 import           Control.Applicative           (empty)
-import           Data.Foldable                 (asum)
+import           Data.Foldable                 (asum, toList)
+import           Data.Bifunctor                (second)
 import           Data.Functor                  (void)
 import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
@@ -195,7 +196,7 @@ booleanMismatch0 b ex = do
     (foundType, _, _) <- inSubtypes
     void $ Ex.some Ex.inCheck
     ex
-    pure foundType
+    pure $ Type.cleanup foundType
   pure (BooleanMismatch b mismatchLoc (sub foundType) n)
 
 existentialMismatch0
@@ -209,13 +210,13 @@ existentialMismatch0 em getExpectedLoc = do
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
   let mismatchLoc = ABT.annotation mismatchSite
-  (foundType, expectedType, expectedLoc) <- Ex.unique $ do
+  ([foundType, expectedType], expectedLoc) <- Ex.unique $ do
     Ex.pathStart
     subtypes <- Ex.some Ex.inSubtype
     let (foundType, expectedType) = last subtypes
     void $ Ex.some Ex.inCheck
     expectedLoc <- getExpectedLoc
-    pure (foundType, expectedType, expectedLoc)
+    pure (Type.cleanups [foundType, expectedType], expectedLoc)
   pure $ ExistentialMismatch em (sub expectedType) expectedLoc
                                 (sub foundType) mismatchLoc
                                 -- todo : save type leaves too
@@ -227,7 +228,7 @@ ifBody = existentialMismatch0 IfBody (Ex.inSynthesizeApp >> Ex.inIfBody)
 vectorBody = existentialMismatch0 VectorBody (Ex.inSynthesizeApp >> Ex.inVector)
 matchBody = existentialMismatch0 CaseBody (Ex.inMatchBody >> Ex.inMatch)
 
-applyingNonFunction :: Ex.ErrorExtractor v loc (TypeError v loc)
+applyingNonFunction :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingNonFunction = do
   _ <- Ex.typeMismatch
   n <- Ex.errorNote
@@ -239,7 +240,7 @@ applyingNonFunction = do
         foundArgCount = length args
         -- unexpectedArgLoc = ABT.annotation arg
     whenM (expectedArgCount < foundArgCount) $ pure (f, arity0Type)
-  pure $ NotFunctionApplication f ft n
+  pure $ NotFunctionApplication f (Type.cleanup ft) n
 
 -- | Want to collect this info:
   -- The `n`th argument to `f` is `foundType`, but I was expecting `expectedType`.
@@ -252,7 +253,7 @@ applyingNonFunction = do
   --    `b` was chosen as `B`
   --    `c` was chosen as `C`
   -- (many colors / groups)
-applyingFunction :: forall v loc. Eq v => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingFunction :: forall v loc. (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
 applyingFunction = do
   n <- Ex.errorNote
   ctx <- Ex.typeMismatch
@@ -266,7 +267,18 @@ applyingFunction = do
     let go :: v -> Maybe (v, C.Type v loc)
         go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
         solvedVars = catMaybes (go <$> typeVars)
-    pure $ FunctionApplication f ft arg argIndex found expected leafs solvedVars n
+    let vm = Type.cleanupVarsMap $ [ft, found, expected]
+                                <> (fst <$> toList leafs)
+                                <> (snd <$> toList leafs)
+                                <> (snd <$> solvedVars)
+        cleanup = Type.cleanupVars1' vm . Type.cleanupAbilityLists
+    pure $ FunctionApplication f (cleanup ft)
+                                 arg argIndex
+                                 (cleanup found)
+                                 (cleanup expected)
+                                 ((\(a,b) -> (cleanup a, cleanup b)) <$> leafs)
+                                 (second cleanup <$> solvedVars)
+                                 n
 
 inSubtypes :: Ex.SubseqExtractor v loc (C.Type v loc,
                                         C.Type v loc,
