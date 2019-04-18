@@ -93,7 +93,8 @@ repository:
 
   comment:
     patterns: [
-      {include: "#block_comment"}
+      # {include: "#block_comment"}
+      {include: "#eof_comment"}
       {include: "#line_comment"}
     ]
   block_comment:
@@ -110,3 +111,7 @@ repository:
   line_comment:
     name: 'comment.line.double-dash.unison'
     match: '--.*$'
+  eof_comment:
+    name: 'comment.block.eof.unison'
+    begin: '^---'
+    end: '\\z'

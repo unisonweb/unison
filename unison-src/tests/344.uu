@@ -1,0 +1,5 @@
+ability Either a b where
+  left : a -> {Either a b} ()
+  right : b -> {Either a b} ()
+
+type Either a b = Left a | Right b
