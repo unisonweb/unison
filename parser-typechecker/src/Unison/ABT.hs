@@ -257,9 +257,11 @@ changeVars :: (Foldable f, Functor f, Var v) => Map v v -> Term f v a -> Term f 
 changeVars m t = case out t of
   Abs v body -> case Map.lookup v m of
     Nothing -> abs' (annotation t) v (changeVars m body)
-    Just v' -> abs' (annotation t) v' (changeVars m (rename v v' body))
+    Just v' -> abs' (annotation t) v' (changeVars m body)
   Cycle body -> cycle' (annotation t) (changeVars m body)
-  Var _ -> t
+  Var v -> case Map.lookup v m of
+    Nothing -> t
+    Just v -> annotatedVar (annotation t) v
   Tm v -> tm' (annotation t) (changeVars m <$> v)
 
 -- | Produce a variable which is free in both terms

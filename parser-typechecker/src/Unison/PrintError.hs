@@ -279,7 +279,7 @@ renderTypeError e env src = case e of
     ]
   FunctionApplication {..}
     -> let
-         fte         = Type.cleanup (Type.removePureEffects ft)
+         fte         = Type.removePureEffects ft
          fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
          showVar (v, _t) = Set.member v fteFreeVars
          solvedVars' = filter showVar solvedVars

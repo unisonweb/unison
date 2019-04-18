@@ -1,8 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE BangPatterns        #-}
 
 module Unison.Typechecker.TypeError where
 
+-- import Debug.Trace
 import           Control.Applicative           (empty)
 import           Data.Foldable                 (asum, toList)
 import           Data.Bifunctor                (second)
@@ -135,11 +137,11 @@ unknownType = do
   n <- Ex.errorNote
   pure $ UnknownType v loc n
 
-unknownTerm :: Ex.ErrorExtractor v loc (TypeError v loc)
+unknownTerm :: Var v => Ex.ErrorExtractor v loc (TypeError v loc)
 unknownTerm = do
   (loc, v, suggs, typ) <- Ex.unknownTerm
   n <- Ex.errorNote
-  pure $ UnknownTerm v loc suggs typ n
+  pure $ UnknownTerm v loc suggs (Type.cleanup typ) n
 
 generalMismatch :: (Var v, Ord loc) => Ex.ErrorExtractor v loc (TypeError v loc)
 generalMismatch = do
@@ -159,10 +161,9 @@ generalMismatch = do
   n <- Ex.errorNote
   mismatchSite <- Ex.innermostTerm
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
-  pure $ Mismatch (sub foundType) (sub expectedType)
-                  (sub foundLeaf) (sub expectedLeaf)
-                  (ABT.annotation mismatchSite)
-                  n
+  let [ft, et, fl, el] = Type.cleanups [sub foundType, sub expectedType,
+                                        sub foundLeaf, sub expectedLeaf]
+  pure $ Mismatch ft et fl el (ABT.annotation mismatchSite) n
 
 
 and,or,cond,matchGuard
