@@ -3,9 +3,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.UnisonFile where
-
+import Debug.Trace
 import           Control.Applicative    ((<|>))
 import           Control.Exception      (assert)
+import           Control.Lens           (view, _1)
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
@@ -59,7 +60,8 @@ data TypecheckedUnisonFile v a =
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
     topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-    watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+    watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+    hashTerms           :: Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
   } deriving Show
 
 getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
@@ -115,7 +117,7 @@ dependencies uf ns = directReferences <>
       ]
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches) =
+discardTypes (TypecheckedUnisonFile datas effects terms watches _) =
   UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ]
                            [ (a,b) | (a,b,_) <- join watches ]
 
@@ -134,17 +136,19 @@ toNames (UnisonFile {..}) = datas <> effects
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
 typecheckedToNames :: Var v => TypecheckedUnisonFile v a -> Names
-typecheckedToNames uf@(TypecheckedUnisonFile {..}) = terms <> datas <> effects
+typecheckedToNames TypecheckedUnisonFile {..} = terms <> datas <> effects
   where
   terms = Names.fromTerms
-    [ (Name.unsafeFromVar v, Referent.Ref r)  | (v, (r, _, _)) <- Map.toList ht]
-    where ht = hashTerms uf
+    [ (Name.unsafeFromVar v, Referent.Ref r)
+    | (v, (r, _, _)) <- Map.toList hashTerms
+    ]
   datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations')
   effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations')
 
 
-typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
+typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
+typecheckedUnisonFile0 =
+  TypecheckedUnisonFile Map.empty Map.empty mempty mempty mempty
 
 hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
@@ -155,12 +159,11 @@ hashConstructors file =
         [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
-hashTerms ::
+hashTerms' ::
      Var v
-  => TypecheckedUnisonFile v a
+  => [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
-hashTerms file = let
-  components = topLevelComponents file
+hashTerms' components = let
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
   terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
   hcs = Term.hashComponents terms0
@@ -189,21 +192,22 @@ constructorType ::
 constructorType = TL.constructorType . declsToTypeLookup
 
 -- todo: what was this for again?  Oh, to be able to add just
-filterTLCs :: forall v a. Var v =>
+filterTLCs :: forall v a. (Var v, Show a) =>
   (Reference -> Bool) -> TypecheckedUnisonFile v a -> TypecheckedUnisonFile v a
-filterTLCs keep file = assertClosed file'
+filterTLCs keep file = traceShowId $ assertClosed file'
   where
   assertClosed = id -- error "todo"
+  terms = hashTerms file
   file' = TypecheckedUnisonFile
     (Map.filter (keep . fst) $ dataDeclarations' file)
     (Map.filter (keep . fst) $ effectDeclarations' file)
-    (let terms = hashTerms file
-         wrangle component = [ (v, tm, tp)
+    (let wrangle component = [ (v, tm, tp)
                              | (v, tm, tp) <- component
                              , (r, _, _) <- toList $ Map.lookup v terms
                              , keep r]
      in fmap wrangle (topLevelComponents file))
     []
+    (Map.filter (keep . view _1) terms)
 
 filterVars
   :: Var v
@@ -216,6 +220,7 @@ filterVars types terms file = TypecheckedUnisonFile
   (effectDeclarations' file `Map.restrictKeys` types)
   (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
   (filter (any (\(v, _, _) -> Set.member v terms)) $ watchComponents file)
+  (hashTerms file `Map.restrictKeys` terms)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form

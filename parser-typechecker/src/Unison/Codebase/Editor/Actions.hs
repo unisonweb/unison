@@ -6,6 +6,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
+
 module Unison.Codebase.Editor.Actions where
 
 import           Control.Applicative
@@ -265,6 +266,8 @@ loop = do
                           (flip Relation.lookupDom (UF.dependencies' uf))
                           queryRefs
             fileClosedDeps = Set.intersection closedDeps refs
+            fileUniqueDeps =
+              Set.filter (not . Branch.contains branch0) fileClosedDeps
             queryRefs = Set.unions $ fmap wrangle query
               where
               multiMatchCrash sh = error $ "todo (a non-crashing error): " <> SH.toString sh <> " matches multiple definitions in the file: " <> show termRefMap
@@ -300,11 +303,12 @@ loop = do
               eval . Notify $ SlurpOutput updateo
               currentBranch .= branch'
             in
-            if fileClosedDeps == queryRefs then proceed
+            if fileUniqueDeps `Set.isSubsetOf` queryRefs then proceed
             else do
-              traceShowM queryRefs
-              traceShowM fileClosedDeps
-              traceShowM closedDeps
+              traceShowM $ "queryRefs:      " <> show queryRefs
+              traceShowM $ "closedDeps:     " <> show closedDeps
+              traceShowM $ "fileClosedDeps: " <> show fileClosedDeps
+              traceShowM $ "fileUniqueDeps: " <> show fileUniqueDeps
               ifM (confirmedCommand input) proceed reprompt
         ListBranchesI ->
           eval ListBranches >>= respond . ListOfBranches currentBranchName'

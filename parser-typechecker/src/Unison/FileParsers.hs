@@ -163,7 +163,8 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
         watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
-    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
+    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches'
+            (UF.hashTerms' terms'))
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]
