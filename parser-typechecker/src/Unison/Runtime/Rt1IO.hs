@@ -16,6 +16,7 @@ import           Control.Exception              ( try
 import           Control.Concurrent             ( ThreadId
                                                 , forkIO
                                                 , killThread
+                                                , threadDelay
                                                 )
 import           Control.Concurrent.MVar        ( MVar
                                                 , modifyMVar_
@@ -23,6 +24,7 @@ import           Control.Concurrent.MVar        ( MVar
                                                 , newMVar
                                                 , newEmptyMVar
                                                 , takeMVar
+                                                , putMVar
                                                 )
 import           Control.Lens
 import           Control.Monad.Trans            ( lift )
@@ -117,14 +119,14 @@ newUnisonHandle h = do
   t <- liftIO $ genText
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . (over handleMap) (Map.insert t h)
-  pure $ IR.T t
+  pure $ IR.Data IOSrc.handleReference IOSrc.handleId [IR.T t]
 
 newUnisonSocket :: Net.Socket -> UIO RT.Value
 newUnisonSocket s = do
   t <- liftIO $ genText
   m <- view ioState
   liftIO . modifyMVar_ m $ pure . (over socketMap) (Map.insert t s)
-  pure $ IR.T t
+  pure $ IR.Data IOSrc.socketReference IOSrc.socketId [IR.T t]
 
 deleteUnisonHandle :: Text -> UIO ()
 deleteUnisonHandle h = do
@@ -311,7 +313,8 @@ handleIO cenv cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
       forceThunk cenv s ir
         `finally` modifyMVar_ m (pure . (over threadMap) (Map.delete t))
     liftIO . modifyMVar_ m $ pure . (over threadMap) (Map.insert t id)
-    pure $ IR.T t
+    liftIO $ putMVar lock ()
+    pure $ IR.Data IOSrc.threadIdReference IOSrc.threadIdId [IR.T t]
   go "IO.kill" [IR.Data _ _ [IR.T thread]] = do
     m   <- view ioState
     map <- liftIO $ view threadMap <$> readMVar m
@@ -328,6 +331,9 @@ handleIO cenv cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
       (resultToVal =<< forceThunk cenv s acquire)
       (lamToHask cenv s release)
       (lamToHask cenv s use)
+  go "IO.delay" [IR.N n] = do
+    reraiseIO . threadDelay $ fromIntegral n
+    pure IR.unit
   go a b =
     error
       $  "IO handler called with unimplemented cid "
