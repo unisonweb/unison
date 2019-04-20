@@ -887,11 +887,6 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ context [Ann v' scrutineeType]
       pure [(v, v')]
-    Pattern.As _loc p' -> do
-      v  <- getAdvance p
-      v' <- lift $ freshenVar v
-      lift . appendContext $ context [Ann v' scrutineeType]
-      ((v, v') :) <$> checkPattern scrutineeType p'
     Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshenVar Var.inferOther
@@ -971,6 +966,11 @@ checkPattern scrutineeType0 p =
       st            <- lift $ applyM scrutineeType
       lift $ subtype overall st
       pure vs
+    Pattern.As _loc p' -> do
+      v  <- getAdvance p
+      v' <- lift $ freshenVar v
+      lift . appendContext $ context [Ann v' scrutineeType]
+      ((v, v') :) <$> checkPattern scrutineeType p'
     Pattern.EffectPure loc p -> do
       vt <- lift $ do
         v <- freshenVar Var.inferPatternPureV
