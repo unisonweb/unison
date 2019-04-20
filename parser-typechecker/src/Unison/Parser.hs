@@ -319,5 +319,10 @@ attempt = P.try
 -- Gives this var an id based on its position - a useful trick to
 -- obtain a variable whose id won't match any other id in the file
 -- `positionalVar a Var.missingResult`
-positionalVar :: (Annotated a, Var v) => a -> (v -> v) -> v
-positionalVar a kind = kind (Var.nameds (show (ann a)))
+positionalVar :: (Annotated a, Var v) => a -> v -> v
+positionalVar a v =
+  let s = start (ann a)
+      line = fromIntegral $ L.line s
+      col = fromIntegral $ L.column s
+  -- this works as long as no lines more than 50k characters
+  in Var.freshenId (line * 50000 + col) v

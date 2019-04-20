@@ -53,7 +53,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference
   :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
@@ -63,13 +63,21 @@ optionReference = typeNamed "Optional"
 errorReference = typeNamed "IOError"
 errorTypeReference = typeNamed "IOErrorType"
 seekModeReference = typeNamed "SeekMode"
+threadIdReference = typeNamed "ThreadId"
+socketReference = typeNamed "Socket"
+handleReference = typeNamed "Handle"
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId
+  :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
 ioErrorId = constructorNamed errorReference "IOError.IOError"
+handleId = constructorNamed handleReference "Handle.Handle"
+socketId = constructorNamed socketReference "Socket.Socket"
+threadIdId = constructorNamed threadIdReference "ThreadId.ThreadId"
+
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
@@ -238,6 +246,7 @@ ability IO where
 
 
   -- File system operations
+  getTempDirectory : {IO} (Either IOError FilePath)
   getCurrentDirectory : {IO} (Either IOError FilePath)
   setCurrentDirectory : FilePath ->{IO} (Either IOError ())
   directoryContents : FilePath ->{IO} Either IOError [FilePath]
@@ -283,11 +292,18 @@ ability IO where
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int
 
-  -- Threading
+  -- Threading --
+
+  -- Fork a thread
   fork : '{IO} a ->{IO} (Either IOError ThreadId)
 
+  -- Kill a running thread
   kill : ThreadId ->{IO} (Either IOError ())
 
+  -- Suspend the current thread for a number of microseconds.
+  delay : Nat ->{IO} (Either IOError ())
+
+  -- Safely acquire and release a resource
   bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
 
 |]

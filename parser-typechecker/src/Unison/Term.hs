@@ -563,7 +563,7 @@ unAskInfo tm = case tm of
 
 isVarKindInfo :: Var v => AnnotatedTerm' vt v a -> Bool
 isVarKindInfo t = case t of
-  Var' v | (Var.kind v) == "info" -> True
+  Var' v | (Var.typeOf v) == Var.AskInfo -> True
   _ -> False
 
 -- Dependencies including referenced data and effect decls
