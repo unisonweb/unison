@@ -1,5 +1,10 @@
 use Optional None Some
 
+optionToList : Optional a -> [a]
+optionToList o = case o of
+  Some a -> [a]
+  None   -> []
+
 lenLit : [a] -> Nat
 lenLit l = case l of
   [] -> 0
@@ -28,52 +33,55 @@ lenConcat2 l = case l of
   [] -> 0
   prefix ++ [_] -> 1 + lenConcat2 prefix
 
-> lenLit [1, 2, 3]
-> lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-> lenSnoc [1, 2, 3, 4, 5, 6, 7, 8]
-> lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-> lenConcat2 [1, 2, 3, 4, 5]
-
 head : [a] -> Optional a
 head l = case l of
   h +: _ -> Some h
   _ -> None
-
-> head []
-> head [1, 2, 3]
 
 firstTwo : [a] -> Optional (a, a)
 firstTwo l = case l of
   x +: (y +: _) -> Some (x, y)
   _ -> None
 
-> firstTwo []
-> firstTwo [1]
-> firstTwo [1, 2, 3]
-
 lastTwo : [a] -> Optional (a, a)
 lastTwo l = case l of
   _ :+ x :+ y -> Some (x, y)
   _ -> None
-
-> lastTwo []
-> lastTwo [1]
-> lastTwo [1, 2, 3]
 
 middle : [a] -> Optional [a]
 middle l = case l of
   [_] ++ m ++ [_] -> Some m
   _ -> None
 
-> middle []
-> middle [1, 2]
-> middle [1, 2, 3, 4, 5, 6]
-
-middleNel: [a] -> Optional (a, [a])
+middleNel : [a] -> Optional (a, [a])
 middleNel l = case l of
   [_] ++ (h +: t) ++ [_] -> Some (h, t)
   _ -> None
 
-> middleNel []
-> middleNel [1, 2]
-> middleNel [1, 2, 3, 4, 5, 6]
+splitAtFour : [a] -> ([a], [a])
+splitAtFour l = case l of
+  [a] ++ x@(b +: (c +: y@([] :+ d))) ++ tail -> ([a, b, c, d], tail)
+  _ -> (l, [])
+
+> (
+  lenLit [1, 2, 3],
+  lenCons [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+  lenSnoc [1, 2, 3, 4, 5, 6, 7, 8],
+  lenConcat1 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  lenConcat2 [1, 2, 3, 4, 5],
+  optionToList (head []),
+  optionToList (head [1, 2, 3]),
+  optionToList (firstTwo []),
+  optionToList (firstTwo [1]),
+  optionToList (firstTwo [1, 2, 3]),
+  optionToList (lastTwo []),
+  optionToList (lastTwo [1]),
+  optionToList (lastTwo [1, 2, 3]),
+  optionToList (middle []),
+  optionToList (middle [1, 2]),
+  optionToList (middle [1, 2, 3, 4, 5, 6]),
+  optionToList (middleNel []),
+  optionToList (middleNel [1, 2]),
+  optionToList (middleNel [1, 2, 3, 4, 5, 6]),
+  splitAtFour [1, 2, 3, 4, 5, 6, 7]
+)

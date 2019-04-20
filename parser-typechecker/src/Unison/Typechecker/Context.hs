@@ -256,6 +256,7 @@ data Cause v loc
   | PatternArityMismatch loc (Type v loc) Int
   -- A variable is defined twice in the same block
   | DuplicateDefinitions (NonEmpty (v, [loc]))
+  | ConcatPatternWithoutConstantLength loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -921,14 +922,26 @@ checkPattern scrutineeType0 p =
           pure $ lvs ++ rvs
         Pattern.Concat ->
           case (l, r) of
-            (Pattern.SequenceLiteral _ _, _) -> f
-            (_, Pattern.SequenceLiteral _ _) -> f
-            -- TODO - improve error
-            (_, _) -> lift . failWith $ PatternArityMismatch loc (Type.app loc (Type.vector loc) vt) 2
+            (p, _) | isConstLen p -> f
+            (_, p) | isConstLen p -> f
+            (_, _) -> lift . failWith $
+              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.vector loc) vt)
           where
             f = liftA2 (++) (g locL l) (g locR r)
             -- todo: same `Type.vector loc` thing
             g l p = checkPattern (Type.app l (Type.vector l) vt) p
+
+            -- Only pertains to sequences, returns False if not a sequence
+            isConstLen :: Pattern loc -> Bool
+            isConstLen p = case p of
+              Pattern.SequenceLiteral _ _ -> True
+              Pattern.SequenceOp _ l op r -> case op of
+                Pattern.Snoc -> isConstLen l
+                Pattern.Cons -> isConstLen r
+                Pattern.Concat -> isConstLen l && isConstLen r
+                c -> error $ "unpossible Pattern.SeqOp: " <> show c
+              Pattern.As _ p -> isConstLen p
+              _ -> False
         c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->

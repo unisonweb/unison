@@ -50,6 +50,11 @@ data SeqOp = Cons
            | Concat
            deriving (Eq, Show)
 
+instance H.Hashable SeqOp where
+  tokens Cons = [H.Tag 0]
+  tokens Snoc = [H.Tag 1]
+  tokens Concat = [H.Tag 2]
+
 instance Show (PatternP loc) where
   show (UnboundP _  ) = "Unbound"
   show (VarP     _  ) = "Var"
@@ -109,8 +114,7 @@ instance H.Hashable (PatternP p) where
   tokens (AsP _ p) = H.Tag 9 : H.tokens p
   tokens (TextP _ t) = H.Tag 10 : H.tokens t
   tokens (SequenceLiteralP _ ps) = H.Tag 11 : concatMap H.tokens ps
-  -- TODO - include op in hash?
-  tokens (SequenceOpP _ ph _op pt) = H.Tag 12 : H.tokens ph ++ H.tokens pt
+  tokens (SequenceOpP _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
 
 instance Eq (PatternP loc) where
   UnboundP _ == UnboundP _ = True

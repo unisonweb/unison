@@ -13,6 +13,7 @@
 
 module Unison.Runtime.IR where
 
+import Control.Applicative ((<|>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
@@ -179,7 +180,11 @@ data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
   | PatternSequenceLiteral [Pattern]
-  | PatternSequenceOp Pattern Pattern.SeqOp Pattern
+  | PatternSequenceCons Pattern Pattern
+  | PatternSequenceSnoc Pattern Pattern
+  -- `Either Int Int` here represents the known constant length of either
+  -- the left or right side of a sequence concat operation
+  | PatternSequenceConcat (Either Int Int) Pattern Pattern
   | PatternPure Pattern
   | PatternBind R.Reference ConstructorId [Pattern] Pattern
   | PatternAs Pattern
@@ -521,6 +526,17 @@ compile0 env bound t =
         e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
       compileCase (Term.MatchCase pat guard rhs@(ABT.unabs -> (vs,_))) =
           (compilePattern pat, underlyingSymbol <$> vs, go <$> guard, go rhs)
+
+      getSeqLength :: Pattern.Pattern -> Maybe Int
+      getSeqLength p = case p of
+        Pattern.SequenceLiteral ps -> Just (length ps)
+        Pattern.SequenceOp l op r -> case op of
+          Pattern.Snoc -> (+ 1) <$> getSeqLength l
+          Pattern.Cons -> (+ 1) <$> getSeqLength r
+          Pattern.Concat -> (+) <$> (getSeqLength l) <*> (getSeqLength r)
+        Pattern.As p -> getSeqLength p
+        _ -> Nothing
+
       compilePattern :: Pattern.Pattern -> Pattern
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
@@ -535,7 +551,17 @@ compile0 env bound t =
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
         Pattern.SequenceLiteral ps -> PatternSequenceLiteral (compilePattern <$> ps)
-        Pattern.SequenceOp l op r -> PatternSequenceOp (compilePattern l) op (compilePattern r)
+        Pattern.SequenceOp l op r -> case op of
+          Pattern.Snoc -> PatternSequenceSnoc (compilePattern l) (compilePattern r)
+          Pattern.Cons -> PatternSequenceCons (compilePattern l) (compilePattern r)
+          Pattern.Concat -> fromMaybe concatErr ((concat Left <$> getSeqLength l) <|> (concat Right <$> getSeqLength r))
+            where
+              concat :: (Int -> Either Int Int) -> Int -> Pattern
+              concat f i = PatternSequenceConcat (f i) (compilePattern l) (compilePattern r)
+              concatErr = error $ "At least one side of a concat must have a constant length. " <>
+                                  "This code should never be reached as this constraint is " <>
+                                  "applied in the typechecker."
+
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
@@ -745,7 +771,9 @@ decompileIR stack = \case
     PatternData r cid pats ->
       Pattern.Constructor r cid (d <$> pats)
     PatternSequenceLiteral ps -> Pattern.SequenceLiteral $ decompilePattern <$> ps
-    PatternSequenceOp l op r -> Pattern.SequenceOp (decompilePattern l) op (decompilePattern r)
+    PatternSequenceCons l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Cons (decompilePattern r)
+    PatternSequenceSnoc l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Snoc (decompilePattern r)
+    PatternSequenceConcat _ l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Concat (decompilePattern r)
     PatternPure pat -> Pattern.EffectPure (d pat)
     PatternBind r cid pats k ->
       Pattern.EffectBind r cid (d <$> pats) (d k)

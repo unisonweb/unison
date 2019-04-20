@@ -12,7 +12,6 @@
 
 module Unison.Runtime.Rt1 where
 
-import Control.Applicative (liftA2)
 import Control.Monad (foldM, join, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
@@ -660,24 +659,19 @@ run ioHandler env ir = do
            else Nothing
       (Sequence args, PatternSequenceLiteral pats) ->
         if length args == length pats then join <$> traverse tryCase (zip (toList args) pats) else Nothing
-      (Sequence args, PatternSequenceOp l op r) ->
-        case (op, args) of
-          (Cons, (h Sequence.:<| t)) -> f (h, l) (IR.Sequence t, r)
-          (Snoc, (t Sequence.:|> h)) -> f (IR.Sequence t, l) (h, r)
-          (Concat, _) -> concat l r
+      (Sequence args, PatternSequenceCons l r) ->
+        case args of
+          h Sequence.:<| t -> (++) <$> tryCase (h, l) <*> tryCase (IR.Sequence t, r)
           _ -> Nothing
-        where
-          f :: (Value, Pattern) -> (Value, Pattern) -> Maybe [Value]
-          f t1 t2 = liftA2 (++) (tryCase t1) (tryCase t2)
-
-          concat :: Pattern -> Pattern -> Maybe [Value]
-          concat (PatternSequenceLiteral ps) _ = concat' (length ps)
-          concat _ (PatternSequenceLiteral ps) = concat' (length args - length ps)
-          concat _ _ = Nothing
-
-          concat' :: Int -> Maybe [Value]
-          concat' i = f (IR.Sequence a1, l) (IR.Sequence a2, r) where (a1, a2) = Sequence.splitAt i args
-        -- where concat (PatternSequenceLiteral ps) p =
+      (Sequence args, PatternSequenceSnoc l r) ->
+        case args of
+          t Sequence.:|> h -> (++) <$> tryCase (IR.Sequence t, l) <*> tryCase (h, r)
+          _ -> Nothing
+      (Sequence args, PatternSequenceConcat litLen l r) ->
+        (++) <$> tryCase (IR.Sequence a1, l) <*> tryCase (IR.Sequence a2, r)
+          where
+            (a1, a2) = Sequence.splitAt i args
+            i = either id (\j -> length args - j) litLen
       (Pure v, PatternPure p) -> tryCase (v, p)
       (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
@@ -685,7 +679,7 @@ run ioHandler env ir = do
         then join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
         else Nothing
       (Requested _, PatternPure _) -> Nothing
-      (v, PatternAs p) -> (v:) <$> tryCase (v,p)
+      (v, PatternAs p) -> (v:) <$> tryCase (v, p)
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]
       (v, p) -> error $
