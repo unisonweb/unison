@@ -1,0 +1,3 @@
+test : [a] -> ([a], [a])
+test l = case l of
+  x ++ y -> (x, y)
