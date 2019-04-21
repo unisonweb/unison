@@ -4,7 +4,6 @@ module Unison.Test.TermPrinter where
 
 import EasyTest
 import qualified Data.Text as Text
-import qualified Data.Map as Map
 import Unison.ABT (annotation)
 import qualified Unison.HashQualified as HQ
 import Unison.Term
@@ -28,13 +27,15 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = fmap (CT.toPlain) $
-        pretty get_names (ac (-1) Normal Map.empty) (printAnnotate input_term)
+       prettied = fmap (CT.toPlain) $ prettyTop get_names input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
        actual_reparsed = Unison.Builtin.tm actual
    in scope s $ tests [(
+       do note $ "\n\n\nterm:\n" ++ s
+          note $ "usages:\n" ++ show (annotation $ printAnnotate get_names input_term)
+       ), (
        if actual == expected then ok
        else do note $ "expected:\n" ++ expected
                note $ "actual:\n"   ++ actual

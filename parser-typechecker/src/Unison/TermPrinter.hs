@@ -121,8 +121,8 @@ data InfixContext
 -}
 
 prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
-prettyTop env tm = pretty env (ac (-1) Normal Map.empty) (printAnnotate tm)
-                   
+prettyTop env tm = pretty env (ac (-1) Normal Map.empty) (printAnnotate env tm)
+
 pretty
   :: Var v
   => PrettyPrintEnv
@@ -298,8 +298,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
 
 pretty' ::
   Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
-pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal Map.empty) (printAnnotate t)
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal Map.empty) (printAnnotate t)
+pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal Map.empty) (printAnnotate n t)
+pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal Map.empty) (printAnnotate n t)
 
 prettyPattern
   :: Var v
@@ -387,7 +387,7 @@ prettyBinding env v term = go (symbolic && isBinary term) term where
       PP.group (prettyBinding env v tm) ]
     LamsNamedOpt' vs body -> PP.group $
       PP.group (defnLhs v vs <> " =") `PP.hang`
-      pretty env (ac (-1) Block Map.empty) (printAnnotate body)
+      pretty env (ac (-1) Block Map.empty) (printAnnotate env body)
      where
     t -> l "error: " <> l (show t)
    where
@@ -588,30 +588,37 @@ data PrintAnnotation = PrintAnnotation
     -- For each suffix that appears in/under this term, the set of prefixes 
     -- used with that suffix, and how many times each occurs.  
     usages :: Map Suffix (Map Prefix Int)
-  }
+  } deriving (Show)
 
 instance Semigroup PrintAnnotation where
-  (PrintAnnotation { usages = _ } ) <> (PrintAnnotation { usages = _ } ) = error "todo"
+  (PrintAnnotation { usages = a } ) <> (PrintAnnotation { usages = b } ) = 
+    PrintAnnotation { usages = Map.unionWith f a b } where
+      f a' b' = Map.unionWith (+) a' b'
 
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation { usages = Map.empty }
 
-suffixCounter :: AnnotatedTerm2 v at ap v a -> PrintAnnotation
-suffixCounter = \case
-  -- TODO is it right to do this for Var?
-  Var' _ -> error "todo" -- v
-  Ref' _ -> error "todo" -- r
-  Constructor' _ _ -> error "todo"  -- ref i
-  Request' _ _ -> error "todo" -- ref i
-  _ -> mempty
+suffixCounter :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
+suffixCounter n = let 
+  countName hq = fold $ fmap countUsage (HQ.toName $ hq)
+  in \case
+    Var' v -> countName $ HQ.fromVar v
+    Ref' r -> countName $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Constructor' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Request' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
+    _ -> mempty
 
-printAnnotate :: Ord v => AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
-printAnnotate tm = fmap snd (go (reannotateUp suffixCounter tm)) where
+printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
+printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounter n) tm)) where
   go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
   go = extraMap' id (const ()) (const ())
 
+countUsage :: Name -> PrintAnnotation
+countUsage name = case splitName name of
+  (prefix, suffix) -> PrintAnnotation { usages = Map.singleton suffix $ Map.singleton prefix 1}
+  
 splitName :: Name -> (Prefix, Suffix)
-splitName = error "todo"
+splitName n = ([], Name.toText n) -- TODO
 
 -- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
 elideFQN :: Imports -> HQ.HashQualified -> HQ.HashQualified
