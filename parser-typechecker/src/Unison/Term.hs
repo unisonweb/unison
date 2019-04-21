@@ -104,6 +104,8 @@ type AnnotatedTerm' vt v a = AnnotatedTerm2 vt a a v a
 -- | Allow type variables, term variables, type annotations and term annotations
 -- to all differ
 type AnnotatedTerm2 vt at ap v a = ABT.Term (F vt at ap) v a
+-- | Like `AnnotatedTerm v a`, but with only () for type and pattern annotations.
+type AnnotatedTerm3 v a = AnnotatedTerm2 v () () v a
 
 -- | Terms are represented as ABTs over the base functor F, with variables in `v`
 type Term v = AnnotatedTerm v ()
@@ -162,6 +164,47 @@ typeMap f t = go t where
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
     ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+
+extraMap' 
+  :: (Ord vt, Ord vt')
+  => (vt -> vt') 
+  -> (at -> at') 
+  -> (ap -> ap') 
+  -> AnnotatedTerm2 vt at ap v a 
+  -> AnnotatedTerm2 vt' at' ap' v a
+extraMap' vtf atf apf = ABT.extraMap (extraMap vtf atf apf)
+
+extraMap 
+  :: (Ord vt, Ord vt') 
+  => (vt -> vt') 
+  -> (at -> at') 
+  -> (ap -> ap') 
+  -> F vt at ap a 
+  -> F vt' at' ap' a
+extraMap vtf atf apf = \case
+  Int x -> Int x
+  Nat x -> Nat x
+  Float x -> Float x
+  Boolean x -> Boolean x
+  Text x -> Text x
+  Blank x -> Blank (fmap atf x)
+  Ref x -> Ref x
+  Constructor x y -> Constructor x y
+  Request x y -> Request x y
+  Handle x y -> Handle x y
+  App x y -> App x y
+  Ann tm x -> Ann tm (ABT.amap atf (ABT.vmap vtf x))
+  Sequence x -> Sequence x
+  If x y z -> If x y z
+  And x y -> And x y
+  Or x y -> Or x y
+  Lam x -> Lam x
+  LetRec x y z -> LetRec x y z
+  Let x y z -> Let x y z
+  Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
+
+matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
+matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
 
 unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
 unTypeVar = typeMap (ABT.vmap TypeVar.underlying)
@@ -447,8 +490,8 @@ unLet1 _ = Nothing
 
 -- | Satisfies `unLet (let' bs e) == Just (bs, e)`
 unLet
-  :: AnnotatedTerm' vt v a
-  -> Maybe ([(IsTop, v, AnnotatedTerm' vt v a)], AnnotatedTerm' vt v a)
+  :: AnnotatedTerm2 vt at ap v a
+  -> Maybe ([(IsTop, v, AnnotatedTerm2 vt at ap v a)], AnnotatedTerm2 vt at ap v a)
 unLet t = fixup (go t)
  where
   go (ABT.Tm' (Let isTop b (ABT.out -> ABT.Abs v t))) = case go t of
@@ -553,12 +596,12 @@ unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
-unAskInfo :: Var v => AnnotatedTerm' vt v a -> Maybe (AnnotatedTerm' vt v a)
+unAskInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a)
 unAskInfo tm = case tm of
   App' t arg | isVarKindInfo t -> Just arg
   _ -> Nothing
 
-isVarKindInfo :: Var v => AnnotatedTerm' vt v a -> Bool
+isVarKindInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Bool
 isVarKindInfo t = case t of
   Var' v | (Var.kind v) == "info" -> True
   _ -> False

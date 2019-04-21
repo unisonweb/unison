@@ -159,6 +159,15 @@ amap f (Term _ a out) = case out of
 instance Functor f => Functor (Term f v) where
   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
 
+extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
+extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
+  go :: Functor g => (forall k . f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
+  go p = \case 
+    Var v -> Var v
+    Cycle r -> Cycle (extraMap p r)
+    Abs v r -> Abs v (extraMap p r)
+    Tm x -> Tm (fmap (extraMap p) (p x))
+
 pattern Var' v <- Term _ _ (Var v)
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
 -- pattern Abs' v body <- Term _ _ (Abs v body)

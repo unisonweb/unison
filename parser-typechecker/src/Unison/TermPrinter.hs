@@ -17,7 +17,7 @@ import           Data.String                    ( IsString, fromString )
 import           Data.Text                      ( Text )
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
-import           Unison.ABT                     ( pattern AbsN', annotation, reannotateUp )
+import           Unison.ABT                     ( pattern AbsN', reannotateUp )
 import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
@@ -122,12 +122,12 @@ data InfixContext
 
 prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
 prettyTop env tm = pretty env (ac (-1) Normal Map.empty) (printAnnotate tm)
-
+                   
 pretty
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
-  -> AnnotatedTerm v (a, PrintAnnotation)
+  -> AnnotatedTerm3 v PrintAnnotation
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
@@ -229,7 +229,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
   commaList = sepList ("," <> PP.softbreak)
 
-  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm v (a, PrintAnnotation))] -> AnnotatedTerm v (a, PrintAnnotation) -> Pretty ColorText
+  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm3 v PrintAnnotation)] -> AnnotatedTerm3 v PrintAnnotation -> Pretty ColorText
   printLet sc bs e =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
@@ -245,7 +245,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
     isBlank _ = False
 
-  printCase :: Var v => MatchCase (a, PrintAnnotation) (AnnotatedTerm v (a, PrintAnnotation)) -> Pretty ColorText
+  printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` pretty n (ac 0 Block im) body
     where
@@ -260,13 +260,13 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
   -- operators.  At the moment the policy is just to render symbolic
   -- operators as infix - not 'wordy' function names.  So we produce
   -- "x + y" and "foo x y" but not "x `foo` y".
-  binaryOpsPred :: Var v => AnnotatedTerm v (a, PrintAnnotation) -> Bool
+  binaryOpsPred :: Var v => AnnotatedTerm3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
     Var' v | isSymbolic (HQ.fromVar v) -> True
     _ -> False
 
-  nonForcePred :: AnnotatedTerm v (a, PrintAnnotation) -> Bool
+  nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
   nonForcePred = \case
     Constructor' DD.UnitRef 0 -> False
     _                           -> True
@@ -280,7 +280,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
   -- produce any backticks.  We build the result out from the right,
   -- starting at `f2`.
   binaryApps
-    :: Var v => [(AnnotatedTerm v (a, PrintAnnotation), AnnotatedTerm v (a, PrintAnnotation))]
+    :: Var v => [(AnnotatedTerm3 v PrintAnnotation, AnnotatedTerm3 v PrintAnnotation)]
              -> Pretty ColorText
              -> Pretty ColorText
   binaryApps xs last = unbroken `PP.orElse` broken
@@ -379,7 +379,7 @@ a + b = ...
 
 -}
 prettyBinding ::
-  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> Pretty ColorText
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
 prettyBinding env v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
@@ -596,17 +596,19 @@ instance Semigroup PrintAnnotation where
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation { usages = Map.empty }
 
-suffixCounter :: AnnotatedTerm v a -> PrintAnnotation
+suffixCounter :: AnnotatedTerm2 v at ap v a -> PrintAnnotation
 suffixCounter = \case
   -- TODO is it right to do this for Var?
   Var' _ -> error "todo" -- v
   Ref' _ -> error "todo" -- r
   Constructor' _ _ -> error "todo"  -- ref i
   Request' _ _ -> error "todo" -- ref i
-  tm -> mempty
-  
-printAnnotate :: AnnotatedTerm v a -> AnnotatedTerm v (a, PrintAnnotation)
-printAnnotate = reannotateUp suffixCounter
+  _ -> mempty
+
+printAnnotate :: Ord v => AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
+printAnnotate tm = fmap snd (go (reannotateUp suffixCounter tm)) where
+  go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
+  go = extraMap' id (const ()) (const ())
 
 splitName :: Name -> (Prefix, Suffix)
 splitName = error "todo"
