@@ -36,8 +36,6 @@ type Err v = P.ParseError (Token Input) (Error v)
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
-  -- we would include the last binding term if we didn't have to have an Ord instance for it
-  | BlockMustEndWithExpression { blockAnn :: Ann, lastBindingAnn :: Ann }
   | EmptyBlock (L.Token String)
   | UnknownEffectConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)

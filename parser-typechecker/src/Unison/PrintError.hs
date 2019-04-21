@@ -952,15 +952,6 @@ prettyParseError s = \case
     , "binding after it.  Could it be a spelling mismatch?\n"
     , tokenAsErrorSite s tok
     ]
-   -- we would include the last binding term if we didn't have to have an Ord
-   -- instance for it
-  go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = mconcat
-    [ "The last line of the block starting at "
-    , fromString . fmap Char.toLower . annotatedToEnglish $ blockAnn
-    , "\n"
-    , "has to be an expression, not a binding/import/etc:"
-    , annotatedAsErrorSite s lastBindingAnn
-    ]
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
