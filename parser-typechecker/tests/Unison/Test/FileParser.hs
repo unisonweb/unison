@@ -55,7 +55,7 @@ module Unison.Test.FileParser where
 
   test :: Test ()
   test = scope "fileparser" . tests $
-    [test1, emptyWatchTest]
+    [test1, emptyWatchTest, signatureNeedsAccompanyingBodyTest]
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
@@ -67,7 +67,7 @@ module Unison.Test.FileParser where
           Just (MPE.ErrorCustom e) -> expectation e
           Just _ -> crash "Error encountered was not custom"
           Nothing -> crash "No error found"
-      Left _ -> crash "Parser failed with an error which was not fancy"
+      Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ show e)
 
   emptyWatchTest :: Test ()
   emptyWatchTest = scope "emptyWatchTest" $
@@ -77,6 +77,15 @@ module Unison.Test.FileParser where
         expectation e = case e of
           P.EmptyWatch -> ok
           _ -> crash "Error wasn't EmptyWatch"
+
+  signatureNeedsAccompanyingBodyTest :: Test ()
+  signatureNeedsAccompanyingBodyTest = scope "signatureNeedsAccompanyingBodyTest" $
+    expectFileParseFailure (unlines ["f : Nat -> Nat", "", "g a = a + 1"]) expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.SignatureNeedsAccompanyingBody _ -> ok
+          _ -> crash "Error wasn't SignatureNeedsAccompanyingBody"
 
   builtins :: Names
   builtins = Names.fromTerms
