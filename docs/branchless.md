@@ -104,6 +104,7 @@ Given:
 /A/B/c#xxx
 /D/E/f#yyy (depends on #xxx, #zzz)
 /D/G/h#zzz
+/libs/G/bar#zzz
 ```
 
 If `/D/E` is published, what names should be assigned to `#xxx`, `#zzz`?
@@ -135,6 +136,47 @@ Ask them to create aliases below the publication point?
 The nearest aux-name would only be used to render code only if there were no primary names known.
 
 ### Idea 5: Something with symlinks
+
+```haskell
+data Branch' m = Branch' (Causal m Namespace)
+
+data Causal m e
+  = One { currentHash :: Hash, head :: e }
+  | Cons { currentHash :: Hash, head :: e, tail :: m (Causal e) }
+  -- The merge operation `<>` flattens and normalizes for order
+  | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal e)) }
+
+-- just one level of name, like Foo or Bar, but not Foo.Bar
+newtype NameSegment = NameSegment { toText :: Text } -- no dots, no slashes
+newtype Path = Path { toList :: [NameSegment] }
+
+data Namespace m = Namespace
+	{ terms :: Relation NameSegment Referent
+  , types :: Relation NameSegment Reference
+  , children :: Relation NameSegment (Link m)
+  }
+
+data Link m = LocalLink (Branch' m) | RemoteLink RemotePath
+data RemotePath = Github { username :: Text, repo :: Text, commit :: Text } -- | ... future
+```
+
+This lets us avoid redistributing libs unnecessarily — let the requesting user get it from wherever we got it from.  But it doesn't specifically address this external naming question.
+
+We might be publishing `/app/foo` which references definitions we got from `repo1`.  Somewhere in our tree (possibly under `/app/foo` and possibly not?) we have a link to `repo1`.  
+
+Somewhere under `/app/foo` we reference some defn from `repo1`. 
+
+Transitive publication algorithm:
+
+* find all the things that you're referencing
+* the things you're publishing that aren't under the pbulication point need to be resolved
+  * they're local, and need to be given names under the publication point
+    * user is notified, or we do something automatic
+  * they're remote, and we need to include, in the publication, a link to the remote repo.
+    * user is notified, or we do something automatic
+* "Something automatic" will be:
+  * mirror the dependency names from our namespace into `./_Libs`; if it would produce naming conflicts to use `./_Libs`, then `_Libs1`, etc.
+  * Or, just dump them into `./_Libs` and if doing so produces naming conflicts, force the user to resolve them before publishing.
 
 ## Syncing with remote codetrees
 
