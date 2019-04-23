@@ -55,7 +55,12 @@ module Unison.Test.FileParser where
 
   test :: Test ()
   test = scope "fileparser" . tests $
-    [test1, emptyWatchTest, signatureNeedsAccompanyingBodyTest, emptyBlockTest]
+    [test1
+    , emptyWatchTest
+    , signatureNeedsAccompanyingBodyTest
+    , emptyBlockTest
+    , expectedBlockOpenTest
+    ]
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
@@ -95,6 +100,15 @@ module Unison.Test.FileParser where
         expectation e = case e of
           P.EmptyBlock _ -> ok
           _ -> crash "Error wasn't EmptyBlock"
+
+  expectedBlockOpenTest :: Test ()
+  expectedBlockOpenTest = scope "expectedBlockOpenTest" $
+    expectFileParseFailure "f a b = case a b" expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.ExpectedBlockOpen _ _ -> ok
+          _ -> crash "Error wasn't ExpectedBlockOpen"
 
   builtins :: Names
   builtins = Names.fromTerms
