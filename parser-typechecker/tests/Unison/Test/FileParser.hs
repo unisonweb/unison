@@ -60,6 +60,7 @@ module Unison.Test.FileParser where
     , signatureNeedsAccompanyingBodyTest
     , emptyBlockTest
     , expectedBlockOpenTest
+    , unknownDataConstructorTest
     ]
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -109,6 +110,15 @@ module Unison.Test.FileParser where
         expectation e = case e of
           P.ExpectedBlockOpen _ _ -> ok
           _ -> crash "Error wasn't ExpectedBlockOpen"
+
+  unknownDataConstructorTest :: Test ()
+  unknownDataConstructorTest = scope "unknownDataConstructorTest" $
+    expectFileParseFailure "m a = case a of A -> 1" expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.UnknownDataConstructor _ -> ok
+          _ -> crash "Error wasn't UnknownDataConstructor"
 
   builtins :: Names
   builtins = Names.fromTerms
