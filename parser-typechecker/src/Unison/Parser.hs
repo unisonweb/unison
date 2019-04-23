@@ -37,7 +37,7 @@ type Err v = P.ParseError (Token Input) (Error v)
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | EmptyBlock (L.Token String)
-  | UnknownEffectConstructor (L.Token String)
+  | UnknownAbilityConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch

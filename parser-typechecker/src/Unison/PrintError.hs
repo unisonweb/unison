@@ -961,8 +961,8 @@ prettyParseError s = \case
     ]
   go (Parser.EmptyWatch) =
     "I expected a non-empty watch expression and not just \">\""
-  go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
-  go (Parser.UnknownDataConstructor   tok) = unknownConstructor "data" tok
+  go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
+  go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
   unknownConstructor
     :: String -> L.Token String -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
