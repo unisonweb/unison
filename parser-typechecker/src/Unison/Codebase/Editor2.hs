@@ -312,9 +312,6 @@ data Command i v a where
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
-  -- To resolve absolute names, we may want to pass a link to the
-  -- absolute root.  (This could be generalized to a tree of arbitrary
-  -- Link mount points, instead of one at `.` and one at `/`.)
   Typecheck :: AmbientAbilities
             -> Link
             -> SourceName
@@ -349,23 +346,17 @@ data Command i v a where
            -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
-  -- Loads a branch by hash/link from the codebase (or elsewhere),
+  -- Loads one level of a branch by hash/link from the codebase (or elsewhere),
   -- returning `Nothing` if not found.
   LoadBranch :: Link -> Command i v (Maybe Branch)
 
-  -- Create a new/forked branch which is a copy of the given branch, and
-  -- assign the new branch the given name. Returns `False` and does nothing
-  -- if a branch by that name already exists.
-  NewBranch :: Branch -> BranchName -> Command i v Bool
+  -- Copy the code from the given link location to the local codebase at the
+  -- given path. Returns `False` and does nothing if that path is not empty.
+  Fork :: Link -> Path -> Command i v Bool
 
-  -- Merges the branch with the existing branch with the given name. Returns
-  -- `False` if no branch with that name exists, `True` otherwise.
-  -- Question: Should SyncBranch return a Maybe Branch instead of a Bool?
-  --           Is it possible for the result on disk to end up different from
-  --           this input branch without triggering a new branch file event?
-  SyncBranch :: BranchName -> Branch -> Command i v Bool
-
-  DeleteBranch :: BranchName -> Command i v ()
+  -- Merges the code from the given link with the existing code at the given
+  -- path. Returns `False` if the link is dead, `True` otherwise.
+  Merge :: Link -> Path -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
@@ -379,11 +370,11 @@ data Command i v a where
 
   LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
-  Todo :: Branch -> Command i v (TodoOutput v Ann)
+  Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
 
-  Propagate :: Branch -> Command i v Branch
+  Propagate :: Edits -> Branch -> Command i v Branch
 
-  Execute :: Branch -> UF.UnisonFile v Ann -> Command i v ()
+  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
 
 -- data Outcome
 --   -- New definition that was added to the branch

@@ -34,10 +34,6 @@ data Link = LocalLink Hash | RemoteLink RemotePath
 -- want some type that represents a Branch0, with the ability to update its parents if we update the Branch0.
 type Foo m = ()
 
--- Points to a Namespace, which can evolve over time (with Causal history)
-data Branch = Branch (Causal Namespace)
-  deriving (Eq, Ord, Show)
-
 data UnisonRepo = UnisonRepo
   { _rootNamespace :: Link
   , _editMap :: EditMap
@@ -52,7 +48,20 @@ data Edits = Edits
 newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
 type FriendlyEditNames = Relation Text GUID
 
+newtype Branch = Branch { _history :: Causal Branch0 }
+
+data Branch0 = Branch0
+  { _terms :: Relation NameSegment Referent
+  , _types :: Relation NameSegment Reference
+  , _children :: Map NameSegment Link
+  }
+
+data Link = LocalLink Hash | RemoteLink RemotePath
+getLocalBranch :: Hash -> m Branch
+getRemoteBranch :: RemotePath -> m Branch
+
 makeLenses ''Namespace
 makeLenses ''Edits
 makeLenses ''Branch
+makeLenses ''Branch0
 makeLenses ''Causal

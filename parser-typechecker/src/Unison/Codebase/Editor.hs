@@ -48,6 +48,7 @@ import qualified Unison.Names as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference, pattern DerivedId )
 import qualified Unison.Reference              as Reference
 import           Unison.Result                  ( Note
@@ -321,7 +322,7 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-  Evaluate :: Branch
+  Evaluate :: PrettyPrintEnv
            -> UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
@@ -374,7 +375,7 @@ data Command i v a where
 
   Propagate :: Branch -> Command i v Branch
 
-  Execute :: Branch -> UF.UnisonFile v Ann -> Command i v ()
+  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
 
 data Outcome
   -- New definition that was added to the branch
@@ -689,26 +690,24 @@ commandLine awaitInput rt notifyUser codebase command = do
       fileToBranch handler codebase branch unisonFile
     Typecheck ambient branch sourceName source ->
       typecheck ambient codebase (Branch.toNames branch) sourceName source
-    Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
-    ListBranches                      -> Codebase.branches codebase
-    LoadBranch branchName             -> Codebase.getBranch codebase branchName
-    NewBranch  branch branchName      -> newBranch codebase branch branchName
-    SyncBranch branchName branch      -> syncBranch codebase branch branchName
+    Evaluate ppe unisonFile          -> evalUnisonFile ppe unisonFile
+    ListBranches                     -> Codebase.branches codebase
+    LoadBranch branchName            -> Codebase.getBranch codebase branchName
+    NewBranch  branch     branchName -> newBranch codebase branch branchName
+    SyncBranch branchName branch     -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
-    LoadTerm r -> Codebase.getTerm codebase r
-    LoadType r -> Codebase.getTypeDeclaration codebase r
-    LoadSearchResults results -> loadSearchResults codebase results
-    Todo b -> doTodo codebase (Branch.head b)
-    Propagate b -> do
+    LoadTerm          r              -> Codebase.getTerm codebase r
+    LoadType          r              -> Codebase.getTypeDeclaration codebase r
+    LoadSearchResults results        -> loadSearchResults codebase results
+    Todo              b              -> doTodo codebase (Branch.head b)
+    Propagate         b              -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
-    Execute branch uf -> void $ evalUnisonFile branch uf
-  evalUnisonFile branch unisonFile = do
+    Execute ppe uf -> void $ evalUnisonFile ppe uf
+  evalUnisonFile ppe unisonFile = do
     let codeLookup = Codebase.toCodeLookup codebase
-    selfContained <- Codebase.makeSelfContained' codeLookup
-                                                 (Branch.head branch)
-                                                 unisonFile
+    selfContained <- Codebase.makeSelfContained' codeLookup ppe unisonFile
     let noCache = const (pure Nothing)
     Runtime.evaluateWatches codeLookup noCache rt selfContained
 
