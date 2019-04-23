@@ -142,9 +142,9 @@ data Branch' m = Branch' (Causal m Namespace)
 
 data Causal m e
   = One { currentHash :: Hash, head :: e }
-  | Cons { currentHash :: Hash, head :: e, tail :: m (Causal e) }
+  | Cons { currentHash :: Hash, head :: e, tail :: m (Causal m e) }
   -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal e)) }
+  | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal m e)) }
 
 -- just one level of name, like Foo or Bar, but not Foo.Bar
 newtype NameSegment = NameSegment { toText :: Text } -- no dots, no slashes
@@ -244,5 +244,4 @@ So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` 
 
 Our Javascript viewer can be made to create URLs with query params or fragments in them that can indicate the Unison path, and those can be the ones we share in tweets, etc:
 
-http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the default branch being the head, and the default path being /.
-
+http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the default branch being the head, and the default path being `/`.

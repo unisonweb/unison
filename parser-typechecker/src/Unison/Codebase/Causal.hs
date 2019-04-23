@@ -49,6 +49,9 @@ uncons x = Just $ go [] x where
 instance Eq (Causal a) where
   a == b = currentHash a == currentHash b
 
+instance Ord (Causal a) where
+  a <= b = currentHash a <= currentHash b
+
 merge :: Semigroup e => Causal e -> Causal e -> Causal e
 a `merge` b | before a b = b
 a `merge` b | before b a = a
