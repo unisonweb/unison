@@ -1,4 +1,52 @@
-# Branchless codebase format
+## Branchless codebase format
+
+## Commands / Usage
+
+```
+/> clone gh:aryairani/libfoo
+  Copied gh:aryairani/libfoo blah blah to /libfoo
+/> undo
+/> clone gh:aryairani/libfoo /libs/DeepLearning/Foo
+  Copied gh:aryairani/libfoo blah blah to /libs/DeepLearning/Foo
+/>
+```
+`clone <remote> [path]`
+
+`push [path] <remote>`
+
+```
+/> cd projects
+/projects> rename FaceDetector FaceDetector/V1
+/projects> cd FaceDetector
+/projects/FaceDetector> cp V1 V2
+```
+
+`cd <path>` — support relative paths?
+
+`cp <path> <path>`
+
+
+```
+/projects/FaceDetector> replace.scoped V2 /libs/DeepLearning/Foo/thing1 mything1
+
+  Noted replacement of thing1#af2 with mything#i9d within /projects/FaceDetector/V2.
+```
+
+```
+replace.write <editsetid> <ref1> <ref2>
+todo <editsetid> <path>
+
+```
+
+```
+/projects/FaceDetector> todo
+  ...7 things...
+/projects/FaceDetector> todo /
+  ...33 things...
+/projects/FaceDetector>
+```
+
+`mv` / `rename` command: can refer to Terms, Types, Directories, or all three.  Use hash-qualified names to discriminate.
 
 ## Namespaces
 
@@ -78,6 +126,36 @@ type FriendlyEditNames = Relation Text GUID
 * It could be the same as sharing Unison definitions:
   Make up a URI that references a repo and an edit GUID.
   e.g. `https://github.com/<user>/<repo>/<...>/<guid>[/hash]`
+* `clone.edits <remote-url> [local-name]`
+  * `guid` comes from remote-url, and is locally given the name `local-name`
+  * if `local-name` is omitted, then copy name from `remote-url`.  
+  * if `local-name` already exists locally with a different `guid`, then abort.
+
+### Editsets as first-class unison terms:
+Benefits:
+* Don't have two separate dimensions of forking and causality (namespace vs edits).
+* Makes codebase model way simpler to explain. <— BFD
+
+Costs / todo:
+
+Q: Do we allow users to edit `EditSets` using standard `view` and `edit` in M1?
+
+If Yes:
+
+* EditSets are arbitrary Unison programs that need to be evaluated.  Once evaluated, they would have a known structure that can be decomposed for EditSet operations.   We would need:
+
+* * [ ] some new or existing syntax for constructing EditSet values
+  * [x] a way to evaluate these unison programs
+  * [ ] a way to save evaluated results back to the codebase / namespace
+    * Q: Do we evaluate and save these eagerly or lazily?
+  * [ ] a way in Haskell to deconstruct the EditSet value
+  * [ ] a way to modify (append to) values of that type using CLI commands.  e.g. `update` ?
+    * either `update` calls a unison function that
+
+If no (we don't provide user syntax for constructing `EditSets` in .u file):
+
+* EditSets are part of the term language?  
+* Or a constructor with a particular hash? (Applied to Unison terms)
 
 ## Refactoring for existing functionality
 
@@ -186,11 +264,12 @@ data BranchPath = BranchPath RepoRef Path
 data RepoRef = Local | GithubRef { username :: Text, repo :: Text, treeish :: Text }
 
 ```
+
 ```
 /libs/community/DL
 ```
 becomes
-```haskell
+​```haskell
 BranchPath Local (Path ["libs","community","DL"])
 ```
 
@@ -202,7 +281,7 @@ gh:<user>/<repo>[/<path>][?ref=<treeish>] -- defaults to repo's `default_branch`
 e.g. gh:aryairani/unison/libs?ref=topic/370
 ```
 becomes
-```haskell
+​```haskell
 BranchPath (GithubRef "aryairani" "unison" "topic/370") (Path ["libs"])
 ```
 or
@@ -245,3 +324,5 @@ So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` 
 Our Javascript viewer can be made to create URLs with query params or fragments in them that can indicate the Unison path, and those can be the ones we share in tweets, etc:
 
 http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the default branch being the head, and the default path being `/`.
+
+```

@@ -134,43 +134,44 @@ import qualified Unison.Type                   as Type
 data Input
   -- names stuff:
     -- directory ops
-    = ForkBranchI Link Path
-    | MergeBranchI Link Path
-    | MoveBranchI Path Path -- mv foo bar vs mv foo bar/ ?
+    = ForkBranchI Link Path -- clone w/o merge, error if would clobber
+    | MergeBranchI Link Path -- merge first causal into destination
+    | RenameBranchI Path Path -- mv foo bar vs mv foo bar/ ? -- don't a
     | DeleteBranchI [Path]
-    | SwitchBranchI Path
+    | SwitchBranchI Path -- cd
     -- definition naming
-    | AliasUnconflictedI (Set NameTarget) Name Name
-    | RenameUnconflictedI (Set NameTarget) Name Name
+      -- if HashQualified is unique, create alias
+    | AliasUniqueI HashQualified Name
+    | RenameUniqueI HashQualified Name
     | UnnameAllI (Set HashQualified)
     -- resolving naming conflicts
     | ResolveTermNameI Referent Name
     | ResolveTermNameI Reference Name
   -- edits stuff:
-    -- begin applying `guid` to the todos for `path`
-    | ActivateEditsI Path EditGuid
-    -- stop applying `guid` from the todos for `path`
-    | DeactivateEditsI Path EditGuid
-    -- list work from active todos
-    | TodoI Path
-    | PropagateI -- get rid of this?
-    -- create and remove update directives
-    | CreateEditsI EditGuid -- implies SetEdits?
-    | SetEditsI EditGuid
-    | ClearEdits -- don't record (don't allow?) term edits
-    | ListEditsI EditGuid
-    | ReplaceTermI EditGuid Reference Reference
-    | ReplaceTypeI EditGuid Reference Reference
-    -- clear updates for a term or type
-    | RemoveAllTermUpdatesI EditGuid Reference
-    | RemoveAllTypeUpdatesI EditGuid Reference
-    -- resolve update conflicts
-    | ChooseUpdateForTermI EditGuid Reference Reference
-    | ChooseUpdateForTypeI EditGuid Reference Reference
+    -- -- begin applying `guid` to the todos for `path`
+    -- | ActivateEditsI Path EditGuid
+    -- -- stop applying `guid` from the todos for `path`
+    -- | DeactivateEditsI Path EditGuid
+    -- -- list work from active todos
+    -- | TodoI Path
+    -- | PropagateI -- get rid of this?
+    -- -- create and remove update directives
+    -- | CreateEditsI EditGuid -- implies SetEdits?
+    -- | SetEditsI EditGuid
+    -- | ClearEdits -- don't record (don't allow?) term edits
+    -- | ListEditsI EditGuid
+    -- | ReplaceTermI EditGuid Reference Reference
+    -- | ReplaceTypeI EditGuid Reference Reference
+    -- -- clear updates for a term or type
+    -- | RemoveAllTermUpdatesI EditGuid Reference
+    -- | RemoveAllTypeUpdatesI EditGuid Reference
+    -- -- resolve update conflicts
+    -- | ChooseUpdateForTermI EditGuid Reference Reference
+    -- | ChooseUpdateForTypeI EditGuid Reference Reference
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
-  | SlurpFileI AllowUpdates
+  | SlurpFileI -- todo (with Edits): AllowUpdates
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
   | UpdateBuiltinsI
@@ -310,8 +311,8 @@ data Command i v a where
   -- It may complain if you are trying to write definitions into a remote link,
   -- and suggest that you can convert the link to a fork if you want.
   AddDefsToCodebase
-    :: CollisionHandler
-    -> Link
+    :: -- CollisionHandler -> (todo)
+       Link
     -> UF.TypecheckedUnisonFile v Ann
     -> Command i v (SlurpResult v)
 
@@ -355,11 +356,11 @@ data Command i v a where
 
   -- Copy the code from the given link location to the local codebase at the
   -- given path. Returns `False` and does nothing if that path is not empty.
-  Fork :: Link -> Path -> Command i v Bool
+  ForkBranch :: Link -> Path -> Command i v Bool
 
   -- Merges the code from the given link with the existing code at the given
   -- path. Returns `False` if the link is dead, `True` otherwise.
-  Merge :: Link -> Path -> Command i v Bool
+  MergeBranch :: Link -> Path -> Command i v Bool
 
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
@@ -371,19 +372,22 @@ data Command i v a where
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
+  -- this loads some metadata for prettier search result display
   LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
+  -- execute `_main` in UnisonFile, decompile and print the result
+  -- using the provided PPE
   Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
 
 
--- Edits stuff:
-  Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
-
-  Propagate :: Edits -> Branch -> Command i v Branch
-
-  -- copies an edit; needs some more ux design
-  PullEdits :: EditLink -> Command i v Bool
-  PushEdits :: EditLink -> Command i v Bool
+-- -- Edits stuff:
+--   Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
+--
+--   Propagate :: Edits -> Branch -> Command i v Branch
+--
+--   -- copies an edit; needs some more ux design
+--   PullEdits :: EditLink -> Command i v Bool
+--   PushEdits :: EditLink -> Command i v Bool
 
 -- data Outcome
 --   -- New definition that was added to the branch
