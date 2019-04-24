@@ -41,6 +41,7 @@ library
     Unison.Codebase
     Unison.Codebase.Branch
     Unison.Codebase.Causal
+    Unison.Codebase.Causal2
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions

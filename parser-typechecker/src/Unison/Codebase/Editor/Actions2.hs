@@ -9,6 +9,7 @@
 
 module Unison.Codebase.Editor.Actions2 where
 
+import qualified Unison.Codebase.Causal2       as Causal
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
@@ -85,7 +86,9 @@ import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
 
-type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
+type F i v = Free (Command i v)
+
+type Action i v a = MaybeT (StateT (LoopState (F i v) v) (F i v)) a
 
 data Nav f k v = Nav
   { root :: Nav f k v
@@ -114,198 +117,204 @@ type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
-loopState0 :: Branch -> BranchName -> LoopState v
+loopState0 :: Branch -> BranchName -> LoopState m v
 loopState0 b bn = LoopState b bn Nothing Nothing Nothing []
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
-    s <- get
-    uf                 <- use latestTypecheckedFile
-    currentBranchName' <- use currentBranchName
-    latestFile'        <- use latestFile
-    currentBranch'     <- use currentBranch
-    e                  <- eval Input
-    let withFile ambient sourceName text k = do
-          Result notes r <- eval $
-            Typecheck ambient (view currentBranch s) sourceName text
-          case r of
-            -- Parsing failed
-            Nothing ->
-              respond $ ParseErrors
-                text
-                [ err | Result.Parsing err <- toList notes ]
-            Just (errorEnv, r) ->
-              let h = respond $ TypeErrors
-                        text
-                        errorEnv
-                        [ err | Result.TypeError err <- toList notes ]
-               in maybe h (k errorEnv) r
-    case e of
-      Left (UnisonBranchChanged names) ->
-        when (Set.member currentBranchName' names)
-          $ switchBranch currentBranchName'
-      Left (UnisonFileChanged sourceName text) ->
-        -- We skip this update if it was programmatically generated
-        if fromMaybe False . fmap snd $ latestFile'
-          then modifying latestFile $ (fmap (const False) <$>)
-          else do
-            eval (Notify $ FileChangeEvent sourceName text)
-            withFile [] sourceName text $ \errorEnv unisonFile -> do
-              eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-              (bindings, e) <-
-                eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
-              let e' = Map.map go e
-                  go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-              -- todo: this would be a good spot to update the cache
-              -- with all the (hash, eval) pairs, even if it's just an
-              -- in-memory cache
-              eval . Notify $ Evaluated text
-                (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
-                bindings
-                e'
-              latestFile .= Just (Text.unpack sourceName, False)
-              latestTypecheckedFile .= Just unisonFile
-      Right input -> case input of
-        -- ls with no arguments
-        SearchByNameI [] -> do
-          let results = listBranch currentBranch'
-          numberedArgs .= fmap searchResultToHQString results
-          eval (LoadSearchResults results)
-            >>= respond . ListOfDefinitions currentBranch' False
-        SearchByNameI ["-l"] -> do
-          let results = listBranch currentBranch'
-          numberedArgs .= fmap searchResultToHQString results
-          eval (LoadSearchResults results)
-            >>= respond . ListOfDefinitions currentBranch' True
-        -- ls with arguments
-        SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
-          let results = searchBranch currentBranch' qs Editor.FuzzySearch
-          numberedArgs .= fmap searchResultToHQString results
-          eval (LoadSearchResults results)
-            >>= respond . ListOfDefinitions currentBranch' True
-        SearchByNameI (map HQ.fromString -> qs) -> do
-          let results = searchBranch currentBranch' qs Editor.FuzzySearch
-          numberedArgs .= fmap searchResultToHQString results
-          eval (LoadSearchResults results)
-            >>= respond . ListOfDefinitions currentBranch' False
-        ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval . LoadSearchResults $
-                              searchBranch currentBranch' qs Editor.ExactSearch
-          let termTypes :: Map.Map Reference (Editor.Type v Ann)
-              termTypes = Map.fromList
-                [ (r, t)
-                | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
-              termReferent (Editor.Tm _ _ r _) = Just r
-              termReferent _ = Nothing
-              typeReference (Editor.Tp _ _ r _) = Just r
-              typeReference _ = Nothing
-              (collatedTerms, collatedTypes) =
-                collateReferences (catMaybes . map termReferent $ results)
-                                  (catMaybes . map typeReference $ results)
-          loadedTerms <- for collatedTerms $ \r -> case r of
-            Reference.DerivedId i -> do
-              tm <- eval (LoadTerm i)
-              -- We add a type annotation to the term using if it doesn't
-              -- already have one that the user provided
-              pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-                Nothing        -> MissingThing i
-                Just (tm, typ) -> case tm of
-                  Term.Ann' _ _ -> RegularThing tm
-                  _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-            Reference.Builtin _ -> pure (r, BuiltinThing)
-          loadedTypes <- for collatedTypes $ \r -> case r of
-            Reference.DerivedId i ->
-              (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
-            Reference.Builtin _ -> pure (r, BuiltinThing)
-          -- makes sure that the user search terms get used as the names
-          -- in the pretty-printer
-          let
-            ppe =
-              PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ] <>
-              PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ] <>
-              Branch.prettyPrintEnv (Branch.head currentBranch')
-            loc = case outputLoc of
-              Editor.ConsoleLocation    -> Nothing
-              Editor.FileLocation path  -> Just path
-              Editor.LatestFileLocation -> fmap fst latestFile'
-                <|> Just (Text.unpack currentBranchName' <> ".u")
-          do
-            eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
-            -- We set latestFile to be programmatically generated, if we
-            -- are viewing these definitions to a file - this will skip the
-            -- next update for that file (which will happen immediately)
-            latestFile .= ((, True) <$> loc)
-        RemoveAllTermUpdatesI _t       -> error "todo"
-        RemoveAllTypeUpdatesI _t       -> error "todo"
-        ResolveTermNameI _b _old _new -> error "todo"
-        ResolveTermNameI _b _old _new -> error "todo"
-        AddTermNameI r name -> modifyCurrentBranch0 $
-          Branch.addTermName r name
-        AddTypeNameI r name -> modifyCurrentBranch0 $
-          Branch.addTypeName r name
-        RemoveTermNameI r name -> modifyCurrentBranch0 $
-          Branch.deleteTermName r name
-        RemoveTypeNameI r name -> modifyCurrentBranch0 $
-          Branch.deleteTypeName r name
-        ChooseTermForNameI r name -> modifyCurrentBranch0 $
-          Branch.addTermName r name . Branch.unnameAll Names.TermName name
-        ChooseTypeForNameI r name -> modifyCurrentBranch0 $
-          Branch.addTypeName r name . Branch.unnameAll Names.TypeName name
-        AliasUnconflictedI targets existingName newName ->
-          aliasUnconflicted targets existingName newName
-        RenameUnconflictedI targets oldName newName ->
-          renameUnconflicted targets oldName newName
-        UnnameAllI hqs -> do
-          modifyCurrentBranch0 $ \b ->
-            let wrangle b hq = doTerms (doTypes b)
-                  where
-                  doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
-                  doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
-                  doTerm b (n, r) = Branch.deleteTermName r n b
-                  doType b (n, r) = Branch.deleteTypeName r n b
-            in foldl' wrangle b hqs
-          respond $ Success input
-        SlurpFileI allowUpdates -> case uf of
-          Nothing -> respond NoUnisonFile
-          Just uf' -> do
-            let collisionHandler = if allowUpdates
-                  then Editor.updateCollisionHandler
-                  else Editor.addCollisionHandler
-            updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
-            let branch' = updatedBranch updateo
-            -- Don't bother doing anything if the branch is unchanged by the slurping
-            when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
-            eval . Notify $ SlurpOutput updateo
-            currentBranch .= branch'
-        ListBranchesI ->
-          eval ListBranches >>= respond . ListOfBranches currentBranchName'
-        SwitchBranchI branchName       -> switchBranch branchName
-        ForkBranchI   targetBranchName -> ifM
-          (eval $ NewBranch currentBranch' targetBranchName)
-          (outputSuccess *> switchBranch targetBranchName)
-          (respond $ BranchAlreadyExists targetBranchName)
-        MergeBranchI inputBranchName ->
-          withBranch inputBranchName $ \branch -> do
-            let merged0 = branch <> currentBranch'
-            merged <- eval $ Propagate merged0
-            ok     <- eval $ SyncBranch currentBranchName' merged
-            if ok
-              then do
-                currentBranch .= merged
-                respond $ Success input -- a merge-specific message
-                checkTodo
-              else respond (UnknownBranch inputBranchName)
-        DeleteBranchI branchNames ->
-          withBranches branchNames $ \bnbs -> do
-          uniqueToDelete <- prettyUniqueDefinitions bnbs
-          let deleteBranches b =
-                traverse (eval . DeleteBranch) b >> respond (Success input)
-          if (currentBranchName' `elem` branchNames) then
-                  respond DeletingCurrentBranch
-          else if null uniqueToDelete then deleteBranches branchNames
-          else ifM (confirmedCommand input)
-                   (deleteBranches branchNames)
-                   (respond . DeleteBranchConfirmation $ uniqueToDelete)
+  uf          <- use latestTypecheckedFile
+  path'       <- use path
+  latestFile' <- use latestFile
+  nav'        <- use nav
+  e           <- eval Input
+  let withFile ambient sourceName text k = do
+        Result notes r <- eval
+          $ Typecheck ambient (view history $ get nav') sourceName text
+        case r of
+          -- Parsing failed
+          Nothing -> respond
+            $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
+          Just (errorEnv, r) ->
+            let h = respond $ TypeErrors
+                  text
+                  errorEnv
+                  [ err | Result.TypeError err <- toList notes ]
+            in  maybe h (k errorEnv) r
+  case e of
+    Left (UnisonBranchChanged names) ->
+      when (Set.member currentBranchName' names)
+        $ switchBranch currentBranchName'
+    Left (UnisonFileChanged sourceName text) ->
+      -- We skip this update if it was programmatically generated
+      if fromMaybe False . fmap snd $ latestFile'
+        then modifying latestFile $ (fmap (const False) <$>)
+        else do
+          eval (Notify $ FileChangeEvent sourceName text)
+          withFile [] sourceName text $ \errorEnv unisonFile -> do
+            eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+            (bindings, e) <-
+              eval . Evaluate (view currentBranch s) $ UF.discardTypes
+                unisonFile
+            let e' = Map.map go e
+                go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
+            -- todo: this would be a good spot to update the cache
+            -- with all the (hash, eval) pairs, even if it's just an
+            -- in-memory cache
+            eval . Notify $ Evaluated
+              text
+              (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+              bindings
+              e'
+            latestFile .= Just (Text.unpack sourceName, False)
+            latestTypecheckedFile .= Just unisonFile
+    Right input -> case input of
+      -- ls with no arguments
+      SearchByNameI [] -> do
+        let results = listBranch currentBranch'
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' False
+      SearchByNameI ["-l"] -> do
+        let results = listBranch currentBranch'
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' True
+      -- ls with arguments
+      SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
+        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' True
+      SearchByNameI (map HQ.fromString -> qs) -> do
+        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' False
+      ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
+        results <- eval . LoadSearchResults $ searchBranch currentBranch'
+                                                           qs
+                                                           Editor.ExactSearch
+        let termTypes :: Map.Map Reference (Editor.Type v Ann)
+            termTypes =
+              Map.fromList
+                [ (r, t) | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
+            termReferent (Editor.Tm _ _ r _) = Just r
+            termReferent _                   = Nothing
+            typeReference (Editor.Tp _ _ r _) = Just r
+            typeReference _                   = Nothing
+            (collatedTerms, collatedTypes) = collateReferences
+              (catMaybes . map termReferent $ results)
+              (catMaybes . map typeReference $ results)
+        loadedTerms <- for collatedTerms $ \r -> case r of
+          Reference.DerivedId i -> do
+            tm <- eval (LoadTerm i)
+            -- We add a type annotation to the term using if it doesn't
+            -- already have one that the user provided
+            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+              Nothing        -> MissingThing i
+              Just (tm, typ) -> case tm of
+                Term.Ann' _ _ -> RegularThing tm
+                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
+          Reference.Builtin _ -> pure (r, BuiltinThing)
+        loadedTypes <- for collatedTypes $ \r -> case r of
+          Reference.DerivedId i ->
+            (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
+          Reference.Builtin _ -> pure (r, BuiltinThing)
+        -- makes sure that the user search terms get used as the names
+        -- in the pretty-printer
+        let
+          ppe =
+            PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ]
+              <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
+              <> Branch.prettyPrintEnv (Branch.head currentBranch')
+          loc = case outputLoc of
+            Editor.ConsoleLocation    -> Nothing
+            Editor.FileLocation path  -> Just path
+            Editor.LatestFileLocation -> fmap fst latestFile'
+              <|> Just (Text.unpack currentBranchName' <> ".u")
+        do
+          eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+          -- We set latestFile to be programmatically generated, if we
+          -- are viewing these definitions to a file - this will skip the
+          -- next update for that file (which will happen immediately)
+          latestFile .= ((, True) <$> loc)
+      RemoveAllTermUpdatesI _t -> error "todo"
+      RemoveAllTypeUpdatesI _t -> error "todo"
+      ResolveTermNameI _b _old _new -> error "todo"
+      ResolveTermNameI _b _old _new -> error "todo"
+      AddTermNameI r name -> modifyCurrentBranch0 $ Branch.addTermName r name
+      AddTypeNameI r name -> modifyCurrentBranch0 $ Branch.addTypeName r name
+      RemoveTermNameI r name ->
+        modifyCurrentBranch0 $ Branch.deleteTermName r name
+      RemoveTypeNameI r name ->
+        modifyCurrentBranch0 $ Branch.deleteTypeName r name
+      ChooseTermForNameI r name ->
+        modifyCurrentBranch0
+          $ Branch.addTermName r name
+          . Branch.unnameAll Names.TermName name
+      ChooseTypeForNameI r name ->
+        modifyCurrentBranch0
+          $ Branch.addTypeName r name
+          . Branch.unnameAll Names.TypeName name
+      AliasUnconflictedI targets existingName newName ->
+        aliasUnconflicted targets existingName newName
+      RenameUnconflictedI targets oldName newName ->
+        renameUnconflicted targets oldName newName
+      UnnameAllI hqs -> do
+        modifyCurrentBranch0 $ \b ->
+          let wrangle b hq = doTerms (doTypes b)
+               where
+                doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
+                doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
+                doTerm b (n, r) = Branch.deleteTermName r n b
+                doType b (n, r) = Branch.deleteTypeName r n b
+          in  foldl' wrangle b hqs
+        respond $ Success input
+      SlurpFileI allowUpdates -> case uf of
+        Nothing  -> respond NoUnisonFile
+        Just uf' -> do
+          let collisionHandler = if allowUpdates
+                then Editor.updateCollisionHandler
+                else Editor.addCollisionHandler
+          updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
+          let branch' = updatedBranch updateo
+          -- Don't bother doing anything if the branch is unchanged by the slurping
+          when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
+          eval . Notify $ SlurpOutput updateo
+          currentBranch .= branch'
+      ListBranchesI ->
+        eval ListBranches >>= respond . ListOfBranches currentBranchName'
+      SwitchBranchI branchName       -> switchBranch branchName
+      ForkBranchI   targetBranchName -> ifM
+        (eval $ NewBranch currentBranch' targetBranchName)
+        (outputSuccess *> switchBranch targetBranchName)
+        (respond $ BranchAlreadyExists targetBranchName)
+      MergeBranchI inputBranchName -> withBranch inputBranchName $ \branch ->
+        do
+          let merged0 = branch <> currentBranch'
+          merged <- eval $ Propagate merged0
+          ok     <- eval $ SyncBranch currentBranchName' merged
+          if ok
+            then do
+              currentBranch .= merged
+              respond $ Success input -- a merge-specific message
+              checkTodo
+            else respond (UnknownBranch inputBranchName)
+      DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
+        uniqueToDelete <- prettyUniqueDefinitions bnbs
+        let deleteBranches b =
+              traverse (eval . DeleteBranch) b >> respond (Success input)
+        if (currentBranchName' `elem` branchNames)
+          then respond DeletingCurrentBranch
+          else if null uniqueToDelete
+            then deleteBranches branchNames
+            else ifM (confirmedCommand input)
+                     (deleteBranches branchNames)
+                     (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
         TodoI -> checkTodo
         PropagateI -> do

@@ -33,7 +33,7 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Causal         ( Causal )
+import           Unison.Codebase.Causal2        ( Causal )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
@@ -46,7 +46,7 @@ import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Codebase.Causal        as Causal
+import qualified Unison.Codebase.Causal2       as Causal
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
@@ -435,7 +435,7 @@ putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
 getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
 getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
 
-putCausal :: MonadPut m => Causal a -> (a -> m ()) -> m ()
+putCausal :: MonadPut m => Causal n a -> (a -> m ()) -> n (m ())
 putCausal (Causal.One hash a) putA =
   putWord8 1 *> putHash hash *> putA a
 putCausal (Causal.ConsN conss tail) putA =
