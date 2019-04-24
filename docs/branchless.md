@@ -81,8 +81,8 @@ type FriendlyEditNames = Relation Text GUID
 
 ## Refactoring for existing functionality
 
-* [ ] Split Edits out of `Branch0`
-* [ ] Delete `oldNamespace`, and instead add deprecated names
+* [x] Split Edits out of `Branch0`
+* [x] Delete `oldNamespace`, and instead add deprecated names
 * [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
 * [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
   * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.

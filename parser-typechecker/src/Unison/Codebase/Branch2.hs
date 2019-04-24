@@ -1,52 +1,66 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Unison.Codebase.Branch2 where
 
-import qualified Unison.Codebase.Branch as Branch
-import           Data.GUID                (genText)
+-- import qualified Unison.Codebase.Branch as Branch
+
+import           Prelude                  hiding (head,subtract)
+
+-- import           Control.Lens
+-- import           Control.Monad            (join)
+-- import           Data.GUID                (genText)
+import           Data.List                (intercalate)
+import           Data.Map                 (Map)
 import           Data.Text                (Text)
+import qualified Data.Text as Text
+
+import           Unison.Codebase.Causal   (Causal)
+import           Unison.Codebase.TermEdit (TermEdit)
+import           Unison.Codebase.TypeEdit (TypeEdit)
+import           Unison.Hash              (Hash)
+import           Unison.Reference         (Reference)
+import           Unison.Referent          (Referent)
+import           Unison.Util.Relation     (Relation)
 
 
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
-newtype Path = Path { toList :: [NameSegment] }
-type GUID = Text
 
--- These Branches are positioned in two dimensions:
--- name prefix (tree position), and time.
---
--- When we update one, we create a new point in time,
--- and need to propagate our new time value back up the tree to produce
--- a tree root corresponding to the new point in time.
--- How can we do that?  Need some zipper to pass around instead of just Links.
-newtype Branch = Branch { unbranch :: Causal Branch0 } deriving (Eq, Show)
+newtype Path = Path { toList :: [NameSegment] } deriving (Eq, Ord)
 
-data Branch0 = Branch0
-	{ _terms :: Relation NameSegment Referent
-  , _types :: Relation NameSegment Reference
-  , _children :: Relation NameSegment Link
-  } deriving (Eq, Ord, Show)
+instance Show Path where
+  show (Path nss) = intercalate "/" $ fmap escape1 nss
+    where escape1 ns = escape =<< (Text.unpack . toText $ ns)
+          escape = \case '/' -> "\\/"; c -> [c]
 
-data RemotePath = Github { username :: Text, repo :: Text, commit :: Text }
-            --  | ... future
-            deriving (Eq, Ord, Show)
-
-data Link = LocalLink Hash | RemoteLink RemotePath
+data RepoRef
+  = Local
+  | Github { username :: Text, repo :: Text, commit :: Text }
   deriving (Eq, Ord, Show)
 
--- want some type that represents a Branch0, with the ability to update its parents if we update the Branch0.
-type Foo m = ()
+type EditGuid = Text
+
+data RepoLink a = RepoLink RepoRef a
+  deriving (Eq, Ord, Show)
+
+type Link = RepoLink Hash
+type EditLink = RepoLink EditGuid
 
 data UnisonRepo = UnisonRepo
   { _rootNamespace :: Link
   , _editMap :: EditMap
-  , _editNames :: Relation Text GUID
-  }
+  , _editNames :: Relation Text EditGuid
+  } deriving (Eq, Ord, Show)
 
 data Edits = Edits
-	{ _termEdits :: Relation Reference TermEdit
-	, _typeEdits :: Relation Reference TypeEdit
-	}
+  { _termEdits :: Relation Reference TermEdit
+  , _typeEdits :: Relation Reference TypeEdit
+  } deriving (Eq, Ord, Show)
 
-newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
-type FriendlyEditNames = Relation Text GUID
+newtype EditMap =
+  EditMap { toMap :: Map EditGuid (Causal Edits) }
+  deriving (Eq, Ord, Show)
+
+type FriendlyEditNames = Relation Text EditGuid
 
 newtype Branch = Branch { _history :: Causal Branch0 }
 
@@ -56,12 +70,12 @@ data Branch0 = Branch0
   , _children :: Map NameSegment Link
   }
 
-data Link = LocalLink Hash | RemoteLink RemotePath
-getLocalBranch :: Hash -> m Branch
-getRemoteBranch :: RemotePath -> m Branch
+-- getLocalBranch :: Hash -> IO Branch
+-- getGithubBranch :: RemotePath -> IO Branch
+-- getLocalEdit :: GUID -> IO Edits
 
-makeLenses ''Namespace
-makeLenses ''Edits
-makeLenses ''Branch
-makeLenses ''Branch0
-makeLenses ''Causal
+-- makeLenses ''Namespace
+-- makeLenses ''Edits
+-- makeLenses ''Branch
+-- makeLenses ''Branch0
+-- makeLenses ''Causal

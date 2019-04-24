@@ -7,7 +7,7 @@
 -- {-# LANGUAGE TupleSections #-}
 -- {-# LANGUAGE ViewPatterns #-}
 --
-module Unison.Codebase.Editor where
+module Unison.Codebase.Editor2 where
 
 import qualified Unison.Codebase.Branch2 as Branch2
 --
@@ -26,37 +26,40 @@ import qualified Unison.Codebase.Branch2 as Branch2
 -- import Data.Map (Map)
 -- import           Data.Sequence                  ( Seq )
 -- import           Data.Set                       ( Set )
--- import qualified Data.Set as Set
+import qualified Data.Set as Set
 -- import           Data.Text                      ( Text
 --                                                 , unpack
 --                                                 )
 -- import qualified Unison.Builtin                as B
 -- import           Unison.Codebase                ( Codebase )
 -- import qualified Unison.Codebase               as Codebase
--- import           Unison.Codebase.Branch         ( Branch
---                                                 , Branch0
---                                                 )
--- import qualified Unison.Codebase.Branch        as Branch
+import           Unison.Codebase.Branch2         ( Branch
+                                                 , Branch0
+                                                 , EditLink
+                                                 , Link
+                                                 , Path
+                                                 )
+import qualified Unison.Codebase.Branch2        as Branch
 -- import qualified Unison.Codebase.SearchResult  as SR
 -- import qualified Unison.DataDeclaration        as DD
 -- import           Unison.FileParsers             ( parseAndSynthesizeFile )
--- import           Unison.HashQualified           ( HashQualified )
--- import           Unison.Name                    ( Name )
--- import qualified Unison.Name                   as Name
--- import           Unison.Names                   ( Names
---                                                 , NameTarget
---                                                 )
+import           Unison.HashQualified           ( HashQualified )
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import           Unison.Names                   ( Names
+                                                , NameTarget
+                                                )
 -- import qualified Unison.Names as Names
 -- import           Unison.Parser                  ( Ann )
 -- import qualified Unison.Parser                 as Parser
 -- import qualified Unison.PrettyPrintEnv         as PPE
--- import           Unison.Reference               ( Reference, pattern DerivedId )
+import           Unison.Reference               ( Reference, pattern DerivedId )
 -- import qualified Unison.Reference              as Reference
 -- import           Unison.Result                  ( Note
 --                                                 , Result
 --                                                 )
 -- import qualified Unison.Result                 as Result
--- import           Unison.Referent                ( Referent )
+import           Unison.Referent                ( Referent )
 -- import qualified Unison.Referent               as Referent
 -- import qualified Unison.Runtime.IOSource       as IOSource
 -- import           Unison.Symbol                  ( Symbol )
@@ -66,7 +69,7 @@ import qualified Unison.Codebase.Branch2 as Branch2
 -- import           Unison.Codebase.Runtime       (Runtime)
 -- import qualified Unison.Codebase.TermEdit      as TermEdit
 -- import qualified Unison.Term                   as Term
--- import qualified Unison.Type                   as Type
+import qualified Unison.Type                   as Type
 -- import qualified Unison.Typechecker            as Typechecker
 -- import qualified Unison.Typechecker.Context    as Context
 -- import           Unison.Typechecker.TypeLookup  ( Decl )
@@ -127,46 +130,53 @@ import qualified Unison.Codebase.Branch2 as Branch2
 --   , termsWithBlockedDependencies :: Map v (Set Reference)
 --   , typesWithBlockedDependencies :: Map v (Set Reference)
 --   } deriving (Show)
---
--- data Input
---   -- high-level manipulation of names
---   = AliasUnconflictedI (Set NameTarget) Name Name
---   | RenameUnconflictedI (Set NameTarget) Name Name
---   | UnnameAllI (Set HashQualified)
---   -- low-level manipulation of names
---   | AddTermNameI Referent Name
---   | AddTypeNameI Reference Name
---   | RemoveTermNameI Referent Name
---   | RemoveTypeNameI Reference Name
---   -- resolving naming conflicts
---   | ChooseTermForNameI Referent Name
---   | ChooseTypeForNameI Reference Name
---   -- create and remove update directives
---   | ListAllUpdatesI
---   -- clear updates for a term or type
---   | RemoveAllTermUpdatesI Referent
---   | RemoveAllTypeUpdatesI Reference
---   -- resolve update conflicts
---   | ChooseUpdateForTermI Referent Referent
---   | ChooseUpdateForTypeI Reference Reference
---   -- execute an IO object with arguments
---   | ExecuteI String
---   -- other
---   | SlurpFileI AllowUpdates
---   | ListBranchesI
---   | SearchByNameI [String]
---   | SwitchBranchI BranchName
---   | ForkBranchI BranchName
---   | MergeBranchI BranchName
---   | DeleteBranchI [BranchName]
---   | ShowDefinitionI OutputLocation [String]
---   | TodoI
---   | PropagateI
---   | UpdateBuiltinsI
---   | ListEditsI
---   | QuitI
---   deriving (Eq, Show)
---
+
+data Input
+  -- names stuff:
+    -- directory ops
+    = ForkBranchI Link Path
+    | MergeBranchI Link Path
+    | MoveBranchI Path Path -- mv foo bar vs mv foo bar/ ?
+    | DeleteBranchI [Path]
+    | SwitchBranchI Path
+    -- definition naming
+    | AliasUnconflictedI (Set NameTarget) Name Name
+    | RenameUnconflictedI (Set NameTarget) Name Name
+    | UnnameAllI (Set HashQualified)
+    -- resolving naming conflicts
+    | ResolveTermNameI Referent Name
+    | ResolveTermNameI Reference Name
+  -- edits stuff:
+    -- begin applying `guid` to the todos for `path`
+    | ActivateEditsI Path EditGuid
+    -- stop applying `guid` from the todos for `path`
+    | DeactivateEditsI Path EditGuid
+    -- list work from active todos
+    | TodoI Path
+    | PropagateI -- get rid of this?
+    -- create and remove update directives
+    | CreateEditsI EditGuid -- implies SetEdits?
+    | SetEditsI EditGuid
+    | ClearEdits -- don't record (don't allow?) term edits
+    | ListEditsI EditGuid
+    | ReplaceTermI EditGuid Reference Reference
+    | ReplaceTypeI EditGuid Reference Reference
+    -- clear updates for a term or type
+    | RemoveAllTermUpdatesI EditGuid Reference
+    | RemoveAllTypeUpdatesI EditGuid Reference
+    -- resolve update conflicts
+    | ChooseUpdateForTermI EditGuid Reference Reference
+    | ChooseUpdateForTypeI EditGuid Reference Reference
+  -- execute an IO object with arguments
+  | ExecuteI String
+  -- other
+  | SlurpFileI AllowUpdates
+  | SearchByNameI [String]
+  | ShowDefinitionI OutputLocation [String]
+  | UpdateBuiltinsI
+  | QuitI
+  deriving (Eq, Show)
+
 -- -- Some commands, like `view`, can dump output to either console or a file.
 -- data OutputLocation
 --   = ConsoleLocation
@@ -334,13 +344,6 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-
-  -- Question: Why do we need a Branch and a not-yet-typechecked
-  -- UnisonFile, to evaluate watch expressions?
-  -- When a .u file change is detected in the codebase editor,
-  -- it typechecks the .u file, then throws away the types, then calls
-  -- this function.  Does this function typecheck again?
-  -- Also used by the `execute` command
   Evaluate :: Link
            -> UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
@@ -361,7 +364,7 @@ data Command i v a where
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
   -- * A name with more than one referent.
-  -- *
+  -- * An edit with more than one outcome.
   GetConflicts :: Branch -> Command i v Branch0
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
@@ -370,11 +373,17 @@ data Command i v a where
 
   LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
+  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
+
+
+-- Edits stuff:
   Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
 
   Propagate :: Edits -> Branch -> Command i v Branch
 
-  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
+  -- copies an edit; needs some more ux design
+  PullEdits :: EditLink -> Command i v Bool
+  PushEdits :: EditLink -> Command i v Bool
 
 -- data Outcome
 --   -- New definition that was added to the branch

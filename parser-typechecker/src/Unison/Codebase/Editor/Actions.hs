@@ -11,36 +11,30 @@ module Unison.Codebase.Editor.Actions where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( unless
-                                                , when
-                                                )
+import           Control.Monad                  ( unless, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 , get
                                                 )
 import           Control.Monad.Trans            ( lift )
-import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
+import           Control.Monad.Trans.Maybe      ( MaybeT(..))
 import           Data.Foldable                  ( foldl'
                                                 , toList
                                                 , traverse_
                                                 )
-import           Data.List                      ( sortOn )
-import           Data.Maybe                     ( catMaybes
-                                                , fromMaybe
-                                                , fromJust
-                                                )
-import qualified Data.Map                      as Map
+import Data.List (sortOn)
+import           Data.Maybe                     ( catMaybes, fromMaybe, fromJust )
+import qualified Data.Map as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
-import           Data.Tuple.Extra               ( (&&&) )
-import qualified Data.Set                      as Set
-import           Data.Set                       ( Set )
-import qualified Unison.ABT                    as ABT
-import           Unison.Codebase.Branch2        ( Branch
+import           Data.Tuple.Extra               ((&&&))
+import qualified Data.Set as Set
+import           Data.Set (Set)
+import qualified Unison.ABT as ABT
+import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
-                                                , NameSegment
                                                 )
-import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
                                                 , Input(..)
@@ -50,12 +44,11 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
-                                                  ( NameChangeResult
-                                                  )
+                                                  ( NameChangeResult)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
-import           Unison.Codebase.SearchResult   ( SearchResult )
+import           Unison.Codebase.SearchResult  (SearchResult)
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
@@ -70,8 +63,8 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
-import           Unison.Result                  ( Result )
-import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Result                  (pattern Result)
+import qualified Unison.Runtime.IOSource      as IOSource
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -84,19 +77,10 @@ import           Unison.Var                     ( Var )
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
-data Nav f k v = Nav
-  { root :: Nav
-  , up :: Maybe Nav
-  , down :: k -> m (Maybe (Nav f k v))
-  , children :: Set k -- could omit this field
-  , getHere :: v
-  , updateHere :: v -> (Nav f k v)
-  }
-
-data LoopState m v
+data LoopState v
   = LoopState
-      { _path :: Path
-      , _nav :: Nav m NameSegment Branch
+      { _currentBranch :: Branch
+      , _currentBranchName :: BranchName
       -- The file name last modified, and whether to skip the next file
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)

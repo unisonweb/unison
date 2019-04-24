@@ -6,6 +6,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
+
 module Unison.Codebase.Editor.Actions2 where
 
 import           Control.Applicative
@@ -36,11 +37,14 @@ import           Data.Tuple.Extra               ( (&&&) )
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
-import           Unison.Codebase.Branch         ( Branch
+import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
+                                                , NameSegment
+                                                , Path
+                                                , Edits
                                                 )
-import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Editor2        ( Command(..)
+import qualified Unison.Codebase.Branch2       as Branch
+import           Unison.Codebase.Editor         ( Command(..)
                                                 , BranchName
                                                 , Input(..)
                                                 , Output(..)
@@ -53,7 +57,7 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                   )
                                                 , collateReferences
                                                 )
-import qualified Unison.Codebase.Editor2       as Editor
+import qualified Unison.Codebase.Editor        as Editor
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -83,10 +87,20 @@ import           Unison.Var                     ( Var )
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
-data LoopState v
+data Nav f k v = Nav
+  { root :: Nav f k v
+  , up :: Maybe (Nav f k v)
+  , down :: k -> f (Maybe (Nav f k v))
+  , children :: Set k -- could omit this field
+  , get :: v
+  , update :: v -> (Nav f k v)
+  }
+
+data LoopState m v
   = LoopState
-      { _currentBranch :: Branch
-      , _currentBranchName :: BranchName
+      { _path :: Path
+      , _nav :: Nav m NameSegment Branch
+      , _activeEdits :: Set Branch.EditGuid
       -- The file name last modified, and whether to skip the next file
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
@@ -100,7 +114,7 @@ type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
-loopState0 :: Branch -> Path -> LoopState v
+loopState0 :: Branch -> BranchName -> LoopState v
 loopState0 b bn = LoopState b bn Nothing Nothing Nothing []
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
@@ -223,9 +237,8 @@ loop = do
             latestFile .= ((, True) <$> loc)
         RemoveAllTermUpdatesI _t       -> error "todo"
         RemoveAllTypeUpdatesI _t       -> error "todo"
-        ChooseUpdateForTermI _old _new -> error "todo"
-        ChooseUpdateForTypeI _old _new -> error "todo"
-        ListAllUpdatesI                -> error "todo"
+        ResolveTermNameI _b _old _new -> error "todo"
+        ResolveTermNameI _b _old _new -> error "todo"
         AddTermNameI r name -> modifyCurrentBranch0 $
           Branch.addTermName r name
         AddTypeNameI r name -> modifyCurrentBranch0 $
@@ -598,4 +611,3 @@ modifyCurrentBranchM f = do
     branchName <- use currentBranchName
     worked <- eval $ SyncBranch branchName b'
     when worked (currentBranch .= b')
-
