@@ -49,8 +49,8 @@ consN conss tail = foldr (\(h,e) t -> Cons h e (pure t)) tail conss
 pattern ConsN m <- (uncons -> Just m)
 
 uncons :: Monad m => Causal m e -> Maybe (m ([(Hash, e)], Causal m e))
-uncons (One _ _    ) = Nothing
-uncons (Merge _ _ _) = Nothing
+uncons One{}         = Nothing
+uncons Merge{}       = Nothing
 uncons x             = Just $ go [] x
  where
   go acc (Cons h e tail) = tail >>= go ((h, e) : acc)
@@ -131,4 +131,3 @@ one e = One (hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m e -> Causal m e
 cons e tl = Cons (hash [hash e, currentHash tl]) e (pure tl)
-

@@ -161,6 +161,10 @@ If no (we don't provide user syntax for constructing `EditSets` in .u file):
 
 * [x] Split Edits out of `Branch0`
 * [x] Delete `oldNamespace`, and instead add deprecated names
+* [x] `getCausal` and `putCausal` no longer write their tails, only the hashes of their tails. 
+  * Individual nodes in a causal chain will be written to separate files, or to some other map-like structure, indexed by `Hash`, not all together into one .ubf chain like before.
+  * We can write the hashes before the value if we want to optimize for reading that.
+* [ ] `putBranch` / `getBranch` 
 * [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
 * [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
   * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
@@ -327,3 +331,5 @@ http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the 
 
 ```
 
+
+```

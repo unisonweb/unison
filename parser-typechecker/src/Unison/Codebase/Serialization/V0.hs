@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards #-}
 
 module Unison.Codebase.Serialization.V0 where
@@ -35,7 +33,7 @@ import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Causal2        ( Causal )
+import           Unison.Codebase.Causal         ( Causal )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
@@ -48,7 +46,7 @@ import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Codebase.Causal2       as Causal
+import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
@@ -202,15 +200,6 @@ putFoldable
 putFoldable as putA = do
   putLength (length as)
   traverse_ putA as
-
-putFoldableN
-  :: forall f m n a
-   . (Traversable f, MonadPut m, Applicative n)
-  => f a
-  -> (a -> n (m ()))
-  -> n (m ())
-putFoldableN as putAn =
-  pure (putLength @m (length as)) *> (fmap sequence_ $ traverse putAn as)
 
 getFolded :: MonadGet m => (b -> a -> b) -> b -> m a -> m b
 getFolded f z a =
@@ -431,26 +420,11 @@ getTerm getVar getA = getABT getVar getA go where
 putPair' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
 putPair' putA putB (a,b) = putA a *> putB b
 
-putPair''
-  :: (MonadPut m, Monad n)
-  => (a -> m ())
-  -> (b -> n (m ()))
-  -> (a, b)
-  -> n (m ())
-putPair'' putA putBn (a, b) = do
-  pure (putA a) *> putBn b
-
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
-putTuple3'
-  :: MonadPut m
-  => (a -> m ())
-  -> (b -> m ())
-  -> (c -> m ())
-  -> (a, b, c)
-  -> m ()
-putTuple3' putA putB putC (a, b, c) = putA a *> putB b *> putC c
+putTuple3' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (c -> m ()) -> (a,b,c) -> m ()
+putTuple3' putA putB putC (a,b,c) = putA a *> putB b *> putC c
 
 getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
 getTuple3 = liftA3 (,,)
@@ -460,6 +434,25 @@ putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
 
 getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
 getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
+
+putCausal :: MonadPut m => Causal a -> (a -> m ()) -> m ()
+putCausal (Causal.One hash a) putA =
+  putWord8 1 *> putHash hash *> putA a
+putCausal (Causal.ConsN conss tail) putA =
+  putWord8 2 *> putFoldable conss (putPair' putHash putA) *> putCausal tail putA
+putCausal (Causal.Merge hash a tails) putA =
+  putWord8 3 *> putHash hash *> putA a *>
+    putFoldable (Map.toList tails) (putPair' putHash (`putCausal` putA))
+putCausal (Causal.Cons _ _ _) _ =
+  error "deserializing 'Causal': the ConsN pattern should have matched here!"
+
+getCausal :: MonadGet m => m a -> m (Causal a)
+getCausal getA = getWord8 >>= \case
+  1 -> Causal.One <$> getHash <*> getA
+  2 -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
+  3 -> Causal.Merge <$> getHash <*> getA <*>
+          (Map.fromList <$> getList (getPair getHash $ getCausal getA))
+  x -> unknownTag "causal" x
 
 putTermEdit :: MonadPut m => TermEdit -> m ()
 putTermEdit (TermEdit.Replace r typing) =

@@ -40,6 +40,7 @@ library
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase.Branch
+    Unison.Codebase.Branch2
     Unison.Codebase.Causal
     Unison.Codebase.Causal2
     Unison.Codebase.CodeLookup
@@ -47,6 +48,7 @@ library
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
     Unison.Codebase.NameEdit
+    Unison.Codebase.Path
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization

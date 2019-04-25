@@ -133,7 +133,7 @@ loop = do
             withFile [] sourceName text $ \errorEnv unisonFile -> do
               eval (Notify $ Typechecked sourceName errorEnv unisonFile)
               (bindings, e) <-
-                eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
+                eval . Evaluate (Branch.prettyPrintEnv . Branch.head $ view currentBranch s) $ UF.discardTypes unisonFile
               let e' = Map.map go e
                   go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
               -- todo: this would be a good spot to update the cache
@@ -299,7 +299,7 @@ loop = do
                    "execute command"
                    ("main_ = " <> Text.pack input) $
                      \_ unisonFile ->
-                        eval . Execute (view currentBranch s) $
+                        eval . Execute (Branch.prettyPrintEnv . Branch.head $ view currentBranch s) $
                           UF.discardTypes unisonFile
         UpdateBuiltinsI -> do
           modifyCurrentBranch0 updateBuiltins
