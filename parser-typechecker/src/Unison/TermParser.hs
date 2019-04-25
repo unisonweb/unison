@@ -148,7 +148,7 @@ parsePattern =
     env <- ask
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
-      Nothing -> customFailure $ UnknownEffectConstructor name
+      Nothing -> customFailure $ UnknownAbilityConstructor name
     pure $
       let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
       in unzipPatterns f leaves
