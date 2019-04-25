@@ -136,7 +136,7 @@ parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op li
     env <- ask
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
-      Nothing -> customFailure $ UnknownEffectConstructor name
+      Nothing -> customFailure $ UnknownAbilityConstructor name
     pure $ case unzip leaves of
       (patterns, vs) ->
          (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont,

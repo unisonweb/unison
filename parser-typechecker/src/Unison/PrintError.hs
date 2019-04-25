@@ -17,7 +17,6 @@ import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
-import qualified Data.Char                    as Char
 import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
 import qualified Data.List.NonEmpty           as Nel
@@ -953,15 +952,6 @@ prettyParseError s = \case
     , "binding after it.  Could it be a spelling mismatch?\n"
     , tokenAsErrorSite s tok
     ]
-   -- we would include the last binding term if we didn't have to have an Ord
-   -- instance for it
-  go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = mconcat
-    [ "The last line of the block starting at "
-    , fromString . fmap Char.toLower . annotatedToEnglish $ blockAnn
-    , "\n"
-    , "has to be an expression, not a binding/import/etc:"
-    , annotatedAsErrorSite s lastBindingAnn
-    ]
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
@@ -971,8 +961,8 @@ prettyParseError s = \case
     ]
   go (Parser.EmptyWatch) =
     "I expected a non-empty watch expression and not just \">\""
-  go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
-  go (Parser.UnknownDataConstructor   tok) = unknownConstructor "data" tok
+  go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
+  go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
   unknownConstructor
     :: String -> L.Token String -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
