@@ -1,3 +1,26 @@
+## TODO tracking refactoring of existing functionality
+
+* [ ] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
+* [ ] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
+  - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
+  - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
+* [ ] Implement `Codebase2` that is a tweaked version of `Codebase`
+* [ ] Implement `Edits2`
+* [ ] Implement `Actions2`
+* [ ] Implement `OutputMessages2`
+* [ ] Implement `InputPatterns2`
+
+* [ ] Split Edits out of `Branch0`
+* [ ] Delete `oldNamespace`, and instead add deprecated names
+* [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
+* [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
+  * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
+* [ ] `add` and `update` will need a way to update the `Branch'` at the current level, and all the way back to the root.  Some kind of zipper?
+* [ ] `find` takes an optional path
+* [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
+* [ ] `merge` takes at least a path, if not a `RepoPath`
+* [ ] `publish` or `push`that takes a local path and a remote path? 
+
 # Branchless codebase format
 
 ## Namespaces
@@ -78,19 +101,6 @@ type FriendlyEditNames = Relation Text GUID
 * It could be the same as sharing Unison definitions:
   Make up a URI that references a repo and an edit GUID.
   e.g. `https://github.com/<user>/<repo>/<...>/<guid>[/hash]`
-
-## Refactoring for existing functionality
-
-* [ ] Split Edits out of `Branch0`
-* [ ] Delete `oldNamespace`, and instead add deprecated names
-* [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
-* [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
-  * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
-* [ ] `add` and `update` will need a way to update the `Branch'` at the current level, and all the way back to the root.  Some kind of zipper?
-* [ ] `find` takes an optional path
-* [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
-* [ ] `merge` takes at least a path, if not a `RepoPath`
-* [ ] `publish` or `push`that takes a local path and a remote path? 
 
 ---
 
