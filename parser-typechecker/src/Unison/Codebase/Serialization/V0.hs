@@ -201,6 +201,12 @@ putFoldable as putA = do
   putLength (length as)
   traverse_ putA as
 
+-- putFoldableN :: (Foldable f, MonadPut m, Applicative n) =>
+--   f a -> (a -> n (m ())) -> n (m ())
+-- putFoldableN as putAn =
+--   pure (putLength (length as)) *>
+  
+
 getFolded :: MonadGet m => (b -> a -> b) -> b -> m a -> m b
 getFolded f z a =
   foldl' f z <$> getList a
@@ -420,6 +426,12 @@ getTerm getVar getA = getABT getVar getA go where
 putPair' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
 putPair' putA putB (a,b) = putA a *> putB b
 
+putPair'' :: (MonadPut m, Applicative n)
+          => (a -> m ())
+          -> (b -> n (m ()))
+          -> (a,b) -> n (m ())
+putPair'' putA putBn (a, b) = pure (putA a) *> putBn b
+
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
 
@@ -437,16 +449,17 @@ getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
 
 putCausal :: MonadPut m => Causal n a -> (a -> m ()) -> n (m ())
 putCausal (Causal.One hash a) putA =
-  putWord8 1 *> putHash hash *> putA a
-putCausal (Causal.ConsN conss tail) putA =
-  putWord8 2 *> putFoldable conss (putPair' putHash putA) *> putCausal tail putA
+  pure $ putWord8 1 *> putHash hash *> putA a
+putCausal (Causal.ConsN m) putA = do
+  (conss, tail) <- m
+  pure (putWord8 2 *> putFoldable conss (putPair' putHash putA)) *> putCausal tail putA
 putCausal (Causal.Merge hash a tails) putA =
-  putWord8 3 *> putHash hash *> putA a *>
-    putFoldable (Map.toList tails) (putPair' putHash (`putCausal` putA))
+  pure (putWord8 3 *> putHash hash *> putA a) *>
+    putFoldable (Map.toList tails) (putPair'' putHash (`putCausal` putA))
 putCausal (Causal.Cons _ _ _) _ =
   error "deserializing 'Causal': the ConsN pattern should have matched here!"
 
-getCausal :: MonadGet m => m a -> m (Causal a)
+getCausal :: MonadGet m => m a -> m (Causal n a)
 getCausal getA = getWord8 >>= \case
   1 -> Causal.One <$> getHash <*> getA
   2 -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
