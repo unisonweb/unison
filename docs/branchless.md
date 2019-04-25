@@ -45,7 +45,7 @@ data Namespace m = Namespace
 
 For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐  
 
-* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`.
+* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`. <!-- pchiusano: I like this option, it's simple -->
 
 * Or, do we just disallow removing the last name of things with dependencies?
 
@@ -120,6 +120,16 @@ Dependencies/A/B/C#xxx
 Dependencies/G/h#zzz
 ```
 
+<!-- pchiusano: 
+I like this option the best. Reasons:
+
+- Option 2 seems ill defined and probably complicated, so let's nix that.
+- Option 3 is simple, but is more work for the user, and also the easiest way for the user to address is to copy the whole tree of whatever dependent library they are using, even if they are just using a handful of functions. An automated procedure can produce a minimal set of named dependencies.
+- Having a somewhat opinionated convention like this makes the code easier to read - you can easily view the minimal third-party dependencies used by a library.
+- Option 1 doesn't preclude you from picking some other convention for where you put those dependencies, if you really want.
+
+--> 
+
 ### Idea 2: Somehow derive from qualified imports used?
 
 If 
@@ -133,6 +143,8 @@ Ask them to create aliases below the publication point?
 ### Idea 4: Add external names to `./_auxNames/` 
 
 The nearest aux-name would only be used to render code only if there were no primary names known.
+
+<!-- pchiusano: hmm, how does this differ from Idea 3? --> 
 
 ### Idea 5: Something with symlinks
 
