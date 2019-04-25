@@ -50,6 +50,7 @@ library
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
+    Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V0
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
@@ -135,6 +136,7 @@ library
     bifunctors,
     bytes,
     bytestring,
+    cereal,
     containers,
     comonad,
     concurrent-supply,

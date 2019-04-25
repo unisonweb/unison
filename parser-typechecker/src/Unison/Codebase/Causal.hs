@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 
 --newtype Causal' e = Causal' { unCausal :: Cofree (Hash, Causal :+: (Map Hash :.: Causal)) e }
 -- data Causal e = { head :: e, currentHash :: Hash, tail :: Either (Causal e) (Map Hash (Causal e)) }
+
 data Causal e
   = One { currentHash :: Hash, head :: e }
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
