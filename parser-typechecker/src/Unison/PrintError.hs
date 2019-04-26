@@ -40,7 +40,6 @@ import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent)
-import qualified Unison.Referent              as Referent
 import           Unison.Result                (Note (..))
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
@@ -58,6 +57,7 @@ import           Unison.Util.Range            (Range (..))
 import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.TermPrinter as TermPrinter
 
 type Env = PPE.PrettyPrintEnv
 
@@ -709,16 +709,11 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
   showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
 renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
-renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
-  fromString (Text.unpack $ Var.name v)
-renderTerm env (Term.Ref' r) =
-  fromString (HQ.toString $ PPE.termName env (Referent.Ref r))
-renderTerm _ e =
-  let s = show e
-  in      -- todo: pretty print
-      if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
-        else fromString s
+renderTerm env e =
+  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (Term.unTypeVar e)
+  in if length s > Settings.renderTermMaxLength
+     then fromString (take Settings.renderTermMaxLength s <> "...")
+     else fromString s
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s

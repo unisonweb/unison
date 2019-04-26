@@ -130,7 +130,8 @@ pretty
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . prettyHashQualified $ name
-      where name = HQ.fromVar v
+      -- OK since all term vars are user specified, any freshening was just added during typechecking
+      where name = HQ.fromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
       where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
