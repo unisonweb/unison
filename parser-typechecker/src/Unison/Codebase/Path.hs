@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Unison.Codebase.Path
   -- ( Name(..)
   -- , unsafeFromText
@@ -23,6 +25,34 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toList :: [NameSegment] } deriving (Eq, Ord)
+
+-- Returns the nearest common ancestor, along with the
+-- two inputs relativized to that ancestor.
+relativeToAncestor :: Path -> Path -> (Path, Path, Path)
+relativeToAncestor (Path a) (Path b) = case (a, b) of
+  (ha : ta, hb : tb) | ha == hb ->
+    let (ancestor, relA, relB) = relativeToAncestor (Path ta) (Path tb)
+    in (ha `cons` ancestor, relA, relB)
+  -- nothing in common
+  _ -> (empty, Path a, Path b)
+
+pattern Parent h t = Path (NameSegment h : t)
+
+
+
+
+empty :: Path
+empty = mempty
+
+instance Monoid Path where
+  mappend (Path a) (Path b) = Path (a <> b)
+  mempty = Path []
+
+instance Semigroup Path where
+  (<>) = mappend
+
+cons :: NameSegment -> Path -> Path
+cons ns (Path p) = Path (ns : p)
 
 instance Show Path where
   show (Path nss) = intercalate "/" $ fmap escape1 nss

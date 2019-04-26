@@ -109,14 +109,15 @@ move root src dest = do
       -- make sure dest doesn't already exist
       getAt root dest >>= \case
         Just _destExists -> pure $ Left DestExists
-        -- modify last shared ancestor of `src` and `dest`:
-        -- if lsa = src then setAt empty dest src'
-        -- else
-        --    in src branch of lsa, delete src, removing newly empty parents.
-        --      (is it ok to throw away this history?)
-        --    in dest branch of lsa, add src at dest
-        --    update lsa, simultaneously update src branch and dest branch
-        Nothing -> error "todo"
+        Nothing ->
+        -- find and update common ancestor of `src` and `dest`:
+          Right <$> modifyAtM root ancestor go
+          where
+          (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
+          go b = do
+            b <- setAt b relDest src'
+            deleteAt b relSrc
+            -- todo: can we combine these into one update?
 
 setIfNotExists
   :: Monad m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))
@@ -127,6 +128,9 @@ setIfNotExists root dest b =
 
 setAt :: Monad m => Branch m -> Path -> Branch m -> m (Branch m)
 setAt root dest b = modifyAt root dest (const b)
+
+deleteAt :: Monad m => Branch m -> Path -> m (Branch m)
+deleteAt = error "todo"
 
 getAt :: Monad m
       => Branch m
