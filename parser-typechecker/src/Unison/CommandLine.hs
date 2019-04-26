@@ -15,7 +15,7 @@ import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forever, when)
 import           Data.Foldable                   (toList)
-import           Data.List                       (isSuffixOf)
+import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
@@ -26,6 +26,7 @@ import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
 import qualified System.Console.Terminal.Size    as Terminal
+import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import           Unison.Codebase.Branch          (Branch, Branch0)
@@ -68,7 +69,10 @@ watchPrinter src ppe ann term isHit = P.bracket $ let
   ]
 
 allow :: FilePath -> Bool
-allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
+allow p =
+  -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
+  not (isPrefixOf ".#" (takeFileName p)) &&
+  (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do
