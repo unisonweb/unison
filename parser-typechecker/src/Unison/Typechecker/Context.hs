@@ -801,7 +801,6 @@ synthesize e = scope (InSynthesize e) $
       if isClosed then pure $ generalizeExistentials ctx2 t
       else pure (apply ctx t)
     doRetract (Marker m)
-    -- m <- extendMarker Var.inferOther
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
     t <- applyM =<< synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
