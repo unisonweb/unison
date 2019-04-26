@@ -1,3 +1,27 @@
+## TODO tracking refactoring of existing functionality
+
+* [ ] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
+* [ ] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
+  - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
+  - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
+* [ ] Implement `Codebase2` that is a tweaked version of `Codebase`
+* [ ] Implement `Edits2`
+* [ ] Implement `Actions2`
+* [ ] Implement `OutputMessages2`
+* [ ] Implement `InputPatterns2`
+
+* [ ] Split Edits out of `Branch0`
+* [ ] Delete `oldNamespace`, and instead add deprecated names
+* [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
+* [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
+  * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
+* [ ] `add` and `update` will need a way to update the `Branch'` at the current level, and all the way back to the root.  Some kind of zipper?
+* [ ] `find` takes an optional path
+* [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
+* [ ] `merge` takes at least a path, if not a `RepoPath`
+* [ ] `publish` or `push`that takes a local path and a remote path? 
+
+
 ## Branchless codebase format
 
 ## Commands / Usage
@@ -93,7 +117,7 @@ data Namespace m = Namespace
 
 For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐  
 
-* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`.
+* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`.  <!-- pchiusano: I like this option, it's simple -->
 
 * Or, do we just disallow removing the last name of things with dependencies?
 
@@ -157,25 +181,6 @@ If no (we don't provide user syntax for constructing `EditSets` in .u file):
 * EditSets are part of the term language?  
 * Or a constructor with a particular hash? (Applied to Unison terms)
 
-## Refactoring for existing functionality
-
-* [x] Split Edits out of `Branch0`
-* [x] Delete `oldNamespace`, and instead add deprecated names
-* [x] `getCausal` and `putCausal` no longer write their tails, only the hashes of their tails. 
-  * Individual nodes in a causal chain will be written to separate files, or to some other map-like structure, indexed by `Hash`, not all together into one .ubf chain like before.
-  * We can write the hashes before the value if we want to optimize for reading that.
-* [ ] `putBranch` / `getBranch` 
-* [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
-* [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
-  * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
-* [ ] `add` and `update` will need a way to update the `Branch'` at the current level, and all the way back to the root.  Some kind of zipper?
-* [ ] `find` takes an optional path
-* [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
-* [ ] `merge` takes at least a path, if not a `RepoPath`
-* [ ] `publish` or `push`that takes a local path and a remote path? 
-
----
-
 ## Collecting external dependencies
 
 If a subtree references external dependencies, they should be given local names when exporting.
@@ -202,6 +207,35 @@ f#yyy
 Dependencies/A/B/C#xxx
 Dependencies/G/h#zzz
 ```
+
+<!-- pchiusano: 
+I like this option the best. Reasons:
+- Option 2 seems ill defined and probably complicated, so let's nix that.
+- Option 3 is simple, but is more work for the user, and also the easiest way for the user to address is to copy the whole tree of whatever dependent library they are using, even if they are just using a handful of functions. An automated procedure can produce a minimal set of named dependencies.
+- Having a somewhat opinionated convention like this makes the code easier to read - you can easily view the minimal third-party dependencies used by a library.
+- Option 1 doesn't preclude you from picking some other convention for where you put those dependencies, if you really want.
+--> 
+
+<!-- atacratic:
+Under 'collecting external dependencies', I guess a difficult case for idea 1 'names relative to the nearest parent' would be the following:
+
+/A/B/c#xxx
+/D/E/f#yyy (depends on #xxx, #zzz)
+/D/A/B/c#zzz
+since it would want to call both the dependencies Dependencies/A/B/c.
+
+Maybe the prefix which you decide to be the effective root, has to be a single choice across all the dependencies of all the names being exported, rather than chosen on a per-dependency basis.
+
+But anyway seems like there will need to be way to override these choices of dependency names - stitching together a namespace from several sources can't be done in a way that is both natural and automatic.
+
+On idea 3 I think there has to be a default proposal - you can't force people to go choosing N new names.
+
+(On backup names, I think the /_deleted/p/x idea is a bit painful because people will want to completely delete names, without leaving a trace. Also it looks a bit janky. Better to just say you can't delete the last name of something that is referenced.)
+
+====
+
+Is all manipulation of namespaces going to happen interactively at the CLI? ('import this namespace from here to there with this prefix'.) Is that maybe bad for the same reason that repls are bad (and watch statements are awesome)? I guess the alternative would be having a little language for stitching together namespaces.
+-->
 
 ### Idea 2: Somehow derive from qualified imports used?
 
