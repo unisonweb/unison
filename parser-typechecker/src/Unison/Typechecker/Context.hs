@@ -794,14 +794,17 @@ synthesize e = scope (InSynthesize e) $
     -- note: no need to freshen binding, it can't refer to v
     m <- extendMarker Var.inferOther
     tbinding <- do
-      t <- applyM =<< synthesize binding
+      t <- synthesize binding
       ctx <- getContext
       let (_, _, ctx2) = breakAt (Marker m) ctx
       -- If the binding has no free variables, we generalize over its existentials
-      pure $ if isClosed then generalizeExistentials ctx2 t else t
+      if isClosed then pure $ generalizeExistentials ctx2 t
+      else pure (apply ctx t)
+    doRetract (Marker m)
+    -- m <- extendMarker Var.inferOther
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
+    t <- applyM =<< synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
     when top $ noteTopLevelType e binding tbinding
     -- doRetract $ Ann v' tbinding
     pure t
