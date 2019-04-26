@@ -63,7 +63,7 @@ test1 = scope "termparser" . tests . map parses $
     "    x + y"]
   , "(let \n" ++
     "  x = 23 + 42\n" ++
-    "  x + 1 \n)"
+    "  x + 1 )"
   --
   -- Handlers
   ,"handle foo in \n" ++

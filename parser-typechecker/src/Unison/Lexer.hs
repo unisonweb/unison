@@ -27,6 +27,7 @@ data Err
   | TextLiteralMissingClosingQuote String
   | InvalidEscapeCharacter Char
   | LayoutError
+  | CloseWithoutMatchingOpen String String -- open, close
   deriving (Eq,Ord,Show) -- richer algebra
 
 -- Design principle:
@@ -208,13 +209,13 @@ lexer0 scope rem =
           let end = incBy kw pos
           in Token Close pos end
                : Token (Reserved kw) pos end
-               : goWhitespace (drop 1 l) (incBy kw pos) rem
+               : goWhitespace (pop l) (incBy kw pos) rem
       Just (kw, rem) ->
         let end = incBy kw pos
         in Token Close pos pos
              : Token (Open kw) pos end
              -- todo: would be nice to check that top of `l` is an Open "if" or "then"
-             : pushLayout kw (drop 1 l) end rem
+             : pushLayout kw (pop l) end rem
 
     -- Examine current column and pop the layout stack
     -- and emit `Semi` / `Close` tokens as needed
@@ -250,16 +251,17 @@ lexer0 scope rem =
 
     -- Figure out how many elements must be popped from the layout stack
     -- before finding a matching `Open` token
-    findClose :: String -> Layout -> Int
-    findClose _ [] = 0
-    findClose s ((h,_):tl) = if s == h then 1 else 1 + findClose s tl
+    findClose :: String -> Layout -> Maybe Int
+    findClose _ [] = Nothing
+    findClose s ((h,_):tl) = if s == h then Just 1 else (1+) <$> findClose s tl
 
     -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
     close :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
-    close open close l pos rem = let
-      n = findClose open l
-      closes = replicate n $ Token Close pos (incBy close pos)
-      in closes ++ goWhitespace (drop n l) (inc pos) rem
+    close open close l pos rem = case findClose open l of
+      Nothing -> [Token (Err $ CloseWithoutMatchingOpen open close) pos pos]
+      Just n ->
+        let closes = replicate n $ Token Close pos (incBy close pos)
+        in closes ++ goWhitespace (drop n l) (inc pos) rem
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]

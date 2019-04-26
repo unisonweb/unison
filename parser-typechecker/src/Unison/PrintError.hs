@@ -13,7 +13,7 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
-import           Debug.Trace
+-- import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
@@ -902,6 +902,13 @@ _printArrowsAtPos s line column =
       source      = unlines (uncurry lineCaret <$> lines s `zip` [1 ..])
   in  source
 
+-- Wow, epic view pattern for picking out a lexer error
+pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
+
+firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
+firstLexerError (toList -> ts@((L.payload -> L.Err e) : _)) = Just (ts, e)
+firstLexerError _ = Nothing
+
 prettyParseError
   :: forall v
    . Var v
@@ -909,13 +916,17 @@ prettyParseError
   -> Parser.Err v
   -> AnnotatedText Color
 prettyParseError s = \case
+  P.TrivialError _ (LexerError ts (L.CloseWithoutMatchingOpen open close)) _ ->
+    "❗️ I found a closing " <> style ErrorSite (fromString close) <>
+    " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
+    showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
   P.TrivialError sp unexpected expected
     -> fromString
         (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
       <> (case unexpected of
-           Just (P.Tokens ts) -> traceShow ts $ showSource
-             s
-             ((\t -> (rangeForToken t, ErrorSite)) <$> toList ts)
+           Just (P.Tokens (toList -> ts)) -> case ts of
+             [] -> mempty
+             _ -> showSource s $ ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
            _ -> mempty
          )
       <> lexerOutput

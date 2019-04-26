@@ -83,5 +83,4 @@ splitAtFour l = case l of
   optionToList (middleNel []),
   optionToList (middleNel [1, 2]),
   optionToList (middleNel [1, 2, 3, 4, 5, 6]),
-  splitAtFour [1, 2, 3, 4, 5, 6, 7]
-)
+  splitAtFour [1, 2, 3, 4, 5, 6, 7])
