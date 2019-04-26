@@ -18,20 +18,24 @@ namespace Stream where
       Emit.emit (f a)
       handle step f in k ()
 
--- 0. weird empty `,` in inferred type of map (maybe just printing artifact)
--- 1. inferred type of `map` required an `o -> o` for some reason
--- 2. map f s below has type `()`!!!
--- 3. ???  
 
   -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
   -- map : (a ->{e} b)
   --     -> Stream {e} a r
   --     -> Stream {e} b r
-  map f s =
-    Stream (_ -> handle step f in "hi")
-    -- Stream (_ -> handle step f in "hi")
+  -- 0. this gets a weird type
+  map f s = Stream ' handle step f in run s
    
-  -- doesn't work
+  -- 1. inferred type of `map` required an `o -> o` for some reason
+  map1 f s = 
+    step f e = case e of
+      {r} -> r
+      {Emit.emit a -> k} ->
+        Emit.emit (f a)
+        handle step f in k ()
+    Stream ' handle step f in run s
+
+  -- 2. gets the same weird type
   map2 f s = 
     step :
       (a ->{e} b) ->
