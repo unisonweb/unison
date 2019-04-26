@@ -341,7 +341,7 @@ putPattern putA p = case p of
   Pattern.SequenceLiteral a ps
     -> putWord8 10 *> putA a *> putFoldable ps (putPattern putA)
   Pattern.SequenceOp a l op r
-    -> putWord8 11 *> putA a *> putSeqOp op *> putPattern putA l *> putPattern putA r
+    -> putWord8 11 *> putA a *> putPattern putA l *> putSeqOp op *> putPattern putA r
   _ -> error $ "unknown pattern: " ++ show p
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
@@ -357,12 +357,8 @@ getPattern getA = getWord8 >>= \tag -> case tag of
   8 -> Pattern.EffectPure <$> getA <*> getPattern getA
   9 -> Pattern.EffectBind <$> getA <*> getReference <*> getLength <*> getList (getPattern getA) <*> getPattern getA
   10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
-  11 -> do
-    a <- getA
-    op <- getSeqOp
-    l <- getPattern getA
-    r <- getPattern getA
-    pure $ Pattern.SequenceOp a l op r
+  11 -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
+        where gp = getPattern getA
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
