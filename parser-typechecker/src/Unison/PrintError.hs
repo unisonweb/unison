@@ -686,6 +686,15 @@ renderTypeError e env src = case e of
               <> mconcat (intersperse " : " $ annotatedToEnglish <$> locs)
               <> "]"
       in  "DuplicateDefinitions:" <> mconcat (go <$> Nel.toList vs)
+    C.ConcatPatternWithoutConstantLength loc typ -> mconcat
+      [ "ConcatPatternWithoutConstantLength:\n"
+      , "  loc="
+      , annotatedToEnglish loc
+      , "\n"
+      , "  typ="
+      , renderType' env typ
+      , "\n"
+      ]
 
 renderContext
   :: (Var v, Ord loc) => Env -> C.Context v loc -> AnnotatedText a

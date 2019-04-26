@@ -96,6 +96,14 @@ test1 = scope "termparser" . tests . map parses $
     "    z"
   , "case x of\n" ++
     " 0 | 1 == 2 -> 123"
+  , "case x of\n" ++
+    " [] -> 0\n" ++
+    " [1] -> 1\n" ++
+    " 2 +: _ -> 2\n" ++
+    " _ :+ 3 -> 3\n" ++
+    " [4] ++ _ -> 4\n" ++
+    " _ ++ [5] -> 5\n" ++
+    " _ -> -1"
 
   -- Conditionals
   , "if x then y else z"

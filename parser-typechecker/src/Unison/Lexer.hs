@@ -307,6 +307,7 @@ lexer0 scope rem =
                 Token (Open "->") pos end : pushLayout "->" l end rem
               Just _ -> Token (Reserved "->") pos end : goWhitespace l end rem
               Nothing -> Token (Err LayoutError) pos pos : recover l pos rem
+
       -- string literals and backticked identifiers
       '"' : rem -> case splitStringLit rem of
         Right (delta, lit, rem) -> let end = pos <> delta in
@@ -486,7 +487,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:;"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -519,7 +520,7 @@ reserved :: Set Char
 reserved = Set.fromList "=:`\""
 
 reservedOperators :: Set String
-reservedOperators = Set.fromList ["->"]
+reservedOperators = Set.fromList ["->", ":"]
 
 inc :: Pos -> Pos
 inc (Pos line col) = Pos line (col + 1)

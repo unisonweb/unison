@@ -21,7 +21,8 @@ import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
-import           Unison.Parser
+import           Unison.Parser hiding (seq)
+import qualified Unison.Parser as Parser (seq)
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
@@ -95,8 +96,17 @@ matchCase = do
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op list
+parsePattern =
+  chainl1 (constructor <|> seqLiteral <|> leaf) patternInfixApp
   where
+  patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
+                  -> (Pattern Ann, [(Ann, v)])
+                  -> (Pattern Ann, [(Ann, v)]))
+  patternInfixApp = f <$> seqOp
+    where
+    f op (l, lvs) (r, rvs) =
+      (Pattern.SequenceOp (ann l <> ann r) l op r, lvs ++ rvs)
+
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
@@ -124,6 +134,8 @@ parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op li
     guard . isUpper . head . L.payload $ s
     pure s
 
+  unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
+
   effectBind0 = do
     name <- ctorName
     leaves <- many leaf
@@ -137,10 +149,9 @@ parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op li
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownAbilityConstructor name
-    pure $ case unzip leaves of
-      (patterns, vs) ->
-         (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont,
-          join vs ++ vsp)
+    pure $
+      let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
+      in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
     go (p, vs) = (Pattern.EffectPure (ann p) p, vs)
@@ -158,11 +169,14 @@ parsePattern = constructor <|> leaf -- similar to infixApp, but with fixed op li
     case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
-          go pairs = case unzip pairs of
-            (patterns, vs) ->
-              let loc = foldl (<>) (ann t) $ map ann patterns
-              in (Pattern.Constructor loc ref cid patterns, join vs)
+          go = unzipPatterns f
+          f patterns vs =
+            let loc = foldl (<>) (ann t) $ map ann patterns
+            in (Pattern.Constructor loc ref cid patterns, vs)
       Nothing -> customFailure $ UnknownDataConstructor t
+
+  seqLiteral = Parser.seq f leaf
+    where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
@@ -204,12 +218,7 @@ placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 seq :: Var v => TermP v -> TermP v
-seq p = f <$> reserved "[" <*> elements <*> trailing
-  where
-    trailing = optional semi *> reserved "]"
-    sep = P.try $ optional semi *> reserved "," <* optional semi
-    elements = sepBy sep p
-    f open elems close = Term.seq (ann open <> ann close) elems
+seq = Parser.seq Term.seq
 
 termLeaf :: forall v. Var v => TermP v
 termLeaf = do
@@ -242,6 +251,12 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
+
+seqOp :: Var v => P v Pattern.SeqOp
+seqOp =
+  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))
+  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:"))
+  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf

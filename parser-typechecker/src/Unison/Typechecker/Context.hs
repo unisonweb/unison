@@ -38,7 +38,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..) )
+import           Control.Applicative            ( Alternative(..), liftA2 )
 import           Control.Monad
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
@@ -259,6 +259,7 @@ data Cause v loc
   | DuplicateDefinitions (NonEmpty (v, [loc]))
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
+  | ConcatPatternWithoutConstantLength loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -896,6 +897,59 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ context [Ann v' scrutineeType]
       pure [(v, v')]
+    Pattern.SequenceLiteral loc ps -> do
+      vt <- lift $ do
+        v <- freshenVar Var.inferOther
+        let vt = Type.existentialp loc v
+        appendContext $ context [existential v]
+        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        applyM vt
+      join <$> traverse (checkPattern vt) ps
+    Pattern.SequenceOp loc l op r -> do
+      let (locL, locR) = (Pattern.loc l, Pattern.loc r)
+      vt <- lift $ do
+        v <- freshenVar Var.inferOther
+        let vt = Type.existentialp loc v
+        appendContext $ context [existential v]
+        -- todo: `Type.vector loc` is super-probably wrong;
+        -- I'm thinking it should be Ann.Intrinsic, but we don't
+        -- have access to that here.
+        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        applyM vt
+      case op of
+        Pattern.Cons -> do
+          lvs <- checkPattern vt l
+          -- todo: same `Type.vector loc` thing
+          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
+          pure $ lvs ++ rvs
+        Pattern.Snoc -> do
+          -- todo: same `Type.vector loc` thing
+          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
+          rvs <- checkPattern vt r
+          pure $ lvs ++ rvs
+        Pattern.Concat ->
+          case (l, r) of
+            (p, _) | isConstLen p -> f
+            (_, p) | isConstLen p -> f
+            (_, _) -> lift . failWith $
+              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.vector loc) vt)
+          where
+            f = liftA2 (++) (g locL l) (g locR r)
+            -- todo: same `Type.vector loc` thing
+            g l p = checkPattern (Type.app l (Type.vector l) vt) p
+
+            -- Only pertains to sequences, returns False if not a sequence
+            isConstLen :: Pattern loc -> Bool
+            isConstLen p = case p of
+              Pattern.SequenceLiteral _ _ -> True
+              Pattern.SequenceOp _ l op r -> case op of
+                Pattern.Snoc -> isConstLen l
+                Pattern.Cons -> isConstLen r
+                Pattern.Concat -> isConstLen l && isConstLen r
+                c -> error $ "unpossible Pattern.SeqOp: " <> show c
+              Pattern.As _ p -> isConstLen p
+              _ -> False
+        c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
@@ -973,6 +1027,8 @@ checkPattern scrutineeType0 p =
           ctorOutputType
     _ -> lift . compilerCrash $ MalformedPattern p
  where
+
+  getAdvance :: Pattern loc -> StateT [v] (M v loc) v
   getAdvance p = do
     vs <- get
     case vs of
