@@ -41,6 +41,7 @@ data Error v
   | UnknownDataConstructor (L.Token String)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
+  | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   deriving (Show, Eq, Ord)
 
 data Ann

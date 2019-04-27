@@ -61,6 +61,7 @@ import qualified Unison.TermPrinter as TermPrinter
 
 type Env = PPE.PrettyPrintEnv
 
+pattern Code = Color.Blue
 pattern Type1 = Color.HiBlue
 pattern Type2 = Color.Green
 pattern ErrorSite = Color.HiRed
@@ -931,12 +932,12 @@ prettyParseError s = \case
          )
       <> lexerOutput
 
-  P.FancyError sp fancyErrors ->
-    mconcat (go' <$> Set.toList fancyErrors) <> dumpSourcePos sp <> lexerOutput
+  P.FancyError _sp fancyErrors ->
+    mconcat (go' <$> Set.toList fancyErrors) <> lexerOutput
  where
-  dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AnnotatedText a
-  dumpSourcePos sp =
-    (mconcat . toList) (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
+  -- dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AnnotatedText a
+  -- dumpSourcePos sp =
+  -- (mconcat . toList) (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
   go' :: P.ErrorFancy (Parser.Error v) -> AnnotatedText Color
   go' (P.ErrorFail s) =
     "The parser failed with this message:\n" <> fromString s
@@ -952,6 +953,26 @@ prettyParseError s = \case
     ]
   go' (P.ErrorCustom e) = go e
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.DidntExpectExpression _tok (Just (t@(L.payload -> L.SymbolyId "::")))) =
+    mconcat [ "I parsed an expression here but was expecting a binding."
+            , "\nDid you mean to use a single " <> style Code ":"
+            , " here for a type signature?"
+            , "\n\n"
+            , tokenAsErrorSite s t ]
+  go (Parser.DidntExpectExpression tok _nextTok) = mconcat
+    [ "I parsed an expression here but was expecting one of the following:"
+    , "\n"
+    , "\n  - An `ability` declaration, like " <> style Code "ability Foo where ..."
+    , "\n  - A `type` declaration, like " <> style Code "type Optional a = None | Some a"
+    , "\n  - A `namespace` declaration, like " <> style Code "namespace Seq where ..."
+    , "\n  - A binding, like " <> t <> style Code " = 42" <> " OR"
+    , "\n                    " <> t <> style Code " : Nat"
+    , "\n                    " <> t <> style Code " = 42"
+    , "\n  - A watch expression, like " <> style Code ("> ") <> t <> style Code " + 1"
+    , "\n\n"
+    , tokenAsErrorSite s tok
+    ]
+    where t = style Code (fromString (P.showTokens (pure tok)))
   go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat
     [ "I was expecting an indented block following the " <>
       "`" <> fromString blockName <> "` keyword\n"
