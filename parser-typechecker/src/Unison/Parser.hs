@@ -5,7 +5,7 @@
 module Unison.Parser where
 
 import           Control.Applicative
-import           Control.Monad        (join)
+import           Control.Monad        (join, when)
 import           Data.Bifunctor       (bimap)
 import           Data.List.NonEmpty   (NonEmpty (..))
 import           Data.Maybe
@@ -314,6 +314,15 @@ chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
 attempt :: Var v => P v a -> P v a
 attempt = P.try
+
+-- If `p` would succeed, this fails uncommitted.
+-- Otherwise, `failIfOk` is used to produce
+failureIf :: Var v => P v (P v b) -> P v a -> P v b
+failureIf failIfOk p = do
+  dontwant <- P.try . P.lookAhead $ failIfOk
+  p <- P.try $ P.lookAhead (optional p)
+  when (isJust p) $ fail "failureIf"
+  dontwant
 
 -- Gives this var an id based on its position - a useful trick to
 -- obtain a variable whose id won't match any other id in the file

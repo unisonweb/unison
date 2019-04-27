@@ -960,17 +960,18 @@ prettyParseError s = \case
             , "\n\n"
             , tokenAsErrorSite s t ]
   go (Parser.DidntExpectExpression tok _nextTok) = mconcat
-    [ "I parsed an expression here but was expecting one of the following:"
+    [ "I parsed an expression starting here\n\n"
+    , tokenAsErrorSite s tok
+    , "\nbut at the file top-level, I expect one of the following:"
     , "\n"
-    , "\n  - An `ability` declaration, like " <> style Code "ability Foo where ..."
-    , "\n  - A `type` declaration, like " <> style Code "type Optional a = None | Some a"
-    , "\n  - A `namespace` declaration, like " <> style Code "namespace Seq where ..."
     , "\n  - A binding, like " <> t <> style Code " = 42" <> " OR"
     , "\n                    " <> t <> style Code " : Nat"
     , "\n                    " <> t <> style Code " = 42"
     , "\n  - A watch expression, like " <> style Code ("> ") <> t <> style Code " + 1"
-    , "\n\n"
-    , tokenAsErrorSite s tok
+    , "\n  - An `ability` declaration, like " <> style Code "ability Foo where ..."
+    , "\n  - A `type` declaration, like " <> style Code "type Optional a = None | Some a"
+    , "\n  - A `namespace` declaration, like " <> style Code "namespace Seq where ..."
+    , "\n"
     ]
     where t = style Code (fromString (P.showTokens (pure tok)))
   go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat

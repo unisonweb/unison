@@ -6,11 +6,11 @@ module Unison.FileParser where
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
-import           Control.Monad (guard, msum, when)
+import           Control.Monad (guard, msum)
 import           Control.Monad.Reader (local, ask)
+import           Data.Functor
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
-import           Data.Maybe ( isJust )
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
@@ -78,14 +78,10 @@ data Stanza v term
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
 stanza = watchExpression <|> action <|> binding <|> namespace
   where
-  action = do
-    (t, t2) <- P.try . P.lookAhead $ do
-      t <- anyToken
-      t2 <- optional anyToken
-      (t, t2) <$ TermParser.blockTerm
-    b <- P.try $ P.lookAhead (optional binding)
-    when (isJust b) $ fail ""
-    _ <- anyToken
+  action = failureIf (TermParser.blockTerm $> getErr) binding
+  getErr = do
+    t <- anyToken
+    t2 <- optional anyToken
     P.customFailure $ DidntExpectExpression t t2
   watchExpression = do
     ann <- watched
