@@ -46,6 +46,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
+import           Data.Time.Clock.POSIX         as Time
 import qualified Network.Simple.TCP            as Net
 import qualified Network.Socket                as Sock
 --import qualified Network.Socket                as Sock
@@ -334,6 +335,9 @@ handleIO cenv cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
   go "IO.delay" [IR.N n] = do
     reraiseIO . threadDelay $ fromIntegral n
     pure IR.unit
+  go "IO.systemTime_" [] = do
+    t <- reraiseIO $ fmap round Time.getPOSIXTime
+    pure $ IR.Data IOSrc.epochTimeReference IOSrc.epochTimeId [IR.N t]
   go a b =
     error
       $  "IO handler called with unimplemented cid "
