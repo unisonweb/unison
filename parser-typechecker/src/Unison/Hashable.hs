@@ -7,6 +7,7 @@ import Data.Word (Word8, Word64)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 data Token h
   = Tag !Word8
@@ -36,6 +37,9 @@ instance Hashable a => Hashable [a] where
 
 instance (Hashable a, Hashable b) => Hashable (a,b) where
   tokens (a,b) = [accumulateToken a, accumulateToken b]
+
+instance (Hashable a) => Hashable (Set.Set a) where
+  tokens = tokens . Set.toList
 
 instance (Hashable k, Hashable v) => Hashable (Map.Map k v) where
   tokens = tokens . Map.toList

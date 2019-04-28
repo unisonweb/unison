@@ -39,14 +39,20 @@ library
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
+    Unison.Codebase4
     Unison.Codebase.Branch
     Unison.Codebase.Branch2
+    -- Unison.Codebase.Branch3
+    Unison.Codebase.Branch4
     Unison.Codebase.Causal
     Unison.Codebase.Causal2
+    -- Unison.Codebase.Causal3
+    Unison.Codebase.Causal4
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit
     Unison.Codebase.Path
     Unison.Codebase.Runtime
@@ -54,6 +60,7 @@ library
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V0
+    Unison.Codebase.Serialization.V1
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch

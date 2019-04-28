@@ -1,9 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Unison.Codebase.Branch2 where
-
--- import qualified Unison.Codebase.Branch as Branch
+module Unison.Codebase.Branch3 where
 
 import           Prelude                  hiding (head,subtract)
 
@@ -16,8 +14,8 @@ import           Data.Map                 (Map)
 import           Data.Text                (Text)
 import qualified Data.Text as Text
 
-import qualified Unison.Codebase.Causal2       as Causal
-import           Unison.Codebase.Causal2        ( Causal )
+import qualified Unison.Codebase.Causal3       as Causal
+import           Unison.Codebase.Causal3        ( Causal )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( NameSegment
@@ -67,13 +65,13 @@ data RepoLink a = RepoLink RepoRef a
 --   , edits :: ???
 --   }
 
-newtype Branch m = Branch { _history :: Causal m Branch0 }
+newtype Branch = Branch { _history :: Causal Branch0 }
 
-head :: Branch m -> Branch0
+head :: Branch -> Branch0
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> Hash
-headHash (Branch c) = Causal.currentHash c
+headHash :: Branch -> Hash
+headHash (Branch c) = error "todo" -- Causal.currentHash c
 
 data Branch0 = Branch0
   { _terms :: Relation NameSegment Reference
@@ -85,6 +83,8 @@ data Branch0 = Branch0
   , _children :: Map NameSegment Hash
   }
 
+-- type Loader m = Hash -> m (Maybe (Branch m))
+-- type Saver m = Branch m ->
 
 makeLenses ''Branch0
 makeLenses ''Branch
