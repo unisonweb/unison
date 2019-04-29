@@ -9,6 +9,7 @@ import           Prelude                 hiding ( head
                                                 )
 import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
+import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
@@ -59,28 +60,32 @@ consN conss tail = foldr (\(h,e) t -> Cons h e (currentHash t, pure t)) tail con
 --   go acc (Cons h e (_,tail)) = tail >>= go ((h, e) : acc)
 --   go acc x                   = pure (reverse acc, x)
 
+-- A serializor `Causal m e`. Nonrecursive -- only responsible for
+-- writing a single node of the causal structure.
 data Serialize m e =
   Serialize { serializeOne :: Hash -> e -> m ()
             , serializeCons :: Hash -> e -> Hash -> m ()
             , serializeMerge :: Hash -> e -> Set Hash -> m () }
 
+-- Sync a causal to some persistent store, stopping when hitting a Hash which
+-- has already been written, according to the `exists` function provided.
 sync :: Monad m => (Hash -> m Bool) -> Serialize m e -> Causal m e -> m ()
-sync exists s c = exists (currentHash c) >>= \case
-  True -> pure ()
-  False -> go c
+sync exists s c = do
+  b <- exists (currentHash c)
+  when (not b) $ go c
   where
-  go c = case c of
-    One currentHash head -> serializeOne s currentHash head
-    Cons currentHash head (tailHash, tail) -> do
-      -- write out the tail first, so what's on disk is always valid
-      sync exists s c
-      serializeCons s currentHash head tailHash
-    Merge currentHash head tails -> do
-      for_ (Map.toList tails) $ \(hash, cm) -> do
-        b <- exists hash
-        if b then pure ()
-        else go =<< cm
-      serializeMerge s currentHash head (Map.keysSet tails)
+    go c = case c of
+      One currentHash head -> serializeOne s currentHash head
+      Cons currentHash head (tailHash, tailm) -> do
+        -- write out the tail first, so what's on disk is always valid
+        b <- exists tailHash
+        when (not b) $ go =<< tailm
+        serializeCons s currentHash head tailHash
+      Merge currentHash head tails -> do
+        for_ (Map.toList tails) $ \(hash, cm) -> do
+          b <- exists hash
+          when (not b) $ go =<< cm
+        serializeMerge s currentHash head (Map.keysSet tails)
 
 instance Eq (Causal m a) where
   a == b = currentHash a == currentHash b
