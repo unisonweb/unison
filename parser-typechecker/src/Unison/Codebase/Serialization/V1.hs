@@ -23,6 +23,8 @@ import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Data.Foldable                  ( traverse_ )
 import           Data.Int                       ( Int64 )
+import           Data.Map                       ( Map )
+import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
                                                 , foldl'
                                                 )
@@ -501,8 +503,8 @@ getTerm getVar getA = getABT getVar getA go where
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
     _ -> unknownTag "getTerm" tag
 
-putPair' :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
-putPair' putA putB (a,b) = putA a *> putB b
+putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
+putPair putA putB (a,b) = putA a *> putB b
 
 putPair''
   :: (MonadPut m, Monad n)
@@ -529,10 +531,16 @@ getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
 getTuple3 = liftA3 (,,)
 
 putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
-putRelation r putA putB = putFoldable (putPair' putA putB) (Relation.toList r)
+putRelation r putA putB = putFoldable (putPair putA putB) (Relation.toList r)
 
 getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
 getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
+
+putMap :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Map a b -> m ()
+putMap putA putB m = putFoldable (putPair putA putB) (Map.toList m)
+
+getMap :: (MonadGet m, Ord a) => m a -> m b -> m (Map a b)
+getMap getA getB = Map.fromList <$> getList (getPair getA getB)
 
 putTermEdit :: MonadPut m => TermEdit -> m ()
 putTermEdit (TermEdit.Replace r typing) =
@@ -563,11 +571,13 @@ getTypeEdit = getWord8 >>= \case
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
--- putBranch0 :: MonadPut m => Branch0 n -> m ()
--- putBranch0 b =
---   putRelation (Branch._terms b) putName putReferent
---   putRelation (Branch._types b) putName putReference
---   putRelation (Branch._children b) putName putLink
+putBranch0 :: MonadPut m => Branch0 n -> m ()
+putBranch0 b = do
+  putRelation (Branch._terms b) putNameSegment putReferent
+  putRelation (Branch._types b) putNameSegment putReference
+  putFoldable (putPair putNameSegment (putHash . fst))
+              (Map.toList (Branch._children b))
+
 
 putLink :: MonadPut m => (Hash, mb) -> m ()
 putLink (h, _) = do
@@ -584,15 +594,14 @@ getName = Name.unsafeFromText <$> getText
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText
 
--- getBranch0 :: (Monad load, MonadGet m)
+-- getBranch0 :: MonadGet m
 --            => (Hash -> load (Maybe (Branch load)))
 --            -> m (Branch0 load)
 -- getBranch0 =
 --   Branch0
 --     <$> getNamespace
 --     <*> getNamespace
---     <*> getRelation getReference getTermEdit
---     <*> getRelation getReference getTypeEdit
+--     <*> getMap ()
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

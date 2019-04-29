@@ -42,30 +42,9 @@ data RepoRef
 data RepoLink a = RepoLink RepoRef a
   deriving (Eq, Ord, Show)
 
--- type Link = RepoLink Hash
--- type EditLink = RepoLink EditGuid
---
--- data UnisonRepo = UnisonRepo
---   { _rootNamespace :: Link
---   , _editMap :: EditMap
---   , _editNames :: Relation Text EditGuid
---   } deriving (Eq, Ord, Show)
---
--- data Edits = Edits
---   { _termEdits :: Relation Reference TermEdit
---   , _typeEdits :: Relation Reference TypeEdit
---   } deriving (Eq, Ord, Show)
-
--- newtype EditMap =
---   EditMap { toMap :: Map EditGuid (Causal Edits) }
---   deriving (Eq, Ord, Show)
---
--- type FriendlyEditNames = Relation Text EditGuid
-
--- data Codebase' = Codebase'
---   { namespaceRoot :: Branch
---   , edits :: ???
---   }
+{-
+To load a `Branch m`, we need a `Hash -> m (Causal0 (Branch0 m))`
+-}
 
 newtype Branch m = Branch { _history :: Causal m (Branch0 m) }
   deriving (Eq, Ord)
@@ -77,7 +56,7 @@ headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
 data Branch0 m = Branch0
-  { _terms :: Relation NameSegment Reference
+  { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
   -- Q: How will we handle merges and conflicts for `children`?
   --    Should this be a relation?
