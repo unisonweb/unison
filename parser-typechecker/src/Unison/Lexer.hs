@@ -210,12 +210,11 @@ lexer0 scope rem =
           in Token Close pos end
                : Token (Reserved kw) pos end
                : goWhitespace (pop l) (incBy kw pos) rem
-      Just (kw, rem) ->
-        let end = incBy kw pos
-        in Token Close pos pos
-             : Token (Open kw) pos end
-             -- todo: would be nice to check that top of `l` is an Open "if" or "then"
-             : pushLayout kw (pop l) end rem
+      Just (kw, rem) -> case closes (openingKeyword kw) kw l pos of
+        (Nothing, ts) -> ts ++ recover l (incBy kw pos) rem
+        (Just l, ts) ->
+          let end = incBy kw pos
+          in ts ++ [Token (Open kw) pos end] ++ pushLayout kw l end rem
 
     -- Examine current column and pop the layout stack
     -- and emit `Semi` / `Close` tokens as needed
@@ -261,7 +260,18 @@ lexer0 scope rem =
       Nothing -> [Token (Err $ CloseWithoutMatchingOpen open close) pos pos]
       Just n ->
         let closes = replicate n $ Token Close pos (incBy close pos)
-        in closes ++ goWhitespace (drop n l) (inc pos) rem
+        in closes ++ goWhitespace (drop n l) (incBy close pos) rem
+
+    -- If the close is well-formed, returns a new layout stack and the correct
+    -- number of `Close` tokens. If the close isn't well-formed (has no match),
+    -- `Nothing` is returned along an error token.
+    closes :: String -> String -> Layout -> Pos
+          -> (Maybe Layout, [Token Lexeme])
+    closes open close l pos = case findClose open l of
+      Nothing -> (Nothing,
+        [Token (Err $ CloseWithoutMatchingOpen open close) pos (incBy close pos)])
+      Just n ->
+        (Just $ drop n l, replicate n $ Token Close pos (incBy close pos))
 
     -- assuming we've dealt with whitespace and layout, read a token
     go :: Layout -> Pos -> [Char] -> [Token Lexeme]
@@ -510,6 +520,11 @@ layoutKeywords =
 -- These keywords end a layout block and begin another layout block
 layoutCloseAndOpenKeywords :: Set String
 layoutCloseAndOpenKeywords = Set.fromList ["then", "else"]
+
+openingKeyword :: String -> String
+openingKeyword "then" = "if"
+openingKeyword "else" = "then"
+openingKeyword kw = error $ "Not sure what the opening keyword is for: " <> kw
 
 -- These keywords end a layout block
 layoutCloseOnlyKeywords :: Set String
