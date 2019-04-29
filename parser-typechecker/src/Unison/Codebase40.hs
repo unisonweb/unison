@@ -84,7 +84,29 @@ import Control.Monad.Reader (MonadReader, ReaderT)
 -- type BranchName = Text
 -- type Decl v a = TL.Decl v a
 
-data ReadOnlyCodebase m v a = ReadOnlyCodebase
+-- class MonadError LoadError m => HashLoad m where
+--   load :: Loadable a => TypedHash a -> m a
+--   load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
+
+data LoadError = LoadFailure Hash
+data TypedHash a = TypedHash Hash
+
+class Loadable b where
+  load :: forall m v a.
+    ReadOnlyCodebase LoadError m v a ->
+    TypedHash b ->
+    m (Either LoadError b)
+
+instance Loadable (Causal Branch0) where
+  load c h = error "todo"
+
+class HashLoad' m where
+  load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
+
+data Foo m v a b =
+  Foo (ReadOnlyCodebase LoadError m v a -> m (Either LoadError b))
+
+data ReadOnlyCodebase e m v a = ReadOnlyCodebase
   {
   -- getTerm :: Reference.Id -> m (Maybe (Term v a)),
   -- getTypeOfTerm :: Reference -> m (Maybe (Type v a)),
@@ -100,14 +122,14 @@ data ReadOnlyCodebase m v a = ReadOnlyCodebase
 --   , saveBranch :: Branch -> m Hash
 --   -- , ...
 --   }
+type Error = Causal.LoadError
+type CodebaseRead e m v a = ReaderT (ReadOnlyCodebase e m v a) m
+-- type CodebaseRead m v a = ReaderT (ReadOnlyCodebase m v a) m
 
-type CodebaseRead m v a = ReaderT (ReadOnlyCodebase m v a) m
+instance Monad m => MonadError e (CodebaseRead e m v a) where
+--   -- throwError
 
-instance MonadError (Causal.LoadError (Causal Branch0))
-                    (CodebaseRead IO v a) where
-  -- throwError
-
-instance Causal.HashLoad (Causal Branch0) (CodebaseRead IO v a) where
+instance Causal.HashLoad (Causal Branch0) (CodebaseRead Error m v ann) where
 
 
 -- data Codebase m v a =

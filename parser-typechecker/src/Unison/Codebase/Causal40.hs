@@ -59,10 +59,20 @@ import Data.Set (Set)
 -- Specifically: We don't want to have to load a tail (from disk?)
 -- in order to know whether we need to write it to disk.
 
-data LoadError a = LoadFailure Hash
+data LoadError = LoadFailure Hash
+data TypedHash a = TypedHash Hash
 
-class MonadError (LoadError a) m => HashLoad a m where
-  load :: Hash -> m a
+class MonadError LoadError m => HashLoad m where
+  -- load :: Loadable a => TypedHash a -> m a
+  load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
+
+-- class HashLoad m where
+--   load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
+
+load :: (MonadError LoadError m, Loadable a) => TypedHash a -> m a
+load h = load_ h >>= \case
+  Left e -> throwError e
+  Right a -> pure a
 
 class (HashLoad a m, Hashable a) => HashStore a m where
   save :: a -> m Hash

@@ -65,7 +65,13 @@ data Branch0 m = Branch0
   , _children :: Map NameSegment (Hash, Branch m)
   }
 
+data Branch00 = Branch00
+  { _terms0 :: Relation NameSegment Referent
+  , _types0 :: Relation NameSegment Reference
+  , _children0 :: Map NameSegment Hash
+  }
 
+makeLenses ''Branch00
 makeLenses ''Branch0
 makeLenses ''Branch
 

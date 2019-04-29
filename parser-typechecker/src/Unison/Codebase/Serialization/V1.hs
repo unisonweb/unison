@@ -35,6 +35,7 @@ import           Data.Text.Encoding             ( encodeUtf8
 import           Data.Word                      ( Word64 )
 import           Unison.Codebase.Branch2        ( Branch(..)
                                                 , Branch0(..)
+                                                , Branch00(..)
                                                 )
 import qualified Unison.Codebase.Branch2        as Branch
 import           Unison.Codebase.Causal2        ( Causal, Causal0(..), Causal00(..) )
@@ -594,14 +595,13 @@ getName = Name.unsafeFromText <$> getText
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText
 
--- getBranch0 :: MonadGet m
---            => (Hash -> load (Maybe (Branch load)))
---            -> m (Branch0 load)
--- getBranch0 =
---   Branch0
---     <$> getNamespace
---     <*> getNamespace
---     <*> getMap ()
+--
+getBranch00 :: MonadGet m => m Branch00
+getBranch00 d =
+  Branch00
+    <$> getNamespace
+    <*> getNamespace
+    <*> getMap getNameSegment getHash
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
