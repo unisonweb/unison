@@ -18,7 +18,6 @@ import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
-import qualified Data.Set                      as Set
 import           Data.Foldable                  ( for_ )
 
 {-
@@ -68,7 +67,9 @@ data Serialize m e =
 sync :: Monad m => (Hash -> m Bool) -> Serialize m e -> Causal m e -> m ()
 sync exists s c = exists (currentHash c) >>= \case
   True -> pure ()
-  False -> case c of
+  False -> go c
+  where
+  go c = case c of
     One currentHash head -> serializeOne s currentHash head
     Cons currentHash head (tailHash, tail) -> do
       -- write out the tail first, so what's on disk is always valid
@@ -78,7 +79,7 @@ sync exists s c = exists (currentHash c) >>= \case
       for_ (Map.toList tails) $ \(hash, cm) -> do
         b <- exists hash
         if b then pure ()
-        else do c <- cm; sync exists s c
+        else go =<< cm
       serializeMerge s currentHash head (Map.keysSet tails)
 
 instance Eq (Causal m a) where
