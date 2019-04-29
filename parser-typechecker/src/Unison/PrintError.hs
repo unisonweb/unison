@@ -953,6 +953,16 @@ prettyParseError s = \case
     ]
   go' (P.ErrorCustom e) = go e
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.TypeDeclarationErrors es) = let
+    unknownTypes = [ (v, a) | UF.UnknownType v a <- es ]
+    dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]
+    var v = style ErrorSite . fromString . Text.unpack $ Var.name v
+    unknownTypesMsg =
+      mconcat [ "I don't know about the types: "
+              , intercalateMap "," var (fst <$> unknownTypes)
+              , "\n\n"
+              ]
+    in unknownTypesMsg
   go (Parser.DidntExpectExpression _tok (Just (t@(L.payload -> L.SymbolyId "::")))) =
     mconcat [ "I parsed an expression here but was expecting a binding."
             , "\nDid you mean to use a single " <> style Code ":"
@@ -1021,12 +1031,21 @@ annotatedAsErrorSite
 annotatedAsErrorSite = annotatedAsStyle ErrorSite
 
 annotatedAsStyle
-  :: (Ord s, Annotated a) => s -> String -> a -> AnnotatedText s
+  :: (Ord style, Annotated a) => style -> String -> a -> AnnotatedText style
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
 
+annotatedsAsStyle ::
+  (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
+annotatedsAsStyle style src as =
+  showSourceMaybes src [ (,style) <$> rangeForAnnotated a | a <- as ]
+
 tokenAsErrorSite :: String -> L.Token a -> AnnotatedText Color
 tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, ErrorSite)
+
+tokensAsErrorSite :: String -> [L.Token a] -> AnnotatedText Color
+tokensAsErrorSite src ts =
+  showSource src [(rangeForToken t, ErrorSite) | t <- ts ]
 
 showSourceMaybes
   :: Ord a => String -> [Maybe (Range, a)] -> AnnotatedText a

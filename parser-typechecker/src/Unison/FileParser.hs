@@ -36,7 +36,9 @@ file = do
   _ <- openBlock
   names <- ask
   (dataDecls, effectDecls) <- declarations
-  let env = environmentFor names dataDecls effectDecls
+  env <- case environmentFor names dataDecls effectDecls of
+    Right env -> pure env
+    Left es -> P.customFailure $ TypeDeclarationErrors es
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask

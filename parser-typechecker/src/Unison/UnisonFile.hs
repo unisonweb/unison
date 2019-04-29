@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.UnisonFile where
 
 import           Control.Applicative    ((<|>))
-import           Control.Exception      (assert)
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
@@ -197,6 +197,13 @@ data Env v a = Env
   , names   :: Names
 }
 
+data Error v a
+  -- A free type variable that couldn't be resolved
+  = UnknownType v a
+  -- A variable which is both a data and an ability declaration
+  | DupDataAndAbility v a a
+  deriving (Eq,Ord,Show)
+
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
@@ -205,7 +212,7 @@ data Env v a = Env
 -- left.
 environmentFor
   :: forall v a . Var v => Names -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
-  -> Env v a
+  -> Either [Error v a] (Env v a)
 environmentFor names0 dataDecls0 effectDecls0 =
   let
     -- ignore builtin types that will be shadowed by user-defined data/effects
@@ -217,8 +224,9 @@ environmentFor names0 dataDecls0 effectDecls0 =
     dataDecls = DD.bindBuiltins names <$> dataDecls0
     effectDecls :: Map v (EffectDeclaration' v a)
     effectDecls = withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
+    allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
     hashDecls' :: [(v, Reference, DataDeclaration' v a)]
-    hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
+    hashDecls' = hashDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
     dataDecls' = Map.difference allDecls effectDecls
@@ -227,7 +235,12 @@ environmentFor names0 dataDecls0 effectDecls0 =
     ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
     names' = ctors <> effects <> names
+    overlaps = let
+      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
+      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
+    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
+      error "todo"
   in
-    -- make sure we don't have overlapping data and effect constructor names
-    assert (null (Set.intersection (Map.keysSet dataDecls) (Map.keysSet effectDecls))) $
-      Env dataDecls' effectDecls' names'
+    if null overlaps && null unknownTypeRefs
+    then pure $ Env dataDecls' effectDecls' names'
+    else Left (unknownTypeRefs ++ overlaps)
