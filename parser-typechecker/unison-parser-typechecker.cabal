@@ -39,11 +39,11 @@ library
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
-    Unison.Codebase4
+    -- Unison.Codebase4
     Unison.Codebase.Branch
     Unison.Codebase.Branch2
     -- Unison.Codebase.Branch3
-    Unison.Codebase.Branch4
+    -- Unison.Codebase.Branch4
     Unison.Codebase.Causal
     Unison.Codebase.Causal2
     -- Unison.Codebase.Causal3
