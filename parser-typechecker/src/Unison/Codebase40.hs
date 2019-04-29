@@ -7,10 +7,10 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
 
-module Unison.Codebase4 where
+module Unison.Codebase40 where
 
 import           Unison.Hash                    ( Hash )
-import qualified Unison.Codebase.Causal4 as Causal
+import qualified Unison.Codebase.Causal40 as Causal
 import Unison.Codebase.Causal4 (Causal)
 import qualified Unison.Codebase.Branch4 as Branch
 import Unison.Codebase.Branch4 (Branch, Branch0)
@@ -91,11 +91,6 @@ import Control.Monad.Reader (MonadReader, ReaderT)
 data LoadError = LoadFailure Hash
 data TypedHash a = TypedHash Hash
 
-class Loadable b where
-  load :: forall m v a.
-    ReadOnlyCodebase LoadError m v a ->
-    TypedHash b ->
-    m (Either LoadError b)
 
 instance Loadable (Causal Branch0) where
   load c h = error "todo"

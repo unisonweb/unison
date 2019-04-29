@@ -91,9 +91,10 @@ branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> Hash -> m (Branch
 branchFromFile root h = do
   let ubf = branchPath root h
   bytes <- liftIO $ BS.readFile ubf
-  case Get.runGetS V1.getBranch0 bytes of
-    Left err     -> throwError $ InvalidBranchFile ubf err
-    Right branch -> pure branch
+  error "todo"
+  -- case Get.runGetS V1.getBranch0 bytes of
+  --   Left err     -> throwError $ InvalidBranchFile ubf err
+  --   Right branch -> pure branch
 
 -- -- branchToFile :: FilePath -> Branch -> IO ()
 -- -- branchToFile = S.putWithParentDirs V0.putBranch

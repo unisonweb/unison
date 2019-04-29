@@ -101,7 +101,9 @@ data ReadOnlyCodebase m v a = ReadOnlyCodebase
 --   -- , ...
 --   }
 
-type CodebaseRead m v a = ReaderT (ReadOnlyCodebase m v a) m
+-- type CodebaseRead m v a = ReaderT (ReadOnlyCodebase m v a) m
+-- newtype CodebaseRead m v a b =
+--   CodebaseRead { run :: ReadOnlyCodebase m v a -> m b }
 
 instance MonadError (Causal.LoadError (Causal Branch0))
                     (CodebaseRead IO v a) where

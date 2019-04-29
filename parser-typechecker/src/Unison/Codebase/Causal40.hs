@@ -7,7 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Unison.Codebase.Causal4
+module Unison.Codebase.Causal40
 where
 
 import           Prelude                 hiding ( head
@@ -61,18 +61,25 @@ import Data.Set (Set)
 
 data LoadError = LoadFailure Hash
 data TypedHash a = TypedHash Hash
+class Loadable b where
+  load :: forall m v a.
+    ReadOnlyCodebase LoadError m v a ->
+    TypedHash b ->
+    m (Either LoadError b)
 
-class MonadError LoadError m => HashLoad m where
+class HashLoad m where
   -- load :: Loadable a => TypedHash a -> m a
   load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
 
--- class HashLoad m where
---   load_ :: Loadable a => TypedHash a -> m (Either LoadError a)
+class HashStore m where
+  save_ :: Saveable a => a -> m (TypedHash a)
 
 load :: (MonadError LoadError m, Loadable a) => TypedHash a -> m a
 load h = load_ h >>= \case
   Left e -> throwError e
   Right a -> pure a
+
+-- save :: (HashStore m, Saveable a) =>
 
 class (HashLoad a m, Hashable a) => HashStore a m where
   save :: a -> m Hash

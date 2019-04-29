@@ -596,12 +596,12 @@ putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText
 
 --
-getBranch00 :: MonadGet m => m Branch00
-getBranch00 d =
-  Branch00
-    <$> getNamespace
-    <*> getNamespace
-    <*> getMap getNameSegment getHash
+-- getBranch00 :: MonadGet m => m Branch00
+-- getBranch00 d =
+--   Branch00
+--     <$> getNamespace
+--     <*> getNamespace
+--     <*> getMap getNameSegment getHash
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
