@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Causal2 where
 
@@ -16,6 +17,9 @@ import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Foldable                  ( for_ )
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -39,22 +43,43 @@ import qualified Data.Map                      as Map
 
 data Causal m e
   = One { currentHash :: Hash, head :: e }
-  | Cons { currentHash :: Hash, head :: e, tail :: m (Causal m e) }
+  | Cons { currentHash :: Hash, head :: e, tail :: (Hash, m (Causal m e)) }
   -- The merge operation `<>` flattens and normalizes for order
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal m e)) }
 
 consN :: Applicative m => [(Hash, e)] -> Causal m e -> Causal m e
-consN conss tail = foldr (\(h,e) t -> Cons h e (pure t)) tail conss
+consN conss tail = foldr (\(h,e) t -> Cons h e (currentHash t, pure t)) tail conss
 
-pattern ConsN m <- (uncons -> Just m)
+-- pattern ConsN m <- (uncons -> Just m)
 
-uncons :: Monad m => Causal m e -> Maybe (m ([(Hash, e)], Causal m e))
-uncons One{}         = Nothing
-uncons Merge{}       = Nothing
-uncons x             = Just $ go [] x
- where
-  go acc (Cons h e tail) = tail >>= go ((h, e) : acc)
-  go acc x               = pure (reverse acc, x)
+-- uncons :: Monad m => Causal m e -> Maybe (m ([(Hash, e)], Causal m e))
+-- uncons One{}         = Nothing
+-- uncons Merge{}       = Nothing
+-- uncons x             = Just $ go [] x
+--  where
+--   go acc (Cons h e (_,tail)) = tail >>= go ((h, e) : acc)
+--   go acc x                   = pure (reverse acc, x)
+
+data Serialize m e =
+  Serialize { serializeOne :: Hash -> e -> m ()
+            , serializeCons :: Hash -> e -> Hash -> m ()
+            , serializeMerge :: Hash -> e -> Set Hash -> m () }
+
+sync :: Monad m => (Hash -> m Bool) -> Serialize m e -> Causal m e -> m ()
+sync exists s c = exists (currentHash c) >>= \case
+  True -> pure ()
+  False -> case c of
+    One currentHash head -> serializeOne s currentHash head
+    Cons currentHash head (tailHash, tail) -> do
+      -- write out the tail first, so what's on disk is always valid
+      sync exists s c
+      serializeCons s currentHash head tailHash
+    Merge currentHash head tails -> do
+      for_ (Map.toList tails) $ \(hash, cm) -> do
+        b <- exists hash
+        if b then pure ()
+        else do c <- cm; sync exists s c
+      serializeMerge s currentHash head (Map.keysSet tails)
 
 instance Eq (Causal m a) where
   a == b = currentHash a == currentHash b
@@ -79,7 +104,7 @@ before h1 h2 = go h1 h2
   go h1 h2 | h1 == h2 = pure True
   -- otherwise look through tails if they exist
   go _  (One _ _    ) = pure False
-  go h1 (Cons _ _ tl) = tl >>= go h1
+  go h1 (Cons _ _ tl) = snd tl >>= go h1
   -- `m1` is a submap of `m2`
   go (Merge _ _ m1) (Merge _ _ m2) | all (`Map.member` m2) (Map.keys m1) =
     pure True
@@ -130,4 +155,4 @@ one :: Hashable e => e -> Causal m e
 one e = One (hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m e -> Causal m e
-cons e tl = Cons (hash [hash e, currentHash tl]) e (pure tl)
+cons e tl = Cons (hash [hash e, currentHash tl]) e (currentHash tl, pure tl)
