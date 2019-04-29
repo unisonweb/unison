@@ -35,7 +35,7 @@ import           Unison.Codebase.Branch2        ( Branch(..)
                                                 , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Causal )
+import           Unison.Codebase.Causal2        ( Causal, Causal0(..), Causal00(..) )
 import           Unison.Codebase.Path           ( NameSegment )
 import           Unison.Codebase.Path           as Path
 import           Unison.Codebase.Path           as NameSegment
@@ -87,6 +87,27 @@ unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++
          " while deserializing: " ++ msg
+
+putCausal0 :: MonadPut m => (a -> m ()) -> Causal0 a -> m ()
+putCausal0 putA = \case
+  One0 a -> putWord8 0 >> putA a
+  Cons0 a t -> putWord8 1 >> putHash t >> putA a
+  Merge0 a ts -> putWord8 2 >> putFoldable putHash ts >> putA a
+
+getCausal0 :: MonadGet m => m a -> m (Causal0 a)
+getCausal0 getA = getWord8 >>= \case
+  0 -> One0 <$> getA
+  1 -> flip Cons0 <$> getHash <*> getA
+  2 -> flip Merge0 . Set.fromList <$> getList getHash <*> getA
+
+-- Like getCausal, but doesn't bother to read the actual value in the causal,
+-- it just reads the hashes.  Useful for more efficient implementation of
+-- `Causal.before`.
+getCausal00 :: MonadGet m => m Causal00
+getCausal00 = getWord8 >>= \case
+  0 -> pure One00
+  1 -> Cons00 <$> getHash
+  2 -> Merge00 . Set.fromList <$> getList getHash
 
 -- 1. Can no longer read a causal using just MonadGet;
 --    need a way to construct the loader that forms its tail.
@@ -249,20 +270,20 @@ getMaybe getA = getWord8 >>= \tag -> case tag of
   _ -> unknownTag "Maybe" tag
 
 putFoldable
-  :: (Foldable f, MonadPut m) => f a -> (a -> m ()) -> m ()
-putFoldable as putA = do
+  :: (Foldable f, MonadPut m) => (a -> m ()) -> f a -> m ()
+putFoldable putA as = do
   putLength (length as)
   traverse_ putA as
 
 
-putFoldableN
-  :: forall f m n a
-   . (Traversable f, MonadPut m, Applicative n)
-  => f a
-  -> (a -> n (m ()))
-  -> n (m ())
-putFoldableN as putAn =
-  pure (putLength @m (length as)) *> (fmap sequence_ $ traverse putAn as)
+-- putFoldableN
+--   :: forall f m n a
+--    . (Traversable f, MonadPut m, Applicative n)
+--   => f a
+--   -> (a -> n (m ()))
+--   -> n (m ())
+-- putFoldableN as putAn =
+--   pure (putLength @m (length as)) *> (fmap sequence_ $ traverse putAn as)
 
 getFolded :: MonadGet m => (b -> a -> b) -> b -> m a -> m b
 getFolded f z a =
@@ -279,7 +300,7 @@ putABT
   -> ABT.Term f v a
   -> m ()
 putABT putVar putA putF abt =
-  putFoldable fvs putVar *> go (ABT.annotateBound'' abt)
+  putFoldable putVar fvs *> go (ABT.annotateBound'' abt)
   where
     fvs = Set.toList $ ABT.freeVars abt
     go (ABT.Term _ (a, env) abt) = putA a *> case abt of
@@ -341,7 +362,7 @@ putType putVar putA typ = putABT putVar putA go typ where
     Type.Ann t k     -> putWord8 2 *> putChild t *> putKind k
     Type.App f x     -> putWord8 3 *> putChild f *> putChild x
     Type.Effect e t  -> putWord8 4 *> putChild e *> putChild t
-    Type.Effects es  -> putWord8 5 *> putFoldable es putChild
+    Type.Effects es  -> putWord8 5 *> putFoldable putChild es
     Type.Forall body -> putWord8 6 *> putChild body
 
 getType :: (MonadGet m, Ord v)
@@ -379,14 +400,14 @@ putPattern putA p = case p of
     -> putWord8 5 *> putA a *> putFloat n
   Pattern.Constructor a r cid ps
     -> putWord8 6 *> putA a *> putReference r *> putLength cid
-                  *> putFoldable ps (putPattern putA)
+                  *> putFoldable (putPattern putA) ps
   Pattern.As a p
     -> putWord8 7 *> putA a *> putPattern putA p
   Pattern.EffectPure a p
     -> putWord8 8 *> putA a *> putPattern putA p
   Pattern.EffectBind a r cid args k
     -> putWord8 9 *> putA a *> putReference r *> putLength cid
-                  *> putFoldable args (putPattern putA) *> putPattern putA k
+                  *> putFoldable (putPattern putA) args *> putPattern putA k
   _ -> error $ "unknown pattern: " ++ show p
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
@@ -434,7 +455,7 @@ putTerm putVar putA typ = putABT putVar putA go typ where
     Term.Ann e t
       -> putWord8 10 *> putChild e *> putType putVar putA t
     Term.Sequence vs
-      -> putWord8 11 *> putFoldable vs putChild
+      -> putWord8 11 *> putFoldable putChild vs
     Term.If cond t f
       -> putWord8 12 *> putChild cond *> putChild t *> putChild f
     Term.And x y
@@ -444,11 +465,11 @@ putTerm putVar putA typ = putABT putVar putA go typ where
     Term.Lam body
       -> putWord8 15 *> putChild body
     Term.LetRec _ bs body
-      -> putWord8 16 *> putFoldable bs putChild *> putChild body
+      -> putWord8 16 *> putFoldable putChild bs *> putChild body
     Term.Let _ b body
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
-      -> putWord8 18 *> putChild s *> putFoldable cases (putMatchCase putA putChild)
+      -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -508,7 +529,7 @@ getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
 getTuple3 = liftA3 (,,)
 
 putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
-putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
+putRelation r putA putB = putFoldable (putPair' putA putB) (Relation.toList r)
 
 getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
 getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
@@ -579,8 +600,8 @@ putDataDeclaration :: (MonadPut m, Ord v)
                    -> m ()
 putDataDeclaration putV putA decl = do
   putA $ DataDeclaration.annotation decl
-  putFoldable (DataDeclaration.bound decl) putV
-  putFoldable (DataDeclaration.constructors' decl) (putTuple3' putA putV (putType putV putA))
+  putFoldable putV (DataDeclaration.bound decl)
+  putFoldable (putTuple3' putA putV (putType putV putA)) (DataDeclaration.constructors' decl)
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
 getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>

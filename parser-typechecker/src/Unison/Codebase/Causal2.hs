@@ -48,20 +48,7 @@ data Causal m e
   -- The merge operation `<>` flattens and normalizes for order
   | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal m e)) }
 
-consN :: Applicative m => [(Hash, e)] -> Causal m e -> Causal m e
-consN conss tail = foldr (\(h,e) t -> Cons h e (currentHash t, pure t)) tail conss
-
--- pattern ConsN m <- (uncons -> Just m)
-
--- uncons :: Monad m => Causal m e -> Maybe (m ([(Hash, e)], Causal m e))
--- uncons One{}         = Nothing
--- uncons Merge{}       = Nothing
--- uncons x             = Just $ go [] x
---  where
---   go acc (Cons h e (_,tail)) = tail >>= go ((h, e) : acc)
---   go acc x                   = pure (reverse acc, x)
-
--- A serializor `Causal m e`. Nonrecursive -- only responsible for
+-- A serializer `Causal m e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
 type Serialize m e = Hash -> Causal0 e -> m ()
 
@@ -69,6 +56,12 @@ data Causal0 e
   = One0 e
   | Cons0 e Hash
   | Merge0 e (Set Hash)
+
+-- Don't need to deserialize the `e` to calculate `before`.
+data Causal00
+  = One00
+  | Cons00 Hash
+  | Merge00 (Set Hash)
 
 type Deserialize m e = Hash -> m (Causal0 e)
 
