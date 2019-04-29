@@ -83,7 +83,7 @@ data Branch0 m = Branch0
   --    Should this be a relation?
   --    What is the UX to resolve conflicts?
   -- The hash we use to identify branches is the hash of their Causal node.
-  , _children :: Map NameSegment (Branch m)
+  , _children :: Map NameSegment (Hash, Branch m)
   }
 
 
@@ -161,7 +161,7 @@ getAt root path = case Path.toList path of
   [] -> pure $ Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
     Nothing -> pure Nothing
-    Just b -> getAt b (Path path)
+    Just (_h, b) -> getAt b (Path path)
 
 empty :: Branch m
 empty = Branch $ Causal.one empty0
@@ -209,17 +209,17 @@ modifyAtM b path f = case Path.toList path of
           b' <- modifyAtM b (Path path) f
           let c' = flip Causal.step c . over children $ if isEmpty (head b')
                 then Map.delete seg
-                else Map.insert seg b'
+                else Map.insert seg (headHash b', b')
           pure (Branch c')
     in  case Map.lookup seg (_children $ head b) of
           Nothing -> recurse empty
-          Just b  -> recurse b
+          Just (_h, b)  -> recurse b
 
 instance Hashable (Branch0 m) where
   tokens b =
     [ H.accumulateToken . R.toList $ (_terms b)
     , H.accumulateToken . R.toList $ (_types b)
-    , H.accumulateToken (headHash <$> _children b)
+    , H.accumulateToken (fst <$> _children b)
     ]
 
 -- getLocalBranch :: Hash -> IO Branch

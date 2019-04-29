@@ -79,8 +79,9 @@ type Decl v a = TL.Decl v a
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
-           , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
+
+           , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
            , getRootBranch      :: m (Maybe Branch)

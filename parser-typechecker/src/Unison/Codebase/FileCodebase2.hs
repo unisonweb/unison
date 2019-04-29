@@ -5,94 +5,96 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.FileCodebase2 where
---
--- import           Control.Concurrent             ( forkIO
---                                                 , killThread
---                                                 )
--- import           Control.Monad                  ( filterM
---                                                 , forever
---                                                 , when
---                                                 )
--- import           Control.Monad.Error.Class      ( MonadError
---                                                 , throwError
---                                                 )
--- import           Control.Monad.Except           ( runExceptT )
--- import           Control.Monad.IO.Class         ( MonadIO
---                                                 , liftIO
---                                                 )
--- import           Control.Monad.STM              ( atomically )
--- import qualified Data.Bytes.Get                as Get
--- import qualified Data.ByteString               as BS
--- import           Data.Foldable                  ( traverse_, toList )
--- import           Data.List                      ( isSuffixOf
---                                                 , partition
---                                                 )
--- import           Data.List.Split                ( splitOn )
--- import qualified Data.Map                      as Map
--- import           Data.Maybe                     ( catMaybes, fromMaybe, isJust )
--- import           Data.Set                       ( Set )
--- import qualified Data.Set                      as Set
--- import           Data.Text                      ( Text )
--- import qualified Data.Text                     as Text
--- import           Data.Text.Encoding             ( encodeUtf8, decodeUtf8 )
--- import           System.Directory               ( createDirectoryIfMissing
---                                                 , doesDirectoryExist
---                                                 , listDirectory
---                                                 , removeFile
---                                                 , removeDirectoryRecursive
---                                                 )
--- import           System.FilePath                ( FilePath
---                                                 , takeBaseName
---                                                 , takeDirectory
---                                                 , takeExtension
---                                                 , takeFileName
---                                                 , (</>)
---                                                 )
--- import           Text.Read                      ( readMaybe )
--- import qualified Unison.Builtin                as Builtin
--- import           Unison.Codebase                ( Codebase(Codebase)
---                                                 , Err(InvalidBranchFile)
---                                                 , BranchName
---                                                 )
--- import           Unison.Codebase.Branch4         ( Branch )
--- import qualified Unison.Codebase.Branch4        as Branch
--- import qualified Unison.Codebase.Serialization as S
--- import qualified Unison.Codebase.Serialization.V0
---                                                as V0
--- import qualified Unison.Codebase.Watch         as Watch
--- import qualified Unison.Hash                   as Hash
--- import qualified Unison.Reference              as Reference
--- import           Unison.Reference               ( Reference )
--- import qualified Unison.Term                   as Term
--- import qualified Unison.Util.TQueue            as TQueue
--- import           Unison.Var                     ( Var )
--- -- import Debug.Trace
---
--- -- checks if `path` looks like a unison codebase
--- minimalCodebaseStructure :: FilePath -> [FilePath]
--- minimalCodebaseStructure path =
---   [branchesPath path
---   ,path </> "terms"
---   ,path </> "types"]
---   -- todo: add data constructor paths or whatever that ends up being
---
--- -- checks if a minimal codebase structure exists at `path`
--- exists :: FilePath -> IO Bool
--- exists path =
---   all id <$> traverse doesDirectoryExist (minimalCodebaseStructure path)
---
--- -- creates a minimal codebase structure at `path`
--- initialize :: FilePath -> IO ()
--- initialize path =
---   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
---
--- branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> m (Branch m)
--- branchFromFile ubf = do
---   bytes <- liftIO $ BS.readFile ubf
---   case Get.runGetS V0.getBranch bytes of
---     Left err     -> throwError $ InvalidBranchFile ubf err
---     Right branch -> pure branch
---
+
+import           Control.Concurrent             ( forkIO
+                                                , killThread
+                                                )
+import           Control.Monad                  ( filterM
+                                                , forever
+                                                , when
+                                                )
+import           Control.Monad.Error.Class      ( MonadError
+                                                , throwError
+                                                )
+import           Control.Monad.Except           ( runExceptT )
+import           Control.Monad.IO.Class         ( MonadIO
+                                                , liftIO
+                                                )
+import           Control.Monad.STM              ( atomically )
+import qualified Data.Bytes.Get                as Get
+import qualified Data.ByteString               as BS
+import           Data.Foldable                  ( traverse_, toList )
+import           Data.List                      ( isSuffixOf
+                                                , partition
+                                                )
+import           Data.List.Split                ( splitOn )
+import qualified Data.Map                      as Map
+import           Data.Maybe                     ( catMaybes, fromMaybe, isJust )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
+import           Data.Text.Encoding             ( encodeUtf8, decodeUtf8 )
+import           System.Directory               ( createDirectoryIfMissing
+                                                , doesDirectoryExist
+                                                , listDirectory
+                                                , removeFile
+                                                , removeDirectoryRecursive
+                                                )
+import           System.FilePath                ( FilePath
+                                                , takeBaseName
+                                                , takeDirectory
+                                                , takeExtension
+                                                , takeFileName
+                                                , (</>)
+                                                )
+import           Text.Read                      ( readMaybe )
+import qualified Unison.Builtin                as Builtin
+import           Unison.Codebase2               ( Codebase(Codebase)
+                                                , Err(InvalidBranchFile)
+                                                , BranchName
+                                                )
+import           Unison.Codebase.Branch2         ( Branch )
+import qualified Unison.Codebase.Branch2        as Branch
+import qualified Unison.Codebase.Serialization as S
+import qualified Unison.Codebase.Serialization.V1
+                                               as V1
+import qualified Unison.Codebase.Watch         as Watch
+import           Unison.Hash                    ( Hash )
+import qualified Unison.Hash                   as Hash
+import qualified Unison.Reference              as Reference
+import           Unison.Reference               ( Reference )
+import qualified Unison.Term                   as Term
+import qualified Unison.Util.TQueue            as TQueue
+import           Unison.Var                     ( Var )
+-- import Debug.Trace
+
+-- checks if `path` looks like a unison codebase
+minimalCodebaseStructure :: FilePath -> [FilePath]
+minimalCodebaseStructure path =
+  [branchesPath path
+  ,path </> "terms"
+  ,path </> "types"]
+  -- todo: add data constructor paths or whatever that ends up being
+
+-- checks if a minimal codebase structure exists at `path`
+exists :: FilePath -> IO Bool
+exists path =
+  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure path)
+
+-- creates a minimal codebase structure at `path`
+initialize :: FilePath -> IO ()
+initialize path =
+  traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
+
+branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> Hash -> m (Branch m)
+branchFromFile root h = do
+  let ubf = branchPath root h
+  bytes <- liftIO $ BS.readFile ubf
+  case Get.runGetS V1.getBranch0 bytes of
+    Left err     -> throwError $ InvalidBranchFile ubf err
+    Right branch -> pure branch
+
 -- -- branchToFile :: FilePath -> Branch -> IO ()
 -- -- branchToFile = S.putWithParentDirs V0.putBranch
 --
@@ -129,55 +131,55 @@ module Unison.Codebase.FileCodebase2 where
 -- --       fmap (path </>)
 -- --         <$> (filter (((==) extension) . takeExtension) <$> listDirectory path)
 -- --     else pure []
--- --
+
 -- -- isValidBranchDirectory :: FilePath -> IO Bool
 -- -- isValidBranchDirectory path =
 -- --   not . null <$> filesInPathMatchingExtension path ".ubf"
--- --
--- -- termDir, declDir :: FilePath -> Reference.Id -> FilePath
--- -- termDir path r = path </> "terms" </> componentId r
--- -- declDir path r = path </> "types" </> componentId r
--- --
--- -- encodeBuiltinName :: Text -> FilePath
--- -- encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
--- --
+
+termDir, declDir :: FilePath -> Reference.Id -> FilePath
+termDir path r = path </> "terms" </> componentId r
+declDir path r = path </> "types" </> componentId r
+
+encodeBuiltinName :: Text -> FilePath
+encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
+
 -- -- decodeBuiltinName :: FilePath -> Maybe Text
 -- -- decodeBuiltinName p =
 -- --   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
--- --
--- -- builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
--- -- builtinTermDir path name =
--- --   path </> "terms" </> "_builtin" </> encodeBuiltinName name
--- -- builtinTypeDir path name =
--- --   path </> "types" </> "_builtin" </> encodeBuiltinName name
--- -- builtinDir :: FilePath -> Reference -> Maybe FilePath
--- -- builtinDir path r@(Reference.Builtin name) =
--- --   if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
--- --   else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
--- --   else Nothing
--- -- builtinDir _ _ = Nothing
--- --
--- -- termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
--- -- termPath path r = termDir path r </> "compiled.ub"
--- -- typePath path r = termDir path r </> "type.ub"
--- -- declPath path r = declDir path r </> "compiled.ub"
--- --
--- -- componentId :: Reference.Id -> String
--- -- componentId (Reference.Id h 0 1) = Hash.base58s h
--- -- componentId (Reference.Id h i n) =
--- --   Hash.base58s h <> "-" <> show i <> "-" <> show n
--- --
--- branchesPath :: FilePath -> FilePath
--- branchesPath path = path </> "branches"
---
--- branchPath :: FilePath -> Text -> FilePath
--- branchPath path name = branchesPath path </> Text.unpack name
---
--- -- touchDependentFile :: Reference.Id -> FilePath -> IO ()
--- -- touchDependentFile dependent fp = do
--- --   createDirectoryIfMissing True (fp </> "dependents")
--- --   writeFile (fp </> "dependents" </> componentId dependent) ""
--- --
+
+builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
+builtinTermDir path name =
+  path </> "terms" </> "_builtin" </> encodeBuiltinName name
+builtinTypeDir path name =
+  path </> "types" </> "_builtin" </> encodeBuiltinName name
+builtinDir :: FilePath -> Reference -> Maybe FilePath
+builtinDir path r@(Reference.Builtin name) =
+  if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
+  else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
+  else Nothing
+builtinDir _ _ = Nothing
+
+termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
+termPath path r = termDir path r </> "compiled.ub"
+typePath path r = termDir path r </> "type.ub"
+declPath path r = declDir path r </> "compiled.ub"
+
+componentId :: Reference.Id -> String
+componentId (Reference.Id h 0 1) = Hash.base58s h
+componentId (Reference.Id h i n) =
+  Hash.base58s h <> "-" <> show i <> "-" <> show n
+
+branchesPath :: FilePath -> FilePath
+branchesPath path = path </> "branches"
+
+branchPath :: FilePath -> Hash -> FilePath
+branchPath path h = branchesPath path </> Hash.base58s h
+
+touchDependentFile :: Reference.Id -> FilePath -> IO ()
+touchDependentFile dependent fp = do
+  createDirectoryIfMissing True (fp </> "dependents")
+  writeFile (fp </> "dependents" </> componentId dependent) ""
+
 -- -- -- todo: this is base58-i-n ?
 -- -- parseHash :: String -> Maybe Reference.Id
 -- -- parseHash s = case splitOn "-" s of
