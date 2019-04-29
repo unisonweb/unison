@@ -39,6 +39,7 @@ library
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
+    Unison.Codebase2
     -- Unison.Codebase4
     Unison.Codebase.Branch
     Unison.Codebase.Branch2

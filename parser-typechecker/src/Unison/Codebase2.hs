@@ -7,7 +7,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
 
-module Unison.Codebase where
+module Unison.Codebase2 where
 
 import           Control.Lens
 import           Control.Monad                  ( foldM
@@ -38,6 +38,7 @@ import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
+import           Unison.Hash                    ( Hash )
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
@@ -82,16 +83,11 @@ data Codebase m v a =
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
-           , branches           :: m [BranchName]
-           , getBranch          :: BranchName -> m (Maybe Branch)
-           -- thought: this merges the given branch history with an existing
-           -- branch on disk, or creates a new branch if there's no existing
-           -- branch with that name
-           , syncBranch         :: BranchName -> Branch -> m Branch
-           , deleteBranch       :: BranchName -> m ()
-           , branchUpdates      :: m (m (), m (Set BranchName))
+           , getRootBranch      :: m (Maybe Branch)
+           , putRootBranch      :: Hash -> m ()
+           , rootBranchUpdates  :: m (m (), m (Set Hash))
 
-           , dependentsImpl :: Reference -> m (Set Reference.Id)
+           , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , builtinLoc :: a
            }
 
@@ -329,9 +325,6 @@ makeSelfContained code pp term = do
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
   pure $ UF.UnisonFile datas effects bindings [] -- no watches in the resulting file
-
-branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
-branchExists codebase name = elem name <$> branches codebase
 
 -- Predicate of Relation a b here is "a depends on b".
 -- Dependents are in the domain and dependencies in the range.
