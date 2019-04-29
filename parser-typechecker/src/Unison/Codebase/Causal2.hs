@@ -5,6 +5,7 @@
 module Unison.Codebase.Causal2 where
 
 import           Prelude                 hiding ( head
+                                                , read
                                                 , sequence
                                                 )
 import           Control.Applicative            ( liftA2 )
@@ -19,7 +20,7 @@ import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
-import           Data.Foldable                  ( for_ )
+import           Data.Foldable                  ( for_, toList )
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -62,30 +63,41 @@ consN conss tail = foldr (\(h,e) t -> Cons h e (currentHash t, pure t)) tail con
 
 -- A serializor `Causal m e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
-data Serialize m e =
-  Serialize { serializeOne :: Hash -> e -> m ()
-            , serializeCons :: Hash -> e -> Hash -> m ()
-            , serializeMerge :: Hash -> e -> Set Hash -> m () }
+type Serialize m e = Hash -> Causal0 e -> m ()
+
+data Causal0 e
+  = One0 e
+  | Cons0 e Hash
+  | Merge0 e (Set Hash)
+
+type Deserialize m e = Hash -> m (Causal0 e)
+
+read :: Functor m => Deserialize m e -> Hash -> m (Causal m e)
+read d h = go <$> d h where
+  go (One0 e) = One h e
+  go (Cons0 e tailHash) = Cons h e (tailHash, read d tailHash)
+  go (Merge0 e tailHashes) =
+    Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
 
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
 sync :: Monad m => (Hash -> m Bool) -> Serialize m e -> Causal m e -> m ()
-sync exists s c = do
+sync exists serialize c = do
   b <- exists (currentHash c)
   when (not b) $ go c
   where
     go c = case c of
-      One currentHash head -> serializeOne s currentHash head
+      One currentHash head -> serialize currentHash $ One0 head
       Cons currentHash head (tailHash, tailm) -> do
         -- write out the tail first, so what's on disk is always valid
         b <- exists tailHash
         when (not b) $ go =<< tailm
-        serializeCons s currentHash head tailHash
+        serialize currentHash (Cons0 head tailHash)
       Merge currentHash head tails -> do
         for_ (Map.toList tails) $ \(hash, cm) -> do
           b <- exists hash
           when (not b) $ go =<< cm
-        serializeMerge s currentHash head (Map.keysSet tails)
+        serialize currentHash (Merge0 head (Map.keysSet tails))
 
 instance Eq (Causal m a) where
   a == b = currentHash a == currentHash b
