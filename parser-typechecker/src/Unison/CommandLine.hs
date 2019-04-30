@@ -62,8 +62,7 @@ watchPrinter src ppe ann term isHit = P.bracket $ let
   in P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
     fromString (replicate lineNumWidth ' ')
-      <> fromString extra <> "⧩"
-      <> (if isHit then P.hiPurple "  (using cache)" else ""),
+      <> fromString extra <> (if isHit then P.hiBlue else id) "⧩" ,
     P.indentN (lineNumWidth + length extra)
       . P.green $ TermPrinter.prettyTop ppe term
   ]
