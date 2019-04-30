@@ -33,12 +33,14 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
 import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch2        ( Branch(..)
-                                                , Branch0(..)
+import           Unison.Codebase.Branch2        ( Branch0(..)
                                                 , Branch00(..)
                                                 )
 import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Causal, Causal0(..), C0Hash(..), unc0hash )
+import           Unison.Codebase.Causal2        ( Causal0(..)
+                                                , C0Hash(..)
+                                                , unc0hash
+                                                )
 import           Unison.Codebase.Path           ( NameSegment )
 import           Unison.Codebase.Path           as Path
 import           Unison.Codebase.Path           as NameSegment
@@ -50,11 +52,9 @@ import           Unison.Reference               ( Reference )
 import           Unison.Symbol                  ( Symbol(..) )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Data.ByteString               as B
-import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Codebase.Causal2       as Causal
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
@@ -102,6 +102,7 @@ getCausal0 getA = getWord8 >>= \case
   0 -> One0 <$> getA
   1 -> flip Cons0 <$> (C0Hash <$> getHash) <*> getA
   2 -> flip Merge0 . Set.fromList <$> getList (C0Hash <$> getHash) <*> getA
+  x -> unknownTag "Causal0" x
 
 -- Like getCausal, but doesn't bother to read the actual value in the causal,
 -- it just reads the hashes.  Useful for more efficient implementation of

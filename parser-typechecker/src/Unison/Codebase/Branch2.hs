@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -9,24 +10,29 @@ module Unison.Codebase.Branch2 where
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens             hiding (children)
-import           Control.Monad.Extra      (whenM)
+import           Control.Lens            hiding ( children )
+--import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
-import           Data.List                (intercalate)
-import qualified Data.Map                 as Map
-import           Data.Map                 (Map)
-import           Data.Text                (Text)
-import qualified Data.Text as Text
-import           Data.Traversable         (for)
+--import           Data.List                      ( intercalate )
+import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
+import           Data.Text                      ( Text )
+--import qualified Data.Text                     as Text
+import           Data.Foldable                  ( for_ )
 import qualified Unison.Codebase.Causal2       as Causal
-import           Unison.Codebase.Causal2        ( Causal, Causal0(..), C0Hash, Deserialize, Serialize )
-import           Unison.Codebase.TermEdit       ( TermEdit )
-import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Codebase.Causal2        ( Causal
+                                                , Causal0(..)
+                                                , C0Hash
+                                                , Deserialize
+                                                , Serialize
+                                                )
+--import           Unison.Codebase.TermEdit       ( TermEdit )
+--import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( NameSegment
                                                 , Path(Path)
                                                 )
 import qualified Unison.Codebase.Path          as Path
-import           Unison.Hash                    ( Hash )
+--import           Unison.Hash                    ( Hash )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
@@ -86,19 +92,22 @@ data ForkFailure = SrcNotFound | DestExists
 
 -- Question: How does Deserialize throw a not-found error?
 
-read :: forall m. Monad m
-     => Deserialize m Branch00 Branch00
-     -> C0Hash Branch00
-     -> m (Branch m)
-read d00 h = Branch <$> Causal.read d h where
+read
+  :: forall m
+   . Monad m
+  => Deserialize m Branch00 Branch00
+  -> C0Hash Branch00
+  -> m (Branch m)
+read d00 h = Branch <$> Causal.read d h
+ where
   toB0 :: Branch00 -> m (Branch0 m)
-  toB0 Branch00{..} = Branch0 _terms0 _types0 <$> (traverse go _children0)
-  go h = (h,) <$> read d00 h
+  toB0 Branch00 {..} = Branch0 _terms0 _types0 <$> (traverse go _children0)
+  go h = (h, ) <$> read d00 h
   d :: Deserialize m Branch00 (Branch0 m)
   d h = d00 h >>= \case
-    One0 b00 -> One0 (toB0 b00)
-    Cons0 b00 h -> Cons0 (toB0 b00) (h, _ h)
-    Merge0 b00 hs -> Merge0 (toB0 b00) (_ <$> hs)
+    One0 b00      -> One0 <$> toB0 b00
+    Cons0  b00 h  -> flip Cons0 h <$> toB0 b00
+    Merge0 b00 hs -> flip Merge0 hs <$> toB0 b00
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Branch00
 sync :: forall m. Monad m
@@ -107,7 +116,7 @@ sync :: forall m. Monad m
      -> Branch m
      -> m ()
 sync exists serialize00 b = do
-  for (view children (head b)) (sync exists serialize00 . snd)
+  for_ (view children (head b)) (sync exists serialize00 . snd)
   Causal.sync exists serialize0 (view history b)
   where
   toB00 :: Branch0 m -> Branch00
