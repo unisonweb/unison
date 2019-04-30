@@ -28,6 +28,7 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
@@ -51,12 +52,13 @@ file = do
     _ <- closeBlock
     let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
         go (terms, watches, n) s = case s of
-          WatchBinding _ ((_, v), at) -> (terms, (v,at) : watches, n)
-          WatchExpression _ at ->
-            (terms, (Var.nameds ("_" <> show n), at) : watches, n + 1)
+          WatchBinding kind _ ((_, v), at) ->
+            (terms, (kind,(v,at)) : watches, n)
+          WatchExpression kind _ at ->
+            (terms, (kind, (Var.nameds ("_" <> show n), at)) : watches, n + 1)
           Binding ((_, v), at) -> ((v,at) : terms, watches, n)
           Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches, n)
-        (terms, watches) = (reverse termsr, reverse watchesr)
+        (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
         uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
 
@@ -73,35 +75,37 @@ file = do
 -- which parses as [(Woot.x, 42), (Woot.y, 17)]
 
 data Stanza v term
-  = WatchBinding Ann ((Ann, v), term)
-  | WatchExpression Ann term
+  = WatchBinding UF.WatchKind Ann ((Ann, v), term)
+  | WatchExpression UF.WatchKind Ann term
   | Binding ((Ann, v), term)
   | Bindings [((Ann, v), term)] deriving Functor
 
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
-stanza = watchExpression <|> action <|> binding <|> namespace
+stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
   where
-  action = failureIf (TermParser.blockTerm $> getErr) binding
+  unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding
   getErr = do
     t <- anyToken
     t2 <- optional anyToken
     P.customFailure $ DidntExpectExpression t t2
   watchExpression = do
-    ann <- watched
+    (kind, ann) <- watched
     _ <- closed
     msum [
-      WatchBinding ann <$> TermParser.binding,
-      WatchExpression ann <$> TermParser.blockTerm ]
+      WatchBinding kind ann <$> TermParser.binding,
+      WatchExpression kind ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
   namespace = tweak <$> TermParser.namespaceBlock where
     tweak ns = Bindings (TermParser.toBindings [ns])
 
-watched :: Var v => P v Ann
+watched :: Var v => P v (UF.WatchKind, Ann)
 watched = P.try $ do
+  kind <- optional wordyId
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
   tok <- anyToken
-  pure (ann tok)
+  guard $ maybe True (`L.touches` tok) kind
+  pure (maybe UF.RegularWatch L.payload kind, maybe mempty ann kind <> ann tok)
 
 closed :: Var v => P v ()
 closed = P.try $ do

@@ -113,6 +113,7 @@ library
     Unison.Util.Free
     Unison.Util.Find
     Unison.Util.Logger
+    Unison.Util.List
     Unison.Util.Histogram
     Unison.Util.Menu
     Unison.Util.Monoid

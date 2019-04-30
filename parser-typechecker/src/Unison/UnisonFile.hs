@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.UnisonFile where
 
@@ -40,22 +41,40 @@ data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
   terms :: [(v, AnnotatedTerm v a)],
-  watches :: [(v, AnnotatedTerm v a)]
+  watches :: Map WatchKind [(v, AnnotatedTerm v a)]
 } deriving Show
 
--- Converts a file to a single let rec with a body of `()`.
-uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
-uberTerm uf = Term.letRec' True (terms uf <> watches uf) (DD.unitTerm mempty)
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
+
+allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
+allWatches = join . Map.elems . watches
+
+type WatchKind = String
+
+pattern RegularWatch = ""
+pattern TestWatch = "test"
+
+-- Converts a file to a single let rec with a body of `()`, for
+-- purposes of typechecking.
+typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
+typecheckingTerm uf =
+  Term.letRec' True (terms uf) $
+  Term.letRec' True (watchesOfKind TestWatch uf) $
+  Term.letRec' True (watchesOfKind RegularWatch uf) $
+  DD.unitTerm mempty
 
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
-uberTerm' uf body = Term.letRec' True (terms uf <> watches uf) body
+uberTerm' uf body =
+  Term.letRec' True (terms uf) $
+  Term.letRec' True (watchesOfKind TestWatch uf) $
+  Term.letRec' True (watchesOfKind RegularWatch uf) $
+  body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a =
-  -- Giving this an ugly name to encourage use of lowercase smart ctor
-  -- which filters out watch expressions
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
@@ -100,7 +119,7 @@ dependencies uf ns = directReferences <>
                       Set.fromList freeTypeVarRefs <>
                       Set.fromList freeTermVarRefs
   where
-    tm = uberTerm uf
+    tm = typecheckingTerm uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
       catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
@@ -115,10 +134,11 @@ dependencies uf ns = directReferences <>
         || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
       ]
 
-discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches) =
-  UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ]
-                           [ (a,b) | (a,b,_) <- join watches ]
+unsafeDiscardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
+unsafeDiscardTypes (TypecheckedUnisonFile datas effects terms watches) =
+  UnisonFile datas effects
+    [ (a,b) | (a,b,_) <- join terms ]
+    (Map.singleton RegularWatch [ (a,b) | (a,b,_) <- join watches ])
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -163,7 +183,7 @@ bindBuiltins :: Var v
              -> UnisonFile v a
              -> UnisonFile v a
 bindBuiltins names uf@(UnisonFile d e ts ws) = let
-  vs = (fst <$> ts) ++ (fst <$> ws)
+  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
   names' = Names.subtractTerms vs names
   ct = errMsg . constructorType uf
   errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
@@ -171,7 +191,7 @@ bindBuiltins names uf@(UnisonFile d e ts ws) = let
       (second (DD.bindBuiltins names) <$> d)
       (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
       (second (Names.bindTerm ct names') <$> ts)
-      (second (Names.bindTerm ct names') <$> ws)
+      (fmap (second (Names.bindTerm ct names')) <$> ws)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType

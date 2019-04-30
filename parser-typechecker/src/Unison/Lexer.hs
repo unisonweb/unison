@@ -106,6 +106,11 @@ line (Pos line _) = line
 column :: Pos -> Column
 column (Pos _ column) = column
 
+-- `True` if the tokens are adjacent, with no space separating the two
+touches :: Token a -> Token b -> Bool
+touches (end -> t) (start -> t2) =
+  line t == line t2 && column t == column t2
+
 type BlockName = String
 type Layout = [(BlockName,Column)]
 

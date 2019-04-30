@@ -70,6 +70,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
+import qualified Unison.UnisonFile             as UF
 -- import Debug.Trace
 
 -- checks if `path` looks like a unison codebase
@@ -344,21 +345,21 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
               400000
             )
 
-      watches :: Codebase.WatchKind -> IO [Reference.Id]
+      watches :: UF.WatchKind -> IO [Reference.Id]
       watches k = do
         let wp = watchesDir path k
         createDirectoryIfMissing True wp
         ls <- listDirectory wp
         pure $ ls >>= (toList . parseHash . takeFileName)
 
-      getWatch :: Codebase.WatchKind -> Reference.Id
+      getWatch :: UF.WatchKind -> Reference.Id
                -> IO (Maybe (Codebase.Term v a))
       getWatch k id = do
         let wp = watchesDir path k
         createDirectoryIfMissing True wp
         S.getFromFile (V0.getTerm getV getA) (wp </> componentId id <> ".ub")
 
-      putWatch :: Codebase.WatchKind -> Reference.Id -> Codebase.Term v a
+      putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a
                -> IO ()
       putWatch k id e =
         S.putWithParentDirs (V0.putTerm putV putA)

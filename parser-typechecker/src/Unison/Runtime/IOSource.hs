@@ -34,7 +34,7 @@ typecheckedFile = let
     (Just (_, Just file), _) -> file
 
 codeLookup :: CodeLookup Symbol Identity Ann
-codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
+codeLookup = CL.fromUnisonFile $ UF.unsafeDiscardTypes typecheckedFile
 
 typeNamed :: String -> R.Reference
 typeNamed s =

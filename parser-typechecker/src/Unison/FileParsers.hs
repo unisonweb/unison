@@ -39,6 +39,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
+import qualified Unison.Util.List           as List
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 -- import Debug.Trace
@@ -52,25 +53,10 @@ type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
 type Name = Text
 
--- move to Unison.Util.List
--- prefers earlier copies
-uniqueBy :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
-uniqueBy f as = wrangle' (Foldable.toList as) Set.empty where
-  wrangle' [] _ = []
-  wrangle' (a:as) seen =
-    if Set.member b seen
-    then wrangle' as seen
-    else a : wrangle' as (Set.insert b seen)
-    where b = f a
-
--- prefers later copies
-uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
-uniqueBy' f = reverse . uniqueBy f . reverse . Foldable.toList
-
 convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
   (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
-  is' = snd <$> uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
+  is' = snd <$> List.uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
   f (_, (Context.TopLevelComponent cs)) = Right [ v | (v,_,_) <- cs ]
   f (i, _) = Left i
   -- each round of TDNR emits its own TopLevelComponent notes, so we remove
@@ -109,7 +95,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
-    term0 = UF.uberTerm uf
+    term0 = UF.typecheckingTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
@@ -143,7 +129,8 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
         extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
         extractTopLevelBindings _                        = Map.empty
         tlcsFromTypechecker =
-          uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
+          List.uniqueBy' (fmap vars)
+            [ t | Context.TopLevelComponent t <- infos ]
           where vars (v, _, _) = Var.name v
         strippedTopLevelBinding (v, typ, redundant) = do
           tm <- case Map.lookup (Var.name v) topLevelBindings of
@@ -162,7 +149,8 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
-        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
+        -- todo: could note kind of each watch in the output
+        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.allWatches uf ]
     pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
  where
   applyTdnrDecisions

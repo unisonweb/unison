@@ -710,17 +710,18 @@ commandLine awaitInput rt notifyUser codebase command = do
                                                  (Branch.head branch)
                                                  unisonFile
     let watchCache (Reference.DerivedId h) = do
-          m1 <- Codebase.getWatch codebase Codebase.RegularWatch h
-          m2 <- maybe (Codebase.getWatch codebase Codebase.TestWatch h) (pure . Just) m1
+          m1 <- Codebase.getWatch codebase UF.RegularWatch h
+          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
     rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
     forM_ (Map.elems map) $ \(_loc, hash, _src, value, isHit) ->
       if isHit then pure ()
       else case hash of
-        Reference.DerivedId h ->
+        Reference.DerivedId h -> do
+          let value' = Term.amap (const Parser.External) value
           -- todo: when UnisonFile includes `WatchKind` info, can pass that along here
-          Codebase.putWatch codebase Codebase.RegularWatch h (Term.amap (const Parser.External) value)
+          Codebase.putWatch codebase UF.RegularWatch h value' 
         _ -> pure ()
     pure rs
 
