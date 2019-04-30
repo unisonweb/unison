@@ -44,6 +44,7 @@ data Error v
   | EmptyWatch
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
+  | DuplicateTypeNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
 data Ann

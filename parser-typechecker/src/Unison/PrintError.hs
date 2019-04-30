@@ -953,20 +953,24 @@ prettyParseError s = \case
     , ").\n"
     ]
   go' (P.ErrorCustom e) = go e
+  errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.DuplicateTypeNames ts) = intercalateMap "\n\n" showDup ts where
+    showDup (v, locs) =
+      "I found multiple types with the name " <> errorVar v <> ":\n\n" <>
+      annotatedsStartingLineAsStyle ErrorSite s locs
   go (Parser.TypeDeclarationErrors es) = let
     unknownTypes = [ (v, a) | UF.UnknownType v a <- es ]
     dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]
-    var v = style ErrorSite . fromString . Text.unpack $ Var.name v
     unknownTypesMsg =
       mconcat [ "I don't know about the type(s) "
-              , intercalateMap "," var (nubOrd $ fst <$> unknownTypes)
+              , intercalateMap "," errorVar (nubOrd $ fst <$> unknownTypes)
               , ":\n\n"
               , annotatedsAsStyle ErrorSite s (snd <$> unknownTypes)
               ]
     dupDataAndAbilitiesMsg = intercalateMap "\n\n" dupMsg dupDataAndAbilities
     dupMsg (v, a, a2) =
-      mconcat [ "I found two types called " <> var v <> "."
+      mconcat [ "I found two types called " <> errorVar v <> ":"
               , "\n\n"
               , annotatedsStartingLineAsStyle ErrorSite s [a, a2]]
     in if null unknownTypes
