@@ -14,6 +14,7 @@ import qualified Data.Map               as Map
 import           Data.Maybe             (catMaybes, fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
+import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
@@ -238,8 +239,11 @@ environmentFor names0 dataDecls0 effectDecls0 =
     overlaps = let
       w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
       in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
+    okVars = Map.keysSet allDecls0
     unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
-      error "todo"
+      let cts = DD.constructorTypes dd
+      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences ct
+                                          , not (Set.member v okVars) ]
   in
     if null overlaps && null unknownTypeRefs
     then pure $ Env dataDecls' effectDecls' names'

@@ -19,6 +19,7 @@ import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
 import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
+import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (catMaybes)
@@ -53,7 +54,7 @@ import qualified Unison.Util.AnnotatedText    as AT
 import           Unison.Util.ColorText        (Color)
 import qualified Unison.Util.ColorText        as Color
 import           Unison.Util.Monoid           (intercalateMap)
-import           Unison.Util.Range            (Range (..))
+import           Unison.Util.Range            (Range (..), startingLine)
 import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
@@ -958,11 +959,20 @@ prettyParseError s = \case
     dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]
     var v = style ErrorSite . fromString . Text.unpack $ Var.name v
     unknownTypesMsg =
-      mconcat [ "I don't know about the types: "
-              , intercalateMap "," var (fst <$> unknownTypes)
-              , "\n\n"
+      mconcat [ "I don't know about the type(s) "
+              , intercalateMap "," var (nubOrd $ fst <$> unknownTypes)
+              , ":\n\n"
+              , annotatedsAsStyle ErrorSite s (snd <$> unknownTypes)
               ]
-    in unknownTypesMsg
+    dupDataAndAbilitiesMsg = intercalateMap "\n\n" dupMsg dupDataAndAbilities
+    dupMsg (v, a, a2) =
+      mconcat [ "I found two types called " <> var v <> "."
+              , "\n\n"
+              , annotatedsStartingLineAsStyle ErrorSite s [a, a2]]
+    in if null unknownTypes
+       then dupDataAndAbilitiesMsg
+       else if null dupDataAndAbilities then unknownTypesMsg
+       else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
   go (Parser.DidntExpectExpression _tok (Just (t@(L.payload -> L.SymbolyId "::")))) =
     mconcat [ "I parsed an expression here but was expecting a binding."
             , "\nDid you mean to use a single " <> style Code ":"
@@ -1039,6 +1049,12 @@ annotatedsAsStyle ::
   (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
 annotatedsAsStyle style src as =
   showSourceMaybes src [ (,style) <$> rangeForAnnotated a | a <- as ]
+
+annotatedsStartingLineAsStyle ::
+  (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
+annotatedsStartingLineAsStyle style src as =
+  showSourceMaybes src
+    [ (,style) <$> (startingLine <$> rangeForAnnotated a) | a <- as ]
 
 tokenAsErrorSite :: String -> L.Token a -> AnnotatedText Color
 tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, ErrorSite)
