@@ -1,6 +1,6 @@
 ## TODO tracking refactoring of existing functionality
 
-* [ ] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
+* [x] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
 * [ ] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
   - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
