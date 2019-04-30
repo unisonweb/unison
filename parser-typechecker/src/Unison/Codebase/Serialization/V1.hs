@@ -38,7 +38,7 @@ import           Unison.Codebase.Branch2        ( Branch(..)
                                                 , Branch00(..)
                                                 )
 import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Causal, Causal0(..), Causal00(..) )
+import           Unison.Codebase.Causal2        ( Causal, Causal0(..), C0Hash(..), unc0hash )
 import           Unison.Codebase.Path           ( NameSegment )
 import           Unison.Codebase.Path           as Path
 import           Unison.Codebase.Path           as NameSegment
@@ -91,26 +91,26 @@ unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++
          " while deserializing: " ++ msg
 
-putCausal0 :: MonadPut m => (a -> m ()) -> Causal0 a -> m ()
+putCausal0 :: MonadPut m => (a -> m ()) -> Causal0 h a -> m ()
 putCausal0 putA = \case
   One0 a -> putWord8 0 >> putA a
-  Cons0 a t -> putWord8 1 >> putHash t >> putA a
-  Merge0 a ts -> putWord8 2 >> putFoldable putHash ts >> putA a
+  Cons0 a t -> putWord8 1 >> (putHash.unc0hash) t >> putA a
+  Merge0 a ts -> putWord8 2 >> putFoldable (putHash.unc0hash) ts >> putA a
 
-getCausal0 :: MonadGet m => m a -> m (Causal0 a)
+getCausal0 :: MonadGet m => m a -> m (Causal0 h a)
 getCausal0 getA = getWord8 >>= \case
   0 -> One0 <$> getA
-  1 -> flip Cons0 <$> getHash <*> getA
-  2 -> flip Merge0 . Set.fromList <$> getList getHash <*> getA
+  1 -> flip Cons0 <$> (C0Hash <$> getHash) <*> getA
+  2 -> flip Merge0 . Set.fromList <$> getList (C0Hash <$> getHash) <*> getA
 
 -- Like getCausal, but doesn't bother to read the actual value in the causal,
 -- it just reads the hashes.  Useful for more efficient implementation of
 -- `Causal.before`.
-getCausal00 :: MonadGet m => m Causal00
-getCausal00 = getWord8 >>= \case
-  0 -> pure One00
-  1 -> Cons00 <$> getHash
-  2 -> Merge00 . Set.fromList <$> getList getHash
+-- getCausal00 :: MonadGet m => m Causal00
+-- getCausal00 = getWord8 >>= \case
+--   0 -> pure One00
+--   1 -> Cons00 <$> getHash
+--   2 -> Merge00 . Set.fromList <$> getList getHash
 
 -- 1. Can no longer read a causal using just MonadGet;
 --    need a way to construct the loader that forms its tail.
@@ -576,7 +576,7 @@ putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
   putRelation (Branch._terms b) putNameSegment putReferent
   putRelation (Branch._types b) putNameSegment putReference
-  putFoldable (putPair putNameSegment (putHash . fst))
+  putFoldable (putPair putNameSegment (putHash . unc0hash . fst))
               (Map.toList (Branch._children b))
 
 
@@ -595,13 +595,15 @@ getName = Name.unsafeFromText <$> getText
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText
 
---
--- getBranch00 :: MonadGet m => m Branch00
--- getBranch00 d =
---   Branch00
---     <$> getNamespace
---     <*> getNamespace
---     <*> getMap getNameSegment getHash
+getNameSegment :: MonadGet m => m NameSegment
+getNameSegment = NameSegment <$> getText
+
+getBranch00 :: MonadGet m => m Branch00
+getBranch00 =
+  Branch00
+    <$> getRelation getNameSegment getReferent
+    <*> getRelation getNameSegment getReference
+    <*> getMap getNameSegment (C0Hash <$> getHash)
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

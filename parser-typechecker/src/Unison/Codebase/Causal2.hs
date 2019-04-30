@@ -42,39 +42,42 @@ import           Data.Foldable                  ( for_, toList )
   * `head (sequence c1 c2) == head c2`
 -}
 
-data Causal m e
-  = One { currentHash :: Hash, head :: e }
-  | Cons { currentHash :: Hash, head :: e, tail :: (Hash, m (Causal m e)) }
+-- h is the type of the pure data structure that will be hashed and used as
+-- an index; e.g. h = Branch00, e = Branch0 m
+data Causal m h e
+  = One { currentHash :: C0Hash h, head :: e }
+  | Cons { currentHash :: C0Hash h, head :: e, tail :: (C0Hash h, m (Causal m h e)) }
   -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal m e)) }
+  | Merge { currentHash :: C0Hash h, head :: e, tails :: Map (C0Hash h) (m (Causal m h e)) }
 
--- A serializer `Causal m e`. Nonrecursive -- only responsible for
+-- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
-type Serialize m e = Hash -> Causal0 e -> m ()
-
-data Causal0 e
+data Causal0 h e
   = One0 e
-  | Cons0 e Hash
-  | Merge0 e (Set Hash)
+  | Cons0 e (C0Hash h)
+  | Merge0 e (Set (C0Hash h))
 
 -- Don't need to deserialize the `e` to calculate `before`.
-data Causal00
-  = One00
-  | Cons00 Hash
-  | Merge00 (Set Hash)
+-- data Causal00
+--   = One00
+--   | Cons00 Hash
+--   | Merge00 (Set Hash)
 
-type Deserialize m e = Hash -> m (Causal0 e)
+type Deserialize m h e = C0Hash h -> m (Causal0 h e)
 
-read :: Functor m => Deserialize m e -> Hash -> m (Causal m e)
+read :: Functor m => Deserialize m h e -> C0Hash h -> m (Causal m h e)
 read d h = go <$> d h where
-  go (One0 e) = One h e
-  go (Cons0 e tailHash) = Cons h e (tailHash, read d tailHash)
-  go (Merge0 e tailHashes) =
-    Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
+  go = \case
+    One0 e -> One h e
+    Cons0 e tailHash -> Cons h e (tailHash, read d tailHash)
+    Merge0 e tailHashes ->
+      Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
+
+type Serialize m h e = C0Hash h -> Causal0 h e -> m ()
 
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
-sync :: Monad m => (Hash -> m Bool) -> Serialize m e -> Causal m e -> m ()
+sync :: Monad m => (C0Hash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
 sync exists serialize c = do
   b <- exists (currentHash c)
   when (not b) $ go c
@@ -92,13 +95,16 @@ sync exists serialize c = do
           when (not b) $ go =<< cm
         serialize currentHash (Merge0 head (Map.keysSet tails))
 
-instance Eq (Causal m a) where
+instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
 
-instance Ord (Causal m a) where
+instance Ord (Causal m h a) where
   a <= b = currentHash a <= currentHash b
 
-merge :: (Monad m, Semigroup e) => Causal m e -> Causal m e -> m (Causal m e)
+instance Hashable (C0Hash h) where
+  tokens (C0Hash h) = Hashable.tokens h
+
+merge :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
 a `merge` b =
   ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
     (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
@@ -108,7 +114,7 @@ a `merge` b =
       merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
 
 -- Does `h2` incorporate all of `h1`?
-before :: Monad m => Causal m e -> Causal m e -> m Bool
+before :: Monad m => Causal m h e -> Causal m h e -> m Bool
 before h1 h2 = go h1 h2
  where
   -- stopping condition if both are equal
@@ -128,7 +134,7 @@ before h1 h2 = go h1 h2
   --go (Merge _ _ m1) h2@(Merge _ _ _)
   --  all (\h1 -> go h1 h2) (Map.elems m1)
 
-instance (Monad m, Semigroup e) => Semigroup (m (Causal m e)) where
+instance (Monad m, Semigroup e) => Semigroup (m (Causal m h e)) where
   a <> b = do
     x <- a
     y <- b
@@ -136,34 +142,37 @@ instance (Monad m, Semigroup e) => Semigroup (m (Causal m e)) where
 
 -- implementation detail, form a `Merge`
 merge0
-  :: (Applicative m, Semigroup e) => Map Hash (m (Causal m e)) -> m (Causal m e)
+  :: (Applicative m, Semigroup e) => Map (C0Hash h) (m (Causal m h e)) -> m (Causal m h e)
 merge0 m =
   let e = if Map.null m
         then error "Causal.merge0 empty map"
         else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
       h = hash (Map.keys m) -- sorted order
-  in  e <&> \e -> Merge h e m
+  in  e <&> \e -> Merge (C0Hash h) e m
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
-step :: (Applicative m, Hashable e) => (e -> e) -> Causal m e -> Causal m e
+step :: (Applicative m, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 step f c = f (head c) `cons` c
 
 stepIf
   :: (Applicative m, Hashable e)
   => (e -> Bool)
   -> (e -> e)
-  -> Causal m e
-  -> Causal m e
+  -> Causal m h e
+  -> Causal m h e
 stepIf cond f c = if (cond $ head c) then step f c else c
 
 stepM
-  :: (Applicative m, Hashable e) => (e -> m e) -> Causal m e -> m (Causal m e)
+  :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
 stepM f c = (`cons` c) <$> f (head c)
 
-one :: Hashable e => e -> Causal m e
-one e = One (hash e) e
+one :: Hashable e => e -> Causal m h e
+one e = One (C0Hash $ hash e) e
 
-cons :: (Applicative m, Hashable e) => e -> Causal m e -> Causal m e
-cons e tl = Cons (hash [hash e, currentHash tl]) e (currentHash tl, pure tl)
+cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
+cons e tl = Cons (C0Hash $ hash [hash e, unc0hash . currentHash $ tl]) e (currentHash tl, pure tl)
+
+newtype C0Hash a = C0Hash { unc0hash :: Hash }
+  deriving (Eq, Ord, Show)

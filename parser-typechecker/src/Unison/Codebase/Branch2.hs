@@ -1,23 +1,25 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 module Unison.Codebase.Branch2 where
 
 -- import qualified Unison.Codebase.Branch as Branch
 
-import           Prelude                  hiding (head,subtract)
+import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens             hiding (children)
--- import           Control.Monad            (join)
+import           Control.Monad.Extra      (whenM)
 -- import           Data.GUID                (genText)
 import           Data.List                (intercalate)
 import qualified Data.Map                 as Map
 import           Data.Map                 (Map)
 import           Data.Text                (Text)
 import qualified Data.Text as Text
-
+import           Data.Traversable         (for)
 import qualified Unison.Codebase.Causal2       as Causal
-import           Unison.Codebase.Causal2        ( Causal )
+import           Unison.Codebase.Causal2        ( Causal, Causal0(..), C0Hash, Deserialize, Serialize )
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( NameSegment
@@ -46,13 +48,13 @@ data RepoLink a = RepoLink RepoRef a
 To load a `Branch m`, we need a `Hash -> m (Causal0 (Branch0 m))`
 -}
 
-newtype Branch m = Branch { _history :: Causal m (Branch0 m) }
+newtype Branch m = Branch { _history :: Causal m Branch00 (Branch0 m) }
   deriving (Eq, Ord)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> Hash
+headHash :: Branch m -> C0Hash Branch00
 headHash (Branch c) = Causal.currentHash c
 
 data Branch0 m = Branch0
@@ -62,13 +64,13 @@ data Branch0 m = Branch0
   --    Should this be a relation?
   --    What is the UX to resolve conflicts?
   -- The hash we use to identify branches is the hash of their Causal node.
-  , _children :: Map NameSegment (Hash, Branch m)
+  , _children :: Map NameSegment (C0Hash Branch00, Branch m)
   }
 
 data Branch00 = Branch00
   { _terms0 :: Relation NameSegment Referent
   , _types0 :: Relation NameSegment Reference
-  , _children0 :: Map NameSegment Hash
+  , _children0 :: Map NameSegment (C0Hash Branch00)
   }
 
 makeLenses ''Branch00
@@ -81,6 +83,45 @@ instance Eq (Branch0 m) where
         && view children a == view children b
 
 data ForkFailure = SrcNotFound | DestExists
+
+-- Question: How does Deserialize throw a not-found error?
+
+read :: forall m. Monad m
+     => Deserialize m Branch00 Branch00
+     -> C0Hash Branch00
+     -> m (Branch m)
+read d00 h = Branch <$> Causal.read d h where
+  toB0 :: Branch00 -> m (Branch0 m)
+  toB0 Branch00{..} = Branch0 _terms0 _types0 <$> (traverse go _children0)
+  go h = (h,) <$> read d00 h
+  d :: Deserialize m Branch00 (Branch0 m)
+  d h = d00 h >>= \case
+    One0 b00 -> One0 (toB0 b00)
+    Cons0 b00 h -> Cons0 (toB0 b00) (h, _ h)
+    Merge0 b00 hs -> Merge0 (toB0 b00) (_ <$> hs)
+
+-- serialize a `Branch m` indexed by the hash of its corresponding Branch00
+sync :: forall m. Monad m
+     => (C0Hash Branch00 -> m Bool)
+     -> Serialize m Branch00 Branch00
+     -> Branch m
+     -> m ()
+sync exists serialize00 b = do
+  for (view children (head b)) (sync exists serialize00 . snd)
+  Causal.sync exists serialize0 (view history b)
+  where
+  toB00 :: Branch0 m -> Branch00
+  toB00 Branch0{..} = Branch00 _terms _types (fst <$> _children)
+  serialize0 :: Serialize m Branch00 (Branch0 m)
+  serialize0 h = \case
+    One0 b0 -> serialize00 h $ One0 (toB00 b0)
+    Cons0 b0 h -> serialize00 h $ Cons0 (toB00 b0) h
+    Merge0 b0 hs -> serialize00 h $ Merge0 (toB00 b0) hs
+
+  -- this has to serialize the branch0 and its descendants in the tree,
+  -- and then serialize the rest of the history of the branch as well
+
+
 
 -- copy a path to another path
 fork
