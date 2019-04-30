@@ -62,9 +62,9 @@ watchPrinter src ppe ann term isHit = P.bracket $ let
   in P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
     fromString (replicate lineNumWidth ' ')
-      <> fromString extra <> (if isHit then P.hiBlue else id) "⧩" ,
+      <> fromString extra <> (if isHit then id else P.hiRed) "⧩" ,
     P.indentN (lineNumWidth + length extra)
-      . P.green $ TermPrinter.prettyTop ppe term
+      . (if isHit then id else P.bold) $ TermPrinter.prettyTop ppe term
   ]
 
 allow :: FilePath -> Bool
