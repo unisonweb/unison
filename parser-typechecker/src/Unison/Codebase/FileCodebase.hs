@@ -6,6 +6,7 @@
 
 module Unison.Codebase.FileCodebase where
 
+import           Control.Applicative
 import           Control.Concurrent             ( forkIO
                                                 , killThread
                                                 )
@@ -23,6 +24,7 @@ import           Control.Monad.IO.Class         ( MonadIO
 import           Control.Monad.STM              ( atomically )
 import qualified Data.Bytes.Get                as Get
 import qualified Data.ByteString               as BS
+import qualified Data.Char                     as Char
 import           Data.Foldable                  ( traverse_, toList )
 import           Data.List                      ( isSuffixOf
                                                 , partition
@@ -132,18 +134,54 @@ termDir, declDir :: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
 
-encodeBuiltinName :: Text -> FilePath
-encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
+-- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
+encodeFileName :: Text -> FilePath
+encodeFileName t = let
+  go ('/' : rem) = "$forward-slash$" <> go rem
+  go ('\\' : rem) = "$back-slash$" <> go rem
+  go (':' : rem) = "$colon$" <> go rem
+  go ('*' : rem) = "$star$" <> go rem
+  go ('?' : rem) = "$question-mark$" <> go rem
+  go ('"' : rem) = "$double-quote$" <> go rem
+  go ('<' : rem) = "$less-than$" <> go rem
+  go ('>' : rem) = "$greater-than$" <> go rem
+  go ('|' : rem) = "$pipe$" <> go rem
+  go ('$' : rem) = "$$" <> go rem
+  go (c : rem) | not (Char.isPrint c) = "$b58" <> b58 [c] <> "$" <> go rem
+               | otherwise = c : go rem
+  go [] = []
+  b58 = Hash.base58s . Hash.fromBytes . encodeUtf8 . Text.pack
+  in if t == "." then "$dot$"
+     else if t == ".." then "$dotdot$"
+     else go (Text.unpack t)
 
-decodeBuiltinName :: FilePath -> Maybe Text
-decodeBuiltinName p =
-  decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+decodeFileName :: FilePath -> Maybe Text
+decodeFileName p = let
+  go ('$' : rem) = case span (/= '$') rem of
+    ("forward-slash", (drop 1) -> rem) -> ("/" <>) <$> go rem
+    ("back-slash", (drop 1) -> rem) -> ("\\" <>) <$> go rem
+    ("colon", drop 1 -> rem) -> (":" <>) <$> go rem
+    ("star", drop 1 -> rem) -> ("*" <>) <$> go rem
+    ("question-mark", drop 1 -> rem) -> ("?" <>) <$> go rem
+    ("double-quote", drop 1 -> rem) -> ("\"" <>) <$> go rem
+    ("less-than", drop 1 -> rem) -> ("<" <>) <$> go rem
+    ("greater-than", drop 1 -> rem) -> (">" <>) <$> go rem
+    ("pipe", drop 1 -> rem) -> ("|" <>) <$> go rem
+    ("dot", _rem) -> Just "."
+    ("dotdot", _rem) -> Just ".."
+    ('b':'5':'8':left, drop 1 -> rem) -> liftA2 (<>) (unb58 left) (go rem)
+    ("", drop 1 -> rem) -> ("$" <>) <$> go rem
+    (_, _) -> Nothing
+  go (c : rem) = (c:) <$> go rem
+  go [] = Just mempty
+  unb58 p = Text.unpack . decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+  in Text.pack <$> go p
 
 builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
 builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> encodeBuiltinName name
+  path </> "terms" </> "_builtin" </> encodeFileName name
 builtinTypeDir path name =
-  path </> "types" </> "_builtin" </> encodeBuiltinName name
+  path </> "types" </> "_builtin" </> encodeFileName name
 builtinDir :: FilePath -> Reference -> Maybe FilePath
 builtinDir path r@(Reference.Builtin name) =
   if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
@@ -312,6 +350,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branchUpdates
                dependents
                builtinTypeAnnotation
+               (error "todo ooga")
+               (error "todo booga")
+               (error "todo blaarrgh")
 
 ubfPathToName :: FilePath -> BranchName
 ubfPathToName = Text.pack . takeFileName . takeDirectory

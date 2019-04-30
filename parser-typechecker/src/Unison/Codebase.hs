@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE PatternSynonyms     #-}
 
 module Unison.Codebase where
 
@@ -90,9 +91,22 @@ data Codebase m v a =
            , deleteBranch       :: BranchName -> m ()
            , branchUpdates      :: m (m (), m (Set BranchName))
 
-           , dependentsImpl :: Reference -> m (Set Reference.Id)
-           , builtinLoc :: a
+           , dependentsImpl     :: Reference -> m (Set Reference.Id)
+           , builtinLoc         :: a
+
+           -- Watch expressions are part of the codebase, the `Reference.Id` is
+           -- the hash of the source of the watch expression, and the `Term v a`
+           -- is the evaluated result of the expression, decompiled to a term.
+           , watches            :: WatchKind -> m [(Reference.Id, Term v a)]
+           , getWatch           :: WatchKind -> Reference.Id -> m (Maybe (Term v a))
+           , putWatch           :: WatchKind -> Reference.Id -> Term v a -> m ()
            }
+
+type WatchKind = String
+
+pattern RegularWatch = ""
+pattern TestWatch = "test"
+pattern ExecuteWatch = "execute"
 
 getTypeOfConstructor ::
   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
