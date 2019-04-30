@@ -964,7 +964,7 @@ prettyParseError s = \case
     dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]
     unknownTypesMsg =
       mconcat [ "I don't know about the type(s) "
-              , intercalateMap "," errorVar (nubOrd $ fst <$> unknownTypes)
+              , intercalateMap ", " errorVar (nubOrd $ fst <$> unknownTypes)
               , ":\n\n"
               , annotatedsAsStyle ErrorSite s (snd <$> unknownTypes)
               ]
