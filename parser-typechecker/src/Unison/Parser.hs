@@ -25,6 +25,7 @@ import qualified Unison.PatternP      as Pattern
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
+import qualified Unison.UnisonFile    as UF
 import Unison.Names (Names)
 
 debug :: Bool
@@ -42,6 +43,8 @@ data Error v
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
+  | TypeDeclarationErrors [UF.Error v Ann]
+  | DuplicateTypeNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
 data Ann

@@ -1,3 +1,4 @@
+{-# Language DoAndIfThenElse #-}
 {-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
 
@@ -36,7 +37,9 @@ file = do
   _ <- openBlock
   names <- ask
   (dataDecls, effectDecls) <- declarations
-  let env = environmentFor names dataDecls effectDecls
+  env <- case environmentFor names dataDecls effectDecls of
+    Right env -> pure env
+    Left es -> P.customFailure $ TypeDeclarationErrors es
   -- push names onto the stack ahead of existing names
   local (UF.names env `mappend`) $ do
     names <- ask
@@ -119,7 +122,19 @@ declarations = do
   declarations <- many $
     ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
-  pure (Map.fromList dataDecls, Map.fromList effectDecls)
+      multimap :: Ord k => [(k,v)] -> Map k [v]
+      multimap kvs = foldl' mi Map.empty kvs
+      mi m (k,v) = Map.insertWith (++) k [v] m
+      mds = multimap dataDecls
+      mes = multimap effectDecls
+      mdsBad = Map.filter (\xs -> length xs /= 1) mds
+      mesBad = Map.filter (\xs -> length xs /= 1) mes
+  if Map.null mdsBad && Map.null mesBad then
+    pure (Map.fromList dataDecls, Map.fromList effectDecls)
+  else
+    P.customFailure . DuplicateTypeNames $
+      [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
+      [ (v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad ]
 
 -- type Optional a = Some a | None
 --                   a -> Optional a
@@ -143,7 +158,8 @@ dataDeclaration = do
         -- ctorType e.g. `a -> Optional a`
         --    or just `Optional a` in the case of `None`
         ctorType = foldr arrow ctorReturnType ctorArgs
-        ctorAnn = ann ctorName <> ann (last ctorArgs)
+        ctorAnn = ann ctorName <>
+                  (if null ctorArgs then mempty else ann (last ctorArgs))
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
