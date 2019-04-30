@@ -709,8 +709,20 @@ commandLine awaitInput rt notifyUser codebase command = do
     selfContained <- Codebase.makeSelfContained' codeLookup
                                                  (Branch.head branch)
                                                  unisonFile
-    let noCache = const (pure Nothing)
-    Runtime.evaluateWatches codeLookup noCache rt selfContained
+    let watchCache (Reference.DerivedId h) = do
+          m1 <- Codebase.getWatch codebase Codebase.RegularWatch h
+          m2 <- maybe (Codebase.getWatch codebase Codebase.TestWatch h) (pure . Just) m1
+          pure $ Term.amap (const ()) <$> m2
+        watchCache _ = pure Nothing
+    rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
+    forM_ (Map.elems map) $ \(_loc, hash, _src, value, isHit) ->
+      if isHit then pure ()
+      else case hash of
+        Reference.DerivedId h ->
+          -- todo: when UnisonFile includes `WatchKind` info, can pass that along here
+          Codebase.putWatch codebase Codebase.RegularWatch h (Term.amap (const Parser.External) value)
+        _ -> pure ()
+    pure rs
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do

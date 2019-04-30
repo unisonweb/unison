@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase where
 
@@ -56,6 +57,7 @@ import           Unison.Codebase                ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
                                                 , BranchName
                                                 )
+import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
@@ -194,6 +196,9 @@ termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
+watchesDir :: FilePath -> FilePath -> FilePath
+watchesDir path kind = path </> "watches" </> encodeFileName (Text.pack kind)
+
 componentId :: Reference.Id -> String
 componentId (Reference.Id h 0 1) = Hash.base58s h
 componentId (Reference.Id h i n) =
@@ -226,7 +231,8 @@ parseHash s = case splitOn "-" s of
 -- hash-based reference, rather than being Reference.Builtin
 -- and we should verify that this doesn't break the runtime
 codebase1
-  :: Var v => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
+  :: forall v a . Var v
+  => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
 codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   = let
       getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath path h)
@@ -337,6 +343,28 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
               branchFileChanges
               400000
             )
+
+      watches :: Codebase.WatchKind -> IO [Reference.Id]
+      watches k = do
+        let wp = watchesDir path k
+        createDirectoryIfMissing True wp
+        ls <- listDirectory wp
+        pure $ ls >>= (toList . parseHash . takeFileName)
+
+      getWatch :: Codebase.WatchKind -> Reference.Id
+               -> IO (Maybe (Codebase.Term v a))
+      getWatch k id = do
+        let wp = watchesDir path k
+        createDirectoryIfMissing True wp
+        S.getFromFile (V0.getTerm getV getA) (wp </> componentId id <> ".ub")
+
+      putWatch :: Codebase.WatchKind -> Reference.Id -> Codebase.Term v a
+               -> IO ()
+      putWatch k id e =
+        S.putWithParentDirs (V0.putTerm putV putA)
+                            (watchesDir path k </> componentId id <> ".ub")
+                            e
+
     in
       Codebase getTerm
                getTypeOfTerm
@@ -350,9 +378,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branchUpdates
                dependents
                builtinTypeAnnotation
-               (error "todo ooga")
-               (error "todo booga")
-               (error "todo blaarrgh")
+               watches
+               getWatch
+               putWatch
 
 ubfPathToName :: FilePath -> BranchName
 ubfPathToName = Text.pack . takeFileName . takeDirectory

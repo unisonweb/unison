@@ -97,7 +97,7 @@ data Codebase m v a =
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
            -- is the evaluated result of the expression, decompiled to a term.
-           , watches            :: WatchKind -> m [(Reference.Id, Term v a)]
+           , watches            :: WatchKind -> m [Reference.Id]
            , getWatch           :: WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: WatchKind -> Reference.Id -> Term v a -> m ()
            }
