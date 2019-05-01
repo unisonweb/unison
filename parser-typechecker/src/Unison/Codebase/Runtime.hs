@@ -51,14 +51,17 @@ evaluateWatches
   -> IO
        ( [(v, Term v)]
          -- Map watchName (loc, hash, expression, value, isHit)
-       , Map v (a, Reference, Term v, Term v, IsCacheHit)
+       , Map v (a, UF.WatchKind, Reference, Term v, Term v, IsCacheHit)
        )
   -- IO (bindings :: [v,Term v], map :: ^^^)
 evaluateWatches code evaluationCache rt uf = do
   -- 1. compute hashes for everything in the file
   let m :: Map v (Reference, AnnotatedTerm v a)
-      m = Term.hashComponents (Map.fromList (UF.terms uf <> UF.watches uf))
-      watches = Set.fromList (fst <$> UF.watches uf)
+      m = Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
+      watches = Set.fromList (fst <$> UF.allWatches uf)
+      watchKinds :: Map v UF.WatchKind
+      watchKinds = Map.fromList [ (v, k) | (k, ws) <- Map.toList (UF.watches uf)
+                                         , (v,_) <- ws ]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -82,10 +85,12 @@ evaluateWatches code evaluationCache rt uf = do
       TupleTerm' results -> (mempty, results)
       Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
       _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
-  let go eval (ref, a, uneval, isHit) =
-        (a, ref, uneval, Term.etaNormalForm eval, isHit)
-      watchMap =
-        Map.intersectionWith go (Map.fromList (toList watches `zip` results)) m'
+  let go v eval (ref, a, uneval, isHit) =
+        (a, Map.findWithDefault (die v) v watchKinds,
+         ref, uneval, Term.etaNormalForm eval, isHit)
+      watchMap = Map.intersectionWithKey go
+        (Map.fromList (toList watches `zip` results)) m'
+      die v = error $ "not sure what kind of watch this is: " <> show v
   pure (bindings, watchMap)
  where
     -- unref :: Map Reference v -> AnnotatedTerm v a -> AnnotatedTerm v a

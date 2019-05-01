@@ -38,7 +38,7 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..) )
+import           Control.Applicative            ( Alternative(..), liftA2 )
 import           Control.Monad
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
@@ -259,6 +259,7 @@ data Cause v loc
   | DuplicateDefinitions (NonEmpty (v, [loc]))
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
+  | ConcatPatternWithoutConstantLength loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -304,6 +305,7 @@ data Info v =
   Info { existentialVars :: Set v -- set of existentials seen so far
        , universalVars :: Set v -- set of universals seen so far
        , allVars :: Set v -- all variables seen so far
+       , previouslyTypecheckedVars :: Set v -- term vars already typechecked
        , isWellformed :: Bool -- whether the context so far is well-formed
        }
 
@@ -452,6 +454,14 @@ freshenTypeVar v = modEnv'
     in  (Var.freshenId id (TypeVar.underlying v), e { freshId = id + 1 })
   )
 
+isClosed :: Var v => Term v loc -> M v loc Bool
+isClosed e = Set.null <$> freeVars e
+
+freeVars :: Var v => Term v loc -> M v loc (Set v)
+freeVars e = do
+  ctx <- getContext
+  pure $ ABT.freeVars e `Set.difference` previouslyTypecheckedVars (info ctx)
+
 -- | Check that the context is well formed, see Figure 7 of paper
 -- Since contexts are 'monotonic', we can compute an cache this efficiently
 -- as the context is built up, see implementation of `extend`.
@@ -482,7 +492,7 @@ wellformedType c t = wellformed c && case t of
 
 -- | Return the `Info` associated with the last element of the context, or the zero `Info`.
 info :: Context v loc -> Info v
-info (Context []) = Info Set.empty Set.empty Set.empty True
+info (Context []) = Info Set.empty Set.empty Set.empty Set.empty True
 info (Context ((_,i):_)) = i
 
 -- | Add an element onto the end of this `Context`. Takes `O(log N)` time,
@@ -491,24 +501,26 @@ extend :: Var v => Element v loc -> Context v loc -> Context v loc
 extend e c@(Context ctx) = Context ((e,i'):ctx) where
   i' = addInfo e (info c)
   -- see figure 7
-  addInfo e (Info es us vs ok) = case e of
+  addInfo e (Info es us vs pvs ok) = case e of
     Var v -> case v of
       -- UvarCtx - ensure no duplicates
       TypeVar.Universal v ->
-        Info es (Set.insert v us) (Set.insert v vs) (ok && Set.notMember v us)
+        Info es (Set.insert v us) (Set.insert v vs) pvs (ok && Set.notMember v us)
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
       TypeVar.Existential _ v ->
-        Info (Set.insert v es) us (Set.insert v vs) (ok && Set.notMember v es)
+        Info (Set.insert v es) us (Set.insert v vs) pvs (ok && Set.notMember v es)
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved _ v sa ->
-      Info (Set.insert v es) us (Set.insert v vs)
+      Info (Set.insert v es) us (Set.insert v vs) pvs
            (ok && Set.notMember v es && wellformedType c (Type.getPolytype sa))
     -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
     Ann v t ->
-      Info es us (Set.insert v vs) (ok && Set.notMember v vs && wellformedType c t)
+      Info es us (Set.insert v vs)
+                 ((if Set.null (Type.freeVars t) then Set.insert v else id) pvs)
+                 (ok && Set.notMember v vs && wellformedType c t)
     -- MarkerCtx - note that since a Marker is always the first mention of a variable, suffices to
     -- just check that `v` is not previously mentioned
-    Marker v -> Info es us (Set.insert v vs) (ok && Set.notMember v vs)
+    Marker v -> Info es us (Set.insert v vs) pvs (ok && Set.notMember v vs)
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
@@ -778,24 +790,23 @@ synthesize e = scope (InSynthesize e) $
       [] -> pure ft
       v1 : _ ->
         scope (InVectorApp (ABT.annotation v1)) $ synthesizeApps ft v
-  go (Term.Let1Top' top binding e) | Set.null (ABT.freeVars binding) = do
-    -- special case when it is definitely safe to generalize - binding contains
-    -- no free variables, i.e. `let id x = x in ...`
-    abilities <- getAbilities
-    t  <- synthesizeClosed' abilities binding
-    when top $ noteTopLevelType e binding t
-    v' <- ABT.freshen e freshenVar
-    -- note: `Ann' (Ref'  _) t` synthesizes to `t`
-    e  <- pure $ ABT.bindInheritAnnotation e (Term.ann () (Term.builtin() (Var.name v')) t)
-    synthesize e
   go (Term.Let1Top' top binding e) = do
+    isClosed <- isClosed binding
     -- note: no need to freshen binding, it can't refer to v
-    tbinding <- synthesize binding
+    m <- extendMarker Var.inferOther
+    tbinding <- do
+      t <- synthesize binding
+      ctx <- getContext
+      let (_, _, ctx2) = breakAt (Marker m) ctx
+      -- If the binding has no free variables, we generalize over its existentials
+      if isClosed then pure $ generalizeExistentials ctx2 t
+      else pure (apply ctx t)
+    doRetract (Marker m)
     v' <- ABT.freshen e freshenVar
     appendContext (context [Ann v' tbinding])
-    t <- synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
-    when top $ noteTopLevelType e binding t
-    doRetract $ Ann v' tbinding
+    t <- applyM =<< synthesize (ABT.bindInheritAnnotation e (Term.var() v'))
+    when top $ noteTopLevelType e binding tbinding
+    -- doRetract $ Ann v' tbinding
     pure t
   go (Term.Lam' body) = do -- ->I=> (Full Damas Milner rule)
     -- arya: are there more meaningful locations we could put into and pull out of the abschain?)
@@ -886,6 +897,59 @@ checkPattern scrutineeType0 p =
       v' <- lift $ freshenVar v
       lift . appendContext $ context [Ann v' scrutineeType]
       pure [(v, v')]
+    Pattern.SequenceLiteral loc ps -> do
+      vt <- lift $ do
+        v <- freshenVar Var.inferOther
+        let vt = Type.existentialp loc v
+        appendContext $ context [existential v]
+        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        applyM vt
+      join <$> traverse (checkPattern vt) ps
+    Pattern.SequenceOp loc l op r -> do
+      let (locL, locR) = (Pattern.loc l, Pattern.loc r)
+      vt <- lift $ do
+        v <- freshenVar Var.inferOther
+        let vt = Type.existentialp loc v
+        appendContext $ context [existential v]
+        -- todo: `Type.vector loc` is super-probably wrong;
+        -- I'm thinking it should be Ann.Intrinsic, but we don't
+        -- have access to that here.
+        subtype (Type.app loc (Type.vector loc) vt) scrutineeType
+        applyM vt
+      case op of
+        Pattern.Cons -> do
+          lvs <- checkPattern vt l
+          -- todo: same `Type.vector loc` thing
+          rvs <- checkPattern (Type.app locR (Type.vector locR) vt) r
+          pure $ lvs ++ rvs
+        Pattern.Snoc -> do
+          -- todo: same `Type.vector loc` thing
+          lvs <- checkPattern (Type.app locL (Type.vector locL) vt) l
+          rvs <- checkPattern vt r
+          pure $ lvs ++ rvs
+        Pattern.Concat ->
+          case (l, r) of
+            (p, _) | isConstLen p -> f
+            (_, p) | isConstLen p -> f
+            (_, _) -> lift . failWith $
+              ConcatPatternWithoutConstantLength loc (Type.app loc (Type.vector loc) vt)
+          where
+            f = liftA2 (++) (g locL l) (g locR r)
+            -- todo: same `Type.vector loc` thing
+            g l p = checkPattern (Type.app l (Type.vector l) vt) p
+
+            -- Only pertains to sequences, returns False if not a sequence
+            isConstLen :: Pattern loc -> Bool
+            isConstLen p = case p of
+              Pattern.SequenceLiteral _ _ -> True
+              Pattern.SequenceOp _ l op r -> case op of
+                Pattern.Snoc -> isConstLen l
+                Pattern.Cons -> isConstLen r
+                Pattern.Concat -> isConstLen l && isConstLen r
+                c -> error $ "unpossible Pattern.SeqOp: " <> show c
+              Pattern.As _ p -> isConstLen p
+              _ -> False
+        c -> error $ "unpossible Pattern.SeqOp: " <> show c
     -- TODO: provide a scope here for giving a good error message
     Pattern.Boolean loc _ ->
       lift $ subtype (Type.boolean loc) scrutineeType $> mempty
@@ -963,6 +1027,8 @@ checkPattern scrutineeType0 p =
           ctorOutputType
     _ -> lift . compilerCrash $ MalformedPattern p
  where
+
+  getAdvance :: Pattern loc -> StateT [v] (M v loc) v
   getAdvance p = do
     vs <- get
     case vs of

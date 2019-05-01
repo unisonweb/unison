@@ -657,8 +657,21 @@ run ioHandler env ir = do
         -> if r == r2 && cid == cid2
            then join <$> traverse tryCase (zip args pats)
            else Nothing
-      (Sequence args, PatternSequence pats) ->
-        join <$> traverse tryCase (zip (toList args) (toList pats))
+      (Sequence args, PatternSequenceLiteral pats) ->
+        if length args == length pats then join <$> traverse tryCase (zip (toList args) pats) else Nothing
+      (Sequence args, PatternSequenceCons l r) ->
+        case args of
+          h Sequence.:<| t -> (++) <$> tryCase (h, l) <*> tryCase (IR.Sequence t, r)
+          _ -> Nothing
+      (Sequence args, PatternSequenceSnoc l r) ->
+        case args of
+          t Sequence.:|> h -> (++) <$> tryCase (IR.Sequence t, l) <*> tryCase (h, r)
+          _ -> Nothing
+      (Sequence args, PatternSequenceConcat litLen l r) ->
+        (++) <$> tryCase (IR.Sequence a1, l) <*> tryCase (IR.Sequence a2, r)
+          where
+            (a1, a2) = Sequence.splitAt i args
+            i = either id (\j -> length args - j) litLen
       (Pure v, PatternPure p) -> tryCase (v, p)
       (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
@@ -666,7 +679,7 @@ run ioHandler env ir = do
         then join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
         else Nothing
       (Requested _, PatternPure _) -> Nothing
-      (v, PatternAs p) -> (v:) <$> tryCase (v,p)
+      (v, PatternAs p) -> (v:) <$> tryCase (v, p)
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]
       (v, p) -> error $

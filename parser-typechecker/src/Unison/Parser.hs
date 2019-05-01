@@ -4,14 +4,18 @@
 
 module Unison.Parser where
 
+import           Data.Bytes.Put                 (runPutS)
+import           Data.Bytes.Serial              ( serialize )
+import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Control.Applicative
-import           Control.Monad        (join)
+import           Control.Monad        (join, when)
 import           Data.Bifunctor       (bimap)
 import           Data.List.NonEmpty   (NonEmpty (..))
 import           Data.Maybe
 import qualified Data.Set             as Set
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
+import           Data.Text.Encoding   (encodeUtf8)
 import           Data.Typeable        (Proxy (..))
 import           Debug.Trace
 import           Text.Megaparsec      (runParserT)
@@ -19,30 +23,62 @@ import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
 import           Unison.Hash
+import qualified Unison.Hash          as Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
+import qualified Unison.UnisonFile    as UF
 import Unison.Names (Names)
+import Control.Monad.Reader.Class (ask)
+import qualified Crypto.Random as Random
+import qualified Unison.Hashable as Hashable
 
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) (Names))
+type P v = P.ParsecT (Error v) Input ((->) (UniqueName, Names))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
+newtype UniqueName = UniqueName (L.Pos -> Maybe Text)
+
+instance Semigroup UniqueName where (<>) = mappend
+instance Monoid UniqueName where
+  mempty = UniqueName (const Nothing)
+  mappend (UniqueName f) (UniqueName g) =
+    UniqueName $ \pos -> f pos <|> g pos
+
+uniqueBase58Namegen :: Int -> IO UniqueName
+uniqueBase58Namegen lenInBase58 = do
+  rng <- Random.getSystemDRG
+  pure . UniqueName $ \pos -> let
+    (bytes,_) = Random.randomBytesGenerate 32 rng
+    posBytes = runPutS $ do
+      serialize $ VarInt (L.line pos)
+      serialize $ VarInt (L.column pos)
+    h = Hashable.accumulate' $ bytes <> posBytes
+    in Just . Text.take lenInBase58 . Hash.base58 $ h
+
+uniqueName :: Var v => P v Text
+uniqueName = do
+  (UniqueName mkName, _) <- ask
+  pos <- L.start <$> P.lookAhead anyToken
+  let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
+  pure . fromMaybe none $ mkName pos
+
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
-  -- we would include the last binding term if we didn't have to have an Ord instance for it
-  | BlockMustEndWithExpression { blockAnn :: Ann, lastBindingAnn :: Ann }
   | EmptyBlock (L.Token String)
-  | UnknownEffectConstructor (L.Token String)
+  | UnknownAbilityConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
+  | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
+  | TypeDeclarationErrors [UF.Error v Ann]
+  | DuplicateTypeNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -174,15 +210,17 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> Names -> Either (Err v) a
+type ParsingEnv = (UniqueName, Names)
+
+run' :: Var v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-  in runParserT pTraced name (Input lex) -- todo: L.reorder
+  in runParserT pTraced name (Input lex)
 
-run :: Var v => P v a -> String -> Names -> Either (Err v) a
+run :: Var v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
@@ -296,6 +334,14 @@ tupleOrParenthesized p unit pair = do
     go [t] _ _ = t
     go as s e  = foldr pair (unit (ann s <> ann e)) as
 
+seq :: Var v => (Ann -> [a] -> a) -> P v a -> P v a
+seq f p = f' <$> reserved "[" <*> elements <*> trailing
+  where
+    f' open elems close = f (ann open <> ann close) elems
+    trailing = optional semi *> reserved "]"
+    sep = P.try $ optional semi *> reserved "," <* optional semi
+    elements = sepBy sep p
+
 chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where
   go1 = p >>= go2
@@ -307,6 +353,15 @@ chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
 attempt :: Var v => P v a -> P v a
 attempt = P.try
+
+-- If `p` would succeed, this fails uncommitted.
+-- Otherwise, `failIfOk` is used to produce
+failureIf :: Var v => P v (P v b) -> P v a -> P v b
+failureIf failIfOk p = do
+  dontwant <- P.try . P.lookAhead $ failIfOk
+  p <- P.try $ P.lookAhead (optional p)
+  when (isJust p) $ fail "failureIf"
+  dontwant
 
 -- Gives this var an id based on its position - a useful trick to
 -- obtain a variable whose id won't match any other id in the file

@@ -11,6 +11,7 @@ import           Control.Concurrent             ( forkIO
                                                 )
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM         ( atomically )
+import           Control.Exception              (catch, IOException)
 import           Control.Monad                  ( forever
                                                 , void
                                                 , join
@@ -75,8 +76,12 @@ watchDirectory dir allow = do
   let
     await = do
       (file, t) <- watcher
-      if allow file
-        then do
+      if allow file then let
+        handle e = do
+          putStrLn $ "‼  Got an exception while reading: " <> file
+          putStrLn $ show (e :: IOException)
+          await
+        go = do
           contents <- Data.Text.IO.readFile file
           prevs    <- readIORef previousFiles
           case Map.lookup file prevs of
@@ -87,6 +92,7 @@ watchDirectory dir allow = do
             _ -> (file, contents) <$ writeIORef
               previousFiles
               (Map.insert file (contents, t) prevs)
-        else await
+        in catch go handle
+      else await
   pure (cancel, await)
 

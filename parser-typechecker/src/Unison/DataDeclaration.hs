@@ -10,7 +10,7 @@
 module Unison.DataDeclaration where
 
 import           Safe                           ( atMay )
-import           Data.List                      ( sortOn )
+import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
 import           Data.Functor
 import           Data.Map                       ( Map )
@@ -263,18 +263,28 @@ hashDecls decls =
       decls'   = bindDecls decls (Names.fromTypesV varToRef)
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
-unitRef, pairRef, optionalRef :: Reference
-(unitRef, pairRef, optionalRef) = let
+unitRef, pairRef, optionalRef, testResultRef :: Reference
+(unitRef, pairRef, optionalRef, testResultRef) = let
   decls = builtinDataDecls @ Symbol
   [(_,unit,_)] = filter (\(v, _,_) -> v == Var.named "()") decls
   [(_,pair,_)] = filter (\(v, _,_) -> v == Var.named "Pair") decls
   [(_,opt,_)] = filter (\(v, _,_) -> v == Var.named "Optional") decls
-  in (unit, pair, opt)
+  [(_,testResult,_)] = filter (\(v, _,_) -> v == Var.named "Test.Result") decls
+  in (unit, pair, opt, testResult)
+
+constructorId :: Reference -> Text -> Maybe Int
+constructorId ref name = do
+  (_,_,dd) <- find (\(_,r,_) -> r == ref) (builtinDataDecls @Symbol)
+  elemIndex name $ constructorNames dd
+
+okConstructorId, failConstructorId :: Int
+Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
+Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
 builtinDataDecls = hashDecls $
   Map.fromList [
-    (v "()", unit), (v "Pair", pair), (v "Optional", opt) ]
+    (v "()", unit), (v "Pair", pair), (v "Optional", opt), (v "Test.Result", tr) ]
   where
   v name = Var.named name
   var name = Type.var() (v name)
@@ -291,17 +301,22 @@ builtinDataDecls = hashDecls $
     ((), v "Optional.Some", Type.foralls() [v "a"]
       (var "a" `arr` Type.app' (var "Optional") (var "a")))
    ]
+  tr = DataDeclaration () [] [
+    ((), v "Test.Result.Fail", Type.text() `arr` var "Test.Result"),
+    ((), v "Test.Result.Ok",   Type.text() `arr` var "Test.Result") ]
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
+pattern TestResultRef <- (unTestResultRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
-unitType, pairType, optionalType :: Ord v => a -> AnnotatedType v a
+unitType, pairType, optionalType, testResultType :: Ord v => a -> AnnotatedType v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
+testResultType a = Type.ref a testResultRef
 optionalType a = Type.ref a optionalRef
 
 unitTerm :: Var v => a -> AnnotatedTerm v a
@@ -343,10 +358,11 @@ unTuplePattern p = case p of
   Pattern.ConstructorP _ UnitRef 0 [] -> Just []
   _ -> Nothing
 
-unUnitRef,unPairRef,unOptionalRef :: Reference -> Bool
+unUnitRef,unPairRef,unOptionalRef,unTestResultRef :: Reference -> Bool
 unUnitRef = (== unitRef)
 unPairRef = (== pairRef)
 unOptionalRef = (== optionalRef)
+unTestResultRef = (== testResultRef)
 
 bindDecls
   :: Var v

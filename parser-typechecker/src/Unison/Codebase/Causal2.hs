@@ -15,7 +15,7 @@ import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
 import           Unison.Hash                    ( Hash )
-import qualified Unison.Hash                   as H
+-- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )

@@ -13,13 +13,13 @@ module Unison.PrintError where
 
 -- import           Unison.Parser              (showLineCol)
 -- import           Unison.Util.Monoid         (whenM)
-import           Debug.Trace
+-- import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
 import           Control.Monad                (join)
-import qualified Data.Char                    as Char
 import           Data.Foldable
 import           Data.List                    (intersperse, sortOn)
+import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
 import           Data.Maybe                   (catMaybes)
@@ -41,7 +41,6 @@ import           Unison.Parser                (Ann (..), Annotated, ann)
 import qualified Unison.Parser                as Parser
 import qualified Unison.Reference             as R
 import           Unison.Referent              (Referent)
-import qualified Unison.Referent              as Referent
 import           Unison.Result                (Note (..))
 import qualified Unison.Settings              as Settings
 import qualified Unison.Term                  as Term
@@ -55,13 +54,15 @@ import qualified Unison.Util.AnnotatedText    as AT
 import           Unison.Util.ColorText        (Color)
 import qualified Unison.Util.ColorText        as Color
 import           Unison.Util.Monoid           (intercalateMap)
-import           Unison.Util.Range            (Range (..))
+import           Unison.Util.Range            (Range (..), startingLine)
 import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.TermPrinter as TermPrinter
 
 type Env = PPE.PrettyPrintEnv
 
+pattern Code = Color.Blue
 pattern Type1 = Color.HiBlue
 pattern Type2 = Color.Green
 pattern ErrorSite = Color.HiRed
@@ -156,16 +157,14 @@ renderTypeInfo
   -> AnnotatedText sty
 renderTypeInfo i env = case i of
   TopLevelComponent {..} ->
-    let defs =
-          filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_") definitions
-    in  case defs of
+    case definitions of
           [def] ->
             "🌟 I found and typechecked a definition:\n"
               <> mconcat (renderOne def)
           [] -> mempty
           _ ->
             "🎁 These mutually dependent definitions typechecked:\n"
-              <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) defs
+              <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) definitions
  where
   renderOne
     :: IsString s
@@ -687,6 +686,15 @@ renderTypeError e env src = case e of
               <> mconcat (intersperse " : " $ annotatedToEnglish <$> locs)
               <> "]"
       in  "DuplicateDefinitions:" <> mconcat (go <$> Nel.toList vs)
+    C.ConcatPatternWithoutConstantLength loc typ -> mconcat
+      [ "ConcatPatternWithoutConstantLength:\n"
+      , "  loc="
+      , annotatedToEnglish loc
+      , "\n"
+      , "  typ="
+      , renderType' env typ
+      , "\n"
+      ]
 
 renderContext
   :: (Var v, Ord loc) => Env -> C.Context v loc -> AnnotatedText a
@@ -710,16 +718,11 @@ renderContext env ctx@(C.Context es) = "  Γ\n    "
   showElem _ (C.Marker v) = "|" <> shortName v <> "|"
 
 renderTerm :: (IsString s, Var v) => Env -> C.Term v loc -> s
-renderTerm _ (ABT.Var' v) | Settings.demoHideVarNumber =
-  fromString (Text.unpack $ Var.name v)
-renderTerm env (Term.Ref' r) =
-  fromString (HQ.toString $ PPE.termName env (Referent.Ref r))
-renderTerm _ e =
-  let s = show e
-  in      -- todo: pretty print
-      if length s > Settings.renderTermMaxLength
-        then fromString (take Settings.renderTermMaxLength s <> "...")
-        else fromString s
+renderTerm env e =
+  let s = Color.toPlain $ TermPrinter.pretty' (Just 80) env (Term.unTypeVar e)
+  in if length s > Settings.renderTermMaxLength
+     then fromString (take Settings.renderTermMaxLength s <> "...")
+     else fromString s
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
@@ -899,6 +902,13 @@ _printArrowsAtPos s line column =
       source      = unlines (uncurry lineCaret <$> lines s `zip` [1 ..])
   in  source
 
+-- Wow, epic view pattern for picking out a lexer error
+pattern LexerError ts e <- Just (P.Tokens (firstLexerError -> Just (ts, e)))
+
+firstLexerError :: Foldable t => t (L.Token L.Lexeme) -> Maybe ([L.Token L.Lexeme], L.Err)
+firstLexerError (toList -> ts@((L.payload -> L.Err e) : _)) = Just (ts, e)
+firstLexerError _ = Nothing
+
 prettyParseError
   :: forall v
    . Var v
@@ -906,23 +916,27 @@ prettyParseError
   -> Parser.Err v
   -> AnnotatedText Color
 prettyParseError s = \case
+  P.TrivialError _ (LexerError ts (L.CloseWithoutMatchingOpen open close)) _ ->
+    "❗️ I found a closing " <> style ErrorSite (fromString close) <>
+    " here without a matching " <> style ErrorSite (fromString open) <> ".\n\n" <>
+    showSource s ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
   P.TrivialError sp unexpected expected
     -> fromString
         (P.parseErrorPretty @_ @Void (P.TrivialError sp unexpected expected))
       <> (case unexpected of
-           Just (P.Tokens ts) -> traceShow ts $ showSource
-             s
-             ((\t -> (rangeForToken t, ErrorSite)) <$> toList ts)
+           Just (P.Tokens (toList -> ts)) -> case ts of
+             [] -> mempty
+             _ -> showSource s $ ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
            _ -> mempty
          )
       <> lexerOutput
 
-  P.FancyError sp fancyErrors ->
-    mconcat (go' <$> Set.toList fancyErrors) <> dumpSourcePos sp <> lexerOutput
+  P.FancyError _sp fancyErrors ->
+    mconcat (go' <$> Set.toList fancyErrors) <> lexerOutput
  where
-  dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AnnotatedText a
-  dumpSourcePos sp =
-    (mconcat . toList) (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
+  -- dumpSourcePos :: Nel.NonEmpty P.SourcePos -> AnnotatedText a
+  -- dumpSourcePos sp =
+  -- (mconcat . toList) (fromString . (\s -> "  " ++ show s ++ "\n") <$> sp)
   go' :: P.ErrorFancy (Parser.Error v) -> AnnotatedText Color
   go' (P.ErrorFail s) =
     "The parser failed with this message:\n" <> fromString s
@@ -937,7 +951,51 @@ prettyParseError s = \case
     , ").\n"
     ]
   go' (P.ErrorCustom e) = go e
+  errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.DuplicateTypeNames ts) = intercalateMap "\n\n" showDup ts where
+    showDup (v, locs) =
+      "I found multiple types with the name " <> errorVar v <> ":\n\n" <>
+      annotatedsStartingLineAsStyle ErrorSite s locs
+  go (Parser.TypeDeclarationErrors es) = let
+    unknownTypes = [ (v, a) | UF.UnknownType v a <- es ]
+    dupDataAndAbilities = [ (v, a, a2) | UF.DupDataAndAbility v a a2 <- es ]
+    unknownTypesMsg =
+      mconcat [ "I don't know about the type(s) "
+              , intercalateMap ", " errorVar (nubOrd $ fst <$> unknownTypes)
+              , ":\n\n"
+              , annotatedsAsStyle ErrorSite s (snd <$> unknownTypes)
+              ]
+    dupDataAndAbilitiesMsg = intercalateMap "\n\n" dupMsg dupDataAndAbilities
+    dupMsg (v, a, a2) =
+      mconcat [ "I found two types called " <> errorVar v <> ":"
+              , "\n\n"
+              , annotatedsStartingLineAsStyle ErrorSite s [a, a2]]
+    in if null unknownTypes
+       then dupDataAndAbilitiesMsg
+       else if null dupDataAndAbilities then unknownTypesMsg
+       else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
+  go (Parser.DidntExpectExpression _tok (Just (t@(L.payload -> L.SymbolyId "::")))) =
+    mconcat [ "I parsed an expression here but was expecting a binding."
+            , "\nDid you mean to use a single " <> style Code ":"
+            , " here for a type signature?"
+            , "\n\n"
+            , tokenAsErrorSite s t ]
+  go (Parser.DidntExpectExpression tok _nextTok) = mconcat
+    [ "I parsed an expression starting here\n\n"
+    , tokenAsErrorSite s tok
+    , "\nbut at the file top-level, I expect one of the following:"
+    , "\n"
+    , "\n  - A binding, like " <> t <> style Code " = 42" <> " OR"
+    , "\n                    " <> t <> style Code " : Nat"
+    , "\n                    " <> t <> style Code " = 42"
+    , "\n  - A watch expression, like " <> style Code ("> ") <> t <> style Code " + 1"
+    , "\n  - An `ability` declaration, like " <> style Code "ability Foo where ..."
+    , "\n  - A `type` declaration, like " <> style Code "type Optional a = None | Some a"
+    , "\n  - A `namespace` declaration, like " <> style Code "namespace Seq where ..."
+    , "\n"
+    ]
+    where t = style Code (fromString (P.showTokens (pure tok)))
   go (Parser.ExpectedBlockOpen blockName tok@(L.payload -> L.Close)) = mconcat
     [ "I was expecting an indented block following the " <>
       "`" <> fromString blockName <> "` keyword\n"
@@ -953,15 +1011,6 @@ prettyParseError s = \case
     , "binding after it.  Could it be a spelling mismatch?\n"
     , tokenAsErrorSite s tok
     ]
-   -- we would include the last binding term if we didn't have to have an Ord
-   -- instance for it
-  go (Parser.BlockMustEndWithExpression blockAnn lastBindingAnn) = mconcat
-    [ "The last line of the block starting at "
-    , fromString . fmap Char.toLower . annotatedToEnglish $ blockAnn
-    , "\n"
-    , "has to be an expression, not a binding/import/etc:"
-    , annotatedAsErrorSite s lastBindingAnn
-    ]
   go (Parser.EmptyBlock tok) = mconcat
     [ "I expected a block after this ("
     , describeStyle ErrorSite
@@ -971,8 +1020,8 @@ prettyParseError s = \case
     ]
   go (Parser.EmptyWatch) =
     "I expected a non-empty watch expression and not just \">\""
-  go (Parser.UnknownEffectConstructor tok) = unknownConstructor "effect" tok
-  go (Parser.UnknownDataConstructor   tok) = unknownConstructor "data" tok
+  go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
+  go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
   unknownConstructor
     :: String -> L.Token String -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
@@ -994,12 +1043,27 @@ annotatedAsErrorSite
 annotatedAsErrorSite = annotatedAsStyle ErrorSite
 
 annotatedAsStyle
-  :: (Ord s, Annotated a) => s -> String -> a -> AnnotatedText s
+  :: (Ord style, Annotated a) => style -> String -> a -> AnnotatedText style
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
 
+annotatedsAsStyle ::
+  (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
+annotatedsAsStyle style src as =
+  showSourceMaybes src [ (,style) <$> rangeForAnnotated a | a <- as ]
+
+annotatedsStartingLineAsStyle ::
+  (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
+annotatedsStartingLineAsStyle style src as =
+  showSourceMaybes src
+    [ (,style) <$> (startingLine <$> rangeForAnnotated a) | a <- as ]
+
 tokenAsErrorSite :: String -> L.Token a -> AnnotatedText Color
 tokenAsErrorSite src tok = showSource1 src (rangeForToken tok, ErrorSite)
+
+tokensAsErrorSite :: String -> [L.Token a] -> AnnotatedText Color
+tokensAsErrorSite src ts =
+  showSource src [(rangeForToken t, ErrorSite) | t <- ts ]
 
 showSourceMaybes
   :: Ord a => String -> [Maybe (Range, a)] -> AnnotatedText a

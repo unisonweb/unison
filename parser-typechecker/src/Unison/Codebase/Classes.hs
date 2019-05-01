@@ -1,6 +1,8 @@
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds #-} -- todo: remove me later
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Unison.Codebase.Classes (GetDecls, PutDecls, GetBranch, PutBranch) where
+module Unison.Codebase.Classes (GetDecls, PutDecls, GetBranch, PutBranch, getTerm, getTypeOfTerm, getTypeDeclaration, putTerm, putTypeDeclarationImpl, getRootBranch, putRootBranch) where
 
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Reference              as Reference

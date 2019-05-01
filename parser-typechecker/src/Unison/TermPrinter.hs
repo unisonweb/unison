@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.TermPrinter where
 
@@ -130,7 +131,8 @@ pretty
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic } term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . prettyHashQualified $ name
-      where name = HQ.fromVar v
+      -- OK since all term vars are user specified, any freshening was just added during typechecking
+      where name = HQ.fromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
       where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
@@ -297,7 +299,7 @@ pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal) t
 pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal) t
 
 prettyPattern
-  :: Var v
+  :: forall v loc . Var v
   => PrettyPrintEnv
   -> Int
   -> [v]
@@ -347,6 +349,18 @@ prettyPattern n p vs patt = case patt of
             k_pat_printed]) <>
          "}"
         , eventual_tail)
+  Pattern.SequenceLiteral _ pats ->
+    let (pats_printed, tail_vs) = patternsSep ", " vs pats
+    in  ("[" <> pats_printed <> "]", tail_vs)
+  Pattern.SequenceOp _ l op r ->
+    let (pl, lvs) = prettyPattern n p vs l
+        (pr, rvs) = prettyPattern n (p + 1) lvs r
+        f i s = (paren (p >= i) (pl <> " " <> s <> " " <> pr), rvs)
+    in case op of
+      Pattern.Cons -> f 9 "+:"
+      Pattern.Snoc -> f 9 ":+"
+      Pattern.Concat -> f 9 "++"
+      _ -> error "not possible"
   t -> (l "error: " <> l (show t), vs)
  where
   l :: IsString s => String -> s

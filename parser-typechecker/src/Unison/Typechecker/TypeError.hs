@@ -213,7 +213,7 @@ existentialMismatch0 em getExpectedLoc = do
   let mismatchLoc = ABT.annotation mismatchSite
   ([foundType, expectedType], expectedLoc) <- Ex.unique $ do
     Ex.pathStart
-    subtypes <- Ex.some Ex.inSubtype
+    subtypes@(_:_) <- Ex.some Ex.inSubtype
     let (foundType, expectedType) = last subtypes
     void $ Ex.some Ex.inCheck
     expectedLoc <- getExpectedLoc

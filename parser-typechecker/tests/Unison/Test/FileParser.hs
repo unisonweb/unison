@@ -55,11 +55,18 @@ module Unison.Test.FileParser where
 
   test :: Test ()
   test = scope "fileparser" . tests $
-    [test1, emptyWatchTest]
+    [test1
+    , emptyWatchTest
+    , signatureNeedsAccompanyingBodyTest
+    , emptyBlockTest
+    , expectedBlockOpenTest
+    , unknownDataConstructorTest
+    , unknownAbilityConstructorTest
+    ]
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
-    let result = P.run (P.rootFile file) s builtins
+    let result = P.run (P.rootFile file) s (mempty, builtins)
     case result of
       Right _ -> crash "Parser succeeded"
       Left (MPE.FancyError _ sets) ->
@@ -67,7 +74,7 @@ module Unison.Test.FileParser where
           Just (MPE.ErrorCustom e) -> expectation e
           Just _ -> crash "Error encountered was not custom"
           Nothing -> crash "No error found"
-      Left _ -> crash "Parser failed with an error which was not fancy"
+      Left e -> crash ("Parser failed with an error which was a trivial parser error: " ++ show e)
 
   emptyWatchTest :: Test ()
   emptyWatchTest = scope "emptyWatchTest" $
@@ -77,6 +84,51 @@ module Unison.Test.FileParser where
         expectation e = case e of
           P.EmptyWatch -> ok
           _ -> crash "Error wasn't EmptyWatch"
+
+  signatureNeedsAccompanyingBodyTest :: Test ()
+  signatureNeedsAccompanyingBodyTest = scope "signatureNeedsAccompanyingBodyTest" $
+    expectFileParseFailure (unlines ["f : Nat -> Nat", "", "g a = a + 1"]) expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.SignatureNeedsAccompanyingBody _ -> ok
+          _ -> crash "Error wasn't SignatureNeedsAccompanyingBody"
+
+  emptyBlockTest :: Test ()
+  emptyBlockTest = scope "emptyBlockTest" $
+    expectFileParseFailure (unlines ["f a =", "", "> 1 + 1"]) expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.EmptyBlock _ -> ok
+          _ -> crash "Error wasn't EmptyBlock"
+
+  expectedBlockOpenTest :: Test ()
+  expectedBlockOpenTest = scope "expectedBlockOpenTest" $
+    expectFileParseFailure "f a b = case a b" expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.ExpectedBlockOpen _ _ -> ok
+          _ -> crash "Error wasn't ExpectedBlockOpen"
+
+  unknownDataConstructorTest :: Test ()
+  unknownDataConstructorTest = scope "unknownDataConstructorTest" $
+    expectFileParseFailure "m a = case a of A -> 1" expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.UnknownDataConstructor _ -> ok
+          _ -> crash "Error wasn't UnknownDataConstructor"
+
+  unknownAbilityConstructorTest :: Test ()
+  unknownAbilityConstructorTest = scope "unknownAbilityConstructorTest" $
+    expectFileParseFailure "f e = case e of {E t -> u} -> 1" expectation
+      where
+        expectation :: Var e => P.Error e -> Test ()
+        expectation e = case e of
+          P.UnknownAbilityConstructor _ -> ok
+          _ -> crash "Error wasn't UnknownAbilityConstructor"
 
   builtins :: Names
   builtins = Names.fromTerms
@@ -89,5 +141,5 @@ module Unison.Test.FileParser where
     let
       p :: UnisonFile Symbol P.Ann
       !p = snd . unsafeGetRightFrom s $
-             P.run (P.rootFile file) s builtins
+             P.run (P.rootFile file) s (mempty, builtins)
     pure p >> ok

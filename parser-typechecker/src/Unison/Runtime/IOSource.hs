@@ -27,7 +27,7 @@ typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ TL.builtinTypeLookup)
-  r = parseAndSynthesizeFile [] tl Builtin.names "<IO.u builtin>" source
+  r = parseAndSynthesizeFile [] tl (mempty, Builtin.names) "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
@@ -150,18 +150,59 @@ namespace IO where
   stderr: Handle
   stderr = Handle "stderr"
 
+  -- Throw an I/O error on the left as an effect in `IO`
   rethrow : (Either IOError a) -> {IO} a
   rethrow x = case x of
     Either.Left e -> IO.throw e
     Either.Right a -> a
 
-  printLine : Text -> {IO} ()
+  -- Print a line to the standard output
+  printLine : Text ->{IO} ()
   printLine t =
-    rethrow (IO.putText stdout t)
-    rethrow (IO.putText stdout "\n")
+    IO.putText stdout t
+    IO.putText stdout "\n"
 
+  -- Read a line from the standard input
   readLine : '{IO} Text
-  readLine = '(rethrow (IO.getLine stdin))
+  readLine = '(IO.getLine stdin)
+
+  -- Open a named file in the given mode, yielding an open file handle
+  openFile : FilePath -> IOMode ->{IO} Handle
+  openFile f m = rethrow (IO.openFile_ f m)
+
+  -- Close an open file handle
+  closeFile : Handle ->{IO} ()
+  closeFile f = rethrow (IO.closeFile_ f)
+
+  -- Check whether a file handle has reached the end of the file
+  isFileEOF : Handle ->{IO} Boolean
+  isFileEOF h = rethrow (IO.isFileEOF_ h)
+
+  -- Check whether a file handle is open
+  isFileOpen : Handle ->{IO} Boolean
+  isFileOpen h = rethrow (IO.isFileOpen_ h)
+
+  -- Get a line of text from a text file handle
+  getLine : Handle ->{IO} Text
+  getLine h = rethrow (IO.getLine_ h)
+
+  -- Get the entire contents of a file as a single block of text
+  getText : Handle ->{IO} Text
+  getText h = rethrow (IO.getText_ h)
+
+  -- Write some text to a file
+  putText : Handle -> Text ->{IO} ()
+  putText h t = rethrow (IO.putText_ h t)
+
+  -- Run the given computation, and if it throws an error
+  -- handle the error with the given handler.
+  -- catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
+  -- catch c h =
+  --   k io = case io of
+  --            { IO.throw e } -> h e
+  --            x -> x
+  --   handle k in c
+
 
 -- IO Modes from the Haskell API
 type IOMode = Read | Write | Append | ReadWrite
@@ -205,21 +246,21 @@ type ThreadId = ThreadId Text
 ability IO where
 
   -- Basic file IO
-  openFile : FilePath -> IOMode ->{IO} (Either IOError Handle)
-  closeFile : Handle ->{IO} (Either IOError ())
-  isFileEOF : Handle ->{IO} (Either IOError Boolean)
-  isFileOpen : Handle ->{IO} (Either IOError Boolean)
+  openFile_ : FilePath -> IOMode ->{IO} (Either IOError Handle)
+  closeFile_ : Handle ->{IO} (Either IOError ())
+  isFileEOF_ : Handle ->{IO} (Either IOError Boolean)
+  isFileOpen_ : Handle ->{IO} (Either IOError Boolean)
 
   -- Text input and output
 
   --getChar : Handle ->{IO} Char
-  getLine : Handle ->{IO} (Either IOError Text)
+  getLine_ : Handle ->{IO} (Either IOError Text)
   -- Get the entire contents of the file as text
-  getText : Handle ->{IO} (Either IOError Text)
+  getText_ : Handle ->{IO} (Either IOError Text)
   -- putChar : Handle -> Char ->{IO} ()
-  putText : Handle -> Text ->{IO} (Either IOError ())
+  putText_ : Handle -> Text ->{IO} (Either IOError ())
 
-  -- Note: `catch` is just a library function
+  -- Throw an error as an `IO` effect
   throw : IOError ->{IO} a
 
   -- File positioning

@@ -19,7 +19,7 @@
 * [ ] `find` takes an optional path
 * [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
 * [ ] `merge` takes at least a path, if not a `RepoPath`
-* [ ] `publish` or `push`that takes a local path and a remote path? 
+* [ ] `publish` or `push`that takes a local path and a remote path?
 
 
 ## Branchless codebase format
@@ -90,7 +90,7 @@ newtype Path = Path { toList :: [NameSegment] }
 data Namespace m = Namespace
 	{ terms :: Relation NameSegment Referent
   , types :: Relation NameSegment Reference
-  , children :: Relation NameSegment (Branch' m) 
+  , children :: Relation NameSegment (Branch' m)
   }
 ```
 
@@ -115,7 +115,7 @@ data Namespace m = Namespace
 
 ### Backup Names?
 
-For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐  
+For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐
 
 * When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`.  <!-- pchiusano: I like this option, it's simple -->
 
@@ -129,7 +129,7 @@ For pretty-printing, we want a name for every hash.  Even for hashes we deleted 
 newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
 
 data Edits = Edits
-	{ terms :: Relation Reference TermEdit 
+	{ terms :: Relation Reference TermEdit
 	, types :: Relation Reference TypeEdit
 	}
 
@@ -152,7 +152,7 @@ type FriendlyEditNames = Relation Text GUID
   e.g. `https://github.com/<user>/<repo>/<...>/<guid>[/hash]`
 * `clone.edits <remote-url> [local-name]`
   * `guid` comes from remote-url, and is locally given the name `local-name`
-  * if `local-name` is omitted, then copy name from `remote-url`.  
+  * if `local-name` is omitted, then copy name from `remote-url`.
   * if `local-name` already exists locally with a different `guid`, then abort.
 
 ### Editsets as first-class unison terms:
@@ -178,7 +178,7 @@ If Yes:
 
 If no (we don't provide user syntax for constructing `EditSets` in .u file):
 
-* EditSets are part of the term language?  
+* EditSets are part of the term language?
 * Or a constructor with a particular hash? (Applied to Unison terms)
 
 ## Collecting external dependencies
@@ -208,13 +208,13 @@ Dependencies/A/B/C#xxx
 Dependencies/G/h#zzz
 ```
 
-<!-- pchiusano: 
+<!-- pchiusano:
 I like this option the best. Reasons:
 - Option 2 seems ill defined and probably complicated, so let's nix that.
 - Option 3 is simple, but is more work for the user, and also the easiest way for the user to address is to copy the whole tree of whatever dependent library they are using, even if they are just using a handful of functions. An automated procedure can produce a minimal set of named dependencies.
 - Having a somewhat opinionated convention like this makes the code easier to read - you can easily view the minimal third-party dependencies used by a library.
 - Option 1 doesn't preclude you from picking some other convention for where you put those dependencies, if you really want.
---> 
+-->
 
 <!-- atacratic:
 Under 'collecting external dependencies', I guess a difficult case for idea 1 'names relative to the nearest parent' would be the following:
@@ -239,15 +239,15 @@ Is all manipulation of namespaces going to happen interactively at the CLI? ('im
 
 ### Idea 2: Somehow derive from qualified imports used?
 
-If 
+If
 
-### Idea 3: Surface the condition* to the user 
+### Idea 3: Surface the condition* to the user
 
 *the condition = the publication node contains definitions that reference definitions not under the publication node.
 
 Ask them to create aliases below the publication point?
 
-### Idea 4: Add external names to `./_auxNames/` 
+### Idea 4: Add external names to `./_auxNames/`
 
 The nearest aux-name would only be used to render code only if there were no primary names known.
 
@@ -278,9 +278,9 @@ data RemotePath = Github { username :: Text, repo :: Text, commit :: Text } -- |
 
 This lets us avoid redistributing libs unnecessarily — let the requesting user get it from wherever we got it from.  But it doesn't specifically address this external naming question.
 
-We might be publishing `/app/foo` which references definitions we got from `repo1`.  Somewhere in our tree (possibly under `/app/foo` and possibly not?) we have a link to `repo1`.  
+We might be publishing `/app/foo` which references definitions we got from `repo1`.  Somewhere in our tree (possibly under `/app/foo` and possibly not?) we have a link to `repo1`.
 
-Somewhere under `/app/foo` we reference some defn from `repo1`. 
+Somewhere under `/app/foo` we reference some defn from `repo1`.
 
 Transitive publication algorithm:
 
@@ -338,7 +338,7 @@ BranchPath (GithubRef "'aryairani" "unison" "topic/370") (Path ["libs"])
 
 ## Github Notes
 
-Github uses a few different URL schemes.  They call the ones you can pluck off their website "html_url"s.  They let you refer to files and directories, and can be parameterized by git _treeish_ (branch, tag, commit).  
+Github uses a few different URL schemes.  They call the ones you can pluck off their website "html_url"s.  They let you refer to files and directories, and can be parameterized by git _treeish_ (branch, tag, commit).
 
 We can interpret these to refer to the root of a namespace. https://github.com/unisonweb/unison can be interpreted as:
 
@@ -352,12 +352,12 @@ The Github website will let you navigate to a git branch, e.g https://github.com
 GithubRef "unisonweb" "unison" <$> matchBranch "unisonweb" "unison" "topic/370/"
 ```
 
-Branch names can contain slashes, such as `topic/370`, complicating parsing if there's meant to be path info following the branch name.  
+Branch names can contain slashes, such as `topic/370`, complicating parsing if there's meant to be path info following the branch name.
 
 1. Fortunately, if you have a git branch `a/b` then it's not possible to create branches `a` or `a/b/c`.  So you can load the [list of branches](https://api.github.com/repos/unisonweb/unison/branches) from JSON, and then test them against that treeish-prefixed path without ambiguity.
 2. Github's website doesn't know how to navigate into `Causal` structures, so it's never going to give us URLs with paths into a Unison namespace.  So maybe this is a moot point.
 
-So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` URI scheme; we can try to support the other URLs mentioned above, and let them refer to the root of the published namespace.  
+So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` URI scheme; we can try to support the other URLs mentioned above, and let them refer to the root of the published namespace.
 
 Our Javascript viewer can be made to create URLs with query params or fragments in them that can indicate the Unison path, and those can be the ones we share in tweets, etc:
 

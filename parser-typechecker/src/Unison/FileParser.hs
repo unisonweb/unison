@@ -1,3 +1,4 @@
+{-# Language DoAndIfThenElse #-}
 {-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
 
@@ -7,9 +8,11 @@ import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
 import           Control.Monad (guard, msum)
-import           Control.Monad.Reader (local, ask)
+import           Control.Monad.Reader (local, asks)
+import           Data.Functor
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
+import           Data.Text (Text)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
@@ -26,6 +29,7 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
 import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
@@ -33,26 +37,29 @@ import qualified Unison.PrettyPrintEnv as PPE
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
   _ <- openBlock
-  names <- ask
+  names <- asks snd
   (dataDecls, effectDecls) <- declarations
-  let env = environmentFor names dataDecls effectDecls
+  env <- case environmentFor names dataDecls effectDecls of
+    Right env -> pure env
+    Left es -> P.customFailure $ TypeDeclarationErrors es
   -- push names onto the stack ahead of existing names
-  local (UF.names env `mappend`) $ do
-    names <- ask
+  local (fmap (UF.names env `mappend`)) $ do
+    names <- asks snd
     -- The file may optionally contain top-level imports,
     -- which are parsed and applied to each stanza
     (names', substImports) <- TermParser.imports <* optional semi
-    stanzas0 <- local (names' `mappend`) $ sepBy semi stanza
+    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
     let stanzas = fmap substImports <$> stanzas0
     _ <- closeBlock
-    let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
-        go (terms, watches, n) s = case s of
-          WatchBinding _ ((_, v), at) -> (terms, (v,at) : watches, n)
-          WatchExpression _ at ->
-            (terms, (Var.nameds ("_" <> show n), at) : watches, n + 1)
-          Binding ((_, v), at) -> ((v,at) : terms, watches, n)
-          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches, n)
-        (terms, watches) = (reverse termsr, reverse watchesr)
+    let (termsr, watchesr) = foldl' go ([], []) stanzas
+        go (terms, watches) s = case s of
+          WatchBinding kind _ ((_, v), at) ->
+            (terms, (kind,(v,at)) : watches)
+          WatchExpression kind guid _ at ->
+            (terms, (kind, (Var.unnamedTest guid, at)) : watches)
+          Binding ((_, v), at) -> ((v,at) : terms, watches)
+          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
+    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
         uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
 
@@ -69,30 +76,38 @@ file = do
 -- which parses as [(Woot.x, 42), (Woot.y, 17)]
 
 data Stanza v term
-  = WatchBinding Ann ((Ann, v), term)
-  | WatchExpression Ann term
+  = WatchBinding UF.WatchKind Ann ((Ann, v), term)
+  | WatchExpression UF.WatchKind Text Ann term
   | Binding ((Ann, v), term)
   | Bindings [((Ann, v), term)] deriving Functor
 
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
-stanza = watchExpression <|> binding <|> namespace
+stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
   where
+  unexpectedAction = failureIf (TermParser.blockTerm $> getErr) binding
+  getErr = do
+    t <- anyToken
+    t2 <- optional anyToken
+    P.customFailure $ DidntExpectExpression t t2
   watchExpression = do
-    ann <- watched
+    (kind, guid, ann) <- watched
     _ <- closed
     msum [
-      WatchBinding ann <$> TermParser.binding,
-      WatchExpression ann <$> TermParser.blockTerm ]
+      WatchBinding kind ann <$> TermParser.binding,
+      WatchExpression kind guid ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
   namespace = tweak <$> TermParser.namespaceBlock where
     tweak ns = Bindings (TermParser.toBindings [ns])
 
-watched :: Var v => P v Ann
+watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
+  kind <- optional wordyId
+  guid <- uniqueName
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
   tok <- anyToken
-  pure (ann tok)
+  guard $ maybe True (`L.touches` tok) kind
+  pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)
 
 closed :: Var v => P v ()
 closed = P.try $ do
@@ -113,7 +128,19 @@ declarations = do
   declarations <- many $
     ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
-  pure (Map.fromList dataDecls, Map.fromList effectDecls)
+      multimap :: Ord k => [(k,v)] -> Map k [v]
+      multimap kvs = foldl' mi Map.empty kvs
+      mi m (k,v) = Map.insertWith (++) k [v] m
+      mds = multimap dataDecls
+      mes = multimap effectDecls
+      mdsBad = Map.filter (\xs -> length xs /= 1) mds
+      mesBad = Map.filter (\xs -> length xs /= 1) mes
+  if Map.null mdsBad && Map.null mesBad then
+    pure (Map.fromList dataDecls, Map.fromList effectDecls)
+  else
+    P.customFailure . DuplicateTypeNames $
+      [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
+      [ (v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad ]
 
 -- type Optional a = Some a | None
 --                   a -> Optional a
@@ -137,7 +164,8 @@ dataDeclaration = do
         -- ctorType e.g. `a -> Optional a`
         --    or just `Optional a` in the case of `None`
         ctorType = foldr arrow ctorReturnType ctorArgs
-        ctorAnn = ann ctorName <> ann (last ctorArgs)
+        ctorAnn = ann ctorName <>
+                  (if null ctorArgs then mempty else ann (last ctorArgs))
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf

@@ -52,6 +52,6 @@ parseAndSynthesizeAsFile
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)
-  B.names
+  (mempty, B.names)
   filename
   (Text.pack s)

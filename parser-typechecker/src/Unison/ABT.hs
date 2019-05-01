@@ -386,6 +386,17 @@ foreachSubterm f e = case out e of
   Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
   Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
 
+freeVarOccurrences :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
+freeVarOccurrences t = go $ annotateBound t
+  where
+  go e = case out e of
+    Var v -> if Set.member v (snd $ annotation e)
+             then []
+             else [(v, fst $ annotation e)]
+    Cycle body -> go body
+    Abs _ body -> go body
+    Tm body -> foldMap go body
+
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns

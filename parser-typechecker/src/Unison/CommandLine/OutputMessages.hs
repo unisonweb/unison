@@ -191,8 +191,9 @@ notifyUser dir o = case o of
             [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
             | (v, b) <- bindings]
           prettyWatches = P.lines [
-            watchPrinter fileContents ppe ann evald isCacheHit |
-            (ann,evald,isCacheHit) <- sortOn (\(a,_,_)->a) . toList $ watches ]
+            watchPrinter fileContents ppe ann kind evald isCacheHit |
+            (ann,kind,evald,isCacheHit) <-
+              sortOn (\(a,_,_,_)->a) . toList $ watches ]
       -- todo: use P.nonempty
       in putPrettyLn $ if null bindings then prettyWatches
                        else prettyBindings <> "\n" <> prettyWatches
@@ -592,6 +593,8 @@ slurpOutput s =
     Map.fromList [ (v,t) | (v,_,t) <- join (UF.topLevelComponents file) ]
   ppe = Branch.prettyPrintEnv (Branch.head branch)
     <> Branch.prettyPrintEnv (Branch.fromTypecheckedFile file)
+  varsByName = Map.fromList [ (Var.name v, v) | v <- Map.keys termTypesFromFile ]
+  varsNamed n = toList (Map.lookup (Name.toText n) varsByName)
   filterTermTypes vs =
     [ (HQ.fromVar v,t)
     | v <- toList vs
@@ -658,17 +661,19 @@ slurpOutput s =
         P.align
       -- ("type Optional", "aka " ++ commas existingNames)
       -- todo: something is wrong here: only one oldName is being shown, instead of all
-        [(prettyDeclHeader $ Name.toVar newName,
+        [(prettyDeclHeader $ newNameVar,
           "aka " <> P.commas (prettyName <$> toList oldNames)) |
           (newName, oldNames) <-
-            Map.toList . R.domain . Branch.typeCollisions $ (E.needsAlias s) ],
+            Map.toList . R.domain . Branch.typeCollisions $ E.needsAlias s,
+          newNameVar <- varsNamed newName ],
       TypePrinter.prettySignaturesAlt' ppe
           -- foo, foo2, fasdf : a -> b -> c
           -- note: this shit vvvv is not a Name.
           [ (name : fmap HQ.fromName (toList oldNames), typ)
           | (newName, oldNames) <-
               Map.toList . R.domain . Branch.termCollisions $ (E.needsAlias s)
-          , (name, typ) <- filterTermTypes [Name.toVar newName]
+          , newNameVar <- varsNamed newName
+          , (name, typ) <- filterTermTypes [newNameVar]
           ]
       ])
       <> "\n\n"

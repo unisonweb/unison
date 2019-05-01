@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wwarn #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}

@@ -135,10 +135,7 @@ loop = do
               (bindings, e) <-
                 eval . Evaluate (Branch.prettyPrintEnv . Branch.head $ view currentBranch s) $ UF.discardTypes unisonFile
               let e' = Map.map go e
-                  go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-              -- todo: this would be a good spot to update the cache
-              -- with all the (hash, eval) pairs, even if it's just an
-              -- in-memory cache
+                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               eval . Notify $ Evaluated text
                 (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
                 bindings

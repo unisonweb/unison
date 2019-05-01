@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.UnisonFile where
 
 import           Control.Applicative    ((<|>))
-import           Control.Exception      (assert)
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
@@ -14,6 +15,7 @@ import qualified Data.Map               as Map
 import           Data.Maybe             (catMaybes, fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
+import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
@@ -29,6 +31,7 @@ import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
 import qualified Unison.Type            as Type
+import qualified Unison.Util.List       as List
 import           Unison.Util.Relation   (Relation)
 import qualified Unison.Util.Relation   as Relation
 import           Unison.Var             (Var)
@@ -39,28 +42,53 @@ data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
   terms :: [(v, AnnotatedTerm v a)],
-  watches :: [(v, AnnotatedTerm v a)]
+  watches :: Map WatchKind [(v, AnnotatedTerm v a)]
 } deriving Show
 
--- Converts a file to a single let rec with a body of `()`.
-uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
-uberTerm uf = Term.letRec' True (terms uf <> watches uf) (DD.unitTerm mempty)
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
+
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfOtherKinds kind uf =
+  join [ ws | (k, ws) <- Map.toList (watches uf), k /= kind ]
+
+allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
+allWatches = join . Map.elems . watches
+
+type WatchKind = Var.WatchKind
+pattern RegularWatch = Var.RegularWatch
+pattern TestWatch = Var.TestWatch
+
+-- Converts a file to a single let rec with a body of `()`, for
+-- purposes of typechecking.
+typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
+typecheckingTerm uf =
+  Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
+  DD.unitTerm mempty
+  where
+    -- we make sure each test has type Test.Result
+    f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
+    testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
-uberTerm' uf body = Term.letRec' True (terms uf <> watches uf) body
+uberTerm' uf body =
+  Term.letRec' True (terms uf <> allWatches uf) $ body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a =
-  -- Giving this an ugly name to encourage use of lowercase smart ctor
-  -- which filters out watch expressions
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-    watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+    topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
   } deriving Show
+
+topLevelComponents :: TypecheckedUnisonFile v a
+                   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+topLevelComponents file =
+  topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
 getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
 getDecl' uf v =
@@ -99,7 +127,7 @@ dependencies uf ns = directReferences <>
                       Set.fromList freeTypeVarRefs <>
                       Set.fromList freeTermVarRefs
   where
-    tm = uberTerm uf
+    tm = typecheckingTerm uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
       catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
@@ -115,9 +143,10 @@ dependencies uf ns = directReferences <>
       ]
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches) =
-  UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ]
-                           [ (a,b) | (a,b,_) <- join watches ]
+discardTypes (TypecheckedUnisonFile datas effects terms watches) = let
+  watches' = g . mconcat <$> List.multimap watches
+  g tup3s = [(v,e) | (v,e,_t) <- tup3s ]
+  in UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ] watches'
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -148,6 +177,8 @@ hashTerms ::
   => TypecheckedUnisonFile v a
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
 hashTerms file = let
+  -- test watches are added to the codebase also
+  -- todo: maybe other kinds of watches too
   components = topLevelComponents file
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
   terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
@@ -162,7 +193,7 @@ bindBuiltins :: Var v
              -> UnisonFile v a
              -> UnisonFile v a
 bindBuiltins names uf@(UnisonFile d e ts ws) = let
-  vs = (fst <$> ts) ++ (fst <$> ws)
+  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
   names' = Names.subtractTerms vs names
   ct = errMsg . constructorType uf
   errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
@@ -170,23 +201,11 @@ bindBuiltins names uf@(UnisonFile d e ts ws) = let
       (second (DD.bindBuiltins names) <$> d)
       (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
       (second (Names.bindTerm ct names') <$> ts)
-      (second (Names.bindTerm ct names') <$> ws)
+      (fmap (second (Names.bindTerm ct names')) <$> ws)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
 constructorType = TL.constructorType . declsToTypeLookup
-
-filterVars
-  :: Var v
-  => Set v
-  -> Set v
-  -> TypecheckedUnisonFile v a
-  -> TypecheckedUnisonFile v a
-filterVars types terms file = TypecheckedUnisonFile
-  (dataDeclarations' file `Map.restrictKeys` types)
-  (effectDeclarations' file `Map.restrictKeys` types)
-  (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
-  (filter (any (\(v, _, _) -> Set.member v terms)) $ watchComponents file)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
@@ -197,6 +216,13 @@ data Env v a = Env
   , names   :: Names
 }
 
+data Error v a
+  -- A free type variable that couldn't be resolved
+  = UnknownType v a
+  -- A variable which is both a data and an ability declaration
+  | DupDataAndAbility v a a
+  deriving (Eq,Ord,Show)
+
 -- This function computes hashes for data and effect declarations, and
 -- also returns a function for resolving strings to (Reference, ConstructorId)
 -- for parsing of pattern matching
@@ -205,7 +231,7 @@ data Env v a = Env
 -- left.
 environmentFor
   :: forall v a . Var v => Names -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
-  -> Env v a
+  -> Either [Error v a] (Env v a)
 environmentFor names0 dataDecls0 effectDecls0 =
   let
     -- ignore builtin types that will be shadowed by user-defined data/effects
@@ -217,8 +243,9 @@ environmentFor names0 dataDecls0 effectDecls0 =
     dataDecls = DD.bindBuiltins names <$> dataDecls0
     effectDecls :: Map v (EffectDeclaration' v a)
     effectDecls = withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
+    allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
     hashDecls' :: [(v, Reference, DataDeclaration' v a)]
-    hashDecls' = hashDecls (Map.union dataDecls (toDataDecl <$> effectDecls))
+    hashDecls' = hashDecls allDecls0
     -- then we have to pick out the dataDecls from the effectDecls
     allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
     dataDecls' = Map.difference allDecls effectDecls
@@ -227,7 +254,15 @@ environmentFor names0 dataDecls0 effectDecls0 =
     ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
     names' = ctors <> effects <> names
+    overlaps = let
+      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
+      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
+    okVars = Map.keysSet allDecls0
+    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
+      let cts = DD.constructorTypes dd
+      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences ct
+                                          , not (Set.member v okVars) ]
   in
-    -- make sure we don't have overlapping data and effect constructor names
-    assert (null (Set.intersection (Map.keysSet dataDecls) (Map.keysSet effectDecls))) $
-      Env dataDecls' effectDecls' names'
+    if null overlaps && null unknownTypeRefs
+    then pure $ Env dataDecls' effectDecls' names'
+    else Left (unknownTypeRefs ++ overlaps)

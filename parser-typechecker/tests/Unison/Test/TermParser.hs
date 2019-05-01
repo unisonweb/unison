@@ -63,7 +63,7 @@ test1 = scope "termparser" . tests . map parses $
     "    x + y"]
   , "(let \n" ++
     "  x = 23 + 42\n" ++
-    "  x + 1 \n)"
+    "  x + 1 )"
   --
   -- Handlers
   ,"handle foo in \n" ++
@@ -96,6 +96,14 @@ test1 = scope "termparser" . tests . map parses $
     "    z"
   , "case x of\n" ++
     " 0 | 1 == 2 -> 123"
+  , "case x of\n" ++
+    " [] -> 0\n" ++
+    " [1] -> 1\n" ++
+    " 2 +: _ -> 2\n" ++
+    " _ :+ 3 -> 3\n" ++
+    " [4] ++ _ -> 4\n" ++
+    " _ ++ [5] -> 5\n" ++
+    " _ -> -1"
 
   -- Conditionals
   , "if x then y else z"
@@ -144,9 +152,9 @@ test1 = scope "termparser" . tests . map parses $
         (|>) : forall a . a -> (a -> b) -> b
         a |> f = f a
 
-        Stream.from-int -3
+        Stream.fromInt -3
           |> Stream.take 10
-          |> Stream.fold-left 0 increment
+          |> Stream.foldLeft 0 increment
        |]
   ]
 
@@ -189,7 +197,7 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s builtins of
+  case Ps.parse @ Symbol p s (mempty, builtins) of
     Left e -> do
       note $ renderParseErrorAsANSI s e
       crash $ renderParseErrorAsANSI s e
