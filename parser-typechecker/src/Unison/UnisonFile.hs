@@ -79,9 +79,14 @@ data TypecheckedUnisonFile v a =
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+    topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
     watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
   } deriving Show
+
+topLevelComponents :: TypecheckedUnisonFile v a
+                   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+topLevelComponents file =
+  topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
 getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
 getDecl' uf v =
@@ -170,6 +175,8 @@ hashTerms ::
   => TypecheckedUnisonFile v a
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
 hashTerms file = let
+  -- test watches are added to the codebase also
+  -- todo: maybe other kinds of watches too
   components = topLevelComponents file
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
   terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
