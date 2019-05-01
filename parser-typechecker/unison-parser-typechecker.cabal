@@ -39,17 +39,25 @@ library
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
+    Unison.Codebase2
     Unison.Codebase.Branch
+    Unison.Codebase.Branch2
     Unison.Codebase.Causal
+    Unison.Codebase.Causal2
+    Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor
     Unison.Codebase.Editor.Actions
     Unison.Codebase.FileCodebase
+    Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit
+    Unison.Codebase.Path
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
+    Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V0
+    Unison.Codebase.Serialization.V1
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
@@ -135,6 +143,7 @@ library
     bifunctors,
     bytes,
     bytestring,
+    cereal,
     containers,
     comonad,
     concurrent-supply,
@@ -155,6 +164,7 @@ library
     io-streams,
     lens,
     ListLike,
+    megaparsec,
     memory,
     mmorph,
     monad-loops,
@@ -164,7 +174,6 @@ library
     network,
     network-simple,
     process,
-    megaparsec,
     prelude-extras,
     random,
     raw-strings-qq,

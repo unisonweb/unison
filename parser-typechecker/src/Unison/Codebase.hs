@@ -44,6 +44,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
@@ -264,14 +265,13 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 makeSelfContained'
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup v m a
-  -> Branch0
+  -> PrettyPrintEnv
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
-makeSelfContained' code b uf = do
+makeSelfContained' code pp uf = do
   let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
-  let pp = Branch.prettyPrintEnv b
-      termName r = PPE.termName pp (Referent.Ref r)
+  let termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
@@ -310,13 +310,12 @@ makeSelfContained' code b uf = do
 makeSelfContained
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup v m a
-  -> Branch0
+  -> PrettyPrintEnv
   -> Term v a
   -> m (UF.UnisonFile v a)
-makeSelfContained code b term = do
+makeSelfContained code pp term = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies term)
-  let pp = Branch.prettyPrintEnv b
-      termName r = PPE.termName pp (Referent.Ref r)
+  let termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid

@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 
 --newtype Causal' e = Causal' { unCausal :: Cofree (Hash, Causal :+: (Map Hash :.: Causal)) e }
 -- data Causal e = { head :: e, currentHash :: Hash, tail :: Either (Causal e) (Map Hash (Causal e)) }
+
 data Causal e
   = One { currentHash :: Hash, head :: e }
   | Cons { currentHash :: Hash, head :: e, tail :: Causal e }
@@ -48,6 +49,9 @@ uncons x = Just $ go [] x where
 
 instance Eq (Causal a) where
   a == b = currentHash a == currentHash b
+
+instance Ord (Causal a) where
+  a <= b = currentHash a <= currentHash b
 
 merge :: Semigroup e => Causal e -> Causal e -> Causal e
 a `merge` b | before a b = b
