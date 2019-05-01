@@ -157,16 +157,14 @@ renderTypeInfo
   -> AnnotatedText sty
 renderTypeInfo i env = case i of
   TopLevelComponent {..} ->
-    let defs =
-          filter (\(v, _, _) -> Text.take 1 (Var.name v) /= "_") definitions
-    in  case defs of
+    case definitions of
           [def] ->
             "🌟 I found and typechecked a definition:\n"
               <> mconcat (renderOne def)
           [] -> mempty
           _ ->
             "🎁 These mutually dependent definitions typechecked:\n"
-              <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) defs
+              <> intercalateMap "\n" (foldMap ("\t" <>) . renderOne) definitions
  where
   renderOne
     :: IsString s

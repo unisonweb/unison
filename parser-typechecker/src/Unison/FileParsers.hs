@@ -9,6 +9,7 @@ import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
+import           Data.Bifunctor             ( first )
 import qualified Data.Foldable              as Foldable
 import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
@@ -124,16 +125,17 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
-        topLevelBindings :: Map Name (Term v)
-        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings tdnrTerm
-        extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
+        topLevelBindings :: Map v (Term v)
+        topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
+        extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
+          Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
         extractTopLevelBindings _                        = Map.empty
         tlcsFromTypechecker =
           List.uniqueBy' (fmap vars)
             [ t | Context.TopLevelComponent t <- infos ]
-          where vars (v, _, _) = Var.name v
+          where vars (v, _, _) = v
         strippedTopLevelBinding (v, typ, redundant) = do
-          tm <- case Map.lookup (Var.name v) topLevelBindings of
+          tm <- case Map.lookup v topLevelBindings of
             Nothing ->
               Result.compilerBug $ Result.TopLevelComponentNotFound v term
             Just (Term.Ann' x _) | redundant -> pure x
@@ -148,8 +150,8 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     _          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
-        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.allWatches uf ]
+        isWatch = all (\(v,_,_) -> Set.member v watchedVars)
+        watchedVars = Set.fromList [ v | (v, _) <- UF.allWatches uf ]
         tlcKind [] = error "empty TLC, should never occur"
         tlcKind tlc@((v,_,_):_) = let
           hasE k = any (== v) . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
