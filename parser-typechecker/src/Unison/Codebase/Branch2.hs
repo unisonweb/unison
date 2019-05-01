@@ -3,6 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Branch2 where
 
@@ -21,7 +22,9 @@ import           Data.Text                      ( Text )
 import           Data.Foldable                  ( for_ )
 import qualified Unison.Codebase.Causal2       as Causal
 import           Unison.Codebase.Causal2        ( Causal
-                                                , Causal0(..)
+                                                , pattern RawOne
+                                                , pattern RawCons
+                                                , pattern RawMerge
                                                 )
 --import           Unison.Codebase.TermEdit       ( TermEdit )
 --import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -55,7 +58,7 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
-type Hash = Causal.C0Hash Raw
+type Hash = Causal.RawHash Raw
 
 data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
@@ -100,9 +103,9 @@ read deserializeRaw h = Branch <$> Causal.read d h
   go h = (h, ) <$> read deserializeRaw h
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
-    One0 raw      -> One0 <$> fromRaw raw
-    Cons0  raw h  -> flip Cons0 h <$> fromRaw raw
-    Merge0 raw hs -> flip Merge0 hs <$> fromRaw raw
+    RawOne raw      -> RawOne <$> fromRaw raw
+    RawCons  raw h  -> flip RawCons h <$> fromRaw raw
+    RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync :: forall m. Monad m
@@ -118,9 +121,9 @@ sync exists serializeRaw b = do
   toRaw Branch0{..} = Raw _terms _types (fst <$> _children)
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
   serialize0 h = \case
-    One0 b0 -> serializeRaw h $ One0 (toRaw b0)
-    Cons0 b0 h -> serializeRaw h $ Cons0 (toRaw b0) h
-    Merge0 b0 hs -> serializeRaw h $ Merge0 (toRaw b0) hs
+    RawOne b0 -> serializeRaw h $ RawOne (toRaw b0)
+    RawCons b0 h -> serializeRaw h $ RawCons (toRaw b0) h
+    RawMerge b0 hs -> serializeRaw h $ RawMerge (toRaw b0) hs
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well

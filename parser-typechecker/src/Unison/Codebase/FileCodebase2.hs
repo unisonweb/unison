@@ -52,10 +52,10 @@ import           System.FilePath                ( FilePath
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase2               ( Codebase(Codebase) )
-import           Unison.Codebase.Causal2        ( Causal0, C0Hash(..) )
--- import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Branch2         ( Branch )
-import qualified Unison.Codebase.Branch2        as Branch
+import           Unison.Codebase.Causal2        ( Causal, RawHash(..) )
+import qualified Unison.Codebase.Causal2       as Causal
+import           Unison.Codebase.Branch2        ( Branch )
+import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
@@ -118,6 +118,7 @@ minimalCodebaseStructure root =
   [ termsDir root
   , typesDir root
   , branchesDir root
+  , branchHeadDir root
   ]
 
 -- checks if a minimal codebase structure exists at `path`
@@ -137,7 +138,7 @@ getRootBranch root = do
     [] -> throwError $ NoBranchHead (branchHeadDir root)
     [single] -> case Hash.fromBase58 (Text.pack single) of
       Nothing -> throwError $ CantParseBranchHead single
-      Just h -> branchFromFiles root (C0Hash h)
+      Just h -> branchFromFiles root (RawHash h)
     conflict -> error "todo; load all and merge?"
   where
   branchFromFiles :: (MonadIO m, MonadError Err m)
@@ -147,8 +148,10 @@ getRootBranch root = do
 
   deserializeRawBranch
     :: (MonadIO m, MonadError Err m)
-    => CodebasePath -> Branch.Hash -> m (Causal0 Branch.Raw Branch.Raw)
-  deserializeRawBranch root (C0Hash h) = do
+    => CodebasePath
+    -> Branch.Hash
+    -> m (Causal.Raw Branch.Raw Branch.Raw)
+  deserializeRawBranch root (RawHash h) = do
     let ubf = branchPath root h
     bytes <- liftIO $ BS.readFile ubf
     case Get.runGetS (V1.getCausal0 V1.getRawBranch) bytes of
@@ -157,7 +160,21 @@ getRootBranch root = do
 
 putRootBranch
   :: (MonadIO m, MonadError Err m) => CodebasePath -> Branch m -> m ()
-putRootBranch = error "todo"
+putRootBranch root b = do
+  error "todo"
+  updateCausalHead (branchHeadDir root) (Branch._history b)
+  where
+  replaceBranchHeads h = error "todo"
+
+-- `headDir` is like ".unison/branches/head", not ".unison"
+updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
+updateCausalHead headDir c = do
+  let (RawHash h) = Causal.currentHash c
+  -- delete existing heads
+  liftIO $ listDirectory headDir >>= traverse_ removeFile
+  -- write new head
+  liftIO $ writeFile (headDir </> Hash.base58s h) ""
+  error "todo"
 
 -- -- branchToFile :: FilePath -> Branch -> IO ()
 -- -- branchToFile = S.putWithParentDirs V0.putBranch
