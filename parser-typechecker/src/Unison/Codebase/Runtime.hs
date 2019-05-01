@@ -60,7 +60,8 @@ evaluateWatches code evaluationCache rt uf = do
       m = Term.hashComponents (Map.fromList (UF.terms uf <> UF.allWatches uf))
       watches = Set.fromList (fst <$> UF.allWatches uf)
       watchKinds :: Map v UF.WatchKind
-      watchKinds = error "todo"
+      watchKinds = Map.fromList [ (v, k) | (k, ws) <- Map.toList (UF.watches uf)
+                                         , (v,_) <- ws ]
       unann = Term.amap (const ())
   -- 2. use the cache to lookup things already computed
   m' <- fmap Map.fromList . for (Map.toList m) $ \(v, (r, t)) -> do
@@ -85,10 +86,11 @@ evaluateWatches code evaluationCache rt uf = do
       Term.LetRecNamed' bs (TupleTerm' results) -> (bs, results)
       _ -> fail $ "Evaluation should produce a tuple, but gave: " ++ show out
   let go v eval (ref, a, uneval, isHit) =
-        (a, Map.findWithDefault undefined v watchKinds,
+        (a, Map.findWithDefault (die v) v watchKinds,
          ref, uneval, Term.etaNormalForm eval, isHit)
       watchMap = Map.intersectionWithKey go
         (Map.fromList (toList watches `zip` results)) m'
+      die v = error $ "not sure what kind of watch this is: " <> show v
   pure (bindings, watchMap)
  where
     -- unref :: Map Reference v -> AnnotatedTerm v a -> AnnotatedTerm v a

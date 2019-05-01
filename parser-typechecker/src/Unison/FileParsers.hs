@@ -149,9 +149,14 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
         isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
-        -- todo: could note kind of each watch in the output
         watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.allWatches uf ]
-    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
+        tlcKind [] = error "empty TLC, should never occur"
+        tlcKind tlc@((v,_,_):_) = let
+          hasE k = any (== v) . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+          in case Foldable.find hasE (Map.keys $ UF.watches uf) of
+               Nothing -> error "wat"
+               Just kind -> (kind, tlc)
+    pure $ UF.TypecheckedUnisonFile dds0 eds0 terms' (map tlcKind watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]

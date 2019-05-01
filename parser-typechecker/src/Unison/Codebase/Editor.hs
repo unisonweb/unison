@@ -308,10 +308,12 @@ data Command i v a where
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
   -- has the form:
-  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+  --   (hash,
+  --   (ann, watchKind, sourceTerm, evaluatedTerm, isCacheHit))
   --
   -- where
   --   `hash` is the hash of the original watch expression definition
+  --   `watchKind` is `UF.RegularWatch` or `UF.TestWatch`
   --   `ann` gives the location of the watch expression
   --   `sourceTerm` is a closed term (no free vars) for the watch expression
   --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
@@ -324,7 +326,7 @@ data Command i v a where
   Evaluate :: Branch
            -> UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
-                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
+                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
   -- option 1:
@@ -715,13 +717,13 @@ commandLine awaitInput rt notifyUser codebase command = do
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
     rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
-    forM_ (Map.elems map) $ \(_loc, hash, _src, value, isHit) ->
+    forM_ (Map.elems map) $
+      \(_loc, kind, hash, _src, value, isHit) ->
       if isHit then pure ()
       else case hash of
         Reference.DerivedId h -> do
           let value' = Term.amap (const Parser.External) value
-          -- todo: when UnisonFile includes `WatchKind` info, can pass that along here
-          Codebase.putWatch codebase UF.RegularWatch h value' 
+          Codebase.putWatch codebase kind h value'
         _ -> pure ()
     pure rs
 
