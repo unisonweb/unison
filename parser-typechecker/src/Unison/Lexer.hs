@@ -57,6 +57,13 @@ data Token a = Token {
   end :: Pos
 } deriving (Eq, Ord, Show, Functor)
 
+notLayout :: Token Lexeme -> Bool
+notLayout t = case payload t of
+  Close -> False
+  Semi -> False
+  Open _ -> False
+  _ -> True
+
 instance ShowToken (Token Lexeme) where
   showTokens xs =
       join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
@@ -195,9 +202,20 @@ lexer scope rem =
 
 lexer0 :: String -> String -> [Token Lexeme]
 lexer0 scope rem =
-    Token (Open scope) topLeftCorner topLeftCorner
+    tweak $ Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
+    -- 1+1 lexes as [1, +1], and it's not easy to fix without adding more
+    -- state to the lexer, so we have a hacky postprocessing pass to convert
+    -- it to [1, +, 1]
+    tweak [] = []
+    tweak (t1:t2@(payload -> Numeric num):rem)
+      | notLayout t1 && touches t1 t2 && isSigned num =
+        t1 : Token (SymbolyId $ take 1 num) (start t2) (inc $ start t2)
+           : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+           : tweak rem
+    tweak (h:t) = h : tweak t
+    isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
     -- skip whitespace and comments
     goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
@@ -338,8 +356,12 @@ lexer0 scope rem =
                 Token (Backticks id) pos end : goWhitespace l end (pop rem)
 
       -- keywords and identifiers
-      (symbolyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (SymbolyId id) pos end : goWhitespace l end rem
+      (symbolyId -> Right (id, rem')) -> case numericLit rem of
+        Right (Just (num, rem)) ->
+          let end = incBy num pos
+          in Token (Numeric num) pos end : goWhitespace l end rem
+        _ -> let end = incBy id pos
+             in Token (SymbolyId id) pos end : goWhitespace l end rem'
       (wordyId -> Right (id, rem)) ->
         let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
@@ -482,7 +504,7 @@ splitSymboly s =
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
-  (id @ (_:_), rem) | not (Set.member id reservedOperators) && hasSep rem -> Right (id, rem)
+  (id @ (_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool
