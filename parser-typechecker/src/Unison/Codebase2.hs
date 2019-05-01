@@ -79,8 +79,6 @@ type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 type Decl v a = TL.Decl v a
 
-data Err = InvalidBranchFile FilePath String deriving Show
-
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
            , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))

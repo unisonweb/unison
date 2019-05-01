@@ -22,9 +22,6 @@ import           Data.Foldable                  ( for_ )
 import qualified Unison.Codebase.Causal2       as Causal
 import           Unison.Codebase.Causal2        ( Causal
                                                 , Causal0(..)
-                                                , C0Hash
-                                                , Deserialize
-                                                , Serialize
                                                 )
 --import           Unison.Codebase.TermEdit       ( TermEdit )
 --import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -46,13 +43,8 @@ data RepoRef
   deriving (Eq, Ord, Show)
 
 -- type EditGuid = Text
-
 data RepoLink a = RepoLink RepoRef a
   deriving (Eq, Ord, Show)
-
-{-
-To load a `Branch m`, we need a `Hash -> m (Causal0 (Branch0 m))`
--}
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
@@ -98,7 +90,7 @@ data ForkFailure = SrcNotFound | DestExists
 read
   :: forall m
    . Monad m
-  => Deserialize m Raw Raw
+  => Causal.Deserialize m Raw Raw
   -> Hash
   -> m (Branch m)
 read deserializeRaw h = Branch <$> Causal.read d h
@@ -106,7 +98,7 @@ read deserializeRaw h = Branch <$> Causal.read d h
   fromRaw :: Raw -> m (Branch0 m)
   fromRaw Raw {..} = Branch0 _termsR _typesR <$> (traverse go _childrenR)
   go h = (h, ) <$> read deserializeRaw h
-  d :: Deserialize m Raw (Branch0 m)
+  d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     One0 raw      -> One0 <$> fromRaw raw
     Cons0  raw h  -> flip Cons0 h <$> fromRaw raw
@@ -115,7 +107,7 @@ read deserializeRaw h = Branch <$> Causal.read d h
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync :: forall m. Monad m
      => (Hash -> m Bool)
-     -> Serialize m Raw Raw
+     -> Causal.Serialize m Raw Raw
      -> Branch m
      -> m ()
 sync exists serializeRaw b = do
@@ -124,7 +116,7 @@ sync exists serializeRaw b = do
   where
   toRaw :: Branch0 m -> Raw
   toRaw Branch0{..} = Raw _terms _types (fst <$> _children)
-  serialize0 :: Serialize m Raw (Branch0 m)
+  serialize0 :: Causal.Serialize m Raw (Branch0 m)
   serialize0 h = \case
     One0 b0 -> serializeRaw h $ One0 (toRaw b0)
     Cons0 b0 h -> serializeRaw h $ Cons0 (toRaw b0) h

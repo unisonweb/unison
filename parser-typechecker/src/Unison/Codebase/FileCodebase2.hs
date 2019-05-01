@@ -51,10 +51,8 @@ import           System.FilePath                ( FilePath
                                                 )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase2               ( Codebase(Codebase)
-                                                , Err(InvalidBranchFile)
-                                                )
-import           Unison.Codebase.Causal2         ( Causal0, C0Hash(..) )
+import           Unison.Codebase2               ( Codebase(Codebase) )
+import           Unison.Codebase.Causal2        ( Causal0, C0Hash(..) )
 -- import qualified Unison.Codebase.Branch2        as Branch
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Branch2        as Branch
@@ -70,43 +68,96 @@ import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
+type CodebasePath = FilePath
+data Err
+  = InvalidBranchFile FilePath String
+  | NoBranchHead FilePath
+  | CantParseBranchHead FilePath
+  deriving Show
+
+
+termsDir, typesDir, branchesDir :: CodebasePath -> FilePath
+termsDir root = root </> "terms"
+typesDir root = root </> "types"
+branchesDir root = root </> "branches"
+branchHeadDir root = branchesDir root </> "head"
+
+termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
+termDir root r = termsDir root </> componentId r
+declDir root r = typesDir root </> componentId r
+
+builtinDir :: CodebasePath -> Reference -> Maybe FilePath
+builtinDir root r@(Reference.Builtin name) =
+  if Builtin.isBuiltinTerm r then Just (builtinTermDir root name)
+  else if Builtin.isBuiltinType r then Just (builtinTypeDir root name)
+  else Nothing
+  where
+    builtinTermDir, builtinTypeDir :: CodebasePath -> Text -> FilePath
+    builtinTermDir root name =
+      termsDir root </> "_builtin" </> encodeBuiltinName name
+    builtinTypeDir path name =
+      typesDir root </> "_builtin" </> encodeBuiltinName name
+builtinDir _ _ = Nothing
+
+termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
+termPath path r = termDir path r </> "compiled.ub"
+typePath path r = termDir path r </> "type.ub"
+declPath path r = declDir path r </> "compiled.ub"
+
+branchPath :: CodebasePath -> Hash.Hash -> FilePath
+branchPath root h = branchesDir root </> Hash.base58s h
+
+touchDependentFile :: Reference.Id -> FilePath -> IO ()
+touchDependentFile dependent fp = do
+  createDirectoryIfMissing True (fp </> "dependents")
+  writeFile (fp </> "dependents" </> componentId dependent) ""
 
 -- checks if `path` looks like a unison codebase
-minimalCodebaseStructure :: FilePath -> [FilePath]
-minimalCodebaseStructure path =
-  [branchesPath path
-  ,path </> "terms"
-  ,path </> "types"]
-  -- todo: add data constructor paths or whatever that ends up being
+minimalCodebaseStructure :: CodebasePath -> [FilePath]
+minimalCodebaseStructure root =
+  [ termsDir root
+  , typesDir root
+  , branchesDir root
+  ]
 
 -- checks if a minimal codebase structure exists at `path`
-exists :: FilePath -> IO Bool
-exists path =
-  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure path)
+exists :: CodebasePath -> IO Bool
+exists root =
+  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
 -- creates a minimal codebase structure at `path`
-initialize :: FilePath -> IO ()
+initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-deserializeRawBranch :: (MonadIO m, MonadError Err m)
-  => FilePath -> Branch.Hash -> m (Causal0 Branch.Raw Branch.Raw)
-deserializeRawBranch root (C0Hash h) = do
-  let ubf = branchPath root h
-  bytes <- liftIO $ BS.readFile ubf
-  case Get.runGetS (V1.getCausal0 V1.getRawBranch) bytes of
-    Left err -> throwError $ InvalidBranchFile ubf err
-    Right c0 -> pure c0
+getRootBranch
+  :: (MonadIO m, MonadError Err m) => CodebasePath -> m (Branch m)
+getRootBranch root = do
+  (liftIO $ listDirectory (branchHeadDir root)) >>= \case
+    [] -> throwError $ NoBranchHead (branchHeadDir root)
+    [single] -> case Hash.fromBase58 (Text.pack single) of
+      Nothing -> throwError $ CantParseBranchHead single
+      Just h -> branchFromFiles root (C0Hash h)
+    conflict -> error "todo; load all and merge?"
+  where
+  branchFromFiles :: (MonadIO m, MonadError Err m)
+                  => FilePath -> Branch.Hash -> m (Branch m)
+  branchFromFiles rootDir rootHash =
+    Branch.read (deserializeRawBranch rootDir) rootHash
 
+  deserializeRawBranch
+    :: (MonadIO m, MonadError Err m)
+    => CodebasePath -> Branch.Hash -> m (Causal0 Branch.Raw Branch.Raw)
+  deserializeRawBranch root (C0Hash h) = do
+    let ubf = branchPath root h
+    bytes <- liftIO $ BS.readFile ubf
+    case Get.runGetS (V1.getCausal0 V1.getRawBranch) bytes of
+      Left err -> throwError $ InvalidBranchFile ubf err
+      Right c0 -> pure c0
 
-branchFromFile :: (MonadIO m, MonadError Err m)
-               => FilePath -> Branch.Hash -> m (Branch m)
-branchFromFile root h = error "todo" -- do
-  -- let ubf = branchPath root h
-  -- bytes <- liftIO $ BS.readFile ubf
-  -- case Get.runGetS V1.getBranch0 bytes of
-  --   Left err     -> throwError $ InvalidBranchFile ubf err
-  --   Right branch -> pure branch
+putRootBranch
+  :: (MonadIO m, MonadError Err m) => CodebasePath -> Branch m -> m ()
+putRootBranch = error "todo"
 
 -- -- branchToFile :: FilePath -> Branch -> IO ()
 -- -- branchToFile = S.putWithParentDirs V0.putBranch
@@ -149,9 +200,6 @@ branchFromFile root h = error "todo" -- do
 -- -- isValidBranchDirectory path =
 -- --   not . null <$> filesInPathMatchingExtension path ".ubf"
 
-termDir, declDir :: FilePath -> Reference.Id -> FilePath
-termDir path r = path </> "terms" </> componentId r
-declDir path r = path </> "types" </> componentId r
 
 encodeBuiltinName :: Text -> FilePath
 encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
@@ -160,38 +208,11 @@ encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
 -- -- decodeBuiltinName p =
 -- --   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
 
-builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
-builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> encodeBuiltinName name
-builtinTypeDir path name =
-  path </> "types" </> "_builtin" </> encodeBuiltinName name
-builtinDir :: FilePath -> Reference -> Maybe FilePath
-builtinDir path r@(Reference.Builtin name) =
-  if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
-  else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
-  else Nothing
-builtinDir _ _ = Nothing
-
-termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
-termPath path r = termDir path r </> "compiled.ub"
-typePath path r = termDir path r </> "type.ub"
-declPath path r = declDir path r </> "compiled.ub"
-
 componentId :: Reference.Id -> String
 componentId (Reference.Id h 0 1) = Hash.base58s h
 componentId (Reference.Id h i n) =
   Hash.base58s h <> "-" <> show i <> "-" <> show n
 
-branchesPath :: FilePath -> FilePath
-branchesPath path = path </> "branches"
-
-branchPath :: FilePath -> Hash.Hash -> FilePath
-branchPath path h = branchesPath path </> Hash.base58s h
-
-touchDependentFile :: Reference.Id -> FilePath -> IO ()
-touchDependentFile dependent fp = do
-  createDirectoryIfMissing True (fp </> "dependents")
-  writeFile (fp </> "dependents" </> componentId dependent) ""
 
 -- -- -- todo: this is base58-i-n ?
 -- -- parseHash :: String -> Maybe Reference.Id
