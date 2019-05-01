@@ -72,7 +72,7 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = fmap (CT.toPlain) $ 
+       prettied = fmap (CT.toPlain) $
         prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
@@ -378,7 +378,7 @@ test = scope "termprinter" . tests $
                            \     a\n\
                            \then foo\n\
                            \else bar"   -- TODO parser throws 'unexpected then'
-  , tc_breaks 80 "Stream.fold-left 0 (+) t"
+  , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
   ]

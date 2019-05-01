@@ -152,9 +152,9 @@ test1 = scope "termparser" . tests . map parses $
         (|>) : forall a . a -> (a -> b) -> b
         a |> f = f a
 
-        Stream.from-int -3
+        Stream.fromInt -3
           |> Stream.take 10
-          |> Stream.fold-left 0 increment
+          |> Stream.foldLeft 0 increment
        |]
   ]
 
