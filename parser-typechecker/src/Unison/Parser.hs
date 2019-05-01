@@ -34,6 +34,7 @@ import qualified Unison.UnisonFile    as UF
 import Unison.Names (Names)
 import Control.Monad.Reader.Class (ask)
 import qualified Crypto.Random as Random
+import qualified Unison.Hashable as Hashable
 
 debug :: Bool
 debug = False
@@ -51,14 +52,15 @@ instance Monoid UniqueName where
     UniqueName $ \pos -> f pos <|> g pos
 
 uniqueBase58Namegen :: Int -> IO UniqueName
-uniqueBase58Namegen lenInBytes = do
+uniqueBase58Namegen lenInBase58 = do
   rng <- Random.getSystemDRG
   pure . UniqueName $ \pos -> let
-    (bytes,_) = Random.randomBytesGenerate lenInBytes rng
+    (bytes,_) = Random.randomBytesGenerate 32 rng
     posBytes = runPutS $ do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
-    in Just . Hash.base58 $ Hash.fromBytes (bytes <> posBytes)
+    h = Hashable.accumulate' $ bytes <> posBytes
+    in Just . Text.take lenInBase58 . Hash.base58 $ h
 
 uniqueName :: Var v => P v Text
 uniqueName = do

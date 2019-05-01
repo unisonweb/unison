@@ -46,7 +46,7 @@ name v = case typeOf v of
   Inference TypeConstructorArg -> "𝕦" <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
-  UnnamedWatch k guid -> fromString k <> "_" <> guid <> showid v
+  UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
   AskInfo -> "?" <> showid v
   where
   showid (freshId -> 0) = ""

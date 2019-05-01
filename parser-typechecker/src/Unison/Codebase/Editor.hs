@@ -688,6 +688,7 @@ commandLine awaitInput rt notifyUser codebase command = do
     SlurpFile handler branch unisonFile ->
       fileToBranch handler codebase branch unisonFile
     Typecheck ambient branch sourceName source -> do
+      -- todo: if guids are being shown to users, not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen 8
       typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
