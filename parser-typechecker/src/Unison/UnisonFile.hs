@@ -62,6 +62,7 @@ typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
 typecheckingTerm uf =
   Term.letRec' True (terms uf <> watchesOfKind TestWatch uf <> watchesOfKind RegularWatch uf) $
   DD.unitTerm mempty
+  -- todo: I think this should be 👇 but that results in TLCs being missed
   -- Term.letRec' True (terms uf) $
   -- Term.letRec' True (watchesOfKind TestWatch uf) $
   -- Term.letRec' True (watchesOfKind RegularWatch uf) $
