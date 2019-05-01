@@ -530,8 +530,8 @@ putTuple3' putA putB putC (a, b, c) = putA a *> putB b *> putC c
 getTuple3 :: MonadGet m => m a -> m b -> m c -> m (a,b,c)
 getTuple3 = liftA3 (,,)
 
-putRelation :: MonadPut m => Relation a b -> (a -> m ()) -> (b -> m ()) -> m ()
-putRelation r putA putB = putFoldable (putPair putA putB) (Relation.toList r)
+putRelation :: MonadPut m => (a -> m ()) -> (b -> m ()) -> Relation a b -> m ()
+putRelation putA putB r = putFoldable (putPair putA putB) (Relation.toList r)
 
 getRelation :: (MonadGet m, Ord a, Ord b) => m a -> m b -> m (Relation a b)
 getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
@@ -573,11 +573,12 @@ getTypeEdit = getWord8 >>= \case
 
 putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
-  putRelation (Branch._terms b) putNameSegment putReferent
-  putRelation (Branch._types b) putNameSegment putReference
+  putRelation putNameSegment putReferent (Branch._terms b)
+  putRelation putNameSegment putReference (Branch._types b)
   putFoldable (putPair putNameSegment (putHash . unc0hash . fst))
               (Map.toList (Branch._children b))
 
+-- getBranch0 :: MonadGet m => m (Branch00)
 
 putLink :: MonadPut m => (Hash, mb) -> m ()
 putLink (h, _) = do
@@ -596,6 +597,12 @@ putNameSegment = putText . NameSegment.toText
 
 getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
+
+putRawBranch :: MonadPut m => Branch.Raw -> m ()
+putRawBranch (Branch.Raw terms types children) =
+  putRelation putNameSegment putReferent terms >>
+  putRelation putNameSegment putReference types >>
+  putMap putNameSegment (putHash . unc0hash) children
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =

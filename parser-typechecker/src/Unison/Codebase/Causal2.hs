@@ -62,10 +62,10 @@ data Causal0 h e
   | Merge0 e (Set (C0Hash h))
 
 -- Don't need to deserialize the `e` to calculate `before`.
--- data Causal00
---   = One00
---   | Cons00 Hash
---   | Merge00 (Set Hash)
+data Raw h
+  = OneRaw
+  | ConsRaw (C0Hash h)
+  | MergeRaw (Set (C0Hash h))
 
 type Deserialize m h e = C0Hash h -> m (Causal0 h e)
 

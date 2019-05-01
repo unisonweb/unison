@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase2 where
 
@@ -14,7 +15,7 @@ module Unison.Codebase.FileCodebase2 where
 --                                                 , when
 --                                                 )
 import           Control.Monad.Error.Class      ( MonadError
---                                                 , throwError
+                                                , throwError
                                                 )
 import           Control.Monad.Except           ( runExceptT )
 import           Control.Monad.IO.Class         ( MonadIO
@@ -53,13 +54,14 @@ import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase2               ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
                                                 )
+import           Unison.Codebase.Causal2         ( Causal0, C0Hash(..) )
+-- import qualified Unison.Codebase.Branch2        as Branch
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Branch2        as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
 import qualified Unison.Codebase.Watch         as Watch
-import           Unison.Hash                    ( Hash )
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
@@ -87,11 +89,21 @@ initialize :: FilePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> Hash -> m (Branch m)
-branchFromFile root h = do
+deserializeRawBranch :: (MonadIO m, MonadError Err m)
+  => FilePath -> Branch.Hash -> m (Causal0 Branch.Raw Branch.Raw)
+deserializeRawBranch root (C0Hash h) = do
   let ubf = branchPath root h
   bytes <- liftIO $ BS.readFile ubf
-  error "todo"
+  case Get.runGetS (V1.getCausal0 V1.getRawBranch) bytes of
+    Left err -> throwError $ InvalidBranchFile ubf err
+    Right c0 -> pure c0
+
+
+branchFromFile :: (MonadIO m, MonadError Err m)
+               => FilePath -> Branch.Hash -> m (Branch m)
+branchFromFile root h = error "todo" -- do
+  -- let ubf = branchPath root h
+  -- bytes <- liftIO $ BS.readFile ubf
   -- case Get.runGetS V1.getBranch0 bytes of
   --   Left err     -> throwError $ InvalidBranchFile ubf err
   --   Right branch -> pure branch
@@ -173,7 +185,7 @@ componentId (Reference.Id h i n) =
 branchesPath :: FilePath -> FilePath
 branchesPath path = path </> "branches"
 
-branchPath :: FilePath -> Hash -> FilePath
+branchPath :: FilePath -> Hash.Hash -> FilePath
 branchPath path h = branchesPath path </> Hash.base58s h
 
 touchDependentFile :: Reference.Id -> FilePath -> IO ()
