@@ -54,14 +54,16 @@ data RepoLink a = RepoLink RepoRef a
 To load a `Branch m`, we need a `Hash -> m (Causal0 (Branch0 m))`
 -}
 
-newtype Branch m = Branch { _history :: Causal m Branch00 (Branch0 m) }
+newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
-headHash :: Branch m -> C0Hash Branch00
+headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
+
+type Hash = Causal.C0Hash Raw
 
 data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
@@ -70,16 +72,17 @@ data Branch0 m = Branch0
   --    Should this be a relation?
   --    What is the UX to resolve conflicts?
   -- The hash we use to identify branches is the hash of their Causal node.
-  , _children :: Map NameSegment (C0Hash Branch00, Branch m)
+  , _children :: Map NameSegment (Hash, Branch m)
   }
 
-data Branch00 = Branch00
-  { _terms0 :: Relation NameSegment Referent
-  , _types0 :: Relation NameSegment Reference
-  , _children0 :: Map NameSegment (C0Hash Branch00)
+-- The raw Branch
+data Raw = Raw
+  { _termsR :: Relation NameSegment Referent
+  , _typesR :: Relation NameSegment Reference
+  , _childrenR :: Map NameSegment Hash
   }
 
-makeLenses ''Branch00
+makeLenses ''Raw
 makeLenses ''Branch0
 makeLenses ''Branch
 
@@ -95,37 +98,37 @@ data ForkFailure = SrcNotFound | DestExists
 read
   :: forall m
    . Monad m
-  => Deserialize m Branch00 Branch00
-  -> C0Hash Branch00
+  => Deserialize m Raw Raw
+  -> Hash
   -> m (Branch m)
-read d00 h = Branch <$> Causal.read d h
+read deserializeRaw h = Branch <$> Causal.read d h
  where
-  toB0 :: Branch00 -> m (Branch0 m)
-  toB0 Branch00 {..} = Branch0 _terms0 _types0 <$> (traverse go _children0)
-  go h = (h, ) <$> read d00 h
-  d :: Deserialize m Branch00 (Branch0 m)
-  d h = d00 h >>= \case
-    One0 b00      -> One0 <$> toB0 b00
-    Cons0  b00 h  -> flip Cons0 h <$> toB0 b00
-    Merge0 b00 hs -> flip Merge0 hs <$> toB0 b00
+  fromRaw :: Raw -> m (Branch0 m)
+  fromRaw Raw {..} = Branch0 _termsR _typesR <$> (traverse go _childrenR)
+  go h = (h, ) <$> read deserializeRaw h
+  d :: Deserialize m Raw (Branch0 m)
+  d h = deserializeRaw h >>= \case
+    One0 raw      -> One0 <$> fromRaw raw
+    Cons0  raw h  -> flip Cons0 h <$> fromRaw raw
+    Merge0 raw hs -> flip Merge0 hs <$> fromRaw raw
 
--- serialize a `Branch m` indexed by the hash of its corresponding Branch00
+-- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync :: forall m. Monad m
-     => (C0Hash Branch00 -> m Bool)
-     -> Serialize m Branch00 Branch00
+     => (Hash -> m Bool)
+     -> Serialize m Raw Raw
      -> Branch m
      -> m ()
-sync exists serialize00 b = do
-  for_ (view children (head b)) (sync exists serialize00 . snd)
+sync exists serializeRaw b = do
+  for_ (view children (head b)) (sync exists serializeRaw . snd)
   Causal.sync exists serialize0 (view history b)
   where
-  toB00 :: Branch0 m -> Branch00
-  toB00 Branch0{..} = Branch00 _terms _types (fst <$> _children)
-  serialize0 :: Serialize m Branch00 (Branch0 m)
+  toRaw :: Branch0 m -> Raw
+  toRaw Branch0{..} = Raw _terms _types (fst <$> _children)
+  serialize0 :: Serialize m Raw (Branch0 m)
   serialize0 h = \case
-    One0 b0 -> serialize00 h $ One0 (toB00 b0)
-    Cons0 b0 h -> serialize00 h $ Cons0 (toB00 b0) h
-    Merge0 b0 hs -> serialize00 h $ Merge0 (toB00 b0) hs
+    One0 b0 -> serializeRaw h $ One0 (toRaw b0)
+    Cons0 b0 h -> serializeRaw h $ Cons0 (toRaw b0) h
+    Merge0 b0 hs -> serializeRaw h $ Merge0 (toRaw b0) hs
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well

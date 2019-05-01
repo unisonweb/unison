@@ -6,15 +6,15 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import           Control.Concurrent             ( forkIO
-                                                , killThread
-                                                )
-import           Control.Monad                  ( filterM
-                                                , forever
-                                                , when
-                                                )
+-- import           Control.Concurrent             ( forkIO
+--                                                 , killThread
+--                                                 )
+-- import           Control.Monad                  ( filterM
+--                                                 , forever
+--                                                 , when
+--                                                 )
 import           Control.Monad.Error.Class      ( MonadError
-                                                , throwError
+--                                                 , throwError
                                                 )
 import           Control.Monad.Except           ( runExceptT )
 import           Control.Monad.IO.Class         ( MonadIO
@@ -52,7 +52,6 @@ import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase2               ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
-                                                , BranchName
                                                 )
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Branch2        as Branch
@@ -68,6 +67,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
+
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: FilePath -> [FilePath]

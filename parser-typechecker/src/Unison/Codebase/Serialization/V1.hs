@@ -33,9 +33,7 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
 import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch2        ( Branch0(..)
-                                                , Branch00(..)
-                                                )
+import           Unison.Codebase.Branch2        ( Branch0(..) )
 import qualified Unison.Codebase.Branch2        as Branch
 import           Unison.Codebase.Causal2        ( Causal0(..)
                                                 , C0Hash(..)
@@ -599,9 +597,9 @@ putNameSegment = putText . NameSegment.toText
 getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
-getBranch00 :: MonadGet m => m Branch00
-getBranch00 =
-  Branch00
+getRawBranch :: MonadGet m => m Branch.Raw
+getRawBranch =
+  Branch.Raw
     <$> getRelation getNameSegment getReferent
     <*> getRelation getNameSegment getReference
     <*> getMap getNameSegment (C0Hash <$> getHash)

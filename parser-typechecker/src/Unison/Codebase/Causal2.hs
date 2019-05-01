@@ -15,6 +15,7 @@ import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
 import           Unison.Hash                    ( Hash )
+import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
@@ -41,6 +42,9 @@ import           Data.Foldable                  ( for_, toList )
   * `before c1 (sequence c1 c2)`
   * `head (sequence c1 c2) == head c2`
 -}
+
+newtype C0Hash a = C0Hash { unc0hash :: Hash }
+  deriving (Eq, Ord, Show)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
@@ -173,6 +177,3 @@ one e = One (C0Hash $ hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
 cons e tl = Cons (C0Hash $ hash [hash e, unc0hash . currentHash $ tl]) e (currentHash tl, pure tl)
-
-newtype C0Hash a = C0Hash { unc0hash :: Hash }
-  deriving (Eq, Ord, Show)
