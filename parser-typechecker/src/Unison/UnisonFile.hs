@@ -60,23 +60,18 @@ pattern TestWatch = "test"
 -- purposes of typechecking.
 typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
 typecheckingTerm uf =
-  Term.letRec' True (terms uf <> watchesOfKind TestWatch uf <> watchesOfKind RegularWatch uf) $
+  Term.letRec' True (terms uf <> testWatches <> watchesOfKind RegularWatch uf) $
   DD.unitTerm mempty
-  -- todo: I think this should be 👇 but that results in TLCs being missed
-  -- Term.letRec' True (terms uf) $
-  -- Term.letRec' True (watchesOfKind TestWatch uf) $
-  -- Term.letRec' True (watchesOfKind RegularWatch uf) $
-  -- DD.unitTerm mempty
+  where
+    -- we make sure each test has type Test.Result
+    f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
+    testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
 uberTerm' uf body =
   Term.letRec' True (terms uf <> watchesOfKind TestWatch uf <> watchesOfKind RegularWatch uf) $
   body
-  -- Term.letRec' True (terms uf) $
-  -- Term.letRec' True (watchesOfKind TestWatch uf) $
-  -- Term.letRec' True (watchesOfKind RegularWatch uf) $
-  -- body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.

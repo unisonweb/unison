@@ -135,7 +135,7 @@ loop = do
               (bindings, e) <-
                 eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
               let e' = Map.map go e
-                  go (ann, _kind, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
+                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               eval . Notify $ Evaluated text
                 (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
                 bindings

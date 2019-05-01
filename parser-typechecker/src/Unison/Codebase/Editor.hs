@@ -227,7 +227,7 @@ data Output v
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
+              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv

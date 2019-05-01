@@ -191,8 +191,9 @@ notifyUser dir o = case o of
             [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
             | (v, b) <- bindings]
           prettyWatches = P.lines [
-            watchPrinter fileContents ppe ann evald isCacheHit |
-            (ann,evald,isCacheHit) <- sortOn (\(a,_,_)->a) . toList $ watches ]
+            watchPrinter fileContents ppe ann kind evald isCacheHit |
+            (ann,kind,evald,isCacheHit) <-
+              sortOn (\(a,_,_,_)->a) . toList $ watches ]
       -- todo: use P.nonempty
       in putPrettyLn $ if null bindings then prettyWatches
                        else prettyBindings <> "\n" <> prettyWatches
