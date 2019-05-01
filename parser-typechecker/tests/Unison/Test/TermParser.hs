@@ -197,7 +197,7 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s builtins of
+  case Ps.parse @ Symbol p s (mempty, builtins) of
     Left e -> do
       note $ renderParseErrorAsANSI s e
       crash $ renderParseErrorAsANSI s e

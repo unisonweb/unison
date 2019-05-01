@@ -4,6 +4,9 @@
 
 module Unison.Parser where
 
+import           Data.Bytes.Put                 (runPutS)
+import           Data.Bytes.Serial              ( serialize )
+import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Control.Applicative
 import           Control.Monad        (join, when)
 import           Data.Bifunctor       (bimap)
@@ -12,6 +15,7 @@ import           Data.Maybe
 import qualified Data.Set             as Set
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
+import           Data.Text.Encoding   (encodeUtf8)
 import           Data.Typeable        (Proxy (..))
 import           Debug.Trace
 import           Text.Megaparsec      (runParserT)
@@ -19,6 +23,7 @@ import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
 import           Unison.Hash
+import qualified Unison.Hash          as Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
@@ -27,13 +32,40 @@ import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
 import Unison.Names (Names)
+import Control.Monad.Reader.Class (ask)
+import qualified Crypto.Random as Random
 
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) (Names))
+type P v = P.ParsecT (Error v) Input ((->) (UniqueName, Names))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
+
+newtype UniqueName = UniqueName (L.Pos -> Maybe Text)
+
+instance Semigroup UniqueName where (<>) = mappend
+instance Monoid UniqueName where
+  mempty = UniqueName (const Nothing)
+  mappend (UniqueName f) (UniqueName g) =
+    UniqueName $ \pos -> f pos <|> g pos
+
+uniqueBase58Namegen :: Int -> IO UniqueName
+uniqueBase58Namegen lenInBytes = do
+  rng <- Random.getSystemDRG
+  pure . UniqueName $ \pos -> let
+    (bytes,_) = Random.randomBytesGenerate lenInBytes rng
+    posBytes = runPutS $ do
+      serialize $ VarInt (L.line pos)
+      serialize $ VarInt (L.column pos)
+    in Just . Hash.base58 $ Hash.fromBytes (bytes <> posBytes)
+
+uniqueName :: Var v => P v Text
+uniqueName = do
+  (UniqueName mkName, _) <- ask
+  pos <- L.start <$> P.lookAhead anyToken
+  let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
+  pure . fromMaybe none $ mkName pos
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
@@ -176,15 +208,17 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
 
-run' :: Var v => P v a -> String -> String -> Names -> Either (Err v) a
+type ParsingEnv = (UniqueName, Names)
+
+run' :: Var v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
             else L.lexer name s
       pTraced = traceRemainingTokens "parser receives" *> p
-  in runParserT pTraced name (Input lex) -- todo: L.reorder
+  in runParserT pTraced name (Input lex)
 
-run :: Var v => P v a -> String -> Names -> Either (Err v) a
+run :: Var v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.

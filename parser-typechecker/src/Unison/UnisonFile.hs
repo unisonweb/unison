@@ -48,19 +48,22 @@ data UnisonFile v a = UnisonFile {
 watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
 watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
 
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfOtherKinds kind uf =
+  join [ ws | (k, ws) <- Map.toList (watches uf), k /= kind ]
+
 allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
 allWatches = join . Map.elems . watches
 
-type WatchKind = String
-
-pattern RegularWatch = ""
-pattern TestWatch = "test"
+type WatchKind = Var.WatchKind
+pattern RegularWatch = Var.RegularWatch
+pattern TestWatch = Var.TestWatch
 
 -- Converts a file to a single let rec with a body of `()`, for
 -- purposes of typechecking.
 typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
 typecheckingTerm uf =
-  Term.letRec' True (terms uf <> testWatches <> watchesOfKind RegularWatch uf) $
+  Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
   DD.unitTerm mempty
   where
     -- we make sure each test has type Test.Result
@@ -70,8 +73,7 @@ typecheckingTerm uf =
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
 uberTerm' uf body =
-  Term.letRec' True (terms uf <> watchesOfKind TestWatch uf <> watchesOfKind RegularWatch uf) $
-  body
+  Term.letRec' True (terms uf <> allWatches uf) $ body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.

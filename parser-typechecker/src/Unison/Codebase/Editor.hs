@@ -41,9 +41,7 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names                   ( Names
-                                                , NameTarget
-                                                )
+import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -621,7 +619,7 @@ typecheck
   :: (Monad m, Var v)
   => [Type.AnnotatedType v Ann]
   -> Codebase m v Ann
-  -> Names
+  -> Parser.ParsingEnv
   -> SourceName
   -> Text
   -> m (TypecheckingResult v)
@@ -689,8 +687,9 @@ commandLine awaitInput rt notifyUser codebase command = do
     Notify output -> notifyUser output
     SlurpFile handler branch unisonFile ->
       fileToBranch handler codebase branch unisonFile
-    Typecheck ambient branch sourceName source ->
-      typecheck ambient codebase (Branch.toNames branch) sourceName source
+    Typecheck ambient branch sourceName source -> do
+      namegen <- Parser.uniqueBase58Namegen 8
+      typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName

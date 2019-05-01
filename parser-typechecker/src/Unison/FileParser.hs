@@ -8,10 +8,11 @@ import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import           Control.Applicative
 import           Control.Monad (guard, msum)
-import           Control.Monad.Reader (local, ask)
+import           Control.Monad.Reader (local, asks)
 import           Data.Functor
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
+import           Data.Text (Text)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
@@ -36,29 +37,29 @@ import qualified Unison.PrettyPrintEnv as PPE
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
   _ <- openBlock
-  names <- ask
+  names <- asks snd
   (dataDecls, effectDecls) <- declarations
   env <- case environmentFor names dataDecls effectDecls of
     Right env -> pure env
     Left es -> P.customFailure $ TypeDeclarationErrors es
   -- push names onto the stack ahead of existing names
-  local (UF.names env `mappend`) $ do
-    names <- ask
+  local (fmap (UF.names env `mappend`)) $ do
+    names <- asks snd
     -- The file may optionally contain top-level imports,
     -- which are parsed and applied to each stanza
     (names', substImports) <- TermParser.imports <* optional semi
-    stanzas0 <- local (names' `mappend`) $ sepBy semi stanza
+    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
     let stanzas = fmap substImports <$> stanzas0
     _ <- closeBlock
-    let (termsr, watchesr, _) = foldl' go ([], [], 0 :: Int) stanzas
-        go (terms, watches, n) s = case s of
+    let (termsr, watchesr) = foldl' go ([], []) stanzas
+        go (terms, watches) s = case s of
           WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind,(v,at)) : watches, n)
-          WatchExpression kind _ at ->
-            (terms, (kind, (Var.nameds ("_" <> show n), at)) : watches, n + 1)
-          Binding ((_, v), at) -> ((v,at) : terms, watches, n)
-          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches, n)
-        (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
+            (terms, (kind,(v,at)) : watches)
+          WatchExpression kind guid _ at ->
+            (terms, (kind, (Var.unnamedTest guid, at)) : watches)
+          Binding ((_, v), at) -> ((v,at) : terms, watches)
+          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
+    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
         uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
     pure (PPE.fromNames names, uf)
 
@@ -76,7 +77,7 @@ file = do
 
 data Stanza v term
   = WatchBinding UF.WatchKind Ann ((Ann, v), term)
-  | WatchExpression UF.WatchKind Ann term
+  | WatchExpression UF.WatchKind Text Ann term
   | Binding ((Ann, v), term)
   | Bindings [((Ann, v), term)] deriving Functor
 
@@ -89,23 +90,24 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
     t2 <- optional anyToken
     P.customFailure $ DidntExpectExpression t t2
   watchExpression = do
-    (kind, ann) <- watched
+    (kind, guid, ann) <- watched
     _ <- closed
     msum [
       WatchBinding kind ann <$> TermParser.binding,
-      WatchExpression kind ann <$> TermParser.blockTerm ]
+      WatchExpression kind guid ann <$> TermParser.blockTerm ]
   binding = Binding <$> TermParser.binding
   namespace = tweak <$> TermParser.namespaceBlock where
     tweak ns = Bindings (TermParser.toBindings [ns])
 
-watched :: Var v => P v (UF.WatchKind, Ann)
+watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
   kind <- optional wordyId
+  guid <- uniqueName
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
-  pure (maybe UF.RegularWatch L.payload kind, maybe mempty ann kind <> ann tok)
+  pure (maybe UF.RegularWatch L.payload kind, guid, maybe mempty ann kind <> ann tok)
 
 closed :: Var v => P v ()
 closed = P.try $ do

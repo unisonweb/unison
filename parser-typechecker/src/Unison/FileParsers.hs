@@ -4,6 +4,7 @@
 
 module Unison.FileParsers where
 
+import qualified Unison.Parser as Parser
 import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
@@ -23,7 +24,6 @@ import qualified Unison.Blank               as Blank
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import qualified Unison.Name                as Name
-import           Unison.Names               (Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
@@ -67,7 +67,7 @@ parseAndSynthesizeFile
   :: (Var v, Monad m)
   => [Type v]
   -> (Set Reference -> m (TL.TypeLookup v Ann))
-  -> Names
+  -> Parser.ParsingEnv
   -> FilePath
   -> Text
   -> ResultT
@@ -77,7 +77,7 @@ parseAndSynthesizeFile
 parseAndSynthesizeFile ambient typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let refs = UF.dependencies parsedUnisonFile names
+  let refs = UF.dependencies parsedUnisonFile (snd names)
   typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) =
         synthesizeFile ambient typeLookup names parsedUnisonFile
@@ -88,7 +88,7 @@ synthesizeFile
    . Var v
   => [Type v]
   -> TL.TypeLookup v Ann
-  -> Names
+  -> Parser.ParsingEnv
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
@@ -99,7 +99,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
-    allTheNames = localNames <> preexistingNames
+    allTheNames = localNames <> snd preexistingNames
     ctorType r =
       fromMaybe
         (error $ "no constructor type in synthesizeFile for " <> show r)
