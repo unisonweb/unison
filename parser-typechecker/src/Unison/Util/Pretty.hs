@@ -35,6 +35,7 @@ module Unison.Util.Pretty (
    lit,
    map,
    nest,
+   num,
    newline,
    nonEmpty,
    numbered,
@@ -326,6 +327,9 @@ align' rows = alignedRows
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
+
+num :: (Show n, Num n, IsString s) => n -> Pretty s
+num n = fromString (show n)
 
 string :: IsString s => String -> Pretty s
 string = fromString

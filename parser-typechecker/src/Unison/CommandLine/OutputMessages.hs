@@ -228,6 +228,28 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
+  TestResults ppe _showOk _showFail oks fails -> putPrettyLn . P.bracket $ let
+    name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
+    okMsg =
+      if null oks then mempty
+      else P.column2 [ (P.green "◉ " <> name r, ": " <> P.green (P.text msg)) | (r, msg) <- oks ]
+    okSummary =
+      if null oks then mempty
+      else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
+    failMsg =
+      if null fails then mempty
+      else P.column2 [ (P.red "✗ " <> name r, ": " <> P.red (P.text msg)) | (r, msg) <- fails ]
+    failSummary =
+      if null fails then mempty
+      else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
+    tipMsg =
+      if null oks && null fails then mempty
+      else tip $ "Use " <> P.blue ("view " <> name (fst $ head (fails ++ oks))) <> "to view the source of a test."
+    in if null oks && null fails then "😶 No tests available."
+       else P.sep "\n\n" . P.nonEmpty $ [
+            okMsg, failMsg,
+            P.sep ", " . P.nonEmpty $ [failSummary, okSummary], tipMsg]
+
   ListEdits branch -> do
     let
       ppe = Branch.prettyPrintEnv branch

@@ -74,6 +74,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
+import qualified Unison.DataDeclaration as DD
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -304,7 +305,21 @@ loop = do
         ListEditsI -> do
           (Branch.head -> b) <- use currentBranch
           respond $ ListEdits b
+        TestI showOk showFail -> do
+          (Branch.head -> b) <- use currentBranch
+          let ppe = Branch.prettyPrintEnv b
+          let termRefs = Set.fromList [ r | Referent.Ref r <- toList (Branch.allTerms b) ]
+          ws <- eval $ LoadWatches UF.TestWatch termRefs
+          let
+            oks = [ (r, msg) |
+                    (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
+                    cid == DD.okConstructorId && ref == DD.testResultRef ]
+            fails = [ (r, msg) |
+                      (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
+                      cid == DD.failConstructorId && ref == DD.testResultRef ]
+          respond $ TestResults ppe showOk showFail oks fails
         QuitI -> quit
+
        where
         success       = respond $ Success input
         outputSuccess = eval . Notify $ Success input

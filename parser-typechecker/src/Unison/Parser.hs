@@ -60,7 +60,7 @@ uniqueBase58Namegen lenInBase58 = do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
     h = Hashable.accumulate' $ bytes <> posBytes
-    in Just . Text.take lenInBase58 . Hash.base58 $ h
+    in Just . ("z" <>) . Text.take lenInBase58 . Hash.base58 $ h
 
 uniqueName :: Var v => P v Text
 uniqueName = do
