@@ -190,7 +190,18 @@ library
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  extensions: LambdaCase
+  default-extensions:
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    -- OverloadedStrings,
+    -- RecordWildCards,
+    ScopedTypeVariables,
+    TupleSections
+    -- TypeApplications
+    -- ViewPatterns
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields

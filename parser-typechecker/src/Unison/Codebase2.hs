@@ -1,12 +1,4 @@
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-{-# LANGUAGE DoAndIfThenElse     #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE RecordWildCards     #-}
 
 module Unison.Codebase2 where
 
