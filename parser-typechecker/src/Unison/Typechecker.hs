@@ -73,6 +73,7 @@ data NamedReference v loc =
                  , replacement :: Either v Referent }
   deriving Show
 
+-- Arya: _builtinLoc refers to anything external?
 data Env v loc = Env
   { _builtinLoc        :: loc
   , _ambientAbilities  :: [Type v loc]

@@ -81,19 +81,19 @@ type Type v a = Type.AnnotatedType v a
 type Decl v a = TL.Decl v a
 
 data Codebase m v a =
-  Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
-           , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
-           , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
+  Codebase { _getTerm            :: Reference.Id -> m (Maybe (Term v a))
+           , _getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
+           , _getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
 
-           , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
-           , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
+           , _putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
+           , _putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
-           , getRootBranch      :: m [Branch m]
-           , putRootBranch      :: Branch m -> m ()
-           , rootBranchUpdates  :: m (m (), m (Set Hash))
+           , _getRootBranch      :: m [Branch m]
+           , _putRootBranch      :: Branch m -> m ()
+           , _rootBranchUpdates  :: m (m (), m (Set Hash))
 
-           , dependentsImpl     :: Reference -> m (Set Reference.Id)
-           , builtinLoc :: a
+           , _dependentsImpl     :: Reference -> m (Set Reference.Id)
+           , _builtinLoc :: a
            }
 
 -- getTypeOfConstructor ::
@@ -584,3 +584,18 @@ data Codebase m v a =
 --       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
 --     _ -> pure $ R.lookupDom r Builtin.builtinDependencies
 --   dependents' = dependents c
+
+instance GetDecls (Codebase m v a) m v a where
+  getTerm = _getTerm
+  getTypeOfTerm = _getTypeOfTerm
+  getTypeDeclaration = _getTypeDeclaration
+
+instance PutDecls (Codebase m v a) m v a where
+  putTerm = _putTerm
+  putTypeDeclarationImpl = _putTypeDeclarationImpl
+
+instance GetBranch (Codebase m v a) m where
+  getRootBranch = _getRootBranch
+
+instance PutBranch (Codebase m v a) m where
+  putRootBranch = _putRootBranch
