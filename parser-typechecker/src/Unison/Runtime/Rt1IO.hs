@@ -245,7 +245,7 @@ handleIO cenv cid args = go (IOSrc.constructorName IOSrc.ioReference cid) args
     reraiseIO $ maybe (pure ()) hClose hh
     deleteUnisonHandle handle
     pure IR.unit
-  go "IO.putText" [IR.Data _ 0 [IR.T handle], IR.T string] = do
+  go "IO.putText_" [IR.Data _ 0 [IR.T handle], IR.T string] = do
     hh <- getHaskellHandleOrThrow handle
     reraiseIO . hPutStr hh $ Text.unpack string
     pure IR.unit
