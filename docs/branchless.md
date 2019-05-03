@@ -6,7 +6,7 @@
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
 * [x] Tweak `Codebase` to `Codebase2`
 * [x] Implement a  `Codebase2` for `FileCodebase2`
-* [ ] Implement `Edits2`
+* [ ] Implement `Editor2`
 * [ ] Implement `Actions2`
 * [ ] Implement `OutputMessages2`
 * [ ] Implement `InputPatterns2`
