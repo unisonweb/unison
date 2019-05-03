@@ -9,39 +9,42 @@
 module Unison.Builtin2 where
 
 -- import           Control.Arrow                  ( first )
--- import           Control.Applicative            ( liftA2
---                                                 , (<|>)
---                                                 )
-import qualified Data.Map                       ( Map )
+import           Control.Applicative            ( liftA2
+                                                , (<|>)
+                                                )
+import           Data.Foldable                  ( foldl' )
+import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 -- import qualified Text.Megaparsec.Error         as MPE
--- import qualified Unison.ABT                    as ABT
+import qualified Unison.ABT                    as ABT
 -- import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 -- import qualified Unison.ConstructorType        as CT
--- import           Unison.DataDeclaration         ( DataDeclaration'
---                                                 , EffectDeclaration'
---                                                 )
+import           Unison.DataDeclaration         ( DataDeclaration'
+                                                , EffectDeclaration'
+                                                )
 -- import qualified Unison.DataDeclaration        as DD
 -- import qualified Unison.FileParser             as FileParser
 -- import qualified Unison.Lexer                  as L
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Parser                 as Parser
 -- import           Unison.PrintError              ( prettyParseError )
--- import qualified Unison.Reference              as R
--- import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Reference              as R
+import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Term                   as Term
 -- import qualified Unison.TermParser             as TermParser
 import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
 -- import qualified Unison.Util.ColorText         as Color
--- import           Unison.Var                     ( Var )
--- import qualified Unison.Var                    as Var
--- import           Unison.Name                    ( Name )
--- import qualified Unison.Name                   as Name
+import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 -- import           Unison.Names                   ( Names )
--- import qualified Unison.Names                  as Names
+import qualified Unison.Names                  as Names
 -- import qualified Unison.Typechecker.TypeLookup as TL
 -- import qualified Unison.Util.Relation          as Rel
 
@@ -57,10 +60,11 @@ type EffectDeclaration v = EffectDeclaration' v Ann
 -- showParseError s = Color.toANSI . prettyParseError s
 
 parseType :: Var v => String -> Type v
-parseType s = ABT.amap (const Intrinsic) .
-          Names.bindType names . either (error . showParseError s) tweak $
-          Parser.run (Parser.root TypeParser.valueType) s mempty
-  where tweak = Type.generalizeLowercase
+parseType = error "todo" -- is `Names` something we want to keep using?
+-- parseType s = ABT.amap (const Intrinsic) .
+--           Names.bindType names . either (error . showParseError s) tweak $
+--           Parser.run (Parser.root TypeParser.valueType) s mempty
+--   where tweak = Type.generalizeLowercase
 --
 -- -- parse a term, hard-coding the builtins defined in this file
 -- tm :: Var v => String -> Term v
@@ -101,14 +105,14 @@ parseType s = ABT.amap (const Intrinsic) .
 --   Names.fromTypes builtinTypes
 --     <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
 --     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
---
--- -- Is this a term (as opposed to a type)
--- isBuiltinTerm :: R.Reference -> Bool
--- isBuiltinTerm r = Map.member r (builtins0 @Symbol)
---
--- isBuiltinType :: R.Reference -> Bool
--- isBuiltinType r = elem r . fmap snd $ builtinTypes
---
+
+-- Is this a term (as opposed to a type)
+isBuiltinTerm :: R.Reference -> Bool
+isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
+
+isBuiltinType :: R.Reference -> Bool
+isBuiltinType r = elem r . fmap snd $ builtinTypes
+
 -- typeLookup :: Var v => TL.TypeLookup v Ann
 -- typeLookup =
 --   TL.TypeLookup builtins0
@@ -188,30 +192,35 @@ data BuiltinDSL
   | Alias Text Text
 
 termNameRefs :: Map Name R.Reference
-termNameRefs = mapKeys Name.unsafeFromText $ foldl' go mempty builtinsSrc
-  where go = \case
-    (m, B r t) -> Map.insert r (R.builtin r) m
-    (m, D r t) -> Map.insert r (R.builtin r) m
-    (m, Rename r name) -> case Map.lookup name m of
-      Just _ -> error $ "tried to rename `" ++ r ++ "` to `" ++ name ++ "`, " ++
-                        "which already exists."
+termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty builtinsSrc where
+  go m = \case
+    B r t -> Map.insert r (R.Builtin r) m
+    D r t -> Map.insert r (R.Builtin r) m
+    Rename r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to rename `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
       Nothing -> case Map.lookup r m of
-        Nothing -> error "tried to rename `" ++ r ++ "` before it was declared."
-        Just t -> Map.insert name t m
-    (m, Alias r name) -> case Map.lookup name m of
-      Just _ -> error $ "tried to alias `" ++ r ++ "` to `" ++ name ++ "`, " ++
-                        "which already exists."
+        Nothing -> error . Text.unpack $
+                "tried to rename `" <> r <> "` before it was declared."
+        Just t -> Map.insert name t . Map.delete r $ m
+    Alias r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to alias `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
       Nothing -> case Map.lookup r m of
-        Nothing -> error "tried to alias `" ++ r ++ "` before it was declared."
+        Nothing -> error . Text.unpack $
+                  "tried to alias `" <> r <> "` before it was declared."
         Just t -> Map.insert name t m
 
 termRefTypes :: Var v => Map R.Reference (Type v)
-termRefTypes = foldl' go mempty builtinsSrc where go = \case
-  (m, B r t) -> Map.insert (R.Builtin r) (parseType t) m
-  (m, D r t) -> Map.insert (R.Builtin r) (parseType t) m
-  (m, _) -> m
+termRefTypes = foldl' go mempty builtinsSrc where
+  go m = \case
+    B r t -> Map.insert (R.Builtin r) (parseType (Text.unpack t)) m
+    D r t -> Map.insert (R.Builtin r) (parseType (Text.unpack t)) m
+    _ -> m
 
-builtinsSrc :: [BuiltinDSL Text]
+builtinsSrc :: [BuiltinDSL]
 builtinsSrc =
   [ B "Int.+" "Int -> Int -> Int"
   , B "Int.-" "Int -> Int -> Int"

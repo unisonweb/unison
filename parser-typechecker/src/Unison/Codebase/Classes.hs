@@ -2,9 +2,16 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds #-} -- todo: remove me later
 {-# LANGUAGE FunctionalDependencies #-}
 
-module Unison.Codebase.Classes (GetDecls, PutDecls, GetBranch, PutBranch, getTerm, getTypeOfTerm, getTypeDeclaration, putTerm, putTypeDeclarationImpl, getRootBranch, putRootBranch) where
+module Unison.Codebase.Classes
+  ( GetDecls(..)
+  , PutDecls(..)
+  , GetBranch(..)
+  , PutBranch(..)
+  , GetDependents(..)
+  ) where
 
-import           Unison.Codebase.Branch2         ( Branch )
+import           Data.Set                       ( Set )
+import           Unison.Codebase.Branch2        ( Branch )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
@@ -19,13 +26,18 @@ class GetDecls d m v a | d -> m v a where
   getTerm            :: d -> Reference.Id -> m (Maybe (Term v a))
   getTypeOfTerm      :: d -> Reference -> m (Maybe (Type v a))
   getTypeDeclaration :: d -> Reference.Id -> m (Maybe (Decl v a))
+  hasTerm            :: d -> Reference.Id -> m Bool
+  hasType            :: d -> Reference.Id -> m Bool
 
 class PutDecls d m v a | d -> m v a where
   putTerm                :: d -> Reference.Id -> Term v a -> Type v a -> m ()
   putTypeDeclarationImpl :: d -> Reference.Id -> Decl v a -> m ()
 
 class GetBranch b m | b -> m where
-  getRootBranch :: b -> m [Branch m]
+  getRootBranch :: b -> m (Branch m)
 
 class PutBranch b m | b -> m where
   putRootBranch :: b -> Branch m -> m ()
+
+class GetDependents d m | d -> m where
+  dependentsImpl :: d -> Reference -> m (Set Reference.Id)

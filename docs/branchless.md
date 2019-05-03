@@ -1,15 +1,15 @@
 ## TODO tracking refactoring of existing functionality
 
 * [x] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
-* [ ] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
+* [x] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
   - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
-* [ ] Implement `Codebase2` that is a tweaked version of `Codebase`
+* [x] Tweak `Codebase` to `Codebase2`
+* [x] Implement a  `Codebase2` for `FileCodebase2`
 * [ ] Implement `Edits2`
 * [ ] Implement `Actions2`
 * [ ] Implement `OutputMessages2`
 * [ ] Implement `InputPatterns2`
-
 * [ ] Split Edits out of `Branch0`
 * [ ] Delete `oldNamespace`, and instead add deprecated names
 * [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`

@@ -80,12 +80,11 @@ data Codebase m v a =
            , _putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , _putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
-           , _getRootBranch      :: m [Branch m]
+           , _getRootBranch      :: m (Branch m)
            , _putRootBranch      :: Branch m -> m ()
            , _rootBranchUpdates  :: m (m (), m (Set Hash))
 
            , _dependentsImpl     :: Reference -> m (Set Reference.Id)
-           , _builtinLoc :: a
            }
 
 -- getTypeOfConstructor ::
@@ -591,3 +590,6 @@ instance GetBranch (Codebase m v a) m where
 
 instance PutBranch (Codebase m v a) m where
   putRootBranch = _putRootBranch
+
+instance GetDependents (Codebase m v a) m where
+  dependentsImpl = _dependentsImpl

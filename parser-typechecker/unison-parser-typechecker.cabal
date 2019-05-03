@@ -150,7 +150,6 @@ library
     cryptonite,
     guid,
     data-memocombinators,
-    directory,
     errors,
     edit-distance,
     extra,
@@ -181,12 +180,12 @@ library
     regex-tdfa,
     safe,
     split,
-    stm,
     strings,
     terminal-size,
     text,
     time,
     transformers,
+    unliftio,
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
@@ -200,7 +199,7 @@ library
     -- RecordWildCards,
     ScopedTypeVariables,
     TupleSections
-    -- TypeApplications
+    -- TypeApplications -- breaks lexer, need to remove space before as-patterns
     -- ViewPatterns
 
   if flag(optimized)
