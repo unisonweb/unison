@@ -32,10 +32,10 @@ tc_diff_rtt rtt s expected width =
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
        actual_reparsed = Unison.Builtin.tm actual
-   in scope s $ tests [(
-       do note $ "\n\n\nterm:\n" ++ s
+   in scope s $ tests [{-(
+       do note $ "\n\n\nterm:\n" ++ s    -- !!
           note $ "usages:\n" ++ show (annotation $ printAnnotate get_names input_term)
-       ), (
+       ),-} (
        if actual == expected then ok
        else do note $ "expected:\n" ++ expected
                note $ "actual:\n"   ++ actual
@@ -385,7 +385,7 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "(foo a b)?"
 
 -- FQN elision tests
-  , pending $
+  , pending $ 
     tc_breaks 80 "if foo\n\
                  \then\n\
                  \  use A x\n\
@@ -393,7 +393,7 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use B y\n\
                  \  f y y"
-  , pending $
+  , pending $ 
     tc_breaks 80 "if foo\n\
                  \then\n\
                  \  use A x\n\
@@ -401,40 +401,46 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use B x\n\
                  \  f x x"
-  , pending $
-    tc_breaks 80 "use A x\n\
-                 \if foo then f x x else g x x"
-  , pending $
-    tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
-  , pending $
-    tc_breaks 80 "if foo then f A.x A.x B.x else y"  
-  , pending $
-    tc_breaks 80 "if p\n\
-                 \then\n\
+  , pending $ 
+    tc_breaks 80 "let\n\
                  \  use A x\n\
-                 \  if foo then f x x else g x x\n\
-                 \else q"
-  , pending $
-    tc_breaks 80 "use A x\n\
-                 \if p\n\
-                 \then\n\
-                 \  if foo then f x x else g x x\n\
-                 \else x"                
-  , pending $
-    tc_breaks 80 "if foo then A.f x else y"               
-  , pending $
+                 \  if foo then f x x else g x x"
+  , pending $ 
+    tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
+  , pending $ 
+    tc_breaks 80 "if foo then f A.x A.x B.x else y"  
+  , pending $ 
+    tc_breaks 80 "let\n\
+                 \  use A x\n\
+                 \  if foo then f x x else g x x" 
+  , pending $ 
+    tc_breaks 80 "let\n\
+                 \  use A x\n\
+                 \  let\n\
+                 \    if foo then f x x else g x x" 
+  , pending $ 
+    tc_breaks 80 "if foo then A.f x else y"              
+  , pending $ 
     tc_breaks 80 "if foo then\n\
                  \  use A (+)\n\
                  \  x + y\n\
                  \else y"
-  , pending $
+  {- the case above seems to be parsed as
+
+                  if foo then
+                  let rec
+                    _1 = (+)
+                     x + y
+                  else y
+  -}                 
+  , pending $ 
     tc_breaks 80 "if p\n\
                  \then\n\
                  \  use A x\n\
                  \  use B y z\n\
                  \  f z z y y x x\n\
                  \else q"
-  , pending $
+  , pending $ 
     tc_breaks 80 "if foo\n\
                  \then\n\
                  \  use A.X c\n\
@@ -444,7 +450,7 @@ test = scope "termprinter" . tests $
                  \  use A.B.X f\n\
                  \  use A.B X.d Y.d\n\
                  \  g X.d X.d Y.d Y.d f f"
-  , pending $
+  , pending $ 
     tc_breaks 80 "if foo\n\
                  \then\n\
                  \  use A.X c\n\
@@ -452,5 +458,18 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use A X.c YY.c\n\
                  \  g X.c X.c YY.c YY.c"
+  , pending $ 
+    tc_breaks 80 "if foo\n\
+                 \then\n\
+                 \  use A t\n\
+                 \  f (x : Pair t t)\n\
+                 \else\n\
+                 \  use B t\n\
+                 \  f (x : Pair t t)"
+  , pending $ 
+    tc_breaks 30 "let\n\
+                 \  use A p\n\
+                 \  case x of\n\
+                 \    (p, p) -> foo"
 
   ]

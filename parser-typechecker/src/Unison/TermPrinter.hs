@@ -14,7 +14,7 @@ import           Data.Maybe                     ( fromMaybe
                                                 , isJust
                                                 )
 import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, splitOn )
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp )
@@ -28,6 +28,7 @@ import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as Pattern
 import qualified Unison.Referent               as Referent
 import           Unison.Term
+import           Unison.Type                    ( AnnotatedType )
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -606,6 +607,9 @@ suffixCounter n = let
     Ref' r -> countName $ PrettyPrintEnv.termName n (Referent.Ref r)
     Constructor' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
     Request' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Ann' _ t -> countTypeUsages t
+    Match' _ bs -> let pat (MatchCase p _ _) = p
+                   in foldMap (countPatternUsages . pat) bs
     _ -> mempty
 
 printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
@@ -617,8 +621,15 @@ countUsage :: Name -> PrintAnnotation
 countUsage name = case splitName name of
   (prefix, suffix) -> PrintAnnotation { usages = Map.singleton suffix $ Map.singleton prefix 1}
   
+countTypeUsages :: AnnotatedType v a -> PrintAnnotation
+countTypeUsages _ = mempty -- TODO
+
+countPatternUsages :: Pattern loc -> PrintAnnotation
+countPatternUsages _ = mempty -- TODO
+
 splitName :: Name -> (Prefix, Suffix)
-splitName n = ([], Name.toText n) -- TODO
+splitName n = let ns = reverse $ splitOn "." (Name.toText n)
+              in (reverse $ tail ns, head ns)
 
 -- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
 elideFQN :: Imports -> HQ.HashQualified -> HQ.HashQualified

@@ -149,11 +149,15 @@ vmap f (Term _ a out) = case out of
   Abs v body -> abs' a (f v) (vmap f body)
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
-amap f (Term _ a out) = case out of
-  Var v -> annotatedVar (f a) v
-  Tm fa -> tm' (f a) (fmap (amap f) fa)
-  Cycle r -> cycle' (f a) (amap f r)
-  Abs v body -> abs' (f a) v (amap f body)
+amap f tm = amap' g tm where
+  g _ a = f a
+
+amap' :: (Functor f, Foldable f, Ord v) => (Term f v a -> a -> a2) -> Term f v a -> Term f v a2
+amap' f t@(Term _ a out) = case out of
+  Var v -> annotatedVar (f t a) v
+  Tm fa -> tm' (f t a) (fmap (amap' f) fa)
+  Cycle r -> cycle' (f t a) (amap' f r)
+  Abs v body -> abs' (f t a) v (amap' f body)
 
 -- | Modifies the annotations in this tree
 instance Functor f => Functor (Term f v) where
