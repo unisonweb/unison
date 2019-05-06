@@ -1,6 +1,6 @@
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}
--- {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 -- {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
@@ -40,6 +40,7 @@ import           Unison.Codebase.Branch2         ( Branch
                                                  -- , Path
                                                  )
 import qualified Unison.Codebase.Branch2        as Branch
+import qualified Unison.Codebase.OldBranch      as OldBranch
 import qualified Unison.Codebase.SearchResult  as SR
 -- import qualified Unison.DataDeclaration        as DD
 -- import           Unison.FileParsers             ( parseAndSynthesizeFile )
@@ -284,8 +285,7 @@ data TodoOutput v a
       todoFrontierDependents ::
         ( [(Score, HashQualified, Reference, Maybe (Type v a))]
         , [(Score, HashQualified, Reference, DisplayThing (Decl v a))]),
-      todoConflictedTermNames :: Set Name,
-      todoConflictedTypeNames :: Set Name
+      todoConflicts :: OldBranch.Branch0
     } deriving (Show)
 
 -- todo: do we want something here for nonexistent old name?
@@ -373,7 +373,7 @@ data Command i v a where
 
   -- Loads one level of a branch by hash/link from the codebase (or elsewhere),
   -- returning `Nothing` if not found.
-  LoadBranch :: RepoLink Path -> Command i v (Maybe Branch)
+  LoadBranch :: RepoLink Path -> Command i v (Maybe (Branch (Command i v)))
 
   -- Copy the code from the given link location to the local codebase at the
   -- given path. Returns `False` and does nothing if that path is not empty.
@@ -387,7 +387,9 @@ data Command i v a where
   -- A conflict is:
   -- * A name with more than one referent.
   -- * An edit with more than one outcome.
-  GetConflicts :: Branch -> Command i v Branch0
+  GetNameConflicts :: Path -> Command i v (Relation Name Referent
+                                          ,Relation Name Reference)
+  -- GetEditConflicts :: Path -> Edits -> Command i v (Something)
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 

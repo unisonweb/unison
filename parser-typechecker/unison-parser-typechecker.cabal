@@ -42,6 +42,7 @@ library
     Unison.Codebase2
     Unison.Codebase.Branch
     Unison.Codebase.Branch2
+    Unison.Codebase.OldBranch
     Unison.Codebase.Causal
     Unison.Codebase.Causal2
     Unison.Codebase.Classes
@@ -67,6 +68,7 @@ library
     Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
     Unison.CommandLine.OutputMessages
+    Unison.CommandLine.OutputMessages2
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.DeclPrinter

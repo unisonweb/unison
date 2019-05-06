@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine.OutputMessages where
+module Unison.CommandLine.OutputMessages2 where
 
 -- import Debug.Trace
 import           Control.Applicative           ((<|>))
@@ -30,9 +30,9 @@ import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch, Branch0)
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Editor        (DisplayThing (..), Input (..),
+import           Unison.Codebase.Editor2       (DisplayThing (..), Input (..),
                                                 Output (..))
-import qualified Unison.Codebase.Editor        as E
+import qualified Unison.Codebase.Editor2       as E
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine            (backtick, backtickEOS,
@@ -90,62 +90,10 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
-  UnknownBranch branchName ->
-    putPrettyLn
-      .  warn
-      .  P.wrap
-      $  "I don't know of a branch named "
-      <> P.red (P.text branchName)
-      <> "."
-  CreatedBranch branchName ->
-    putPrettyLn $ "Created the new branch " <> backtickEOS (P.text branchName)
-  SwitchedBranch _branchName -> pure () -- putPrettyLn "Switched."
   RenameOutput oldName newName r -> do
     nameChange "rename" "renamed" oldName newName r
   AliasOutput existingName newName r -> do
     nameChange "alias" "aliased" existingName newName r
-  UnknownName branchName nameTarget name ->
-    putPrettyLn . warn . P.wrap $
-     "I don't know of any " <> targets <> " named " <> n <> " in the branch " <> b <> "."
-    where
-    targets = fromString (Names.renderNameTarget nameTarget)
-    n = P.red (prettyName name)
-    b = P.blue (P.text branchName)
-  NameAlreadyExists branchName nameTarget name ->
-    putPrettyLn
-      .  warn
-      .  P.wrap
-      $  "There's already a "
-      <> fromString (Names.renderNameTarget nameTarget)
-      <> " named "
-      <> P.red (prettyName name)
-      <> " in the branch "
-      <> P.blue (P.text branchName)
-      <> "."
-  ConflictedName branchName nameTarget name ->
-    putPrettyLn
-      .  warn
-      .  P.wrap
-      $  "The name "
-      <> P.red (prettyName name)
-      <> " refers to more than one "
-      <> fromString (Names.renderNameTarget nameTarget)
-      <> " in the branch "
-      <> P.blue (P.text branchName)
-      <> "."
-  BranchAlreadyExists b ->
-    putPrettyLn . P.warnCallout
-      $  P.wrap ("There's already a branch called " <> P.group (P.text b <> "."))
-      <> "\n\n"
-      <> (  tip
-         $  "You can switch to that branch via"
-         <> makeExample IP.branch [P.text b]
-         <> "or delete it via"
-         <> makeExample IP.deleteBranch [P.text b]
-         )
-  DeletingCurrentBranch ->
-    putPrettyLn . P.warnCallout . P.wrap $
-      "Please use " <> makeExample' IP.branch <> " to switch to a different branch before deleting this one."
   DeleteBranchConfirmation uniqueDeletions ->
     let
       pretty (branchName, (ppe, results)) =
@@ -160,13 +108,6 @@ notifyUser dir o = case o of
       <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
       <> P.newline
       <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfBranches current branches ->
-    putPrettyLn
-      $ let
-          go n = if n == current
-            then P.bold ("* " <> P.text n)
-            else "  " <> P.text n
-        in  intercalateMap "\n" go (sort branches)
   ListOfDefinitions branch results withHashes -> do
     listOfDefinitions (Branch.head branch) results withHashes
   SlurpOutput s -> slurpOutput s
@@ -228,32 +169,6 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I reloaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
-  ListEdits branch -> do
-    let
-      ppe = Branch.prettyPrintEnv branch
-      types = Branch.editedTypes branch
-      terms = Branch.editedTerms branch
-
-      prettyTermEdit (r, TermEdit.Deprecate) =
-        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
-        , "-> (deprecated)")
-      prettyTermEdit (r, TermEdit.Replace r' _typing) =
-        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
-        , "-> " <> (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
-      prettyTypeEdit (r, TypeEdit.Deprecate) =
-        (prettyHashQualified $ PPE.typeName ppe r
-        , "-> (deprecated)")
-      prettyTypeEdit (r, TypeEdit.Replace r') =
-        (prettyHashQualified $ PPE.typeName ppe r
-        , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
-    when (not . R.null . Branch.editedTypes $ branch) $
-       putPrettyLn $ "Edited Types:" `P.hang`
-        P.column2 (fmap prettyTypeEdit . R.toList . Branch.editedTypes $ branch)
-    when (not . R.null . Branch.editedTerms $ branch) $
-       putPrettyLn $ "Edited Terms:" `P.hang`
-        P.column2 (fmap prettyTermEdit . R.toList . Branch.editedTerms $ branch)
-    when (R.null types && R.null terms)
-         (putPrettyLn "Nothing has been edited in this branch.")
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -573,8 +488,9 @@ listOfDefinitions' ppe detailed results =
     _ -> []
 
 -- todo: could probably use more cleanup
-slurpOutput :: Var v => E.SlurpResult v -> IO ()
-slurpOutput s =
+-- todo: could use sample output here as a form of documentation
+slurpOutput :: Var v => PPE.PrettyPrintEnv -> E.SlurpResult v -> IO ()
+slurpOutput ppe s =
   putPrettyLn . P.sep "\n" . P.nonEmpty $ [
       addedMsg, updatedMsg, alreadyAddedMsg, namesExistMsg,
       namesConflictedMsg, aliasingMsg, termExistingCtorMsg,
