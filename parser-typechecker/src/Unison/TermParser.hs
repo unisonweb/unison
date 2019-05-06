@@ -10,7 +10,7 @@ module Unison.TermParser where
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
-import           Control.Monad.Reader (ask, local)
+import           Control.Monad.Reader (asks, local)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -145,7 +145,7 @@ parsePattern =
   effectBind = do
     (name, leaves) <- P.try effectBind0
     (cont, vsp) <- parsePattern
-    env <- ask
+    env <- asks snd
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
       Nothing -> customFailure $ UnknownAbilityConstructor name
@@ -165,7 +165,7 @@ parsePattern =
   constructor = do
     t <- ctorName
     let name = L.payload t
-    env <- ask
+    env <- asks snd
     case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
@@ -389,7 +389,7 @@ imports :: Var v => P v (Names, AnnotatedTerm v Ann -> AnnotatedTerm v Ann)
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  env <- Names.importing imported <$> ask
+  env <- Names.importing imported <$> asks snd
   let
     importTerms = [ (n, Term.var() qn) | (n,qn) <- imported ]
     substImports tm =
@@ -408,8 +408,9 @@ block'
 block' isTop s openBlock closeBlock = do
     open <- openBlock
     (env, substImports) <- imports
+    uniqueNames <- asks fst
     _ <- optional semi
-    statements <- local (const env) $ sepBy semi statement
+    statements <- local (const (uniqueNames, env)) $ sepBy semi statement
     _ <- closeBlock
     substImports <$> go open statements
   where

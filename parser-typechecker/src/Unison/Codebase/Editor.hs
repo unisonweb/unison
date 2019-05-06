@@ -41,13 +41,12 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names                   ( Names
-                                                , NameTarget
-                                                )
+import           Unison.Names                   ( NameTarget )
 import qualified Unison.Names as Names
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference, pattern DerivedId )
 import qualified Unison.Reference              as Reference
 import           Unison.Result                  ( Note
@@ -160,10 +159,14 @@ data Input
   | ShowDefinitionI OutputLocation [String]
   | TodoI
   | PropagateI
+  | TestI ShowSuccesses ShowFailures
   | UpdateBuiltinsI
   | ListEditsI
   | QuitI
   deriving (Eq, Show)
+
+type ShowSuccesses = Bool -- whether to list results or just summarize
+type ShowFailures = Bool  -- whether to list results or just summarize
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
@@ -227,7 +230,7 @@ data Output v
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
+              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
@@ -239,6 +242,8 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
+  | TestResults PPE.PrettyPrintEnv ShowSuccesses ShowFailures
+                [(Reference, Text)] [(Reference, Text)]
   deriving (Show)
 
 type SourceFileContents = Text
@@ -308,10 +313,12 @@ data Command i v a where
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
   -- has the form:
-  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
+  --   (hash,
+  --   (ann, watchKind, sourceTerm, evaluatedTerm, isCacheHit))
   --
   -- where
   --   `hash` is the hash of the original watch expression definition
+  --   `watchKind` is `UF.RegularWatch` or `UF.TestWatch`
   --   `ann` gives the location of the watch expression
   --   `sourceTerm` is a closed term (no free vars) for the watch expression
   --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
@@ -321,10 +328,10 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-  Evaluate :: Branch
+  Evaluate :: PrettyPrintEnv
            -> UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
-                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
+                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Load definitions from codebase:
   -- option 1:
@@ -374,7 +381,9 @@ data Command i v a where
 
   Propagate :: Branch -> Command i v Branch
 
-  Execute :: Branch -> UF.UnisonFile v Ann -> Command i v ()
+  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
+
+  LoadWatches :: UF.WatchKind -> Set Reference -> Command i v [(Reference, Term v Ann)]
 
 data Outcome
   -- New definition that was added to the branch
@@ -619,7 +628,7 @@ typecheck
   :: (Monad m, Var v)
   => [Type.AnnotatedType v Ann]
   -> Codebase m v Ann
-  -> Names
+  -> Parser.ParsingEnv
   -> SourceName
   -> Text
   -> m (TypecheckingResult v)
@@ -687,30 +696,49 @@ commandLine awaitInput rt notifyUser codebase command = do
     Notify output -> notifyUser output
     SlurpFile handler branch unisonFile ->
       fileToBranch handler codebase branch unisonFile
-    Typecheck ambient branch sourceName source ->
-      typecheck ambient codebase (Branch.toNames branch) sourceName source
-    Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
+    Typecheck ambient branch sourceName source -> do
+      -- todo: if guids are being shown to users, not ideal to generate new guid every time
+      namegen <- Parser.uniqueBase58Namegen 8
+      typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
+    Evaluate ppe unisonFile           -> evalUnisonFile ppe unisonFile
     ListBranches                      -> Codebase.branches codebase
     LoadBranch branchName             -> Codebase.getBranch codebase branchName
     NewBranch  branch branchName      -> newBranch codebase branch branchName
     SyncBranch branchName branch      -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
-    LoadTerm r -> Codebase.getTerm codebase r
-    LoadType r -> Codebase.getTypeDeclaration codebase r
-    LoadSearchResults results -> loadSearchResults codebase results
-    Todo b -> doTodo codebase (Branch.head b)
-    Propagate b -> do
+    LoadTerm          r              -> Codebase.getTerm codebase r
+    LoadType          r              -> Codebase.getTypeDeclaration codebase r
+    LoadSearchResults results        -> loadSearchResults codebase results
+    Todo              b              -> doTodo codebase (Branch.head b)
+    Propagate         b              -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
-    Execute branch uf -> void $ evalUnisonFile branch uf
-  evalUnisonFile branch unisonFile = do
+    Execute ppe uf -> void $ evalUnisonFile ppe uf
+    LoadWatches kind refs -> do
+      let rids = [ id | Reference.DerivedId id <- toList refs ]
+      tms <- traverse (\r -> (r,) <$> Codebase.getWatch codebase kind r) rids
+      pure $ [ (Reference.DerivedId r, e) | (r, Just e) <- tms ]
+  evalUnisonFile ppe unisonFile = do
     let codeLookup = Codebase.toCodeLookup codebase
     selfContained <- Codebase.makeSelfContained' codeLookup
-                                                 (Branch.head branch)
+                                                 ppe
                                                  unisonFile
-    let noCache = const (pure Nothing)
-    Runtime.evaluateWatches codeLookup noCache rt selfContained
+    let watchCache (Reference.DerivedId h) = do
+          m1 <- Codebase.getWatch codebase UF.RegularWatch h
+          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
+          pure $ Term.amap (const ()) <$> m2
+        watchCache _ = pure Nothing
+    rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
+    forM_ (Map.elems map) $
+      \(_loc, kind, hash, _src, value, isHit) ->
+      if isHit then pure ()
+      else case hash of
+        Reference.DerivedId h -> do
+          let value' = Term.amap (const Parser.External) value
+          Codebase.putWatch codebase kind h value'
+        _ -> pure ()
+    pure rs
 
 doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 doTodo code b = do

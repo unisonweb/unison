@@ -204,6 +204,9 @@ validInputs =
   , InputPattern "propagate" [] []
     "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
     (const $ pure PropagateI)
+  , InputPattern "test" [] []
+    "`test` runs unit tests for the current branch."
+    (const $ pure $ TestI True True)
   , todo
   , InputPattern "execute" [] []
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."

@@ -58,7 +58,6 @@ base58 (Hash h) = decodeUtf8 (Base58.encodeBase58 Base58.bitcoinAlphabet h)
 base58s :: Hash -> String
 base58s = Text.unpack . base58
 
-
 -- | Produce a 'Hash' from a base58-encoded version of its binary representation
 fromBase58 :: Text -> Maybe Hash
 fromBase58 txt = Hash <$> Base58.decodeBase58 Base58.bitcoinAlphabet (encodeUtf8 txt)

@@ -66,7 +66,7 @@ module Unison.Test.FileParser where
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
-    let result = P.run (P.rootFile file) s builtins
+    let result = P.run (P.rootFile file) s (mempty, builtins)
     case result of
       Right _ -> crash "Parser succeeded"
       Left (MPE.FancyError _ sets) ->
@@ -141,5 +141,5 @@ module Unison.Test.FileParser where
     let
       p :: UnisonFile Symbol P.Ann
       !p = snd . unsafeGetRightFrom s $
-             P.run (P.rootFile file) s builtins
+             P.run (P.rootFile file) s (mempty, builtins)
     pure p >> ok

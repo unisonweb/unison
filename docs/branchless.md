@@ -1,6 +1,6 @@
 ## TODO tracking refactoring of existing functionality
 
-* [ ] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
+* [x] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
 * [ ] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
   - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
@@ -19,9 +19,58 @@
 * [ ] `find` takes an optional path
 * [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
 * [ ] `merge` takes at least a path, if not a `RepoPath`
-* [ ] `publish` or `push`that takes a local path and a remote path? 
+* [ ] `publish` or `push`that takes a local path and a remote path?
 
-# Branchless codebase format
+
+## Branchless codebase format
+
+## Commands / Usage
+
+```
+/> clone gh:aryairani/libfoo
+  Copied gh:aryairani/libfoo blah blah to /libfoo
+/> undo
+/> clone gh:aryairani/libfoo /libs/DeepLearning/Foo
+  Copied gh:aryairani/libfoo blah blah to /libs/DeepLearning/Foo
+/>
+```
+`clone <remote> [path]`
+
+`push [path] <remote>`
+
+```
+/> cd projects
+/projects> rename FaceDetector FaceDetector/V1
+/projects> cd FaceDetector
+/projects/FaceDetector> cp V1 V2
+```
+
+`cd <path>` — support relative paths?
+
+`cp <path> <path>`
+
+
+```
+/projects/FaceDetector> replace.scoped V2 /libs/DeepLearning/Foo/thing1 mything1
+
+  Noted replacement of thing1#af2 with mything#i9d within /projects/FaceDetector/V2.
+```
+
+```
+replace.write <editsetid> <ref1> <ref2>
+todo <editsetid> <path>
+
+```
+
+```
+/projects/FaceDetector> todo
+  ...7 things...
+/projects/FaceDetector> todo /
+  ...33 things...
+/projects/FaceDetector>
+```
+
+`mv` / `rename` command: can refer to Terms, Types, Directories, or all three.  Use hash-qualified names to discriminate.
 
 ## Namespaces
 
@@ -41,7 +90,7 @@ newtype Path = Path { toList :: [NameSegment] }
 data Namespace m = Namespace
 	{ terms :: Relation NameSegment Referent
   , types :: Relation NameSegment Reference
-  , children :: Relation NameSegment (Branch' m) 
+  , children :: Relation NameSegment (Branch' m)
   }
 ```
 
@@ -66,9 +115,9 @@ data Namespace m = Namespace
 
 ### Backup Names?
 
-For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐  
+For pretty-printing, we want a name for every hash.  Even for hashes we deleted the names for. 😐
 
-* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`. <!-- pchiusano: I like this option, it's simple -->
+* When we delete a name `x` from path `/p` (i.e. `/p/x`), we add the name `/_deleted/p/x`.  <!-- pchiusano: I like this option, it's simple -->
 
 * Or, do we just disallow removing the last name of things with dependencies?
 
@@ -80,7 +129,7 @@ For pretty-printing, we want a name for every hash.  Even for hashes we deleted 
 newtype EditMap = EditMap { toMap :: Map GUID (Causal Edits) }
 
 data Edits = Edits
-	{ terms :: Relation Reference TermEdit 
+	{ terms :: Relation Reference TermEdit
 	, types :: Relation Reference TypeEdit
 	}
 
@@ -101,8 +150,36 @@ type FriendlyEditNames = Relation Text GUID
 * It could be the same as sharing Unison definitions:
   Make up a URI that references a repo and an edit GUID.
   e.g. `https://github.com/<user>/<repo>/<...>/<guid>[/hash]`
+* `clone.edits <remote-url> [local-name]`
+  * `guid` comes from remote-url, and is locally given the name `local-name`
+  * if `local-name` is omitted, then copy name from `remote-url`.
+  * if `local-name` already exists locally with a different `guid`, then abort.
 
----
+### Editsets as first-class unison terms:
+Benefits:
+* Don't have two separate dimensions of forking and causality (namespace vs edits).
+* Makes codebase model way simpler to explain. <— BFD
+
+Costs / todo:
+
+Q: Do we allow users to edit `EditSets` using standard `view` and `edit` in M1?
+
+If Yes:
+
+* EditSets are arbitrary Unison programs that need to be evaluated.  Once evaluated, they would have a known structure that can be decomposed for EditSet operations.   We would need:
+
+* * [ ] some new or existing syntax for constructing EditSet values
+  * [x] a way to evaluate these unison programs
+  * [ ] a way to save evaluated results back to the codebase / namespace
+    * Q: Do we evaluate and save these eagerly or lazily?
+  * [ ] a way in Haskell to deconstruct the EditSet value
+  * [ ] a way to modify (append to) values of that type using CLI commands.  e.g. `update` ?
+    * either `update` calls a unison function that
+
+If no (we don't provide user syntax for constructing `EditSets` in .u file):
+
+* EditSets are part of the term language?
+* Or a constructor with a particular hash? (Applied to Unison terms)
 
 ## Collecting external dependencies
 
@@ -114,6 +191,7 @@ Given:
 /A/B/c#xxx
 /D/E/f#yyy (depends on #xxx, #zzz)
 /D/G/h#zzz
+/libs/G/bar#zzz
 ```
 
 If `/D/E` is published, what names should be assigned to `#xxx`, `#zzz`?
@@ -130,33 +208,91 @@ Dependencies/A/B/C#xxx
 Dependencies/G/h#zzz
 ```
 
-<!-- pchiusano: 
+<!-- pchiusano:
 I like this option the best. Reasons:
-
 - Option 2 seems ill defined and probably complicated, so let's nix that.
 - Option 3 is simple, but is more work for the user, and also the easiest way for the user to address is to copy the whole tree of whatever dependent library they are using, even if they are just using a handful of functions. An automated procedure can produce a minimal set of named dependencies.
 - Having a somewhat opinionated convention like this makes the code easier to read - you can easily view the minimal third-party dependencies used by a library.
 - Option 1 doesn't preclude you from picking some other convention for where you put those dependencies, if you really want.
+-->
 
---> 
+<!-- atacratic:
+Under 'collecting external dependencies', I guess a difficult case for idea 1 'names relative to the nearest parent' would be the following:
+
+/A/B/c#xxx
+/D/E/f#yyy (depends on #xxx, #zzz)
+/D/A/B/c#zzz
+since it would want to call both the dependencies Dependencies/A/B/c.
+
+Maybe the prefix which you decide to be the effective root, has to be a single choice across all the dependencies of all the names being exported, rather than chosen on a per-dependency basis.
+
+But anyway seems like there will need to be way to override these choices of dependency names - stitching together a namespace from several sources can't be done in a way that is both natural and automatic.
+
+On idea 3 I think there has to be a default proposal - you can't force people to go choosing N new names.
+
+(On backup names, I think the /_deleted/p/x idea is a bit painful because people will want to completely delete names, without leaving a trace. Also it looks a bit janky. Better to just say you can't delete the last name of something that is referenced.)
+
+====
+
+Is all manipulation of namespaces going to happen interactively at the CLI? ('import this namespace from here to there with this prefix'.) Is that maybe bad for the same reason that repls are bad (and watch statements are awesome)? I guess the alternative would be having a little language for stitching together namespaces.
+-->
 
 ### Idea 2: Somehow derive from qualified imports used?
 
-If 
+If
 
-### Idea 3: Surface the condition* to the user 
+### Idea 3: Surface the condition* to the user
 
 *the condition = the publication node contains definitions that reference definitions not under the publication node.
 
 Ask them to create aliases below the publication point?
 
-### Idea 4: Add external names to `./_auxNames/` 
+### Idea 4: Add external names to `./_auxNames/`
 
 The nearest aux-name would only be used to render code only if there were no primary names known.
 
-<!-- pchiusano: hmm, how does this differ from Idea 3? --> 
-
 ### Idea 5: Something with symlinks
+
+```haskell
+data Branch' m = Branch' (Causal m Namespace)
+
+data Causal m e
+  = One { currentHash :: Hash, head :: e }
+  | Cons { currentHash :: Hash, head :: e, tail :: m (Causal m e) }
+  -- The merge operation `<>` flattens and normalizes for order
+  | Merge { currentHash :: Hash, head :: e, tails :: Map Hash (m (Causal m e)) }
+
+-- just one level of name, like Foo or Bar, but not Foo.Bar
+newtype NameSegment = NameSegment { toText :: Text } -- no dots, no slashes
+newtype Path = Path { toList :: [NameSegment] }
+
+data Namespace m = Namespace
+	{ terms :: Relation NameSegment Referent
+  , types :: Relation NameSegment Reference
+  , children :: Relation NameSegment (Link m)
+  }
+
+data Link m = LocalLink (Branch' m) | RemoteLink RemotePath
+data RemotePath = Github { username :: Text, repo :: Text, commit :: Text } -- | ... future
+```
+
+This lets us avoid redistributing libs unnecessarily — let the requesting user get it from wherever we got it from.  But it doesn't specifically address this external naming question.
+
+We might be publishing `/app/foo` which references definitions we got from `repo1`.  Somewhere in our tree (possibly under `/app/foo` and possibly not?) we have a link to `repo1`.
+
+Somewhere under `/app/foo` we reference some defn from `repo1`.
+
+Transitive publication algorithm:
+
+* find all the things that you're referencing
+* the things you're publishing that aren't under the pbulication point need to be resolved
+  * they're local, and need to be given names under the publication point
+    * user is notified, or we do something automatic
+  * they're remote, and we need to include, in the publication, a link to the remote repo.
+    * user is notified, or we do something automatic
+* "Something automatic" will be:
+  * mirror the dependency names from our namespace into `./_Libs`; if it would produce naming conflicts to use `./_Libs`, then `_Libs1`, etc.
+  * Or, just dump them into `./_Libs` and if doing so produces naming conflicts, force the user to resolve them before publishing.
 
 ## Syncing with remote codetrees
 
@@ -166,11 +302,12 @@ data BranchPath = BranchPath RepoRef Path
 data RepoRef = Local | GithubRef { username :: Text, repo :: Text, treeish :: Text }
 
 ```
+
 ```
 /libs/community/DL
 ```
 becomes
-```haskell
+​```haskell
 BranchPath Local (Path ["libs","community","DL"])
 ```
 
@@ -182,7 +319,7 @@ gh:<user>/<repo>[/<path>][?ref=<treeish>] -- defaults to repo's `default_branch`
 e.g. gh:aryairani/unison/libs?ref=topic/370
 ```
 becomes
-```haskell
+​```haskell
 BranchPath (GithubRef "aryairani" "unison" "topic/370") (Path ["libs"])
 ```
 or
@@ -201,7 +338,7 @@ BranchPath (GithubRef "'aryairani" "unison" "topic/370") (Path ["libs"])
 
 ## Github Notes
 
-Github uses a few different URL schemes.  They call the ones you can pluck off their website "html_url"s.  They let you refer to files and directories, and can be parameterized by git _treeish_ (branch, tag, commit).  
+Github uses a few different URL schemes.  They call the ones you can pluck off their website "html_url"s.  They let you refer to files and directories, and can be parameterized by git _treeish_ (branch, tag, commit).
 
 We can interpret these to refer to the root of a namespace. https://github.com/unisonweb/unison can be interpreted as:
 
@@ -215,14 +352,18 @@ The Github website will let you navigate to a git branch, e.g https://github.com
 GithubRef "unisonweb" "unison" <$> matchBranch "unisonweb" "unison" "topic/370/"
 ```
 
-Branch names can contain slashes, such as `topic/370`, complicating parsing if there's meant to be path info following the branch name.  
+Branch names can contain slashes, such as `topic/370`, complicating parsing if there's meant to be path info following the branch name.
 
 1. Fortunately, if you have a git branch `a/b` then it's not possible to create branches `a` or `a/b/c`.  So you can load the [list of branches](https://api.github.com/repos/unisonweb/unison/branches) from JSON, and then test them against that treeish-prefixed path without ambiguity.
 2. Github's website doesn't know how to navigate into `Causal` structures, so it's never going to give us URLs with paths into a Unison namespace.  So maybe this is a moot point.
 
-So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` URI scheme; we can try to support the other URLs mentioned above, and let them refer to the root of the published namespace.  
+So, I would still go ahead with the made-up `gh:username/repo[:treeish][/path]` URI scheme; we can try to support the other URLs mentioned above, and let them refer to the root of the published namespace.
 
 Our Javascript viewer can be made to create URLs with query params or fragments in them that can indicate the Unison path, and those can be the ones we share in tweets, etc:
 
-http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the default branch being the head, and the default path being /.
+http(s)://<username>.github.io/<projectname>?branch=<hash>&path=<path> with the default branch being the head, and the default path being `/`.
 
+```
+
+
+```

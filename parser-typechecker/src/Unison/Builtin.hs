@@ -64,7 +64,7 @@ t s = ABT.amap (const Intrinsic) .
 tm :: Var v => String -> Term v
 tm s = Names.bindTerm constructorType names
        . either (error . showParseError s) id
-       $ Parser.run (Parser.root TermParser.term) s names
+       $ Parser.run (Parser.root TermParser.term) s (mempty, names)
 
 constructorType :: R.Reference -> CT.ConstructorType
 constructorType r =

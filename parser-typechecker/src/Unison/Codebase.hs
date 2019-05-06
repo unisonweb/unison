@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE PatternSynonyms     #-}
 
 module Unison.Codebase where
 
@@ -43,6 +44,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
@@ -90,8 +92,15 @@ data Codebase m v a =
            , deleteBranch       :: BranchName -> m ()
            , branchUpdates      :: m (m (), m (Set BranchName))
 
-           , dependentsImpl :: Reference -> m (Set Reference.Id)
-           , builtinLoc :: a
+           , dependentsImpl     :: Reference -> m (Set Reference.Id)
+           , builtinLoc         :: a
+
+           -- Watch expressions are part of the codebase, the `Reference.Id` is
+           -- the hash of the source of the watch expression, and the `Term v a`
+           -- is the evaluated result of the expression, decompiled to a term.
+           , watches            :: UF.WatchKind -> m [Reference.Id]
+           , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
+           , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
            }
 
 getTypeOfConstructor ::
@@ -256,14 +265,13 @@ toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 makeSelfContained'
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup v m a
-  -> Branch0
+  -> PrettyPrintEnv
   -> UF.UnisonFile v a
   -> m (UF.UnisonFile v a)
-makeSelfContained' code b uf = do
-  let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
+makeSelfContained' code pp uf = do
+  let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
-  let pp = Branch.prettyPrintEnv b
-      termName r = PPE.termName pp (Referent.Ref r)
+  let termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
@@ -294,7 +302,7 @@ makeSelfContained' code b uf = do
       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
       (bindings ++ unrefb (UF.terms uf))
-      (unrefb $ UF.watches uf)
+      (unrefb <$> UF.watches uf)
   pure $ uf'
 
 -- Creates a self-contained `UnisonFile` which bakes in
@@ -302,13 +310,12 @@ makeSelfContained' code b uf = do
 makeSelfContained
   :: forall m v a . (Monad m, Monoid a, Var v)
   => CL.CodeLookup v m a
-  -> Branch0
+  -> PrettyPrintEnv
   -> Term v a
   -> m (UF.UnisonFile v a)
-makeSelfContained code b term = do
+makeSelfContained code pp term = do
   deps <- foldM (transitiveDependencies code) Set.empty (Term.dependencies term)
-  let pp = Branch.prettyPrintEnv b
-      termName r = PPE.termName pp (Referent.Ref r)
+  let termName r = PPE.termName pp (Referent.Ref r)
       typeName r = PPE.typeName pp r
   decls <- fmap catMaybes . forM (toList deps) $ \case
     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
@@ -329,7 +336,8 @@ makeSelfContained code b term = do
     effects = Map.fromList
       [ (v, (r, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
-  pure $ UF.UnisonFile datas effects bindings [] -- no watches in the resulting file
+  -- no watches in the resulting file
+  pure $ UF.UnisonFile datas effects bindings mempty
 
 branchExists :: Functor m => Codebase m v a -> BranchName -> m Bool
 branchExists codebase name = elem name <$> branches codebase

@@ -57,6 +57,13 @@ data Token a = Token {
   end :: Pos
 } deriving (Eq, Ord, Show, Functor)
 
+notLayout :: Token Lexeme -> Bool
+notLayout t = case payload t of
+  Close -> False
+  Semi -> False
+  Open _ -> False
+  _ -> True
+
 instance ShowToken (Token Lexeme) where
   showTokens xs =
       join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
@@ -105,6 +112,11 @@ line (Pos line _) = line
 
 column :: Pos -> Column
 column (Pos _ column) = column
+
+-- `True` if the tokens are adjacent, with no space separating the two
+touches :: Token a -> Token b -> Bool
+touches (end -> t) (start -> t2) =
+  line t == line t2 && column t == column t2
 
 type BlockName = String
 type Layout = [(BlockName,Column)]
@@ -190,9 +202,20 @@ lexer scope rem =
 
 lexer0 :: String -> String -> [Token Lexeme]
 lexer0 scope rem =
-    Token (Open scope) topLeftCorner topLeftCorner
+    tweak $ Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
+    -- 1+1 lexes as [1, +1], and it's not easy to fix without adding more
+    -- state to the lexer, so we have a hacky postprocessing pass to convert
+    -- it to [1, +, 1]
+    tweak [] = []
+    tweak (t1:t2@(payload -> Numeric num):rem)
+      | notLayout t1 && touches t1 t2 && isSigned num =
+        t1 : Token (SymbolyId $ take 1 num) (start t2) (inc $ start t2)
+           : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
+           : tweak rem
+    tweak (h:t) = h : tweak t
+    isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
     -- skip whitespace and comments
     goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
@@ -333,8 +356,12 @@ lexer0 scope rem =
                 Token (Backticks id) pos end : goWhitespace l end (pop rem)
 
       -- keywords and identifiers
-      (symbolyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (SymbolyId id) pos end : goWhitespace l end rem
+      (symbolyId -> Right (id, rem')) -> case numericLit rem of
+        Right (Just (num, rem)) ->
+          let end = incBy num pos
+          in Token (Numeric num) pos end : goWhitespace l end rem
+        _ -> let end = incBy id pos
+             in Token (SymbolyId id) pos end : goWhitespace l end rem'
       (wordyId -> Right (id, rem)) ->
         let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
@@ -425,20 +452,16 @@ hasSep (ch:_) = isSep ch
 wordyId0 :: String -> Either Err (String, String)
 wordyId0 s = span' wordyIdChar s $ \case
   (id @ (ch:_), rem) | not (Set.member id keywords)
-                    && any (\ch -> isAlpha ch || isEmoji ch) id
                     && wordyIdStartChar ch
                     -> Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
 
-wordyId :: String -> Either Err (String, String)
-wordyId s = qualifiedId False s wordyId0 wordyId0
-
 wordyIdStartChar :: Char -> Bool
-wordyIdStartChar ch = isAlphaNum ch || isEmoji ch || ch == '_'
+wordyIdStartChar ch = isAlpha ch || isEmoji ch || ch == '_'
 
 wordyIdChar :: Char -> Bool
 wordyIdChar ch =
-  isAlphaNum ch || isEmoji ch || ch `elem` "_-!'"
+  isAlphaNum ch || isEmoji ch || ch `elem` "_!'"
 
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
@@ -448,34 +471,23 @@ splitOn c s = unfoldr step s where
   step [] = Nothing
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
-qualifiedId :: Bool
-            -> String
-            -> (String -> Either Err (String, String))
-            -> (String -> Either Err (String, String))
-            -> Either Err (String, String)
-qualifiedId requireLast s0 leadingSegments lastSegment =
-  goLeading 0 s0 where
-   -- parsing 0 or more leading segments
-   goLeading acc s = case leadingSegments s of
-     Right (seg, '.' : rem)
-       | not requireLast &&
-         all (\c -> isSpace c || Set.member c delimiters) (take 1 rem)
-         -> Right (seg, '.' : rem)
-       | otherwise
-         -> goLeading (acc + length seg + 1) rem
-     Right (seg, rem) -> goLast Nothing (acc + length seg) rem
-     Left e -> goLast (Just e) acc s
-   err2 e e2 = case e of Nothing -> e2; Just e -> Both e e2
-   -- leading segments produced acc before failing,
-   -- now parse lastSegment if required
-   goLast e acc s = case lastSegment s of
-     Left e2 -> if requireLast || acc == 0 then Left (err2 e e2)
-                else Right (take acc s0, s)
-     Right (seg, s) -> Right (take (acc + length seg) s0, s)
-
 -- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
-symbolyId s = qualifiedId True s wordyId0 symbolyId0
+symbolyId s = case wordyId0 s of
+  Left _ -> symbolyId0 s
+  Right (wid, '.':rem) -> case symbolyId rem of
+    Left e -> Left e
+    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
+  Right (w,_) -> Left (InvalidSymbolyId w)
+
+-- Is a '.' delimited list of wordyId
+wordyId :: String -> Either Err (String, String)
+wordyId s = case wordyId0 s of
+  Left e -> Left e
+  Right (wid, '.':rem@(ch:_)) | wordyIdStartChar ch -> case wordyId rem of
+    Left e -> Left e
+    Right (rest, rem) -> Right (wid <> "." <> rest, rem)
+  Right (w,rem) -> Right (w,rem)
 
 -- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
 splitWordy :: String -> (String, String)
@@ -492,7 +504,7 @@ splitSymboly s =
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
-  (id @ (_:_), rem) | not (Set.member id reservedOperators) && hasSep rem -> Right (id, rem)
+  (id @ (_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool

@@ -27,7 +27,7 @@ typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ TL.builtinTypeLookup)
-  r = parseAndSynthesizeFile [] tl Builtin.names "<IO.u builtin>" source
+  r = parseAndSynthesizeFile [] tl (mempty, Builtin.names) "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes

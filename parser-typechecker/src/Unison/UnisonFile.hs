@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.UnisonFile where
 
@@ -30,6 +31,7 @@ import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
 import           Unison.Type            (AnnotatedType)
 import qualified Unison.Type            as Type
+import qualified Unison.Util.List       as List
 import           Unison.Util.Relation   (Relation)
 import qualified Unison.Util.Relation   as Relation
 import           Unison.Var             (Var)
@@ -40,28 +42,53 @@ data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
   effectDeclarations :: Map v (Reference, EffectDeclaration' v a),
   terms :: [(v, AnnotatedTerm v a)],
-  watches :: [(v, AnnotatedTerm v a)]
+  watches :: Map WatchKind [(v, AnnotatedTerm v a)]
 } deriving Show
 
--- Converts a file to a single let rec with a body of `()`.
-uberTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
-uberTerm uf = Term.letRec' True (terms uf <> watches uf) (DD.unitTerm mempty)
+watchesOfKind :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfKind kind uf = Map.findWithDefault [] kind (watches uf)
+
+watchesOfOtherKinds :: WatchKind -> UnisonFile v a -> [(v, AnnotatedTerm v a)]
+watchesOfOtherKinds kind uf =
+  join [ ws | (k, ws) <- Map.toList (watches uf), k /= kind ]
+
+allWatches :: UnisonFile v a -> [(v, AnnotatedTerm v a)]
+allWatches = join . Map.elems . watches
+
+type WatchKind = Var.WatchKind
+pattern RegularWatch = Var.RegularWatch
+pattern TestWatch = Var.TestWatch
+
+-- Converts a file to a single let rec with a body of `()`, for
+-- purposes of typechecking.
+typecheckingTerm :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a
+typecheckingTerm uf =
+  Term.letRec' True (terms uf <> testWatches <> watchesOfOtherKinds TestWatch uf) $
+  DD.unitTerm mempty
+  where
+    -- we make sure each test has type Test.Result
+    f w = let wa = ABT.annotation w in Term.ann wa w (DD.testResultType wa)
+    testWatches = map (second f) $ watchesOfKind TestWatch uf
 
 -- Converts a file and a body to a single let rec with the given body.
 uberTerm' :: (Var v, Monoid a) => UnisonFile v a -> AnnotatedTerm v a -> AnnotatedTerm v a
-uberTerm' uf body = Term.letRec' True (terms uf <> watches uf) body
+uberTerm' uf body =
+  Term.letRec' True (terms uf <> allWatches uf) $ body
 
 -- A UnisonFile after typechecking. Terms are split into groups by
 -- cycle and the type of each term is known.
 data TypecheckedUnisonFile v a =
-  -- Giving this an ugly name to encourage use of lowercase smart ctor
-  -- which filters out watch expressions
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents  :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-    watchComponents     :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+    topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
+    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
   } deriving Show
+
+topLevelComponents :: TypecheckedUnisonFile v a
+                   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+topLevelComponents file =
+  topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
 getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
 getDecl' uf v =
@@ -100,7 +127,7 @@ dependencies uf ns = directReferences <>
                       Set.fromList freeTypeVarRefs <>
                       Set.fromList freeTermVarRefs
   where
-    tm = uberTerm uf
+    tm = typecheckingTerm uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
       catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
@@ -116,9 +143,10 @@ dependencies uf ns = directReferences <>
       ]
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches) =
-  UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ]
-                           [ (a,b) | (a,b,_) <- join watches ]
+discardTypes (TypecheckedUnisonFile datas effects terms watches) = let
+  watches' = g . mconcat <$> List.multimap watches
+  g tup3s = [(v,e) | (v,e,_t) <- tup3s ]
+  in UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ] watches'
 
 declsToTypeLookup :: Var v => UnisonFile v a -> TL.TypeLookup v a
 declsToTypeLookup uf = TL.TypeLookup mempty
@@ -149,6 +177,8 @@ hashTerms ::
   => TypecheckedUnisonFile v a
   -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
 hashTerms file = let
+  -- test watches are added to the codebase also
+  -- todo: maybe other kinds of watches too
   components = topLevelComponents file
   types = Map.fromList [(v,t) | (v,_,t) <- join components ]
   terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
@@ -163,7 +193,7 @@ bindBuiltins :: Var v
              -> UnisonFile v a
              -> UnisonFile v a
 bindBuiltins names uf@(UnisonFile d e ts ws) = let
-  vs = (fst <$> ts) ++ (fst <$> ws)
+  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
   names' = Names.subtractTerms vs names
   ct = errMsg . constructorType uf
   errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
@@ -171,23 +201,11 @@ bindBuiltins names uf@(UnisonFile d e ts ws) = let
       (second (DD.bindBuiltins names) <$> d)
       (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
       (second (Names.bindTerm ct names') <$> ts)
-      (second (Names.bindTerm ct names') <$> ws)
+      (fmap (second (Names.bindTerm ct names')) <$> ws)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
 constructorType = TL.constructorType . declsToTypeLookup
-
-filterVars
-  :: Var v
-  => Set v
-  -> Set v
-  -> TypecheckedUnisonFile v a
-  -> TypecheckedUnisonFile v a
-filterVars types terms file = TypecheckedUnisonFile
-  (dataDeclarations' file `Map.restrictKeys` types)
-  (effectDeclarations' file `Map.restrictKeys` types)
-  (filter (any (\(v, _, _) -> Set.member v terms)) $ topLevelComponents file)
-  (filter (any (\(v, _, _) -> Set.member v terms)) $ watchComponents file)
 
 data Env v a = Env
   -- Data declaration name to hash and its fully resolved form
