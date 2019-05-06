@@ -48,6 +48,7 @@ library
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor
+    Unison.Codebase.Editor2
     Unison.Codebase.Editor.Actions
     Unison.Codebase.Editor.Actions2
     Unison.Codebase.FileCodebase
