@@ -213,7 +213,7 @@ data IR' ann z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
-  | ModN z z
+  | ModN z z | ToIntN z
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
@@ -287,6 +287,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     LtEqN a b -> P.parenthesize $ "LtEqN" `P.hang` P.spaced [pz a, pz b]
     EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
     ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
+    ToIntN a -> P.parenthesize $ "ToIntN" `P.hang` P.spaced [pz a]
 
     AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
     SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
@@ -663,6 +664,7 @@ boundVarsIR = \case
   LtEqN _ _ -> mempty
   EqN _ _ -> mempty
   ModN _ _ -> mempty
+  ToIntN _ -> mempty
   AddF _ _ -> mempty
   SubF _ _ -> mempty
   MultF _ _ -> mempty
@@ -712,6 +714,7 @@ decompileIR stack = \case
   LtEqN x y -> builtin "Nat.<=" [x,y]
   EqN x y -> builtin "Nat.==" [x,y]
   ModN x y -> builtin "Nat.mod" [x,y]
+  ToIntN x -> builtin "Nat.toInt" [x]
   AddF x y -> builtin "Float.+" [x,y]
   SubF x y -> builtin "Float.-" [x,y]
   MultF x y -> builtin "Float.*" [x,y]
@@ -886,6 +889,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Nat.isOdd", 1, let' var (ModN (Slot 0) (Val (N 2)))
                                     (let' var (EqN (Val (N 0)) (Slot 0))
                                               (Not (Slot 0))))
+        , ("Nat.toInt", 1, ToIntN (Slot 0))
 
         , ("Float.+", 2, AddF (Slot 1) (Slot 0))
         , ("Float.-", 2, SubF (Slot 1) (Slot 0))
