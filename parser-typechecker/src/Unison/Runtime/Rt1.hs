@@ -463,6 +463,7 @@ run ioHandler env ir = do
       EqI i j -> do x <- ati size i m; y <- ati size j m; done (B (x == y))
       SignumI i -> do x <- ati size i m; done (I (signum x))
       NegateI i -> do x <- ati size i m; done (I (negate x))
+      Truncate0I i -> do x <- ati size i m; done (I (truncate0 x))
       ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
@@ -789,3 +790,6 @@ continuationConstructorId k = case k of
   One _ _ _ _ -> 0
   Chain _ _ _ -> 1
   WrapHandler _ _ -> 2
+
+truncate0 :: (Num a, Ord a) => a -> a
+truncate0 x = if x >= 0 then x else 0

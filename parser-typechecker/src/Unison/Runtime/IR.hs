@@ -209,7 +209,7 @@ data IR' ann z
   -- Ints
   | AddI z z | SubI z z | MultI z z | DivI z z
   | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
-  | SignumI z | NegateI z | ModI z z
+  | SignumI z | NegateI z | Truncate0I z | ModI z z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
@@ -273,6 +273,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     EqI a b -> P.parenthesize $ "EqI" `P.hang` P.spaced [pz a, pz b]
     SignumI a -> P.parenthesize $ "SignumI" `P.hang` P.spaced [pz a]
     NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
+    Truncate0I a -> P.parenthesize $ "Truncate0I" `P.hang` P.spaced [pz a]
     ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
 
     AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
@@ -649,6 +650,7 @@ boundVarsIR = \case
   EqI _ _ -> mempty
   SignumI _ -> mempty
   NegateI _ -> mempty
+  Truncate0I _ -> mempty
   ModI _ _ -> mempty
   AddN _ _ -> mempty
   DropN _ _ -> mempty
@@ -697,6 +699,7 @@ decompileIR stack = \case
   EqI x y -> builtin "Int.==" [x,y]
   SignumI x -> builtin "Int.signum" [x]
   NegateI x -> builtin "Int.negate" [x]
+  Truncate0I x -> builtin "Int.truncate0" [x]
   ModI x y -> builtin "Int.mod" [x,y]
   AddN x y -> builtin "Nat.+" [x,y]
   DropN x y -> builtin "Nat.drop" [x,y]
@@ -858,6 +861,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
+        , ("Int.truncate0", 1, Truncate0I (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
         , ("Int.isEven", 1, let' var (ModI (Slot 0) (Val (I 2)))
                                      (EqI (Val (I 0)) (Slot 0)))
