@@ -45,7 +45,7 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 , Edits
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
-import           Unison.Codebase.Editor         ( Command(..)
+import           Unison.Codebase.Editor2        ( Command(..)
                                                 , BranchName
                                                 , Input(..)
                                                 , Output(..)
@@ -58,7 +58,7 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                   )
                                                 , collateReferences
                                                 )
-import qualified Unison.Codebase.Editor        as Editor
+import qualified Unison.Codebase.Editor2        as Editor
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -90,26 +90,28 @@ type F i v = Free (Command i v)
 
 type Action i v a = MaybeT (StateT (LoopState (F i v) v) (F i v)) a
 
-data Nav f k v = Nav
-  { root :: Nav f k v
-  , up :: Maybe (Nav f k v)
-  , down :: k -> f (Maybe (Nav f k v))
-  , children :: Set k -- could omit this field
-  , get :: v
-  , update :: v -> (Nav f k v)
-  }
-
 data LoopState m v
   = LoopState
-      { _path :: Path
-      , _nav :: Nav m NameSegment Branch
-      , _activeEdits :: Set Branch.EditGuid
+      { _namespace :: Branch
+      -- the current position in the namespace
+      , _path :: Path
+
+      -- TBD
+      -- , _activeEdits :: Set Branch.EditGuid
+
       -- The file name last modified, and whether to skip the next file
       -- change event for that path (we skip file changes if the file has
       -- just been modified programmatically)
       , _latestFile :: Maybe (FilePath, SkipNextUpdate)
       , _latestTypecheckedFile :: Maybe (UF.TypecheckedUnisonFile v Ann)
+
+      -- The previous user input. Used to request confirmation of
+      -- questionable user commands.
       , _lastInput :: Maybe Input
+
+      -- A 1-indexed list of strings that can be referenced by index at the
+      -- CLI prompt.  e.g. Given ["Foo.bat", "Foo.cat"],
+      -- `rename 2 Foo.foo` will rename `Foo.cat` to `Foo.foo`.
       , _numberedArgs :: [String]
       }
 

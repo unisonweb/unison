@@ -10,17 +10,17 @@ module Unison.Builtin2 where
 
 -- import           Control.Arrow                  ( first )
 import           Control.Applicative            ( liftA2
-                                                , (<|>)
+                                                -- , (<|>)
                                                 )
 import           Data.Foldable                  ( foldl' )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
-import qualified Data.Set                      as Set
+-- import           Data.Set                       ( Set )
+-- import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 -- import qualified Text.Megaparsec.Error         as MPE
-import qualified Unison.ABT                    as ABT
+-- import qualified Unison.ABT                    as ABT
 -- import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 -- import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
@@ -30,21 +30,21 @@ import           Unison.DataDeclaration         ( DataDeclaration'
 -- import qualified Unison.FileParser             as FileParser
 -- import qualified Unison.Lexer                  as L
 import           Unison.Parser                  ( Ann(..) )
-import qualified Unison.Parser                 as Parser
+-- import qualified Unison.Parser                 as Parser
 -- import           Unison.PrintError              ( prettyParseError )
 import qualified Unison.Reference              as R
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Term                   as Term
 -- import qualified Unison.TermParser             as TermParser
 import qualified Unison.Type                   as Type
-import qualified Unison.TypeParser             as TypeParser
+-- import qualified Unison.TypeParser             as TypeParser
 -- import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
-import qualified Unison.Var                    as Var
+-- import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 -- import           Unison.Names                   ( Names )
-import qualified Unison.Names                  as Names
+-- import qualified Unison.Names                  as Names
 -- import qualified Unison.Typechecker.TypeLookup as TL
 -- import qualified Unison.Util.Relation          as Rel
 
@@ -194,8 +194,8 @@ data BuiltinDSL
 termNameRefs :: Map Name R.Reference
 termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty builtinsSrc where
   go m = \case
-    B r t -> Map.insert r (R.Builtin r) m
-    D r t -> Map.insert r (R.Builtin r) m
+    B r _tp -> Map.insert r (R.Builtin r) m
+    D r _tp -> Map.insert r (R.Builtin r) m
     Rename r name -> case Map.lookup name m of
       Just _ -> error . Text.unpack $
                 "tried to rename `" <> r <> "` to `" <> name <> "`, " <>

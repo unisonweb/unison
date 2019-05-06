@@ -39,6 +39,7 @@ data Names = Names
   , typeNames    :: Map Name Reference
   }
 
+-- Arya: Do we really want separate namespaces for terms and types?
 data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
 
 subtractTerms :: Var v => [v] -> Names -> Names

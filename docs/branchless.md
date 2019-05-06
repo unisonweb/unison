@@ -6,10 +6,11 @@
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
 * [x] Tweak `Codebase` to `Codebase2`
 * [x] Implement a  `Codebase2` for `FileCodebase2`
-* [ ] Implement `Editor2`
 * [ ] Implement `Actions2`
+* [ ] Implement `Editor2`
 * [ ] Implement `OutputMessages2`
 * [ ] Implement `InputPatterns2`
+* [ ] Go back and leave a spot for Link in serialized Branch0 format.
 * [ ] Split Edits out of `Branch0`
 * [ ] Delete `oldNamespace`, and instead add deprecated names
 * [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
