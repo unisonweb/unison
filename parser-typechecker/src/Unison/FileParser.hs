@@ -126,8 +126,7 @@ declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
                           Map v (EffectDeclaration' v Ann))
 declarations = do
-  declarations <- many $
-    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
+  declarations <- many $ declaration <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
       multimap :: Ord k => [(k,v)] -> Map k [v]
       multimap kvs = foldl' mi Map.empty kvs
@@ -156,9 +155,13 @@ modifier = do
           Just uid -> pure (fromString . L.payload $ uid)
       pure (DD.Unique uid <$ tok)
 
-dataDeclaration :: forall v . Var v => P v (v, DataDeclaration' v Ann)
-dataDeclaration = do
-  modifier <- modifier
+declaration :: Var v => P v (Either (v, DataDeclaration' v Ann) (v, EffectDeclaration' v Ann))
+declaration = do
+  mod <- modifier
+  fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
+
+dataDeclaration :: forall v . Var v => L.Token DD.Modifier -> P v (v, DataDeclaration' v Ann)
+dataDeclaration mod = do
   _ <- openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
@@ -186,11 +189,10 @@ dataDeclaration = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure (L.payload name, DD.mkDataDecl' (L.payload modifier) (ann modifier <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
 
-effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
-effectDeclaration = do
-  modifier <- modifier
+effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
+effectDeclaration mod = do
   _ <- reserved "effect" <|> reserved "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
@@ -199,7 +201,7 @@ effectDeclaration = do
   constructors <- sepBy semi (constructor name)
   _ <- closeBlock
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure (L.payload name, DD.mkEffectDecl' (L.payload modifier) (ann modifier <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>

@@ -21,7 +21,6 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.DataDeclaration        as DD
-import qualified Unison.FileParser             as FileParser
 import qualified Unison.Lexer                  as L
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Parser                 as Parser
@@ -72,14 +71,6 @@ constructorType r =
   else if any f (builtinEffectDecls @Symbol) then CT.Effect
   else error "a builtin term referenced a constructor for a non-builtin type"
   where f = (==r) . fst . snd
-
--- todo: does this need to be refactored if we have mutually recursive decls
-parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
-parseDataDeclAsBuiltin s =
-  let (v, dd) = either (error . showParseError s) id $
-        Parser.run (Parser.root FileParser.dataDeclaration) s mempty
-      [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
-  in (v, (r, const Intrinsic <$> dd'))
 
 -- Todo: These definitions and groupings of builtins are getting a little
 -- confusing.  Sort out these labrinthine definitions!
