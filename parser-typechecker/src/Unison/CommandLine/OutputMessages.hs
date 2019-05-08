@@ -53,7 +53,6 @@ import           Unison.NamePrinter            (prettyHashQualified,
 import qualified Unison.Names                  as Names
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError,
-                                                prettyTypecheckedFile,
                                                 renderNoteAsANSI)
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
@@ -215,18 +214,23 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv uf -> do
+  Typechecked sourceName ppe uf -> do
     Console.setTitle "Unison ☺︎"
-    -- todo: we should just print this the same way as everything else
-    let defs       = prettyTypecheckedFile uf errorEnv
-    if (not $ null defs) then putPrettyLn' . ("\n" <>) . P.okCallout . P.lines $
-     [ P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in " <> P.group (P.text sourceName <> ":")
-     , ""
-     , P.lit defs
-     , P.wrap "Now evaluating any watch expressions (lines starting with `>`)..."
-     ]
+    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
+        typeDecls =
+          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
+          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
+    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.nonEmpty $ [
+      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
+             <> P.group (P.text sourceName <> ":"),
+      "",
+      P.lines $
+        (uncurry DeclPrinter.prettyDeclHeader <$> typeDecls) ++
+        TypePrinter.prettySignatures' ppe terms,
+      "",
+      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
-      "I reloaded " <> P.text sourceName <> " and didn't find anything."
+      "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
   TestResults ppe _showOk _showFail oks fails -> putPrettyLn . P.bracket $ let
     name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
