@@ -616,15 +616,27 @@ putDataDeclaration :: (MonadPut m, Ord v)
                    -> DataDeclaration' v a
                    -> m ()
 putDataDeclaration putV putA decl = do
+  putModifier $ DataDeclaration.modifier decl
   putA $ DataDeclaration.annotation decl
   putFoldable putV (DataDeclaration.bound decl)
   putFoldable (putTuple3' putA putV (putType putV putA)) (DataDeclaration.constructors' decl)
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
 getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+  getModifier <*>
   getA <*>
   getList getV <*>
   getList (getTuple3 getA getV (getType getV getA))
+
+putModifier :: MonadPut m => DataDeclaration.Modifier -> m ()
+putModifier DataDeclaration.Structural   = putWord8 0
+putModifier (DataDeclaration.Unique txt) = putWord8 1 *> putText txt
+
+getModifier :: MonadGet m => m DataDeclaration.Modifier
+getModifier = getWord8 >>= \case
+  0 -> pure DataDeclaration.Structural
+  1 -> DataDeclaration.Unique <$> getText
+  tag -> unknownTag "DataDeclaration.Modifier" tag
 
 putEffectDeclaration ::
   (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()

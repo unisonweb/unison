@@ -450,11 +450,11 @@ prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.wrap $ DeclPrinter.prettyDataHeader name <> "(built-in)"
+   BuiltinThing -> P.bold "builtin type " <> prettyHashQualified name
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
-     Left _ability -> DeclPrinter.prettyEffectHeader name
-     Right _data   -> DeclPrinter.prettyDataHeader name
+     Left ed -> DeclPrinter.prettyEffectHeader name ed
+     Right dd   -> DeclPrinter.prettyDataHeader name dd
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
@@ -622,8 +622,8 @@ slurpOutput s =
     | v <- toList vs
     , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
   prettyDeclHeader v = case UF.getDecl' file v of
-    Just (Left _)  -> DeclPrinter.prettyEffectHeader (HQ.fromVar v)
-    Just (Right _) -> DeclPrinter.prettyDataHeader (HQ.fromVar v)
+    Just (Left e)  -> DeclPrinter.prettyEffectHeader (HQ.fromVar v) e
+    Just (Right e) -> DeclPrinter.prettyDataHeader (HQ.fromVar v) e
     Nothing        -> error "Wat."
   addedMsg =
     unlessM (null addedTypes && null addedTerms) . P.okCallout $

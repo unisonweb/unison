@@ -50,7 +50,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
       <>       " :"
       `P.hang` TypePrinter.pretty env (-1) t
   header =
-    P.sep " " (prettyEffectHeader name : (P.text . Var.name <$> DD.bound dd))
+    P.sep " " (prettyEffectHeader name (DD.EffectDeclaration dd) : (P.text . Var.name <$> DD.bound dd))
       <> " where"
 
 prettyPattern
@@ -79,11 +79,18 @@ prettyDataDecl env r name dd =
     Just ts -> P.group . P.hang' (prettyPattern env r name n) "      "
              $ P.spaced (TypePrinter.pretty env 10 <$> init ts)
   header =
-    P.sep " " (prettyDataHeader name : (P.text . Var.name <$> DD.bound dd))
+    P.sep " " (prettyDataHeader name dd : (P.text . Var.name <$> DD.bound dd))
       <> (" = " `P.orElse` "\n  = ")
 
-prettyDataHeader :: HashQualified -> Pretty ColorText
-prettyDataHeader name = P.bold "type " <> prettyHashQualified name
+prettyModifier :: DD.Modifier -> Pretty ColorText
+prettyModifier DD.Structural = mempty
+prettyModifier (DD.Unique uid) =
+  P.bold "unique" <> P.hiBlack ("[" <> P.text uid <> "] ")
 
-prettyEffectHeader :: HashQualified -> Pretty ColorText
-prettyEffectHeader name = P.bold "ability " <> prettyHashQualified name
+prettyDataHeader :: HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
+prettyDataHeader name dd =
+  prettyModifier (DD.modifier dd) <> P.bold "type " <> prettyHashQualified name
+
+prettyEffectHeader :: HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
+prettyEffectHeader name ed =
+  prettyModifier (DD.modifier (DD.toDataDecl ed)) <> P.bold "ability " <> prettyHashQualified name

@@ -698,7 +698,7 @@ commandLine awaitInput rt notifyUser codebase command = do
       fileToBranch handler codebase branch unisonFile
     Typecheck ambient branch sourceName source -> do
       -- todo: if guids are being shown to users, not ideal to generate new guid every time
-      namegen <- Parser.uniqueBase58Namegen 8
+      namegen <- Parser.uniqueBase58Namegen
       typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
     Evaluate ppe unisonFile           -> evalUnisonFile ppe unisonFile
     ListBranches                      -> Codebase.branches codebase

@@ -47,7 +47,11 @@ type ConstructorId = Int
 
 type DataDeclaration v = DataDeclaration' v ()
 
+data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
+  deriving (Eq, Ord, Show)
+
 data DataDeclaration' v a = DataDeclaration {
+  modifier :: Modifier,
   annotation :: a,
   bound :: [v],
   constructors' :: [(a, v, AnnotatedType v a)]
@@ -96,7 +100,7 @@ typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (AnnotatedTy
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
-constructors (DataDeclaration _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
+constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
 constructorVars :: DataDeclaration' v a -> [v]
 constructorVars dd = fst <$> constructors dd
@@ -105,8 +109,8 @@ constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
 bindBuiltins :: Var v => Names -> DataDeclaration' v a -> DataDeclaration' v a
-bindBuiltins names (DataDeclaration a bound constructors) =
-  DataDeclaration a bound (third (Names.bindType names) <$> constructors)
+bindBuiltins names (DataDeclaration m a bound constructors) =
+  DataDeclaration m a bound (third (Names.bindType names) <$> constructors)
 
 dependencies :: Ord v => DataDeclaration' v a -> Set Reference
 dependencies dd =
@@ -152,26 +156,27 @@ withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDec
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
 mkEffectDecl'
-  :: a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
-mkEffectDecl' a b cs = EffectDeclaration (DataDeclaration a b cs)
+  :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
+mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
-mkEffectDecl b cs = mkEffectDecl' () b $ map (\(v,t) -> ((),v,t)) cs
+mkEffectDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
+mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
 
-mkDataDecl' :: a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
-mkDataDecl' a b cs = DataDeclaration a b cs
+mkDataDecl' :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
+mkDataDecl' m a b cs = DataDeclaration m a b cs
 
-mkDataDecl :: [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
-mkDataDecl b cs = mkDataDecl' () b $ map (\(v,t) -> ((),v,t)) cs
+mkDataDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
+mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
 
 constructorArities :: DataDeclaration' v a -> [Int]
-constructorArities (DataDeclaration _a _bound ctors) =
+constructorArities (DataDeclaration _ _a _bound ctors) =
   Type.arity . (\(_,_,t) -> t) <$> ctors
 
 data F a
   = Type (Type.F a)
   | LetRec [a] a
   | Constructors [a]
+  | Modified Modifier a
   deriving (Functor, Foldable, Show, Show1)
 
 instance Hashable1 F where
@@ -187,6 +192,12 @@ instance Hashable1 F where
       Constructors cs ->
         let (hashes, _) = hashCycle cs
         in [tag 2] ++ map hashed hashes
+      Modified m t ->
+        [tag 3, Hashable.accumulateToken m, hashed $ hash t]
+
+instance Hashable.Hashable Modifier where
+  tokens Structural = [Hashable.Tag 0]
+  tokens (Unique txt) = [Hashable.Tag 1, Hashable.Text txt]
 
 {-
   type UpDown = Up | Down
@@ -219,21 +230,12 @@ unsafeUnwrapType typ = ABT.transform f typ
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
 
 toABT :: Var v => DataDeclaration v -> ABT.Term F v ()
-toABT dd = ABT.absChain
-  (bound dd)
-  (ABT.cycle
-    (ABT.absChain (fst <$> constructors dd) (ABT.tm $ Constructors stuff))
-  )
-  where stuff = ABT.transform Type . snd <$> constructors dd
-
-fromABT :: Var v => ABT.Term F v () -> DataDeclaration' v ()
-fromABT (ABT.AbsN' bound (ABT.Cycle' names (ABT.Tm' (Constructors stuff)))) =
-  DataDeclaration
-    ()
-    bound
-    [ ((), v, unsafeUnwrapType t) | (v, t) <- names `zip` stuff ]
-fromABT a =
-  error $ "ABT not of correct form to convert to DataDeclaration: " ++ show a
+toABT dd = ABT.tm $ Modified (modifier dd) dd'
+  where
+  dd' = ABT.absChain (bound dd) $ ABT.cycle
+          (ABT.absChain
+            (fst <$> constructors dd)
+            (ABT.tm . Constructors $ ABT.transform Type <$> constructorTypes dd))
 
 -- Implementation detail of `hashDecls`, works with unannotated data decls
 hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]
@@ -290,18 +292,18 @@ builtinDataDecls = hashDecls $
   var name = Type.var() (v name)
   arr = Type.arrow'
   -- see note on `hashDecls` above for why ctor must be called `().()`.
-  unit = DataDeclaration () [] [((), v "().()", var "()")]
-  pair = DataDeclaration () [v "a", v "b"] [
+  unit = DataDeclaration Structural () [] [((), v "().()", var "()")]
+  pair = DataDeclaration Structural () [v "a", v "b"] [
     ((), v "Pair.Pair", Type.foralls() [v"a",v"b"]
          (var "a" `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])))
    ]
-  opt = DataDeclaration () [v "a"] [
+  opt = DataDeclaration Structural () [v "a"] [
     ((), v "Optional.None", Type.foralls() [v "a"]
       (              Type.app' (var "Optional") (var "a"))),
     ((), v "Optional.Some", Type.foralls() [v "a"]
       (var "a" `arr` Type.app' (var "Optional") (var "a")))
    ]
-  tr = DataDeclaration () [] [
+  tr = DataDeclaration (Unique "70621e539cd802b2ad53105697800930411a3ebc") () [] [
     ((), v "Test.Result.Fail", Type.text() `arr` var "Test.Result"),
     ((), v "Test.Result.Ok",   Type.text() `arr` var "Test.Result") ]
 
@@ -372,6 +374,5 @@ bindDecls
 bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
  where
   -- normalize the order of the constructors based on a hash of their types
-  sortCtors dd =
-    DataDeclaration (annotation dd) (bound dd) (sortOn hash3 $ constructors' dd)
+  sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
   hash3 (_, _, typ) = ABT.hash typ :: Hash

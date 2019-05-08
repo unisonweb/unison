@@ -6,6 +6,7 @@ module Unison.FileParser where
 
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
+import Data.String (fromString)
 import           Control.Applicative
 import           Control.Monad (guard, msum)
 import           Control.Monad.Reader (local, asks)
@@ -102,7 +103,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
   kind <- optional wordyId
-  guid <- uniqueName
+  guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
   tok <- anyToken
@@ -142,13 +143,23 @@ declarations = do
       [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
       [ (v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad ]
 
--- type Optional a = Some a | None
---                   a -> Optional a
---                   Optional a
+modifier :: Var v => P v (L.Token DD.Modifier)
+modifier = do
+  o <- optional (exactWordyId "unique")
+  case o of
+    Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
+    Just tok -> do
+      uid <- do
+        o <- optional (reserved "[" *> wordyId <* reserved "]")
+        case o of
+          Nothing -> uniqueName 32
+          Just uid -> pure (fromString . L.payload $ uid)
+      pure (DD.Unique uid <$ tok)
 
 dataDeclaration :: forall v . Var v => P v (v, DataDeclaration' v Ann)
 dataDeclaration = do
-  start <- openBlockWith "type"
+  modifier <- modifier
+  _ <- openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
@@ -175,11 +186,12 @@ dataDeclaration = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure (L.payload name, DD.mkDataDecl' (ann start <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkDataDecl' (L.payload modifier) (ann modifier <> closingAnn) typeArgVs constructors)
 
 effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
 effectDeclaration = do
-  effectStart <- reserved "effect" <|> reserved "ability"
+  modifier <- modifier
+  _ <- reserved "effect" <|> reserved "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
@@ -187,7 +199,7 @@ effectDeclaration = do
   constructors <- sepBy semi (constructor name)
   _ <- closeBlock
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkEffectDecl' (L.payload modifier) (ann modifier <> closingAnn) typeArgVs constructors)
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>
