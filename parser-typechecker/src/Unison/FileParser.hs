@@ -144,7 +144,7 @@ declarations = do
 
 modifier :: Var v => P v (L.Token DD.Modifier)
 modifier = do
-  o <- optional (exactWordyId "unique")
+  o <- optional (openBlockWith "unique")
   case o of
     Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
     Just tok -> do
@@ -162,7 +162,7 @@ declaration = do
 
 dataDeclaration :: forall v . Var v => L.Token DD.Modifier -> P v (v, DataDeclaration' v Ann)
 dataDeclaration mod = do
-  _ <- openBlockWith "type"
+  _ <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
@@ -193,13 +193,13 @@ dataDeclaration mod = do
 
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
-  _ <- reserved "effect" <|> reserved "ability"
+  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
   constructors <- sepBy semi (constructor name)
-  _ <- closeBlock
+  _ <- closeBlock <* closeBlock -- `ability` opens a block, as does `where`
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
   pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
   where

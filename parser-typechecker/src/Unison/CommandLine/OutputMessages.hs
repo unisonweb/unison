@@ -215,19 +215,17 @@ notifyUser dir o = case o of
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
   Typechecked sourceName ppe uf -> do
-    Console.setTitle "Unison ☺︎"
+    Console.setTitle "Unison ✅"
     let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
         typeDecls =
           [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
           [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
-    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.nonEmpty $ [
+    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
       P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
-             <> P.group (P.text sourceName <> ":"),
-      "",
-      P.lines $
-        (uncurry DeclPrinter.prettyDeclHeader <$> typeDecls) ++
-        TypePrinter.prettySignatures' ppe terms,
-      "",
+            <> P.group (P.text sourceName <> ":"),
+      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
+        P.lines (TypePrinter.prettySignatures' ppe terms) ],
       P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."

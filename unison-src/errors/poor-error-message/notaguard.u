@@ -10,7 +10,7 @@
 --
 -- even though this program doesn't use guards!
 
-effect Ask a where
+ability Ask a where
   ask : {Ask a} a
 
 supply : Text -> Effect (Ask Text) a -> a

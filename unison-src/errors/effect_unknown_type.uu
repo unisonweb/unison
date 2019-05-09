@@ -15,6 +15,6 @@ CallStack (from HasCallStack):
 -- Typechecker emits a helpful error about b's use of an unknown type, but not a's.
 --
 -- Error for b:
---   typechecker.tests/effect_unknown_type.u FAILURE I don't know about the type Unknown.  Make sure it's imported and spelled correctly:
+--   typechecker.tests/ability_unknown_type.u FAILURE I don't know about the type Unknown.  Make sure it's imported and spelled correctly:
 --
 --   22 | b : Unknown

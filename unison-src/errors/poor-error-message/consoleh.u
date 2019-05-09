@@ -4,11 +4,11 @@
 -- expecting : or the rest of infixApp
 --    51 | ()
 
-effect State s where
+ability State s where
   get : {State s} s
   set : s -> {State s} ()
 
-effect Console where
+ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 

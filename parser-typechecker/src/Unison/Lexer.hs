@@ -185,8 +185,8 @@ reorder ts = join . sortWith f . stanzas $ ts
     f [] = 3 :: Int
     f (t : _) = case payload $ headToken t of
       Open "type" -> 0
-      Reserved "effect" -> 0
-      Reserved "ability" -> 0
+      Open "unique" -> 0
+      Open "ability" -> 0
       Reserved "use" -> 1
       _ -> 3 :: Int
 
@@ -331,7 +331,8 @@ lexer0 scope rem =
         let end = inc pos
         in case topBlockName l of
           -- '=' does not open a layout block if within a type declaration
-          Just "type" -> Token (Reserved "=") pos end : goWhitespace l end rem
+          Just "type"   -> Token (Reserved "=") pos end : goWhitespace l end rem
+          Just "unique" -> Token (Reserved "=") pos end : goWhitespace l end rem
           Just _      -> Token (Open "=") pos end : pushLayout "=" l end rem
           Nothing     -> Token (Err LayoutError) pos pos : recover l pos rem
       '-' : '>' : (rem @ (c : _))
@@ -367,7 +368,17 @@ lexer0 scope rem =
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
-                kw@"type" ->
+                -- `unique type` lexes as [Open "unique", Reserved "type"]
+                -- `type` lexes as [Open "type"]
+                -- `unique ability` lexes as [Open "unique", Reserved "ability"]
+                -- `ability` lexes as [Open "ability"]
+                kw@"unique" ->
+                  Token (Open kw) pos end
+                    : goWhitespace ((kw, column $ inc pos) : l) end rem
+                kw@"ability" | topBlockName l /= Just "unique" ->
+                  Token (Open kw) pos end
+                    : goWhitespace ((kw, column $ inc pos) : l) end rem
+                kw@"type" | topBlockName l /= Just "unique" ->
                   Token (Open kw) pos end
                     : goWhitespace ((kw, column $ inc pos) : l) end rem
                 kw | Set.member kw layoutKeywords ->
@@ -516,10 +527,10 @@ symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:;"
 keywords :: Set String
 keywords = Set.fromList [
   "if", "then", "else", "forall", "∀",
-  "handle", "in",
+  "handle", "in", "unique",
   "where", "use",
   "and", "or", "true", "false",
-  "type", "effect", "ability", "alias",
+  "type", "ability", "alias",
   "let", "namespace", "case", "of"]
 
 -- These keywords introduce a layout block

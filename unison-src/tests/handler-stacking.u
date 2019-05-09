@@ -13,11 +13,11 @@ replicate n x =
     !x
     replicate (n `drop` 1) x
 
-effect State a where
+ability State a where
   get : {State a} a
   put : a -> {State a} ()
 
-effect Writer w where
+ability Writer w where
   tell : w -> {Writer w} ()
 
 stateHandler : s -> Effect {State s} a -> (s, a)
