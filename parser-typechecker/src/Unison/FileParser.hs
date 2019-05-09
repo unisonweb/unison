@@ -1,14 +1,16 @@
 {-# Language DoAndIfThenElse #-}
 {-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
+{-# Language TupleSections #-}
 
 module Unison.FileParser where
 
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import Data.String (fromString)
+import Control.Lens
 import           Control.Applicative
-import           Control.Monad (guard, msum)
+import           Control.Monad (guard, msum, join)
 import           Control.Monad.Reader (local, asks)
 import           Data.Functor
 import           Data.Either (partitionEithers)
@@ -23,6 +25,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
 import           Unison.Term (AnnotatedTerm)
+import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -34,12 +37,13 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Reference as R
 
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
   _ <- openBlock
   names <- asks snd
-  (dataDecls, effectDecls) <- declarations
+  (dataDecls, effectDecls, parsedAccessors) <- declarations
   env <- case environmentFor names dataDecls effectDecls of
     Right env -> pure env
     Left es -> P.customFailure $ TypeDeclarationErrors es
@@ -61,7 +65,14 @@ file = do
           Binding ((_, v), at) -> ((v,at) : terms, watches)
           Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
-        uf = UnisonFile (UF.datas env) (UF.effects env) terms watches
+        accessors =
+          [ -- Term.bindBuiltins [] (Map.toList $ fst <$> UF.datas env)
+            --                     (generateAccessors typ fields r)
+            generateAccessors typ fields r
+          | (typ, fields) <- parsedAccessors
+          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
+          ]
+        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
     pure (PPE.fromNames names, uf)
 
 -- A stanza is either a watch expression like:
@@ -122,12 +133,22 @@ terminateTerm e@(Term.LetRecNamedAnnotatedTop' top a bs body@(Term.Var' v))
   | otherwise = e
 terminateTerm e = e
 
+-- The parsed form of record accessors, as in:
+--
+-- type Additive a = { zero : a, (+) : a -> a -> a }
+--
+-- The `Token v` is the variable name and location (here `zero` and `(+)`) of
+-- each field, and the type is the type of that field
+type Accessors v = [(L.Token v, [(L.Token v, AnnotatedType v Ann)])]
+
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
-                          Map v (EffectDeclaration' v Ann))
+                          Map v (EffectDeclaration' v Ann),
+                          Accessors v)
 declarations = do
   declarations <- many $ declaration <* optional semi
-  let (dataDecls, effectDecls) = partitionEithers declarations
+  let (dataDecls0, effectDecls) = partitionEithers declarations
+      dataDecls = [(a,b) | (a,b,_) <- dataDecls0 ]
       multimap :: Ord k => [(k,v)] -> Map k [v]
       multimap kvs = foldl' mi Map.empty kvs
       mi m (k,v) = Map.insertWith (++) k [v] m
@@ -136,7 +157,9 @@ declarations = do
       mdsBad = Map.filter (\xs -> length xs /= 1) mds
       mesBad = Map.filter (\xs -> length xs /= 1) mes
   if Map.null mdsBad && Map.null mesBad then
-    pure (Map.fromList dataDecls, Map.fromList effectDecls)
+    pure (Map.fromList dataDecls,
+          Map.fromList effectDecls,
+          join . map (view _3) $ dataDecls0)
   else
     P.customFailure . DuplicateTypeNames $
       [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
@@ -155,12 +178,16 @@ modifier = do
           Just uid -> pure (fromString . L.payload $ uid)
       pure (DD.Unique uid <$ tok)
 
-declaration :: Var v => P v (Either (v, DataDeclaration' v Ann) (v, EffectDeclaration' v Ann))
+declaration :: Var v
+            => P v (Either (v, DataDeclaration' v Ann, Accessors v)
+                           (v, EffectDeclaration' v Ann))
 declaration = do
   mod <- modifier
   fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
 
-dataDeclaration :: forall v . Var v => L.Token DD.Modifier -> P v (v, DataDeclaration' v Ann)
+dataDeclaration :: forall v . Var v
+  => L.Token DD.Modifier
+  -> P v (v, DataDeclaration' v Ann, Accessors v)
 dataDeclaration mod = do
   _ <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
@@ -183,13 +210,41 @@ dataDeclaration mod = do
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
-  constructors <- sepBy (reserved "|") dataConstructor
+      record = do
+        _ <- openBlockWith "{"
+        fields <- sepBy1 (reserved ",") $
+          liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueTypeLeaf
+        _ <- closeBlock
+        pure $ ([go name (snd <$> fields)], [(name, fields)])
+  (constructors, accessors) <-
+    msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
   _ <- closeBlock
   let -- the annotation of the last constructor if present,
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure (L.payload name, DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
+  pure (L.payload name,
+        DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors,
+        accessors)
+
+generateAccessors :: forall v . Var v
+  => L.Token v
+  -> [(L.Token v, AnnotatedType v Ann)]
+  -> R.Reference
+  -> [(v, AnnotatedTerm v Ann)]
+generateAccessors typename fields typ = let
+  cargs loc i = [ if j == i then Pattern.Var loc else Pattern.Unbound loc
+                | j <- [0..length fields - 1] ]
+  argname = Var.uncapitalize (L.payload typename)
+  tm t i =
+    Term.lam (ann t) argname $ Term.match (ann t)
+             (Term.var (ann typename) argname)
+             [Term.MatchCase pat Nothing rhs]
+    where
+    pat = Pattern.Constructor (ann t) typ 0 (cargs (ann t) i)
+    rhs = ABT.abs' (ann t) (L.payload t) (Term.var (ann t) (L.payload t))
+  in [ (Var.namespaced $ map L.payload [typename, t], tm t i)
+     | ((t,_), i) <- fields `zip` [0..] ]
 
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
