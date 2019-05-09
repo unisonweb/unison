@@ -452,7 +452,7 @@ prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.bold "builtin type " <> prettyHashQualified name
+   BuiltinThing -> P.hiBlack "builtin " <>  P.blue "type " <> P.blue (prettyHashQualified name)
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
      Left ed -> DeclPrinter.prettyEffectHeader name ed

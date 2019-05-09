@@ -85,15 +85,15 @@ prettyDataDecl env r name dd =
 prettyModifier :: DD.Modifier -> Pretty ColorText
 prettyModifier DD.Structural = mempty
 prettyModifier (DD.Unique _uid) =
-  P.bold "unique " -- <> P.hiBlack ("[" <> P.text uid <> "] ")
+  P.hiBlack "unique " -- <> P.hiBlack ("[" <> P.text uid <> "] ")
 
 prettyDataHeader :: HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
 prettyDataHeader name dd =
-  prettyModifier (DD.modifier dd) <> P.bold "type " <> prettyHashQualified name
+  prettyModifier (DD.modifier dd) <> P.blue "type " <> P.blue (prettyHashQualified name)
 
 prettyEffectHeader :: HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
 prettyEffectHeader name ed =
-  prettyModifier (DD.modifier (DD.toDataDecl ed)) <> P.bold "ability " <> prettyHashQualified name
+  prettyModifier (DD.modifier (DD.toDataDecl ed)) <> P.blue "ability " <> P.blue (prettyHashQualified name)
 
 prettyDeclHeader :: HashQualified -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a) -> Pretty ColorText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
