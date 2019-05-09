@@ -35,19 +35,13 @@ import qualified Unison.Codebase.Path          as Path
 --import           Unison.Hash                    ( Hash )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
+import           Unison.Name                    ( Name )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
 
-data RepoRef
-  = Local
-  | Github { username :: Text, repo :: Text, commit :: Text }
-  deriving (Eq, Ord, Show)
-
 -- type EditGuid = Text
-data RepoLink a = RepoLink RepoRef a
-  deriving (Eq, Ord, Show)
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
@@ -261,3 +255,15 @@ instance Hashable (Branch0 m) where
 
 -- makeLenses ''Namespace
 -- makeLenses ''Edits
+
+data RefCollisions =
+  RefCollisions { termCollisions :: Relation Name Name
+                , typeCollisions :: Relation Name Name
+                } deriving (Eq, Show)
+
+instance Semigroup RefCollisions where
+  (<>) = mappend
+instance Monoid RefCollisions where
+  mempty = RefCollisions mempty mempty
+  mappend r1 r2 = RefCollisions (termCollisions r1 <> termCollisions r2)
+                                (typeCollisions r1 <> typeCollisions r2)

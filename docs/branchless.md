@@ -3,13 +3,13 @@
 Old **<u>PrettyPrintEnv</u>** is for pretty-pretting code, and ___
 
 ```haskell
-{ terms :: Referent -> Maybe HashQualified 
+{ terms :: Referent -> Maybe HashQualified
 , types :: Reference -> Maybe HashQualified }
 ```
 
 Q: How do we want to handle lookup of names that are outside of our branch?
 
-Old **<u>Namespace</u>** 
+Old **<u>Namespace</u>**
 
 ```haskell
 { _terms :: Relation Name Referent
@@ -54,11 +54,11 @@ types :: Set Reference
 
 ### Needed functionality
 
-Parsing a .u file: 
+Parsing a .u file:
 
 * Look up a Reference by name
 
-  
+
 
 * Look up a Reference by hash-qualified name?  We could avoid this by requiring that the user deconflict the names before parsing.
 
@@ -70,27 +70,27 @@ Parsing command-line arguments:
 
   ```
   /foo> todo
-  
+
   These names are conflicted:
     foo#abc
     foo#xyz
   Use `rename` to change a names, or `unname` to remove one.
-  
+
   These edits are conflicted:
     bar#fff -> bar#ggg : Nat        (12 usages)
     bar#fff -> bar#hhh : Nat -> Nat (7 usages)
     bar#fff (Deprecated)
-  
+
   Use `view bar#ggg bar#hhh` to view these choices.
   Use `edit.resolve` to choose a canonical replacement.
   Use `edit.unreplace` to cancel a replacement.
   Use `edit.undeprecate` to cancel a deprecation.
   Use `edit.replace bar#hhh bar#ggg` to start replacing the 7 usages of `bar#hhh` with `bar#ggg`.
-  
-  /foo> 
+
+  /foo>
   ```
 
-  
+
 
 Pretty-printing:
 
@@ -115,9 +115,9 @@ Option 2: Introduce some syntax for names outside the current branch, e.g. `_roo
   * moves names from old hash to new hash, transitively, to the type-preserving frontier
 
 * [ ] `list [path]`
-  
+
   * ~~by default, don't descend into links with names that start with `_`~~
-  
+
 * [ ] `todo <edit> [path]`
 
   * list conflicted names (hash-qualified) and edit frontier
@@ -130,7 +130,7 @@ Option 2: Introduce some syntax for names outside the current branch, e.g. `_roo
 
 * [ ] `edit.resolve <patch> <hq> <hq>`
 
-* 
+*
 
   Old names use case 1:
 
@@ -138,17 +138,17 @@ Option 2: Introduce some syntax for names outside the current branch, e.g. `_roo
   patch:
   #a -> #b
   #a -> #c
-  
+
   namelookup:
   #b -> "foo"
   #c -> "foo2"
-  
+
   "You have a conflicted edit:
      #a -> foo#b
      #a -> foo2#c
    Please choose one.
   "
-  
+
   /pc/libs/x> edit.resolve #a foo#b
   ```
 
@@ -173,15 +173,12 @@ Option 2: Introduce some syntax for names outside the current branch, e.g. `_roo
 * [x] Tweak `Codebase` to `Codebase2`
 
 * [x] Implement a  `Codebase2` for `FileCodebase2`
-
-* [ ] Implement `Editor2`
-
 * [ ] Implement `Actions2`
-
+* [ ] Implement `Editor2`
 * [ ] Implement `OutputMessages2`
 
 * [ ] Implement `InputPatterns2`
-
+* [ ] Go back and leave a spot for Link in serialized Branch0 format.
 * [ ] Split Edits out of `Branch0`
 
 * [ ] Delete `oldNamespace`, and instead add deprecated names
