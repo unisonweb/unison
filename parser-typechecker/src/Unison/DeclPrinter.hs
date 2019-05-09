@@ -49,9 +49,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
     prettyPattern env r name n
       <>       " :"
       `P.hang` TypePrinter.pretty env (-1) t
-  header =
-    P.sep " " (prettyEffectHeader name (DD.EffectDeclaration dd) : (P.text . Var.name <$> DD.bound dd))
-      <> " where"
+  header = prettyEffectHeader name (DD.EffectDeclaration dd) <> " where"
 
 prettyPattern
   :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty ColorText
@@ -77,24 +75,33 @@ prettyDataDecl env r name dd =
   constructor' n t = case Type.unArrows t of
     Nothing -> prettyPattern env r name n
     Just ts -> P.group . P.hang' (prettyPattern env r name n) "      "
-             $ P.spaced (TypePrinter.pretty env 10 <$> init ts)
-  header =
-    P.sep " " (prettyDataHeader name dd : (P.text . Var.name <$> DD.bound dd))
-      <> (" = " `P.orElse` "\n  = ")
+             $ P.spaced (TypePrinter.pretty0 env 10 <$> init ts)
+  header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
 
 prettyModifier :: DD.Modifier -> Pretty ColorText
 prettyModifier DD.Structural = mempty
 prettyModifier (DD.Unique _uid) =
-  P.hiBlack "unique " -- <> P.hiBlack ("[" <> P.text uid <> "] ")
+  P.hiBlack "unique" -- <> P.hiBlack ("[" <> P.text uid <> "] ")
 
-prettyDataHeader :: HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
+prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
 prettyDataHeader name dd =
-  prettyModifier (DD.modifier dd) <> P.blue "type " <> P.blue (prettyHashQualified name)
+  P.sepNonEmpty " " [
+    prettyModifier (DD.modifier dd),
+    P.hiBlue "type",
+    P.blue (prettyHashQualified name),
+    P.sep " " (P.text . Var.name <$> DD.bound dd) ]
 
-prettyEffectHeader :: HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
-prettyEffectHeader name ed =
-  prettyModifier (DD.modifier (DD.toDataDecl ed)) <> P.blue "ability " <> P.blue (prettyHashQualified name)
+prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
+prettyEffectHeader name ed = P.sepNonEmpty " " [
+  prettyModifier (DD.modifier (DD.toDataDecl ed)),
+  P.hiBlue "ability",
+  P.blue (prettyHashQualified name),
+  P.sep " " (P.text . Var.name <$> DD.bound (DD.toDataDecl ed)) ]
 
-prettyDeclHeader :: HashQualified -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a) -> Pretty ColorText
+prettyDeclHeader
+  :: Var v
+  => HashQualified
+  -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
+  -> Pretty ColorText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d

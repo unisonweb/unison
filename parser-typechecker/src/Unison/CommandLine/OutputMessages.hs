@@ -423,7 +423,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   _ -> error "Don't pass Nothing"
   where greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
@@ -431,7 +431,7 @@ prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
@@ -448,11 +448,11 @@ prettyAliases ::
 prettyAliases aliases = if length aliases < 2 then mempty else
   (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
-prettyDeclTriple ::
+prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.hiBlack "builtin " <>  P.blue "type " <> P.blue (prettyHashQualified name)
+   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
      Left ed -> DeclPrinter.prettyEffectHeader name ed
@@ -629,11 +629,10 @@ slurpOutput s =
     Nothing        -> error "Wat."
   addedMsg =
     unlessM (null addedTypes && null addedTerms) . P.okCallout $
-    P.wrap ("I" <> P.bold "added" <> "these definitions:")
-    <> "\n\n"
-    <> (P.indentN 2 . P.lines $
-        (prettyDeclHeader <$> toList addedTypes) ++
-        TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
+    P.wrap ("I" <> P.bold "added" <> "these definitions:") <> "\n\n" <>
+    (P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+       P.lines (prettyDeclHeader <$> toList addedTypes),
+       P.lines (TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms)) ])
   updatedMsg =
     unlessM (null updatedTypes && null updatedTerms) . P.okCallout $
     P.wrap ("I" <> P.bold "updated" <> "these definitions:")
