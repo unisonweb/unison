@@ -1,24 +1,205 @@
+## Data types:
+
+Old **<u>PrettyPrintEnv</u>** is for pretty-pretting code, and ___
+
+```haskell
+{ terms :: Referent -> Maybe HashQualified 
+, types :: Reference -> Maybe HashQualified }
+```
+
+Q: How do we want to handle lookup of names that are outside of our branch?
+
+Old **<u>Namespace</u>** 
+
+```haskell
+{ _terms :: Relation Name Referent
+, _types :: Relation Name Reference }
+```
+
+Old **<u>Names</u>** is an unconflicted **<u>Namespace</u>**. is for parsing code?  Not sufficient to parse hash-qualified names.
+
+```haskell
+{ termNames :: Map Name Referent
+, typeNames :: Map Name Reference }
+-- becomes:
+{ termNames :: Name -> m (Maybe Referent)
+, typeNames :: Name -> m (Maybe Reference) }
+```
+
+
+
+New **<u>Names</u>** combines old **<u>PrettyPrintEnv</u>** and old **<u>Names</u>**:
+
+```haskell
+-- these HashQualified are fully qualified
+{ terms :: Relation HashQualified Referent
+, types :: Relation HashQualified Reference }
+```
+
+We should be able to construct one from a `Codebase2`, given:
+
+```haskell
+root :: Branch
+current :: Branch
+terms :: Set HashQualified
+types :: Set HashQualified
+```
+or
+```haskell
+root :: Branch
+current :: Branch
+terms :: Set Referent
+types :: Set Reference
+```
+
+### Needed functionality
+
+Parsing a .u file: 
+
+* Look up a Reference by name
+
+  
+
+* Look up a Reference by hash-qualified name?  We could avoid this by requiring that the user deconflict the names before parsing.
+
+Parsing command-line arguments:
+
+* Look up a Reference by name.
+
+* Look up a Reference by hash-qualified name (possibly from among deleted names); for resolving conflicted names and edits.
+
+  ```
+  /foo> todo
+  
+  These names are conflicted:
+    foo#abc
+    foo#xyz
+  Use `rename` to change a names, or `unname` to remove one.
+  
+  These edits are conflicted:
+    bar#fff -> bar#ggg : Nat        (12 usages)
+    bar#fff -> bar#hhh : Nat -> Nat (7 usages)
+    bar#fff (Deprecated)
+  
+  Use `view bar#ggg bar#hhh` to view these choices.
+  Use `edit.resolve` to choose a canonical replacement.
+  Use `edit.unreplace` to cancel a replacement.
+  Use `edit.undeprecate` to cancel a deprecation.
+  Use `edit.replace bar#hhh bar#ggg` to start replacing the 7 usages of `bar#hhh` with `bar#ggg`.
+  
+  /foo> 
+  ```
+
+  
+
+Pretty-printing:
+
+* Select a name by Reference
+
+<u>Q: What to do about names outside the current branch?</u>
+
+Option 1: Don't support names outside the current branch; user must go up a level (possibly to the root), set up the names as desired, and then descend again.
+
+Option 2: Introduce some syntax for names outside the current branch, e.g. `_root_.Foo.bar`. We could first lookup references in the current branch, then in the root branch, then in the history of the root branch?
+
+
+
 ## TODO tracking refactoring of existing functionality
 
+* [ ] Add edits/patches to Namespace / Branch
+
+* [ ] Add patch to `NameTarget`
+
+* [ ] rename `propagate` to `patch`
+
+  * moves names from old hash to new hash, transitively, to the type-preserving frontier
+
+* [ ] `list [path]`
+  
+  * ~~by default, don't descend into links with names that start with `_`~~
+  
+* [ ] `todo <edit> [path]`
+
+  * list conflicted names (hash-qualified) and edit frontier
+
+* [ ] `update <edit> [path]`
+
+  * ~~when updating a term, old names goes into `./_archived`, which will be largely conflicted.~~
+
+* [ ] `propagate <edit> [path]`
+
+* [ ] `edit.resolve <patch> <hq> <hq>`
+
+* 
+
+  Old names use case 1:
+
+  ```
+  patch:
+  #a -> #b
+  #a -> #c
+  
+  namelookup:
+  #b -> "foo"
+  #c -> "foo2"
+  
+  "You have a conflicted edit:
+     #a -> foo#b
+     #a -> foo2#c
+   Please choose one.
+  "
+  
+  /pc/libs/x> edit.resolve #a foo#b
+  ```
+
+  You're in the middle of an edit, it's not type preserving
+
+* [ ] `rename / move`
+
+  * [ ] `rename.edits`
+  * [ ] `rename.type`
+  * [ ] `rename.term`
+
+* [ ] name / copy `copy <[src][#hash]> <newname>`
+
+* [ ] `todo <edit> [path]`, `update <edit> [path]`, `propagate <edit> [path]`
+
 * [x] Implement `Branch.sync` operation that synchronizes a monadic `Branch` to disk
+
 * [x] Implement something like `Branch.fromDirectory : FilePath -> IO (Branch IO)` for getting a lazy proxy for a `Branch`
   - Also `Branch.fromExternal : (Path -> m ByteString) -> Hash -> m (Branch m)`
   - Could we create a `Branch` from a GitHub reference? Seems like yeah, it's just going to do some HTTP fetching.
+
 * [x] Tweak `Codebase` to `Codebase2`
+
 * [x] Implement a  `Codebase2` for `FileCodebase2`
+
 * [ ] Implement `Editor2`
+
 * [ ] Implement `Actions2`
+
 * [ ] Implement `OutputMessages2`
+
 * [ ] Implement `InputPatterns2`
+
 * [ ] Split Edits out of `Branch0`
+
 * [ ] Delete `oldNamespace`, and instead add deprecated names
+
 * [ ] Parsing takes a `Names`, a map from `Name`(fully-qualified name) to `Referent`/`Reference`.  We should switch these from `Map` to `Name -> Optional xxx`, or even `Name -> m (Optional xxx)`
+
 * [ ] `Context.synthesizeClosed` takes a `TypeLookup`, which includes a map from `Reference` to `Type`, `DataDecl`, `EffectDecl`.  Shall we plan to include the full codebase here, or load them on demand?  Maybe it doesn't matter yet.
+
   * `parseAndSynthesizeFile` takes  a `Set Reference -> m (TypeLookup v Ann)`, maybe that's a good model.
+
 * [ ] `add` and `update` will need a way to update the `Branch'` at the current level, and all the way back to the root.  Some kind of zipper?
+
 * [ ] `find` takes an optional path
+
 * [ ] `fork` takes a `RepoPath` (or we could have a dedicated command like `clone`)
+
 * [ ] `merge` takes at least a path, if not a `RepoPath`
+
 * [ ] `publish` or `push`that takes a local path and a remote path?
 
 

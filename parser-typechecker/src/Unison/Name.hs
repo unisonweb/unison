@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings   #-}
+
 module Unison.Name
   ( Name(..)
   , unsafeFromText
@@ -7,6 +9,7 @@ module Unison.Name
   , unsafeFromVar
   , isPrefixOf
   , stripPrefix
+  , stripPrefixes
   )
 where
 
@@ -40,6 +43,9 @@ a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
 stripPrefix :: Name -> Name -> Maybe Name
 stripPrefix prefix name =
   Name <$> Text.stripPrefix (toText prefix) (toText name)
+
+stripPrefixes :: Name -> Name
+stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
 
 instance Show Name where
   show = toString
