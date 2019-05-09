@@ -40,17 +40,14 @@ import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
-                                                , NameSegment
-                                                , Path
                                                 , Edits
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import           Unison.Codebase.Editor2        ( Command(..)
-                                                , BranchName
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
-                                                , SearchMode(..)
+                                                -- , SearchMode(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
@@ -59,6 +56,7 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor2        as Editor
+import           Unison.Codebase.Path           ( NameSegment, Path )
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -67,14 +65,14 @@ import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names                   ( NameTarget )
-import qualified Unison.Names                  as Names
+import           Unison.Names2                  ( Names )
+import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
-import           Unison.Result                  ( Result )
+import           Unison.Result                  ( pattern Result )
 import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
@@ -92,7 +90,7 @@ type Action i v a = MaybeT (StateT (LoopState (F i v) v) (F i v)) a
 
 data LoopState m v
   = LoopState
-      { _namespace :: Branch
+      { _namespace :: Branch m
       -- the current position in the namespace
       , _path :: Path
 
@@ -119,8 +117,8 @@ type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
-loopState0 :: Branch -> BranchName -> LoopState m v
-loopState0 b bn = LoopState b bn Nothing Nothing Nothing []
+loopState0 :: Branch m -> Path -> LoopState m v
+loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
 loop :: forall v . Var v => Action (Either Event Input) v ()
 loop = do
@@ -143,7 +141,7 @@ loop = do
                   [ err | Result.TypeError err <- toList notes ]
             in  maybe h (k errorEnv) r
   case e of
-    Left (UnisonBranchChanged names) ->
+    Left (IncomingRootBranch names) ->
       when (Set.member currentBranchName' names)
         $ switchBranch currentBranchName'
     Left (UnisonFileChanged sourceName text) ->
@@ -164,7 +162,11 @@ loop = do
             -- in-memory cache
             eval . Notify $ Evaluated
               text
-              (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+              (error$"todo: produce Names2 for displaying evaluated Result.\n"
+                  ++ "It should include names from the file and the Branch,\n"
+                  ++ "and distinguish somehow between existing and new defns\n"
+                  ++ "having the same name.")
+              -- (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
               bindings
               e'
             latestFile .= Just (Text.unpack sourceName, False)
@@ -229,37 +231,34 @@ loop = do
         -- makes sure that the user search terms get used as the names
         -- in the pretty-printer
         let
-          ppe =
-            PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ]
-              <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
-              <> Branch.prettyPrintEnv (Branch.head currentBranch')
+          names :: Names
+          names = error $ "todo: come up with a Names here that's sufficient\n"
+                      ++  "to pretty-print these loadedTerms, loadedTypes"
+          -- ppe = -- now Names:
+          --   PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ]
+          --     <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
+          --     <> Branch.prettyPrintEnv (Branch.head currentBranch')
           loc = case outputLoc of
             Editor.ConsoleLocation    -> Nothing
             Editor.FileLocation path  -> Just path
             Editor.LatestFileLocation -> fmap fst latestFile'
               <|> Just (Text.unpack currentBranchName' <> ".u")
         do
-          eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+          eval . Notify $ DisplayDefinitions loc names loadedTerms loadedTypes
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
-      RemoveAllTermUpdatesI _t -> error "todo"
-      RemoveAllTypeUpdatesI _t -> error "todo"
-      ResolveTermNameI _b _old _new -> error "todo"
-      ResolveTermNameI _b _old _new -> error "todo"
-      AddTermNameI r name -> modifyCurrentBranch0 $ Branch.addTermName r name
-      AddTypeNameI r name -> modifyCurrentBranch0 $ Branch.addTypeName r name
       RemoveTermNameI r name ->
-        modifyCurrentBranch0 $ Branch.deleteTermName r name
+        stepAt $ Branch.deleteTermName r name
       RemoveTypeNameI r name ->
-        modifyCurrentBranch0 $ Branch.deleteTypeName r name
-      ChooseTermForNameI r name ->
-        modifyCurrentBranch0
+        stepAt $ Branch.deleteTypeName r name
+      ResolveTermNameI r name ->
+        stepAt
           $ Branch.addTermName r name
           . Branch.unnameAll Names.TermName name
-      ChooseTypeForNameI r name ->
-        modifyCurrentBranch0
+      ResolveTypeName r name ->
+        stepAt
           $ Branch.addTypeName r name
           . Branch.unnameAll Names.TypeName name
       AliasUnconflictedI targets existingName newName ->
@@ -267,7 +266,7 @@ loop = do
       RenameUnconflictedI targets oldName newName ->
         renameUnconflicted targets oldName newName
       UnnameAllI hqs -> do
-        modifyCurrentBranch0 $ \b ->
+        stepAt $ \b ->
           let wrangle b hq = doTerms (doTypes b)
                where
                 doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
@@ -317,65 +316,64 @@ loop = do
             else ifM (confirmedCommand input)
                      (deleteBranches branchNames)
                      (respond . DeleteBranchConfirmation $ uniqueToDelete)
-
-        TodoI -> checkTodo
-        PropagateI -> do
-          b <- eval . Propagate $ currentBranch'
-          _ <- eval $ SyncBranch currentBranchName' b
-          _ <- success
-          currentBranch .= b
-        ExecuteI input ->
-          withFile [Type.ref External $ IOSource.ioReference]
-                   "execute command"
-                   ("main_ = " <> Text.pack input) $
-                     \_ unisonFile ->
-                        eval . Execute (view currentBranch s) $
-                          UF.discardTypes unisonFile
-        UpdateBuiltinsI -> do
-          modifyCurrentBranch0 updateBuiltins
-          checkTodo
-        ListEditsI -> do
-          (Branch.head -> b) <- use currentBranch
-          respond $ ListEdits b
-        QuitI -> quit
-       where
-        success       = respond $ Success input
-        outputSuccess = eval . Notify $ Success input
-    case e of
-      Right input -> lastInput .= Just input
-      _ -> pure ()
-   where
-    doMerge branchName b = do
-      updated <- eval $ SyncBranch branchName b
-      -- updated is False if `branchName` doesn't exist.
-      -- Not sure why you were updating a nonexistent branch, but under the
-      -- assumption that it just got deleted somehow, I guess, we'll write
-      -- it to disk now.
-      unless updated $ do
-        written <- eval $ NewBranch b branchName
-        unless written (disappearingBranchBomb branchName)
-    disappearingBranchBomb branchName =
-      error
-        $  "The branch named "
-        <> Text.unpack branchName
-        <> " disappeared from storage. "
-        <> "I tried to put it back, but couldn't. Everybody panic!"
-    -- todo: when `branch` becomes purely switchBranch and not newBranch, fix this up.
-    switchBranch branchName = do
-      branch <- eval $ LoadBranch branchName
-      case branch of
-        Nothing -> do
-          let newBranch = Editor.builtinBranch
-          _ <- eval $ NewBranch newBranch branchName
-          currentBranch .= newBranch
-          currentBranchName .= branchName
-          respond $ CreatedBranch $ branchName
-        Just branch -> do
-          currentBranch .= branch
-          currentBranchName .= branchName
-          respond $ SwitchedBranch $ branchName
-      checkForBuiltinsMismatch
-    quit = MaybeT $ pure Nothing
+      TodoI -> checkTodo
+      PropagateI -> do
+        b <- eval . Propagate $ currentBranch'
+        _ <- eval $ SyncBranch currentBranchName' b
+        _ <- success
+        currentBranch .= b
+      ExecuteI input ->
+        withFile [Type.ref External $ IOSource.ioReference]
+                 "execute command"
+                 ("main_ = " <> Text.pack input) $
+                   \_ unisonFile ->
+                      eval . Execute (view currentBranch s) $
+                        UF.discardTypes unisonFile
+      UpdateBuiltinsI -> do
+        stepAt updateBuiltins
+        checkTodo
+      ListEditsI -> do
+        (Branch.head -> b) <- use currentBranch
+        respond $ ListEdits b
+      QuitI -> quit
+     where
+      success       = respond $ Success input
+      outputSuccess = eval . Notify $ Success input
+  case e of
+    Right input -> lastInput .= Just input
+    _ -> pure ()
+ where
+  doMerge branchName b = do
+    updated <- eval $ SyncBranch branchName b
+    -- updated is False if `branchName` doesn't exist.
+    -- Not sure why you were updating a nonexistent branch, but under the
+    -- assumption that it just got deleted somehow, I guess, we'll write
+    -- it to disk now.
+    unless updated $ do
+      written <- eval $ NewBranch b branchName
+      unless written (disappearingBranchBomb branchName)
+  disappearingBranchBomb branchName =
+    error
+      $  "The branch named "
+      <> Text.unpack branchName
+      <> " disappeared from storage. "
+      <> "I tried to put it back, but couldn't. Everybody panic!"
+  -- todo: when `branch` becomes purely switchBranch and not newBranch, fix this up.
+  switchBranch branchName = do
+    branch <- eval $ LoadBranch branchName
+    case branch of
+      Nothing -> do
+        let newBranch = Editor.builtinBranch
+        _ <- eval $ NewBranch newBranch branchName
+        currentBranch .= newBranch
+        currentBranchName .= branchName
+        respond $ CreatedBranch $ branchName
+      Just branch -> do
+        currentBranch .= branch
+        currentBranchName .= branchName
+        respond $ SwitchedBranch $ branchName
+    checkForBuiltinsMismatch
+  quit = MaybeT $ pure Nothing
 
 eval :: Command i v a -> Action i v a
 eval = lift . lift . Free.eval
@@ -606,11 +604,11 @@ merging targetBranchName b success =
   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
     targetBranchName
 
-modifyCurrentBranch0 :: (Branch0 -> Branch0) -> Action i v ()
-modifyCurrentBranch0 f = modifyCurrentBranchM (\b -> pure $ Branch.modify f b)
+stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action i v ()
+stepAt p f = modifyCurrentBranchM (\b -> pure $ Branch.modify f b)
 
-modifyCurrentBranch0M :: (Branch0 -> Action i v Branch0) -> Action i v ()
-modifyCurrentBranch0M f = modifyCurrentBranchM $ \b -> do
+stepAtM :: (Branch0 -> Action i v Branch0) -> Action i v ()
+stepAtM f = modifyCurrentBranchM $ \b -> do
   b0' <- f $ Branch.head b
   pure $ Branch.append b0' b
 

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -26,8 +28,8 @@ import           Unison.Codebase.Causal2        ( Causal
                                                 , pattern RawCons
                                                 , pattern RawMerge
                                                 )
---import           Unison.Codebase.TermEdit       ( TermEdit )
---import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import           Unison.Codebase.TermEdit       ( TermEdit )
+import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( NameSegment
                                                 , Path(Path)
                                                 )
@@ -71,9 +73,16 @@ data Raw = Raw
   , _childrenR :: Map NameSegment Hash
   }
 
+-- todo: move Edits to its own module?
+data Edits = Edits
+  { _termEdits :: Relation Reference TermEdit
+  , _typeEdits :: Relation Reference TypeEdit
+  }
+
 makeLenses ''Raw
 makeLenses ''Branch0
 makeLenses ''Branch
+makeLenses ''Edits
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
@@ -83,7 +92,7 @@ instance Eq (Branch0 m) where
 data ForkFailure = SrcNotFound | DestExists
 
 -- Question: How does Deserialize throw a not-found error?
-
+-- Question: What is the previous question?
 read
   :: forall m
    . Monad m
@@ -121,8 +130,6 @@ sync exists serializeRaw b = do
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well
-
-
 
 -- copy a path to another path
 fork
@@ -255,6 +262,23 @@ instance Hashable (Branch0 m) where
 
 -- makeLenses ''Namespace
 -- makeLenses ''Edits
+
+-- todo: consider inlining these into Actions2
+addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
+addTermName r new = over terms (R.insert new r)
+
+addTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
+addTypeName r new = over types (R.insert new r)
+
+deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
+deleteTermName r n b | R.member n r (view terms b)
+                     = over terms (R.insert n r) $ b
+deleteTermName _ _ b = b
+
+deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
+deleteTypeName r n b | R.member n r (view types b)
+                     = over types (R.insert n r) $ b
+deleteTypeName _ _ b = b
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name

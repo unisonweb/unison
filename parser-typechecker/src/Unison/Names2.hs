@@ -7,45 +7,43 @@ module Unison.Names2 where
 --
 -- import           Data.Bifunctor   (first)
 -- import           Data.List        (foldl')
--- import           Data.Map         (Map)
+import           Data.Map         (Map)
 -- import qualified Data.Map         as Map
 -- import qualified Data.Set         as Set
 -- import           Data.String      (fromString)
 -- import           Data.Text        (Text)
 -- import qualified Data.Text        as Text
 -- import           Unison.ConstructorType (ConstructorType)
--- import           Unison.Reference (pattern Builtin, Reference)
+import           Unison.Reference (pattern Builtin, Reference)
+import           Unison.HashQualified   (HashQualified)
+import qualified Unison.HashQualified as HQ
 -- import qualified Unison.Name      as Name
 -- import           Unison.Name      (Name)
 -- import qualified Unison.Referent  as Referent
--- import           Unison.Referent  (Referent)
+import           Unison.Referent        (Referent)
+import           Unison.Util.Relation   ( Relation )
 -- import           Unison.Term      (AnnotatedTerm)
 -- import qualified Unison.Term      as Term
 -- import           Unison.Type      (AnnotatedType)
 -- import qualified Unison.Type      as Type
 -- import           Unison.Var       (Var)
---
--- -- Names is like Branch.Namespace, but:
--- -- - there are no conflicts
--- -- - lookup is one-directional
--- data Names = Names
---   { termNames    :: Map HashQualified Referent
---   , typeNames    :: Map HashQualified Reference
---   }
---
--- data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
---
+
+data Names = Names
+  { termNames    :: Relation HashQualified Referent
+  , typeNames    :: Relation HashQualified Reference
+  }
+
 -- subtractTerms :: Var v => [v] -> Names -> Names
 -- subtractTerms vs n = let
 --   taken = Set.fromList (Name.unsafeFromVar <$> vs)
 --   in n { termNames = Map.withoutKeys (termNames n) taken }
---
+
 -- renderNameTarget :: NameTarget -> String
 -- renderNameTarget = \case
 --   TermName -> "term"
 --   TypeName -> "type"
---   -- PatternName -> "pattern"
---
+  -- PatternName -> "pattern"
+
 -- instance Show Names where
 --   -- really barebones, just to see what names are present
 --   show (Names es ts) =

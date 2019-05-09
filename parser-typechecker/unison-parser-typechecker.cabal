@@ -37,6 +37,7 @@ library
     Unison.ABT
     Unison.Blank
     Unison.Builtin
+    Unison.Builtin2
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase2
@@ -153,6 +154,7 @@ library
     comonad,
     concurrent-supply,
     cryptonite,
+    directory,
     guid,
     data-memocombinators,
     errors,
@@ -185,6 +187,7 @@ library
     regex-tdfa,
     safe,
     split,
+    stm,
     strings,
     terminal-size,
     text,

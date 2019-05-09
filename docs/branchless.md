@@ -21,9 +21,6 @@ Old **<u>Names</u>** is an unconflicted **<u>Namespace</u>**. is for parsing cod
 ```haskell
 { termNames :: Map Name Referent
 , typeNames :: Map Name Reference }
--- becomes:
-{ termNames :: Name -> m (Maybe Referent)
-, typeNames :: Name -> m (Maybe Reference) }
 ```
 
 
@@ -87,8 +84,31 @@ Parsing command-line arguments:
   Use `edit.undeprecate` to cancel a deprecation.
   Use `edit.replace bar#hhh bar#ggg` to start replacing the 7 usages of `bar#hhh` with `bar#ggg`.
 
-  /foo>
+  /foo> alias bar baz
+  
+  Not sure which bar you meant?
+    bar#ggg
+    bar#hhh
+  Try specifying the hash-qualified name, or sort out the conflicts before
+  making the alias.
   ```
+  
+  ```
+  /foo> edit.resolve bar#fff bar#ggg
+  
+  Cleared bar#fff -> bar#hhh
+  Added   bar#ggg -> bar#hhh
+  ```
+  
+  or
+  
+  ```
+  /foo> edit.unreplace bar#fff bar#ggg
+  
+  Cleared bar#fff -> bar#ggg
+  ```
+  
+  
 
 
 

@@ -1,4 +1,5 @@
-{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
 
 module Unison.Codebase.Path
   -- ( Name(..)
@@ -19,12 +20,25 @@ import           Data.List                (intercalate)
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toList :: [NameSegment] } deriving (Eq, Ord)
+
+asIdentifier :: Path -> Text
+asIdentifier = Text.intercalate "." . fmap toText . toList
+
+asDirectory :: Path -> Text
+asDirectory p = case toList p of
+  NameSegment "_root_" : tail -> "/" <> asDirectory (Path tail)
+  other -> Text.intercalate "/" . fmap toText $ other
+
+fromName :: Name -> Path
+fromName = Path . fmap NameSegment . Text.splitOn "." . Name.toText
 
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.

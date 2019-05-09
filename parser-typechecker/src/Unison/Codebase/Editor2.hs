@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -21,7 +23,7 @@ import qualified Unison.Codebase.Branch2 as Branch2
 --                                                 , traverse_
 --                                                 )
 -- import           Data.Bifunctor                 ( bimap, second )
--- import           Data.List.Extra                ( nubOrd )
+import           Data.List.Extra                ( nubOrd )
 -- import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import           Data.Sequence                  ( Seq )
@@ -47,9 +49,7 @@ import qualified Unison.Codebase.SearchResult  as SR
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names                   ( Names
-                                                , NameTarget
-                                                )
+import           Unison.Names                   ( Names )
 -- import qualified Unison.Names as Names
 import           Unison.Codebase.Path           ( Path )
 import           Unison.Parser                  ( Ann )
@@ -62,7 +62,7 @@ import           Unison.Result                  ( Note
                                                 )
 -- import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
--- import qualified Unison.Referent               as Referent
+import qualified Unison.Referent               as Referent
 -- import qualified Unison.Runtime.IOSource       as IOSource
 -- import           Unison.Symbol                  ( Symbol )
 import           Unison.Util.Relation          (Relation)
@@ -79,11 +79,11 @@ import qualified Unison.UnisonFile             as UF
 -- import           Unison.Util.Free               ( Free )
 -- import qualified Unison.Util.Free              as Free
 -- import           Unison.Var                     ( Var )
---
--- data Event
---   = UnisonFileChanged SourceName Text
---   | UnisonBranchChanged (Set BranchName)
---
+
+data Event
+  = UnisonFileChanged SourceName Text
+  | IncomingRootBranch (Set Branch.Hash)
+
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v =
@@ -91,6 +91,13 @@ type TypecheckingResult v =
          (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
+
+type BranchPath = Path
+type EditsPath = Path
+type TermPath = Path
+type TypePath = Path
+
+data NameTarget = TermName | TypeName | EditsName deriving (Eq, Ord, Show)
 
 data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
@@ -143,35 +150,39 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkBranchI (RepoLink Path) Path
+    = ForkBranchI (RepoLink BranchPath) BranchPath
     -- merge first causal into destination
-    | MergeBranchI (RepoLink Path) Path
+    | MergeBranchI (RepoLink BranchPath) BranchPath
     -- Question: How should we distinguish "move as rename" vs
     -- "move within" mv foo bar vs mv foo bar/ ?
     -- Answer: use `mv foo bar/foo` if that's what you want.
-    | RenameBranchI Path Path
+    | RenameBranchI BranchPath BranchPath
     --
-    | DeleteBranchI [Path]
-    | SwitchBranchI Path -- cd
+    | DeleteBranchI [BranchPath]
+    | SwitchBranchI BranchPath -- cd
     -- definition naming
       -- if HashQualified is unique, create alias
-    | AliasUniqueI HashQualified Name
-    | RenameUniqueI HashQualified Name
+    | AliasAnyI HashQualified Path
+    | AliasTermI HashQualified TermPath
+    | AliasTypeI HashQualified TypePath
+    | RenameAnyI HashQualified Path
+    | RenameTermI HashQualified TermPath
+    | RenameTypeI HashQualified TypePath
+    | RenameEditsI EditsPath EditsPath
+    | RemoveTermNameI TermPath
+    | RemoveTypeNameI TypePath
     -- deletes all the supplied names.  because names (and even hash-qualified
     -- names) may correspond to multiple definitions, this command will delete
     -- all matching entries.
     | UnnameAllI (Set HashQualified)
-    -- resolving naming conflicts
-    | ResolveTermNameI Referent Name
-    | ResolveTypeNameI Reference Name
+    -- resolving naming conflicts within `branchpath`
+      -- Add the specified name after deleting all others for a given reference
+      -- within a given branch.
+      | ResolveTermNameI BranchPath Referent Name
+      | ResolveTypeNameI BranchPath Reference Name
   -- edits stuff:
-    -- -- begin applying `guid` to the todos for `path`
-    -- | ActivateEditsI Path EditGuid
-    -- -- stop applying `guid` from the todos for `path`
-    -- | DeactivateEditsI Path EditGuid
-    -- -- list work from active todos
-    -- | TodoI Path
-    -- | PropagateI -- get rid of this?
+    | TodoI EditsPath BranchPath
+    | PropagateI EditsPath BranchPath
     -- -- create and remove update directives
     -- | CreateEditsI EditGuid -- implies SetEdits?
     -- | SetEditsI EditGuid
@@ -313,8 +324,8 @@ data NameChangeResult = NameChangeResult
 -- -- All collisions get left alone and are not added to successes.
 -- addCollisionHandler :: CollisionHandler
 -- addCollisionHandler = const False
---
--- data SearchMode = FuzzySearch | ExactSearch
+
+data SearchMode = FuzzySearch | ExactSearch
 type AmbientAbilities v = [Type.AnnotatedType v Ann]
 
 data Command i v a where
@@ -382,6 +393,9 @@ data Command i v a where
   -- Merges the code from the given link with the existing code at the given
   -- path. Returns `False` if the link is dead, `True` otherwise.
   MergeBranch :: RepoLink Path -> Path -> Command i v Bool
+
+  -- Syncs the Branch to disk and updates the head to the head of this causal.
+  UpdateRootBranch :: Branch (Command i v) -> Command i v ()
 
   -- Return the subset of the branch tip which is in a conflicted state.
   -- A conflict is:
@@ -690,20 +704,21 @@ data Command i v a where
 --   (Codebase.branchExists codebase branchName)
 --   (Codebase.syncBranch codebase branchName branch *> pure True)
 --   (pure False)
---
--- -- Returns terms and types, respectively. For terms that are
--- -- constructors, turns them into their data types.
--- collateReferences
---   :: [Referent] -- terms requested, including ctors
---   -> [Reference] -- types requested
---   -> ([Reference], [Reference])
--- collateReferences terms types =
---   let terms' = [ r | Referent.Ref r <- terms ]
---       types' = terms >>= \case
---         Referent.Con r _ -> [r]
---         _                -> []
---   in  (terms', nubOrd $ types' <> types)
---
+
+-- Separates type references from term references and returns terms and types,
+-- respectively. For terms that are constructors, turns them into their data
+-- types.
+collateReferences
+  :: [Referent] -- terms requested, including ctors
+  -> [Reference] -- types requested
+  -> ([Reference], [Reference])
+collateReferences terms types =
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = terms >>= \case
+        Referent.Con r _ -> [r]
+        _                -> []
+  in  (terms', nubOrd $ types' <> types)
+
 -- commandLine
 --   :: forall i v a
 --    . Var v
