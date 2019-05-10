@@ -123,22 +123,22 @@ notifyUser dir o = case o of
     putStrLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
-    else
-      -- todo: hashqualify binding names if necessary to distinguish them from
-      --       defs in the codebase.  In some cases it's fine for bindings to
-      --       shadow codebase names, but you don't want it to capture them in
-      --       the decompiled output.
-      let prettyBindings = P.bracket . P.lines $
-            P.wrap "The watch expression(s) reference these definitions:" : "" :
-            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
-            | (v, b) <- bindings]
-          prettyWatches = P.lines [
-            watchPrinter fileContents ppe ann kind evald isCacheHit |
-            (ann,kind,evald,isCacheHit) <-
-              sortOn (\(a,_,_,_)->a) . toList $ watches ]
-      -- todo: use P.nonempty
-      in putPrettyLn $ if null bindings then prettyWatches
-                       else prettyBindings <> "\n" <> prettyWatches
+    else error "todo"
+      -- -- todo: hashqualify binding names if necessary to distinguish them from
+      -- --       defs in the codebase.  In some cases it's fine for bindings to
+      -- --       shadow codebase names, but you don't want it to capture them in
+      -- --       the decompiled output.
+      -- let prettyBindings = P.bracket . P.lines $
+      --       P.wrap "The watch expression(s) reference these definitions:" : "" :
+      --       [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+      --       | (v, b) <- bindings]
+      --     prettyWatches = P.lines [
+      --       watchPrinter fileContents ppe ann kind evald isCacheHit |
+      --       (ann,kind,evald,isCacheHit) <-
+      --         sortOn (\(a,_,_,_)->a) . toList $ watches ]
+      -- -- todo: use P.nonempty
+      -- in putPrettyLn $ if null bindings then prettyWatches
+      --                  else prettyBindings <> "\n" <> prettyWatches
 
   DisplayConflicts termNamespace typeNamespace -> do
     showConflicts "terms" terms
@@ -196,29 +196,30 @@ notifyUser dir o = case o of
           : []
   where
   renderFileName = P.group . P.blue . fromString
-  nameChange cmd pastTenseCmd oldName newName r = do
-    when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
-      P.wrap $ "I" <> pastTenseCmd <> "the"
-        <> ns (E.changedSuccessfully r)
-        <> P.blue (prettyName oldName)
-        <> "to" <> P.group (P.green (prettyName newName) <> ".")
-    when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
-      (P.wrap $ "I couldn't" <> cmd <> "the"
-           <> ns (E.oldNameConflicted r)
-           <> P.blue (prettyName oldName)
-           <> "to" <> P.green (prettyName newName)
-           <> "because of conflicts.")
-      <> "\n\n"
-      <> tip ("Use " <> makeExample' IP.todo <> " to view more information on conflicts and remaining work.")
-    when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
-      (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
-           <> "to" <> P.green (prettyName newName)
-           <> "because the "
-           <> ns (E.newNameAlreadyExists r)
-           <> "already exist(s).")
-      <> "\n\n"
-      <> tip
-         ("Use" <> makeExample IP.rename [prettyName newName, "<newname>"] <> "to make" <> prettyName newName <> "available.")
+  nameChange cmd pastTenseCmd oldName newName r = error "todo"
+  -- do
+  --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
+  --     P.wrap $ "I" <> pastTenseCmd <> "the"
+  --       <> ns (E.changedSuccessfully r)
+  --       <> P.blue (prettyName oldName)
+  --       <> "to" <> P.group (P.green (prettyName newName) <> ".")
+  --   when (not . Set.null $ E.oldNameConflicted r) . putPrettyLn . P.warnCallout $
+  --     (P.wrap $ "I couldn't" <> cmd <> "the"
+  --          <> ns (E.oldNameConflicted r)
+  --          <> P.blue (prettyName oldName)
+  --          <> "to" <> P.green (prettyName newName)
+  --          <> "because of conflicts.")
+  --     <> "\n\n"
+  --     <> tip ("Use " <> makeExample' IP.todo <> " to view more information on conflicts and remaining work.")
+  --   when (not . Set.null $ E.newNameAlreadyExists r) . putPrettyLn . P.warnCallout $
+  --     (P.wrap $ "I couldn't" <> cmd <> P.blue (prettyName oldName)
+  --          <> "to" <> P.green (prettyName newName)
+  --          <> "because the "
+  --          <> ns (E.newNameAlreadyExists r)
+  --          <> "already exist(s).")
+  --     <> "\n\n"
+  --     <> tip
+  --        ("Use" <> makeExample IP.rename [prettyName newName, "<newname>"] <> "to make" <> prettyName newName <> "available.")
     where
       ns targets = P.oxfordCommas $
         map (fromString . Names.renderNameTarget) (toList targets)
@@ -337,8 +338,8 @@ prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
 -- todo: maybe delete this
 prettyAliases ::
   (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
-prettyAliases aliases = if length aliases < 2 then mempty else
-  (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
+prettyAliases aliases = if length aliases < 2 then mempty else error "todo"
+  -- (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
 prettyDeclTriple ::
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
@@ -410,14 +411,15 @@ todoOutput ppe todo =
   corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
   goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe branch
-    , renderNameConflicts conflictedTypeNames conflictedTermNames ]
+    [error "todo", error "todo"]
+    -- [ renderEditConflicts ppe branch
+    -- , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
-    -- If a conflict is both an edit and a name conflict, we show it in the edit
-    -- conflicts section
-    c = Branch.nameOnlyConflicts (E.todoConflicts todo)
-    conflictedTypeNames = Branch.allTypeNames c
-    conflictedTermNames = Branch.allTermNames c
+    -- -- If a conflict is both an edit and a name conflict, we show it in the edit
+    -- -- conflicts section
+    -- c = Branch.nameOnlyConflicts (E.todoConflicts todo)
+    -- conflictedTypeNames = Branch.allTypeNames c
+    -- conflictedTermNames = Branch.allTermNames c
   todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
       [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
               <> "transitive dependent(s) left to upgrade."

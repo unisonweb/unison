@@ -27,6 +27,20 @@ data Branch0 =
 
 makeLenses ''Branch0
 
+instance Semigroup Namespace where
+  (<>) = mappend
+instance Monoid Namespace where
+  mempty = Namespace mempty mempty
+  mappend (Namespace tm1 tp1) (Namespace tm2 tp2) =
+    Namespace (tm1 <> tm2) (tp1 <> tp2)
+
+instance Semigroup Branch0 where
+  (<>) = mappend
+instance Monoid Branch0 where
+  mempty = Branch0 mempty mempty mempty
+  mappend (Branch0 ns1 tm1 tp1) (Branch0 ns2 tm2 tp2) =
+    Branch0 (ns1 <> ns2) (tm1 <> tm2) (tp1 <> tp2)
+
 -- What does it mean to be a conflict that is both an edit and a name conflict?
 -- (inspired by OutputMessages.todoOutput)
 --
