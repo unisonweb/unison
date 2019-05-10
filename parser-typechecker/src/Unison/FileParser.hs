@@ -209,10 +209,11 @@ dataDeclaration mod = do
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
+      wordyIdVar = fmap Var.nameds <$> wordyId
       record = do
         _ <- openBlockWith "{"
         fields <- sepBy1 (reserved ",") $
-          liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueTypeLeaf
+          liftA2 (,) (wordyIdVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
         pure $ ([go name (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-

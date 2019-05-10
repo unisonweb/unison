@@ -88,7 +88,7 @@ prettyDataDecl env r name dd =
                                  (field <$> zip fs (init ts))
                         <> " }"
   field (fname, typ) = P.group $
-    prettyHashQualified fname <> " :" `P.hang` TypePrinter.pretty0 env 10 typ
+    prettyHashQualified fname <> " :" `P.hang` TypePrinter.pretty0 env (-1) typ
   header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a
