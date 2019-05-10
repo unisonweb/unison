@@ -1,2 +1,8 @@
 
-type Point = { x : Float, y : Float }
+type Point = { x : Nat, y : Nat }
+
+> Point.x.set 10 (Point 0 0)
+> Point.x (Point 10 0)
+> Point.y (Point 0 10)
+> Point.x.modify ((+) 1) (Point 0 0)
+> Point.y.modify ((+) 1) (Point 0 0)

@@ -2,6 +2,8 @@
 {-# Language DeriveFunctor #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language TupleSections #-}
+{-# Language OverloadedStrings #-}
+{-# Language ViewPatterns #-}
 
 module Unison.FileParser where
 
@@ -232,19 +234,56 @@ generateAccessors :: forall v . Var v
   -> [(L.Token v, AnnotatedType v Ann)]
   -> R.Reference
   -> [(v, AnnotatedTerm v Ann)]
-generateAccessors typename fields typ = let
-  cargs loc i = [ if j == i then Pattern.Var loc else Pattern.Unbound loc
-                | j <- [0..length fields - 1] ]
+generateAccessors typename fields typ =
+  join [ tm t i | ((t,_), i) <- fields `zip` [(0::Int)..] ]
+  where
   argname = Var.uncapitalize (L.payload typename)
-  tm t i =
-    Term.lam (ann t) argname $ Term.match (ann t)
-             (Term.var (ann typename) argname)
-             [Term.MatchCase pat Nothing rhs]
+  typenamev = L.payload typename
+  tm f i =
+    [(Var.namespaced $ [typenamev, fname], get),
+     (Var.namespaced $ [typenamev, fname, Var.named "set"], set),
+     (Var.namespaced $ [typenamev, fname, Var.named "modify"], modify)]
     where
-    pat = Pattern.Constructor (ann t) typ 0 (cargs (ann t) i)
-    rhs = ABT.abs' (ann t) (L.payload t) (Term.var (ann t) (L.payload t))
-  in [ (Var.namespaced $ map L.payload [typename, t], tm t i)
-     | ((t,_), i) <- fields `zip` [0..] ]
+    fname = L.payload f
+    -- example: `point -> case point of Point x _ -> x`
+    get = Term.lam (ann f) argname $ Term.match (ann f)
+      (Term.var (ann typename) argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      pat = Pattern.Constructor (ann f) typ 0 cargs
+      cargs = [ if j == i then Pattern.Var (ann f) else Pattern.Unbound (ann f)
+              | (_, j) <- fields `zip` [0..]]
+      rhs = ABT.abs' (ann f) fname (Term.var (ann f) fname)
+    -- example: `x point -> case point of Point _ y -> Point x y`
+    set = Term.lam' (ann f) [fname', argname] $ Term.match (ann f)
+      (Term.var (ann typename) argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      fname' = Var.named . Var.name $
+               Var.freshIn (Set.fromList $ [argname] <> (L.payload . fst <$> fields)) fname
+      pat = Pattern.Constructor (ann f) typ 0 cargs
+      cargs = [ if j == i then Pattern.Unbound (ann f) else Pattern.Var (ann f)
+              | (_, j) <- fields `zip` [0..]]
+      rhs = foldr (ABT.abs' (ann f)) (Term.constructor (ann f) typ 0 `Term.apps'` vargs)
+                  [ L.payload f | ((f, _), j) <- fields `zip` [0..], j /= i ]
+      vargs = [ if j == i then Term.var (ann f) fname' else Term.var (ann f) v
+              | ((L.payload -> v, _), j) <- fields `zip` [0..]]
+    -- example: `f point -> case point of Point x y -> Point (f x) y`
+    modify = Term.lam' (ann f) [fname', argname] $ Term.match (ann f)
+      (Term.var (ann typename) argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      fname' = Var.named . Var.name $
+               Var.freshIn (Set.fromList $ [argname] <> (L.payload . fst <$> fields))
+                           (Var.named "f")
+      pat = Pattern.Constructor (ann f) typ 0 cargs
+      cargs = replicate (length fields) $ Pattern.Var (ann f)
+      rhs = foldr (ABT.abs' (ann f)) (Term.constructor (ann f) typ 0 `Term.apps'` vargs)
+                  [ L.payload f | (f, _) <- fields ]
+      vargs = [ if j == i
+                then Term.apps' (Term.var (ann f) fname') [Term.var (ann f) v]
+                else Term.var (ann f) v
+              | ((L.payload -> v, _), j) <- fields `zip` [0..]]
 
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
