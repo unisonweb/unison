@@ -50,6 +50,7 @@ module Unison.Util.Pretty (
    renderUnbroken,
    rightPad,
    sep,
+   sepNonEmpty,
    sepSpaced,
    shown,
    softbreak,
@@ -245,6 +246,9 @@ sepSpaced between = sep (between <> softbreak)
 
 sep :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sep between = intercalateMap between id
+
+sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
+sepNonEmpty between ps = sep between (nonEmpty ps)
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
 nonEmpty (toList -> l) = case l of

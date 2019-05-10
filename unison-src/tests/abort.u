@@ -1,5 +1,5 @@
 --Abort
-effect Abort where
+ability Abort where
   Abort : forall a . () -> {Abort} a
 eff : forall a b . (a -> b) -> b -> Effect Abort a -> b
 eff f z e = case e of

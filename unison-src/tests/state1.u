@@ -1,5 +1,5 @@
---State1 effect
-effect State se2 where
+--State1 ability
+ability State se2 where
   put : ∀ se . se -> {State se} ()
   get : ∀ se . () -> {State se} se
 

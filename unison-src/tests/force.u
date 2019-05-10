@@ -1,4 +1,4 @@
-effect Woot where woot : {Woot} Text
+ability Woot where woot : {Woot} Text
 
 force : '{e} a ->{e} a
 force a = !a

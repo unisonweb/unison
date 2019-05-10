@@ -1,5 +1,5 @@
 --handle inference
-effect State s where
+ability State s where
   get : ∀ s . () -> {State s} s
   set : ∀ s . s -> {State s} ()
 state : ∀ a s . s -> Effect (State s) a -> a

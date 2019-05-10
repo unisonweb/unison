@@ -6,6 +6,7 @@ module Unison.FileParser where
 
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
+import Data.String (fromString)
 import           Control.Applicative
 import           Control.Monad (guard, msum)
 import           Control.Monad.Reader (local, asks)
@@ -102,7 +103,7 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
   kind <- optional wordyId
-  guid <- uniqueName
+  guid <- uniqueName 10
   op <- optional (L.payload <$> P.lookAhead symbolyId)
   guard (op == Just ">")
   tok <- anyToken
@@ -125,8 +126,7 @@ declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
                           Map v (EffectDeclaration' v Ann))
 declarations = do
-  declarations <- many $
-    ((Left <$> dataDeclaration) <|> Right <$> effectDeclaration) <* optional semi
+  declarations <- many $ declaration <* optional semi
   let (dataDecls, effectDecls) = partitionEithers declarations
       multimap :: Ord k => [(k,v)] -> Map k [v]
       multimap kvs = foldl' mi Map.empty kvs
@@ -142,13 +142,27 @@ declarations = do
       [ (v, DD.annotation <$> ds) | (v, ds) <- Map.toList mdsBad ] <>
       [ (v, DD.annotation . DD.toDataDecl <$> es) | (v, es) <- Map.toList mesBad ]
 
--- type Optional a = Some a | None
---                   a -> Optional a
---                   Optional a
+modifier :: Var v => P v (L.Token DD.Modifier)
+modifier = do
+  o <- optional (openBlockWith "unique")
+  case o of
+    Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
+    Just tok -> do
+      uid <- do
+        o <- optional (reserved "[" *> wordyId <* reserved "]")
+        case o of
+          Nothing -> uniqueName 32
+          Just uid -> pure (fromString . L.payload $ uid)
+      pure (DD.Unique uid <$ tok)
 
-dataDeclaration :: forall v . Var v => P v (v, DataDeclaration' v Ann)
-dataDeclaration = do
-  start <- openBlockWith "type"
+declaration :: Var v => P v (Either (v, DataDeclaration' v Ann) (v, EffectDeclaration' v Ann))
+declaration = do
+  mod <- modifier
+  fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
+
+dataDeclaration :: forall v . Var v => L.Token DD.Modifier -> P v (v, DataDeclaration' v Ann)
+dataDeclaration mod = do
+  _ <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
@@ -175,19 +189,19 @@ dataDeclaration = do
       -- otherwise ann of name
       closingAnn :: Ann
       closingAnn = last (ann eq : ((\(_,_,t) -> ann t) <$> constructors))
-  pure (L.payload name, DD.mkDataDecl' (ann start <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
 
-effectDeclaration :: Var v => P v (v, EffectDeclaration' v Ann)
-effectDeclaration = do
-  effectStart <- reserved "effect" <|> reserved "ability"
+effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
+effectDeclaration mod = do
+  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
   name <- prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
   constructors <- sepBy semi (constructor name)
-  _ <- closeBlock
+  _ <- closeBlock <* closeBlock -- `ability` opens a block, as does `where`
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure (L.payload name, DD.mkEffectDecl' (ann effectStart <> closingAnn) typeArgVs constructors)
+  pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>

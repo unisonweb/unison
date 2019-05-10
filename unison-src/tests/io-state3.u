@@ -1,5 +1,5 @@
---IO3 effect
-effect IO where
+--IO3 ability
+ability IO where
   launchMissiles : () -> {IO} ()
 -- binding IS guarded, so its body can access whatever abilities
 -- are declared by the type of the binding

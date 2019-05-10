@@ -1,0 +1,28 @@
+
+unique ability Zing where zing : {Zang} Nat
+
+unique[asdlfkjasdflkj] ability Zang where
+  zang : {Zing} Nat
+
+unique
+  ability Blarg where
+  oog : {Blarg} Text
+
+unique type Bool = T | F
+
+unique[sdalfkjsdf] type BetterBool = Ya | Nah
+
+unique[asdflkajsdf] type Day
+  = Sun | Mon | Tue | Wed | Thu | Fri | Sat
+
+id x = x
+
+unique type Day2
+  = Sun
+  | Mon
+  | Tue
+  | Wed
+  | Thu
+  | Fri
+  | Sat
+

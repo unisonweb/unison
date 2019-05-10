@@ -1,11 +1,11 @@
 -- This confusingly gives an error that
 -- it doesn't know what `Console.simulate` is.
 
-effect State s where
+ability State s where
   get : {State s} s
   set : s -> {State s} ()
 
-effect Console where
+ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 
