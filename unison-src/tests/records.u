@@ -1,0 +1,12 @@
+
+type Point x y = { x : x, y : y }
+
+type Point2 = { point2 : Nat, f : Nat }
+
+type Monoid a = { zero : a, plus : a -> a -> a }
+
+> Point.x.set 10 (Point 0 0)
+> Point.x (Point 10 0)
+> Point.y (Point 0 10)
+> Point.x.modify ((+) 1) (Point 0 0)
+> Point.y.modify ((+) 1) (Point 0 0)

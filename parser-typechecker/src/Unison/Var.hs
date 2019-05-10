@@ -4,6 +4,7 @@
 
 module Unison.Var where
 
+import Data.Char (toLower)
 import Data.Set (Set)
 import Data.String (fromString)
 import Data.Text (Text, pack)
@@ -51,6 +52,11 @@ name v = case typeOf v of
   where
   showid (freshId -> 0) = ""
   showid (freshId -> n) = pack (show n)
+
+uncapitalize :: Var v => v -> v
+uncapitalize v = nameds $ go (nameStr v) where
+  go (c:rest) = toLower c : rest
+  go n = n
 
 askInfo, missingResult, blank, inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
