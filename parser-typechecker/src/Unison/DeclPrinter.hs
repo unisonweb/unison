@@ -74,9 +74,26 @@ prettyDataDecl env r name dd =
   constructor (n, (_, _, t)                       ) = constructor' n t
   constructor' n t = case Type.unArrows t of
     Nothing -> prettyPattern env r name n
-    Just ts -> P.group . P.hang' (prettyPattern env r name n) "      "
-             $ P.spaced (TypePrinter.pretty0 env 10 <$> init ts)
+    Just ts -> case fieldNames env r name dd of
+      Nothing -> P.group . P.hang' (prettyPattern env r name n) "      "
+               $ P.spaced (TypePrinter.pretty0 env 10 <$> init ts)
+      Just fs -> P.group $ "{"
+                        <> P.sep ("," <> " " `P.orElse` "\n  ")
+                                 (field <$> zip fs (init ts))
+                        <> "}"
+  field (fname, typ) =
+    prettyHashQualified fname <> ":" `P.hang` TypePrinter.pretty0 env 10 typ
   header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
+
+fieldNames
+  :: PrettyPrintEnv
+  -> Reference
+  -> HashQualified
+  -> DataDeclaration' v a
+  -> Maybe [HashQualified]
+fieldNames _env _r _name dd = case DD.constructors dd of
+  [_ctor] -> Nothing
+  _ -> Nothing
 
 prettyModifier :: DD.Modifier -> Pretty ColorText
 prettyModifier DD.Structural = mempty
