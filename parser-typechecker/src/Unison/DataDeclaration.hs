@@ -12,6 +12,7 @@ module Unison.DataDeclaration where
 import           Safe                           ( atMay )
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
+import           Control.Monad                  ( join )
 import           Data.Functor
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
@@ -64,6 +65,61 @@ generateConstructorRefs
   -> [(ConstructorId, Reference)]
 generateConstructorRefs hashCtor rid n =
   (\i -> (i, hashCtor (Reference.DerivedId rid) i)) <$> [0 .. n]
+
+generateRecordAccessors
+  :: (Semigroup a, Var v)
+  => [(v, a)]
+  -> v
+  -> Reference
+  -> [(v, AnnotatedTerm v a)]
+generateRecordAccessors fields typename typ =
+  join [ tm t i | (t, i) <- fields `zip` [(0::Int)..] ]
+  where
+  argname = Var.uncapitalize typename
+  tm (fname, ann) i =
+    [(Var.namespaced $ [typename, fname], get),
+     (Var.namespaced $ [typename, fname, Var.named "set"], set),
+     (Var.namespaced $ [typename, fname, Var.named "modify"], modify)]
+    where
+    -- example: `point -> case point of Point x _ -> x`
+    get = Term.lam ann argname $ Term.match ann
+      (Term.var ann argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      pat = Pattern.ConstructorP ann typ 0 cargs
+      cargs = [ if j == i then Pattern.VarP ann else Pattern.UnboundP ann
+              | (_, j) <- fields `zip` [0..]]
+      rhs = ABT.abs' ann fname (Term.var ann fname)
+    -- example: `x point -> case point of Point _ y -> Point x y`
+    set = Term.lam' ann [fname', argname] $ Term.match ann
+      (Term.var ann argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      fname' = Var.named . Var.name $
+               Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields)) fname
+      pat = Pattern.ConstructorP ann typ 0 cargs
+      cargs = [ if j == i then Pattern.UnboundP ann else Pattern.VarP ann
+              | (_, j) <- fields `zip` [0..]]
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+                  [ f | ((f, _), j) <- fields `zip` [0..], j /= i ]
+      vargs = [ if j == i then Term.var ann fname' else Term.var ann v
+              | ((v, _), j) <- fields `zip` [0..]]
+    -- example: `f point -> case point of Point x y -> Point (f x) y`
+    modify = Term.lam' ann [fname', argname] $ Term.match ann
+      (Term.var ann argname)
+      [Term.MatchCase pat Nothing rhs]
+      where
+      fname' = Var.named . Var.name $
+               Var.freshIn (Set.fromList $ [argname] <> (fst <$> fields))
+                           (Var.named "f")
+      pat = Pattern.ConstructorP ann typ 0 cargs
+      cargs = replicate (length fields) $ Pattern.VarP ann
+      rhs = foldr (ABT.abs' ann) (Term.constructor ann typ 0 `Term.apps'` vargs)
+                  (fst <$> fields)
+      vargs = [ if j == i
+                then Term.apps' (Term.var ann fname') [Term.var ann v]
+                else Term.var ann v
+              | ((v, _), j) <- fields `zip` [0..]]
 
 -- Returns references to the constructors,
 -- along with the terms for those references and their types.

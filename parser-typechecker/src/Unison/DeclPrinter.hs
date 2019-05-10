@@ -81,7 +81,7 @@ prettyDataDecl env r name dd =
                         <> P.sep ("," <> " " `P.orElse` "\n  ")
                                  (field <$> zip fs (init ts))
                         <> "}"
-  field (fname, typ) =
+  field (fname, typ) = P.group $
     prettyHashQualified fname <> ":" `P.hang` TypePrinter.pretty0 env 10 typ
   header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
 

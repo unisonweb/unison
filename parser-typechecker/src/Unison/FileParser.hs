@@ -27,7 +27,6 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.Lexer as L
 import           Unison.Parser
 import           Unison.Term (AnnotatedTerm)
-import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
 import           Unison.Type (AnnotatedType)
@@ -39,7 +38,6 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
-import qualified Unison.Reference as R
 
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
@@ -67,10 +65,9 @@ file = do
           Binding ((_, v), at) -> ((v,at) : terms, watches)
           Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
+        toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
-          [ -- Term.bindBuiltins [] (Map.toList $ fst <$> UF.datas env)
-            --                     (generateAccessors typ fields r)
-            generateAccessors typ fields r
+          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors
           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
@@ -228,62 +225,6 @@ dataDeclaration mod = do
   pure (L.payload name,
         DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors,
         accessors)
-
-generateAccessors :: forall v . Var v
-  => L.Token v
-  -> [(L.Token v, AnnotatedType v Ann)]
-  -> R.Reference
-  -> [(v, AnnotatedTerm v Ann)]
-generateAccessors typename fields typ =
-  join [ tm t i | ((t,_), i) <- fields `zip` [(0::Int)..] ]
-  where
-  argname = Var.uncapitalize (L.payload typename)
-  typenamev = L.payload typename
-  tm f i =
-    [(Var.namespaced $ [typenamev, fname], get),
-     (Var.namespaced $ [typenamev, fname, Var.named "set"], set),
-     (Var.namespaced $ [typenamev, fname, Var.named "modify"], modify)]
-    where
-    fname = L.payload f
-    -- example: `point -> case point of Point x _ -> x`
-    get = Term.lam (ann f) argname $ Term.match (ann f)
-      (Term.var (ann typename) argname)
-      [Term.MatchCase pat Nothing rhs]
-      where
-      pat = Pattern.Constructor (ann f) typ 0 cargs
-      cargs = [ if j == i then Pattern.Var (ann f) else Pattern.Unbound (ann f)
-              | (_, j) <- fields `zip` [0..]]
-      rhs = ABT.abs' (ann f) fname (Term.var (ann f) fname)
-    -- example: `x point -> case point of Point _ y -> Point x y`
-    set = Term.lam' (ann f) [fname', argname] $ Term.match (ann f)
-      (Term.var (ann typename) argname)
-      [Term.MatchCase pat Nothing rhs]
-      where
-      fname' = Var.named . Var.name $
-               Var.freshIn (Set.fromList $ [argname] <> (L.payload . fst <$> fields)) fname
-      pat = Pattern.Constructor (ann f) typ 0 cargs
-      cargs = [ if j == i then Pattern.Unbound (ann f) else Pattern.Var (ann f)
-              | (_, j) <- fields `zip` [0..]]
-      rhs = foldr (ABT.abs' (ann f)) (Term.constructor (ann f) typ 0 `Term.apps'` vargs)
-                  [ L.payload f | ((f, _), j) <- fields `zip` [0..], j /= i ]
-      vargs = [ if j == i then Term.var (ann f) fname' else Term.var (ann f) v
-              | ((L.payload -> v, _), j) <- fields `zip` [0..]]
-    -- example: `f point -> case point of Point x y -> Point (f x) y`
-    modify = Term.lam' (ann f) [fname', argname] $ Term.match (ann f)
-      (Term.var (ann typename) argname)
-      [Term.MatchCase pat Nothing rhs]
-      where
-      fname' = Var.named . Var.name $
-               Var.freshIn (Set.fromList $ [argname] <> (L.payload . fst <$> fields))
-                           (Var.named "f")
-      pat = Pattern.Constructor (ann f) typ 0 cargs
-      cargs = replicate (length fields) $ Pattern.Var (ann f)
-      rhs = foldr (ABT.abs' (ann f)) (Term.constructor (ann f) typ 0 `Term.apps'` vargs)
-                  [ L.payload f | (f, _) <- fields ]
-      vargs = [ if j == i
-                then Term.apps' (Term.var (ann f) fname') [Term.var (ann f) v]
-                else Term.var (ann f) v
-              | ((L.payload -> v, _), j) <- fields `zip` [0..]]
 
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
