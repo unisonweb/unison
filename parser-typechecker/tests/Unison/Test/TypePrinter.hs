@@ -1,6 +1,7 @@
 module Unison.Test.TypePrinter where
 
 import EasyTest
+import qualified Data.Map as Map
 import Unison.Type
 import Unison.TypePrinter
 import Unison.Symbol (Symbol)
@@ -19,7 +20,7 @@ tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
        get_names = PPE.fromNames Unison.Builtin.names
-       prettied = pretty get_names (-1) input_type
+       prettied = pretty get_names Map.empty (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width $ prettied

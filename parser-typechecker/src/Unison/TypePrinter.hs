@@ -6,12 +6,13 @@
 module Unison.TypePrinter where
 
 import qualified Data.ListLike                 as LL
+import qualified Data.Map              as Map
 import           Data.Maybe            (isJust)
 import           Data.String           (IsString, fromString)
 import qualified Data.Text             as Text
 import           Unison.HashQualified  (HashQualified)
 import           Unison.NamePrinter    (prettyHashQualified, prettyHashQualified')
-import           Unison.PrettyPrintEnv (PrettyPrintEnv)
+import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
 import           Unison.Type
@@ -46,43 +47,44 @@ import qualified Unison.DataDeclaration as DD
 pretty
   :: (IsString s, LL.ListLike s Char, Var v)
   => PrettyPrintEnv
+  -> Imports
   -> Int
   -> AnnotatedType v a
   -> Pretty s
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
-pretty n p tp = case tp of
+pretty n im p tp = case tp of
   Var' v     -> PP.text (Var.name v)
-  Ref' r     -> prettyHashQualified' $ (PrettyPrintEnv.typeName n r)
+  Ref' r     -> prettyHashQualified' $ elideFQN im (PrettyPrintEnv.typeName n r)
   Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
   Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
   Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
   App' (Ref' (Builtin "Sequence")) x ->
-    PP.group $ l "[" <> pretty n 0 x <> l "]"
+    PP.group $ l "[" <> pretty n im 0 x <> l "]"
   DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ "Pair" `PP.hang` PP.spaced
-    [pretty n 10 x, "()"]
-  DD.TupleType' xs  -> PP.parenthesizeCommas $ map (pretty n 0) xs
-  Apps' f xs -> PP.parenthesizeIf (p >= 10) $ pretty n 9 f `PP.hang` PP.spaced
-    (pretty n 10 <$> xs)
+    [pretty n im 10 x, "()"]
+  DD.TupleType' xs  -> PP.parenthesizeCommas $ map (pretty n im 0) xs
+  Apps' f xs -> PP.parenthesizeIf (p >= 10) $ pretty n im 9 f `PP.hang` PP.spaced
+    (pretty n im 10 <$> xs)
   Effect1' e t ->
-    PP.parenthesizeIf (p >= 10) $ pretty n 9 e <> l " " <> pretty n 10 t
+    PP.parenthesizeIf (p >= 10) $ pretty n im 9 e <> l " " <> pretty n im 10 t
   Effects' es         -> effects (Just es)
   ForallNamed' v body -> if (p < 0)
-    then pretty n p body
+    then pretty n im p body
     else
       paren True
       $         ("∀ " <> l (Text.unpack (Var.name v)) <> ".")
-      `PP.hang` pretty n (-1) body
+      `PP.hang` pretty n im (-1) body
   t@(Arrow' _ _) -> case (ungeneralizeEffects t) of
     EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
     EffectfulArrows' fst rest ->
-      PP.parenthesizeIf (p >= 0) $ pretty n 0 fst <> arrows False False rest
+      PP.parenthesizeIf (p >= 0) $ pretty n im 0 fst <> arrows False False rest
     _ -> l "error"
   _ -> l "error"
  where
   effects Nothing   = mempty
-  effects (Just es) = PP.group $ "{" <> PP.commas (pretty n 0 <$> es) <> "}"
+  effects (Just es) = PP.group $ "{" <> PP.commas (pretty n im 0 <$> es) <> "}"
   arrow delay first mes =
     (if first then mempty else PP.softbreak <> l "->")
       <> (if delay then (if first then l "'" else l " '") else mempty)
@@ -95,7 +97,7 @@ pretty n p tp = case tp of
   arrows delay first ((mes, arg) : rest) =
     arrow delay first mes
       <> (  parenNoGroup (delay && (not $ null rest))
-         $  pretty n 0 arg
+         $  pretty n im 0 arg
          <> arrows False False rest
          )
   arrows False False [] = mempty
@@ -114,8 +116,8 @@ pretty n p tp = case tp of
   -- b = Breakable
 
 pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
-pretty' (Just width) n t = PP.render width $ pretty n (-1) t
-pretty' Nothing      n t = PP.render maxBound $ pretty n (-1) t
+pretty' (Just width) n t = PP.render width $ pretty n Map.empty (-1) t
+pretty' Nothing      n t = PP.render maxBound $ pretty n Map.empty (-1) t
 
 -- todo: provide sample output in comment
 prettySignatures'
@@ -123,8 +125,8 @@ prettySignatures'
   -> [(HashQualified, AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
-  [ (prettyHashQualified name, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
-                   (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
+  [ (prettyHashQualified name, (": " <> PP.map fromString (pretty env Map.empty (-1) typ)) `PP.orElse`
+                   (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env Map.empty (-1) typ))))
   | (name, typ) <- ts
   ]
 
@@ -134,8 +136,8 @@ prettySignaturesAlt'
   -> [([HashQualified], AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = PP.align
-  [ (PP.commas . fmap prettyHashQualified $ names, (": " <> PP.map fromString (pretty env (-1) typ)) `PP.orElse`
-     (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env (-1) typ))))
+  [ (PP.commas . fmap prettyHashQualified $ names, (": " <> PP.map fromString (pretty env Map.empty (-1) typ)) `PP.orElse`
+     (": " <> PP.indentNAfterNewline 2 (PP.map fromString (pretty env Map.empty (-1) typ))))
   | (names, typ) <- ts
   ]
 

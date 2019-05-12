@@ -110,7 +110,19 @@ instance Eq (PatternP loc) where
   TextP _ t == TextP _ t2 = t == t2
   _ == _ = False
 
-
+foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m 
+foldMap' f p = case p of
+    UnboundP _              -> f p
+    VarP _                  -> f p
+    BooleanP _ _            -> f p
+    IntP _ _                -> f p
+    NatP _ _                -> f p
+    FloatP _ _              -> f p
+    TextP _ _               -> f p
+    ConstructorP _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
+    AsP _ p'                -> f p <> foldMap' f p'
+    EffectPureP _ p'        -> f p <> foldMap' f p'
+    EffectBindP _ _ _ ps p' -> f p <> foldMap (foldMap' f) ps <> foldMap' f p'
 
 -- idea: rename PatternP to PatternP0
 -- newtype PatternP loc = PatternP (PatternP0 loc)

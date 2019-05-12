@@ -385,17 +385,13 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "(foo a b)?"
 
 -- FQN elision tests
-  , pending $ 
-    tc_breaks 80 "if foo\n\
-                 \then\n\
+  , tc_breaks 12 "if foo then\n\
                  \  use A x\n\
                  \  f x x\n\
                  \else\n\
                  \  use B y\n\
                  \  f y y"
-  , pending $ 
-    tc_breaks 80 "if foo\n\
-                 \then\n\
+  , tc_breaks 12 "if foo then\n\
                  \  use A x\n\
                  \  f x x\n\
                  \else\n\
@@ -405,10 +401,8 @@ test = scope "termprinter" . tests $
     tc_breaks 80 "let\n\
                  \  use A x\n\
                  \  if foo then f x x else g x x"
-  , pending $ 
-    tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
-  , pending $ 
-    tc_breaks 80 "if foo then f A.x A.x B.x else y"  
+  , tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
+  , tc_breaks 80 "if foo then f A.x A.x B.x else y"  
   , pending $ 
     tc_breaks 80 "let\n\
                  \  use A x\n\
@@ -418,10 +412,9 @@ test = scope "termprinter" . tests $
                  \  use A x\n\
                  \  let\n\
                  \    if foo then f x x else g x x" 
+  , tc_breaks 80 "if foo then A.f x else y"              
   , pending $ 
-    tc_breaks 80 "if foo then A.f x else y"              
-  , pending $ 
-    tc_breaks 80 "if foo then\n\
+    tc_breaks 13 "if foo then\n\
                  \  use A (+)\n\
                  \  x + y\n\
                  \else y"
@@ -433,16 +426,13 @@ test = scope "termprinter" . tests $
                      x + y
                   else y
   -}                 
-  , pending $ 
-    tc_breaks 80 "if p\n\
-                 \then\n\
+  , tc_breaks 20 "if p then\n\
                  \  use A x\n\
                  \  use B y z\n\
                  \  f z z y y x x\n\
                  \else q"
-  , pending $ 
-    tc_breaks 80 "if foo\n\
-                 \then\n\
+  , pending $
+    tc_breaks 30 "if foo then\n\
                  \  use A.X c\n\
                  \  use AA.PP.QQ e\n\
                  \  f c c e e\n\
@@ -451,25 +441,19 @@ test = scope "termprinter" . tests $
                  \  use A.B X.d Y.d\n\
                  \  g X.d X.d Y.d Y.d f f"
   , pending $ 
-    tc_breaks 80 "if foo\n\
-                 \then\n\
+    tc_breaks 30 "if foo then\n\
                  \  use A.X c\n\
                  \  f c c\n\
                  \else\n\
                  \  use A X.c YY.c\n\
                  \  g X.c X.c YY.c YY.c"
-  , pending $ 
-    tc_breaks 80 "if foo\n\
-                 \then\n\
-                 \  use A t\n\
+  , tc_breaks 20 "if foo then\n\
                  \  f (x : Pair t t)\n\
                  \else\n\
-                 \  use B t\n\
                  \  f (x : Pair t t)"
-  , pending $ 
+  , pending $
     tc_breaks 30 "let\n\
-                 \  use A p\n\
                  \  case x of\n\
-                 \    (p, p) -> foo"
+                 \    (Pair p p, Pair p p) -> foo"
 
   ]

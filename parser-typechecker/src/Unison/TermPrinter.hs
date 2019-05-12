@@ -6,36 +6,43 @@ module Unison.TermPrinter where
 
 import           Control.Monad                  (join)
 import           Data.List
+import           Data.Either                    ( isRight )
 import           Data.Foldable                  ( fold
                                                 )
 import           Data.Map                       ( Map )
-import qualified Data.Map                       as Map
+import qualified Data.Map                      as Map
 import           Data.Maybe                     ( fromMaybe
                                                 , isJust
+                                                , fromJust
                                                 )
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
 import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( Text, splitOn )
+import           Data.Text                      ( splitOn,unpack )
+import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
-import           Unison.ABT                     ( pattern AbsN', reannotateUp )
+import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter             ( prettyHashQualified, prettyHashQualified' )
+import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
-import qualified Unison.PatternP               as Pattern
+import qualified Unison.PatternP               as PatternP
 import qualified Unison.Referent               as Referent
 import           Unison.Term
 import           Unison.Type                    ( AnnotatedType )
+import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Unison.Util.Pretty             as PP
 import           Unison.Util.Pretty             ( Pretty, ColorText )
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix, Imports, elideFQN )
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
@@ -132,17 +139,15 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    -- TODO use im when rendering var/ref/constructor/request, see elideFQN
-    -- TODO at each block statement, decide what extra imports to introduce, emit `use` statements, and adapt the AmbientContext
-    -- TODO check the im argument of all places I construct AmbientContext
-    Var' v -> parenIfInfix name ic . prettyHashQualified $ name
+-- TODO use calcImports in more places - ifthenelse, case branch, after a let, after in of handle, start of a binding after =
+    Var' v -> parenIfInfix name ic . prettyHashQualified $ elideFQN im name
       where name = HQ.fromVar v
-    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
+    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ elideFQN im name
       where name = PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal im) tm
-        <> PP.hang " :" (TypePrinter.pretty n 0 t)
+        <> PP.hang " :" (TypePrinter.pretty n im 0 t)
     Int'     i  -> (if i >= 0 then l "+" else mempty) <> (l $ show i)
     Nat'     u  -> l $ show u
     Float'   f  -> l $ show f
@@ -157,9 +162,9 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     Text'    s  -> l $ show s
     Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i ->
-      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Request' ref i ->
-      prettyHashQualified $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Handle' h body ->
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal im) h)
@@ -188,9 +193,11 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
        ]
      where
        height = PP.preferredHeight pt `max` PP.preferredHeight pf
-       pcond  = pretty n (ac 2 Block im) cond
-       pt     = pretty n (ac 2 Block im) t
-       pf     = pretty n (ac 2 Block im) f
+       pcond  = branch cond
+       pt     = branch t
+       pf     = branch f
+       branch tm = let (im', uses) = calcImports im tm
+                   in uses <> pretty n (ac 2 Block im') tm
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         "and", pretty n (ac 10 Normal im) x,
@@ -239,7 +246,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty n (ac (-1) Normal im) binding
-      else prettyBinding n (HQ.fromVar v) binding
+      else prettyBinding2 n (ac (-1) Normal im) (HQ.fromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> "let" `PP.hang` x
@@ -250,7 +257,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` pretty n (ac 0 Block im) body
     where
-    lhs = PP.group (fst (prettyPattern n (-1) vs pat) <> " ")
+    lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> "->"
     printGuard (Just g) = PP.group $ PP.spaced ["|", pretty n (ac 2 Normal im) g, ""]
@@ -305,6 +312,7 @@ pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal Map.empt
 prettyPattern
   :: Var v
   => PrettyPrintEnv
+  -> AmbientContext
   -> Int
   -> [v]
   -> Pattern loc
@@ -312,42 +320,42 @@ prettyPattern
 -- vs is the list of pattern variables used by the pattern, plus possibly a
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
-prettyPattern n p vs patt = case patt of
-  Pattern.Unbound _   -> (l "_", vs)
-  Pattern.Var     _   -> let (v : tail_vs) = vs in (l $ Var.nameStr v, tail_vs)
-  Pattern.Boolean _ b -> (if b then l "true" else l "false", vs)
-  Pattern.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
-  Pattern.Nat     _ u -> (l $ show u, vs)
-  Pattern.Float   _ f -> (l $ show f, vs)
-  Pattern.Text    _ t -> (l $ show t, vs)
+prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
+  PatternP.Unbound _   -> (l "_", vs)
+  PatternP.Var     _   -> let (v : tail_vs) = vs in (l $ Var.nameStr v, tail_vs)
+  PatternP.Boolean _ b -> (if b then l "true" else l "false", vs)
+  PatternP.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
+  PatternP.Nat     _ u -> (l $ show u, vs)
+  PatternP.Float   _ f -> (l $ show f, vs)
+  PatternP.Text    _ t -> (l $ show t, vs)
   TuplePattern [pp] ->
-    let (printed, tail_vs) = prettyPattern n 10 vs pp
+    let (printed, tail_vs) = prettyPattern n c 10 vs pp
     in  ( paren (p >= 10) $ PP.sep " " ["Pair", printed, "()"]
         , tail_vs )
   TuplePattern pats ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
-  Pattern.Constructor _ ref i [] ->
-    (prettyHashQualified (PrettyPrintEnv.patternName n ref i), vs)
-  Pattern.Constructor _ ref i pats ->
+  PatternP.Constructor _ ref i [] ->
+    (prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
+  PatternP.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
-          $ prettyHashQualified (PrettyPrintEnv.patternName n ref i)
+          $ prettyHashQualified (elideFQN im (PrettyPrintEnv.patternName n ref i))
             `PP.hang` pats_printed
         , tail_vs)
-  Pattern.As _ pat ->
+  PatternP.As _ pat ->
     let (v : tail_vs)            = vs
-        (printed, eventual_tail) = prettyPattern n 11 tail_vs pat
+        (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
     in  (paren (p >= 11) $ ((l $ Var.nameStr v) <> l "@" <> printed), eventual_tail)
-  Pattern.EffectPure _ pat ->
-    let (printed, eventual_tail) = prettyPattern n (-1) vs pat
+  PatternP.EffectPure _ pat ->
+    let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
     in  (PP.sep " " ["{", printed, "}"], eventual_tail)
-  Pattern.EffectBind _ ref i pats k_pat ->
+  PatternP.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
-        (k_pat_printed, eventual_tail) = prettyPattern n 0 tail_vs k_pat
+        (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
     in  ("{" <>
           (PP.sep " " . PP.nonEmpty $ [
-            prettyHashQualified (PrettyPrintEnv.patternName n ref i),
+            prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i),
             pats_printed,
             "->",
             k_pat_printed]) <>
@@ -358,7 +366,7 @@ prettyPattern n p vs patt = case patt of
   l :: IsString s => String -> s
   l = fromString
   patterns vs (pat : pats) =
-    let (printed     , tail_vs      ) = prettyPattern n (-1) vs pat
+    let (printed     , tail_vs      ) = prettyPattern n c (-1) vs pat
         (rest_printed, eventual_tail) = patterns tail_vs pats
     in  (printed : rest_printed, eventual_tail)
   patterns vs [] = ([], vs)
@@ -381,14 +389,18 @@ a + b = ...
 -}
 prettyBinding ::
   Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
-prettyBinding env v term = go (symbolic && isBinary term) term where
+prettyBinding n = prettyBinding2 n (ac (-1) Block Map.empty)
+
+prettyBinding2 ::
+  Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
+prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
-      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env (-1) tp)),
+      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env im (-1) tp)),
       PP.group (prettyBinding env v tm) ]
     LamsNamedOpt' vs body -> PP.group $
       PP.group (defnLhs v vs <> " =") `PP.hang`
-      pretty env (ac (-1) Block Map.empty) (printAnnotate env body)
+      pretty env (ac (-1) Block im) (printAnnotate env body)
      where
     t -> l "error: " <> l (show t)
    where
@@ -396,13 +408,13 @@ prettyBinding env v term = go (symbolic && isBinary term) term where
       then case vs of
         x : y : _ ->
           PP.sep " " [PP.text (Var.name x),
-                      prettyHashQualified v,
+                      prettyHashQualified $ elideFQN im v,
                       PP.text (Var.name y)]
         _ -> l "error"
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap (PP.text . Var.name) vs
-    renderName n = parenIfInfix n NonInfix $ prettyHashQualified n
+    renderName n = parenIfInfix n NonInfix $ prettyHashQualified $ elideFQN im n
   symbolic = isSymbolic v
   isBinary = \case
     Ann'          tm _ -> isBinary tm
@@ -445,8 +457,6 @@ ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
 
 -- # FQN elision
---
--- TODO actually implement this
 --
 -- The term pretty-printer inserts `use` statements in some circumstances, to
 -- avoid the need for using fully-qualified names (FQNs) everywhere.  The 
@@ -555,6 +565,10 @@ ac prec bc im = AmbientContext prec bc NonInfix im
 -- candidate to be imported with a use statement, subject to the various 
 -- rules in the specification.
 --
+-- # Debugging
+--
+-- Start by enabling the tracing in elideFQN in PrettyPrintEnv.hs.
+--
 -- # Semantics of imports
 --
 -- Here is some background on how imports work.  TODO is this all true today?
@@ -576,14 +590,6 @@ ac prec bc im = AmbientContext prec bc NonInfix im
 -- That's it. No wildcard imports, imports that do renaming, etc. We can 
 -- consider adding some features like this later.
 
--- Note that a Suffix can include dots.
-type Suffix = Text
--- Each member of a Prefix list is dot-free.
-type Prefix = [Text]
--- Keys are FQNs, values are shorter names which are equivalent, thanks to use
--- statements that are in scope.  
-type Imports = Map Name Suffix
-
 data PrintAnnotation = PrintAnnotation
   {
     -- For each suffix that appears in/under this term, the set of prefixes 
@@ -599,38 +605,159 @@ instance Semigroup PrintAnnotation where
 instance Monoid PrintAnnotation where
   mempty = PrintAnnotation { usages = Map.empty }
 
-suffixCounter :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
-suffixCounter n = let 
-  countName hq = fold $ fmap countUsage (HQ.toName $ hq)
-  in \case
-    Var' v -> countName $ HQ.fromVar v
-    Ref' r -> countName $ PrettyPrintEnv.termName n (Referent.Ref r)
-    Constructor' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
-    Request' r i -> countName $ PrettyPrintEnv.termName n (Referent.Con r i)
-    Ann' _ t -> countTypeUsages t
+suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
+suffixCounterTerm n = \case
+    Var' v -> countHQ $ HQ.fromVar v
+    Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Ann' _ t -> countTypeUsages n t
     Match' _ bs -> let pat (MatchCase p _ _) = p
-                   in foldMap (countPatternUsages . pat) bs
+                   in foldMap ((countPatternUsages n) . pat) bs
+    _ -> mempty
+
+suffixCounterType :: Var v => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+suffixCounterType n = \case
+    Type.Var' v -> countHQ $ HQ.fromVar v
+    Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
 printAnnotate :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> AnnotatedTerm3 v PrintAnnotation
-printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounter n) tm)) where
+printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
   go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
   go = extraMap' id (const ()) (const ())
 
-countUsage :: Name -> PrintAnnotation
-countUsage name = case splitName name of
+countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t 
+                      
+countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
+countPatternUsages n p = Pattern.foldMap' f p where
+  f = \case 
+    Pattern.UnboundP _      -> mempty
+    Pattern.VarP _          -> mempty
+    Pattern.BooleanP _ _    -> mempty
+    Pattern.IntP _ _        -> mempty
+    Pattern.NatP _ _        -> mempty
+    Pattern.FloatP _ _      -> mempty
+    Pattern.TextP _ _       -> mempty
+    Pattern.AsP _ _         -> mempty
+    Pattern.EffectPureP _ _ -> mempty
+    Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.ConstructorP _ r i _  -> countHQ $ PrettyPrintEnv.patternName n r i
+
+countHQ :: HQ.HashQualified -> PrintAnnotation
+countHQ hq = fold $ fmap countName (HQ.toName $ hq)
+
+countName :: Name -> PrintAnnotation
+countName name = case splitName name of
   (prefix, suffix) -> PrintAnnotation { usages = Map.singleton suffix $ Map.singleton prefix 1}
+--TODO A.B.x should give rise to two entries
   
-countTypeUsages :: AnnotatedType v a -> PrintAnnotation
-countTypeUsages _ = mempty -- TODO
-
-countPatternUsages :: Pattern loc -> PrintAnnotation
-countPatternUsages _ = mempty -- TODO
-
 splitName :: Name -> (Prefix, Suffix)
 splitName n = let ns = reverse $ splitOn "." (Name.toText n)
               in (reverse $ tail ns, head ns)
 
--- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
-elideFQN :: Imports -> HQ.HashQualified -> HQ.HashQualified
-elideFQN = error "todo"
+joinName :: Prefix -> Suffix -> Name
+joinName p s = Name.unsafeFromText $ Text.concat $ intersperse "." $ p ++ [s]
+
+infixl 0 |>
+(|>) :: a -> (a -> b) -> b
+x |> f = f x
+
+-- This function gets used each time we start printing a new block statement.
+-- It decides what extra imports to introduce (returning the full new set), and 
+-- emits pretty-printed text that looks like
+--    use A x
+--    use B y
+-- for the caller to splice in at the start of the block being printed.
+calcImports :: Imports -> AnnotatedTerm3 v PrintAnnotation -> (Imports, Pretty ColorText)
+calcImports im tm = (im', render $ getUses result)
+  where 
+    -- The guts of this function is a pipeline of transformations and filters, starting from the
+    -- PrintAnnotation we built up in printAnnotate.  
+    -- In `result`, the Name matches Prefix ++ Suffix; and the Int is the number of usages in this scope. 
+    -- `result` lists all the names we're going to import, and what Prefix we'll use for each.
+    result :: Map Name (Prefix, Suffix, Int)
+    result =    usages' 
+             |> uniqueness
+             |> enoughUsages
+             |> groupAndCountLength
+             |> longestPrefix
+    usages' :: Map Suffix (Map Prefix Int)
+    usages' = usages $ annotation tm
+    -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
+    uniqueness :: Map Suffix (Map Prefix Int) -> Map Suffix (Prefix, Int)
+    uniqueness m = m |> Map.filter (\ps -> (Map.size ps) == 1)
+                     |> Map.map (\ps -> head $ Map.toList ps)
+    -- Keep only names where the number of usages in this scope 
+    --   - is > 1, or
+    --   - is 1, and S is an infix operator.
+    -- Also drop names with an empty prefix.
+    enoughUsages :: Map Suffix (Prefix, Int) -> Map Suffix (Prefix, Int)
+    enoughUsages m = (Map.keys m) |> filter (\s -> let (p, i) = fromJust $ Map.lookup s m
+                                                   in (i > 1 || isRight (symbolyId (unpack s))) &&
+                                                      (length p > 0))
+                                  |> map (\s -> (s, fromJust $ Map.lookup s m))
+                                  |> Map.fromList
+    -- Group by `Prefix ++ Suffix`, and then by `length Prefix`
+    groupAndCountLength :: Map Suffix (Prefix, Int) -> Map (Name, Int) (Prefix, Suffix, Int)
+    groupAndCountLength m = Map.toList m |> map (\(s, (p, i)) -> let n = joinName p s
+                                                                     l = length p 
+                                                                 in ((n, l), (p, s, i)))
+                                         |> Map.fromList
+    -- For each k1, choose the v with the largest k2.                                        
+    longestPrefix :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
+    longestPrefix m = let k1s = Set.map fst $ Map.keysSet m
+                          k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m 
+                                                              |> Set.filter (\(k1, _) -> k1 == k1')
+                                                              |> Set.map snd)
+                          maxk2s = Map.map maximum k2s
+                      in Map.mapWithKey (\k1 k2 -> fromJust $ Map.lookup (k1, k2) m) maxk2s
+    im' = im `Map.union` getImportMapAdditions result
+    getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
+    getImportMapAdditions = Map.map (\(_, s, _) -> s)
+    getUses :: Map Name (Prefix, Suffix, Int) -> Map Prefix (Set Suffix)
+    getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
+                            |> Map.fromListWith Set.union
+    render :: Map Prefix (Set Suffix) -> Pretty ColorText
+    render m = Map.mapWithKey (\p ss -> l"use " <> 
+                                        intercalateMap (l".") (l . unpack) p <> l" " <>
+                                        intercalateMap (l" ") (l . unpack) (Set.toList ss)) m  --TODO redo Pretty stuff
+                 |> Map.toList
+                 |> map snd
+                 |> PP.lines'
+
+-- TEMP
+-- We output a `use` statement for prefix P and suffix S at a given scope if
+--   - the scope is a block statement (so the `use` is syntactically valid)
+--   - the number of usages of the thing referred to by P.S within the scope
+--     - is > 1, or
+--     - is 1, and S is an infix operator
+--   - [uniqueness] there is no other Q with Q.S used in that scope
+--   - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
+--     satisfies uniqueness
+--   - TODO [narrowness] there is no block statement further down inside this one
+--     which contains all of the usages, and
+--   - TODO [usefulness] the name will actually be used in this scope, in the form
+--     enabled by this `use` statement.
+--
+-- The last clause can fail, for example, if we `use A X.c` (avoiding a clash
+-- with `Y.c`, but there is a deeper block statement that contains all the
+-- usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
+-- this case, we want to avoid inserting the superfluous `use A X.c`, and just
+-- make it `use A.X c` further down - hence the last clause in the spec.
+--
+-- Use statements in a block statement are sorted alphabetically by prefix.
+-- Suffixes covered by a single use statement are sorted alphabetically.
+-- Rather than letting a single use statement overflow a printed line, we
+-- instead (TODO).
+
+-- TODO testing of: 
+-- - all use sites of elideFQN
+-- - all use sites of calcimports
+-- - patterns, types, namespaces
+-- - really right to apply this to vars?
+-- - symbolic names
+-- ...
+
+-- TODO trim down long comments, improve inline commenting

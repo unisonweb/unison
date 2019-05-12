@@ -3,6 +3,7 @@
 
 module Unison.DeclPrinter where
 
+import qualified Data.Map                      as Map 
 import           Data.Maybe                     ( fromMaybe )
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -48,7 +49,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   constructor (n, (_, _, t)) =
     prettyPattern env r name n
       <>       " :"
-      `P.hang` TypePrinter.pretty env (-1) t
+      `P.hang` TypePrinter.pretty env Map.empty (-1) t
   header =
     P.sep " " (prettyEffectHeader name : (P.text . Var.name <$> DD.bound dd))
       <> " where"
@@ -77,7 +78,7 @@ prettyDataDecl env r name dd =
   constructor' n t = case Type.unArrows t of
     Nothing -> prettyPattern env r name n
     Just ts -> P.group . P.hang' (prettyPattern env r name n) "      "
-             $ P.spaced (TypePrinter.pretty env 10 <$> init ts)
+             $ P.spaced (TypePrinter.pretty env Map.empty 10 <$> init ts)
   header =
     P.sep " " (prettyDataHeader name : (P.text . Var.name <$> DD.bound dd))
       <> (" = " `P.orElse` "\n  = ")
