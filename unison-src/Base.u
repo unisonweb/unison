@@ -10,6 +10,9 @@ use Optional None Some
 andThen : (a -> b) -> (b -> c) -> a -> c
 andThen f g x = g (f x) 
 
+const : a -> b -> a
+const a _ = a
+
 namespace Sequence where
 
   map : (a -> b) -> [a] -> [b]
@@ -64,8 +67,8 @@ namespace Sequence where
 
   sortBy : (a -> b) -> [a] -> [a]
   sortBy f as =
-    tweak p = (f (at1 p), at2 p, at1 p)
-    Heap.sort (map tweak (indexed as)) |> map at3
+    tweak p = (f (Tuple.at1 p), Tuple.at2 p, Tuple.at1 p)
+    Heap.sort (map tweak (indexed as)) |> map Tuple.at3
 
   halve : [a] -> ([a], [a])
   halve s =
@@ -347,7 +350,7 @@ namespace Heap where
       if size subs == 0 then h
       else if size subs == 1 then h `union` unsafeAt 0 subs
       else union h (unsafeAt 0 subs) `union` go (unsafeAt 1 subs) (drop 2 subs)
-    case uncons (children h) of
+    case Sequence.uncons (children h) of
       None -> None
       Some (s0, subs) -> Some (go s0 subs)
 
@@ -381,16 +384,27 @@ namespace Heap where
     Sequence.unfold (fromKeys as) step |> Sequence.map Tuple.at1
 
   sort : [a] -> [a]
-  sort as = sortDescending as |> reverse
+  sort as = sortDescending as |> Sequence.reverse
 
 -- > sort [11,9,8,4,5,6,7,3,2,10,1]
 
-Optional.map : (a -> b) -> Optional a -> Optional b
-Optional.map f o = case o of
-  None -> None
-  Some a -> Some (f a)
+namespace Optional where
 
-Optional.orDefault : a -> Optional a -> a
-Optional.orDefault a o = case o of
-  None -> a
-  Some a -> a
+  map : (a -> b) -> Optional a -> Optional b
+  map f o = case o of
+    None -> None
+    Some a -> Some (f a)
+
+  orDefault : a -> Optional a -> a
+  orDefault a o = case o of
+    None -> a
+    Some a -> a
+
+  flatMap : (a -> Optional b) -> Optional a -> Optional b
+  flatMap f o = case o of
+    None -> None
+    Some a -> f a
+
+  map2 : (a -> b -> c) -> Optional a -> Optional b -> Optional c
+  map2 f oa ob = flatMap (a -> map (f a) ob) oa
+

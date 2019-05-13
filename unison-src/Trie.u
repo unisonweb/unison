@@ -1,0 +1,20 @@
+type Trie k v = { head : Optional v, tail : Map k (Trie k v) }
+
+namespace Trie where
+  empty : Trie k v
+  empty = Trie None Map.empty
+
+  lookup : [k] -> Trie k v -> Optional v
+  lookup path t = case path of
+    [] -> head t
+    p +: ps -> flatMap (lookup ps) (Map.lookup p (tail t))
+
+  unionWith : (v -> v -> v) -> Trie k v -> Trie k v -> Trie k v
+  unionWith f t1 t2 =
+    Trie (map2 f (head t1) (head t2)) 
+         (Map.unionWith (unionWith f) (tail t1) (tail t2))
+
+  insert : [k] -> v -> Trie k v -> Trie k v
+  insert path v t =
+    single = insert path v empty
+    unionWith const single t
