@@ -1,0 +1,48 @@
+type Status = Failed | Expected Success | Unexpected Success | Pending | Indeterminate
+type Success = Passed Nat | Proved
+
+use Status Failed Expected Unexpected Pending Indeterminate
+use Success Passed Proved
+
+ability Test where
+  finish : Status -> {Test} a
+  path : {Test} [Text]
+
+Status.combine : Status -> Status -> Status
+Status.combine s1 s2 = case (s1, s2) of
+  (_, Pending) -> Pending
+  (Pending, _) -> Pending
+  (Failed, _) -> Failed
+  (_, Failed) -> Failed
+  (Indeterminate, _) -> Indeterminate
+  (_, Indeterminate) -> Indeterminate
+  (Expected a, Expected b) -> Expected (combine a b)
+
+Status.pending : Status -> Status
+Status.pending s = case s of
+  Failed -> Pending
+  Expected s -> Unexpected s
+  Unexpected s -> Pending
+  Pending -> Pending
+  Indeterminate -> Indeterminate
+
+getStatus : '{Test} a -> {Test} Status
+getStatus t = 
+  go req = case req of 
+    {Test.finish s -> k} -> s
+    {Test.path -> k} -> handle go in k Test.path
+    {a} -> Indeterminate
+  handle go in !t
+
+(.) : (b -> c) -> (a -> b) -> a -> c
+(.) f g x = f (g x) 
+
+Test.pending : '{Test} a -> {Test} (Optional a)
+Test.pending = finish . pending . getStatus
+
+Success.combine s1 s2 = case (s1, s2) of
+  (Passed n, Passed m) -> Passed (n + m)
+  (Passed n, Proved) -> Passed n
+  (Proved, Passed n) -> Passed n
+  (Proved, Proved) -> Proved
+

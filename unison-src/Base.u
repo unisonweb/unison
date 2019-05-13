@@ -2,6 +2,14 @@
 use Universal == < > >=
 use Optional None Some
 
+-- Function composition
+(.) : (b -> c) -> (a -> b) -> a -> c
+(.) f g x = f (g x)
+
+-- Function composition
+andThen : (a -> b) -> (b -> c) -> a -> c
+andThen f g x = g (f x) 
+
 namespace Sequence where
 
   map : (a -> b) -> [a] -> [b]
