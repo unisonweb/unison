@@ -32,4 +32,4 @@ That's it. Metadata is just a "link", a lightweight reference to some other defi
 
 We don't try to make `MetadataType` more strongly typed. It's just a string, its meaning determined by convention. For instance, the default CLI viewer can look for an "API docs" key, and use that in its display.
 
-TODO: on disk format
+Nothing special for the on disk format, it can just be encoded the same way as the other relations in the Branch0.
