@@ -65,11 +65,11 @@ file = do
           Binding ((_, v), at) -> ((v,at) : terms, watches)
           Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
-        toPair (tok, _) = (L.payload tok, ann tok)
+        wrangle bound (tok, typ) = (L.payload tok, ann tok, typ, bound)
         accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          [ DD.generateRecordAccessors (wrangle (DD.bound dd) <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors
-          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
+          , Just (r,dd) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
         uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
     pure (PPE.fromNames names, uf)

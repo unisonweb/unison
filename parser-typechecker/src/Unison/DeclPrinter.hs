@@ -6,6 +6,7 @@
 module Unison.DeclPrinter where
 
 import Data.List (isPrefixOf)
+import Data.Functor (void)
 import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
 import           Unison.DataDeclaration         ( DataDeclaration'
@@ -115,7 +116,7 @@ fieldNames env r name dd = case DD.constructors dd of
   [(_, typ)] -> let
     vars :: [v]
     vars = [ Var.freshenId (fromIntegral n) (Var.named "_") | n <- [0..Type.arity typ - 1]]
-    accessors = DD.generateRecordAccessors (map (,()) vars) (HQ.toVar name) r
+    accessors = DD.generateRecordAccessors' (map (,()) vars) (HQ.toVar name) r (void dd)
     hashes = Term.hashComponents (Map.fromList accessors)
     names = [ (r, HQ.toString . PPE.termName env . Referent.Ref $ r)
             | r <- fst <$> Map.elems hashes ]

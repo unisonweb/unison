@@ -5,6 +5,8 @@ type Point2 = { point2 : Nat, f : Nat }
 
 type Monoid a = { zero : a, plus : a -> a -> a }
 
+type Functor f = { map : ∀ a b . (a -> b) -> f a -> f b }
+
 > Point.x.set 10 (Point 0 0)
 > Point.x (Point 10 0)
 > Point.y (Point 0 10)
