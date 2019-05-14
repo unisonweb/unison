@@ -1,14 +1,37 @@
-type Status = Failed | Expected Success | Unexpected Success | Pending | Indeterminate
-type Success = Passed Nat | Proved
+type Test.Success = Passed Nat | Proved
 
-use Status Failed Expected Unexpected Pending Indeterminate
-use Success Passed Proved
+type Test.Status = Failed 
+                 | Expected Test.Success
+                 | Unexpected Test.Success
+                 | Pending
+                 | Indeterminate
+
+type Test.Report = Report (Trie Text [Test.Status])
+
+-- myTest = scope "silly test suite" $
+--  scope "one test" doSomeTesting
+--  scope "another test" doSomeMoreTesting
+
+
+use Test.Status Failed Expected Unexpected Pending Indeterminate
+use Test.Success Passed Proved
+use Test.Report Report
+
+genReport : '{Test} a -> Test.Report
+genReport t =
+  go r scope x = case x of
+    { Test.finish s -> k } -> 
+      t = case r of Report u -> u
+      Report (Trie.unionWith (Sequence.++) t (Trie.singleton scope [s]))
+    { Test.getScope -> k } -> handle go r scope in k scope
+    {a} -> Report Trie.empty
+  handle go (Report Trie.empty) [] in t
 
 ability Test where
-  finish : Status -> {Test} a
-  path : {Test} [Text]
+  finish : Test.Status -> {Test} a
+  getScope : {Test} [Text]
 
-Status.combine : Status -> Status -> Status
+Status.combine : Test.Status -> Test.Status -> Test.Status
 Status.combine s1 s2 = case (s1, s2) of
   (_, Pending) -> Pending
   (Pending, _) -> Pending
@@ -18,7 +41,7 @@ Status.combine s1 s2 = case (s1, s2) of
   (_, Indeterminate) -> Indeterminate
   (Expected a, Expected b) -> Expected (combine a b)
 
-Status.pending : Status -> Status
+Status.pending : Test.Status -> Test.Status
 Status.pending s = case s of
   Failed -> Pending
   Expected s -> Unexpected s
@@ -26,19 +49,32 @@ Status.pending s = case s of
   Pending -> Pending
   Indeterminate -> Indeterminate
 
-getStatus : '{Test} a -> {Test} Status
+getStatus : '{Test} a -> {Test} Test.Status
 getStatus t = 
   go req = case req of 
     {Test.finish s -> k} -> s
-    {Test.path -> k} -> handle go in k Test.path
+    {Test.getScope -> k} -> handle go in k Test.getScope
     {a} -> Indeterminate
   handle go in !t
 
-(.) : (b -> c) -> (a -> b) -> a -> c
-(.) f g x = f (g x) 
-
 Test.pending : '{Test} a -> {Test} (Optional a)
 Test.pending = finish . pending . getStatus
+
+
+-- Parser bug:
+-- Test.modifyScope : ([Text] ->{} [Text]) ->'{Test} a ->{Test} a
+
+Test.modifyScope : ([Text] ->{} [Text]) -> '{Test} a ->{Test} a
+Test.modifyScope f t =
+  go x =
+    case x of
+      {Test.finish s -> k} -> Test.finish s
+      {Test.getScope -> k} -> handle go in k (f Test.getScope)
+      { a } -> a
+  handle go in !t
+
+Test.scope : Text -> '{Test} a -> {Test} a
+Test.scope s = modifyScope (cons s)
 
 Success.combine s1 s2 = case (s1, s2) of
   (Passed n, Passed m) -> Passed (n + m)

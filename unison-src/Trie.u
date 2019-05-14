@@ -14,7 +14,14 @@ namespace Trie where
     Trie (map2 f (head t1) (head t2)) 
          (Map.unionWith (unionWith f) (tail t1) (tail t2))
 
-  insert : [k] -> v -> Trie k v -> Trie k v
-  insert path v t =
-    single = insert path v empty
-    unionWith const single t
+
+Trie.union : Trie k v -> Trie k v -> Trie k v
+Trie.union = Trie.unionWith const
+
+Trie.insert : [k] -> v -> Trie k v -> Trie k v
+Trie.insert path v t =
+  unionWith const (Trie.singleton path v) t
+
+Trie.singleton : [k] -> v -> Trie k v
+Trie.singleton path v = insert path v Trie.empty
+
