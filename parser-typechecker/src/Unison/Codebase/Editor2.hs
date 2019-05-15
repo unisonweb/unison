@@ -4,54 +4,53 @@
 -- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 -- {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# LANGUAGE TupleSections #-}
--- {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 --
 module Unison.Codebase.Editor2 where
 
 import qualified Unison.Codebase.Branch2 as Branch2
---
--- -- import Debug.Trace
---
--- import           Data.Char                      ( toLower )
--- import Data.List (sortOn, isSuffixOf, isPrefixOf)
--- import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
--- import           Control.Monad.Extra            ( ifM )
--- import           Data.Foldable                  ( toList
---                                                 , traverse_
---                                                 )
--- import           Data.Bifunctor                 ( bimap, second )
+
+-- import Debug.Trace
+
+import           Data.Char                      ( toLower )
+import Data.List (sortOn, isSuffixOf, isPrefixOf)
+import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
+import           Control.Monad.Extra            ( ifM )
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
+import           Data.Bifunctor                 ( bimap, second )
 import           Data.List.Extra                ( nubOrd )
--- import qualified Data.Map                      as Map
+import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import           Data.Sequence                  ( Seq )
 import           Data.Set                       ( Set )
 import qualified Data.Set as Set
 import           Data.Text                      ( Text
---                                                 , unpack
+                                                , unpack
                                                 )
--- import qualified Unison.Builtin                as B
--- import           Unison.Codebase                ( Codebase )
--- import qualified Unison.Codebase               as Codebase
+import qualified Unison.Builtin                as B
+import           Unison.Codebase2               ( Codebase )
+import qualified Unison.Codebase.Classes       as CC
+import qualified Unison.Codebase2              as Codebase
+import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.Codebase.Branch2         ( Branch
                                                  , Branch0
-                                                 -- , EditLink
-                                                 -- , Link
-                                                 -- , Path
                                                  )
 import qualified Unison.Codebase.Branch2        as Branch
 import qualified Unison.Codebase.OldBranch      as OldBranch
 import qualified Unison.Codebase.SearchResult  as SR
--- import qualified Unison.DataDeclaration        as DD
--- import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import qualified Unison.DataDeclaration        as DD
+import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
---import           Unison.Names                   ( Names )
-import qualified Unison.Names2 as Names2
--- import qualified Unison.Names as Names
+import           Unison.Names2                  ( Names )
+import qualified Unison.Names2                 as Names
 import           Unison.Codebase.Path           ( Path )
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -61,25 +60,25 @@ import qualified Unison.Reference              as Reference
 import           Unison.Result                  ( Note
                                                 , Result
                                                 )
--- import qualified Unison.Result                 as Result
+import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
--- import qualified Unison.Runtime.IOSource       as IOSource
--- import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Symbol                  ( Symbol )
 import           Unison.Util.Relation          (Relation)
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
--- import           Unison.Codebase.Runtime       (Runtime)
--- import qualified Unison.Codebase.TermEdit      as TermEdit
+import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
--- import qualified Unison.Typechecker            as Typechecker
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
--- import           Unison.Util.Free               ( Free )
--- import qualified Unison.Util.Free              as Free
--- import           Unison.Var                     ( Var )
+import           Unison.Util.Free               ( Free )
+import qualified Unison.Util.Free              as Free
+import           Unison.Var                     ( Var )
 
 data Event
   = UnisonFileChanged SourceName Text
@@ -342,11 +341,12 @@ data Command i v a where
   -- It does not write any namespace stuff.  (Maybe it should?)
   -- It may complain if you are trying to write definitions into a remote link,
   -- and suggest that you can convert the link to a fork if you want.
-  AddDefsToCodebase
-    :: -- CollisionHandler -> (todo)
-       RepoLink Path
-    -> UF.TypecheckedUnisonFile v Ann
-    -> Command i v (Branch (Command i v), SlurpResult v)
+
+--  AddDefsToCodebase
+--    :: -- CollisionHandler -> (todo)
+--       Path
+--    -> UF.TypecheckedUnisonFile v Ann
+--    -> Command i v (Branch (Command i v), SlurpResult v)
 
   -- Arya: Do we need this?
   -- -- Load one level of a namespace.  It may involve reading from disk,
@@ -379,46 +379,32 @@ data Command i v a where
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
 
-  -- Instead of passing PPE/Names, we're going to make ref-kinded Vars in
-  -- makeSelfContained'
-  Evaluate :: UF.UnisonFile v Ann
+  Evaluate :: UF.TypecheckedUnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
                 (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
-  -- Loads one level of a branch by hash/link from the codebase (or elsewhere),
-  -- returning `Nothing` if not found.
-  LoadBranch :: RepoLink Path -> Command i v (Maybe (Branch (Command i v)))
 
-  -- Copy the code from the given link location to the local codebase at the
-  -- given path. Returns `False` and does nothing if that path is not empty.
-  ForkBranch :: RepoLink Path -> Path -> Command i v Bool
+  -- Loads a root branch from some codebase, returning `Nothing` if not found.
+  LoadRootBranch :: RepoRef -> Command i v (Maybe (Branch (Command i v)))
+  LoadBranch :: RepoLink Branch.Hash -> Command i v (Maybe (Branch (Command i v)))
 
-  -- Merges the code from the given link with the existing code at the given
-  -- path. Returns `False` if the link is dead, `True` otherwise.
-  MergeBranch :: RepoLink Path -> Path -> Command i v Bool
-
-  -- Syncs the Branch to disk and updates the head to the head of this causal.
-  UpdateRootBranch :: Branch (Command i v) -> Command i v ()
-
-  -- Return the subset of the branch tip which is in a conflicted state.
-  -- A conflict is:
-  -- * A name with more than one referent.
-  -- * An edit with more than one outcome.
-  GetNameConflicts :: Path -> Command i v (Relation Name Referent
-                                          ,Relation Name Reference)
-  -- GetEditConflicts :: Path -> Edits -> Command i v (Something)
+  -- Syncs the Branch to some codebase and updates the head to the head of this causal.
+  SyncRootBranch :: RepoRef -> Branch (Command i v) -> Command i v ()
+  -- e.g.
+  --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
+  --   SynchRootBranch (Github "aryairani" "superML" "master")
+  --                   (Branch at /Lib/Arya/Public/SuperML)
 
   LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
 
-  -- this loads some metadata for prettier search result display
+  -- Loads some metadata for prettier search result display
   LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
 
-  -- execute `_main` in UnisonFile, decompile and print the result
-  -- using the provided PPE
-  Execute :: PPE.PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
-
+  -- Execute a UnisonFile for its IO effects
+  -- todo: Execute should do some evaluation?
+  Execute :: UF.TypecheckedUnisonFile v Ann -> Command i v ()
 
 -- -- Edits stuff:
 --   Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
@@ -722,50 +708,48 @@ collateReferences terms types =
         _                -> []
   in  (terms', nubOrd $ types' <> types)
 
--- commandLine
---   :: forall i v a
---    . Var v
---   => IO i
---   -> Runtime v
---   -> (Output v -> IO ())
---   -> Codebase IO v Ann
---   -> Free (Command i v) a
---   -> IO a
--- commandLine awaitInput rt notifyUser codebase command = do
---   Free.fold go command
---  where
---   go :: forall x . Command i v x -> IO x
---   go = \case
---     -- Wait until we get either user input or a unison file update
---     Input         -> awaitInput
---     Notify output -> notifyUser output
---     SlurpFile handler branch unisonFile ->
---       fileToBranch handler codebase branch unisonFile
---     Typecheck ambient branch sourceName source ->
---       typecheck ambient codebase (Branch.toNames branch) sourceName source
---     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
---     ListBranches                      -> Codebase.branches codebase
---     LoadBranch branchName             -> Codebase.getBranch codebase branchName
---     NewBranch  branch branchName      -> newBranch codebase branch branchName
---     SyncBranch branchName branch      -> syncBranch codebase branch branchName
---     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
---     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
---     LoadTerm r -> Codebase.getTerm codebase r
---     LoadType r -> Codebase.getTypeDeclaration codebase r
---     LoadSearchResults results -> loadSearchResults codebase results
---     Todo b -> doTodo codebase (Branch.head b)
---     Propagate b -> do
---       b0 <- Codebase.propagate codebase (Branch.head b)
---       pure $ Branch.append b0 b
---     Execute branch uf -> void $ evalUnisonFile branch uf
---   evalUnisonFile branch unisonFile = do
---     let codeLookup = Codebase.toCodeLookup codebase
---     selfContained <- Codebase.makeSelfContained' codeLookup
---                                                  (Branch.head branch)
---                                                  unisonFile
---     let noCache = const (pure Nothing)
---     Runtime.evaluateWatches codeLookup noCache rt selfContained
---
+commandLine
+  :: forall i v a
+   . Var v
+  => IO i
+  -> Runtime v
+  -> (Output v -> IO ())
+  -> Codebase IO v Ann
+  -> Free (Command i v) a
+  -> IO a
+commandLine awaitInput rt notifyUser codebase command = do
+  Free.fold go command
+ where
+  go :: forall x . Command i v x -> IO x
+  go = \case
+    -- Wait until we get either user input or a unison file update
+    Input         -> awaitInput
+    Notify output -> notifyUser output
+--    AddDefsToCodebase handler branch unisonFile -> error "todo"
+--      fileToBranch handler codebase branch unisonFile
+    Typecheck ambient branch sourceName source -> error "todo"
+--      typecheck ambient codebase (Branch.toNames branch) sourceName source
+    Evaluate unisonFile -> evalUnisonFile unisonFile
+    LoadBranch h -> error "todo"
+    LoadRootBranch repo -> error "todo"
+    SyncRootBranch repo branch -> error "todo"
+    LoadTerm r -> CC.getTerm codebase r
+    LoadType r -> CC.getTypeDeclaration codebase r
+    LoadSearchResults results -> error "todo"
+      -- loadSearchResults codebase results
+
+--    Todo b -> doTodo codebase (Branch.head b)
+--    Propagate b -> do
+--      b0 <- Codebase.propagate codebase (Branch.head b)
+--      pure $ Branch.append b0 b
+    Execute uf -> void $ evalUnisonFile uf
+  evalUnisonFile :: UF.TypecheckedUnisonFile v Ann -> _
+  evalUnisonFile (UF.discardTypes -> unisonFile) = do
+    let codeLookup = Codebase.toCodeLookup codebase
+    selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
+    let noCache = const (pure Nothing)
+    Runtime.evaluateWatches codeLookup noCache rt selfContained
+
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 -- doTodo code b = do
 --   -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)

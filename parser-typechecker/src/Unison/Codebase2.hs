@@ -29,9 +29,9 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin2                as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
 import           Unison.Codebase.Branch2         ( Branch0 )
-import qualified Unison.Codebase.Branch2        as Branch
-import qualified Unison.Codebase.Causal2        as Causal
-import           Unison.Codebase.Classes
+import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.Causal2       as Causal
+import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
@@ -76,21 +76,19 @@ type Type v a = Type.AnnotatedType v a
 type Decl v a = TL.Decl v a
 
 data Codebase m v a =
-  Codebase { _getTerm            :: Reference.Id -> m (Maybe (Term v a))
-           , _getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
-           , _getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
+  Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
+           , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
+           , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
 
-           , _putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
-           , _putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
+           , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
+           , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
-           , _getRootBranch      :: m (Branch m)
-           , _putRootBranch      :: Branch m -> m ()
-           , _rootBranchUpdates  :: m (m (), m (Set Hash))
+           , getRootBranch      :: m (Branch m)
+           , putRootBranch      :: Branch m -> m ()
+           , rootBranchUpdates  :: m (m (), m (Set Hash))
 
-           , _dependentsImpl     :: Reference -> m (Set Reference.Id)
+           , dependentsImpl     :: Reference -> m (Set Reference.Id)
            }
-
-
 
 -- getTypeOfConstructor ::
 --   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
@@ -243,8 +241,8 @@ transitiveDependencies code seen0 r = if Set.member r seen0
                                          (DD.dependencies dd)
         _ -> pure seen
 
--- toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
--- toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
+toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
 
  -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
  -- Any watches in the input `UnisonFile` will be watches in the returned
@@ -584,23 +582,24 @@ makeSelfContained' code uf = do
 --     _ -> pure $ R.lookupDom r Builtin.builtinDependencies
 --   dependents' = dependents c
 
-instance Functor m => GetDecls (Codebase m v a) m v a where
-  getTerm = _getTerm
-  getTypeOfTerm = _getTypeOfTerm
-  getTypeDeclaration = _getTypeDeclaration
+instance Functor m => CC.GetDecls (Codebase m v a) m v a where
+  getTerm = Unison.Codebase2.getTerm
+  getTypeOfTerm = Unison.Codebase2.getTypeOfTerm
+  getTypeDeclaration = Unison.Codebase2.getTypeDeclaration
+
   -- these could be more efficient in FileCodebase
-  hasTerm d id = isJust <$> _getTerm d id
-  hasType d id = isJust <$> _getTypeDeclaration d id
+  hasTerm d id = isJust <$> Unison.Codebase2.getTerm d id
+  hasType d id = isJust <$> Unison.Codebase2.getTypeDeclaration d id
 
-instance PutDecls (Codebase m v a) m v a where
-  putTerm = _putTerm
-  putTypeDeclarationImpl = _putTypeDeclarationImpl
+instance CC.PutDecls (Codebase m v a) m v a where
+  putTerm = Unison.Codebase2.putTerm
+  putTypeDeclarationImpl = Unison.Codebase2.putTypeDeclarationImpl
 
-instance GetBranch (Codebase m v a) m where
-  getRootBranch = _getRootBranch
+instance CC.GetBranch (Codebase m v a) m where
+  getRootBranch = Unison.Codebase2.getRootBranch
 
-instance PutBranch (Codebase m v a) m where
-  putRootBranch = _putRootBranch
+instance CC.PutBranch (Codebase m v a) m where
+  putRootBranch = Unison.Codebase2.putRootBranch
 
-instance GetDependents (Codebase m v a) m where
-  dependentsImpl = _dependentsImpl
+instance CC.GetDependents (Codebase m v a) m where
+  dependentsImpl = Unison.Codebase2.dependentsImpl
