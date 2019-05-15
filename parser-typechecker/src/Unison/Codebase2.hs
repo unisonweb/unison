@@ -90,16 +90,16 @@ data Codebase m v a =
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            }
 
--- getTypeOfConstructor ::
---   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
--- getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
---   maybeDecl <- getTypeDeclaration codebase r
---   pure $ case maybeDecl of
---     Nothing -> Nothing
---     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
--- getTypeOfConstructor _ r cid =
---   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
---
+getTypeOfConstructor ::
+  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  maybeDecl <- getTypeDeclaration codebase r
+  pure $ case maybeDecl of
+    Nothing -> Nothing
+    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+getTypeOfConstructor _ r cid =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
 -- typecheckingEnvironment' :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
 -- typecheckingEnvironment' code term = do
 --   tl <- typecheckingEnvironment code term
@@ -194,21 +194,22 @@ data Codebase m v a =
 -- prettyBindings cb tms b = do
 --   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
 --   pure $ PP.linesSpaced ds
---
--- typeLookupForDependencies
---   :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
--- typeLookupForDependencies codebase refs = foldM go mempty refs
---  where
---   go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
---     getTypeOfTerm codebase ref >>= \case
---       Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
---       Nothing  -> getTypeDeclaration codebase id >>= \case
---         Just (Left ed) ->
---           pure $ TypeLookup mempty mempty (Map.singleton ref ed)
---         Just (Right dd) ->
---           pure $ TypeLookup mempty (Map.singleton ref dd) mempty
---         Nothing -> pure mempty
---   go tl _builtin = pure tl -- codebase isn't consulted for builtins
+
+typeLookupForDependencies
+  :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies codebase refs = foldM go mempty refs
+ where
+--  go ::
+  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+    getTypeOfTerm codebase ref >>= \case
+      Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
+      Nothing  -> getTypeDeclaration codebase id >>= \case
+        Just (Left ed) ->
+          pure $ TypeLookup mempty mempty (Map.singleton ref ed)
+        Just (Right dd) ->
+          pure $ TypeLookup mempty (Map.singleton ref dd) mempty
+        Nothing -> pure mempty
+  go tl _builtin = pure tl -- codebase isn't consulted for builtins
 
 -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
 -- todo: add some tests on this guy?

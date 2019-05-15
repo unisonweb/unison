@@ -49,6 +49,7 @@ import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
 import           Unison.Codebase.Path           ( Path )
@@ -357,7 +358,7 @@ data Command i v a where
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
   Typecheck :: (AmbientAbilities v)
-            -> RepoLink Path
+            -> Names
             -> SourceName
             -> Source
             -> Command i v (TypecheckingResult v)
@@ -653,22 +654,22 @@ data Command i v a where
 --         Just (_, tm, typ) = Map.lookup termRef termsByRef
 --         in Codebase.putTerm codebase d (prepTerm tm) (ex typ)
 --       r -> error $ "Panic. Hashing produced a builtin Reference: " ++ show r
---
--- typecheck
---   :: (Monad m, Var v)
---   => [Type.AnnotatedType v Ann]
---   -> Codebase m v Ann
---   -> Names
---   -> SourceName
---   -> Text
---   -> m (TypecheckingResult v)
--- typecheck ambient codebase names sourceName src =
---   Result.getResult $ parseAndSynthesizeFile ambient
---     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
---     names
---     (unpack sourceName)
---     src
---
+
+typecheck
+  :: (Monad m, Var v)
+  => [Type.AnnotatedType v Ann]
+  -> Codebase m v Ann
+  -> Parser.ParsingEnv
+  -> SourceName
+  -> Text
+  -> m (TypecheckingResult v)
+typecheck ambient codebase names sourceName src =
+  Result.getResult $ parseAndSynthesizeFile ambient
+    (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+    names
+    (unpack sourceName)
+    src
+
 -- -- Contains all the builtins
 -- builtinBranch :: Branch
 -- builtinBranch = Branch.one builtinBranch0
@@ -727,16 +728,17 @@ commandLine awaitInput rt notifyUser codebase command = do
     Notify output -> notifyUser output
 --    AddDefsToCodebase handler branch unisonFile -> error "todo"
 --      fileToBranch handler codebase branch unisonFile
-    Typecheck ambient branch sourceName source -> error "todo"
---      typecheck ambient codebase (Branch.toNames branch) sourceName source
+    Typecheck ambient names sourceName source -> do
+      -- todo: if guids are being shown to users, not ideal to generate new guid every time
+      namegen <- Parser.uniqueBase58Namegen
+      typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
     Evaluate unisonFile -> evalUnisonFile unisonFile
     LoadBranch h -> error "todo"
     LoadRootBranch repo -> error "todo"
     SyncRootBranch repo branch -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
-    LoadSearchResults results -> error "todo"
-      -- loadSearchResults codebase results
+    LoadSearchResults results -> loadSearchResults codebase results
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do
@@ -777,25 +779,25 @@ commandLine awaitInput rt notifyUser codebase command = do
 --       (frontierTermsNamed, frontierTypesNamed)
 --       (dirtyTermsNamed, dirtyTypesNamed)
 --       (Branch.conflicts' b)
---
--- loadSearchResults :: (Monad m, Var v) =>
---   Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
--- loadSearchResults code = traverse loadSearchResult
---   where
---   loadSearchResult = \case
---     SR.Tm (SR.TermResult name r aliases) -> do
---       typ <- case r of
---         Referent.Ref r -> Codebase.getTypeOfTerm code r
---         Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
---       pure $ Tm name typ r aliases
---     SR.Tp (SR.TypeResult name r aliases) -> do
---       dt <- case r of
---         Reference.Builtin _ -> pure BuiltinThing
---         Reference.DerivedId id ->
---           maybe (MissingThing id) RegularThing <$>
---             Codebase.getTypeDeclaration code id
---       pure $ Tp name dt r aliases
---
+
+loadSearchResults :: (Monad m, Var v) =>
+  Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
+loadSearchResults code = traverse loadSearchResult
+  where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- case r of
+        Referent.Ref r -> Codebase.getTypeOfTerm code r
+        Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
+      pure $ Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- case r of
+        Reference.Builtin _ -> pure BuiltinThing
+        Reference.DerivedId id ->
+          maybe (MissingThing id) RegularThing <$>
+            Codebase.getTypeDeclaration code id
+      pure $ Tp name dt r aliases
+
 -- loadDefinitions :: Monad m => Codebase m v a -> Set Reference
 --                 -> m ( [(Reference, Maybe (Type v a))],
 --                        [(Reference, DisplayThing (Decl v a))] )

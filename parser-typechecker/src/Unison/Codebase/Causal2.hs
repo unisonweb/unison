@@ -138,12 +138,6 @@ before h1 h2 = go h1 h2
   --go (Merge _ _ m1) h2@(Merge _ _ _)
   --  all (\h1 -> go h1 h2) (Map.elems m1)
 
-instance (Monad m, Semigroup e) => Semigroup (m (Causal m h e)) where
-  a <> b = do
-    x <- a
-    y <- b
-    merge x y
-
 -- implementation detail, form a `Merge`
 merge0
   :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
