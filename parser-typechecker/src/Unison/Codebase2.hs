@@ -1,70 +1,72 @@
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 
+{-# LANGUAGE TypeApplications #-}
+
 module Unison.Codebase2 where
 
--- import           Control.Lens
--- import           Control.Monad                  ( foldM
---                                                 , forM
---                                                 , join
---                                                 )
--- import           Data.Foldable                  ( toList
---                                                 , traverse_
---                                                 , forM_
---                                                 )
--- import           Data.Function                  ( on )
--- import           Data.List
--- import qualified Data.Map                      as Map
--- import           Data.Map                       ( Map )
+import           Control.Lens
+import           Control.Monad                  ( foldM
+                                                , forM
+                                                , join
+                                                )
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                , forM_
+                                                )
+import           Data.Function                  ( on )
+import           Data.List
+import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
 import           Data.Maybe                     ( isJust
-                                                -- , catMaybes
-                                                -- , fromMaybe
+                                                 , catMaybes
+                                                 , fromMaybe
                                                 )
 import           Data.Set                       ( Set )
--- import qualified Data.Set                      as Set
--- import           Data.Text                      ( Text )
--- import           Data.Traversable               ( for )
--- import qualified Unison.ABT                    as ABT
--- import qualified Unison.Builtin2                as Builtin
+import qualified Data.Set                      as Set
+import           Data.Text                      ( Text )
+import           Data.Traversable               ( for )
+import qualified Unison.ABT                    as ABT
+import qualified Unison.Builtin2                as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
--- import           Unison.Codebase.Branch2         ( Branch0 )
--- import           Unison.Codebase.Causal2         ( Branch, Branch0 )
--- import qualified Unison.Codebase.Branch2        as Branch
--- import qualified Unison.Codebase.Causal2        as Causal
+import           Unison.Codebase.Branch2         ( Branch0 )
+import qualified Unison.Codebase.Branch2        as Branch
+import qualified Unison.Codebase.Causal2        as Causal
 import           Unison.Codebase.Classes
--- import qualified Unison.Codebase.CodeLookup    as CL
--- import qualified Unison.Codebase.TermEdit      as TermEdit
--- import           Unison.Codebase.TermEdit       ( TermEdit )
+import qualified Unison.Codebase.CodeLookup    as CL
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Hash                    ( Hash )
--- import           Unison.HashQualified           ( HashQualified )
--- import qualified Unison.HashQualified          as HQ
--- import           Unison.Name                    ( Name )
--- import qualified Unison.Name                   as Name
--- import qualified Unison.PrettyPrintEnv         as PPE
--- import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
+import           Unison.HashQualified           ( HashQualified )
+import qualified Unison.HashQualified          as HQ
+import           Unison.Name                    ( Name )
+import qualified Unison.Name                   as Name
+import qualified Unison.PrettyPrintEnv         as PPE
+import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
--- import           Unison.Referent                ( Referent(..) )
--- import qualified Unison.Referent               as Referent
--- import qualified Unison.Result                 as Result
+import           Unison.Referent                ( Referent(..) )
+import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
--- import qualified Unison.TermPrinter            as TermPrinter
+import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
--- import qualified Unison.TypePrinter            as TypePrinter
--- import qualified Unison.Typechecker            as Typechecker
--- import qualified Unison.Typechecker.Context    as Context
--- import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
+import qualified Unison.TypePrinter            as TypePrinter
+import qualified Unison.Typechecker            as Typechecker
+import qualified Unison.Typechecker.Context    as Context
+import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
--- import qualified Unison.UnisonFile             as UF
--- import           Unison.Util.ColorText          ( ColorText )
--- import qualified Unison.Util.Components        as Components
--- import           Unison.Util.Pretty             ( Pretty )
--- import qualified Unison.Util.Pretty            as PP
--- import qualified Unison.Util.Relation          as R
--- import           Unison.Util.TransitiveClosure  (transitiveClosure)
--- import qualified Unison.Var                    as Var
--- import           Unison.Var                     ( Var )
--- import Debug.Trace
+import qualified Unison.UnisonFile             as UF
+import           Unison.Util.ColorText          ( ColorText )
+import qualified Unison.Util.Components        as Components
+import           Unison.Util.Pretty             ( Pretty )
+import qualified Unison.Util.Pretty            as PP
+import qualified Unison.Util.Relation          as R
+import           Unison.Util.TransitiveClosure  (transitiveClosure)
+import qualified Unison.Var                    as Var
+import           Unison.Var                     ( Var )
+
+import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -209,87 +211,90 @@ data Codebase m v a =
 --           pure $ TypeLookup mempty (Map.singleton ref dd) mempty
 --         Nothing -> pure mempty
 --   go tl _builtin = pure tl -- codebase isn't consulted for builtins
---
--- -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
--- -- todo: add some tests on this guy?
--- transitiveDependencies
---   :: (Monad m, Var v)
---   => CL.CodeLookup v m a
---   -> Set Reference
---   -> Reference
---   -> m (Set Reference)
--- transitiveDependencies code seen0 r = if Set.member r seen0
---   then pure seen0
---   else
---     let seen = Set.insert r seen0
---     in
---       case r of
---         Reference.DerivedId id -> do
---           t <- CL.getTerm code id
---           case t of
---             Just t ->
---               foldM (transitiveDependencies code) seen (Term.dependencies t)
---             Nothing -> do
---               t <- CL.getTypeDeclaration code id
---               case t of
---                 Nothing        -> pure seen
---                 Just (Left ed) -> foldM (transitiveDependencies code)
---                                         seen
---                                         (DD.dependencies (DD.toDataDecl ed))
---                 Just (Right dd) -> foldM (transitiveDependencies code)
---                                          seen
---                                          (DD.dependencies dd)
---         _ -> pure seen
---
+
+-- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
+-- todo: add some tests on this guy?
+transitiveDependencies
+  :: (Monad m, Var v)
+  => CL.CodeLookup v m a
+  -> Set Reference
+  -> Reference
+  -> m (Set Reference)
+transitiveDependencies code seen0 r = if Set.member r seen0
+  then pure seen0
+  else
+    let seen = Set.insert r seen0
+    in
+      case r of
+        Reference.DerivedId id -> do
+          t <- CL.getTerm code id
+          case t of
+            Just t ->
+              foldM (transitiveDependencies code) seen (Term.dependencies t)
+            Nothing -> do
+              t <- CL.getTypeDeclaration code id
+              case t of
+                Nothing        -> pure seen
+                Just (Left ed) -> foldM (transitiveDependencies code)
+                                        seen
+                                        (DD.dependencies (DD.toDataDecl ed))
+                Just (Right dd) -> foldM (transitiveDependencies code)
+                                         seen
+                                         (DD.dependencies dd)
+        _ -> pure seen
+
 -- toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 -- toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
---
--- -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
--- -- Any watches in the input `UnisonFile` will be watches in the returned
--- -- `UnisonFile`.
--- makeSelfContained'
---   :: forall m v a . (Monad m, Monoid a, Var v)
---   => CL.CodeLookup v m a
---   -> PrettyPrintEnv
---   -> UF.UnisonFile v a
---   -> m (UF.UnisonFile v a)
--- makeSelfContained' code pp uf = do
---   let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
---   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
---   let termName r = PPE.termName pp (Referent.Ref r)
---       typeName r = PPE.typeName pp r
---   decls <- fmap catMaybes . forM (toList deps) $ \case
---     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
---     _                           -> pure Nothing
---   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
---     r@(Reference.DerivedId rid) ->
---       fmap (r, HQ.toVar @v (termName r), ) <$> CL.getTerm code rid
---     _ -> pure Nothing
---   let
---     unref :: Term v a -> Term v a
---     unref t = ABT.visitPure go t
---      where
---       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
---         Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
---       go _ = Nothing
---     datas1 = Map.fromList
---       [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
---     effects1 = Map.fromList
---       [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
---     ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
---             Map.toList $ UF.dataDeclarations uf ]
---     es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
---             Map.toList $ UF.effectDeclarations uf ]
---     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
---     (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
---     unrefb bs = [ (v, unref b) | (v, b) <- bs ]
---     uf' = UF.UnisonFile
---       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
---       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
---       (bindings ++ unrefb (UF.terms uf))
---       (unrefb $ UF.watches uf)
---   pure $ uf'
---
+
+ -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+ -- Any watches in the input `UnisonFile` will be watches in the returned
+ -- `UnisonFile`.
+-- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+-- Any watches in the input `UnisonFile` will be watches in the returned
+-- `UnisonFile`.
+makeSelfContained'
+  :: forall m v a . (Monad m, Monoid a, Var v)
+  => CL.CodeLookup v m a
+  -> UF.UnisonFile v a
+  -> m (UF.UnisonFile v a)
+makeSelfContained' code uf = do
+  let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
+  deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
+  let refVar r = Var.typed (Var.RefNamed r)
+--  let termName r = PPE.termName pp (Referent.Ref r)
+--      typeName r = PPE.typeName pp r
+  decls <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
+    _                           -> pure Nothing
+  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) ->
+      fmap (r, refVar r, ) <$> CL.getTerm code rid
+    _ -> pure Nothing
+  let
+    unref :: Term v a -> Term v a
+    unref t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+        Just (Term.var (ABT.annotation t) (refVar r))
+      go _ = Nothing
+    datas1 = Map.fromList
+      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [refVar r] ]
+    effects1 = Map.fromList
+      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [refVar r] ]
+    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
+            Map.toList $ UF.dataDeclarations uf ]
+    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
+            Map.toList $ UF.effectDeclarations uf ]
+    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
+    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
+    uf' = UF.UnisonFile
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
+      (bindings ++ unrefb (UF.terms uf))
+      (unrefb <$> UF.watches uf)
+  pure $ uf'
+
 -- -- Creates a self-contained `UnisonFile` which bakes in
 -- -- all transitive dependencies
 -- makeSelfContained

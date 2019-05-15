@@ -94,6 +94,7 @@ library
     Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
+    Unison.Reference.Util
     Unison.Referent
     Unison.Result
     Unison.Runtime.ANF

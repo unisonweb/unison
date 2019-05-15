@@ -378,10 +378,12 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-  Evaluate :: Path -- Local is implied
-           -> UF.UnisonFile v Ann
+
+  -- Instead of passing PPE/Names, we're going to make ref-kinded Vars in
+  -- makeSelfContained'
+  Evaluate :: UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
-                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
+                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
   -- Loads one level of a branch by hash/link from the codebase (or elsewhere),
   -- returning `Nothing` if not found.
