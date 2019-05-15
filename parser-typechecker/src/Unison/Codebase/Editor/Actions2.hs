@@ -86,9 +86,9 @@ import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
 
-type F i v = Free (Command i v)
+type F m i v = Free (Command m i v)
 
-type Action i v a = MaybeT (StateT (LoopState (F i v) v) (F i v)) a
+type Action m i v a = MaybeT (StateT (LoopState (F m i v) v) (F m i v)) a
 
 data LoopState m v
   = LoopState
@@ -122,7 +122,7 @@ makeLenses ''LoopState
 loopState0 :: Branch m -> Path -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
-loop :: forall v . Var v => Action (Either Event Input) v ()
+loop :: forall m v . Var v => Action m (Either Event Input) v ()
 loop = do
   uf          <- use latestTypecheckedFile
   path'       <- use path
@@ -384,15 +384,15 @@ loop = do
   quit = MaybeT $ pure Nothing
   -}
 
-eval :: Command i v a -> Action i v a
+eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
 
--- confirmedCommand :: Input -> Action i v Bool
+-- confirmedCommand :: Input -> Action m i v Bool
 -- confirmedCommand i = do
 --   i0 <- use lastInput
 --   pure $ Just i == i0
 --
--- loadBranch :: BranchName -> Action i v (Maybe Branch)
+-- loadBranch :: BranchName -> Action m i v (Maybe Branch)
 -- loadBranch = eval . LoadBranch
 --
 -- listBranch :: Branch -> [SearchResult]
@@ -418,10 +418,10 @@ eval = lift . lift . Free.eval
 --       (m, _) : _ -> Just m
 --
 --
--- withBranch :: BranchName -> (Branch -> Action i v ()) -> Action i v ()
+-- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 --
--- withBranches :: [BranchName] -> ([(BranchName, Branch)] -> Action i v ()) -> Action i v ()
+-- withBranches :: [BranchName] -> ([(BranchName, Branch)] -> Action m i v ()) -> Action m i v ()
 -- withBranches branchNames f = do
 --   branches :: [Maybe Branch] <- traverse (eval . LoadBranch) branchNames
 --   if any null branches
@@ -429,7 +429,7 @@ eval = lift . lift . Free.eval
 --           [name | (name, Nothing) <- branchNames `zip` branches]
 --   else f (branchNames `zip` fmap fromJust branches)
 
-respond :: Output v -> Action i v ()
+respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 -- -- Collects the definitions that are not named in any branch outside the inputs.
@@ -437,7 +437,7 @@ respond output = eval $ Notify output
 -- -- and then reports if the branches that *are* specified contain any references
 -- -- that don't exist anywhere else.
 -- prettyUniqueDefinitions :: forall i v.
---   [(BranchName, Branch)] -> Action i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
+--   [(BranchName, Branch)] -> Action m i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
 -- prettyUniqueDefinitions queryBNBs = do
 --     let (branchNames, _) = unzip queryBNBs
 --     otherBranchNames <- filter (`notElem` branchNames) <$> eval ListBranches
@@ -457,7 +457,7 @@ respond output = eval $ Notify output
 --   where
 --   go :: Set Reference
 --      -> Branch0
---      -> (PPE.PrettyPrintEnv, Action i v [Editor.SearchResult' v Ann])
+--      -> (PPE.PrettyPrintEnv, Action m i v [Editor.SearchResult' v Ann])
 --   go known =
 --     Branch.prettyPrintEnv &&& eval . LoadSearchResults . pickResults known
 --   pickResults :: Set Reference -> Branch0 -> [SearchResult]
@@ -509,7 +509,7 @@ respond output = eval $ Notify output
 --   refs = Branch.allNamedReferences
 --
 --
--- checkForBuiltinsMismatch :: Action i v ()
+-- checkForBuiltinsMismatch :: Action m i v ()
 -- checkForBuiltinsMismatch = do
 --   b <- use currentBranch
 --   when (not $ all null [new b, old b]) $
@@ -524,14 +524,14 @@ respond output = eval $ Notify output
 --   old' b = refs b `Set.difference` refs Editor.builtinBranch
 --   refs = Branch.allNamedReferences . Branch.head
 --
--- checkTodo :: Action i v ()
+-- checkTodo :: Action m i v ()
 -- checkTodo = do
 --   b <- use currentBranch
 --   eval (Todo b) >>= respond . TodoOutput b
 --
 --
 -- aliasUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
+--   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
 -- aliasUnconflicted nameTargets oldName newName =
 --   modifyCurrentBranchM $ \branch ->
 --     let (branch', result) = foldl' go (branch, mempty) nameTargets
@@ -568,7 +568,7 @@ respond output = eval $ Notify output
 --             b = if newNameExists then Set.singleton nameTarget else mempty
 --
 -- renameUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action i v ()
+--   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
 -- renameUnconflicted nameTargets oldName newName =
 --   modifyCurrentBranchM $ \branch ->
 --     let (branch', result) = foldl' go (branch, mempty) nameTargets
@@ -608,22 +608,22 @@ respond output = eval $ Notify output
 --             )
 --
 -- -- todo: should this go away?
--- merging :: BranchName -> Branch -> Action i v () -> Action i v ()
+-- merging :: BranchName -> Branch -> Action m i v () -> Action m i v ()
 -- merging targetBranchName b success =
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
-stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action i v ()
+stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = error "todo"
   -- updateAtM (\b -> pure $ Branch.modify f b)
 
-stepAtM :: Path -> (Branch0 m -> Action i v (Branch0 m)) -> Action i v ()
+stepAtM :: Path -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
 stepAtM p f = error "todo"
 -- updateAtM $ \b -> do
 --   b0' <- f $ Branch.head b
 --   pure $ Branch.append b0' b
 
-updateAtM :: Path -> (Branch m -> Action i v (Branch m)) -> Action i v ()
+updateAtM :: Path -> (Branch m -> Action m i v (Branch m)) -> Action m i v ()
 updateAtM p f = error "todo"
 -- do
 --   b <- use currentBranch

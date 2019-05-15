@@ -1,18 +1,18 @@
-{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+--{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
--- {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 --
 module Unison.Codebase.Editor2 where
-
-import qualified Unison.Codebase.Branch2 as Branch2
 
 -- import Debug.Trace
 
@@ -329,11 +329,13 @@ data NameChangeResult = NameChangeResult
 data SearchMode = FuzzySearch | ExactSearch
 type AmbientAbilities v = [Type.AnnotatedType v Ann]
 
-data Command i v a where
-  Input :: Command i v i
+data Command m i v a where
+  Eval :: m a -> Command m i v a
+
+  Input :: Command m i v i
 
   -- Presents some output to the user
-  Notify :: Output v -> Command i v ()
+  Notify :: Output v -> Command m i v ()
 
   -- This will load the namespace from the provided link, and
   -- give warnings about name conflicts and the like.
@@ -347,12 +349,12 @@ data Command i v a where
 --    :: -- CollisionHandler -> (todo)
 --       Path
 --    -> UF.TypecheckedUnisonFile v Ann
---    -> Command i v (Branch (Command i v), SlurpResult v)
+--    -> Command m i v (Branch (Command m i v), SlurpResult v)
 
   -- Arya: Do we need this?
   -- -- Load one level of a namespace.  It may involve reading from disk,
   -- -- or from http into a cache.
-  -- GetBranch :: RepoLink Path -> Command i v Branch
+  -- GetBranch :: RepoLink Path -> Command m i v Branch
 
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
@@ -361,7 +363,7 @@ data Command i v a where
             -> Names
             -> SourceName
             -> Source
-            -> Command i v (TypecheckingResult v)
+            -> Command m i v (TypecheckingResult v)
 
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
@@ -381,40 +383,39 @@ data Command i v a where
   -- of the same watches instantaneous.
 
   Evaluate :: UF.TypecheckedUnisonFile v Ann
-           -> Command i v ([(v, Term v ())], Map v
+           -> Command m i v ([(v, Term v ())], Map v
                 (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
-  LoadRootBranch :: RepoRef -> Command i v (Maybe (Branch (Command i v)))
-  LoadBranch :: RepoLink Branch.Hash -> Command i v (Maybe (Branch (Command i v)))
+  LoadRootBranch :: RepoRef -> Command m i v (Branch m)
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
-  SyncRootBranch :: RepoRef -> Branch (Command i v) -> Command i v ()
+  SyncRootBranch :: RepoRef -> Branch m -> Command m i v ()
   -- e.g.
   --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
   --   SynchRootBranch (Github "aryairani" "superML" "master")
   --                   (Branch at /Lib/Arya/Public/SuperML)
 
-  LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
+  LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
-  LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+  LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
 
   -- Loads some metadata for prettier search result display
-  LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
+  LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: UF.TypecheckedUnisonFile v Ann -> Command i v ()
+  Execute :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
 -- -- Edits stuff:
---   Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
+--   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
 --
---   Propagate :: Edits -> Branch -> Command i v Branch
+--   Propagate :: Edits -> Branch -> Command m i v (Branch m)
 --
 --   -- copies an edit; needs some more ux design
---   PullEdits :: EditLink -> Command i v Bool
---   PushEdits :: EditLink -> Command i v Bool
+--   PullEdits :: EditLink -> Command m i v Bool
+--   PushEdits :: EditLink -> Command m i v Bool
 
 -- data Outcome
 --   -- New definition that was added to the branch
@@ -716,14 +717,15 @@ commandLine
   -> Runtime v
   -> (Output v -> IO ())
   -> Codebase IO v Ann
-  -> Free (Command i v) a
+  -> Free (Command IO i v) a
   -> IO a
 commandLine awaitInput rt notifyUser codebase command = do
   Free.fold go command
  where
-  go :: forall x . Command i v x -> IO x
+  go :: forall x . Command IO i v x -> IO x
   go = \case
     -- Wait until we get either user input or a unison file update
+    Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
 --    AddDefsToCodebase handler branch unisonFile -> error "todo"
@@ -733,9 +735,10 @@ commandLine awaitInput rt notifyUser codebase command = do
       namegen <- Parser.uniqueBase58Namegen
       typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
     Evaluate unisonFile -> evalUnisonFile unisonFile
-    LoadBranch h -> error "todo"
-    LoadRootBranch repo -> error "todo"
-    SyncRootBranch repo branch -> error "todo"
+    LoadRootBranch Local -> Codebase.getRootBranch codebase
+    SyncRootBranch Local branch -> Codebase.putRootBranch codebase branch
+    LoadRootBranch Github{..} -> error "todo"
+    SyncRootBranch Github{..} _branch -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
     LoadSearchResults results -> loadSearchResults codebase results
