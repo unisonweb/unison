@@ -1,6 +1,6 @@
 
--- A simple distributed computation effect
-effect Remote n where
+-- A simple distributed computation ability
+ability Remote n where
 
   -- Spawn a new node, of type `n`
   spawn : {Remote n} n

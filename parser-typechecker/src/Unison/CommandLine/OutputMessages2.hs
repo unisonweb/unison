@@ -55,7 +55,6 @@ import           Unison.NamePrinter            (prettyHashQualified,
 import qualified Unison.Names                  as Names
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError,
-                                                prettyTypecheckedFile,
                                                 renderNoteAsANSI)
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
@@ -159,18 +158,22 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv uf -> do
-    Console.setTitle "Unison ☺︎"
-    -- todo: we should just print this the same way as everything else
-    let defs       = prettyTypecheckedFile uf errorEnv
-    if (not $ null defs) then putPrettyLn' . ("\n" <>) . P.okCallout . P.lines $
-     [ P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in " <> P.group (P.text sourceName <> ":")
-     , ""
-     , P.lit defs
-     , P.wrap "Now evaluating any watch expressions (lines starting with `>`)..."
-     ]
-    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
-      "I reloaded " <> P.text sourceName <> " and didn't find anything."
+  Typechecked sourceName ppe uf -> error "todo"
+--  do
+--    Console.setTitle "Unison ✅"
+--    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
+--        typeDecls =
+--          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
+--          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
+--    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
+--      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
+--            <> P.group (P.text sourceName <> ":"),
+--      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+--        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
+--        P.lines (TypePrinter.prettySignatures' ppe terms) ],
+--      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
+--    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
+--      "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
@@ -318,7 +321,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   _ -> error "Don't pass Nothing"
   where greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
@@ -326,7 +329,7 @@ prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
@@ -343,15 +346,15 @@ prettyAliases ::
 prettyAliases aliases = if length aliases < 2 then mempty else error "todo"
   -- (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
-prettyDeclTriple ::
+prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.wrap $ DeclPrinter.prettyDataHeader name <> "(built-in)"
+   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
-     Left _ability -> DeclPrinter.prettyEffectHeader name
-     Right _data   -> DeclPrinter.prettyDataHeader name
+     Left ed -> DeclPrinter.prettyEffectHeader name ed
+     Right dd   -> DeclPrinter.prettyDataHeader name dd
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =

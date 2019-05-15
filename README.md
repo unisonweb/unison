@@ -56,6 +56,18 @@ $ stack --version # we'll want to know this version if you run into trouble
 $ stack build && stack exec tests && stack exec unison
 ```
 
+Note: If you get this error:
+
+```
+Stack looks for packages in the directories configured in the 'packages' and 'extra-deps' fields defined in your stack.yaml
+The current entry points to <root>/yaks/haskeline/ but no .cabal or package.yaml file could be found there.
+```
+then your local git repo is older than the haskeline submodule dependency; use this to get it:
+```
+git submodule init
+git submodule update
+```
+
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
 
 A brief tour of the Haskell code

@@ -35,6 +35,7 @@ module Unison.Util.Pretty (
    lit,
    map,
    nest,
+   num,
    newline,
    nonEmpty,
    numbered,
@@ -49,6 +50,7 @@ module Unison.Util.Pretty (
    renderUnbroken,
    rightPad,
    sep,
+   sepNonEmpty,
    sepSpaced,
    shown,
    softbreak,
@@ -245,6 +247,9 @@ sepSpaced between = sep (between <> softbreak)
 sep :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sep between = intercalateMap between id
 
+sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
+sepNonEmpty between ps = sep between (nonEmpty ps)
+
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
 nonEmpty (toList -> l) = case l of
   (out -> Empty) : t -> nonEmpty t
@@ -326,6 +331,9 @@ align' rows = alignedRows
 
 text :: IsString s => Text -> Pretty s
 text t = fromString (Text.unpack t)
+
+num :: (Show n, Num n, IsString s) => n -> Pretty s
+num n = fromString (show n)
 
 string :: IsString s => String -> Pretty s
 string = fromString

@@ -159,10 +159,14 @@ data Input
   | ShowDefinitionI OutputLocation [String]
   | TodoI
   | PropagateI
+  | TestI ShowSuccesses ShowFailures
   | UpdateBuiltinsI
   | ListEditsI
   | QuitI
   deriving (Eq, Show)
+
+type ShowSuccesses = Bool -- whether to list results or just summarize
+type ShowFailures = Bool  -- whether to list results or just summarize
 
 -- Some commands, like `view`, can dump output to either console or a file.
 data OutputLocation
@@ -238,6 +242,8 @@ data Output v
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
+  | TestResults PPE.PrettyPrintEnv ShowSuccesses ShowFailures
+                [(Reference, Text)] [(Reference, Text)]
   deriving (Show)
 
 type SourceFileContents = Text
@@ -376,6 +382,8 @@ data Command i v a where
   Propagate :: Branch -> Command i v Branch
 
   Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
+
+  LoadWatches :: UF.WatchKind -> Set Reference -> Command i v [(Reference, Term v Ann)]
 
 data Outcome
   -- New definition that was added to the branch
@@ -690,7 +698,7 @@ commandLine awaitInput rt notifyUser codebase command = do
       fileToBranch handler codebase branch unisonFile
     Typecheck ambient branch sourceName source -> do
       -- todo: if guids are being shown to users, not ideal to generate new guid every time
-      namegen <- Parser.uniqueBase58Namegen 8
+      namegen <- Parser.uniqueBase58Namegen
       typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
     Evaluate ppe unisonFile           -> evalUnisonFile ppe unisonFile
     ListBranches                      -> Codebase.branches codebase
@@ -707,6 +715,10 @@ commandLine awaitInput rt notifyUser codebase command = do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
     Execute ppe uf -> void $ evalUnisonFile ppe uf
+    LoadWatches kind refs -> do
+      let rids = [ id | Reference.DerivedId id <- toList refs ]
+      tms <- traverse (\r -> (r,) <$> Codebase.getWatch codebase kind r) rids
+      pure $ [ (Reference.DerivedId r, e) | (r, Just e) <- tms ]
   evalUnisonFile ppe unisonFile = do
     let codeLookup = Codebase.toCodeLookup codebase
     selfContained <- Codebase.makeSelfContained' codeLookup

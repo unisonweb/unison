@@ -39,7 +39,7 @@ module Unison.Test.FileParser where
     ------ --   ,"  Just : a -> Optional a"
     ------ --   ,"  Nothing : Optional Int"]
     , unlines -- NB: this currently fails because we don't have type AST or parser for effect types yet
-      ["effect State s where"
+      ["ability State s where"
       ,"  get : {State s} s"
       ,"  set : s -> {State s} ()"
       ]

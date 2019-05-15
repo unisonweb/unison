@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE DoAndIfThenElse   #-}
 
 module Unison.Parser where
 
@@ -10,6 +11,7 @@ import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Control.Applicative
 import           Control.Monad        (join, when)
 import           Data.Bifunctor       (bimap)
+import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
 import           Data.Maybe
 import qualified Data.Set             as Set
@@ -43,31 +45,37 @@ type P v = P.ParsecT (Error v) Input ((->) (UniqueName, Names))
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
-newtype UniqueName = UniqueName (L.Pos -> Maybe Text)
+newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
 instance Semigroup UniqueName where (<>) = mappend
 instance Monoid UniqueName where
-  mempty = UniqueName (const Nothing)
+  mempty = UniqueName (\_ _ -> Nothing)
   mappend (UniqueName f) (UniqueName g) =
-    UniqueName $ \pos -> f pos <|> g pos
+    UniqueName $ \pos len -> f pos len <|> g pos len
 
-uniqueBase58Namegen :: Int -> IO UniqueName
-uniqueBase58Namegen lenInBase58 = do
+uniqueBase58Namegen :: IO UniqueName
+uniqueBase58Namegen = do
   rng <- Random.getSystemDRG
-  pure . UniqueName $ \pos -> let
-    (bytes,_) = Random.randomBytesGenerate 32 rng
+  pure . UniqueName $ \pos lenInBase58 -> go pos lenInBase58 rng
+  where
+  -- if the identifier starts with a number, try again, since
+  -- we want the name to work as a valid wordyId
+  go pos lenInBase58 rng0 = let
+    (bytes,rng) = Random.randomBytesGenerate 32 rng0
     posBytes = runPutS $ do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
     h = Hashable.accumulate' $ bytes <> posBytes
-    in Just . Text.take lenInBase58 . Hash.base58 $ h
+    b58 = Hash.base58 h
+    in if Char.isDigit (Text.head b58) then go pos lenInBase58 rng
+       else Just . Text.take lenInBase58 $ b58
 
-uniqueName :: Var v => P v Text
-uniqueName = do
+uniqueName :: Var v => Int -> P v Text
+uniqueName lenInBase58 = do
   (UniqueName mkName, _) <- ask
   pos <- L.start <$> P.lookAhead anyToken
   let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
-  pure . fromMaybe none $ mkName pos
+  pure . fromMaybe none $ mkName pos lenInBase58
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
@@ -267,6 +275,12 @@ wordyId :: Var v => P v (L.Token String)
 wordyId = queryToken getWordy
   where getWordy (L.WordyId s) = Just s
         getWordy _             = Nothing
+
+-- Parse a specific wordy id
+exactWordyId :: Var v => String -> P v (L.Token String)
+exactWordyId target = queryToken getWordy
+  where getWordy (L.WordyId s) | s == target = Just s
+        getWordy _                           = Nothing
 
 -- Parse a symboly ID like >>= or &&
 symbolyId :: Var v => P v (L.Token String)

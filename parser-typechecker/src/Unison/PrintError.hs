@@ -16,9 +16,8 @@ module Unison.PrintError where
 -- import           Debug.Trace
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Control.Monad                (join)
 import           Data.Foldable
-import           Data.List                    (intersperse, sortOn)
+import           Data.List                    (intersperse)
 import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
@@ -31,7 +30,6 @@ import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
-import qualified Unison.DataDeclaration       as DD
 import Unison.DataDeclaration (pattern TupleType')
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
@@ -111,42 +109,6 @@ describeStyle ErrorSite = "in " <> style ErrorSite "red"
 describeStyle Type1     = "in " <> style Type1 "blue"
 describeStyle Type2     = "in " <> style Type2 "green"
 describeStyle _         = ""
-
-prettyTypecheckedFile'
-  :: forall v loc
-   . (Var v, Annotated loc, Ord loc, Show loc)
-  => UF.TypecheckedUnisonFile v loc
-  -> Env
-  -> ([(v, AnnotatedText Color)], -- types
-      [(v, AnnotatedText Color)]) -- terms
-prettyTypecheckedFile' file env = (sortOn fst types, sortOn fst terms)
-  where
-  dot = "  "
-  terms = renderTerm dot <$> join (UF.topLevelComponents file)
-  types = (renderDecl (dot <> style TypeKeyword "type ") <$> Map.toList (UF.dataDeclarations' file))
-       <> (renderEffect dot <$> Map.toList (UF.effectDeclarations' file))
-
-  renderVar :: Var v => v -> AnnotatedText Color
-  renderVar v = style Identifier . fromString . Text.unpack $ Var.name v
-
-  renderTerm :: AnnotatedText Color -> (v, Term.AnnotatedTerm v loc, Type.AnnotatedType v loc) -> (v, AnnotatedText Color)
-  renderTerm s (v, _, typ) =
-    (v, mconcat [s, renderVar v, " : ", renderType' env typ])
-  renderDecl :: AnnotatedText Color -> (v, (r, DD.DataDeclaration' v loc)) -> (v, AnnotatedText Color)
-  renderDecl s (v, (_, decl)) = (v, mconcat
-    [s, renderVar v, " ", intercalateMap " " renderVar $ DD.bound decl])
-  renderEffect :: AnnotatedText Color -> (v, (r, DD.EffectDeclaration' v loc)) -> (v, AnnotatedText Color)
-  renderEffect s (v, (r, decl)) = renderDecl (s <> style AbilityKeyword "ability ") (v, (r, DD.toDataDecl decl))
-
-prettyTypecheckedFile
-  :: forall v loc
-   . (Var v, Annotated loc, Ord loc, Show loc)
-  => UF.TypecheckedUnisonFile v loc -> Env -> AnnotatedText Color
-prettyTypecheckedFile file env = let
-  (types, terms) = prettyTypecheckedFile' file env
-  sep n = if not (null n) then "\n" else ""
-  in intercalateMap "\n" snd types <> sep types <>
-     intercalateMap "\n" snd terms <> sep terms
 
 -- Render an informational typechecking note
 renderTypeInfo

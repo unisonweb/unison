@@ -53,7 +53,6 @@ import           Unison.NamePrinter            (prettyHashQualified,
 import qualified Unison.Names                  as Names
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError,
-                                                prettyTypecheckedFile,
                                                 renderNoteAsANSI)
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
@@ -215,19 +214,44 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName errorEnv uf -> do
-    Console.setTitle "Unison ☺︎"
-    -- todo: we should just print this the same way as everything else
-    let defs       = prettyTypecheckedFile uf errorEnv
-    if (not $ null defs) then putPrettyLn' . ("\n" <>) . P.okCallout . P.lines $
-     [ P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in " <> P.group (P.text sourceName <> ":")
-     , ""
-     , P.lit defs
-     , P.wrap "Now evaluating any watch expressions (lines starting with `>`)..."
-     ]
+  Typechecked sourceName ppe uf -> do
+    Console.setTitle "Unison ✅"
+    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
+        typeDecls =
+          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
+          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
+    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
+      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
+            <> P.group (P.text sourceName <> ":"),
+      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
+        P.lines (TypePrinter.prettySignatures' ppe terms) ],
+      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
-      "I reloaded " <> P.text sourceName <> " and didn't find anything."
+      "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput branch todo -> todoOutput branch todo
+  TestResults ppe _showOk _showFail oks fails -> putPrettyLn . P.bracket $ let
+    name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
+    okMsg =
+      if null oks then mempty
+      else P.column2 [ (P.green "◉ " <> name r, ": " <> P.green (P.text msg)) | (r, msg) <- oks ]
+    okSummary =
+      if null oks then mempty
+      else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
+    failMsg =
+      if null fails then mempty
+      else P.column2 [ (P.red "✗ " <> name r, ": " <> P.red (P.text msg)) | (r, msg) <- fails ]
+    failSummary =
+      if null fails then mempty
+      else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
+    tipMsg =
+      if null oks && null fails then mempty
+      else tip $ "Use " <> P.blue ("view " <> name (fst $ head (fails ++ oks))) <> "to view the source of a test."
+    in if null oks && null fails then "😶 No tests available."
+       else P.sep "\n\n" . P.nonEmpty $ [
+            okMsg, failMsg,
+            P.sep ", " . P.nonEmpty $ [failSummary, okSummary], tipMsg]
+
   ListEdits branch -> do
     let
       ppe = Branch.prettyPrintEnv branch
@@ -399,7 +423,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   _ -> error "Don't pass Nothing"
   where greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
@@ -407,7 +431,7 @@ prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: E.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
 prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
   P.lines stuff <> P.newline
   where
@@ -424,15 +448,15 @@ prettyAliases ::
 prettyAliases aliases = if length aliases < 2 then mempty else
   (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
-prettyDeclTriple ::
+prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.wrap $ DeclPrinter.prettyDataHeader name <> "(built-in)"
+   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
-     Left _ability -> DeclPrinter.prettyEffectHeader name
-     Right _data   -> DeclPrinter.prettyDataHeader name
+     Left ed -> DeclPrinter.prettyEffectHeader name ed
+     Right dd   -> DeclPrinter.prettyDataHeader name dd
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
@@ -600,16 +624,15 @@ slurpOutput s =
     | v <- toList vs
     , t <- maybe (error $ "There wasn't a type for " ++ show v ++ " in termTypesFromFile!") pure (Map.lookup v termTypesFromFile)]
   prettyDeclHeader v = case UF.getDecl' file v of
-    Just (Left _)  -> DeclPrinter.prettyEffectHeader (HQ.fromVar v)
-    Just (Right _) -> DeclPrinter.prettyDataHeader (HQ.fromVar v)
+    Just (Left e)  -> DeclPrinter.prettyEffectHeader (HQ.fromVar v) e
+    Just (Right e) -> DeclPrinter.prettyDataHeader (HQ.fromVar v) e
     Nothing        -> error "Wat."
   addedMsg =
     unlessM (null addedTypes && null addedTerms) . P.okCallout $
-    P.wrap ("I" <> P.bold "added" <> "these definitions:")
-    <> "\n\n"
-    <> (P.indentN 2 . P.lines $
-        (prettyDeclHeader <$> toList addedTypes) ++
-        TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms))
+    P.wrap ("I" <> P.bold "added" <> "these definitions:") <> "\n\n" <>
+    (P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+       P.lines (prettyDeclHeader <$> toList addedTypes),
+       P.lines (TypePrinter.prettySignatures' ppe (filterTermTypes addedTerms)) ])
   updatedMsg =
     unlessM (null updatedTypes && null updatedTerms) . P.okCallout $
     P.wrap ("I" <> P.bold "updated" <> "these definitions:")

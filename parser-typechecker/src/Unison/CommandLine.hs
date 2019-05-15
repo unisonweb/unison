@@ -63,7 +63,7 @@ watchPrinter src ppe ann kind term isHit = P.bracket $ let
   lineNumWidth = length (show lineNum)
   extra = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
   line = lines !! (lineNum - 1)
-  addCache p = if isHit then p <> " (cached): " else p <> ": "
+  addCache p = if isHit then p <> " (cached)" else p
   in
     P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
@@ -71,10 +71,10 @@ watchPrinter src ppe ann kind term isHit = P.bracket $ let
       (UF.TestWatch, Term.App' (Term.Constructor' _ id) (Term.Text' msg)) ->
         "\n" <>
         if id == DD.okConstructorId then
-          addCache (P.green "✅ Passed") <> P.text msg
+          addCache (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
         else if id == DD.failConstructorId then
-          addCache (P.red "🚫 Failed") <> P.text msg
-        else P.red "❓ UNKNOWN: " <> TermPrinter.prettyTop ppe term
+          addCache (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+        else P.red "❓ " <> TermPrinter.prettyTop ppe term
       _ -> P.lines [
            fromString (replicate lineNumWidth ' ') <> fromString extra
            <> (if isHit then id else P.purple) "⧩" ,

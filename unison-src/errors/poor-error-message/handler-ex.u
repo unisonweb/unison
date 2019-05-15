@@ -11,7 +11,7 @@
 --
 -- Verbiage could be improved, but also the `()` location should
 -- point to line 22, the `k ()` call.
-effect Ask foo where
+ability Ask foo where
   ask : () -> {Ask a} a
 
 supply : Text -> Effect (Ask Text) a -> a

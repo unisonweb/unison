@@ -1,14 +1,14 @@
 --Ask inferred
 
-effect Ask a where
+ability Ask a where
   ask : {Ask a} a
 
-effect AskU where
+ability AskU where
   ask : {AskU} Nat
 
 use Nat +
 
-effect AskT where
+ability AskT where
   ask : {AskT} Text
 
 x = '(Ask.ask + 1)

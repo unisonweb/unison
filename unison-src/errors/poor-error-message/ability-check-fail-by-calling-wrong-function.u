@@ -8,7 +8,7 @@ reduce2 a0 f s = case at 0 s of
 -- as of commit a48fa3b, we get the following error
 
     --The expression at Line 18, columns 40-41 (in red below) is requesting
-    --    {𝛆3} effects, but this location only has access to
+    --    {𝛆3} abilitys, but this location only has access to
     --    {}
     --
     --   18 |   Optional.Some a1 -> reduce (f a0 a1) f (drop 1 s)
@@ -17,7 +17,7 @@ reduce2 a0 f s = case at 0 s of
     --    AbilityCheckFailure: ambient={} requested={𝛆3}
 
 -- The problem is that I've accidentally called `reduce` instead of `reduce2`,
--- which TDNRs to `Stream.reduce`, which doesn't allow effects, and `f` isn't
+-- which TDNRs to `Stream.reduce`, which doesn't allow abilitys, and `f` isn't
 -- restricted to be pure.
 
 -- I'd like to know:

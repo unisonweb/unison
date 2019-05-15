@@ -53,7 +53,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference
   :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
@@ -66,8 +66,9 @@ seekModeReference = typeNamed "SeekMode"
 threadIdReference = typeNamed "ThreadId"
 socketReference = typeNamed "Socket"
 handleReference = typeNamed "Handle"
+epochTimeReference = typeNamed "EpochTime"
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId
   :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
@@ -77,7 +78,7 @@ ioErrorId = constructorNamed errorReference "IOError.IOError"
 handleId = constructorNamed handleReference "Handle.Handle"
 socketId = constructorNamed socketReference "Socket.Socket"
 threadIdId = constructorNamed threadIdReference "ThreadId.ThreadId"
-
+epochTimeId = constructorNamed epochTimeReference "EpochTime.EpochTime"
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
@@ -141,13 +142,13 @@ type Socket = Socket Text
 -- Builtin handles: standard in, out, error
 
 namespace IO where
-  stdin: Handle
+  stdin : Handle
   stdin = Handle "stdin"
 
-  stdout: Handle
+  stdout : Handle
   stdout = Handle "stdout"
 
-  stderr: Handle
+  stderr : Handle
   stderr = Handle "stderr"
 
   -- Throw an I/O error on the left as an effect in `IO`
@@ -193,6 +194,10 @@ namespace IO where
   -- Write some text to a file
   putText : Handle -> Text ->{IO} ()
   putText h t = rethrow (IO.putText_ h t)
+
+  -- Get epoch system time
+  systemTime : '{IO} EpochTime
+  systemTime = '(rethrow (IO.systemTime_))
 
   -- Run the given computation, and if it throws an error
   -- handle the error with the given handler.
@@ -283,8 +288,7 @@ ability IO where
   -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
   -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
 
-  systemTime : {IO} (Either IOError EpochTime)
-
+  systemTime_ : {IO} (Either IOError EpochTime)
 
   -- File system operations
   getTempDirectory : {IO} (Either IOError FilePath)
@@ -300,7 +304,6 @@ ability IO where
   renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
   getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
   getFileSize : FilePath ->{IO} (Either IOError Nat)
-
 
   -- Simple TCP Networking
 

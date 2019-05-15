@@ -163,6 +163,14 @@ toNames (UnisonFile {..}) = datas <> effects
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
 
+-- Returns true if the file has any definitions or watches
+nonEmpty :: TypecheckedUnisonFile v a -> Bool
+nonEmpty uf =
+  not (Map.null (dataDeclarations' uf)) ||
+  not (Map.null (effectDeclarations' uf)) ||
+  any (not . null) (topLevelComponents' uf) ||
+  any (not . null) (watchComponents uf)
+
 hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
