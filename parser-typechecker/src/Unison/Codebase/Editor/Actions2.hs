@@ -49,7 +49,7 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
-                                                -- , SearchMode(..)
+                                                , SearchMode(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
@@ -401,20 +401,33 @@ eval = lift . lift . Free.eval
 --   SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
 --   SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
 --   _ -> error "unpossible match failure"
---
--- -- Return a list of definitions whose names fuzzy match the given queries.
--- searchBranch :: Branch -> [HashQualified] -> SearchMode -> [SearchResult]
--- searchBranch (Branch.head -> b) queries = \case
---   ExactSearch -> Branch.searchBranch b exactNameDistance queries
---   FuzzySearch -> Branch.searchBranch b fuzzyNameDistance queries
---   where
---   exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
---   fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
---     case Find.fuzzyFindMatchArray q [n] id of
---       [] -> Nothing
---       (m, _) : _ -> Just m
---
---
+
+-- Return a list of definitions whose names fuzzy match the given queries.
+searchBranch :: Branch m -> [HashQualified] -> SearchMode -> m [SearchResult]
+searchBranch (Branch.head -> b) queries = \case
+  ExactSearch -> searchBranch' b exactNameDistance queries
+  FuzzySearch -> searchBranch' b fuzzyNameDistance queries
+  where
+  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+    case Find.fuzzyFindMatchArray q [n] id of
+      [] -> Nothing
+      (m, _) : _ -> Just m
+
+collectHashQualified :: Monad m => Branch m -> m (Set HashQualified)
+collectHashQualified (Branch.head -> b) = search mempty b where
+  search :: Path -> Branch0 m -> m (Set HashQualified)
+  search path b =
+
+
+searchBranch' :: forall m score. (Monad m, Ord score)
+              => Branch m
+              -> (Name -> Name -> Maybe score)
+              -> [HashQualified]
+              -> m [SearchResult]
+searchBranch' = error "todo"
+
+
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
 --

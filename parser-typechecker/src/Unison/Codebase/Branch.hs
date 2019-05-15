@@ -904,7 +904,11 @@ asSearchResults b =
 
 -- note: I expect these two functions will go away
 -- Returns matching search results ordered by score
-searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
+searchBranch :: forall score. Ord score
+             => Branch0
+             -> (Name -> Name -> Maybe score)
+             -> [HashQualified]
+             -> [SearchResult]
 searchBranch b score queries =
   nubOrd . fmap snd . toList $
     searchTermNamespace b score queries <> searchTypeNamespace b score queries
