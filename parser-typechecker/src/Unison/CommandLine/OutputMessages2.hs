@@ -1,4 +1,6 @@
-{-# LANGUAGE DoAndIfThenElse     #-}
+{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+
+-- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}

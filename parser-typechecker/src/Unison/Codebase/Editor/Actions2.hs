@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
@@ -143,7 +145,7 @@ loop = do
                   [ err | Result.TypeError err <- toList notes ]
             in  maybe h (k errorEnv) r
   case e of
-    Left (IncomingRootBranch names) -> error "todo"
+    Left (IncomingRootBranch names) -> error "todo: merge multiple heads"
       -- when (Set.member currentBranchName' names)
       --   $ switchBranch currentBranchName'
     Left (UnisonFileChanged sourceName text) ->
@@ -155,8 +157,8 @@ loop = do
           withFile [] sourceName text $ \errorEnv unisonFile -> do
             eval (Notify $ Typechecked sourceName errorEnv unisonFile)
             (bindings, e) <- error "todo"
-              -- eval . Evaluate (view currentBranch s) $ UF.discardTypes
-              --   unisonFile
+--               eval . Evaluate (view currentBranch s) $
+--                    UF.discardTypes unisonFile
             let e' = Map.map go e
                 go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
             -- todo: this would be a good spot to update the cache

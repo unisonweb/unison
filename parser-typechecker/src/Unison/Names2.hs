@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -6,6 +8,7 @@
 module Unison.Names2 where
 --
 -- import           Data.Bifunctor   (first)
+import Data.Foldable (toList)
 -- import           Data.List        (foldl')
 import           Data.Map         (Map)
 -- import qualified Data.Map         as Map
@@ -19,19 +22,42 @@ import           Unison.HashQualified   (HashQualified)
 import qualified Unison.HashQualified as HQ
 -- import qualified Unison.Name      as Name
 -- import           Unison.Name      (Name)
--- import qualified Unison.Referent  as Referent
-import           Unison.Referent        (Referent)
+--import qualified Unison.Referent  as Referent
+import           Unison.Referent        (Referent(Con))
 import           Unison.Util.Relation   ( Relation )
+import qualified Unison.Util.Relation as R
+
 -- import           Unison.Term      (AnnotatedTerm)
 -- import qualified Unison.Term      as Term
 -- import           Unison.Type      (AnnotatedType)
 -- import qualified Unison.Type      as Type
 -- import           Unison.Var       (Var)
 
+-- This will support the APIs of both PrettyPrintEnv and the old Names.
+-- For pretty-printing, we need to look up names for References; they may have
+-- some hash-qualification, depending on the context.
+-- For parsing (both .u files and command-line args)
 data Names = Names
   { termNames    :: Relation HashQualified Referent
   , typeNames    :: Relation HashQualified Reference
   }
+
+typeName :: Names -> Reference -> HashQualified
+typeName names r =
+  case toList $ R.lookupRan r (typeNames names) of
+    hq : _ -> hq
+    _ -> error
+      ("Names construction should have included something for " <> show r)
+
+termName :: Names -> Referent -> HashQualified
+termName names r =
+  case toList $ R.lookupRan r (termNames names) of
+    hq : _ -> hq
+    _ -> error
+      ("Names construction should have included something for " <> show r)
+
+patternName :: Names -> Reference -> Int -> HashQualified
+patternName names r cid = termName names (Con r cid)
 
 -- subtractTerms :: Var v => [v] -> Names -> Names
 -- subtractTerms vs n = let

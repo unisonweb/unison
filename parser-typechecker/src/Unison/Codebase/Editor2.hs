@@ -49,7 +49,8 @@ import qualified Unison.Codebase.SearchResult  as SR
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names                   ( Names )
+--import           Unison.Names                   ( Names )
+import qualified Unison.Names2 as Names2
 -- import qualified Unison.Names as Names
 import           Unison.Codebase.Path           ( Path )
 import           Unison.Parser                  ( Ann )
@@ -377,7 +378,7 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-  Evaluate :: RepoLink Path
+  Evaluate :: Path -- Local is implied
            -> UF.UnisonFile v Ann
            -> Command i v ([(v, Term v ())], Map v
                 (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
