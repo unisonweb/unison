@@ -176,38 +176,9 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
-      _ -> error "todo"
-      {-
-      -- ls with no arguments
-      SearchByNameI [] -> do
-        let results = listBranch currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' False
-      SearchByNameI ["-l"] -> do
-        let results = listBranch currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' True
-      -- ls with arguments
-      SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
-        let results = searchBranch currentBranch' qs Editor.FuzzySearch
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' True
-      SearchByNameI (map HQ.fromString -> qs) -> do
-        let results = searchBranch currentBranch' qs Editor.FuzzySearch
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' False
       ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-        results <- eval . LoadSearchResults $ searchBranch currentBranch'
-                                                           qs
-                                                           Editor.ExactSearch
+        results <- eval . LoadSearchResults $ error "todo"
+--          searchBranch currentBranch' qs Editor.ExactSearch
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
             termTypes =
               Map.fromList
@@ -247,14 +218,40 @@ loop = do
           loc = case outputLoc of
             Editor.ConsoleLocation    -> Nothing
             Editor.FileLocation path  -> Just path
-            Editor.LatestFileLocation -> fmap fst latestFile'
-              <|> Just (Text.unpack currentBranchName' <> ".u")
+            Editor.LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
           eval . Notify $ DisplayDefinitions loc names loadedTerms loadedTypes
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
+      {-
+      -- ls with no arguments
+      SearchByNameI [] -> do
+        let results = listBranch currentBranch'
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' False
+      SearchByNameI ["-l"] -> do
+        let results = listBranch currentBranch'
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' True
+      -- ls with arguments
+      SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
+        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' True
+      SearchByNameI (map HQ.fromString -> qs) -> do
+        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions currentBranch' False
       RemoveTermNameI r name ->
         stepAt $ Branch.deleteTermName r name
       RemoveTypeNameI r name ->

@@ -200,6 +200,8 @@ data Input
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
+  | AddI [HashQualified]
+  | UpdateI EditsPath [HashQualified]
   | SlurpFileI -- todo (with Edits): AllowUpdates
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
@@ -273,7 +275,7 @@ data Output v
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       PPE.PrettyPrintEnv
+                       Names
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
   | TodoOutput PPE.PrettyPrintEnv (TodoOutput v Ann)
@@ -412,10 +414,6 @@ data Command m i v a where
 --   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
 --
 --   Propagate :: Edits -> Branch -> Command m i v (Branch m)
---
---   -- copies an edit; needs some more ux design
---   PullEdits :: EditLink -> Command m i v Bool
---   PushEdits :: EditLink -> Command m i v Bool
 
 -- data Outcome
 --   -- New definition that was added to the branch

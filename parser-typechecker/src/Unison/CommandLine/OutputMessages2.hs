@@ -52,7 +52,9 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName,
                                                 styleHashQualified,
                                                 styleHashQualified')
-import qualified Unison.Names                  as Names
+import qualified Unison.Names                  as OldNames
+import           Unison.Names2                 (Names)
+import qualified Unison.Names2                 as Names
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError,
                                                 renderNoteAsANSI)
@@ -76,8 +78,8 @@ notifyUser dir o = case o of
   Success (MergeBranchI _ _) ->
     putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  DisplayDefinitions outputLoc ppe terms types ->
-    displayDefinitions outputLoc ppe terms types
+  DisplayDefinitions outputLoc names terms types ->
+    displayDefinitions outputLoc names terms types
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -225,9 +227,9 @@ notifyUser dir o = case o of
   --     <> "\n\n"
   --     <> tip
   --        ("Use" <> makeExample IP.rename [prettyName newName, "<newname>"] <> "to make" <> prettyName newName <> "available.")
-    where
-      ns targets = P.oxfordCommas $
-        map (fromString . Names.renderNameTarget) (toList targets)
+--    where
+--      ns targets = P.oxfordCommas $
+--        map (fromString . Names.renderNameTarget) (toList targets)
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> P.Pretty P.ColorText
@@ -243,13 +245,14 @@ formatMissingStuff terms types =
 
 displayDefinitions :: Var v =>
   Maybe FilePath
-  -> PPE.PrettyPrintEnv
+  -> Names
   -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
   -> [(Reference.Reference, DisplayThing (Codebase.Decl v a1))]
   -> IO ()
-displayDefinitions outputLoc ppe terms types =
+displayDefinitions outputLoc names terms types =
   maybe displayOnly scratchAndDisplay outputLoc
   where
+  ppe = PPE.fromNames2 names
   displayOnly = putPrettyLn code
   scratchAndDisplay path = do
     path' <- canonicalizePath path

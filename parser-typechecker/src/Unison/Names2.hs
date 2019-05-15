@@ -40,7 +40,7 @@ import qualified Unison.Util.Relation as R
 data Names = Names
   { termNames    :: Relation HashQualified Referent
   , typeNames    :: Relation HashQualified Reference
-  }
+  } deriving (Show)
 
 typeName :: Names -> Reference -> HashQualified
 typeName names r =
