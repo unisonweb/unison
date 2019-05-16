@@ -417,11 +417,11 @@ searchBranch (Branch.head -> b) queries = \case
 collectHashQualified :: Monad m => Branch m -> m (Set HashQualified)
 collectHashQualified (Branch.head -> b) = search mempty b where
   search :: Path -> Branch0 m -> m (Set HashQualified)
-  search path b =
+  search path b = error "todo"
 
 
-searchBranch' :: forall m score. (Monad m, Ord score)
-              => Branch m
+searchBranch' :: forall m score. (Ord score)
+              => Branch0 m
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> m [SearchResult]

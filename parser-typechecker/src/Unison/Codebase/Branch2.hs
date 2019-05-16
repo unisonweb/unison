@@ -195,7 +195,7 @@ getAt root path = case Path.toList path of
   [] -> pure $ Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
     Nothing -> pure Nothing
-    Just (_h, b) -> getAt b (Path path)
+    Just (_h, b) -> getAt b (Path.fromList path)
 
 empty :: Branch m
 empty = Branch $ Causal.one empty0
@@ -240,7 +240,7 @@ modifyAtM b path f = case Path.toList path of
   [] -> f b
   seg : path ->
     let recurse b@(Branch c) = do
-          b' <- modifyAtM b (Path path) f
+          b' <- modifyAtM b (Path.fromList path) f
           let c' = flip Causal.step c . over children $ if isEmpty (head b')
                 then Map.delete seg
                 else Map.insert seg (headHash b', b')
