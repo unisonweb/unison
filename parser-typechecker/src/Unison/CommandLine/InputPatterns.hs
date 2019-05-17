@@ -76,6 +76,27 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . ShowDefinitionI E.ConsoleLocation)
 
+--viewByPrefix :: InputPattern
+--viewByPrefix
+--  = InputPattern "view.recursive" [(OnePlus, exactDefinitionQueryArg)]
+--    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
+--    (Pure . ShowDefinitionRecursiveI E.ConsoleLocation)
+
+find :: InputPattern
+find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
+    (P.wrapColumn2
+      [ ("`find`"
+        , "lists all definitions in the current branch.")
+      , ( "`find foo`"
+        , "lists all definitions with a name similar to 'foo' in the current branch.")
+      , ( "`find foo bar`"
+        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
+      , ( "`find -l foo bar`"
+        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
+      ]
+    )
+    (pure . SearchByNameI)
+
 rename :: InputPattern
 rename = InputPattern "rename" ["mv"]
     [(Required, exactDefinitionQueryArg)
@@ -173,19 +194,7 @@ validInputs =
       _ -> Left . warn . P.wrap $ "Use `fork foo` to create the branch 'foo'"
                                 <> "from the current branch."
     )
-  , InputPattern "find" ["ls","list"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
-    (P.wrapColumn2
-      [ ("`find`"
-        , "lists all definitions in the current branch.")
-      , ( "`find foo`"
-        , "lists all definitions with a name similar to 'foo' in the current branch.")
-      , ( "`find foo bar`"
-        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
-      , ( "`find -l foo bar`"
-        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
-      ]
-    )
-    (pure . SearchByNameI)
+  , find
   , InputPattern "merge" [] [(Required, branchArg)]
     "`merge foo` merges the branch 'foo' into the current branch."
     (\case
@@ -247,6 +256,7 @@ fuzzyDefinitionQueryArg =
   ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) -> do
     pure $ fuzzyCompleteHashQualified b q
 
+-- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
   ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do

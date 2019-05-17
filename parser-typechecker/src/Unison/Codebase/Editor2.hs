@@ -205,6 +205,7 @@ data Input
   | SlurpFileI -- todo (with Edits): AllowUpdates
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
+  | ShowDefinitionRecursiveI OutputLocation [String]
   | UpdateBuiltinsI
   | QuitI
   deriving (Eq, Show)
