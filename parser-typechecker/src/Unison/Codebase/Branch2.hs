@@ -45,11 +45,17 @@ import qualified Unison.Codebase.Path          as Path
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.ShortHash as SH
+
 
 import           Unison.Name                    ( Name )
 import           Unison.Names2                  ( Names0 )
+import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent(Con,Ref) )
+import qualified Unison.Referent              as Referent
+import qualified Unison.Reference             as Reference
+
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.List              as List
@@ -60,13 +66,10 @@ import qualified Unison.Util.List              as List
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
-data BranchEntry = TermEntry Referent | TypeEntry Reference deriving (Eq,Ord,Show)
-
-branchEntryReference :: BranchEntry -> Reference
-branchEntryReference = \case
-  TermEntry (Con r _i) -> r
-  TermEntry (Ref r) -> r
-  TypeEntry r -> r
+data BranchEntry
+  = TermEntry Referent
+  | TypeEntry Reference
+  deriving (Eq,Ord,Show)
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -126,6 +129,14 @@ foldM f a (head -> b) = go Path.empty b a where
     a1 <- Monad.foldM (doTerm p) a (R.toList . view terms $ b)
     a2 <- Monad.foldM (doType p) a1 (R.toList . view types $ b)
     Monad.foldM (doChild p) a2 (Map.toList . view children $ b)
+
+numHashChars :: Applicative m => Branch m -> m Int
+numHashChars b = pure 3
+
+toNames0 :: Monad m => Branch m -> m Names0
+toNames0 b = fold go mempty b where
+  go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
+  go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
 allEntries :: Monad m => Branch m -> m [(Name, BranchEntry)]
 allEntries = fmap reverse . fold (\l n e -> (n, e) : l) []
@@ -223,6 +234,8 @@ setAt root dest b = modifyAt root dest (const b)
 deleteAt :: Monad m => Branch m -> Path -> m (Branch m)
 deleteAt root path = modifyAt root path $ const empty
 
+transform :: (forall a . m a -> n a) -> Branch m -> Branch n
+transform _f _b = error "Branch.transform: TODO fill this in"
 
 -- returns `Nothing` if no Branch at `path`
 getAt :: Monad m

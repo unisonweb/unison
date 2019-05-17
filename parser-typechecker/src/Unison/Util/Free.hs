@@ -3,6 +3,7 @@
 module Unison.Util.Free where
 
 import Control.Monad (ap, liftM, (>=>))
+import Control.Monad.Trans.Class (MonadTrans, lift)
 
 -- We would use another package for this if we knew of one.
 -- Neither http://hackage.haskell.org/package/free
@@ -54,3 +55,5 @@ instance Monad (Free f) where
 instance Applicative (Free f) where
   pure = Pure
   (<*>) = ap
+
+instance MonadTrans Free where lift = eval

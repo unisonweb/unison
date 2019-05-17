@@ -24,7 +24,7 @@ import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
-import           Data.Foldable                  ( foldl'
+import           Data.Foldable                  ( foldl', find
                                                 , toList
                                                 , traverse_
                                                 )
@@ -76,6 +76,7 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
 import qualified Unison.Runtime.IOSource       as IOSource
+import qualified Unison.ShortHash as SH
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
@@ -83,6 +84,7 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
+import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
@@ -90,7 +92,10 @@ import           Unison.Var                     ( Var )
 
 type F m i v = Free (Command m i v)
 
-type Action m i v a = MaybeT (StateT (LoopState (F m i v) v) (F m i v)) a
+type Action m i v a = MaybeT (StateT (LoopState m v) (F m i v)) a
+
+liftToAction :: m a -> Action m i v a
+liftToAction = lift . lift . Free.eval . Eval
 
 data LoopState m v
   = LoopState
@@ -129,7 +134,8 @@ loop = do
   uf          <- use latestTypecheckedFile
   path'       <- use path
   latestFile' <- use latestFile
-  -- nav'        <- use nav
+  root' <- use root
+  Just currentBranch' <- (`Branch.getAt` path') . Branch.transform liftToAction $ root'
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
@@ -178,20 +184,16 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
-      ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-        results <- eval . LoadSearchResults $ error "todo"
---          searchBranch currentBranch' qs Editor.ExactSearch
+      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
+        results <- searchBranchExact currentBranch' hqs
+        results <- eval . LoadSearchResults $ results
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
             termTypes =
               Map.fromList
                 [ (r, t) | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
-            termReferent (Editor.Tm _ _ r _) = Just r
-            termReferent _                   = Nothing
-            typeReference (Editor.Tp _ _ r _) = Just r
-            typeReference _                   = Nothing
             (collatedTerms, collatedTypes) = collateReferences
-              (catMaybes . map termReferent $ results)
-              (catMaybes . map typeReference $ results)
+              (catMaybes . map Editor.tmReferent $ results)
+              (catMaybes . map Editor.tpReference $ results)
         loadedTerms <- for collatedTerms $ \r -> case r of
           Reference.DerivedId i -> do
             tm <- eval (LoadTerm i)
@@ -405,48 +407,90 @@ eval = lift . lift . Free.eval
 --   _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
-searchBranch :: Branch m -> [HashQualified] -> SearchMode -> m [SearchResult]
-searchBranch (Branch.head -> b) queries = \case
-  ExactSearch -> searchBranch' b exactNameDistance queries
-  FuzzySearch -> searchBranch' b fuzzyNameDistance queries
-  where
-  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
-  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-    case Find.fuzzyFindMatchArray q [n] id of
-      [] -> Nothing
-      (m, _) : _ -> Just m
+--searchBranch :: Branch m -> [HashQualified] -> SearchMode -> m [SearchResult]
+--searchBranch (Branch.head -> b) queries = \case
+--  ExactSearch -> searchBranch' b exactNameDistance queries
+--  FuzzySearch -> searchBranch' b fuzzyNameDistance queries
+--  where
+--  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
+--  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+--    case Find.fuzzyFindMatchArray q [n] id of
+--      [] -> Nothing
+--      (m, _) : _ -> Just m
 
-searchBranch' :: forall m score. (Ord score)
+
+-- return `name` and `name.<everything>...`
+searchBranchPrefix :: forall m. Branch0 m -> Name -> m [SearchResult]
+searchBranchPrefix = error "todo"
+
+searchBranchFuzzy :: forall m score. (Ord score)
               => Branch0 m
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> m [SearchResult]
-searchBranch' = error "todo"
-  where
-  wrangle :: [(Name, BranchEntry)] -> [SearchResult]
-  wrangle entries = go <$> entries where
-    go (n, e) = case e of
-      Branch.TypeEntry r ->
-        SR.typeResult (hq e n) r (Set.map (hq e) (Relation.lookupRan e typeR))
-      Branch.TermEntry r ->
-        SR.termResult (hq e n) r (Set.map (hq e) (Relation.lookupRan e termR))
-    -- basically splitting the names up into separate type/term namespaces,
-    -- so we can tell if the names are conflicted and need to be hash-qualified
+searchBranchFuzzy = error "todo"
+
+-- Foo#123
+-- Foo#890
+-- bar#567
+-- blah#abc
+-- cat#abc
+-- and search for
+
+-- Foo, want Foo#123 and Foo#890
+-- Foo#1, want Foo#123
+-- #567, want bar -- what goes in the SR.name?
+-- blah, cat, want blah (with comment about cat)?
+
+-- #567 :: Int
+-- #567 = +3
+
+-- todo: refactor to use Branch.toNames0
+searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
+searchBranchExact b queries = do
+  hashLength <- Branch.numHashChars b
+  -- todo: try with Branch.toNames0
+  allEntries <- Branch.allEntries b
+  let
+    matchesHashPrefix :: HashQualified -> (Name, BranchEntry) -> Bool
+    matchesHashPrefix a (name, e) = case a of
+      HQ.NameOnly n -> n == name
+      HQ.HashOnly hq -> hq `SH.isPrefixOf` entryToShortHash e
+      HQ.HashQualified n hq ->
+        n == name && (hq `SH.isPrefixOf` entryToShortHash e)
+    entryToShortHash :: BranchEntry -> SH.ShortHash
+    entryToShortHash = \case
+      Branch.TermEntry r -> Referent.toShortHash r
+      Branch.TypeEntry r -> Reference.toShortHash r
     typeR, termR :: Relation Name BranchEntry
-    typeR = Relation.fromList [ (n,e) | (n, e@Branch.TypeEntry{}) <- entries ]
-    termR = Relation.fromList [ (n,e) | (n, e@Branch.TermEntry{}) <- entries ]
-    isQualifiedType, isQualifiedTerm :: Name -> Bool
-    isQualifiedType n = Relation.manyDom n typeR
-    isQualifiedTerm n = Relation.manyDom n termR
+    typeR = Relation.fromList [ (n,e) | (n, e@Branch.TypeEntry{}) <- allEntries ]
+    termR = Relation.fromList [ (n,e) | (n, e@Branch.TermEntry{}) <- allEntries ]
+    shouldQualifyType, shouldQualifyTerm :: Name -> Bool
+    shouldQualifyType n = Relation.manyDom n typeR
+    shouldQualifyTerm n = Relation.manyDom n termR
     hq :: BranchEntry -> Name -> HQ.HashQualified
     hq e n = case e of
-      Branch.TypeEntry r -> if isQualifiedType n
-        then HQ.take 3 $ HQ.fromNamedReference n r else HQ.fromName n
-      Branch.TermEntry r -> if isQualifiedTerm n
-        then HQ.take 3 $ HQ.fromNamedReferent n r else HQ.fromName n
-    hashLength = 3
-
-
+      Branch.TypeEntry r -> if shouldQualifyType n
+        then HQ.fromNamedReference n r else HQ.fromName n
+      Branch.TermEntry r -> if shouldQualifyTerm n
+        then HQ.fromNamedReferent n r else HQ.fromName n
+    filteredEntries, dedupedEntries :: [(HashQualified, Name, BranchEntry)]
+    filteredEntries =
+      [ (query, name, entry)
+      | (name, entry) <- allEntries
+      , Just query <- [find (flip matchesHashPrefix (name, entry)) queries ]]
+    dedupedEntries = uniqueBy (view _3) filteredEntries
+    aliasesFor :: BranchEntry -> Set HashQualified
+    aliasesFor entry = case entry of
+      Branch.TypeEntry r ->
+        Set.map (HQ.take hashLength . hq entry) (Relation.lookupRan entry typeR)
+      Branch.TermEntry r ->
+        Set.map (HQ.take hashLength . hq entry) (Relation.lookupRan entry termR)
+    makeSearchResult :: (HashQualified, Name, BranchEntry) -> SearchResult
+    makeSearchResult (query, name, entry) = case entry of
+      Branch.TypeEntry r -> SR.typeResult query r (aliasesFor entry)
+      Branch.TermEntry r -> SR.termResult query r (aliasesFor entry)
+  pure $ makeSearchResult <$> dedupedEntries
 
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()

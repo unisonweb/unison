@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Names2 where
---
+
 -- import           Data.Bifunctor   (first)
 import Data.Foldable (toList)
 -- import           Data.List        (foldl')
@@ -21,7 +21,7 @@ import           Unison.Reference (pattern Builtin, Reference)
 import           Unison.HashQualified   (HashQualified)
 import qualified Unison.HashQualified as HQ
 -- import qualified Unison.Name      as Name
--- import           Unison.Name      (Name)
+import           Unison.Name      (Name)
 --import qualified Unison.Referent  as Referent
 import           Unison.Referent        (Referent(Con))
 import           Unison.Util.Relation   ( Relation )
@@ -37,26 +37,29 @@ import qualified Unison.Util.Relation as R
 -- For pretty-printing, we need to look up names for References; they may have
 -- some hash-qualification, depending on the context.
 -- For parsing (both .u files and command-line args)
-data Names = Names
-  { termNames    :: Relation HashQualified Referent
-  , typeNames    :: Relation HashQualified Reference
+data Names' n = Names
+  { termNames    :: Relation n Referent
+  , typeNames    :: Relation n Reference
   } deriving (Show)
 
-typeName :: Names -> Reference -> HashQualified
+type Names = Names' HashQualified
+type Names0 = Names' Name
+
+typeName :: Ord n => Names' n -> Reference -> n
 typeName names r =
   case toList $ R.lookupRan r (typeNames names) of
     hq : _ -> hq
     _ -> error
       ("Names construction should have included something for " <> show r)
 
-termName :: Names -> Referent -> HashQualified
+termName :: Ord n => Names' n -> Referent -> n
 termName names r =
   case toList $ R.lookupRan r (termNames names) of
     hq : _ -> hq
     _ -> error
       ("Names construction should have included something for " <> show r)
 
-patternName :: Names -> Reference -> Int -> HashQualified
+patternName :: Ord n => Names' n -> Reference -> Int -> n
 patternName names r cid = termName names (Con r cid)
 
 -- subtractTerms :: Var v => [v] -> Names -> Names
@@ -83,17 +86,17 @@ patternName names r cid = termName names (Con r cid)
 -- fromBuiltins rs =
 --   mempty { termNames = Map.fromList
 --           [ (Name.unsafeFromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
---
--- fromTerms :: [(Name, Referent)] -> Names
--- fromTerms ts = mempty { termNames = Map.fromList ts }
---
+
+fromTerms :: [(Name, Referent)] -> Names0
+fromTerms ts = Names (R.fromList ts) mempty
+
 -- fromTypesV :: Var v => [(v, Reference)] -> Names
 -- fromTypesV env =
 --   Names mempty . Map.fromList $ fmap (first $ Name.unsafeFromVar) env
---
--- fromTypes :: [(Name, Reference)] -> Names
--- fromTypes env = Names mempty $ Map.fromList env
---
+
+fromTypes :: [(Name, Reference)] -> Names0
+fromTypes ts = Names mempty (R.fromList ts)
+
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
 --   where
@@ -140,12 +143,9 @@ patternName names r cid = termName names (Con r cid)
 --   types' = foldl' go typeNames shortToLongName
 --   in Names terms' types'
 --
--- instance Semigroup Names where (<>) = mappend
---
--- instance Monoid Names where
---   mempty = Names mempty mempty
---   Names e1 t1 `mappend` Names e2 t2 =
---     Names (e1 `unionL` e2) (t1 `unionL` t2)
---     where
---       unionL :: forall k v. Ord k => Map k v -> Map k v -> Map k v
---       unionL = Map.unionWith const
+instance Ord n => Semigroup (Names' n) where (<>) = mappend
+
+instance Ord n => Monoid (Names' n) where
+  mempty = Names mempty mempty
+  Names e1 t1 `mappend` Names e2 t2 =
+    Names (e1 <> e2) (t1 <> t2)

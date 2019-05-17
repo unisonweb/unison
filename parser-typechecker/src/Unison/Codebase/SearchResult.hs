@@ -3,7 +3,9 @@
 module Unison.Codebase.SearchResult where
 
 import           Data.Set             (Set)
+import qualified Data.Set as Set
 import           Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
 import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
 
@@ -22,8 +24,8 @@ data TypeResult = TypeResult
   , typeAliases :: Set HashQualified
   } deriving (Eq, Ord, Show)
 
-pattern Tm' n r as = Tm (TermResult n r as)
-pattern Tp' n r as = Tp (TypeResult n r as)
+pattern Tm' hq r as = Tm (TermResult hq r as)
+pattern Tp' hq r as = Tp (TypeResult hq r as)
 
 termResult :: HashQualified -> Referent -> Set HashQualified -> SearchResult
 termResult hq r as = Tm (TermResult hq r as)

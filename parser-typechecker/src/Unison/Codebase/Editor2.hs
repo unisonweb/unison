@@ -237,6 +237,11 @@ data TypeResult' v a =
 pattern Tm n t r as = Tm' (TermResult' n t r as)
 pattern Tp n t r as = Tp' (TypeResult' n t r as)
 
+tmReferent :: SearchResult' v a -> Maybe Referent
+tmReferent = \case; Tm _ _ r _ -> Just r; _ -> Nothing
+tpReference :: SearchResult' v a -> Maybe Reference
+tpReference = \case; Tp _ _ r _ -> Just r; _ -> Nothing
+
 foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
 foldResult' f g = \case
   Tm' tm -> f tm
