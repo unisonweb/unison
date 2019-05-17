@@ -53,6 +53,9 @@ asDirectory p = case toList p of
 fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 
+toName :: Path -> Name
+toName = Name.unsafeFromText . asIdentifier
+
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.
 relativeToAncestor :: Path -> Path -> (Path, Path, Path)

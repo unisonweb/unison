@@ -26,7 +26,7 @@ import qualified Data.Map                      as Map
 --
 -- 3. If you subtract, take care when handling the set of values.
 --
--- As a multi-map, each key is asscoated with a Set of values v.
+-- As a multi-map, each key is associated with a Set of values v.
 --
 -- We do not allow the associations with the 'empty' Set.
 --
@@ -200,7 +200,12 @@ member x y r = case lookupDom' x r of
 notMember :: (Ord a, Ord b) => a -> b -> Relation a b -> Bool
 notMember x y r = not $ member x y r
 
+-- | True if a value appears more than one time in the relation.
+manyDom :: Ord a => a -> Relation a b -> Bool
+manyDom a = (>1) . S.size . lookupDom a
 
+manyRan :: Ord b => b -> Relation a b -> Bool
+manyRan b = (>1) . S.size . lookupRan b
 
 -- | Returns the domain in the relation, as a Set, in its entirety.
 dom :: Relation a b -> Set a

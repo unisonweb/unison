@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Branch2 where
 
@@ -14,12 +15,16 @@ module Unison.Codebase.Branch2 where
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children )
+import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
 --import           Data.List                      ( intercalate )
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
+import qualified Data.Set                      as Set
+import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
+import           Data.Tuple                     (swap)
 --import qualified Data.Text                     as Text
 import           Data.Foldable                  ( for_ )
 import qualified Unison.Codebase.Causal2       as Causal
@@ -28,6 +33,8 @@ import           Unison.Codebase.Causal2        ( Causal
                                                 , pattern RawCons
                                                 , pattern RawMerge
                                                 )
+import           Unison.Codebase.SearchResult (SearchResult)
+import qualified Unison.Codebase.SearchResult as SR
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( NameSegment
@@ -37,16 +44,29 @@ import qualified Unison.Codebase.Path          as Path
 --import           Unison.Hash                    ( Hash )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
+import qualified Unison.HashQualified          as HQ
+
 import           Unison.Name                    ( Name )
+import           Unison.Names2                  ( Names0 )
 import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent )
+import           Unison.Referent                ( Referent(Con,Ref) )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
+import qualified Unison.Util.List              as List
+
 
 -- type EditGuid = Text
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
+
+data BranchEntry = TermEntry Referent | TypeEntry Reference deriving (Eq,Ord,Show)
+
+branchEntryReference :: BranchEntry -> Reference
+branchEntryReference = \case
+  TermEntry (Con r _i) -> r
+  TermEntry (Ref r) -> r
+  TypeEntry r -> r
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -59,6 +79,7 @@ type Hash = Causal.RawHash Raw
 data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
+--  , _edits :: Relation NameSegment Edits
   -- Q: How will we handle merges and conflicts for `children`?
   --    Should this be a relation?
   --    What is the UX to resolve conflicts?
@@ -90,6 +111,24 @@ instance Eq (Branch0 m) where
         && view children a == view children b
 
 data ForkFailure = SrcNotFound | DestExists
+
+fold :: Monad m => (a -> Name -> BranchEntry -> a) -> a -> Branch m -> m a
+fold f = foldM (\a n b -> pure (f a n b))
+
+foldM :: forall m a. Monad m
+      => (a -> Name -> BranchEntry -> m a) -> a -> Branch m -> m a
+foldM f a (head -> b) = go Path.empty b a where
+  doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
+  doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
+  doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
+  go :: Path -> Branch0 m -> a -> m a
+  go p b a = do
+    a1 <- Monad.foldM (doTerm p) a (R.toList . view terms $ b)
+    a2 <- Monad.foldM (doType p) a1 (R.toList . view types $ b)
+    Monad.foldM (doChild p) a2 (Map.toList . view children $ b)
+
+allEntries :: Monad m => Branch m -> m [(Name, BranchEntry)]
+allEntries = fmap reverse . fold (\l n e -> (n, e) : l) []
 
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?

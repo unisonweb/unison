@@ -42,7 +42,7 @@ import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
-                                                , Edits
+                                                , Edits, BranchEntry
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import           Unison.Codebase.Editor2        ( Command(..)
@@ -84,6 +84,8 @@ import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
+import qualified Unison.Util.Relation          as R
+import           Unison.Util.Relation           ( Relation )
 import           Unison.Var                     ( Var )
 
 type F m i v = Free (Command m i v)
@@ -414,18 +416,37 @@ searchBranch (Branch.head -> b) queries = \case
       [] -> Nothing
       (m, _) : _ -> Just m
 
-collectHashQualified :: Monad m => Branch m -> m (Set HashQualified)
-collectHashQualified (Branch.head -> b) = search mempty b where
-  search :: Path -> Branch0 m -> m (Set HashQualified)
-  search path b = error "todo"
-
-
 searchBranch' :: forall m score. (Ord score)
               => Branch0 m
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> m [SearchResult]
 searchBranch' = error "todo"
+  where
+  wrangle :: [(Name, BranchEntry)] -> [SearchResult]
+  wrangle entries = go <$> entries where
+    go (n, e) = case e of
+      Branch.TypeEntry r ->
+        SR.typeResult (hq e n) r (Set.map (hq e) (Relation.lookupRan e typeR))
+      Branch.TermEntry r ->
+        SR.termResult (hq e n) r (Set.map (hq e) (Relation.lookupRan e termR))
+    -- basically splitting the names up into separate type/term namespaces,
+    -- so we can tell if the names are conflicted and need to be hash-qualified
+    typeR, termR :: Relation Name BranchEntry
+    typeR = Relation.fromList [ (n,e) | (n, e@Branch.TypeEntry{}) <- entries ]
+    termR = Relation.fromList [ (n,e) | (n, e@Branch.TermEntry{}) <- entries ]
+    isQualifiedType, isQualifiedTerm :: Name -> Bool
+    isQualifiedType n = Relation.manyDom n typeR
+    isQualifiedTerm n = Relation.manyDom n termR
+    hq :: BranchEntry -> Name -> HQ.HashQualified
+    hq e n = case e of
+      Branch.TypeEntry r -> if isQualifiedType n
+        then HQ.take 3 $ HQ.fromNamedReference n r else HQ.fromName n
+      Branch.TermEntry r -> if isQualifiedTerm n
+        then HQ.take 3 $ HQ.fromNamedReferent n r else HQ.fromName n
+    hashLength = 3
+
+
 
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()

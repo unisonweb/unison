@@ -23,6 +23,7 @@ target
 htags
 scala-tags
 haskell-tags
+out
 
 # Stack
 .stack-work
