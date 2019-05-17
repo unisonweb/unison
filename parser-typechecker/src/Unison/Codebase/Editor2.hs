@@ -421,6 +421,14 @@ data Command m i v a where
 --
 --   Propagate :: Edits -> Branch -> Command m i v (Branch m)
 
+
+-- may need to be different for private repo?
+loadGithubRootBranch :: Text -> Text -> Text -> m (Branch m)
+loadGithubRootBranch user repo treeish = error "todo"
+
+syncGithubRootBranch :: Text -> Text -> Text -> Branch m -> m ()
+syncGithubRootBranch user repo ghbranch b = error "todo"
+
 -- data Outcome
 --   -- New definition that was added to the branch
 --   = Added
