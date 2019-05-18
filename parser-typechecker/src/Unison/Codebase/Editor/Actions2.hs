@@ -28,7 +28,7 @@ import           Data.Foldable                  ( foldl', find
                                                 , toList
                                                 , traverse_
                                                 )
-import           Data.List                      ( sortOn )
+import qualified Data.List                      as List
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
                                                 , fromJust
@@ -186,7 +186,7 @@ loop = do
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        results <- searchBranchExact' currentBranch' hqs
+        results <- searchBranchExact currentBranch' hqs
         results <- eval . LoadSearchResults $ results
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
             termTypes =
@@ -399,7 +399,7 @@ eval = lift . lift . Free.eval
 --
 -- listBranch :: Branch -> [SearchResult]
 -- listBranch (Branch.head -> b) =
---   sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+--   List.sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
 --
 -- searchResultToHQString :: SearchResult -> String
 -- searchResultToHQString = \case
@@ -446,8 +446,8 @@ searchBranchFuzzy = error "todo"
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact' :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
-searchBranchExact' b queries = do
+searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
+searchBranchExact b queries = do
   hashLength <- Branch.numHashChars b
   names0@(Names.Names terms types) <- Branch.toNames0 b
   let
@@ -457,71 +457,19 @@ searchBranchExact' b queries = do
       HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
       HQ.HashQualified n q ->
         n == name && q `SH.isPrefixOf` toShortHash r
-
     filteredTypes, filteredTerms, deduped :: [SearchResult]
     filteredTypes =
       [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
       | (name, r) <- R.toList types
-      , Just query <-
-          [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
+      , Just query <- [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
       ]
     filteredTerms =
       [ SR.termResult query r (Names.hqTermAliases names0 name r)
       | (name, r) <- R.toList terms
-      , Just query <-
-          [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
+      , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
       ]
     deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-  pure deduped
-
-
--- todo: delete if we like searchBranchE
-searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
-searchBranchExact b queries = do
-  hashLength <- Branch.numHashChars b
-  -- todo: try with Branch.toNames0
-  allEntries <- Branch.allEntries b
-  let
-    matchesHashPrefix :: HashQualified -> (Name, BranchEntry) -> Bool
-    matchesHashPrefix a (name, e) = case a of
-      HQ.NameOnly n -> n == name
-      HQ.HashOnly hq -> hq `SH.isPrefixOf` entryToShortHash e
-      HQ.HashQualified n hq ->
-        n == name && (hq `SH.isPrefixOf` entryToShortHash e)
-    entryToShortHash :: BranchEntry -> SH.ShortHash
-    entryToShortHash = \case
-      Branch.TermEntry r -> Referent.toShortHash r
-      Branch.TypeEntry r -> Reference.toShortHash r
-    typeR, termR :: Relation Name BranchEntry
-    typeR = Relation.fromList [ (n,e) | (n, e@Branch.TypeEntry{}) <- allEntries ]
-    termR = Relation.fromList [ (n,e) | (n, e@Branch.TermEntry{}) <- allEntries ]
-    shouldQualifyType, shouldQualifyTerm :: Name -> Bool
-    shouldQualifyType n = Relation.manyDom n typeR
-    shouldQualifyTerm n = Relation.manyDom n termR
-    hq :: BranchEntry -> Name -> HQ.HashQualified
-    hq e n = case e of
-      Branch.TypeEntry r -> if shouldQualifyType n
-        then HQ.fromNamedReference n r else HQ.fromName n
-      Branch.TermEntry r -> if shouldQualifyTerm n
-        then HQ.fromNamedReferent n r else HQ.fromName n
-    filteredEntries, dedupedEntries :: [(HashQualified, Name, BranchEntry)]
-    filteredEntries =
-      [ (query, name, entry)
-      | (name, entry) <- allEntries
-      , Just query <- [find (flip matchesHashPrefix (name, entry)) queries ]]
-    dedupedEntries = uniqueBy (view _3) filteredEntries
-    aliasesFor :: BranchEntry -> Set HashQualified
-    aliasesFor entry = case entry of
-      Branch.TypeEntry r ->
-        Set.map (HQ.take hashLength . hq entry) (Relation.lookupRan entry typeR)
-      Branch.TermEntry r ->
-        Set.map (HQ.take hashLength . hq entry) (Relation.lookupRan entry termR)
-    makeSearchResult :: (HashQualified, Name, BranchEntry) -> SearchResult
-    makeSearchResult (query, name, entry) = case entry of
-      Branch.TypeEntry r -> SR.typeResult query r (aliasesFor entry)
-      Branch.TermEntry r -> SR.termResult query r (aliasesFor entry)
-  pure $ makeSearchResult <$> dedupedEntries
-
+  pure $ List.sort deduped
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
