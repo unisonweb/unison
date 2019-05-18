@@ -73,6 +73,7 @@ import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
 import qualified Unison.Runtime.IOSource       as IOSource
@@ -185,7 +186,7 @@ loop = do
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        results <- searchBranchExact currentBranch' hqs
+        results <- searchBranchExact' currentBranch' hqs
         results <- eval . LoadSearchResults $ results
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
             termTypes =
@@ -445,7 +446,36 @@ searchBranchFuzzy = error "todo"
 -- #567 :: Int
 -- #567 = +3
 
--- todo: refactor to use Branch.toNames0
+searchBranchExact' :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
+searchBranchExact' b queries = do
+  hashLength <- Branch.numHashChars b
+  names0@(Names.Names terms types) <- Branch.toNames0 b
+  let
+    matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
+    matchesHashPrefix toShortHash (name, r) = \case
+      HQ.NameOnly n -> n == name
+      HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
+      HQ.HashQualified n q ->
+        n == name && q `SH.isPrefixOf` toShortHash r
+
+    filteredTypes, filteredTerms, deduped :: [SearchResult]
+    filteredTypes =
+      [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
+      | (name, r) <- R.toList types
+      , Just query <-
+          [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
+      ]
+    filteredTerms =
+      [ SR.termResult query r (Names.hqTermAliases names0 name r)
+      | (name, r) <- R.toList terms
+      , Just query <-
+          [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
+      ]
+    deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
+  pure deduped
+
+
+-- todo: delete if we like searchBranchE
 searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
 searchBranchExact b queries = do
   hashLength <- Branch.numHashChars b

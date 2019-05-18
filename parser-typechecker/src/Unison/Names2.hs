@@ -11,8 +11,9 @@ module Unison.Names2 where
 import Data.Foldable (toList)
 -- import           Data.List        (foldl')
 import           Data.Map         (Map)
+import           Data.Set (Set)
 -- import qualified Data.Map         as Map
--- import qualified Data.Set         as Set
+import qualified Data.Set         as Set
 -- import           Data.String      (fromString)
 -- import           Data.Text        (Text)
 -- import qualified Data.Text        as Text
@@ -38,8 +39,8 @@ import qualified Unison.Util.Relation as R
 -- some hash-qualification, depending on the context.
 -- For parsing (both .u files and command-line args)
 data Names' n = Names
-  { termNames    :: Relation n Referent
-  , typeNames    :: Relation n Reference
+  { terms :: Relation n Referent
+  , types :: Relation n Reference
   } deriving (Show)
 
 type Names = Names' HashQualified
@@ -47,20 +48,51 @@ type Names0 = Names' Name
 
 typeName :: Ord n => Names' n -> Reference -> n
 typeName names r =
-  case toList $ R.lookupRan r (typeNames names) of
+  case toList $ R.lookupRan r (types names) of
     hq : _ -> hq
     _ -> error
       ("Names construction should have included something for " <> show r)
 
 termName :: Ord n => Names' n -> Referent -> n
 termName names r =
-  case toList $ R.lookupRan r (termNames names) of
+  case toList $ R.lookupRan r (terms names) of
     hq : _ -> hq
     _ -> error
       ("Names construction should have included something for " <> show r)
 
 patternName :: Ord n => Names' n -> Reference -> Int -> n
 patternName names r cid = termName names (Con r cid)
+
+termConflicts :: Ord n => Names' n -> n -> Set Referent
+termConflicts = flip R.lookupDom . terms
+
+typeConflicts :: Ord n => Names' n -> n -> Set Reference
+typeConflicts = flip R.lookupDom . types
+
+namesForReferent :: Names' n -> Referent -> Set n
+namesForReferent names r = R.lookupRan r (terms names)
+
+namesForReference :: Names' n -> Reference -> Set n
+namesForReference names r = R.lookupRan r (types names)
+
+termAliases :: Ord n => Names' n -> n -> Referent -> Set n
+termAliases names n r = Set.delete n $ namesForReferent names r
+
+typeAliases :: Ord n => Names' n -> n -> Reference -> Set n
+typeAliases names n r = Set.delete n $ namesForReference names r
+
+hqTypeAliases :: Names0 -> Name -> Reference -> Set HashQualified
+hqTypeAliases names@(Names _ types) n r =
+  Set.map (hq r) (typeAliases names n r)
+  where hq r n = if Set.size (R.lookupDom n types) > 1
+                 then HQ.fromNamedReference n r
+                 else HQ.fromName n
+hqTermAliases :: Names0 -> Name -> Referent -> Set HashQualified
+hqTermAliases names@(Names terms _) n r =
+  Set.map (hq r) (termAliases names n r)
+  where hq r n = if Set.size (R.lookupDom n terms) > 1
+                 then HQ.fromNamedReferent n r
+                 else HQ.fromName n
 
 -- subtractTerms :: Var v => [v] -> Names -> Names
 -- subtractTerms vs n = let

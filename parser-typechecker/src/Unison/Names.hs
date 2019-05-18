@@ -50,9 +50,9 @@ fromNames2 :: Names2.Names -> Names
 fromNames2 names = Names termNames typeNames
   where
   termNames = Map.fromList
-    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.termNames names)]
+    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.terms names)]
   typeNames = Map.fromList
-    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.typeNames names)]
+    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.types names)]
 
 subtractTerms :: Var v => [v] -> Names -> Names
 subtractTerms vs n = let

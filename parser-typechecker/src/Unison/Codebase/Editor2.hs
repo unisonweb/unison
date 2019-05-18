@@ -1,6 +1,7 @@
 --{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}

@@ -3,11 +3,10 @@
 module Unison.Codebase.SearchResult where
 
 import           Data.Set             (Set)
-import qualified Data.Set as Set
 import           Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
 import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
+import qualified Unison.Referent      as Referent
 
 -- this Ord instance causes types < terms
 data SearchResult = Tp TypeResult | Tm TermResult deriving (Eq, Ord, Show)
@@ -42,3 +41,8 @@ aliases :: SearchResult -> Set HashQualified
 aliases = \case
   Tm t -> termAliases t
   Tp t -> typeAliases t
+
+-- | TypeResults yield a `Referent.Ref`
+toReferent :: SearchResult -> Referent
+toReferent (Tm (TermResult _ r _)) = r
+toReferent (Tp (TypeResult _ r _)) = Referent.Ref r
