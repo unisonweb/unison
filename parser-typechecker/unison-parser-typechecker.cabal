@@ -187,7 +187,6 @@ library
     regex-base,
     regex-tdfa,
     safe,
-    semigroupoids,
     split,
     stm,
     strings,

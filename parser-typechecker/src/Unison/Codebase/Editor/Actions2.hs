@@ -1,5 +1,5 @@
--- {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
@@ -456,7 +456,7 @@ searchBranchFuzzy _b _score _queries = error "todo"
 searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
 searchBranchExact b queries = do
   hashLength <- Branch.numHashChars b
-  names0@(Names.Names terms types) <- Branch.toNames0 b
+  names0 <- Branch.toNames0 b
   let
     matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
     matchesHashPrefix toShortHash (name, r) = \case
@@ -467,12 +467,12 @@ searchBranchExact b queries = do
     filteredTypes, filteredTerms, deduped :: [SearchResult]
     filteredTypes =
       [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
-      | (name, r) <- R.toList types
+      | (name, r) <- R.toList $ Names.types names0
       , Just query <- [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
       ]
     filteredTerms =
       [ SR.termResult query r (Names.hqTermAliases names0 name r)
-      | (name, r) <- R.toList terms
+      | (name, r) <- R.toList $ Names.terms names0
       , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
       ]
     deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)

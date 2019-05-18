@@ -89,7 +89,7 @@ merge0 b1 b2 = unionWithM f (_children b1) (_children b2)
   <&> Branch0 (_terms b1 <> _terms b2) (_types b1 <> _types b2)
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
-  f (h1, b1) (h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
+  f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
 
 unionWithM :: forall m k a.
   (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
@@ -238,7 +238,8 @@ move root src dest = case getAt root src of
         go b = do
           b <- setAt b relDest src'
           deleteAt b relSrc
-          -- todo: can we combine these into one update?
+          -- todo: can we combine these into one update,
+          --       eliminating Monad constraint to boot?
 
 setIfNotExists
   :: Applicative m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))

@@ -13,7 +13,6 @@ import           Control.Lens                   ( (<&>) )
 import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
-import           Data.Semigroup.Foldable        ( foldlM1 )
 import           Data.List                      ( foldl1' )
 import           Unison.Hash                    ( Hash )
 -- import qualified Unison.Hash                   as H
