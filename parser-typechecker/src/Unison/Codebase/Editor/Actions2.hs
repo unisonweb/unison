@@ -142,6 +142,7 @@ loop = do
   latestFile' <- use latestFile
   root' <- use root
   Just currentBranch' <- (\b -> pure $ Branch.getAt b path') . Branch.transform liftToAction $ root'
+  let names' = Branch.toNames currentBranch'
   -- currentBranch' <- getAt path' root' -- todo: why not this?
   e           <- eval Input
   let withFile ambient sourceName text k = do
@@ -235,34 +236,32 @@ loop = do
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
-      -- -- ls with no arguments
-      -- SearchByNameI [] -> do
-      --   let results = listBranch currentBranch'
-      --   numberedArgs .= fmap searchResultToHQString results
-      --   eval (LoadSearchResults results)
-      --     >>= respond
-      --     .   ListOfDefinitions currentBranch' False
-      -- SearchByNameI ["-l"] -> do
-      --   let results = listBranch currentBranch'
-      --   numberedArgs .= fmap searchResultToHQString results
-      --   eval (LoadSearchResults results)
-      --     >>= respond
-      --     .   ListOfDefinitions currentBranch' True
-      -- -- ls with arguments
+      -- ls with no arguments
+      SearchByNameI [] -> do
+        let results = listBranch (currentBranch')
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions names' False
+      SearchByNameI ["-l"] -> do
+        let results = listBranch currentBranch'
+        numberedArgs .= fmap searchResultToHQString results
+        eval (LoadSearchResults results)
+          >>= respond
+          .   ListOfDefinitions names' True
+      -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
-            names = Branch.toNames currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names True
+          .   ListOfDefinitions names' True
       SearchByNameI (map HQ.fromString -> qs) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
-            names = Branch.toNames currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names False
+          .   ListOfDefinitions names' False
       -- RemoveTermNameI r name ->
       --   stepAt $ Branch.deleteTermName r name
       -- RemoveTypeNameI r name ->
@@ -402,10 +401,11 @@ eval = lift . lift . Free.eval
 --
 -- loadBranch :: BranchName -> Action m i v (Maybe Branch)
 -- loadBranch = eval . LoadBranch
---
--- listBranch :: Branch -> [SearchResult]
--- listBranch (Branch.head -> b) =
---   List.sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
+
+
+listBranch :: Branch m -> [SearchResult]
+listBranch (Branch.toNames0 -> b) =
+  List.sortOn (\s -> (SR.name s, s)) (Names.asSearchResults b)
 
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
@@ -415,13 +415,6 @@ searchResultToHQString = \case
   _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
---searchBranch :: Branch m -> [HashQualified] -> SearchMode -> m [SearchResult]
---searchBranch (Branch.head -> b) queries = \case
---  ExactSearch -> searchBranch' b exactNameDistance queries
---  FuzzySearch -> searchBranch' b fuzzyNameDistance queries
---  where
---  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
-
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   case Find.fuzzyFindMatchArray q [n] id of
@@ -455,7 +448,7 @@ searchBranchScored (Branch.toNames0 -> names0) score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = SR.termResult (Names.hqTermName names0 name ref) ref (Names.hqTermAliases names0 name ref)
+      result = Names.termSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
@@ -473,7 +466,7 @@ searchBranchScored (Branch.toNames0 -> names0) score queries =
         Set.singleton (Nothing, result)
       _ -> mempty
       where
-      result = SR.typeResult (Names.hqTypeName names0 name ref) ref (Names.hqTypeAliases names0 name ref)
+      result = Names.typeSearchResult names0 name ref
       pair qn = case score qn name of
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty

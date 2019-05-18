@@ -18,6 +18,8 @@ import qualified Data.Set         as Set
 -- import           Data.Text        (Text)
 -- import qualified Data.Text        as Text
 -- import           Unison.ConstructorType (ConstructorType)
+import           Unison.Codebase.SearchResult   ( SearchResult )
+import qualified Unison.Codebase.SearchResult  as SR
 import           Unison.Reference (pattern Builtin, Reference)
 import           Unison.HashQualified   (HashQualified)
 import qualified Unison.HashQualified as HQ
@@ -151,6 +153,20 @@ fromTerms ts = Names (R.fromList ts) mempty
 
 fromTypes :: [(Name, Reference)] -> Names0
 fromTypes ts = Names mempty (R.fromList ts)
+
+-- | You may want to sort this list differently afterward.
+asSearchResults :: Names0 -> [SearchResult]
+asSearchResults b =
+  (map (uncurry (typeSearchResult b)) (R.toList . types $ b)) <>
+  (map (uncurry (termSearchResult b)) (R.toList . terms $ b))
+
+termSearchResult :: Names0 -> Name -> Referent -> SearchResult
+termSearchResult b n r =
+  SR.termResult (hqTermName b n r) r (hqTermAliases b n r)
+
+typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
+typeSearchResult b n r =
+  SR.typeResult (hqTypeName b n r) r (hqTypeAliases b n r)
 
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
