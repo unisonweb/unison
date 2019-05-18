@@ -9,7 +9,7 @@ module Unison.Names2 where
 
 -- import           Data.Bifunctor   (first)
 import Data.Foldable (toList)
--- import           Data.List        (foldl')
+import           Data.List        (foldl')
 import           Data.Map         (Map)
 import           Data.Set (Set)
 -- import qualified Data.Map         as Map
@@ -23,8 +23,8 @@ import           Unison.HashQualified   (HashQualified)
 import qualified Unison.HashQualified as HQ
 -- import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
---import qualified Unison.Referent  as Referent
-import           Unison.Referent        (Referent(Con))
+import qualified Unison.Referent  as Referent
+import           Unison.Referent        (Referent(Con, Ref))
 import           Unison.Util.Relation   ( Relation )
 import qualified Unison.Util.Relation as R
 
@@ -46,6 +46,14 @@ data Names' n = Names
 type Names = Names' HashQualified
 type Names0 = Names' Name
 
+-- could move this to a read-only field in Names
+numHashChars :: Names' n -> Int
+numHashChars b = lenFor hashes
+  where lenFor _hashes = 3
+        hashes = foldl' f (foldl' g mempty (R.ran $ types b)) (R.ran $ terms b)
+        g s r = Set.insert r s
+        f s r = Set.insert (Referent.toReference r) s
+
 typeName :: Ord n => Names' n -> Reference -> n
 typeName names r =
   case toList $ R.lookupRan r (types names) of
@@ -63,11 +71,11 @@ termName names r =
 patternName :: Ord n => Names' n -> Reference -> Int -> n
 patternName names r cid = termName names (Con r cid)
 
-termConflicts :: Ord n => Names' n -> n -> Set Referent
-termConflicts = flip R.lookupDom . terms
+termsNamed :: Ord n => Names' n -> n -> Set Referent
+termsNamed = flip R.lookupDom . terms
 
-typeConflicts :: Ord n => Names' n -> n -> Set Reference
-typeConflicts = flip R.lookupDom . types
+typesNamed :: Ord n => Names' n -> n -> Set Reference
+typesNamed = flip R.lookupDom . types
 
 namesForReferent :: Names' n -> Referent -> Set n
 namesForReferent names r = R.lookupRan r (terms names)
@@ -81,18 +89,33 @@ termAliases names n r = Set.delete n $ namesForReferent names r
 typeAliases :: Ord n => Names' n -> n -> Reference -> Set n
 typeAliases names n r = Set.delete n $ namesForReference names r
 
+-- Get the appropriately hash-qualified version of a name for term.
+-- Should be the same as the input name if the Names0 is unconflicted.
+hqTermName :: Names0 -> Name -> Referent -> HashQualified
+hqTermName b n r = if Set.size (termsNamed b n) > 1
+  then hqTermName' b n r
+  else HQ.fromName n
+
+hqTypeName :: Names0 -> Name -> Reference -> HashQualified
+hqTypeName b n r = if Set.size (typesNamed b n) > 1
+  then hqTypeName b n r
+  else HQ.fromName n
+
 hqTypeAliases :: Names0 -> Name -> Reference -> Set HashQualified
-hqTypeAliases names@(Names _ types) n r =
-  Set.map (hq r) (typeAliases names n r)
-  where hq r n = if Set.size (R.lookupDom n types) > 1
-                 then HQ.fromNamedReference n r
-                 else HQ.fromName n
+hqTypeAliases b n r = Set.map (flip (hqTypeName b) r) (typeAliases b n r)
+
 hqTermAliases :: Names0 -> Name -> Referent -> Set HashQualified
-hqTermAliases names@(Names terms _) n r =
-  Set.map (hq r) (termAliases names n r)
-  where hq r n = if Set.size (R.lookupDom n terms) > 1
-                 then HQ.fromNamedReferent n r
-                 else HQ.fromName n
+hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
+
+-- always apply hash qualifier long enough to distinguish all the References in
+-- this Names0.
+hqTermName' :: Names0 -> Name -> Referent -> HashQualified
+hqTermName' b n r =
+  HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
+
+hqTypeName' :: Names0 -> Name -> Reference -> HashQualified
+hqTypeName' b n r =
+  HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
 -- subtractTerms :: Var v => [v] -> Names -> Names
 -- subtractTerms vs n = let

@@ -118,12 +118,13 @@ notifyUser dir o = case o of
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
-  TypeErrors src ppenv notes -> do
-    Console.setTitle "Unison ☹︎"
-    let showNote =
-          intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
-            . map Result.TypeError
-    putStrLn . showNote $ notes
+  TypeErrors src ppenv notes -> error "todo"
+  -- do
+  --   Console.setTitle "Unison ☹︎"
+  --   let showNote =
+  --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+  --           . map Result.TypeError
+  --   putStrLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else error "todo"
@@ -176,7 +177,7 @@ notifyUser dir o = case o of
 --      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
 --    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
 --      "I loaded " <> P.text sourceName <> " and didn't find anything."
-  TodoOutput branch todo -> todoOutput branch todo
+  TodoOutput names todo -> todoOutput names todo
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -405,46 +406,46 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => PPE.PrettyPrintEnv -> E.TodoOutput v a -> IO ()
-todoOutput ppe todo =
-  if noConflicts && noEdits
-  then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
-  else putPrettyLn (todoConflicts <> todoEdits)
-  where
-  noConflicts = E.todoConflicts todo == mempty
-  noEdits = E.todoScore todo == 0
-  (frontierTerms, frontierTypes) = E.todoFrontier todo
-  (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
-  corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
-  corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
-  goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
-  todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [error "todo", error "todo"]
-    -- [ renderEditConflicts ppe branch
-    -- , renderNameConflicts conflictedTypeNames conflictedTermNames ]
-    where
-    -- -- If a conflict is both an edit and a name conflict, we show it in the edit
-    -- -- conflicts section
-    -- c = Branch.nameOnlyConflicts (E.todoConflicts todo)
-    -- conflictedTypeNames = Branch.allTypeNames c
-    -- conflictedTermNames = Branch.allTermNames c
-  todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-      [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
-              <> "transitive dependent(s) left to upgrade."
-              <> "Your edit frontier is the dependents of these definitions:")
-      , P.indentN 2 . P.lines $ (
-          (prettyDeclTriple <$> toList frontierTypes) ++
-          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
-          )
-      , P.wrap "I recommend working on them in the following order:"
-      , P.indentN 2 . P.lines $
-          let unscore (_score,a,b,c) = (a,b,c)
-          in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-             (TypePrinter.prettySignatures'
-                ppe
-                (goodTerms $ unscore <$> dirtyTerms))
-      , formatMissingStuff corruptTerms corruptTypes
-      ]
+todoOutput :: Var v => Names -> E.TodoOutput v a -> IO ()
+todoOutput ppe todo = error "todo: update TypePrinter to use Names"
+  -- if noConflicts && noEdits
+  -- then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
+  -- else putPrettyLn (todoConflicts <> todoEdits)
+  -- where
+  -- noConflicts = E.todoConflicts todo == mempty
+  -- noEdits = E.todoScore todo == 0
+  -- (frontierTerms, frontierTypes) = E.todoFrontier todo
+  -- (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
+  -- corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
+  -- corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
+  -- goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
+  -- todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
+  --   [error "todo", error "todo"]
+  --   -- [ renderEditConflicts ppe branch
+  --   -- , renderNameConflicts conflictedTypeNames conflictedTermNames ]
+  --   where
+  --   -- -- If a conflict is both an edit and a name conflict, we show it in the edit
+  --   -- -- conflicts section
+  --   -- c = Branch.nameOnlyConflicts (E.todoConflicts todo)
+  --   -- conflictedTypeNames = Branch.allTypeNames c
+  --   -- conflictedTermNames = Branch.allTermNames c
+  -- todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+  --     [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+  --             <> "transitive dependent(s) left to upgrade."
+  --             <> "Your edit frontier is the dependents of these definitions:")
+  --     , P.indentN 2 . P.lines $ (
+  --         (prettyDeclTriple <$> toList frontierTypes) ++
+  --         TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+  --         )
+  --     , P.wrap "I recommend working on them in the following order:"
+  --     , P.indentN 2 . P.lines $
+  --         let unscore (_score,a,b,c) = (a,b,c)
+  --         in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+  --            (TypePrinter.prettySignatures'
+  --               ppe
+  --               (goodTerms $ unscore <$> dirtyTerms))
+  --     , formatMissingStuff corruptTerms corruptTypes
+  --     ]
 
 listOfDefinitions ::
   Var v => Branch0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()

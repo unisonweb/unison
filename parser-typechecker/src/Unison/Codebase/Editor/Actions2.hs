@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
 {-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-} -- this is ok
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.Codebase.Editor.Actions2 where
 
@@ -30,6 +32,7 @@ import           Data.Foldable                  ( foldl', find
                                                 , traverse_
                                                 )
 import qualified Data.List                      as List
+import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
                                                 , fromJust
@@ -150,12 +153,12 @@ loop = do
           Nothing -> error "todo"
           -- respond
           --   $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (errorEnv, r) ->
+          Just (names, r) ->
             let h = respond $ TypeErrors
                   text
-                  errorEnv
+                  names
                   [ err | Result.TypeError err <- toList notes ]
-            in  maybe h (k errorEnv) r
+            in  maybe h (k names) r
   case e of
     Left (IncomingRootBranch _names) -> error "todo: merge multiple heads"
       -- when (Set.member currentBranchName' names)
@@ -189,8 +192,7 @@ loop = do
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        results <- searchBranchExact currentBranch' hqs
-        results <- eval . LoadSearchResults $ results
+        results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
             termTypes =
               Map.fromList
@@ -233,122 +235,122 @@ loop = do
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
-      _ -> error $ "todo: " <> show input
-      {-
-      -- ls with no arguments
-      SearchByNameI [] -> do
-        let results = listBranch currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' False
-      SearchByNameI ["-l"] -> do
-        let results = listBranch currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions currentBranch' True
-      -- ls with arguments
+      -- -- ls with no arguments
+      -- SearchByNameI [] -> do
+      --   let results = listBranch currentBranch'
+      --   numberedArgs .= fmap searchResultToHQString results
+      --   eval (LoadSearchResults results)
+      --     >>= respond
+      --     .   ListOfDefinitions currentBranch' False
+      -- SearchByNameI ["-l"] -> do
+      --   let results = listBranch currentBranch'
+      --   numberedArgs .= fmap searchResultToHQString results
+      --   eval (LoadSearchResults results)
+      --     >>= respond
+      --     .   ListOfDefinitions currentBranch' True
+      -- -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
-        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        let results = searchBranchScored currentBranch' fuzzyNameDistance qs
+            names = Branch.toNames currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions currentBranch' True
+          .   ListOfDefinitions names True
       SearchByNameI (map HQ.fromString -> qs) -> do
-        let results = searchBranch currentBranch' qs Editor.FuzzySearch
+        let results = searchBranchScored currentBranch' fuzzyNameDistance qs
+            names = Branch.toNames currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions currentBranch' False
-      RemoveTermNameI r name ->
-        stepAt $ Branch.deleteTermName r name
-      RemoveTypeNameI r name ->
-        stepAt $ Branch.deleteTypeName r name
-      ResolveTermNameI r name ->
-        stepAt
-          $ Branch.addTermName r name
-          . Branch.unnameAll Names.TermName name
-      ResolveTypeName r name ->
-        stepAt
-          $ Branch.addTypeName r name
-          . Branch.unnameAll Names.TypeName name
-      AliasUnconflictedI targets existingName newName ->
-        aliasUnconflicted targets existingName newName
-      RenameUnconflictedI targets oldName newName ->
-        renameUnconflicted targets oldName newName
-      UnnameAllI hqs -> do
-        stepAt $ \b ->
-          let wrangle b hq = doTerms (doTypes b)
-               where
-                doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
-                doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
-                doTerm b (n, r) = Branch.deleteTermName r n b
-                doType b (n, r) = Branch.deleteTypeName r n b
-          in  foldl' wrangle b hqs
-        respond $ Success input
-      SlurpFileI allowUpdates -> case uf of
-        Nothing  -> respond NoUnisonFile
-        Just uf' -> do
-          let collisionHandler = if allowUpdates
-                then Editor.updateCollisionHandler
-                else Editor.addCollisionHandler
-          updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
-          let branch' = updatedBranch updateo
-          -- Don't bother doing anything if the branch is unchanged by the slurping
-          when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
-          eval . Notify $ SlurpOutput updateo
-          currentBranch .= branch'
-      ListBranchesI ->
-        eval ListBranches >>= respond . ListOfBranches currentBranchName'
-      SwitchBranchI branchName       -> switchBranch branchName
-      ForkBranchI   targetBranchName -> ifM
-        (eval $ NewBranch currentBranch' targetBranchName)
-        (outputSuccess *> switchBranch targetBranchName)
-        (respond $ BranchAlreadyExists targetBranchName)
-      MergeBranchI inputBranchName -> withBranch inputBranchName $ \branch ->
-        do
-          let merged0 = branch <> currentBranch'
-          merged <- eval $ Propagate merged0
-          ok     <- eval $ SyncBranch currentBranchName' merged
-          if ok
-            then do
-              currentBranch .= merged
-              respond $ Success input -- a merge-specific message
-              checkTodo
-            else respond (UnknownBranch inputBranchName)
-      DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
-        uniqueToDelete <- prettyUniqueDefinitions bnbs
-        let deleteBranches b =
-              traverse (eval . DeleteBranch) b >> respond (Success input)
-        if (currentBranchName' `elem` branchNames)
-          then respond DeletingCurrentBranch
-          else if null uniqueToDelete
-            then deleteBranches branchNames
-            else ifM (confirmedCommand input)
-                     (deleteBranches branchNames)
-                     (respond . DeleteBranchConfirmation $ uniqueToDelete)
-      TodoI -> checkTodo
-      PropagateI -> do
-        b <- eval . Propagate $ currentBranch'
-        _ <- eval $ SyncBranch currentBranchName' b
-        _ <- success
-        currentBranch .= b
-      ExecuteI input ->
-        withFile [Type.ref External $ IOSource.ioReference]
-                 "execute command"
-                 ("main_ = " <> Text.pack input) $
-                   \_ unisonFile ->
-                      eval . Execute (view currentBranch s) $
-                        UF.discardTypes unisonFile
-      UpdateBuiltinsI -> do
-        stepAt updateBuiltins
-        checkTodo
-      ListEditsI -> do
-        (Branch.head -> b) <- use currentBranch
-        respond $ ListEdits b
-      QuitI -> quit
-      -}
+          .   ListOfDefinitions names False
+      -- RemoveTermNameI r name ->
+      --   stepAt $ Branch.deleteTermName r name
+      -- RemoveTypeNameI r name ->
+      --   stepAt $ Branch.deleteTypeName r name
+      -- ResolveTermNameI r name ->
+      --   stepAt
+      --     $ Branch.addTermName r name
+      --     . Branch.unnameAll Names.TermName name
+      -- ResolveTypeName r name ->
+      --   stepAt
+      --     $ Branch.addTypeName r name
+      --     . Branch.unnameAll Names.TypeName name
+      -- AliasUnconflictedI targets existingName newName ->
+      --   aliasUnconflicted targets existingName newName
+      -- RenameUnconflictedI targets oldName newName ->
+      --   renameUnconflicted targets oldName newName
+      -- UnnameAllI hqs -> do
+      --   stepAt $ \b ->
+      --     let wrangle b hq = doTerms (doTypes b)
+      --          where
+      --           doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
+      --           doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
+      --           doTerm b (n, r) = Branch.deleteTermName r n b
+      --           doType b (n, r) = Branch.deleteTypeName r n b
+      --     in  foldl' wrangle b hqs
+      --   respond $ Success input
+      -- SlurpFileI allowUpdates -> case uf of
+      --   Nothing  -> respond NoUnisonFile
+      --   Just uf' -> do
+      --     let collisionHandler = if allowUpdates
+      --           then Editor.updateCollisionHandler
+      --           else Editor.addCollisionHandler
+      --     updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
+      --     let branch' = updatedBranch updateo
+      --     -- Don't bother doing anything if the branch is unchanged by the slurping
+      --     when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
+      --     eval . Notify $ SlurpOutput updateo
+      --     currentBranch .= branch'
+      -- ListBranchesI ->
+      --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
+      -- SwitchBranchI branchName       -> switchBranch branchName
+      -- ForkBranchI   targetBranchName -> ifM
+      --   (eval $ NewBranch currentBranch' targetBranchName)
+      --   (outputSuccess *> switchBranch targetBranchName)
+      --   (respond $ BranchAlreadyExists targetBranchName)
+      -- MergeBranchI inputBranchName -> withBranch inputBranchName $ \branch ->
+      --   do
+      --     let merged0 = branch <> currentBranch'
+      --     merged <- eval $ Propagate merged0
+      --     ok     <- eval $ SyncBranch currentBranchName' merged
+      --     if ok
+      --       then do
+      --         currentBranch .= merged
+      --         respond $ Success input -- a merge-specific message
+      --         checkTodo
+      --       else respond (UnknownBranch inputBranchName)
+      -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
+      --   uniqueToDelete <- prettyUniqueDefinitions bnbs
+      --   let deleteBranches b =
+      --         traverse (eval . DeleteBranch) b >> respond (Success input)
+      --   if (currentBranchName' `elem` branchNames)
+      --     then respond DeletingCurrentBranch
+      --     else if null uniqueToDelete
+      --       then deleteBranches branchNames
+      --       else ifM (confirmedCommand input)
+      --                (deleteBranches branchNames)
+      --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
+      -- TodoI -> checkTodo
+      -- PropagateI -> do
+      --   b <- eval . Propagate $ currentBranch'
+      --   _ <- eval $ SyncBranch currentBranchName' b
+      --   _ <- success
+      --   currentBranch .= b
+      -- ExecuteI input ->
+      --   withFile [Type.ref External $ IOSource.ioReference]
+      --            "execute command"
+      --            ("main_ = " <> Text.pack input) $
+      --              \_ unisonFile ->
+      --                 eval . Execute (view currentBranch s) $
+      --                   UF.discardTypes unisonFile
+      -- UpdateBuiltinsI -> do
+      --   stepAt updateBuiltins
+      --   checkTodo
+      -- ListEditsI -> do
+      --   (Branch.head -> b) <- use currentBranch
+      --   respond $ ListEdits b
+      -- QuitI -> quit
+      _ -> error $ "todo: " <> show input
      where
       _success       = respond $ Success input
       _outputSuccess = eval . Notify $ Success input
@@ -404,12 +406,13 @@ eval = lift . lift . Free.eval
 -- listBranch :: Branch -> [SearchResult]
 -- listBranch (Branch.head -> b) =
 --   List.sortOn (\s -> (SR.name s, s)) (Branch.asSearchResults b)
---
--- searchResultToHQString :: SearchResult -> String
--- searchResultToHQString = \case
---   SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
---   SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
---   _ -> error "unpossible match failure"
+
+-- | restores the full hash to these search results, for _numberedArgs purposes
+searchResultToHQString :: SearchResult -> String
+searchResultToHQString = \case
+  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
+  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 --searchBranch :: Branch m -> [HashQualified] -> SearchMode -> m [SearchResult]
@@ -418,25 +421,63 @@ eval = lift . lift . Free.eval
 --  FuzzySearch -> searchBranch' b fuzzyNameDistance queries
 --  where
 --  exactNameDistance n1 n2 = if n1 == n2 then Just () else Nothing
---  fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
---    case Find.fuzzyFindMatchArray q [n] id of
---      [] -> Nothing
---      (m, _) : _ -> Just m
+
+fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
+fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
+  case Find.fuzzyFindMatchArray q [n] id of
+    [] -> Nothing
+    (m, _) : _ -> Just m
 
 
 -- return `name` and `name.<everything>...`
 searchBranchPrefix :: forall m. Branch0 m -> Name -> m [SearchResult]
 searchBranchPrefix = error "todo"
 
-searchBranchFuzzy :: forall m score. (Ord score)
-              => Branch0 m
+searchBranchScored :: forall m score. (Ord score)
+              => Branch m
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
-              -> m [SearchResult]
-searchBranchFuzzy _b _score _queries = error "todo"
-  --do
-  -- hashLength <- Branch.numHashChars b
-  -- names
+              -> [SearchResult]
+searchBranchScored (Branch.toNames0 -> names0) score queries =
+  nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
+  where
+  searchTermNamespace = foldMap do1query queries
+    where
+    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
+    score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+    score1hq query (name, ref) = case query of
+      HQ.NameOnly qn ->
+        pair qn
+      HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+        pair qn
+      HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+        Set.singleton (Nothing, result)
+      _ -> mempty
+      where
+      result = SR.termResult (Names.hqTermName names0 name ref) ref (Names.hqTermAliases names0 name ref)
+      pair qn = case score qn name of
+        Just score -> Set.singleton (Just score, result)
+        Nothing -> mempty
+  searchTypeNamespace = foldMap do1query queries
+    where
+    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
+    score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+    score1hq query (name, ref) = case query of
+      HQ.NameOnly qn ->
+        pair qn
+      HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+        pair qn
+      HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+        Set.singleton (Nothing, result)
+      _ -> mempty
+      where
+      result = SR.typeResult (Names.hqTypeName names0 name ref) ref (Names.hqTypeAliases names0 name ref)
+      pair qn = case score qn name of
+        Just score -> Set.singleton (Just score, result)
+        Nothing -> mempty
+
 
 -- Foo#123
 -- Foo#890
@@ -453,31 +494,27 @@ searchBranchFuzzy _b _score _queries = error "todo"
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact :: Monad m => Branch m -> [HashQualified] -> m [SearchResult]
-searchBranchExact b queries = do
-  hashLength <- Branch.numHashChars b
-  names0 <- Branch.toNames0 b
-  let
-    matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
-    matchesHashPrefix toShortHash (name, r) = \case
-      HQ.NameOnly n -> n == name
-      HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
-      HQ.HashQualified n q ->
-        n == name && q `SH.isPrefixOf` toShortHash r
-    filteredTypes, filteredTerms, deduped :: [SearchResult]
-    filteredTypes =
-      [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
-      | (name, r) <- R.toList $ Names.types names0
-      , Just query <- [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
-      ]
-    filteredTerms =
-      [ SR.termResult query r (Names.hqTermAliases names0 name r)
-      | (name, r) <- R.toList $ Names.terms names0
-      , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
-      ]
-    deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-    truncated = SR.truncateAliases hashLength <$> deduped
-  pure $ List.sort truncated
+searchBranchExact :: Branch m -> [HashQualified] -> [SearchResult]
+searchBranchExact (Branch.toNames0 -> names0) queries = let
+  matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
+  matchesHashPrefix toShortHash (name, r) = \case
+    HQ.NameOnly n -> n == name
+    HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
+    HQ.HashQualified n q ->
+      n == name && q `SH.isPrefixOf` toShortHash r
+  filteredTypes, filteredTerms, deduped :: [SearchResult]
+  filteredTypes =
+    [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
+    | (name, r) <- R.toList $ Names.types names0
+    , Just query <- [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
+    ]
+  filteredTerms =
+    [ SR.termResult query r (Names.hqTermAliases names0 name r)
+    | (name, r) <- R.toList $ Names.terms names0
+    , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
+    ]
+  deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
+  in List.sort deduped
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f

@@ -90,7 +90,7 @@ type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
+         (Names, Maybe (UF.TypecheckedUnisonFile v Ann))
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
@@ -265,27 +265,27 @@ data Output v
   -- with whatever named definitions would not have any remaining names if
   -- the path is deleted.
   | DeleteBranchConfirmation
-      [(Path, (PPE.PrettyPrintEnv, [SearchResult' v Ann]))]
+      [(Path, (Names, [SearchResult' v Ann]))]
   -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
   -- show the result of add/update
   | SlurpOutput (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
-  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
+  | TypeErrors Text Names [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | Evaluated SourceFileContents
-              PPE.PrettyPrintEnv
+              Names
               [(v, Term v ())]
               (Map v (Ann, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
+  | Typechecked SourceName Names (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        Names
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
-  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v Ann)
+  | TodoOutput Names (TodoOutput v Ann)
   -- | ListEdits Edits Branch0
 
   -- new/unrepresented references followed by old/removed
@@ -678,11 +678,12 @@ typecheck
   -> Text
   -> m (TypecheckingResult v)
 typecheck ambient codebase names sourceName src =
-  Result.getResult $ parseAndSynthesizeFile ambient
-    (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-    names
-    (unpack sourceName)
-    src
+  error "todo: update to use Names2 instead of Names"
+  -- Result.getResult $ parseAndSynthesizeFile ambient
+  --   (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+  --   names
+  --   (unpack sourceName)
+  --   src
 
 -- -- Contains all the builtins
 -- builtinBranch :: Branch

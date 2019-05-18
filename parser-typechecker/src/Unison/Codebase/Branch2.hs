@@ -53,7 +53,7 @@ import qualified Unison.ShortHash as SH
 
 
 import           Unison.Name                    ( Name )
-import           Unison.Names2                  ( Names0 )
+import           Unison.Names2                  ( Names'(Names), Names, Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent(Con,Ref) )
@@ -137,8 +137,16 @@ instance Eq (Branch0 m) where
 
 data ForkFailure = SrcNotFound | DestExists
 
-fold :: Monad m => (a -> Name -> BranchEntry -> a) -> a -> Branch m -> m a
-fold f = foldM (\a n b -> pure (f a n b))
+fold :: forall m a. (a -> Name -> BranchEntry -> a) -> a -> Branch m -> a
+fold f a (head -> b) = go Path.empty b a where
+  doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
+  doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
+  doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
+  go :: Path -> Branch0 m -> a -> a
+  go p b a = let
+    a1 = foldl' (doTerm p) a (R.toList . view terms $ b)
+    a2 = foldl' (doType p) a1 (R.toList . view types $ b)
+    in foldl' (doChild p) a2 (Map.toList . view children $ b)
 
 foldM :: forall m a. Monad m
       => (a -> Name -> BranchEntry -> m a) -> a -> Branch m -> m a
@@ -152,16 +160,30 @@ foldM f a (head -> b) = go Path.empty b a where
     a2 <- Monad.foldM (doType p) a1 (R.toList . view types $ b)
     Monad.foldM (doChild p) a2 (Map.toList . view children $ b)
 
-numHashChars :: Applicative m => Branch m -> m Int
-numHashChars _b = pure 3
+-- consider delegating to Names.numHashChars when ready to implement?
+-- are those enough?
+-- could move this to a read-only field in Branch0
+-- could move a Names0 to a read-only field in Branch0 until it gets too big
+numHashChars :: Branch m -> Int
+numHashChars _b = 3
 
-toNames0 :: Monad m => Branch m -> m Names0
+toNames :: Branch m -> Names
+toNames b = Names hqTerms hqTypes where
+  names0 = toNames0 b
+  hqTerms = R.fromList [ (Names.hqTermName names0 n r, r)
+                       | (n, r) <- R.toList (Names.terms names0) ]
+  hqTypes = R.fromList [ (Names.hqTypeName names0 n r, r)
+                       | (n, r) <- R.toList (Names.types names0) ]
+
+toNames0 :: Branch m -> Names0
 toNames0 b = fold go mempty b where
   go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
   go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
-allEntries :: Monad m => Branch m -> m [(Name, BranchEntry)]
-allEntries = fmap reverse . fold (\l n e -> (n, e) : l) []
+allEntries :: Branch m -> [(Name, BranchEntry)]
+allEntries = reverse . fold (\l n e -> (n, e) : l) []
+
+-- asSearchResults :: Branch m -> [SearchResult]
 
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?
