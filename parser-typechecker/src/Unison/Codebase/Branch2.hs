@@ -241,15 +241,15 @@ move root src dest = case getAt root src of
           -- todo: can we combine these into one update?
 
 setIfNotExists
-  :: Monad m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))
+  :: Applicative m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))
 setIfNotExists root dest b = case getAt root dest of
   Just _destExists -> pure Nothing
   Nothing -> Just <$> setAt root dest b
 
-setAt :: Monad m => Branch m -> Path -> Branch m -> m (Branch m)
+setAt :: Applicative m => Branch m -> Path -> Branch m -> m (Branch m)
 setAt root dest b = modifyAt root dest (const b)
 
-deleteAt :: Monad m => Branch m -> Path -> m (Branch m)
+deleteAt :: Applicative m => Branch m -> Path -> m (Branch m)
 deleteAt root path = modifyAt root path $ const empty
 
 transform :: (forall a . m a -> n a) -> Branch m -> Branch n
@@ -277,7 +277,7 @@ isEmpty = (== empty0)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
-stepAt :: Monad m
+stepAt :: Applicative m
        => Branch m
        -> Path
        -> (Branch0 m -> Branch0 m)
@@ -287,20 +287,20 @@ stepAt b path f = stepAtM b path (pure . f)
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
 stepAtM
-  :: Monad m => Branch m -> Path -> (Branch0 m -> m (Branch0 m)) -> m (Branch m)
+  :: Applicative m => Branch m -> Path -> (Branch0 m -> m (Branch0 m)) -> m (Branch m)
 stepAtM b path f =
   modifyAtM b path (fmap Branch . Causal.stepM f . view history)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
-modifyAt :: Monad m
+modifyAt :: Applicative m
   => Branch m -> Path -> (Branch m -> Branch m) -> m (Branch m)
 modifyAt b path f = modifyAtM b path (pure . f)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM
-  :: Monad m
+  :: Applicative m -- because `Causal.cons` uses Applicative
   => Branch m
   -> Path
   -> (Branch m -> m (Branch m))
@@ -308,13 +308,14 @@ modifyAtM
 modifyAtM b path f = case Path.toList path of
   [] -> f b
   seg : path ->
-    let recurse b@(Branch c) = do
-          b' <- modifyAtM b (Path.fromList path) f
-          let c' = flip Causal.step c . over children $ if isEmpty (head b')
-                then Map.delete seg
-                else Map.insert seg (headHash b', b')
-          pure (Branch c')
-    in  case Map.lookup seg (_children $ head b) of
+    let recurse b@(Branch c) =
+          let b' = modifyAtM b (Path.fromList path) f
+              c' b' = flip Causal.step c . over children $
+                        if isEmpty (head b')
+                        then Map.delete seg
+                        else Map.insert seg (headHash b', b')
+          in b' <&> Branch . c'
+    in case Map.lookup seg (_children $ head b) of
           Nothing -> recurse empty
           Just (_h, b)  -> recurse b
 

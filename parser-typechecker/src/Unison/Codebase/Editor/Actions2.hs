@@ -139,7 +139,7 @@ loop = do
   latestFile' <- use latestFile
   root' <- use root
   Just currentBranch' <- (\b -> pure $ Branch.getAt b path') . Branch.transform liftToAction $ root'
-  -- currentBranch' <- getAt path' root'
+  -- currentBranch' <- getAt path' root' -- todo: why not this?
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
