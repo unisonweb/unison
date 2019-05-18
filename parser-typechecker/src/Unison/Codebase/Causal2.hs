@@ -13,6 +13,7 @@ import           Control.Lens                   ( (<&>) )
 import           Control.Monad                  ( when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
+import           Data.Semigroup.Foldable        ( foldlM1 )
 import           Data.List                      ( foldl1' )
 import           Unison.Hash                    ( Hash )
 -- import qualified Unison.Hash                   as H
@@ -22,6 +23,7 @@ import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import           Data.Foldable                  ( for_, toList )
+import           Util                           ( bind2 )
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -116,6 +118,37 @@ a `merge` b =
     (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
     (a, b) ->
       merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+ where
+ -- implementation detail, form a `Merge`
+ merge0
+   :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+ merge0 m =
+   let e = if Map.null m
+         then error "Causal.merge0 empty map"
+         else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
+       h = hash (Map.keys m) -- sorted order
+   in  e <&> \e -> Merge (RawHash h) e m
+
+
+mergeWithM :: forall m h e. Monad m => (e -> e -> m e) -> Causal m h e -> Causal m h e -> m (Causal m h e)
+mergeWithM f a b =
+  ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
+  (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
+  (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
+  (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
+  (a, b) ->
+    merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+  where
+  -- implementation detail, form a `Merge`
+  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+  merge0 m =
+    let e :: m e
+        e = if Map.null m
+          then error "Causal.merge0 empty map"
+          else foldl1' (bind2 f) (fmap head <$> Map.elems m)
+          -- else foldlM1 f <$> (fmap head <$> Map.elems m)
+        h = hash (Map.keys m) -- sorted order
+    in  e <&> \e -> Merge (RawHash h) e m
 
 -- Does `h2` incorporate all of `h1`?
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
@@ -137,16 +170,6 @@ before h1 h2 = go h1 h2
   -- in `h2` isn't necessary because of how merges are flattened
   --go (Merge _ _ m1) h2@(Merge _ _ _)
   --  all (\h1 -> go h1 h2) (Map.elems m1)
-
--- implementation detail, form a `Merge`
-merge0
-  :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
-merge0 m =
-  let e = if Map.null m
-        then error "Causal.merge0 empty map"
-        else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
-      h = hash (Map.keys m) -- sorted order
-  in  e <&> \e -> Merge (RawHash h) e m
 
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'

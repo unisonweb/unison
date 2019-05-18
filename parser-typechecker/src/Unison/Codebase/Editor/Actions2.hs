@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+-- {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
@@ -86,6 +87,7 @@ import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
+import qualified Unison.Util.Monoid            as Monoid
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
@@ -132,11 +134,12 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
 loop :: forall m v . Var v => Action m (Either Event Input) v ()
 loop = do
-  uf          <- use latestTypecheckedFile
+  _uf          <- use latestTypecheckedFile
   path'       <- use path
   latestFile' <- use latestFile
   root' <- use root
-  Just currentBranch' <- (`Branch.getAt` path') . Branch.transform liftToAction $ root'
+  Just currentBranch' <- (\b -> pure $ Branch.getAt b path') . Branch.transform liftToAction $ root'
+  -- currentBranch' <- getAt path' root'
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
@@ -154,7 +157,7 @@ loop = do
                   [ err | Result.TypeError err <- toList notes ]
             in  maybe h (k errorEnv) r
   case e of
-    Left (IncomingRootBranch names) -> error "todo: merge multiple heads"
+    Left (IncomingRootBranch _names) -> error "todo: merge multiple heads"
       -- when (Set.member currentBranchName' names)
       --   $ switchBranch currentBranchName'
     Left (UnisonFileChanged sourceName text) ->
@@ -230,6 +233,7 @@ loop = do
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
+      _ -> error $ "todo: " <> show input
       {-
       -- ls with no arguments
       SearchByNameI [] -> do
@@ -346,8 +350,8 @@ loop = do
       QuitI -> quit
       -}
      where
-      success       = respond $ Success input
-      outputSuccess = eval . Notify $ Success input
+      _success       = respond $ Success input
+      _outputSuccess = eval . Notify $ Success input
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
@@ -429,7 +433,10 @@ searchBranchFuzzy :: forall m score. (Ord score)
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> m [SearchResult]
-searchBranchFuzzy = error "todo"
+searchBranchFuzzy _b _score _queries = error "todo"
+  --do
+  -- hashLength <- Branch.numHashChars b
+  -- names
 
 -- Foo#123
 -- Foo#890
@@ -469,7 +476,8 @@ searchBranchExact b queries = do
       , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
       ]
     deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-  pure $ List.sort deduped
+    truncated = SR.truncateAliases hashLength <$> deduped
+  pure $ List.sort truncated
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
@@ -665,6 +673,9 @@ respond output = eval $ Notify output
 -- merging targetBranchName b success =
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
+
+getAt :: Path -> Branch m -> Action m i v (Branch m)
+getAt p b = pure . fromMaybe Branch.empty $ Branch.getAt b p
 
 stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = error "todo"

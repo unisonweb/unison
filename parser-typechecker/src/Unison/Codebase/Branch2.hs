@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+-- {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
@@ -19,7 +20,9 @@ import           Control.Lens            hiding ( children )
 import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
---import           Data.List                      ( intercalate )
+import           Data.List                      ( foldl'
+    -- , intercalate
+    )
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import qualified Data.Set                      as Set
@@ -78,6 +81,24 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
+merge :: Monad m => Branch m -> Branch m -> m (Branch m)
+merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
+
+merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
+merge0 b1 b2 = unionWithM f (_children b1) (_children b2)
+  <&> Branch0 (_terms b1 <> _terms b2) (_types b1 <> _types b2)
+  where
+  f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
+  f (h1, b1) (h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
+
+unionWithM :: forall m k a.
+  (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
+unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
+  go :: Map k a -> (k, a) -> m (Map k a)
+  go m1 (k, a2) = case Map.lookup k m1 of
+    Just a1 -> do a <- f a1 a2; pure $ Map.insert k a m1
+    Nothing -> pure $ Map.insert k a2 m1
+
 type Hash = Causal.RawHash Raw
 
 data Branch0 m = Branch0
@@ -132,7 +153,7 @@ foldM f a (head -> b) = go Path.empty b a where
     Monad.foldM (doChild p) a2 (Map.toList . view children $ b)
 
 numHashChars :: Applicative m => Branch m -> m Int
-numHashChars b = pure 3
+numHashChars _b = pure 3
 
 toNames0 :: Monad m => Branch m -> m Names0
 toNames0 b = fold go mempty b where
@@ -189,13 +210,11 @@ fork
   -> Path
   -> Path
   -> m (Either ForkFailure (Branch m))
-fork root src dest = do
-  -- descend from root to src to get a Branch srcBranch
-  getAt root src >>= \case
-    Nothing -> pure $ Left SrcNotFound
-    Just src' -> setIfNotExists root dest src' >>= \case
-      Nothing -> pure $ Left DestExists
-      Just root' -> pure $ Right root'
+fork root src dest = case getAt root src of
+  Nothing -> pure $ Left SrcNotFound
+  Just src' -> setIfNotExists root dest src' >>= \case
+    Nothing -> pure $ Left DestExists
+    Just root' -> pure $ Right root'
 
 -- Move the node at src to dest.
 -- It's okay if `dest` is inside `src`, just create empty levels.
@@ -205,29 +224,27 @@ move :: Monad m
      -> Path
      -> Path
      -> m (Either ForkFailure (Branch m))
-move root src dest = do
-  getAt root src >>= \case
-    Nothing -> pure $ Left SrcNotFound
-    Just src' ->
-      -- make sure dest doesn't already exist
-      getAt root dest >>= \case
-        Just _destExists -> pure $ Left DestExists
-        Nothing ->
-        -- find and update common ancestor of `src` and `dest`:
-          Right <$> modifyAtM root ancestor go
-          where
-          (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
-          go b = do
-            b <- setAt b relDest src'
-            deleteAt b relSrc
-            -- todo: can we combine these into one update?
+move root src dest = case getAt root src of
+  Nothing -> pure $ Left SrcNotFound
+  Just src' ->
+    -- make sure dest doesn't already exist
+    case getAt root dest of
+      Just _destExists -> pure $ Left DestExists
+      Nothing ->
+      -- find and update common ancestor of `src` and `dest`:
+        Right <$> modifyAtM root ancestor go
+        where
+        (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
+        go b = do
+          b <- setAt b relDest src'
+          deleteAt b relSrc
+          -- todo: can we combine these into one update?
 
 setIfNotExists
   :: Monad m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))
-setIfNotExists root dest b =
-  getAt root dest >>= \case
-    Just _destExists -> pure Nothing
-    Nothing -> Just <$> setAt root dest b
+setIfNotExists root dest b = case getAt root dest of
+  Just _destExists -> pure Nothing
+  Nothing -> Just <$> setAt root dest b
 
 setAt :: Monad m => Branch m -> Path -> Branch m -> m (Branch m)
 setAt root dest b = modifyAt root dest (const b)
@@ -239,16 +256,15 @@ transform :: (forall a . m a -> n a) -> Branch m -> Branch n
 transform _f _b = error "Branch.transform: TODO fill this in"
 
 -- returns `Nothing` if no Branch at `path`
-getAt :: Monad m
-      => Branch m
+getAt :: Branch m
       -> Path
-      -> m (Maybe (Branch m))
+      -> Maybe (Branch m)
 -- todo: return Nothing if exists but is empty
 getAt root path = case Path.toList path of
-  [] -> pure $ Just root
+  [] -> Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
-    Nothing -> pure Nothing
     Just (_h, b) -> getAt b (Path.fromList path)
+    Nothing -> Nothing
 
 empty :: Branch m
 empty = Branch $ Causal.one empty0

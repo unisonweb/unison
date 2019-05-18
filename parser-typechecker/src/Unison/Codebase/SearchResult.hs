@@ -3,7 +3,9 @@
 module Unison.Codebase.SearchResult where
 
 import           Data.Set             (Set)
+import qualified Data.Set             as Set
 import           Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
 import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
 import qualified Unison.Referent      as Referent
@@ -46,3 +48,8 @@ aliases = \case
 toReferent :: SearchResult -> Referent
 toReferent (Tm (TermResult _ r _)) = r
 toReferent (Tp (TypeResult _ r _)) = Referent.Ref r
+
+truncateAliases :: Int -> SearchResult -> SearchResult
+truncateAliases n = \case
+  Tm (TermResult hq r as) -> termResult hq r (Set.map (HQ.take n) as)
+  Tp (TypeResult hq r as) -> typeResult hq r (Set.map (HQ.take n) as)

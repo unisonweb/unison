@@ -187,6 +187,7 @@ library
     regex-base,
     regex-tdfa,
     safe,
+    semigroupoids,
     split,
     stm,
     strings,
@@ -195,6 +196,7 @@ library
     time,
     transformers,
     unliftio,
+    util,
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
