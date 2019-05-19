@@ -56,8 +56,11 @@ library
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
+    Unison.Codebase.Serialization.Testing
     Unison.Codebase.Serialization.V0
+    Unison.Codebase.Serialization.V0Cborg
     Unison.Codebase.Serialization.V1
+    Unison.Codebase.Serialization.V1Cborg
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
@@ -143,6 +146,7 @@ library
     bifunctors,
     bytes,
     bytestring,
+    cborg,
     cereal,
     containers,
     comonad,
