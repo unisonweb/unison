@@ -2,14 +2,15 @@
 
 module Unison.Name
   ( Name(..)
-  , unsafeFromText
-  , toString
   , fromString
-  , toVar
-  , unsafeFromVar
   , isPrefixOf
+  , joinDot
   , stripPrefix
   , stripPrefixes
+  , toString
+  , toVar
+  , unsafeFromText
+  , unsafeFromVar
   )
 where
 
@@ -46,6 +47,9 @@ stripPrefix prefix name =
 
 stripPrefixes :: Name -> Name
 stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
+
+joinDot :: Name -> Name -> Name
+joinDot n1 n2 = Name $ toText n1 <> "." <> toText n2
 
 instance Show Name where
   show = toString

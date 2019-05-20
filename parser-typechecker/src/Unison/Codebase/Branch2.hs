@@ -23,6 +23,7 @@ import qualified Control.Monad                 as Monad
 import           Data.List                      ( foldl'
     -- , intercalate
     )
+import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import qualified Data.Set                      as Set
@@ -137,8 +138,8 @@ instance Eq (Branch0 m) where
 
 data ForkFailure = SrcNotFound | DestExists
 
-fold :: forall m a. (a -> Name -> BranchEntry -> a) -> a -> Branch m -> a
-fold f a (head -> b) = go Path.empty b a where
+fold :: forall m a. (a -> Name -> BranchEntry -> a) -> a -> Branch0 m -> a
+fold f a b = go Path.empty b a where
   doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
   doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
   doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
@@ -149,8 +150,8 @@ fold f a (head -> b) = go Path.empty b a where
     in foldl' (doChild p) a2 (Map.toList . view children $ b)
 
 foldM :: forall m a. Monad m
-      => (a -> Name -> BranchEntry -> m a) -> a -> Branch m -> m a
-foldM f a (head -> b) = go Path.empty b a where
+      => (a -> Name -> BranchEntry -> m a) -> a -> Branch0 m -> m a
+foldM f a b = go Path.empty b a where
   doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
   doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
   doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
@@ -167,7 +168,7 @@ foldM f a (head -> b) = go Path.empty b a where
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
 
-toNames :: Branch m -> Names
+toNames :: Branch0 m -> Names
 toNames b = Names hqTerms hqTypes where
   names0 = toNames0 b
   hqTerms = R.fromList [ (Names.hqTermName names0 n r, r)
@@ -175,12 +176,12 @@ toNames b = Names hqTerms hqTypes where
   hqTypes = R.fromList [ (Names.hqTypeName names0 n r, r)
                        | (n, r) <- R.toList (Names.types names0) ]
 
-toNames0 :: Branch m -> Names0
+toNames0 :: Branch0 m -> Names0
 toNames0 b = fold go mempty b where
   go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
   go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
-allEntries :: Branch m -> [(Name, BranchEntry)]
+allEntries :: Branch0 m -> [(Name, BranchEntry)]
 allEntries = reverse . fold (\l n e -> (n, e) : l) []
 
 -- asSearchResults :: Branch m -> [SearchResult]
@@ -296,6 +297,9 @@ getAt path root = case Path.toList path of
   seg : path -> case Map.lookup seg (_children $ head root) of
     Just (_h, b) -> getAt (Path.fromList path) b
     Nothing -> Nothing
+
+getAt' :: Path -> Branch m -> Branch m
+getAt' p b = fromMaybe empty $ getAt p b
 
 empty :: Branch m
 empty = Branch $ Causal.one empty0

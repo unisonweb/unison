@@ -25,6 +25,7 @@ import           Unison.HashQualified   (HashQualified)
 import qualified Unison.HashQualified as HQ
 -- import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
+import qualified Unison.Name      as Name
 import qualified Unison.Referent  as Referent
 import           Unison.Referent        (Referent(Con, Ref))
 import           Unison.Util.Relation   ( Relation )
@@ -167,6 +168,14 @@ termSearchResult b n r =
 typeSearchResult :: Names0 -> Name -> Reference -> SearchResult
 typeSearchResult b n r =
   SR.typeResult (hqTypeName b n r) r (hqTypeAliases b n r)
+
+prefix0 :: Name -> Names0 -> Names0
+prefix0 n (Names terms types) = Names terms' types' where
+  terms' = R.mapDom (Name.joinDot n) terms
+  types' = R.mapDom (Name.joinDot n) types
+
+filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
+filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2

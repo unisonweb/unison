@@ -20,7 +20,7 @@ import           Data.List                (intercalate)
 --                                                 )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Sequence                  (Seq((:<|)))
+import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
@@ -38,8 +38,21 @@ toList = Foldable.toList . toSeq
 fromList :: [NameSegment] -> Path
 fromList = Path . Seq.fromList
 
+singleton :: NameSegment -> Path
+singleton n = fromList [n]
+
 snoc :: Path -> NameSegment -> Path
 snoc (Path p) ns = Path (p <> pure ns)
+
+unsnoc :: Path -> Maybe (Path, NameSegment)
+unsnoc p = case p of
+  Path (init :|> last) -> Just (Path init, last)
+  _ -> Nothing
+
+uncons :: Path -> Maybe (NameSegment, Path)
+uncons p = case p of
+  Path (hd :<| tl) -> Just (hd, Path tl)
+  _ -> Nothing
 
 asIdentifier :: Path -> Text
 asIdentifier = Text.intercalate "." . fmap toText . toList
