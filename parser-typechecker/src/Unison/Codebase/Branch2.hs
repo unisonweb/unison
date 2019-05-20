@@ -16,7 +16,7 @@ module Unison.Codebase.Branch2 where
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children )
+import           Control.Lens            hiding ( children, transform )
 import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
@@ -274,8 +274,17 @@ setAt path b = modifyAt path (const b)
 deleteAt :: Monad m => Path -> Branch m -> m (Branch m)
 deleteAt path = setAt path empty
 
-transform :: (forall a . m a -> n a) -> Branch m -> Branch n
-transform _f _b = error "Branch.transform: TODO fill this in"
+transform :: Functor m => (forall a . m a -> n a) -> Branch m -> Branch n
+transform f b = case _history b of
+  causal -> Branch . Causal.transform f $ transformB0s f causal
+  where
+  transformB0 :: Functor m => (forall a . m a -> n a) -> Branch0 m -> Branch0 n
+  transformB0 f = over (children.mapped._2) (transform f)
+
+  transformB0s :: Functor m => (forall a . m a -> n a)
+               -> Causal m Raw (Branch0 m)
+               -> Causal m Raw (Branch0 n)
+  transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
 
 -- returns `Nothing` if no Branch at `path`
 getAt :: Path

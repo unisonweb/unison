@@ -199,3 +199,15 @@ cons :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
 cons e tl =
   if e == head tl then tl
   else cons' e tl
+
+transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
+transform nt c = case c of
+  One h e -> One h e
+  Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
+  Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
+
+unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
+unsafeMapHashPreserving f c = case c of
+  One h e -> One h (f e)
+  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls

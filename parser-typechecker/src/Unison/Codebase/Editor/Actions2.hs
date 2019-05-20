@@ -99,7 +99,8 @@ import           Unison.Var                     ( Var )
 
 type F m i v = Free (Command m i v)
 
-type Action m i v a = MaybeT (StateT (LoopState m v) (F m i v)) a
+-- type (Action m i v) a
+type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
 liftToAction :: m a -> Action m i v a
 liftToAction = lift . lift . Free.eval . Eval
@@ -136,15 +137,13 @@ makeLenses ''LoopState
 loopState0 :: Branch m -> Path -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
-loop :: forall m v . Var v => Action m (Either Event Input) v ()
+loop :: forall m v . (Functor m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
   path'       <- use path
   latestFile' <- use latestFile
-  root' <- use root
-  Just currentBranch' <- (pure . Branch.getAt path') . Branch.transform liftToAction $ root'
+  currentBranch' <- getAt path'
   let names' = Branch.toNames currentBranch'
-  -- currentBranch' <- getAt path' root' -- todo: why not this?
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
@@ -709,8 +708,10 @@ respond output = eval $ Notify output
 --getAt :: Path -> Branch m -> Action m i v (Branch m)
 --getAt p b = pure . fromMaybe Branch.empty $ Branch.getAt b p
 
-getAt :: Path -> Action m i v (Branch m)
-getAt p = use root >>= pure . fromMaybe Branch.empty . Branch.getAt p
+getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
+getAt p = go <$> use root where
+  go root = fromMaybe Branch.empty . Branch.getAt p
+          $ Branch.transform liftToAction root
 
 stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = error "todo"
