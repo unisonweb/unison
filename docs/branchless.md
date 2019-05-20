@@ -1,3 +1,131 @@
+Commands
+
+```
+/> cd libs/Foo
+/libs/Foo> cd ..
+/libs> fork Foo Foo2
+/libs> fork <someurl> thing
+/libs> fork Foo /outside/Foo
+/libs> fork /outside/Foo /outside/Foo2
+/libs> help merge
+					`> merge src dest`
+/libs> merge /outside/Foo Foo
+/libs> merge Foo2 Foo
+
+/libs/Foo> <work work work>
+/libs> move /libs/Foo /libs/Foo'
+/libs> 
+
+A.B.c
+A.B.d
+
+arya renames, and has: ->
+A.Z.c
+A.Z.d
+
+paul adds, and has ->
+A.B.e
+A.B.c
+A.B.d
+
+then merge -> 
+"Merge introduces the following aliases:"
+A.Z.c -> A.B.c
+A.Z.d -> A.B.d
+
+/libs> delete /libs/Foo
+"warning: /libs/Foo includes the following definitions that aren't anywhere else:
+
+	A.B.e#123
+
+run it again to proceed with deletion"
+
+/libs> alias /libs/Foo/sqrt /libs/Foo2/butt
+-- we talked about combining alias & fork into a single "copy" command
+/libs> 
+```
+
+Weird thing: There's no history for `sqrt`!
+
+Suppose:
+
+```
+data Raw = Raw
+  { _termsR :: Set Referent
+  , _typesR :: Set Reference
+  , _childrenR :: Map NameSegment Hash
+  }
+```
+
+```
+/libfoo/Foo <- type
+/libfoo/Foo <- constructor
+/libfoo/Foo.f <- term in child namespace
+
+/libfoo> move Foo Foo2
+/libfoo> alias Foo Foo2
+```
+
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Data types:
 
 Old **<u>PrettyPrintEnv</u>** is for pretty-pretting code, and ___

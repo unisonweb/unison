@@ -343,7 +343,6 @@ replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =
   foldl' (\r b -> insert a' b $ delete a b r) r (lookupDom a r)
 
--- Todo: fork the relation library
 replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
   foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)

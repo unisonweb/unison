@@ -99,7 +99,9 @@ type EditsPath = Path
 type TermPath = Path
 type TypePath = Path
 
-data NameTarget = TermName | TypeName | EditsName deriving (Eq, Ord, Show)
+-- but really "Path" not "Name"
+data NameTarget = BranchName | TermName | TypeName | EditsName
+  deriving (Eq, Ord, Show)
 
 data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
@@ -155,33 +157,17 @@ data Input
     = ForkBranchI (RepoLink BranchPath) BranchPath
     -- merge first causal into destination
     | MergeBranchI (RepoLink BranchPath) BranchPath
-    -- Question: How should we distinguish "move as rename" vs
-    -- "move within" mv foo bar vs mv foo bar/ ?
-    -- Answer: use `mv foo bar/foo` if that's what you want.
-    | RenameBranchI BranchPath BranchPath
-    --
-    | DeleteBranchI [BranchPath]
-    | SwitchBranchI BranchPath -- cd
-    -- definition naming
-      -- if HashQualified is unique, create alias
-    | AliasAnyI HashQualified Path
-    | AliasTermI HashQualified TermPath
-    | AliasTypeI HashQualified TypePath
-    | RenameAnyI HashQualified Path
-    | RenameTermI HashQualified TermPath
-    | RenameTypeI HashQualified TypePath
-    | RenameEditsI EditsPath EditsPath
-    | RemoveTermNameI Referent TermPath
-    | RemoveTypeNameI Referent TypePath
-    -- deletes all the supplied names.  because names (and even hash-qualified
-    -- names) may correspond to multiple definitions, this command will delete
-    -- all matching entries.
-    | UnnameAllI (Set HashQualified)
+    -- change directory
+    | SwitchBranchI BranchPath
+    -- the last segment of the path may be hash-qualified
+    | AliasI (Set NameTarget) Path Path
+    | DeleteI (Set NameTarget) [Path]
+    | RenameI (Set NameTarget) Path Path
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
-      | ResolveTermNameI BranchPath Referent Name
-      | ResolveTypeNameI BranchPath Reference Name
+--      | ResolveTermNameI BranchPath Referent Name
+--      | ResolveTypeNameI BranchPath Reference Name
   -- edits stuff:
     | TodoI EditsPath BranchPath
     | PropagateI EditsPath BranchPath
@@ -203,10 +189,9 @@ data Input
   -- other
   | AddI [HashQualified]
   | UpdateI EditsPath [HashQualified]
-  | SlurpFileI -- todo (with Edits): AllowUpdates
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
-  | ShowDefinitionRecursiveI OutputLocation [String]
+  | ShowDefinitionByPrefixI OutputLocation [String]
   | UpdateBuiltinsI
   | QuitI
   deriving (Eq, Show)
