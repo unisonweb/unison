@@ -171,8 +171,8 @@ data Input
     | RenameTermI HashQualified TermPath
     | RenameTypeI HashQualified TypePath
     | RenameEditsI EditsPath EditsPath
-    | RemoveTermNameI TermPath
-    | RemoveTypeNameI TypePath
+    | RemoveTermNameI Referent TermPath
+    | RemoveTypeNameI Referent TypePath
     -- deletes all the supplied names.  because names (and even hash-qualified
     -- names) may correspond to multiple definitions, this command will delete
     -- all matching entries.

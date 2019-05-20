@@ -141,7 +141,7 @@ loop = do
   path'       <- use path
   latestFile' <- use latestFile
   root' <- use root
-  Just currentBranch' <- (\b -> pure $ Branch.getAt b path') . Branch.transform liftToAction $ root'
+  Just currentBranch' <- (pure . Branch.getAt path') . Branch.transform liftToAction $ root'
   let names' = Branch.toNames currentBranch'
   -- currentBranch' <- getAt path' root' -- todo: why not this?
   e           <- eval Input
@@ -262,10 +262,10 @@ loop = do
         eval (LoadSearchResults results)
           >>= respond
           .   ListOfDefinitions names' False
-      -- RemoveTermNameI r name ->
-      --   stepAt $ Branch.deleteTermName r name
-      -- RemoveTypeNameI r name ->
-      --   stepAt $ Branch.deleteTypeName r name
+--      RemoveTermNameI r path ->
+--        stepAt $ Branch.deleteTermName r name
+--       RemoveTypeNameI r path ->
+--        stepAt $ Branch.deleteTypeName r name
       -- ResolveTermNameI r name ->
       --   stepAt
       --     $ Branch.addTermName r name
@@ -704,25 +704,28 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
-getAt :: Path -> Branch m -> Action m i v (Branch m)
-getAt p b = pure . fromMaybe Branch.empty $ Branch.getAt b p
+--getAt :: Path -> Branch m -> Action m i v (Branch m)
+--getAt p b = pure . fromMaybe Branch.empty $ Branch.getAt b p
+
+getAt :: Path -> Action m i v (Branch m)
+getAt p = use root >>= pure . fromMaybe Branch.empty . Branch.getAt p
 
 stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = error "todo"
   -- updateAtM (\b -> pure $ Branch.modify f b)
 
-stepAtM :: Path -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
-stepAtM p f = error "todo"
--- updateAtM $ \b -> do
+stepAtM :: Applicative m => Path -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
+stepAtM p f = updateAtM p $ \b -> do error "todo"
+--  b0' <- f $ Branch.head b
+--  when (b)
+--updateAtM $ \b -> do
 --   b0' <- f $ Branch.head b
 --   pure $ Branch.append b0' b
 
-updateAtM :: Path -> (Branch m -> Action m i v (Branch m)) -> Action m i v ()
-updateAtM p f = error "todo"
--- do
---   b <- use currentBranch
---   b' <- f b
---   when (b /= b') $ do
---     branchName <- use currentBranchName
---     worked <- eval $ SyncBranch branchName b'
---     when worked (currentBranch .= b')
+updateAtM :: Applicative m => Path -> (Branch m -> Action m i v (Branch m)) -> Action m i v ()
+updateAtM p f = do
+  b <- use root
+  b' <- Branch.modifyAtM p f b
+  root .= b'
+  when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
+

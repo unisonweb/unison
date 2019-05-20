@@ -132,8 +132,8 @@ makeLenses ''Edits
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
-        && view types a == view types b
-        && view children a == view children b
+    && view types a == view types b
+    && view children a == view children b
 
 data ForkFailure = SrcNotFound | DestExists
 
@@ -228,13 +228,13 @@ sync exists serializeRaw b = do
 -- copy a path to another path
 fork
   :: Monad m
-  => Branch m
+  => Path
   -> Path
-  -> Path
+  -> Branch m
   -> m (Either ForkFailure (Branch m))
-fork root src dest = case getAt root src of
+fork src dest root = case getAt src root of
   Nothing -> pure $ Left SrcNotFound
-  Just src' -> setIfNotExists root dest src' >>= \case
+  Just src' -> setIfNotExists dest src' root >>= \case
     Nothing -> pure $ Left DestExists
     Just root' -> pure $ Right root'
 
@@ -242,51 +242,50 @@ fork root src dest = case getAt root src of
 -- It's okay if `dest` is inside `src`, just create empty levels.
 -- Try not to `step` more than once at each node.
 move :: Monad m
-     => Branch m
+     => Path
      -> Path
-     -> Path
+     -> Branch m
      -> m (Either ForkFailure (Branch m))
-move root src dest = case getAt root src of
+move src dest root = case getAt src root of
   Nothing -> pure $ Left SrcNotFound
   Just src' ->
     -- make sure dest doesn't already exist
-    case getAt root dest of
+    case getAt dest root of
       Just _destExists -> pure $ Left DestExists
       Nothing ->
       -- find and update common ancestor of `src` and `dest`:
-        Right <$> modifyAtM root ancestor go
+        Right <$> modifyAtM ancestor go root
         where
         (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
         go b = do
-          b <- setAt b relDest src'
-          deleteAt b relSrc
-          -- todo: can we combine these into one update,
-          --       eliminating Monad constraint to boot?
+-- todo: can we combine these into one update, eliminating Monad constraint
+          b <- setAt relDest src' b
+          deleteAt relSrc b
 
 setIfNotExists
-  :: Applicative m => Branch m -> Path -> Branch m -> m (Maybe (Branch m))
-setIfNotExists root dest b = case getAt root dest of
+  :: Monad m => Path -> Branch m -> Branch m -> m (Maybe (Branch m))
+setIfNotExists dest b root = case getAt dest root of
   Just _destExists -> pure Nothing
-  Nothing -> Just <$> setAt root dest b
+  Nothing -> Just <$> setAt dest b root
 
-setAt :: Applicative m => Branch m -> Path -> Branch m -> m (Branch m)
-setAt root dest b = modifyAt root dest (const b)
+setAt :: Monad m => Path -> Branch m -> Branch m -> m (Branch m)
+setAt path b = modifyAt path (const b)
 
-deleteAt :: Applicative m => Branch m -> Path -> m (Branch m)
-deleteAt root path = modifyAt root path $ const empty
+deleteAt :: Monad m => Path -> Branch m -> m (Branch m)
+deleteAt path = setAt path empty
 
 transform :: (forall a . m a -> n a) -> Branch m -> Branch n
 transform _f _b = error "Branch.transform: TODO fill this in"
 
 -- returns `Nothing` if no Branch at `path`
-getAt :: Branch m
-      -> Path
+getAt :: Path
+      -> Branch m
       -> Maybe (Branch m)
 -- todo: return Nothing if exists but is empty
-getAt root path = case Path.toList path of
+getAt path root = case Path.toList path of
   [] -> Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
-    Just (_h, b) -> getAt b (Path.fromList path)
+    Just (_h, b) -> getAt (Path.fromList path) b
     Nothing -> Nothing
 
 empty :: Branch m
@@ -298,49 +297,57 @@ empty0 = Branch0 mempty mempty mempty
 isEmpty :: Branch0 m -> Bool
 isEmpty = (== empty0)
 
+step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
+step f = over history (Causal.step f)
+
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
-stepAt :: Applicative m
-       => Branch m
-       -> Path
+-- todo: consider adding logic somewhere to skip the cons if `f` is a no-op.
+stepAt :: Monad m
+       => Path
        -> (Branch0 m -> Branch0 m)
+       -> Branch m
        -> m (Branch m)
-stepAt b path f = stepAtM b path (pure . f)
+stepAt path f = stepAtM path (pure . f)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
 stepAtM
-  :: Applicative m => Branch m -> Path -> (Branch0 m -> m (Branch0 m)) -> m (Branch m)
-stepAtM b path f =
-  modifyAtM b path (fmap Branch . Causal.stepM f . view history)
+  :: Monad m => Path -> (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepAtM path f =
+  modifyAtM path (fmap Branch . Causal.stepM f . view history)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
-modifyAt :: Applicative m
-  => Branch m -> Path -> (Branch m -> Branch m) -> m (Branch m)
-modifyAt b path f = modifyAtM b path (pure . f)
+modifyAt :: Monad m
+  => Path -> (Branch m -> Branch m) -> Branch m -> m (Branch m)
+modifyAt path f = modifyAtM path (pure . f)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM
-  :: Applicative m -- because `Causal.cons` uses Applicative
-  => Branch m
-  -> Path
-  -> (Branch m -> m (Branch m))
-  -> m (Branch m)
-modifyAtM b path f = case Path.toList path of
+  :: forall n m
+   . Monad n
+  => Applicative m -- because `Causal.cons` uses `pure`
+  => Path
+  -> (Branch m -> n (Branch m))
+  -> Branch m
+  -> n (Branch m)
+modifyAtM path f b = case Path.toList path of
   [] -> f b
-  seg : path ->
-    let recurse b@(Branch c) =
-          let b' = modifyAtM b (Path.fromList path) f
-              c' b' = flip Causal.step c . over children $
-                        if isEmpty (head b')
-                        then Map.delete seg
-                        else Map.insert seg (headHash b', b')
-          in b' <&> Branch . c'
-    in case Map.lookup seg (_children $ head b) of
-          Nothing -> recurse empty
-          Just (_h, b)  -> recurse b
+  seg : path -> let
+    -- fixup :: ChildMap -> ChildMap
+    fixup seg b =
+      if isEmpty (head b)
+      then Map.delete seg
+      else Map.insert seg (headHash b, b)
+    child = case Map.lookup seg (_children $ head b) of
+      Nothing -> empty
+      Just (_h, b) -> b
+    in do
+      child' <- modifyAtM (Path.fromList path) f child
+      pure $ step (over children (fixup seg child')) b
+
 
 instance Hashable (Branch0 m) where
   tokens b =
