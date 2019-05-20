@@ -15,6 +15,8 @@ test = scope "lexer" . tests $
   , t "1 +1" $ [Numeric "1", Numeric "+1"]
   , t "1+ 1" $ [Numeric "1", SymbolyId "+", Numeric "1"]
   , t "x+y" $ [WordyId "x", SymbolyId "+", WordyId "y"]
+  , t "[+1,+1]" $ [Reserved "[", Numeric "+1", Reserved ",", Numeric "+1", Reserved "]"]
+  , t "[ +1 , +1 ]" $ [Reserved "[", Numeric "+1", Reserved ",", Numeric "+1", Reserved "]"]
   , t "-- a comment 1.0" $ []
   , t "\"woot\" -- a comment 1.0" $ [Textual "woot"]
   , t "0:Int" $ [Numeric "0", Reserved ":", WordyId "Int"]
