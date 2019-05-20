@@ -53,7 +53,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
-import           Unison.Codebase.Path           ( Path )
+import           Unison.Codebase.Path           ( Path, Path' )
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -94,10 +94,10 @@ type TypecheckingResult v =
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
-type BranchPath = Path
-type EditsPath = Path
-type TermPath = Path
-type TypePath = Path
+type BranchPath = Path'
+type EditsPath = Path'
+type TermPath = Path'
+type TypePath = Path'
 
 -- but really "Path" not "Name"
 data NameTarget = BranchName | TermName | TypeName | EditsName
@@ -163,9 +163,9 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) Path Path
-    | DeleteI (Set NameTarget) [Path]
-    | RenameI (Set NameTarget) Path Path
+    | AliasI (Set DefnTarget) Path' Path'
+    | DeleteI (Set NameTarget) [Path']
+    | RenameI (Set NameTarget) Path' Path'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
