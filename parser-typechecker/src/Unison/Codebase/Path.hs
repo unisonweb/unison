@@ -32,20 +32,14 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
---data Path' = Absolute Path | Relative Path
-
 newtype Absolute = Absolute Path
 newtype Relative = Relative Path
+newtype Path' = Path' (Either Absolute Relative)
 
---toPath :: Path -> Path' -> Path
---toPath currentPath
-
---toAbsolutePath :: Path -> Path' -> Path
---toAbsolutePath _ (Absolute p') = p'
---toAbsolutePath p (relative p') = Path (p <> p')
---
---toAbsolutePath' :: Absolute -> Either Absolute Relative -> Absolute
---toAbsolutePath'
+toAbsolutePath :: Absolute -> Path' -> Absolute
+toAbsolutePath (Absolute cur) (Path' p) = case p of
+  Left a -> a
+  Right (Relative rel) -> Absolute (Path $ toSeq cur <> toSeq rel)
 
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq
