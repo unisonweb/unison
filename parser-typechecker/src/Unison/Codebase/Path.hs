@@ -32,6 +32,21 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
+--data Path' = Absolute Path | Relative Path
+
+newtype Absolute = Absolute Path
+newtype Relative = Relative Path
+
+--toPath :: Path -> Path' -> Path
+--toPath currentPath
+
+--toAbsolutePath :: Path -> Path' -> Path
+--toAbsolutePath _ (Absolute p') = p'
+--toAbsolutePath p (relative p') = Path (p <> p')
+--
+--toAbsolutePath' :: Absolute -> Either Absolute Relative -> Absolute
+--toAbsolutePath'
+
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq
 
@@ -82,14 +97,7 @@ relativeToAncestor (Path a) (Path b) = case (a, b) of
 pattern Parent h t = Path (NameSegment h :<| t)
 
 empty :: Path
-empty = mempty
-
-instance Monoid Path where
-  mappend (Path a) (Path b) = Path (a <> b)
-  mempty = Path mempty
-
-instance Semigroup Path where
-  (<>) = mappend
+empty = Path mempty
 
 cons :: NameSegment -> Path -> Path
 cons ns (Path p) = Path (ns :<| p)

@@ -103,6 +103,9 @@ type TypePath = Path
 data NameTarget = BranchName | TermName | TypeName | EditsName
   deriving (Eq, Ord, Show)
 
+data DefnTarget = TermName' | TypeName'
+  deriving (Eq, Ord, Show)
+
 data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
   deriving (Show)
@@ -160,7 +163,7 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set NameTarget) Path Path
+    | AliasI (Set DefnTarget) Path Path
     | DeleteI (Set NameTarget) [Path]
     | RenameI (Set NameTarget) Path Path
     -- resolving naming conflicts within `branchpath`
