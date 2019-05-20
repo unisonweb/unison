@@ -307,7 +307,7 @@ isEmpty :: Branch0 m -> Bool
 isEmpty = (== empty0)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
-step f = over history (Causal.step f)
+step f = over history (Causal.stepDistinct f)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
@@ -324,7 +324,7 @@ stepAt path f = stepAtM path (pure . f)
 stepAtM
   :: Monad m => Path -> (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
 stepAtM path f =
-  modifyAtM path (fmap Branch . Causal.stepM f . view history)
+  modifyAtM path (fmap Branch . Causal.stepDistinctM f . view history)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.

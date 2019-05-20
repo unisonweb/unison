@@ -173,11 +173,14 @@ before h1 h2 = go h1 h2
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
-step :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
+step :: (Applicative m, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 step f c = f (head c) `cons` c
 
+stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
+stepDistinct f c = f (head c) `consDistinct` c
+
 stepIf
-  :: (Applicative m, Eq e, Hashable e)
+  :: (Applicative m, Hashable e)
   => (e -> Bool)
   -> (e -> e)
   -> Causal m h e
@@ -185,20 +188,24 @@ stepIf
 stepIf cond f c = if (cond $ head c) then step f c else c
 
 stepM
-  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+  :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
 stepM f c = (`cons` c) <$> f (head c)
+
+stepDistinctM
+  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+stepDistinctM f c = (`consDistinct` c) <$> f (head c)
 
 one :: Hashable e => e -> Causal m h e
 one e = One (RawHash $ hash e) e
 
-cons' :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
-cons' e tl =
+cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
+cons e tl =
   Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
 
-cons :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
-cons e tl =
-  if e == head tl then tl
-  else cons' e tl
+consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
+consDistinct e tl =
+  if head tl == e then tl
+  else cons e tl
 
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
