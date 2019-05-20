@@ -143,7 +143,7 @@ loop = do
   path'       <- use path
   latestFile' <- use latestFile
   currentBranch' <- getAt path'
-  let names' = Branch.toNames currentBranch'
+  let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
@@ -238,13 +238,13 @@ loop = do
           latestFile .= ((, True) <$> loc)
       -- ls with no arguments
       SearchByNameI [] -> do
-        let results = listBranch (currentBranch')
+        let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
           .   ListOfDefinitions names' False
       SearchByNameI ["-l"] -> do
-        let results = listBranch currentBranch'
+        let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
@@ -403,7 +403,7 @@ eval = lift . lift . Free.eval
 -- loadBranch = eval . LoadBranch
 
 
-listBranch :: Branch m -> [SearchResult]
+listBranch :: Branch0 m -> [SearchResult]
 listBranch (Branch.toNames0 -> b) =
   List.sortOn (\s -> (SR.name s, s)) (Names.asSearchResults b)
 
@@ -423,18 +423,28 @@ fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
 
 -- return `name` and `name.<everything>...`
 searchBranchPrefix :: Branch m -> Name -> [SearchResult]
-searchBranchPrefix b n = case Branch.getAt (Path.fromName n) b of
+searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
   Nothing -> []
-  Just b -> Names.asSearchResults $ Branch.toNames0 b
+  Just (init, last) -> case Branch.getAt init b of
+    Nothing -> []
+    Just b -> Names.asSearchResults . Names.prefix0 n $ names0
+      where
+      lastName = Path.toName (Path.singleton last)
+      subnames = Branch.toNames0 . Branch.head $ (Branch.getAt' (Path.singleton last) b)
+      rootnames =
+        Names.filter (== lastName) .
+        Branch.toNames0 . set Branch.children mempty $ Branch.head b
+      names0 = rootnames <> Names.prefix0 lastName subnames
 
 searchBranchScored :: forall m score. (Ord score)
               => Branch m
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> [SearchResult]
-searchBranchScored (Branch.toNames0 -> names0) score queries =
+searchBranchScored b score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
   where
+  names0 = Branch.toNames0 . Branch.head $ b
   searchTermNamespace = foldMap do1query queries
     where
     do1query :: HashQualified -> Set (Maybe score, SearchResult)
@@ -489,7 +499,8 @@ searchBranchScored (Branch.toNames0 -> names0) score queries =
 -- #567 = +3
 
 searchBranchExact :: Branch m -> [HashQualified] -> [SearchResult]
-searchBranchExact (Branch.toNames0 -> names0) queries = let
+searchBranchExact b queries = let
+  names0 = Branch.toNames0 . Branch.head $ b
   matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
   matchesHashPrefix toShortHash (name, r) = \case
     HQ.NameOnly n -> n == name
