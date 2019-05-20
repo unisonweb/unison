@@ -63,6 +63,7 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                 )
 import qualified Unison.Codebase.Editor2        as Editor
 import           Unison.Codebase.Path           ( NameSegment, Path )
+import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -421,10 +422,11 @@ fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
     [] -> Nothing
     (m, _) : _ -> Just m
 
-
 -- return `name` and `name.<everything>...`
-searchBranchPrefix :: forall m. Branch0 m -> Name -> m [SearchResult]
-searchBranchPrefix = error "todo"
+searchBranchPrefix :: Branch m -> Name -> [SearchResult]
+searchBranchPrefix b n = case Branch.getAt (Path.fromName n) b of
+  Nothing -> []
+  Just b -> Names.asSearchResults $ Branch.toNames0 b
 
 searchBranchScored :: forall m score. (Ord score)
               => Branch m
