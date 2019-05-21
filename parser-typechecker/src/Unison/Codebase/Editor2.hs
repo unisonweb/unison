@@ -54,6 +54,7 @@ import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
 import           Unison.Codebase.Path           ( Path, Path' )
+import qualified Unison.Codebase.Path          as Path
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -248,6 +249,7 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
+  | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | RenameOutput Name Name NameChangeResult
   | AliasOutput Name Name NameChangeResult

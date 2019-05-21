@@ -115,7 +115,7 @@ data LoopState m v
   = LoopState
       { _root :: Branch m
       -- the current position in the namespace
-      , _path :: Path.Absolute
+      , _currentPath :: Path.Absolute
 
       -- TBD
       -- , _activeEdits :: Set Branch.EditGuid
@@ -146,9 +146,9 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
-  path'       <- use path
-  latestFile' <- use latestFile
-  currentBranch' <- getAt path'
+  currentPath' <- use currentPath
+  latestFile'  <- use latestFile
+  currentBranch' <- getAt currentPath'
   let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
   let withFile ambient sourceName text k = do
@@ -200,9 +200,9 @@ loop = do
     Right input -> case input of
       ForkBranchI (RepoLink src srcPath0) destPath0 -> do
         let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath path' p
+              (Local, p) -> Path.toAbsolutePath currentPath' p
               (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath path' destPath0
+            destPath = Path.toAbsolutePath currentPath' destPath0
         (Branch.head -> destBranch) <- loadBranchAt Local destPath
         if not . Branch.isEmpty $ destBranch
         then respond $ BranchAlreadyExists destPath0
@@ -212,11 +212,20 @@ loop = do
           success -- could give rando stats about new defns
       MergeBranchI (RepoLink src srcPath0) destPath0 -> do
         let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath path' p
+              (Local, p) -> Path.toAbsolutePath currentPath' p
               (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath path' destPath0
+            destPath = Path.toAbsolutePath currentPath' destPath0
         srcBranch <- loadBranchAt src srcPath
         updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
+      SwitchBranchI path' -> do
+        path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+        currentPath .= path
+        branch' <- loadBranchAt Local path
+        when (Branch.isEmpty . Branch.head $ branch')
+          (respond $ CreatedNewBranch path)
+
+
+
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -327,7 +336,6 @@ loop = do
       --     currentBranch .= branch'
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
-      -- SwitchBranchI branchName       -> switchBranch branchName
       -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
       --   uniqueToDelete <- prettyUniqueDefinitions bnbs
       --   let deleteBranches b =
