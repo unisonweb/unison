@@ -11,6 +11,7 @@ import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Data.Int (Int64)
 import Data.List
 import Data.Map (Map)
 import Data.Word
@@ -218,6 +219,10 @@ char = random
 int :: Test Int
 int = random
 
+-- | Generate a random `Int64`
+int64 :: Test Int64
+int64 = random
+
 -- | Generate a random `Double`
 double :: Test Double
 double = random
@@ -226,10 +231,20 @@ double = random
 word :: Test Word
 word = random
 
+-- | Generate a random `Word64`
+word64 :: Test Word64
+word64 = random
+
+
 -- | Generate a random `Int` in the given range
 -- Note: `int' 0 5` includes both `0` and `5`
 int' :: Int -> Int -> Test Int
 int' = random'
+
+-- | Generate a random `Int64` in the given range
+-- Note: `int' 0 5` includes both `0` and `5`
+int64' :: Int64 -> Int64 -> Test Int64
+int64' = random'
 
 -- | Generate a random `Char` in the given range
 -- Note: `char' 'a' 'z'` includes both `'a'` and `'z'`.
@@ -246,10 +261,15 @@ double' = random'
 word' :: Word -> Word -> Test Word
 word' = random'
 
--- | Generate a random `Double` in the given range
+-- | Generate a random `Word8` in the given range
 -- Note: `word8' 0 10` includes both `0` and `10`.
 word8' :: Word8 -> Word8 -> Test Word8
 word8' = random'
+
+-- | Generate a random `Word64` in the given range
+-- Note: `word64' 0 10` includes both `0` and `10`.
+word64' :: Word64 -> Word64 -> Test Word64
+word64' = random'
 
 -- | Sample uniformly from the given list of possibilities
 pick :: [a] -> Test a

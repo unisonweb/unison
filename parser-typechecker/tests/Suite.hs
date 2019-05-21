@@ -5,6 +5,7 @@ module Main where
 import           EasyTest
 import           System.Environment (getArgs)
 import           System.IO
+import qualified Unison.Test.Codebase.Serialization as Serialization
 import qualified Unison.Test.DataDeclaration as DataDeclaration
 import qualified Unison.Test.FileParser as FileParser
 import qualified Unison.Test.Lexer as Lexer
@@ -32,6 +33,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , Serialization.test
  ]
 
 main :: IO ()

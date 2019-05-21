@@ -1,22 +1,23 @@
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Codebase.Serialization.Testing (test) where
+module Unison.Codebase.Serialization.Serializers
+  ( TermSerializer(..)
+  , roundTrip
+  , v0Serializer
+  , v0SerializerCborg
+  , v1Serializer
+  , v1SerializerCborg
+  ) where
 
-import           Codec.CBOR.Decoding
-import           Codec.CBOR.Encoding
+import           Codec.CBOR.Decoding                   (Decoder)
+import           Codec.CBOR.Encoding                   (Encoding)
 import qualified Codec.CBOR.Read                       as CBOR
 import qualified Codec.CBOR.Write                      as CBOR
-import           Control.Monad                         (forM)
-import           Control.Monad.IO.Class                (MonadIO, liftIO)
 import qualified Data.Bytes.Get                        as Get
 import qualified Data.Bytes.Put                        as Put
 import qualified Data.ByteString                       as BS
 import qualified Data.ByteString.Lazy                  as BSL
-import           Data.List                             (isSuffixOf)
 import qualified Data.Serialize.Get                    as Get
-import           System.Directory                      (doesDirectoryExist,
-                                                        getDirectoryContents)
-import           System.FilePath                       ((</>))
 
 import qualified Unison.Codebase.Serialization.V0      as V0
 import qualified Unison.Codebase.Serialization.V0Cborg as V0Cborg
@@ -29,39 +30,13 @@ import           Unison.Term                           (AnnotatedTerm)
 
 type Term = AnnotatedTerm Symbol Ann
 
-test :: IO [Bool]
-test = do
-  terms <- compiledTerms v1Serializer
-  forM terms $ \term -> do
-    let serializedTerm = putTerm v1SerializerCborg term
-        term' = getTerm v1SerializerCborg serializedTerm
-        serializedTerm' = putTerm v1Serializer term
-        term'' = getTerm v1Serializer serializedTerm'
-    putStrLn "V1 term:"
-    print term
-    putStrLn "V1 CBorg term:"
-    print term'
-    putStrLn "V1 term == V1 CBorg term:"
-    return $ term == term' && term' == term''
-
-compiledTermsFiles :: MonadIO m => m [FilePath]
-compiledTermsFiles =
-  filter ("compiled.ub" `isSuffixOf`) <$> getRecursiveContents ".unison/terms/"
-
-compiledTerms :: MonadIO m => TermSerializer -> m [Term]
-compiledTerms ts = traverse (getTermFromFile ts) =<< compiledTermsFiles
-
----
---- TermSerializers
----
-
 data TermSerializer = TermSerializer {
    getTerm :: BS.ByteString -> Term
  , putTerm :: Term -> BS.ByteString
  }
 
-getTermFromFile :: MonadIO m => TermSerializer -> FilePath -> m Term
-getTermFromFile ts path = getTerm ts <$> liftIO (BS.readFile path)
+roundTrip :: TermSerializer -> Term -> Term
+roundTrip ts = getTerm ts . putTerm ts
 
 -- TODO: how to actually call this?
 -- the terms in ".unison/terms/" are compiled with V1 right?
@@ -122,19 +97,3 @@ serializeTermCborg putTerm t = CBOR.toStrictByteString (putTerm t)
 deserializeTermCborg :: (forall s. Decoder s Term) -> BSL.ByteString -> Term
 deserializeTermCborg decoder =
   either (error . show) snd . CBOR.deserialiseFromBytes decoder
-
----
-
-getRecursiveContents :: MonadIO m => FilePath -> m [FilePath]
-getRecursiveContents topPath =
-  liftIO $ do
-    names <- getDirectoryContents topPath
-    let properNames = filter (`notElem` [".", ".."]) names
-    paths <-
-      forM properNames $ \name -> do
-        let path = topPath </> name
-        isDirectory <- doesDirectoryExist path
-        if isDirectory
-          then getRecursiveContents path
-          else return [path]
-    return (concat paths)
