@@ -246,6 +246,7 @@ data Output v
   = Success Input
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
+  | BranchAlreadyExists Path'
   | RenameOutput Name Name NameChangeResult
   | AliasOutput Name Name NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
@@ -385,9 +386,13 @@ data Command m i v a where
 
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
+  -- Any definitions in the head of the requested root that aren't in the local
+  -- codebase are copied there.
   LoadRootBranch :: RepoRef -> Command m i v (Branch m)
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
+  -- Any definitions in the head of the supplied branch that aren't in the target
+  -- codebase are copied there.
   SyncRootBranch :: RepoRef -> Branch m -> Command m i v ()
   -- e.g.
   --   /Lib/Arya/Public/SuperML> push github:aryairani/superML

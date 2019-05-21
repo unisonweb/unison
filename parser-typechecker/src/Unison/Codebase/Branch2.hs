@@ -316,19 +316,23 @@ step f = over history (Causal.stepDistinct f)
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
 -- todo: consider adding logic somewhere to skip the cons if `f` is a no-op.
-stepAt :: Monad m
+stepAt :: (Monad n, Applicative m)
        => Path
        -> (Branch0 m -> Branch0 m)
        -> Branch m
-       -> m (Branch m)
+       -> n (Branch m)
 stepAt path f = stepAtM path (pure . f)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
-stepAtM
-  :: Monad m => Path -> (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
-stepAtM path f =
-  modifyAtM path (fmap Branch . Causal.stepDistinctM f . view history)
+
+stepAtM :: forall n m. (Monad n, Applicative m)
+        => Path -> (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
+stepAtM p f b = modifyAtM p g b where
+  g :: Branch m -> n (Branch m)
+  g (Branch b) = do
+    b0' <- f (Causal.head b)
+    pure $ Branch . Causal.consDistinct b0' $ b
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.

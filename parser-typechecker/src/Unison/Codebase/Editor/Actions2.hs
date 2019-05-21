@@ -53,6 +53,12 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
                                                 , Event(..)
+                                                , BranchPath
+                                                , EditsPath
+                                                , TermPath
+                                                , TypePath
+                                                , RepoLink(..)
+                                                , RepoRef(..)
                                                 , SearchMode(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
@@ -192,6 +198,14 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
+--      ForkBranchI (RepoLink src srcPath) destPath -> do
+--        (Branch.head -> destBranch) <- _loadBranchAt Local destPath
+--        if not . Branch.isEmpty $ destBranch
+--        then respond $ BranchAlreadyExists destPath
+--        else do
+--          srcBranch <- _loadBranchAt src srcPath
+--          setAt destPath srcBranch
+--          outputSuccess -- could give rando stats about new defns
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -303,10 +317,6 @@ loop = do
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
       -- SwitchBranchI branchName       -> switchBranch branchName
-      -- ForkBranchI   targetBranchName -> ifM
-      --   (eval $ NewBranch currentBranch' targetBranchName)
-      --   (outputSuccess *> switchBranch targetBranchName)
-      --   (respond $ BranchAlreadyExists targetBranchName)
       -- MergeBranchI inputBranchName -> withBranch inputBranchName $ \branch ->
       --   do
       --     let merged0 = branch <> currentBranch'
@@ -716,13 +726,20 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
---getAt :: Path -> Branch m -> Action m i v (Branch m)
---getAt p b = pure . fromMaybe Branch.empty $ Branch.getAt b p
+_loadBranchAt :: RepoRef -> Editor.BranchPath -> Action m i v (Branch (Action m i v))
+_loadBranchAt = error "todo"
 
-getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
-getAt p = go <$> use root where
-  go root = fromMaybe Branch.empty . Branch.getAt p
-          $ Branch.transform liftToAction root
+
+--getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
+--getAt p = go <$> use root where
+--  go root = fromMaybe Branch.empty . Branch.getAt p
+--          $ Branch.transform liftToAction root
+
+getAt :: Functor m => Path -> Action m i v (Branch m)
+getAt p = use root <&> fromMaybe Branch.empty . Branch.getAt p
+
+--setAt :: Path -> Branch m -> Action m i v ()
+--setAt p b = updateAtM
 
 stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = error "todo"
@@ -742,4 +759,6 @@ updateAtM p f = do
   b' <- Branch.modifyAtM p f b
   root .= b'
   when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
+
+--setAt
 
