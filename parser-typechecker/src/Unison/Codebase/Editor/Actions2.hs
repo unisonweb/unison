@@ -115,7 +115,7 @@ data LoopState m v
   = LoopState
       { _root :: Branch m
       -- the current position in the namespace
-      , _path :: Path
+      , _path :: Path.Absolute
 
       -- TBD
       -- , _activeEdits :: Set Branch.EditGuid
@@ -140,10 +140,10 @@ type SkipNextUpdate = Bool
 
 makeLenses ''LoopState
 
-loopState0 :: Branch m -> Path -> LoopState m v
+loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
-loop :: forall m v . (Functor m, Var v) => Action m (Either Event Input) v ()
+loop :: forall m v . (Applicative m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
   path'       <- use path
@@ -198,14 +198,14 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
---      ForkBranchI (RepoLink src srcPath) destPath -> do
---        (Branch.head -> destBranch) <- _loadBranchAt Local destPath
---        if not . Branch.isEmpty $ destBranch
---        then respond $ BranchAlreadyExists destPath
---        else do
---          srcBranch <- _loadBranchAt src srcPath
---          setAt destPath srcBranch
---          outputSuccess -- could give rando stats about new defns
+      ForkBranchI (RepoLink src srcPath) destPath -> do
+        (Branch.head -> destBranch) <- loadBranchAt Local destPath
+        if not . Branch.isEmpty $ destBranch
+        then respond $ BranchAlreadyExists destPath
+        else do
+          srcBranch <- loadBranchAt src srcPath
+          setAt (Path.toAbsolutePath path' destPath) srcBranch
+          success -- could give rando stats about new defns
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -361,8 +361,7 @@ loop = do
       -- QuitI -> quit
       _ -> error $ "todo: " <> show input
      where
-      _success       = respond $ Success input
-      _outputSuccess = eval . Notify $ Success input
+      success       = respond $ Success input
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
@@ -726,8 +725,8 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
-_loadBranchAt :: RepoRef -> Editor.BranchPath -> Action m i v (Branch (Action m i v))
-_loadBranchAt = error "todo"
+loadBranchAt :: RepoRef -> BranchPath -> Action m i v (Branch m)
+loadBranchAt = error "todo"
 
 
 --getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
@@ -735,17 +734,18 @@ _loadBranchAt = error "todo"
 --  go root = fromMaybe Branch.empty . Branch.getAt p
 --          $ Branch.transform liftToAction root
 
-getAt :: Functor m => Path -> Action m i v (Branch m)
-getAt p = use root <&> fromMaybe Branch.empty . Branch.getAt p
+getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
+getAt (Path.Absolute p) =
+  use root <&> fromMaybe Branch.empty . Branch.getAt p
 
---setAt :: Path -> Branch m -> Action m i v ()
---setAt p b = updateAtM
+setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
+setAt p b = updateAtM p (const . pure $ b)
 
-stepAt :: Path -> (Branch0 m -> Branch0 m) -> Action m i v ()
-stepAt p f = error "todo"
+stepAt :: Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
+stepAt (Path.Absolute p) f = error "todo"
   -- updateAtM (\b -> pure $ Branch.modify f b)
 
-stepAtM :: Applicative m => Path -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
+stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
 stepAtM p f = updateAtM p $ \b -> do error "todo"
 --  b0' <- f $ Branch.head b
 --  when (b)
@@ -753,8 +753,11 @@ stepAtM p f = updateAtM p $ \b -> do error "todo"
 --   b0' <- f $ Branch.head b
 --   pure $ Branch.append b0' b
 
-updateAtM :: Applicative m => Path -> (Branch m -> Action m i v (Branch m)) -> Action m i v ()
-updateAtM p f = do
+updateAtM :: Applicative m
+          => Path.Absolute
+          -> (Branch m -> Action m i v (Branch m))
+          -> Action m i v ()
+updateAtM (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
   root .= b'
