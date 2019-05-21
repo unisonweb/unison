@@ -224,6 +224,66 @@ loop = do
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
 
+      AliasI targets (srcPath0, hq) (destPath0, destname) -> do
+        -- todo: hq's name should just be one segment
+        -- todo: if hq is a HashOnly, what should srcPath0 be?  currentPath? root?
+        srcPath <- use $ currentPath . to (`Path.toAbsolutePath` srcPath0)
+        destPath <- use $ currentPath . to (`Path.toAbsolutePath` destPath0)
+        srcBranch <- getAt srcPath
+        let sourceNames0 = Branch.toNames (Branch.head srcBranch)
+        let doTerm (b, result) =
+              if Set.member Editor.TermName' targets
+              then aliasTerm b result else (b, result)
+            aliasTerm :: Branch0 _ -> Editor.NameChangeResult -> (Branch0 _, Editor.NameChangeResult)
+            aliasTerm b r = let
+              sourceRefs :: HashQualified -> [Referent]
+              sourceRefs hq = case hq of
+                HQ.NameOnly n -> Set.toList $ Names.termsNamed sourceNames0 (HQ.fromName n)
+                HQ.HashQualified n sh ->
+                  Set.toList
+                    . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
+                    $ Names.termsNamed sourceNames0 (HQ.fromName n)
+                HQ.HashOnly sh ->
+                  Set.toList
+                    . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
+                    $ Names.termReferents sourceNames0
+              in case sourceRefs hq of
+                [h] -> (over Branch.terms (R.insert destname h) b,
+                        over Editor.changedSuccessfully (Set.insert Editor.TermName') r)
+                [] -> (b, r)
+                _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TermName') r)
+
+            doType (b, result) =
+              if Set.member Editor.TypeName' targets
+              then aliasType b result else (b, result)
+            aliasType b r = let
+              sourceRefs = \case
+                HQ.NameOnly n -> Set.toList $ Names.typesNamed sourceNames0 (HQ.fromName n)
+                HQ.HashQualified n sh ->
+                  Set.toList
+                    . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
+                    $ Names.typesNamed sourceNames0 (HQ.fromName n)
+                HQ.HashOnly sh ->
+                  Set.toList
+                    . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
+                    $ Names.typeReferences sourceNames0
+              in case sourceRefs hq of
+                [h] -> (over Branch.types (R.insert destname h) b,
+                        over Editor.changedSuccessfully (Set.insert Editor.TypeName') r)
+                [] -> (b, r)
+                _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TypeName') r)
+
+        stepAtM destPath $ \b0 -> do
+          let (b0', r') = doTerm . doType $
+                (b0, Editor.NameChangeResult mempty mempty mempty)
+          respond $ AliasOutput currentPath'
+                      (error "todo: produce original srcHQ, or pass it in")
+                      (error "todo: produce original destName, or pass it in")
+                      r'
+          pure b0'
+
+
+
 
 
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do

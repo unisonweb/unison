@@ -49,6 +49,9 @@ data Names' n = Names
 type Names = Names' HashQualified
 type Names0 = Names' Name
 
+termReferents :: Names' n -> Set Referent
+termReferents Names{..} = R.ran terms
+
 termReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 

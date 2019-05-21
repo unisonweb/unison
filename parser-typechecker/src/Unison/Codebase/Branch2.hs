@@ -114,6 +114,7 @@ data Branch0 m = Branch0
   }
 
 -- The raw Branch
+
 data Raw = Raw
   { _termsR :: Relation NameSegment Referent
   , _typesR :: Relation NameSegment Reference

@@ -95,7 +95,7 @@ notifyUser dir o = case o of
       <> "commands."
   RenameOutput oldName newName r -> do
     nameChange "rename" "renamed" oldName newName r
-  AliasOutput existingName newName r -> do
+  AliasOutput rootPath existingName newName r -> do
     nameChange "alias" "aliased" existingName newName r
   DeleteBranchConfirmation uniqueDeletions -> error "todo"
     -- let

@@ -10,6 +10,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 --
@@ -19,6 +20,7 @@ module Unison.Codebase.Editor2 where
 
 import           Data.Char                      ( toLower )
 import Data.List (sortOn, isSuffixOf, isPrefixOf)
+import           Control.Lens            hiding ( children, transform )
 import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
 import           Control.Monad.Extra            ( ifM )
 import           Data.Foldable                  ( toList
@@ -166,7 +168,7 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) Path' Path'
+    | AliasI (Set DefnTarget) (Path', HashQualified) (Path', Path.NameSegment)
     | DeleteI (Set NameTarget) [Path']
     | RenameI (Set NameTarget) Path' Path'
     -- resolving naming conflicts within `branchpath`
@@ -252,7 +254,7 @@ data Output v
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | RenameOutput Name Name NameChangeResult
-  | AliasOutput Name Name NameChangeResult
+  | AliasOutput Path.Absolute HashQualified Name NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -304,10 +306,12 @@ data TodoOutput v a
 
 -- todo: do we want something here for nonexistent old name?
 data NameChangeResult = NameChangeResult
-  { oldNameConflicted :: Set NameTarget
-  , newNameAlreadyExists :: Set NameTarget
-  , changedSuccessfully :: Set NameTarget
+  { _oldNameConflicted :: Set DefnTarget
+  , _newNameAlreadyExists :: Set DefnTarget
+  , _changedSuccessfully :: Set DefnTarget
   } deriving (Eq, Ord, Show)
+
+makeLenses ''NameChangeResult
 
 -- instance Semigroup NameChangeResult where (<>) = mappend
 -- instance Monoid NameChangeResult where
