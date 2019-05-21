@@ -49,6 +49,12 @@ data Names' n = Names
 type Names = Names' HashQualified
 type Names0 = Names' Name
 
+termReferences :: Names' n -> Set Reference
+termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
+
+typeReferences :: Names' n -> Set Reference
+typeReferences Names{..} = R.ran types
+
 -- could move this to a read-only field in Names
 numHashChars :: Names' n -> Int
 numHashChars b = lenFor hashes

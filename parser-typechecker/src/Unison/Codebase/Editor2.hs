@@ -390,6 +390,9 @@ data Command m i v a where
   -- codebase are copied there.
   LoadRootBranch :: RepoRef -> Command m i v (Branch m)
 
+  -- RetrieveHashes repo types terms
+  RetrieveHashes :: RepoRef -> Set Reference -> Set Reference -> Command m i v ()
+
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
@@ -746,6 +749,8 @@ commandLine awaitInput rt notifyUser codebase command = do
     SyncRootBranch Local branch -> Codebase.putRootBranch codebase branch
     LoadRootBranch Github{..} -> error "todo"
     SyncRootBranch Github{..} _branch -> error "todo"
+    RetrieveHashes Local _ _ -> pure ()
+    RetrieveHashes Github{} _types _terms -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
     LoadSearchResults results -> loadSearchResults codebase results

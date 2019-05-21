@@ -198,13 +198,17 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
-      ForkBranchI (RepoLink src srcPath) destPath -> do
+      ForkBranchI (RepoLink src srcPath0) destPath0 -> do
+        let srcPath = case (src, srcPath0) of
+              (Local, p) -> Path.toAbsolutePath path' p
+              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
+            destPath = Path.toAbsolutePath path' destPath0
         (Branch.head -> destBranch) <- loadBranchAt Local destPath
         if not . Branch.isEmpty $ destBranch
-        then respond $ BranchAlreadyExists destPath
+        then respond $ BranchAlreadyExists destPath0
         else do
           srcBranch <- loadBranchAt src srcPath
-          setAt (Path.toAbsolutePath path' destPath) srcBranch
+          setAt destPath srcBranch
           success -- could give rando stats about new defns
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
@@ -725,8 +729,14 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
-loadBranchAt :: RepoRef -> BranchPath -> Action m i v (Branch m)
-loadBranchAt = error "todo"
+loadBranchAt :: RepoRef -> Path.Absolute -> Action m i v (Branch m)
+loadBranchAt repo (Path.Absolute p) = do
+  root <- eval $ LoadRootBranch repo
+  let b = Branch.getAt' p root
+  let names0 = Branch.toNames0 $ Branch.head b
+  eval $ RetrieveHashes repo (Names.typeReferences names0)
+                             (Names.termReferences names0)
+  pure b
 
 
 --getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
@@ -741,17 +751,11 @@ getAt (Path.Absolute p) =
 setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
 setAt p b = updateAtM p (const . pure $ b)
 
-stepAt :: Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
-stepAt (Path.Absolute p) f = error "todo"
-  -- updateAtM (\b -> pure $ Branch.modify f b)
+stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
+stepAt p f = updateAtM p (pure . Branch.step f)
 
 stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
-stepAtM p f = updateAtM p $ \b -> do error "todo"
---  b0' <- f $ Branch.head b
---  when (b)
---updateAtM $ \b -> do
---   b0' <- f $ Branch.head b
---   pure $ Branch.append b0' b
+stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)
 
 updateAtM :: Applicative m
           => Path.Absolute

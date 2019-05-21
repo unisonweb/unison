@@ -36,6 +36,9 @@ newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
 newtype Relative = Relative Path deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
+absoluteEmpty :: Absolute
+absoluteEmpty = Absolute (Path mempty)
+
 toAbsolutePath :: Absolute -> Path' -> Absolute
 toAbsolutePath (Absolute cur) (Path' p) = case p of
   Left a -> a
