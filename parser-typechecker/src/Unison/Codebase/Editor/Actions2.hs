@@ -143,7 +143,7 @@ makeLenses ''LoopState
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
-loop :: forall m v . (Applicative m, Var v) => Action m (Either Event Input) v ()
+loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
   path'       <- use path
@@ -210,6 +210,13 @@ loop = do
           srcBranch <- loadBranchAt src srcPath
           setAt destPath srcBranch
           success -- could give rando stats about new defns
+      MergeBranchI (RepoLink src srcPath0) destPath0 -> do
+        let srcPath = case (src, srcPath0) of
+              (Local, p) -> Path.toAbsolutePath path' p
+              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
+            destPath = Path.toAbsolutePath path' destPath0
+        srcBranch <- loadBranchAt src srcPath
+        updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -321,17 +328,6 @@ loop = do
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
       -- SwitchBranchI branchName       -> switchBranch branchName
-      -- MergeBranchI inputBranchName -> withBranch inputBranchName $ \branch ->
-      --   do
-      --     let merged0 = branch <> currentBranch'
-      --     merged <- eval $ Propagate merged0
-      --     ok     <- eval $ SyncBranch currentBranchName' merged
-      --     if ok
-      --       then do
-      --         currentBranch .= merged
-      --         respond $ Success input -- a merge-specific message
-      --         checkTodo
-      --       else respond (UnknownBranch inputBranchName)
       -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
       --   uniqueToDelete <- prettyUniqueDefinitions bnbs
       --   let deleteBranches b =
@@ -766,6 +762,4 @@ updateAtM (Path.Absolute p) f = do
   b' <- Branch.modifyAtM p f b
   root .= b'
   when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
-
---setAt
 

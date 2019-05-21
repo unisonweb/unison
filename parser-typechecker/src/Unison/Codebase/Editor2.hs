@@ -160,6 +160,8 @@ data Input
     = ForkBranchI (RepoLink BranchPath) BranchPath
     -- merge first causal into destination
     | MergeBranchI (RepoLink BranchPath) BranchPath
+    -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
+    --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
