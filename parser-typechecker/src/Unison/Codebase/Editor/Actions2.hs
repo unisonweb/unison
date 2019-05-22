@@ -236,7 +236,7 @@ loop = do
         srcBranch <- getAt srcPath
         let sourceNames0 = Branch.toNames (Branch.head srcBranch)
             sourceNamesSeg = Branch.toNamesSeg (Branch.head srcBranch)
-        let doTerm (b, result) =
+            doTerm (b, result) =
               if Set.member Editor.TermName' targets
               then aliasTerm b result else (b, result)
             aliasTerm :: Branch0 _ -> Editor.NameChangeResult -> (Branch0 _, Editor.NameChangeResult)
@@ -282,15 +282,8 @@ loop = do
         stepAtM destPath $ \b0 -> do
           let (b0', r') = doTerm . doType $
                 (b0, Editor.NameChangeResult mempty mempty mempty)
-          respond $ AliasOutput currentPath'
-                      (error "todo: produce original srcHQ, or pass it in")
-                      (error "todo: produce original destName, or pass it in")
-                      r'
+          respond $ AliasOutput currentPath' srcHQ destName r'
           pure b0'
-
-
-
-
 
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
