@@ -35,6 +35,3 @@ Trie.mapKeys : (k1 -> k2) -> Trie k1 v -> Trie k2 v
 Trie.mapKeys f t =
   Trie (head t) (Map.mapKeys f (Map.map (Trie.mapKeys f) (tail t)))
 
-Trie.toMap : Trie k v -> Map [k] v
-Trie.toMap t = case head t of
-  Just v -> ([], v)
