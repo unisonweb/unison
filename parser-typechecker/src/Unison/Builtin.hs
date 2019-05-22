@@ -191,6 +191,7 @@ builtins0 = Map.fromList $
       , ("Nat.isEven", "Nat -> Boolean")
       , ("Nat.isOdd", "Nat -> Boolean")
       , ("Nat.toInt", "Nat -> Int")
+      , ("Nat.toText", "Nat -> Text")
 
       , ("Float.+", "Float -> Float -> Float")
       , ("Float.-", "Float -> Float -> Float")

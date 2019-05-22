@@ -4,32 +4,134 @@ type Test.Status = Failed
                  | Expected Test.Success
                  | Unexpected Test.Success
                  | Pending
-                 | Indeterminate
 
+-- Current scope together with accumulated test report.
 type Test.Report = Report (Trie Text [Test.Status])
 
--- myTest = scope "silly test suite" $
---  scope "one test" doSomeTesting
---  scope "another test" doSomeMoreTesting
+type Test.Test = Test (Test.Scope -> Test.Report)
 
+unique type Test.Scope = Scope [Text]
 
-use Test.Status Failed Expected Unexpected Pending Indeterminate
+use Test Success Status Report Test Scope
+use Test.Status Failed Expected Unexpected Pending
 use Test.Success Passed Proved
 use Test.Report Report
+use Test.Test Test
+use Test.Scope Scope
 
-genReport : '{Test} a -> Test.Report
-genReport t =
-  go r scope x = case x of
-    { Test.finish s -> k } -> 
-      t = case r of Report u -> u
-      Report (Trie.unionWith (Sequence.++) t (Trie.singleton scope [s]))
-    { Test.getScope -> k } -> handle go r scope in k scope
-    {a} -> Report Trie.empty
-  handle go (Report Trie.empty) [] in t
+foldSuccess : (Nat -> r) -> r -> Success -> r
+foldSuccess passed proved s = case s of
+  Passed n -> passed n
+  Proved -> proved
 
-ability Test where
-  finish : Test.Status -> {Test} a
-  getScope : {Test} [Text]
+foldStatus : r -> (Success -> r) -> (Success -> r) -> r -> Status -> r
+foldStatus failed expected unexpected pending status = case status of 
+  Failed -> failed
+  Expected s -> expected s
+  Unexpected s -> unexpected s
+  Pending -> pending
+    
+foldReport : (Trie Text [Test.Status] -> r) -> Report -> r
+foldReport k r = case r of Report t -> k t
+
+foldScope : ([Text] -> r) -> Scope -> r
+foldScope k s = case s of Scope ss -> k ss
+
+Scope.cons : Text -> Scope -> Scope
+Scope.cons n = foldScope (Scope . cons n)
+
+-- Basic building blocks of tests
+Test.finished : Status -> Test
+Test.finished st = 
+  Test (Report . foldScope (sc -> Trie.singleton sc [st]))
+
+Test.failed : Test
+Test.failed = finished Failed
+
+Test.proved : Test
+Test.proved = finished <| Expected Proved
+
+Test.passed : Test
+Test.passed = finished . Expected <| Passed 1
+
+Test.passedUnexpectedly : Test
+Test.passedUnexpectedly = finished . Unexpected <| Passed 1
+
+Test.provedUnexpectedly : Test
+Test.provedUnexpectedly = finished <| Unexpected Proved
+
+-- Basic test combinators
+
+Test.modifyStatus : (Status -> Status) -> Test -> Test
+Test.modifyStatus f t =
+  case t of Test k -> Test (foldReport (Report . map (map f)) . k)
+
+Test.label : Text -> Test -> Test
+Test.label n t = case t of
+  Test k -> Test (scope -> k <| cons n scope)
+
+(Test.&&) : Test -> Test -> Test
+(Test.&&) a b = case (a,b) of
+  (Test k1, Test k2) ->
+    Test (
+      scope -> 
+        let r1 = k1 scope
+            r2 = k2 scope
+            combine r1 r2)
+
+Test.passedWith : Text -> Test
+Test.passedWith m = label m <| passed
+
+Test.provedWith : Text -> Test
+Test.provedWith m = label m <| proved
+
+Test.failedWith : Text -> Test
+Test.failedWith m = label m <| failed
+
+-- Report combinators
+
+Test.Report.combine : Report -> Report -> Report
+Test.Report.combine r1 r2 = case (r1, r2) of
+  (Test.Report.Report t1, Test.Report.Report t2) ->
+    Report <| Trie.unionWith (Sequence.++) t1 t1
+
+Test.Report.empty : Report
+Test.Report.empty = Report empty
+
+Test.Report.toCLIResult : Report -> [Test.Result]
+Test.Report.toCLIResult r =
+  descend scope p = case p of (k, t) -> 
+    go ((if scope != "" then (scope ++ ".") else "") ++ k) t
+  convert : Text -> Test.Status -> Test.Result
+  convert scope s = case s of 
+    Test.Status.Failed -> Test.Result.Fail scope
+    Test.Status.Expected (Test.Success.Passed n) ->
+      Test.Result.Ok (scope ++ " : Passed " ++ Nat.toText n ++ " tests.")
+    Test.Status.Expected (Test.Success.Proved) ->
+      Test.Result.Ok (scope ++ " : Proved.")
+  go : Text -> Trie Text [Test.Status] -> [Test.Result]
+  go scope t = 
+    rest = flatMap (descend scope) (Map.toSequence (tail t))
+    case head t of
+      Optional.Some statuses -> 
+        map (convert scope) statuses ++ rest
+      Optional.None -> rest
+  case r of Test.Report.Report t -> go "" t
+
+Test.report : Test -> Report
+Test.report t = case t of Test k -> k (Scope [])
+
+-- Running a test
+
+use Test.Report toCLIResult
+
+Test.run : Test -> [Test.Result]
+Test.run = toCLIResult . report
+
+Test.runAll : [Test] -> [Test.Result]
+Test.runAll = flatMap Test.run
+
+-- Status combinators
 
 Status.combine : Test.Status -> Test.Status -> Test.Status
 Status.combine s1 s2 = case (s1, s2) of
@@ -37,9 +139,7 @@ Status.combine s1 s2 = case (s1, s2) of
   (Pending, _) -> Pending
   (Failed, _) -> Failed
   (_, Failed) -> Failed
-  (Indeterminate, _) -> Indeterminate
-  (_, Indeterminate) -> Indeterminate
-  (Expected a, Expected b) -> Expected (combine a b)
+  (Expected a, Expected b) -> Expected (Success.combine a b)
 
 Status.pending : Test.Status -> Test.Status
 Status.pending s = case s of
@@ -47,34 +147,13 @@ Status.pending s = case s of
   Expected s -> Unexpected s
   Unexpected s -> Pending
   Pending -> Pending
-  Indeterminate -> Indeterminate
 
-getStatus : '{Test} a -> {Test} Test.Status
-getStatus t = 
-  go req = case req of 
-    {Test.finish s -> k} -> s
-    {Test.getScope -> k} -> handle go in k Test.getScope
-    {a} -> Indeterminate
-  handle go in !t
+-- Make a test pending
+Test.pending : Test -> Test
+Test.pending = modifyStatus Status.pending 
 
-Test.pending : '{Test} a -> {Test} (Optional a)
-Test.pending = finish . pending . getStatus
-
-
--- Parser bug:
--- Test.modifyScope : ([Text] ->{} [Text]) ->'{Test} a ->{Test} a
-
-Test.modifyScope : ([Text] ->{} [Text]) -> '{Test} a ->{Test} a
-Test.modifyScope f t =
-  go x =
-    case x of
-      {Test.finish s -> k} -> Test.finish s
-      {Test.getScope -> k} -> handle go in k (f Test.getScope)
-      { a } -> a
-  handle go in !t
-
-Test.scope : Text -> '{Test} a -> {Test} a
-Test.scope s = modifyScope (cons s)
+Test.modifyScope : (Scope -> Scope) -> Test -> Test
+Test.modifyScope f t = case t of Test k -> Test (k . f)
 
 Success.combine s1 s2 = case (s1, s2) of
   (Passed n, Passed m) -> Passed (n + m)

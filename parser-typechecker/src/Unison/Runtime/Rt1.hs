@@ -321,6 +321,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.round"         atf (pure . I) round
     , mk1 "Float.truncate"      atf (pure . I) truncate
 
+    , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
+
     -- Float Utils
     , mk1 "Float.abs"           atf (pure . F) abs
     , mk2 "Float.max"       atf atf (pure . F) max
