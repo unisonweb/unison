@@ -252,10 +252,10 @@ data Output v
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Path'
-  | RenameOutput Name Name NameChangeResult
+  | BranchAlreadyExists Input Path'
   -- AliasOutput currentPath src dest result
   | AliasOutput Path.Absolute HQPath' Path' NameChangeResult
+  | RenameOutput Path.Absolute HQPath' Path' NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if

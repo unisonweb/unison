@@ -30,6 +30,7 @@ import qualified Unison.Referent  as Referent
 import           Unison.Referent        (Referent(Con, Ref))
 import           Unison.Util.Relation   ( Relation )
 import qualified Unison.Util.Relation as R
+import Unison.Codebase.Path (NameSegment)
 
 -- import           Unison.Term      (AnnotatedTerm)
 -- import qualified Unison.Term      as Term
@@ -48,6 +49,7 @@ data Names' n = Names
 
 type Names = Names' HashQualified
 type Names0 = Names' Name
+type NamesSeg = Names' (HQ.HashQualified' NameSegment)
 
 termReferents :: Names' n -> Set Referent
 termReferents Names{..} = R.ran terms

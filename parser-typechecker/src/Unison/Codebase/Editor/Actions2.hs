@@ -84,7 +84,7 @@ import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names2                  ( Names )
+import           Unison.Names2                  ( Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.PrettyPrintEnv         as PPE
@@ -220,7 +220,7 @@ loop = do
             destPath = Path.toAbsolutePath currentPath' destPath0
         (Branch.head -> destBranch) <- loadBranchAt Local destPath
         if not . Branch.isEmpty $ destBranch
-        then respond $ BranchAlreadyExists destPath0
+        then respond $ BranchAlreadyExists input destPath0
         else do
           srcBranch <- loadBranchAt src srcPath
           setAt destPath srcBranch
@@ -245,56 +245,25 @@ loop = do
         -- .libs.blah> cd ../../apps/blah2
         -- .libs.blah> up; up; cd apps/blah2
         -- import .........apps.Notepad as Notepad
+        -- Option1: a mix of . and /
+        -- Option2: some / followed by some .
         let (srcPath, hq) = unsnocHqPath' srcHQ
             (destPath, destNameSeg) = unsnocPath' destName
         srcBranch <- getAt srcPath
-        let sourceNames0 = Branch.toNames (Branch.head srcBranch)
+        let sourceNames0 = Branch.toNames0 (Branch.head srcBranch)
             sourceNamesSeg = Branch.toNamesSeg (Branch.head srcBranch)
-            conditionallyDoTerm (b, result) =
-              if Set.member Editor.TermName' targets
-              then aliasTerm b result else (b, result)
-            aliasTerm :: Branch0 _ -> Editor.NameChangeResult -> (Branch0 _, Editor.NameChangeResult)
-            aliasTerm b r = let
-              sourceRefs :: HashQualifiedSegment -> [Referent]
-              sourceRefs = \case
-                HQ.NameOnly n -> Set.toList $ Names.termsNamed sourceNamesSeg (HQ.fromName n)
-                HQ.HashQualified n sh ->
-                  Set.toList
-                    . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
-                    $ Names.termsNamed sourceNamesSeg (HQ.fromName n)
-                HQ.HashOnly sh ->
-                  Set.toList
-                    . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
-                    $ Names.termReferents sourceNames0
-              in case sourceRefs hq of
-                [h] -> (over Branch.terms (R.insert destNameSeg h) b,
-                        over Editor.changedSuccessfully (Set.insert Editor.TermName') r)
-                [] -> (b, r)
-                _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TermName') r)
-
-            conditionallyDoType (b, result) =
-              if Set.member Editor.TypeName' targets
-              then aliasType b result else (b, result)
-            aliasType b r = let
-              sourceRefs :: HashQualifiedSegment -> [Reference]
-              sourceRefs = \case
-                HQ.NameOnly n -> Set.toList $ Names.typesNamed sourceNamesSeg (HQ.fromName n)
-                HQ.HashQualified n sh ->
-                  Set.toList
-                    . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
-                    $ Names.typesNamed sourceNamesSeg (HQ.fromName n)
-                HQ.HashOnly sh ->
-                  Set.toList
-                    . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
-                    $ Names.typeReferences sourceNames0
-              in case sourceRefs hq of
-                [h] -> (over Branch.types (R.insert destNameSeg h) b,
-                        over Editor.changedSuccessfully (Set.insert Editor.TypeName') r)
-                [] -> (b, r)
-                _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TypeName') r)
-
+            -- todo: could probably factor these two out, too
+            doTermConditionally =
+              if Set.notMember Editor.TermName' targets then id
+              else ifUniqueTermHQ sourceNamesSeg sourceNames0 hq aliasTerm
+            doTypeConditionally =
+              if Set.notMember Editor.TypeName' targets then id
+              else ifUniqueTypeHQ sourceNamesSeg sourceNames0 hq aliasType
+            aliasTerm :: Referent -> Branch0 m -> Branch0 m
+            aliasTerm r = over Branch.terms (R.insert destNameSeg r)
+            aliasType r = over Branch.types (R.insert destNameSeg r)
         stepAtM destPath $ \b0 -> do
-          let (b0', r') = conditionallyDoTerm . conditionallyDoType $
+          let (b0', r') = doTermConditionally . doTypeConditionally $
                 (b0, Editor.NameChangeResult mempty mempty mempty)
           respond $ AliasOutput currentPath' srcHQ destName r'
           pure b0'
@@ -856,3 +825,66 @@ hqToPathSeg = \case
   splitName n = (Path.toPath' p, n') where
     (p, n') = fromMaybe (error "hq name can't be empty")
                         (Path.unsnoc (Path.fromName n))
+
+
+matchTermRefs :: NamesSeg -> Names0 -> HashQualifiedSegment -> [Referent]
+matchTermRefs =
+  matchRefsImpl Names.termsNamed Names.termReferents Referent.toShortHash
+
+matchTypeRefs :: NamesSeg -> Names0 -> HashQualifiedSegment -> [Reference]
+matchTypeRefs =
+  matchRefsImpl Names.typesNamed Names.typeReferences Reference.toShortHash
+
+matchRefsImpl :: (byName -> HQ.HashQualified' n -> Set r)
+                  -> (all -> Set r)
+                  -> (r -> SH.ShortHash)
+                  -> byName
+                  -> all
+                  -> HQ.HashQualified' n
+                  -> [r]
+matchRefsImpl byName all toSH ns n0 = \case
+  HQ.NameOnly n -> Set.toList $ byName ns (HQ.fromName n)
+  HQ.HashQualified n sh ->
+    Set.toList
+    . Set.filter ((sh `SH.isPrefixOf`) . toSH)
+    $ byName ns (HQ.fromName n)
+  HQ.HashOnly sh ->
+    Set.toList
+      . Set.filter ((sh `SH.isPrefixOf`) . toSH)
+      $ all n0
+
+-- if hq is unique in NamesSeg / Names0, apply `f` to the NameChangeResult
+-- and add to `changedSuccessfully`. Or add to `oldNameConflicted` or no-op.
+ifUniqueTermHQ  :: NamesSeg
+                -> Names0
+                -> HashQualifiedSegment
+                -> (Referent -> t -> t)
+                -> (t, NameChangeResult)
+                -> (t, NameChangeResult)
+ifUniqueTermHQ sourceNamesSeg sourceNames0 hq f =
+  ifUniqueHQImpl matchTermRefs sourceNamesSeg sourceNames0 hq Editor.TermName' f
+
+ifUniqueTypeHQ  :: NamesSeg
+                -> Names0
+                -> HashQualifiedSegment
+                -> (Reference -> b -> b)
+                -> (b, NameChangeResult)
+                -> (b, NameChangeResult)
+ifUniqueTypeHQ sourceNamesSeg sourceNames0 hq f =
+  ifUniqueHQImpl matchTypeRefs sourceNamesSeg sourceNames0 hq Editor.TypeName' f
+
+ifUniqueHQImpl  :: (t1 -> t2 -> t3 -> [r])
+                  -> t1
+                  -> t2
+                  -> t3
+                  -> Editor.DefnTarget
+                  -> (r -> b -> b)
+                  -> (b, NameChangeResult)
+                  -> (b, NameChangeResult)
+ifUniqueHQImpl getRefs sourceNamesSeg sourceNames0 hq target f =
+  case getRefs sourceNamesSeg sourceNames0 hq of
+    []  -> id
+    [h] -> \(b, result) ->
+            (f h b, over Editor.changedSuccessfully (Set.insert target) result)
+    _   -> \(b, result) ->
+            (b,     over Editor.oldNameConflicted (Set.insert target) result)

@@ -93,7 +93,7 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
-  RenameOutput oldName newName r -> do
+  RenameOutput rootPath oldName newName r -> do
     nameChange "rename" "renamed" oldName newName r
   AliasOutput rootPath existingName newName r -> do
     nameChange "alias" "aliased" existingName newName r
