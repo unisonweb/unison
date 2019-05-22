@@ -113,10 +113,11 @@ hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName b n r
   else HQ.fromName n
 
-hqTypeAliases :: Names0 -> Name -> Reference -> Set HashQualified
+hqTypeAliases ::
+  Ord n => Names' n -> n -> Reference -> Set (HQ.HashQualified' n)
 hqTypeAliases b n r = Set.map (flip (hqTypeName b) r) (typeAliases b n r)
 
-hqTermAliases :: Names0 -> Name -> Referent -> Set HashQualified
+hqTermAliases :: Ord n => Names' n -> n -> Referent -> Set (HQ.HashQualified' n)
 hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
 
 -- Unconditionally apply hash qualifier long enough to distinguish all the

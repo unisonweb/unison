@@ -27,6 +27,7 @@ import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
+import           Data.Bifunctor                 ( first )
 import           Data.Foldable                  ( foldl', find
                                                 , toList
                                                 , traverse_
@@ -63,12 +64,17 @@ import           Unison.Codebase.Editor2        ( Command(..)
                                                 , SlurpResult(..)
                                                 , DisplayThing(..)
                                                 , NameChangeResult
-                                                  ( NameChangeResult
-                                                  )
+                                                  ( NameChangeResult )
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor2        as Editor
-import           Unison.Codebase.Path           ( NameSegment, Path )
+import           Unison.Codebase.Path           ( Absolute(..)
+                                                , NameSegment
+                                                , HQPath'
+                                                , Path
+                                                , Path'
+                                                , HashQualifiedSegment
+                                                )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
@@ -149,6 +155,15 @@ loop = do
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
+  let unsnocPath' :: Path' -> (Absolute, NameSegment)
+      unsnocPath' = fromJust
+                . fmap (first Absolute)
+                . (\(Absolute p) -> Path.unsnoc p)
+                . Path.toAbsolutePath currentPath'
+      unsnocHqPath' :: HQPath' -> (Absolute, HashQualifiedSegment)
+      unsnocHqPath' = Path.unsnocHashQualified
+                    . Path.toAbsoluteHashQualified currentPath'
+
   let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
   let withFile ambient sourceName text k = do
@@ -223,20 +238,19 @@ loop = do
         branch' <- loadBranchAt Local path
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
-
       AliasI targets srcHQ destName -> do
-        -- todo: hq's name should just be one segment
-        -- todo: if hq is a HashOnly, what should srcPath0 be?  currentPath? root?
-        let (srcPath0, hq) = hqToPathSeg srcHQ
-            (Path.toPath' -> destPath0, destNameSeg) =
-              fromMaybe (error "destName can't be empty")
-                        (Path.unsnoc (Path.fromName destName))
-        srcPath <- use $ currentPath . to (`Path.toAbsolutePath` srcPath0)
-        destPath <- use $ currentPath . to (`Path.toAbsolutePath` destPath0)
+        -- Discussion: What should the syntax be for all these things?
+        -- .libs.blah.poo
+        -- /libs/blah/Poo.poo
+        -- .libs.blah> cd ../../apps/blah2
+        -- .libs.blah> up; up; cd apps/blah2
+        -- import .........apps.Notepad as Notepad
+        let (srcPath, hq) = unsnocHqPath' srcHQ
+            (destPath, destNameSeg) = unsnocPath' destName
         srcBranch <- getAt srcPath
         let sourceNames0 = Branch.toNames (Branch.head srcBranch)
             sourceNamesSeg = Branch.toNamesSeg (Branch.head srcBranch)
-            doTerm (b, result) =
+            conditionallyDoTerm (b, result) =
               if Set.member Editor.TermName' targets
               then aliasTerm b result else (b, result)
             aliasTerm :: Branch0 _ -> Editor.NameChangeResult -> (Branch0 _, Editor.NameChangeResult)
@@ -258,7 +272,7 @@ loop = do
                 [] -> (b, r)
                 _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TermName') r)
 
-            doType (b, result) =
+            conditionallyDoType (b, result) =
               if Set.member Editor.TypeName' targets
               then aliasType b result else (b, result)
             aliasType b r = let
@@ -280,11 +294,11 @@ loop = do
                 _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TypeName') r)
 
         stepAtM destPath $ \b0 -> do
-          let (b0', r') = doTerm . doType $
+          let (b0', r') = conditionallyDoTerm . conditionallyDoType $
                 (b0, Editor.NameChangeResult mempty mempty mempty)
           respond $ AliasOutput currentPath' srcHQ destName r'
           pure b0'
-
+      -- DeleteI targets
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -832,7 +846,7 @@ updateAtM (Path.Absolute p) f = do
 
 -- hqToPathSeg splits a hashqualified into a Path and the NameSeg version of a
 -- HashQualified.
-type HashQualifiedSegment = HQ.HashQualified' NameSegment
+-- todo: delete after Path.parseHashQualified is done
 hqToPathSeg :: HashQualified -> (Path.Path', HashQualifiedSegment)
 hqToPathSeg = \case
   HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n

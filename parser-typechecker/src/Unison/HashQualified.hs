@@ -58,7 +58,7 @@ take i = \case
   HashOnly s        -> HashOnly (SH.take i s)
   HashQualified n s -> HashQualified n (SH.take i s)
 
-toString :: HashQualified -> String
+toString :: Show n => HashQualified' n -> String
 toString = Text.unpack . toText
 
 fromString :: String -> HashQualified
@@ -73,10 +73,10 @@ fromText t = case Text.breakOn "#" t of
   (name, hash) ->
     HashQualified (Name.unsafeFromText name) (SH.unsafeFromText hash)
 
-toText :: HashQualified -> Text
+toText :: Show n => HashQualified' n -> Text
 toText = \case
-  NameOnly name           -> Name.toText name
-  HashQualified name hash -> Name.toText name <> SH.toText hash
+  NameOnly name           -> Text.pack (show name)
+  HashQualified name hash -> Text.pack (show name) <> SH.toText hash
   HashOnly ref            -> Text.pack (show ref)
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
@@ -112,5 +112,5 @@ requalify hq r = case hq of
 instance IsString HashQualified where
   fromString = fromText . Text.pack
 
-instance Show HashQualified where
+instance Show n => Show (HashQualified' n) where
   show = Text.unpack . toText

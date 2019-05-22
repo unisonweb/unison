@@ -55,7 +55,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
-import           Unison.Codebase.Path           ( Path, Path' )
+import           Unison.Codebase.Path           ( Path, Path', HQPath' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -168,9 +168,9 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) HashQualified Name
-    | DeleteI (Set NameTarget) [Path']
-    | RenameI (Set NameTarget) Path' Path'
+    | AliasI (Set DefnTarget) HQPath' Path'
+    | DeleteI (Set NameTarget) [HQPath']
+    | RenameI (Set NameTarget) HQPath' Path'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
@@ -254,7 +254,8 @@ data Output v
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Path'
   | RenameOutput Name Name NameChangeResult
-  | AliasOutput Path.Absolute HashQualified Name NameChangeResult
+  -- AliasOutput currentPath src dest result
+  | AliasOutput Path.Absolute HQPath' Path' NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if

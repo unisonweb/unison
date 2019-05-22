@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
+
 module Unison.Codebase.Path
   -- ( Name(..)
   -- , unsafeFromText
@@ -25,6 +27,7 @@ import qualified Data.Sequence                 as Seq
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
+import qualified Unison.HashQualified          as HQ
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
@@ -35,6 +38,25 @@ newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
 newtype Relative = Relative Path deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
+
+type HashQualifiedSegment = HQ.HashQualified' NameSegment
+
+newtype HashQualified p =
+  HashQualified { unsnocHashQualified :: (p, HashQualifiedSegment)}
+  deriving (Eq, Ord, Show, Functor)
+
+type HQPath' = HashQualified Path'
+
+parsePath :: Text -> Either String Path'
+parsePath = error "todo"
+
+parseHashQualified :: Text -> Either String (HashQualified Path')
+parseHashQualified = error "todo"
+
+toAbsoluteHashQualified ::
+  Absolute -> HashQualified Path' -> HashQualified Absolute
+toAbsoluteHashQualified a = fmap (toAbsolutePath a)
+
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute (Path mempty)
@@ -82,6 +104,13 @@ asDirectory p = case toList p of
 
 -- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
 -- /Foo/bar
+-- Int./  -> "Int"/"/"
+-- pkg/Int.. -> "pkg"/"Int"/"."
+-- Int./foo -> error because "/foo" is not a valid NameSegment
+--                      and "Int." is not a valid NameSegment
+--                      and "Int" / "" / "foo" is not a valid path (internal "")
+-- todo: fromName needs to be a little more complicated if we want to allow
+--       identifiers called Function.(.)
 fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 
