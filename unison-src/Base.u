@@ -1,3 +1,9 @@
+namespace Nat where
+  maxNat = 18446744073709551615
+
+namespace Int where
+  maxInt = +9223372036854775807
+  minInt = -9223372036854775808
 
 use Universal == < > >=
 use Optional None Some
@@ -415,3 +421,4 @@ namespace Optional where
 
   map2 : (a -> b -> c) -> Optional a -> Optional b -> Optional c
   map2 f oa ob = flatMap (a -> map (f a) ob) oa
+

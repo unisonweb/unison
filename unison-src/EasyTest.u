@@ -1,3 +1,13 @@
+use Test Success Status Report Test Scope
+use Test.Status Failed Expected Unexpected Pending
+use Test.Success Passed Proved
+use Test.Report Report
+use Test.Test Test
+use Test passed proved failed expected unexpected pending finished label
+use Test.Scope Scope
+use Sequence flatMap
+
+---
 type Test.Success = Passed Nat | Proved
 
 type Test.Status = Failed 
@@ -12,12 +22,6 @@ type Test.Test = Test (Test.Scope -> Test.Report)
 
 unique type Test.Scope = Scope [Text]
 
-use Test Success Status Report Test Scope
-use Test.Status Failed Expected Unexpected Pending
-use Test.Success Passed Proved
-use Test.Report Report
-use Test.Test Test
-use Test.Scope Scope
 
 foldSuccess : (Nat -> r) -> r -> Success -> r
 foldSuccess passed proved s = case s of
@@ -38,7 +42,7 @@ foldScope : ([Text] -> r) -> Scope -> r
 foldScope k s = case s of Scope ss -> k ss
 
 Scope.cons : Text -> Scope -> Scope
-Scope.cons n = foldScope (Scope . cons n)
+Scope.cons n = foldScope (Scope . Sequence.cons n)
 
 -- Basic building blocks of tests
 Test.finished : Status -> Test
@@ -68,7 +72,9 @@ Test.modifyStatus f t =
 
 Test.label : Text -> Test -> Test
 Test.label n t = case t of
-  Test k -> Test (scope -> k <| cons n scope)
+  Test.Test.Test k -> Test (scope -> k <| Scope.cons n scope)
+
+use Test.Report combine
 
 (Test.&&) : Test -> Test -> Test
 (Test.&&) a b = case (a,b) of
@@ -86,7 +92,7 @@ Test.provedWith : Text -> Test
 Test.provedWith m = label m <| proved
 
 Test.failedWith : Text -> Test
-Test.failedWith m = label m <| failed
+Test.failedWith m = Test.label m <| Test.failed
 
 -- Report combinators
 
@@ -121,12 +127,10 @@ Test.Report.toCLIResult r =
 Test.report : Test -> Report
 Test.report t = case t of Test k -> k (Scope [])
 
--- Running a test
-
-use Test.Report toCLIResult
+-- Running tests
 
 Test.run : Test -> [Test.Result]
-Test.run = toCLIResult . report
+Test.run = Test.Report.toCLIResult . Test.report
 
 Test.runAll : [Test] -> [Test.Result]
 Test.runAll = flatMap Test.run
@@ -160,4 +164,5 @@ Success.combine s1 s2 = case (s1, s2) of
   (Passed n, Proved) -> Passed n
   (Proved, Passed n) -> Passed n
   (Proved, Proved) -> Proved
+
 
