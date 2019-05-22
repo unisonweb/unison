@@ -224,31 +224,36 @@ loop = do
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
 
-      AliasI targets (srcPath0, hq) (destPath0, destname) -> do
+      AliasI targets srcHQ destName -> do
         -- todo: hq's name should just be one segment
         -- todo: if hq is a HashOnly, what should srcPath0 be?  currentPath? root?
+        let (srcPath0, hq) = hqToPathSeg srcHQ
+            (Path.toPath' -> destPath0, destNameSeg) =
+              fromMaybe (error "destName can't be empty")
+                        (Path.unsnoc (Path.fromName destName))
         srcPath <- use $ currentPath . to (`Path.toAbsolutePath` srcPath0)
         destPath <- use $ currentPath . to (`Path.toAbsolutePath` destPath0)
         srcBranch <- getAt srcPath
         let sourceNames0 = Branch.toNames (Branch.head srcBranch)
+            sourceNamesSeg = Branch.toNamesSeg (Branch.head srcBranch)
         let doTerm (b, result) =
               if Set.member Editor.TermName' targets
               then aliasTerm b result else (b, result)
             aliasTerm :: Branch0 _ -> Editor.NameChangeResult -> (Branch0 _, Editor.NameChangeResult)
             aliasTerm b r = let
-              sourceRefs :: HashQualified -> [Referent]
-              sourceRefs hq = case hq of
-                HQ.NameOnly n -> Set.toList $ Names.termsNamed sourceNames0 (HQ.fromName n)
+              sourceRefs :: HashQualifiedSegment -> [Referent]
+              sourceRefs = \case
+                HQ.NameOnly n -> Set.toList $ Names.termsNamed sourceNamesSeg (HQ.fromName n)
                 HQ.HashQualified n sh ->
                   Set.toList
                     . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
-                    $ Names.termsNamed sourceNames0 (HQ.fromName n)
+                    $ Names.termsNamed sourceNamesSeg (HQ.fromName n)
                 HQ.HashOnly sh ->
                   Set.toList
                     . Set.filter ((sh `SH.isPrefixOf`) . Referent.toShortHash)
                     $ Names.termReferents sourceNames0
               in case sourceRefs hq of
-                [h] -> (over Branch.terms (R.insert destname h) b,
+                [h] -> (over Branch.terms (R.insert destNameSeg h) b,
                         over Editor.changedSuccessfully (Set.insert Editor.TermName') r)
                 [] -> (b, r)
                 _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TermName') r)
@@ -257,18 +262,19 @@ loop = do
               if Set.member Editor.TypeName' targets
               then aliasType b result else (b, result)
             aliasType b r = let
+              sourceRefs :: HashQualifiedSegment -> [Reference]
               sourceRefs = \case
-                HQ.NameOnly n -> Set.toList $ Names.typesNamed sourceNames0 (HQ.fromName n)
+                HQ.NameOnly n -> Set.toList $ Names.typesNamed sourceNamesSeg (HQ.fromName n)
                 HQ.HashQualified n sh ->
                   Set.toList
                     . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
-                    $ Names.typesNamed sourceNames0 (HQ.fromName n)
+                    $ Names.typesNamed sourceNamesSeg (HQ.fromName n)
                 HQ.HashOnly sh ->
                   Set.toList
                     . Set.filter ((sh `SH.isPrefixOf`) . Reference.toShortHash)
                     $ Names.typeReferences sourceNames0
               in case sourceRefs hq of
-                [h] -> (over Branch.types (R.insert destname h) b,
+                [h] -> (over Branch.types (R.insert destNameSeg h) b,
                         over Editor.changedSuccessfully (Set.insert Editor.TypeName') r)
                 [] -> (b, r)
                 _ -> (b, over Editor.oldNameConflicted (Set.insert Editor.TypeName') r)
@@ -831,3 +837,15 @@ updateAtM (Path.Absolute p) f = do
   root .= b'
   when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
 
+-- hqToPathSeg splits a hashqualified into a Path and the NameSeg version of a
+-- HashQualified.
+type HashQualifiedSegment = HQ.HashQualified' NameSegment
+hqToPathSeg :: HashQualified -> (Path.Path', HashQualifiedSegment)
+hqToPathSeg = \case
+  HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
+  HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
+  HQ.HashQualified n h -> (p',HQ.HashQualified n' h) where (p',n') = splitName n
+  where
+  splitName n = (Path.toPath' p, n') where
+    (p, n') = fromMaybe (error "hq name can't be empty")
+                        (Path.unsnoc (Path.fromName n))

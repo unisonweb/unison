@@ -182,6 +182,13 @@ toNames0 b = fold go mempty b where
   go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
   go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
+toNamesSeg :: Branch0 m -> Names' (HQ.HashQualified' NameSegment)
+toNamesSeg (Branch0 terms types _children) = Names terms' types' where
+  terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
+  types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
+  names :: Names' NameSegment
+  names = Names terms types
+
 allEntries :: Branch0 m -> [(Name, BranchEntry)]
 allEntries = reverse . fold (\l n e -> (n, e) : l) []
 

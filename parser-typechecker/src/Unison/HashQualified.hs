@@ -22,9 +22,11 @@ import qualified Unison.ShortHash              as SH
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 
-data HashQualified
-  = NameOnly Name | HashOnly ShortHash | HashQualified Name ShortHash
+data HashQualified' n
+  = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
   deriving (Eq, Ord)
+
+type HashQualified = HashQualified' Name
 
 stripNamespace :: Text -> HashQualified -> HashQualified
 stripNamespace namespace hq = case hq of
@@ -35,7 +37,7 @@ stripNamespace namespace hq = case hq of
   strip name =
     fromMaybe name $ Name.stripPrefix (Name.Name $ namespace <> ".") name
 
-toName :: HashQualified -> Maybe Name
+toName :: HashQualified' n -> Maybe n
 toName = \case
   NameOnly name        -> Just name
   HashQualified name _ -> Just name
@@ -50,7 +52,7 @@ toHash = \case
   HashQualified _ sh -> Just sh
   HashOnly sh        -> Just sh
 
-take :: Int -> HashQualified -> HashQualified
+take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case
   n@(NameOnly _)    -> n
   HashOnly s        -> HashOnly (SH.take i s)
@@ -78,11 +80,11 @@ toText = \case
   HashOnly ref            -> Text.pack (show ref)
 
 -- Returns the full referent in the hash.  Use HQ.take to just get a prefix
-fromNamedReferent :: Name -> Referent -> HashQualified
+fromNamedReferent :: n -> Referent -> HashQualified' n
 fromNamedReferent n r = HashQualified n (Referent.toShortHash r)
 
 -- Returns the full reference in the hash.  Use HQ.take to just get a prefix
-fromNamedReference :: Name -> Reference -> HashQualified
+fromNamedReference :: n -> Reference -> HashQualified' n
 fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 
 fromReferent :: Referent -> HashQualified
@@ -91,8 +93,8 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified
 fromReference = HashOnly . Reference.toShortHash
 
-fromName :: Name -> HashQualified
-fromName n = NameOnly n
+fromName :: n -> HashQualified' n
+fromName = NameOnly
 
 fromVar :: Var v => v -> HashQualified
 fromVar = fromText . Var.name

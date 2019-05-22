@@ -101,14 +101,14 @@ termAliases names n r = Set.delete n $ namesForReferent names r
 typeAliases :: Ord n => Names' n -> n -> Reference -> Set n
 typeAliases names n r = Set.delete n $ namesForReference names r
 
--- Get the appropriately hash-qualified version of a name for term.
+-- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
-hqTermName :: Names0 -> Name -> Referent -> HashQualified
+hqTermName :: Ord n => Names' n -> n -> Referent -> HQ.HashQualified' n
 hqTermName b n r = if Set.size (termsNamed b n) > 1
   then hqTermName' b n r
   else HQ.fromName n
 
-hqTypeName :: Names0 -> Name -> Reference -> HashQualified
+hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
 hqTypeName b n r = if Set.size (typesNamed b n) > 1
   then hqTypeName b n r
   else HQ.fromName n
@@ -119,13 +119,13 @@ hqTypeAliases b n r = Set.map (flip (hqTypeName b) r) (typeAliases b n r)
 hqTermAliases :: Names0 -> Name -> Referent -> Set HashQualified
 hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
 
--- always apply hash qualifier long enough to distinguish all the References in
--- this Names0.
-hqTermName' :: Names0 -> Name -> Referent -> HashQualified
+-- Unconditionally apply hash qualifier long enough to distinguish all the
+-- References in this Names0.
+hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
 hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Names0 -> Name -> Reference -> HashQualified
+hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
 hqTypeName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 

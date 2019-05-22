@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
-
+{-# LANGUAGE RankNTypes #-}
 module Unison.Codebase.Causal2 where
 
 import           Prelude                 hiding ( head

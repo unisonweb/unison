@@ -168,7 +168,7 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) (Path', HashQualified) (Path', Path.NameSegment)
+    | AliasI (Set DefnTarget) HashQualified Name
     | DeleteI (Set NameTarget) [Path']
     | RenameI (Set NameTarget) Path' Path'
     -- resolving naming conflicts within `branchpath`

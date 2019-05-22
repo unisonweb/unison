@@ -44,6 +44,11 @@ toAbsolutePath (Absolute cur) (Path' p) = case p of
   Left a -> a
   Right (Relative rel) -> Absolute (Path $ toSeq cur <> toSeq rel)
 
+toPath' :: Path -> Path'
+toPath' = \case
+  Path (NameSegment "" :<| tail) -> Path' . Left . Absolute . Path $ tail
+  p -> Path' . Right . Relative $ p
+
 toList :: Path -> [NameSegment]
 toList = Foldable.toList . toSeq
 
@@ -75,6 +80,8 @@ asDirectory p = case toList p of
     "/" <> asDirectory (Path tail)
   other -> Text.intercalate "/" . fmap toText $ other
 
+-- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
+-- /Foo/bar
 fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 
