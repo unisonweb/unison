@@ -25,7 +25,6 @@ getTerm (p, hq) b = case hq of
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
   terms = Branch._terms (Branch.getAt0 p b)
-  refs = R.lookupRan terms
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
@@ -35,7 +34,6 @@ getType (p, hq) b = case hq of
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
   types = Branch._types (Branch.getAt0 p b)
-  refs = R.lookupRan types
 
 getTerm' :: Set BranchTarget -> Path.HQSplit -> Branch0 m -> Set Referent
 getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty

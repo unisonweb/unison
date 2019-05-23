@@ -272,7 +272,7 @@ loop = do
           pure b0'
       RenameI targets srcHQ destName -> do
         (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-        let (destPath, destNameSeg) = unsnocPath' destName
+        let (_destPath, _destNameSeg) = unsnocPath' destName
             -- doTermConditionally =
             --   if Set.notMember Editor.TermName targets then id
             --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
