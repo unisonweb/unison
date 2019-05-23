@@ -128,7 +128,6 @@ a `merge` b =
        h = hash (Map.keys m) -- sorted order
    in  e <&> \e -> Merge (RawHash h) e m
 
-
 mergeWithM :: forall m h e. Monad m => (e -> e -> m e) -> Causal m h e -> Causal m h e -> m (Causal m h e)
 mergeWithM f a b =
   ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of

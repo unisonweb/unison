@@ -20,6 +20,7 @@ import           Control.Lens            hiding ( children, transform )
 import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
+import qualified Data.Foldable as Foldable
 import           Data.List                      ( foldl'
     -- , intercalate
     )
@@ -71,6 +72,7 @@ import qualified Unison.Util.List              as List
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
+-- used by `fold`
 data BranchEntry
   = TermEntry Referent
   | TypeEntry Reference
@@ -87,7 +89,13 @@ merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
 
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
 merge0 b1 b2 = unionWithM f (_children b1) (_children b2)
-  <&> Branch0 (_terms b1 <> _terms b2) (_types b1 <> _types b2)
+  <&> \c ->
+    Branch0 (_terms b1 <> _terms b2)
+            (_types b1 <> _types b2)
+            c
+            (toNamesSeg b1 <> toNamesSeg b2)
+            (deepReferents b1 <> deepReferents b2)
+            (deepTypeReferences b1 <> deepTypeReferences b2)
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
@@ -111,10 +119,15 @@ data Branch0 m = Branch0
   --    What is the UX to resolve conflicts?
   -- The hash we use to identify branches is the hash of their Causal node.
   , _children :: Map NameSegment (Hash, Branch m)
+  , toNamesSeg :: Names.NamesSeg
+  , deepReferents :: Set Referent
+  , deepTypeReferences :: Set Reference
   }
 
--- The raw Branch
+data Target = TargetType | TargetTerm | TargetBranch
+  deriving (Eq, Ord, Show)
 
+-- The raw Branch
 data Raw = Raw
   { _termsR :: Relation NameSegment Referent
   , _typesR :: Relation NameSegment Reference
@@ -182,13 +195,6 @@ toNames0 b = fold go mempty b where
   go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
   go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
-toNamesSeg :: Branch0 m -> Names' (HQ.HashQualified' NameSegment)
-toNamesSeg (Branch0 terms types _children) = Names terms' types' where
-  terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
-  types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
-  names :: Names' NameSegment
-  names = Names terms types
-
 allEntries :: Branch0 m -> [(Name, BranchEntry)]
 allEntries = reverse . fold (\l n e -> (n, e) : l) []
 
@@ -205,13 +211,33 @@ read
 read deserializeRaw h = Branch <$> Causal.read d h
  where
   fromRaw :: Raw -> m (Branch0 m)
-  fromRaw Raw {..} = Branch0 _termsR _typesR <$> (traverse go _childrenR)
+  fromRaw Raw {..} = do
+    children <- traverse go _childrenR
+    let namesSeg = toNamesSegImpl _termsR _typesR
+        childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
+        deepReferents' = foldMap deepReferents childrenBranch0
+        deepTypeReferences' = foldMap deepTypeReferences childrenBranch0
+
+    -- Branch0 _termsR _typesR <$> (
+    pure $ Branch0 _termsR _typesR children
+                    namesSeg
+                    deepReferents'
+                    deepTypeReferences'
   go h = (h, ) <$> read deserializeRaw h
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
     RawCons  raw h  -> flip RawCons h <$> fromRaw raw
     RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
+  toNamesSegImpl :: Relation NameSegment Referent
+                 -> Relation NameSegment Reference
+                 -> Names' (HQ.HashQualified' NameSegment)
+  toNamesSegImpl terms types = Names terms' types' where
+    terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
+    types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
+    names :: Names' NameSegment
+    names = Names terms types
+
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
 sync :: forall m. Monad m
@@ -236,51 +262,48 @@ sync exists serializeRaw b = do
 
 -- copy a path to another path
 fork
-  :: Monad m
+  :: Applicative m
   => Path
   -> Path
   -> Branch m
-  -> m (Either ForkFailure (Branch m))
+  -> Either ForkFailure (Branch m)
 fork src dest root = case getAt src root of
-  Nothing -> pure $ Left SrcNotFound
-  Just src' -> setIfNotExists dest src' root >>= \case
-    Nothing -> pure $ Left DestExists
-    Just root' -> pure $ Right root'
+  Nothing -> Left SrcNotFound
+  Just src' -> case setIfNotExists dest src' root of
+    Nothing -> Left DestExists
+    Just root' -> Right root'
 
 -- Move the node at src to dest.
 -- It's okay if `dest` is inside `src`, just create empty levels.
 -- Try not to `step` more than once at each node.
-move :: Monad m
+move :: Applicative m
      => Path
      -> Path
      -> Branch m
-     -> m (Either ForkFailure (Branch m))
+     -> Either ForkFailure (Branch m)
 move src dest root = case getAt src root of
-  Nothing -> pure $ Left SrcNotFound
+  Nothing -> Left SrcNotFound
   Just src' ->
     -- make sure dest doesn't already exist
     case getAt dest root of
-      Just _destExists -> pure $ Left DestExists
+      Just _destExists -> Left DestExists
       Nothing ->
       -- find and update common ancestor of `src` and `dest`:
-        Right <$> modifyAtM ancestor go root
+        Right $ modifyAt ancestor go root
         where
         (ancestor, relSrc, relDest) = Path.relativeToAncestor src dest
-        go b = do
--- todo: can we combine these into one update, eliminating Monad constraint
-          b <- setAt relDest src' b
-          deleteAt relSrc b
+        go = deleteAt relSrc . setAt relDest src'
 
 setIfNotExists
-  :: Monad m => Path -> Branch m -> Branch m -> m (Maybe (Branch m))
+  :: Applicative m => Path -> Branch m -> Branch m -> Maybe (Branch m)
 setIfNotExists dest b root = case getAt dest root of
-  Just _destExists -> pure Nothing
-  Nothing -> Just <$> setAt dest b root
+  Just _destExists -> Nothing
+  Nothing -> Just $ setAt dest b root
 
-setAt :: Monad m => Path -> Branch m -> Branch m -> m (Branch m)
+setAt :: Applicative m => Path -> Branch m -> Branch m -> Branch m
 setAt path b = modifyAt path (const b)
 
-deleteAt :: Monad m => Path -> Branch m -> m (Branch m)
+deleteAt :: Applicative m => Path -> Branch m -> Branch m
 deleteAt path = setAt path empty
 
 transform :: Functor m => (forall a . m a -> n a) -> Branch m -> Branch n
@@ -299,9 +322,8 @@ transform f b = case _history b of
 getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
--- todo: return Nothing if exists but is empty
 getAt path root = case Path.toList path of
-  [] -> Just root
+  [] -> if isEmpty (head root) then Nothing else Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
     Just (_h, b) -> getAt (Path.fromList path) b
     Nothing -> Nothing
@@ -309,11 +331,18 @@ getAt path root = case Path.toList path of
 getAt' :: Path -> Branch m -> Branch m
 getAt' p b = fromMaybe empty $ getAt p b
 
+getAt0 :: Path -> Branch0 m -> Branch0 m
+getAt0 p b = case Path.toList p of
+  [] -> b
+  seg : path -> case Map.lookup seg (_children b) of
+    Just (_h, c) -> getAt0 (Path.fromList path) (head c)
+    Nothing -> empty0
+
 empty :: Branch m
 empty = Branch $ Causal.one empty0
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty
 
 isEmpty :: Branch0 m -> Bool
 isEmpty = (== empty0)
@@ -344,15 +373,15 @@ stepAtM p f b = modifyAtM p g b where
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
-modifyAt :: Monad m
-  => Path -> (Branch m -> Branch m) -> Branch m -> m (Branch m)
-modifyAt path f = modifyAtM path (pure . f)
+modifyAt :: Applicative m
+  => Path -> (Branch m -> Branch m) -> Branch m -> Branch m
+modifyAt path f = runIdentity . modifyAtM path (pure . f)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
 modifyAtM
   :: forall n m
-   . Monad n
+   . Functor n
   => Applicative m -- because `Causal.cons` uses `pure`
   => Path
   -> (Branch m -> n (Branch m))
@@ -369,9 +398,8 @@ modifyAtM path f b = case Path.toList path of
     child = case Map.lookup seg (_children $ head b) of
       Nothing -> empty
       Just (_h, b) -> b
-    in do
-      child' <- modifyAtM (Path.fromList path) f child
-      pure $ step (over children (fixup seg child')) b
+    in modifyAtM (Path.fromList path) f child <&>
+        \child' -> step (over children (fixup seg child')) b
 
 
 instance Hashable (Branch0 m) where
@@ -394,6 +422,9 @@ addTermName r new = over terms (R.insert new r)
 
 addTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 addTypeName r new = over types (R.insert new r)
+
+-- addTermNameAt :: Path.Split -> Referent -> Branch0 m -> Branch0 m
+-- addTypeNameAt :: Path.Split -> Reference -> Branch0 m -> Branch0 m
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b | R.member n r (view terms b)

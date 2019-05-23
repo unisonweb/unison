@@ -70,10 +70,9 @@ import           Unison.Codebase.Editor2        ( Command(..)
 import qualified Unison.Codebase.Editor2        as Editor
 import           Unison.Codebase.Path           ( Absolute(..)
                                                 , NameSegment
-                                                , HQPath'
                                                 , Path
                                                 , Path'
-                                                , HashQualifiedSegment
+                                                , HQSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
@@ -160,9 +159,17 @@ loop = do
                 . fmap (first Absolute)
                 . (\(Absolute p) -> Path.unsnoc p)
                 . Path.toAbsolutePath currentPath'
-      unsnocHqPath' :: HQPath' -> (Absolute, HashQualifiedSegment)
-      unsnocHqPath' = Path.unsnocHashQualified
-                    . Path.toAbsoluteHashQualified currentPath'
+      toAbsoluteSplit :: (Path', a) -> (Absolute, a)
+      toAbsoluteSplit = Path.toAbsoluteSplit currentPath'
+      loadHqSrc ::
+        Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
+      loadHqSrc hq = do
+        let (p, seg) = toAbsoluteSplit hq
+        b <- getAt p
+        pure ( b
+             , Branch.toNamesSeg (Branch.head b)
+             , Branch.toNames0 (Branch.head b)
+             , p, seg)
 
   let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
@@ -247,27 +254,34 @@ loop = do
         -- import .........apps.Notepad as Notepad
         -- Option1: a mix of . and /
         -- Option2: some / followed by some .
-        let (srcPath, hq) = unsnocHqPath' srcHQ
-            (destPath, destNameSeg) = unsnocPath' destName
-        srcBranch <- getAt srcPath
-        let sourceNames0 = Branch.toNames0 (Branch.head srcBranch)
-            sourceNamesSeg = Branch.toNamesSeg (Branch.head srcBranch)
-            -- todo: could probably factor these two out, too
+        (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
+        let (destPath, destNameSeg) = toAbsoluteSplit destName
+        let -- todo: could probably factor these two out, too
             doTermConditionally =
               if Set.notMember Editor.TermName' targets then id
-              else ifUniqueTermHQ sourceNamesSeg sourceNames0 hq aliasTerm
+              else ifUniqueTermHQ srcNamesSeg srcNames0 hq
+                    (`Branch.addTermName` destNameSeg)
             doTypeConditionally =
               if Set.notMember Editor.TypeName' targets then id
-              else ifUniqueTypeHQ sourceNamesSeg sourceNames0 hq aliasType
-            aliasTerm :: Referent -> Branch0 m -> Branch0 m
-            aliasTerm r = over Branch.terms (R.insert destNameSeg r)
-            aliasType r = over Branch.types (R.insert destNameSeg r)
+              else ifUniqueTypeHQ srcNamesSeg srcNames0 hq
+                    (`Branch.addTypeName` destNameSeg)
         stepAtM destPath $ \b0 -> do
           let (b0', r') = doTermConditionally . doTypeConditionally $
                 (b0, Editor.NameChangeResult mempty mempty mempty)
           respond $ AliasOutput currentPath' srcHQ destName r'
           pure b0'
-      -- DeleteI targets
+      RenameI targets srcHQ destName -> do
+        (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
+        let (destPath, destNameSeg) = unsnocPath' destName
+            -- doTermConditionally =
+            --   if Set.notMember Editor.TermName targets then id
+            --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
+            -- doTypeConditionally =
+            --   if Set.notMember Editor.TypeName targets then id
+            --   else ifUniqueTypeHQ srcNamesSeg srcNames0 hq renameType
+            -- doBranchConditionally = error "todo"
+            -- renameTerm r =
+        error "todo"
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -816,7 +830,7 @@ updateAtM (Path.Absolute p) f = do
 -- hqToPathSeg splits a hashqualified into a Path and the NameSeg version of a
 -- HashQualified.
 -- todo: delete after Path.parseHashQualified is done
-hqToPathSeg :: HashQualified -> (Path.Path', HashQualifiedSegment)
+hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
 hqToPathSeg = \case
   HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
   HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
@@ -826,12 +840,38 @@ hqToPathSeg = \case
     (p, n') = fromMaybe (error "hq name can't be empty")
                         (Path.unsnoc (Path.fromName n))
 
+-- data Target = TargetType | TargetTerm | TargetBranch
+--   deriving (Eq, Ord, Show)
+--
+-- getTerm :: Path.HQPathSplit' -> Branch0 m -> Set Referent
+-- getTerm = undefined
+--
+-- getType :: Path.HQPathSplit' -> Branch0 m -> Set Reference
+-- getType = undefined
+--
+-- getTerm' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Referent
+-- getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty
+--
+-- getType' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Reference
+-- getType' t = if Set.member TargetType t then getType else \_ _ -> mempty
 
-matchTermRefs :: NamesSeg -> Names0 -> HashQualifiedSegment -> [Referent]
+-- setTerm :: Path.PathSplit' -> Set Referent -> Branch0 m -> Branch0 m
+-- setType :: Path.PathSplit' -> Set Reference -> Branch0 m -> Branch0 m
+-- setBranch :: Path.PathSplit' -> Branch0 m -> Branch0 m -> Branch0 m
+-- setBranch somewhere new oldroot === newroot
+-- deleteAt :: Target -> Branch0 m -> Branch0 m
+-- move :: Path.HQPathSplit Path.Absolute
+--      -> Path.PathSplit Path.Absolute
+--      -> Branch0 m
+--      -> Branch0 m
+-- move src dest b = foldl' step b (toList (targetTypes src)) where
+--   step b TargetType = set
+
+matchTermRefs :: NamesSeg -> Names0 -> HQSegment -> [Referent]
 matchTermRefs =
   matchRefsImpl Names.termsNamed Names.termReferents Referent.toShortHash
 
-matchTypeRefs :: NamesSeg -> Names0 -> HashQualifiedSegment -> [Reference]
+matchTypeRefs :: NamesSeg -> Names0 -> HQSegment -> [Reference]
 matchTypeRefs =
   matchRefsImpl Names.typesNamed Names.typeReferences Reference.toShortHash
 
@@ -857,7 +897,7 @@ matchRefsImpl byName all toSH ns n0 = \case
 -- and add to `changedSuccessfully`. Or add to `oldNameConflicted` or no-op.
 ifUniqueTermHQ  :: NamesSeg
                 -> Names0
-                -> HashQualifiedSegment
+                -> HQSegment
                 -> (Referent -> t -> t)
                 -> (t, NameChangeResult)
                 -> (t, NameChangeResult)
@@ -866,7 +906,7 @@ ifUniqueTermHQ sourceNamesSeg sourceNames0 hq f =
 
 ifUniqueTypeHQ  :: NamesSeg
                 -> Names0
-                -> HashQualifiedSegment
+                -> HQSegment
                 -> (Reference -> b -> b)
                 -> (b, NameChangeResult)
                 -> (b, NameChangeResult)

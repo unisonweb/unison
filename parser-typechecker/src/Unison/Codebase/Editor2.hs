@@ -55,7 +55,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
-import           Unison.Codebase.Path           ( Path, Path', HQPath' )
+import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -168,9 +168,9 @@ data Input
     -- change directory
     | SwitchBranchI BranchPath
     -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) HQPath' Path'
-    | DeleteI (Set NameTarget) [HQPath']
-    | RenameI (Set NameTarget) HQPath' Path'
+    | AliasI (Set DefnTarget) Path.HQSplit' Path.Split'
+    | DeleteI (Set NameTarget) [Path.HQSplit']
+    | RenameI (Set NameTarget) Path.HQSplit' Path'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
@@ -254,8 +254,8 @@ data Output v
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   -- AliasOutput currentPath src dest result
-  | AliasOutput Path.Absolute HQPath' Path' NameChangeResult
-  | RenameOutput Path.Absolute HQPath' Path' NameChangeResult
+  | AliasOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
+  | RenameOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -366,7 +366,7 @@ data Command m i v a where
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
-  Typecheck :: (AmbientAbilities v)
+  Typecheck :: AmbientAbilities v
             -> Names
             -> SourceName
             -> Source
@@ -738,8 +738,7 @@ commandLine
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine awaitInput rt notifyUser codebase command = do
-  Free.fold go command
+commandLine awaitInput rt notifyUser codebase command = Free.fold go command
  where
   go :: forall x . Command IO i v x -> IO x
   go = \case
