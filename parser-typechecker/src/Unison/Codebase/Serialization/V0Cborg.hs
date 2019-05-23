@@ -60,7 +60,7 @@ import qualified Unison.Var                    as Var
 -- and write old versions.
 
 newtype Tag = Tag Word8 deriving (Eq, Ord, Show)
-newtype Size = Size Int deriving (Eq, Ord, Show)
+newtype NrArgs = NrArgs Int deriving (Eq, Ord, Show)
 
 tag :: Word8 -> Encoding
 tag = encodeWord8
@@ -68,14 +68,14 @@ tag = encodeWord8
 getTag :: Decoder s Tag
 getTag = Tag <$> decodeWord8
 
-getSize :: Decoder s Size
-getSize = Size <$> decodeListLen
+getSize :: Decoder s NrArgs
+getSize = NrArgs <$> decodeListLen
 
-getDataType :: Decoder s (Tag, Size)
+getDataType :: Decoder s (Tag, NrArgs)
 getDataType = do
-  len <- getSize
+  (NrArgs len) <- getSize
   tag <- getTag
-  return (tag, len)
+  return (tag, NrArgs $ len - 1)
 
 putDataType :: Encoding -> [Encoding] -> Encoding
 putDataType tag body = putValues (tag : body)
@@ -94,18 +94,14 @@ getHash = Hash.fromBytes <$> decodeBytes
 putReference :: Reference -> Encoding
 putReference r = case r of
   Reference.Builtin name -> putDataType (tag 0) [encodeString name]
-  Reference.Derived hash i n -> putValues [
-     tag 1
-   , putHash hash
-   , encodeWord64 i
-   , encodeWord64 n
-   ]
+  Reference.Derived hash i n ->
+    putDataType (tag 1) [putHash hash, encodeWord64 i, encodeWord64 n]
   _ -> error "unpossible"
 
 getReference :: Decoder s Reference
 getReference = getDataType >>= \case
-  (Tag 0, Size 2) -> Reference.Builtin <$> decodeString
-  (Tag 1, Size 4) -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> decodeWord64 <*> decodeWord64)
+  (Tag 0, NrArgs 1) -> Reference.Builtin <$> decodeString
+  (Tag 1, NrArgs 3) -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> decodeWord64 <*> decodeWord64)
   (tag, len) -> unknownTag "Reference" (tag, len)
 
 putReferent :: Referent -> Encoding
@@ -115,8 +111,8 @@ putReferent r = case r of
 
 getReferent :: Decoder s Referent
 getReferent = getDataType >>= \case
-  (Tag 0, Size 2) -> Referent.Ref <$> getReference
-  (Tag 1, Size 3) -> Referent.Con <$> getReference <*> decodeInt
+  (Tag 0, NrArgs 1) -> Referent.Ref <$> getReference
+  (Tag 1, NrArgs 2) -> Referent.Con <$> getReference <*> decodeInt
   (tag, len) -> unknownTag "getReferent" (tag, len)
 
 putMaybe :: Maybe a -> (a -> Encoding) -> Encoding
@@ -125,12 +121,12 @@ putMaybe (Just a) putA = encodeListLen 1 <> putA a
 
 getMaybe :: Decoder s a -> Decoder s (Maybe a)
 getMaybe getA = do
-  len <- getSize
+  len <- decodeListLen
   case len of
-    Size 0 -> pure Nothing
-    Size 1 -> do !a <- getA
-                 return (Just a)
-    tag -> unknownTag "Maybe" (tag, len)
+    0 -> pure Nothing
+    1 -> do !a <- getA
+            return (Just a)
+    _ -> unknownTag "Maybe" len
 
 putFoldable :: (Functor f, Foldable f) => f a -> (a -> Encoding) -> Encoding
 putFoldable as putA = len <> body where
@@ -169,34 +165,34 @@ getABT
   -> (forall x . Decoder s x -> Decoder s (f x))
   -> Decoder s (ABT.Term f v a)
 getABT getVar getA getF = getSize >>= \case
-  Size 2 ->
+  NrArgs 2 ->
     getList getVar >>= go []
     where
     go env fvs = do
       a <- getA
       getDataType >>= \case
-        (Tag 0, Size 2) -> getVarRef a env fvs
-        (Tag 1, Size 2) -> ABT.tm' a <$> getF (go env fvs)
-        (Tag 2, Size 3) -> getVar >>= \v -> ABT.abs' a v <$> go (v:env) fvs
-        (Tag 3, Size 2) -> ABT.cycle' a <$> go env fvs
+        (Tag 0, NrArgs 1) -> getVarRef a env fvs
+        (Tag 1, NrArgs 1) -> ABT.tm' a <$> getF (go env fvs)
+        (Tag 2, NrArgs 2) -> getVar >>= \v -> ABT.abs' a v <$> go (v:env) fvs
+        (Tag 3, NrArgs 1) -> ABT.cycle' a <$> go env fvs
         (tag, len) -> unknownTag "getABT" (tag, len)
 
     getVarRef a env fvs = getDataType >>= \case
-      (Tag 0, Size 2) -> ABT.annotatedVar a . (env !!) <$> decodeInt
-      (Tag 1, Size 2) -> ABT.annotatedVar a . (fvs !!) <$> decodeInt
+      (Tag 0, NrArgs 1) -> ABT.annotatedVar a . (env !!) <$> decodeInt
+      (Tag 1, NrArgs 1) -> ABT.annotatedVar a . (fvs !!) <$> decodeInt
       (tag, len) -> unknownTag "getVarRef" (tag, len)
   len -> unknownTag "getABT length" len
 
 
 putKind :: Kind -> Encoding
 putKind k = case k of
-  Kind.Star      -> putValues [encodeWord8 0]
-  Kind.Arrow i o -> putValues [encodeWord8 1, putKind i, putKind o]
+  Kind.Star      -> putDataType (tag 0) []
+  Kind.Arrow i o -> putDataType (tag 1) [putKind i, putKind o]
 
 getKind :: Decoder s Kind
 getKind = getDataType >>= \case
-  (Tag 0, Size 1) -> pure Kind.Star
-  (Tag 1, Size 3) -> Kind.Arrow <$> getKind <*> getKind
+  (Tag 0, NrArgs 0) -> pure Kind.Star
+  (Tag 1, NrArgs 2) -> Kind.Arrow <$> getKind <*> getKind
   (tag, len) -> unknownTag "getKind" (tag, len)
 
 putType :: (Ord v)
@@ -217,13 +213,13 @@ getType :: (Ord v)
         => Decoder s v -> Decoder s a -> Decoder s (Type.AnnotatedType v a)
 getType getVar getA = getABT getVar getA go where
   go getChild = getDataType >>= \case
-    (Tag 0, Size 2) -> Type.Ref <$> getReference
-    (Tag 1, Size 3) -> Type.Arrow <$> getChild <*> getChild
-    (Tag 2, Size 3) -> Type.Ann <$> getChild <*> getKind
-    (Tag 3, Size 3) -> Type.App <$> getChild <*> getChild
-    (Tag 4, Size 3) -> Type.Effect <$> getChild <*> getChild
-    (Tag 5, Size 2) -> Type.Effects <$> getList getChild
-    (Tag 6, Size 2) -> Type.Forall <$> getChild
+    (Tag 0, NrArgs 1) -> Type.Ref <$> getReference
+    (Tag 1, NrArgs 2) -> Type.Arrow <$> getChild <*> getChild
+    (Tag 2, NrArgs 2) -> Type.Ann <$> getChild <*> getKind
+    (Tag 3, NrArgs 2) -> Type.App <$> getChild <*> getChild
+    (Tag 4, NrArgs 2) -> Type.Effect <$> getChild <*> getChild
+    (Tag 5, NrArgs 1) -> Type.Effects <$> getList getChild
+    (Tag 6, NrArgs 1) -> Type.Forall <$> getChild
     (tag, len) -> unknownTag "getType" (tag, len)
 
 putSymbol :: Symbol -> Encoding
@@ -280,19 +276,19 @@ putPattern putA p = case p of
 
 getPattern :: Decoder s a -> Decoder s (Pattern a)
 getPattern getA = getDataType >>= \case
-  (Tag 0, Size 2) -> Pattern.Unbound <$> getA
-  (Tag 1, Size 2) -> Pattern.Var <$> getA
-  (Tag 2, Size 3) -> Pattern.Boolean <$> getA <*> decodeBool
-  (Tag 3, Size 3) -> Pattern.Int <$> getA <*> decodeInt64
-  (Tag 4, Size 3) -> Pattern.Nat <$> getA <*> decodeWord64
-  (Tag 5, Size 3) -> Pattern.Float <$> getA <*> decodeDouble
-  (Tag 6, Size 5) -> Pattern.Constructor <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA)
-  (Tag 7, Size 3) -> Pattern.As <$> getA <*> getPattern getA
-  (Tag 8, Size 3) -> Pattern.EffectPure <$> getA <*> getPattern getA
-  (Tag 9, Size 6) -> Pattern.EffectBind <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA) <*> getPattern getA
-  (Tag 10, Size 3) -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
-  (Tag 11, Size 5) -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
-              where gp = getPattern getA
+  (Tag 0,  NrArgs 1) -> Pattern.Unbound <$> getA
+  (Tag 1,  NrArgs 1) -> Pattern.Var <$> getA
+  (Tag 2,  NrArgs 2) -> Pattern.Boolean <$> getA <*> decodeBool
+  (Tag 3,  NrArgs 2) -> Pattern.Int <$> getA <*> decodeInt64
+  (Tag 4,  NrArgs 2) -> Pattern.Nat <$> getA <*> decodeWord64
+  (Tag 5,  NrArgs 2) -> Pattern.Float <$> getA <*> decodeDouble
+  (Tag 6,  NrArgs 4) -> Pattern.Constructor <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA)
+  (Tag 7,  NrArgs 2) -> Pattern.As <$> getA <*> getPattern getA
+  (Tag 8,  NrArgs 2) -> Pattern.EffectPure <$> getA <*> getPattern getA
+  (Tag 9,  NrArgs 5) -> Pattern.EffectBind <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA) <*> getPattern getA
+  (Tag 10, NrArgs 2) -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  (Tag 11, NrArgs 4) -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
+                        where gp = getPattern getA
   tag -> unknownTag "Pattern" tag
 
 putTerm :: (Ord v)
@@ -350,32 +346,32 @@ getTerm :: (Ord v)
         => Decoder s v -> Decoder s a -> Decoder s (Term.AnnotatedTerm v a)
 getTerm getVar getA = getABT getVar getA go where
   go getChild = getDataType >>= \case
-    (Tag 0,  Size 2) -> Term.Int <$> decodeInt64
-    (Tag 1,  Size 2) -> Term.Nat <$> decodeWord64
-    (Tag 2,  Size 2) -> Term.Float <$> decodeDouble
-    (Tag 3,  Size 2) -> Term.Boolean <$> decodeBool
-    (Tag 4,  Size 2) -> Term.Text <$> decodeString
-    (Tag 5,  Size 2) -> Term.Ref <$> getReference
-    (Tag 6,  Size 3) -> Term.Constructor <$> getReference <*> decodeInt
-    (Tag 7,  Size 3) -> Term.Request <$> getReference <*> decodeInt
-    (Tag 8,  Size 3) -> Term.Handle <$> getChild <*> getChild
-    (Tag 9,  Size 3) -> Term.App <$> getChild <*> getChild
-    (Tag 10, Size 3) -> Term.Ann <$> getChild <*> getType getVar getA
-    (Tag 11, Size 2) -> Term.Sequence . Sequence.fromList <$> getList getChild
-    (Tag 12, Size 4) -> Term.If <$> getChild <*> getChild <*> getChild
-    (Tag 13, Size 3) -> Term.And <$> getChild <*> getChild
-    (Tag 14, Size 3) -> Term.Or <$> getChild <*> getChild
-    (Tag 15, Size 2) -> Term.Lam <$> getChild
-    (Tag 16, Size 3) -> Term.LetRec False <$> getList getChild <*> getChild
-    (Tag 17, Size 3) -> Term.Let False <$> getChild <*> getChild
-    (Tag 18, Size 3) -> Term.Match <$> getChild <*> getList (getMatchCase getA getChild)
+    (Tag 0,  NrArgs 1) -> Term.Int <$> decodeInt64
+    (Tag 1,  NrArgs 1) -> Term.Nat <$> decodeWord64
+    (Tag 2,  NrArgs 1) -> Term.Float <$> decodeDouble
+    (Tag 3,  NrArgs 1) -> Term.Boolean <$> decodeBool
+    (Tag 4,  NrArgs 1) -> Term.Text <$> decodeString
+    (Tag 5,  NrArgs 1) -> Term.Ref <$> getReference
+    (Tag 6,  NrArgs 2) -> Term.Constructor <$> getReference <*> decodeInt
+    (Tag 7,  NrArgs 2) -> Term.Request <$> getReference <*> decodeInt
+    (Tag 8,  NrArgs 2) -> Term.Handle <$> getChild <*> getChild
+    (Tag 9,  NrArgs 2) -> Term.App <$> getChild <*> getChild
+    (Tag 10, NrArgs 2) -> Term.Ann <$> getChild <*> getType getVar getA
+    (Tag 11, NrArgs 1) -> Term.Sequence . Sequence.fromList <$> getList getChild
+    (Tag 12, NrArgs 3) -> Term.If <$> getChild <*> getChild <*> getChild
+    (Tag 13, NrArgs 2) -> Term.And <$> getChild <*> getChild
+    (Tag 14, NrArgs 2) -> Term.Or <$> getChild <*> getChild
+    (Tag 15, NrArgs 1) -> Term.Lam <$> getChild
+    (Tag 16, NrArgs 2) -> Term.LetRec False <$> getList getChild <*> getChild
+    (Tag 17, NrArgs 2) -> Term.Let False <$> getChild <*> getChild
+    (Tag 18, NrArgs 2) -> Term.Match <$> getChild <*> getList (getMatchCase getA getChild)
     (tag, len) -> unknownTag "getTerm" (tag, len)
 
   getMatchCase :: Decoder s loc -> Decoder s a -> Decoder s (Term.MatchCase loc a)
   getMatchCase getA getChild = do
     len <- getSize
     case len of
-      Size 3 -> Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild
+      NrArgs 3 -> Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild
       _ -> unknownTag "getMatchCase length" len
 
 putValues :: [Encoding] -> Encoding
@@ -413,9 +409,9 @@ putCausal Causal.Cons {} _ =
 getCausal :: Decoder s a -> Decoder s (Causal a)
 getCausal getA =
   getDataType >>= \case
-    (Tag 0, Size 3) -> Causal.One <$> getHash <*> getA
-    (Tag 1, Size 3) -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
-    (Tag 2, Size 4) -> Causal.Merge <$> getHash <*> getA <*>
+    (Tag 0, NrArgs 2) -> Causal.One <$> getHash <*> getA
+    (Tag 1, NrArgs 2) -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
+    (Tag 2, NrArgs 3) -> Causal.Merge <$> getHash <*> getA <*>
                 (Map.fromList <$> getList (getPair getHash $ getCausal getA))
     (tag, len) -> unknownTag "causal" (tag, len)
 
@@ -425,27 +421,27 @@ putTermEdit (TermEdit.Replace r typing) =
     TermEdit.Same -> tag 1
     TermEdit.Subtype -> tag 2
     TermEdit.Different -> tag 3 ]
-putTermEdit TermEdit.Deprecate = putValues [tag 1]
+putTermEdit TermEdit.Deprecate = putDataType (tag 1) []
 
 getTermEdit :: Decoder s TermEdit
 getTermEdit = getDataType >>= \case
-  (Tag 0, Size 3) -> TermEdit.Replace <$> getReference <*> (getTag >>= \case
+  (Tag 0, NrArgs 2) -> TermEdit.Replace <$> getReference <*> (getTag >>= \case
     Tag 1 -> pure TermEdit.Same
     Tag 2 -> pure TermEdit.Subtype
     Tag 3 -> pure TermEdit.Different
     t -> unknownTag "TermEdit.Replace" t
     )
-  (Tag 2, Size 1) -> pure TermEdit.Deprecate
+  (Tag 2, NrArgs 0) -> pure TermEdit.Deprecate
   (tag, len) -> unknownTag "TermEdit" (tag, len)
 
 putTypeEdit :: TypeEdit -> Encoding
 putTypeEdit (TypeEdit.Replace r) = putDataType (tag 0) [putReference r]
-putTypeEdit TypeEdit.Deprecate = putValues [tag 2]
+putTypeEdit TypeEdit.Deprecate = putDataType (tag 2) []
 
 getTypeEdit :: Decoder s TypeEdit
 getTypeEdit = getDataType >>= \case
-  (Tag 0, Size 2) -> TypeEdit.Replace <$> getReference
-  (Tag 1, Size 1) -> pure TypeEdit.Deprecate
+  (Tag 0, NrArgs 1) -> TypeEdit.Replace <$> getReference
+  (Tag 1, NrArgs 0) -> pure TypeEdit.Deprecate
   (tag, len) -> unknownTag "TypeEdit" (tag, len)
 
 putBranch :: Branch -> Encoding
@@ -499,13 +495,13 @@ getDataDeclaration getV getA = decodeListLenOf 4 >>
     getList (getTuple3 getA getV (getType getV getA))
 
 putModifier :: DataDeclaration.Modifier -> Encoding
-putModifier DataDeclaration.Structural   = putValues [tag 0]
-putModifier (DataDeclaration.Unique txt) = putValues [encodeWord8 1, encodeString txt]
+putModifier DataDeclaration.Structural   = putDataType (tag 0) []
+putModifier (DataDeclaration.Unique txt) = putDataType (tag 1) [encodeString txt]
 
 getModifier :: Decoder s DataDeclaration.Modifier
 getModifier =  getDataType >>= \case
-  (Tag 0, Size 1) -> pure DataDeclaration.Structural
-  (Tag 1, Size 2) -> DataDeclaration.Unique <$> decodeString
+  (Tag 0, NrArgs 0) -> pure DataDeclaration.Structural
+  (Tag 1, NrArgs 1) -> DataDeclaration.Unique <$> decodeString
   (tag, len) -> unknownTag "DataDeclaration.Modifier" (tag, len)
 
 putEffectDeclaration ::
@@ -523,8 +519,8 @@ putEither _ putR (Right b) = putDataType (tag 1) [putR b]
 
 getEither :: Decoder s a -> Decoder s b -> Decoder s (Either a b)
 getEither getL getR = getDataType >>= \case
-  (Tag 0, Size 2) -> do !a <- getL
+  (Tag 0, NrArgs 0) -> do !a <- getL
                         return (Left a)
-  (Tag 1, Size 2) -> do !b <- getR
+  (Tag 1, NrArgs 0) -> do !b <- getR
                         return (Right b)
   (tag, len) -> unknownTag "Either" (tag, len)
