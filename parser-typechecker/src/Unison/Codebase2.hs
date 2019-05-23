@@ -1,12 +1,6 @@
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-{-# LANGUAGE DoAndIfThenElse     #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE RecordWildCards     #-}
+
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase2 where
 
@@ -23,21 +17,21 @@ import           Data.Function                  ( on )
 import           Data.List
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
-import           Data.Maybe                     ( catMaybes
-                                                , isJust
-                                                , fromMaybe
+import           Data.Maybe                     ( isJust
+                                                 , catMaybes
+                                                 , fromMaybe
                                                 )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase.Branch2         ( Branch, Branch0 )
--- import           Unison.Codebase.Causal2         ( Branch, Branch0 )
-import qualified Unison.Codebase.Branch2        as Branch
-import qualified Unison.Codebase.Causal2        as Causal
-import           Unison.Codebase.Classes
+import qualified Unison.Builtin2                as Builtin
+import           Unison.Codebase.Branch2         ( Branch )
+import           Unison.Codebase.Branch2         ( Branch0 )
+import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.Causal2       as Causal
+import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
@@ -71,7 +65,8 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
--- import Debug.Trace
+
+import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -88,24 +83,23 @@ data Codebase m v a =
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
            , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
 
-           , getRootBranch      :: m [Branch m]
+           , getRootBranch      :: m (Branch m)
            , putRootBranch      :: Branch m -> m ()
            , rootBranchUpdates  :: m (m (), m (Set Hash))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
-           , builtinLoc :: a
            }
 
--- getTypeOfConstructor ::
---   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
--- getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
---   maybeDecl <- getTypeDeclaration codebase r
---   pure $ case maybeDecl of
---     Nothing -> Nothing
---     Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
--- getTypeOfConstructor _ r cid =
---   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
---
+getTypeOfConstructor ::
+  (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
+getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
+  maybeDecl <- getTypeDeclaration codebase r
+  pure $ case maybeDecl of
+    Nothing -> Nothing
+    Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+getTypeOfConstructor _ r cid =
+  error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
 -- typecheckingEnvironment' :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
 -- typecheckingEnvironment' code term = do
 --   tl <- typecheckingEnvironment code term
@@ -200,102 +194,106 @@ data Codebase m v a =
 -- prettyBindings cb tms b = do
 --   ds <- catMaybes <$> (forM tms $ \(name,r) -> prettyBinding cb name r b)
 --   pure $ PP.linesSpaced ds
---
--- typeLookupForDependencies
---   :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
--- typeLookupForDependencies codebase refs = foldM go mempty refs
---  where
---   go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
---     getTypeOfTerm codebase ref >>= \case
---       Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
---       Nothing  -> getTypeDeclaration codebase id >>= \case
---         Just (Left ed) ->
---           pure $ TypeLookup mempty mempty (Map.singleton ref ed)
---         Just (Right dd) ->
---           pure $ TypeLookup mempty (Map.singleton ref dd) mempty
---         Nothing -> pure mempty
---   go tl _builtin = pure tl -- codebase isn't consulted for builtins
---
--- -- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
--- -- todo: add some tests on this guy?
--- transitiveDependencies
---   :: (Monad m, Var v)
---   => CL.CodeLookup v m a
---   -> Set Reference
---   -> Reference
---   -> m (Set Reference)
--- transitiveDependencies code seen0 r = if Set.member r seen0
---   then pure seen0
---   else
---     let seen = Set.insert r seen0
---     in
---       case r of
---         Reference.DerivedId id -> do
---           t <- CL.getTerm code id
---           case t of
---             Just t ->
---               foldM (transitiveDependencies code) seen (Term.dependencies t)
---             Nothing -> do
---               t <- CL.getTypeDeclaration code id
---               case t of
---                 Nothing        -> pure seen
---                 Just (Left ed) -> foldM (transitiveDependencies code)
---                                         seen
---                                         (DD.dependencies (DD.toDataDecl ed))
---                 Just (Right dd) -> foldM (transitiveDependencies code)
---                                          seen
---                                          (DD.dependencies dd)
---         _ -> pure seen
---
--- toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
--- toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
---
--- -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
--- -- Any watches in the input `UnisonFile` will be watches in the returned
--- -- `UnisonFile`.
--- makeSelfContained'
---   :: forall m v a . (Monad m, Monoid a, Var v)
---   => CL.CodeLookup v m a
---   -> PrettyPrintEnv
---   -> UF.UnisonFile v a
---   -> m (UF.UnisonFile v a)
--- makeSelfContained' code pp uf = do
---   let deps0 = Term.dependencies . snd <$> (UF.watches uf <> UF.terms uf)
---   deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
---   let termName r = PPE.termName pp (Referent.Ref r)
---       typeName r = PPE.typeName pp r
---   decls <- fmap catMaybes . forM (toList deps) $ \case
---     r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
---     _                           -> pure Nothing
---   termsByRef <- fmap catMaybes . forM (toList deps) $ \case
---     r@(Reference.DerivedId rid) ->
---       fmap (r, HQ.toVar @v (termName r), ) <$> CL.getTerm code rid
---     _ -> pure Nothing
---   let
---     unref :: Term v a -> Term v a
---     unref t = ABT.visitPure go t
---      where
---       go t@(Term.Ref' (r@(Reference.DerivedId _))) =
---         Just (Term.var (ABT.annotation t) (HQ.toVar $ termName r))
---       go _ = Nothing
---     datas1 = Map.fromList
---       [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [HQ.toVar (typeName r)] ]
---     effects1 = Map.fromList
---       [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [HQ.toVar (typeName r)] ]
---     ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
---             Map.toList $ UF.dataDeclarations uf ]
---     es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
---             Map.toList $ UF.effectDeclarations uf ]
---     bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
---     (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
---     unrefb bs = [ (v, unref b) | (v, b) <- bs ]
---     uf' = UF.UnisonFile
---       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
---       (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
---       (bindings ++ unrefb (UF.terms uf))
---       (unrefb $ UF.watches uf)
---   pure $ uf'
---
+
+typeLookupForDependencies
+  :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+typeLookupForDependencies codebase refs = foldM go mempty refs
+ where
+--  go ::
+  go tl ref@(Reference.DerivedId id) = fmap (tl <>) $ do
+    getTypeOfTerm codebase ref >>= \case
+      Just typ -> pure $ TypeLookup (Map.singleton ref typ) mempty mempty
+      Nothing  -> getTypeDeclaration codebase id >>= \case
+        Just (Left ed) ->
+          pure $ TypeLookup mempty mempty (Map.singleton ref ed)
+        Just (Right dd) ->
+          pure $ TypeLookup mempty (Map.singleton ref dd) mempty
+        Nothing -> pure mempty
+  go tl _builtin = pure tl -- codebase isn't consulted for builtins
+
+-- todo: can this be implemented in terms of TransitiveClosure.transitiveClosure?
+-- todo: add some tests on this guy?
+transitiveDependencies
+  :: (Monad m, Var v)
+  => CL.CodeLookup v m a
+  -> Set Reference
+  -> Reference
+  -> m (Set Reference)
+transitiveDependencies code seen0 r = if Set.member r seen0
+  then pure seen0
+  else
+    let seen = Set.insert r seen0
+    in
+      case r of
+        Reference.DerivedId id -> do
+          t <- CL.getTerm code id
+          case t of
+            Just t ->
+              foldM (transitiveDependencies code) seen (Term.dependencies t)
+            Nothing -> do
+              t <- CL.getTypeDeclaration code id
+              case t of
+                Nothing        -> pure seen
+                Just (Left ed) -> foldM (transitiveDependencies code)
+                                        seen
+                                        (DD.dependencies (DD.toDataDecl ed))
+                Just (Right dd) -> foldM (transitiveDependencies code)
+                                         seen
+                                         (DD.dependencies dd)
+        _ -> pure seen
+
+toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
+toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
+
+ -- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+ -- Any watches in the input `UnisonFile` will be watches in the returned
+ -- `UnisonFile`.
+-- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
+-- Any watches in the input `UnisonFile` will be watches in the returned
+-- `UnisonFile`.
+makeSelfContained'
+  :: forall m v a . (Monad m, Monoid a, Var v)
+  => CL.CodeLookup v m a
+  -> UF.UnisonFile v a
+  -> m (UF.UnisonFile v a)
+makeSelfContained' code uf = do
+  let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
+  deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
+  let refVar r = Var.typed (Var.RefNamed r)
+--  let termName r = PPE.termName pp (Referent.Ref r)
+--      typeName r = PPE.typeName pp r
+  decls <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
+    _                           -> pure Nothing
+  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
+    r@(Reference.DerivedId rid) ->
+      fmap (r, refVar r, ) <$> CL.getTerm code rid
+    _ -> pure Nothing
+  let
+    unref :: Term v a -> Term v a
+    unref t = ABT.visitPure go t
+     where
+      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
+        Just (Term.var (ABT.annotation t) (refVar r))
+      go _ = Nothing
+    datas1 = Map.fromList
+      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [refVar r] ]
+    effects1 = Map.fromList
+      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [refVar r] ]
+    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
+            Map.toList $ UF.dataDeclarations uf ]
+    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
+            Map.toList $ UF.effectDeclarations uf ]
+    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
+    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
+    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
+    uf' = UF.UnisonFile
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
+      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
+      (bindings ++ unrefb (UF.terms uf))
+      (unrefb <$> UF.watches uf)
+  pure $ uf'
+
 -- -- Creates a self-contained `UnisonFile` which bakes in
 -- -- all transitive dependencies
 -- makeSelfContained
@@ -584,3 +582,25 @@ data Codebase m v a =
 --       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
 --     _ -> pure $ R.lookupDom r Builtin.builtinDependencies
 --   dependents' = dependents c
+
+instance Functor m => CC.GetDecls (Codebase m v a) m v a where
+  getTerm = Unison.Codebase2.getTerm
+  getTypeOfTerm = Unison.Codebase2.getTypeOfTerm
+  getTypeDeclaration = Unison.Codebase2.getTypeDeclaration
+
+  -- these could be more efficient in FileCodebase
+  hasTerm d id = isJust <$> Unison.Codebase2.getTerm d id
+  hasType d id = isJust <$> Unison.Codebase2.getTypeDeclaration d id
+
+instance CC.PutDecls (Codebase m v a) m v a where
+  putTerm = Unison.Codebase2.putTerm
+  putTypeDeclarationImpl = Unison.Codebase2.putTypeDeclarationImpl
+
+instance CC.GetBranch (Codebase m v a) m where
+  getRootBranch = Unison.Codebase2.getRootBranch
+
+instance CC.PutBranch (Codebase m v a) m where
+  putRootBranch = Unison.Codebase2.putRootBranch
+
+instance CC.GetDependents (Codebase m v a) m where
+  dependentsImpl = Unison.Codebase2.dependentsImpl

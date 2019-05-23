@@ -39,6 +39,7 @@ import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
 import qualified Unison.Reference as Reference
+import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
@@ -673,7 +674,7 @@ unhashComponent m = let
 
 hashComponents
   :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
-hashComponents m = Reference.hashComponents (\r -> ref () r) m
+hashComponents m = ReferenceUtil.hashComponents (\r -> ref () r) m
 
 -- The hash for a constructor
 hashConstructor'

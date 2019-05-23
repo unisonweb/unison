@@ -1,8 +1,9 @@
 module Unison.Util.Relation where
 
-import           Prelude                 hiding ( null )
+import           Prelude                 hiding ( null, map )
 import           Data.Bifunctor                 ( first, second )
 import           Data.Foldable                  ( foldl' )
+import qualified Data.List                     as List
 import qualified Data.Map                      as M
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as S
@@ -26,7 +27,7 @@ import qualified Data.Map                      as Map
 --
 -- 3. If you subtract, take care when handling the set of values.
 --
--- As a multi-map, each key is asscoated with a Set of values v.
+-- As a multi-map, each key is associated with a Set of values v.
 --
 -- We do not allow the associations with the 'empty' Set.
 --
@@ -59,8 +60,8 @@ fromList xs = Relation
   , range  = M.fromListWith S.union $ flipAndSet xs
   }
  where
-  snd2Set    = map (\(x, y) -> (x, S.singleton y))
-  flipAndSet = map (\(x, y) -> (y, S.singleton x))
+  snd2Set    = List.map (\(x, y) -> (x, S.singleton y))
+  flipAndSet = List.map (\(x, y) -> (y, S.singleton x))
 
 -- |
 -- Builds a List from a Relation.
@@ -200,7 +201,12 @@ member x y r = case lookupDom' x r of
 notMember :: (Ord a, Ord b) => a -> b -> Relation a b -> Bool
 notMember x y r = not $ member x y r
 
+-- | True if a value appears more than one time in the relation.
+manyDom :: Ord a => a -> Relation a b -> Bool
+manyDom a = (>1) . S.size . lookupDom a
 
+manyRan :: Ord b => b -> Relation a b -> Bool
+manyRan b = (>1) . S.size . lookupRan b
 
 -- | Returns the domain in the relation, as a Set, in its entirety.
 dom :: Relation a b -> Set a
@@ -287,7 +293,7 @@ compactSet = S.fold (S.union . fromMaybe S.empty) S.empty
 s <| r = fromList
   $ concatMap (\(x, y) -> zip (repeat x) (S.toList y)) (M.toList domain')
  where
-  domain' = M.unions . map filtrar . S.toList $ s
+  domain' = M.unions . List.map filtrar . S.toList $ s
   filtrar x = M.filterWithKey (\k _ -> k == x) dr
   dr = domain r  -- just to memoize the value
 
@@ -296,7 +302,7 @@ s <| r = fromList
 r |> t = fromList
   $ concatMap (\(x, y) -> zip (S.toList y) (repeat x)) (M.toList range')
  where
-  range' = M.unions . map filtrar . S.toList $ t
+  range' = M.unions . List.map filtrar . S.toList $ t
   filtrar x = M.filterWithKey (\k _ -> k == x) rr
   rr = range r   -- just to memoize the value
 
@@ -338,7 +344,6 @@ replaceDom :: (Ord a, Ord b) => a -> a -> Relation a b -> Relation a b
 replaceDom a a' r =
   foldl' (\r b -> insert a' b $ delete a b r) r (lookupDom a r)
 
--- Todo: fork the relation library
 replaceRan :: (Ord a, Ord b) => b -> b -> Relation a b -> Relation a b
 replaceRan b b' r =
   foldl' (\r a -> insert a b' $ delete a b r) r (lookupRan b r)
@@ -364,6 +369,10 @@ deleteRanWhere f a r =
 deleteDomWhere :: (Ord a, Ord b) => (a -> Bool) -> b -> Relation a b -> Relation a b
 deleteDomWhere f b r =
   foldl' (\r a -> if f a then delete a b r else r) r (lookupRan b r)
+
+map :: (Ord a, Ord b, Ord c, Ord d)
+    => ((a, b) -> (c, d)) -> Relation a b -> Relation c d
+map f = fromList . fmap f . toList
 
 -- aka first
 mapDom :: (Ord a, Ord a', Ord b) => (a -> a') -> Relation a b -> Relation a' b

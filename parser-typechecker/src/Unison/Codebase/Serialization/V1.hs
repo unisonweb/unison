@@ -35,10 +35,11 @@ import           Data.Text.Encoding             ( encodeUtf8
 import           Data.Word                      ( Word64 )
 import           Unison.Codebase.Branch2        ( Branch0(..) )
 import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Causal0(..)
-                                                , C0Hash(..)
-                                                , unc0hash
+import           Unison.Codebase.Causal2        ( Raw(..)
+                                                , RawHash(..)
+                                                , unRawHash
                                                 )
+import qualified Unison.Codebase.Causal2        as Causal
 import           Unison.Codebase.Path           ( NameSegment )
 import           Unison.Codebase.Path           as Path
 import           Unison.Codebase.Path           as NameSegment
@@ -89,17 +90,18 @@ unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++
          " while deserializing: " ++ msg
 
-putCausal0 :: MonadPut m => (a -> m ()) -> Causal0 h a -> m ()
-putCausal0 putA = \case
-  One0 a -> putWord8 0 >> putA a
-  Cons0 a t -> putWord8 1 >> (putHash.unc0hash) t >> putA a
-  Merge0 a ts -> putWord8 2 >> putFoldable (putHash.unc0hash) ts >> putA a
+putRawCausal :: MonadPut m => (a -> m ()) -> Causal.Raw h a -> m ()
+putRawCausal putA = \case
+  RawOne a -> putWord8 0 >> putA a
+  RawCons a t -> putWord8 1 >> (putHash . unRawHash) t >> putA a
+  RawMerge a ts ->
+    putWord8 2 >> putFoldable (putHash . unRawHash) ts >> putA a
 
-getCausal0 :: MonadGet m => m a -> m (Causal0 h a)
+getCausal0 :: MonadGet m => m a -> m (Causal.Raw h a)
 getCausal0 getA = getWord8 >>= \case
-  0 -> One0 <$> getA
-  1 -> flip Cons0 <$> (C0Hash <$> getHash) <*> getA
-  2 -> flip Merge0 . Set.fromList <$> getList (C0Hash <$> getHash) <*> getA
+  0 -> RawOne <$> getA
+  1 -> flip RawCons <$> (RawHash <$> getHash) <*> getA
+  2 -> flip RawMerge . Set.fromList <$> getList (RawHash <$> getHash) <*> getA
   x -> unknownTag "Causal0" x
 
 -- Like getCausal, but doesn't bother to read the actual value in the causal,
@@ -575,7 +577,7 @@ putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
   putRelation putNameSegment putReferent (Branch._terms b)
   putRelation putNameSegment putReference (Branch._types b)
-  putFoldable (putPair putNameSegment (putHash . unc0hash . fst))
+  putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
               (Map.toList (Branch._children b))
 
 -- getBranch0 :: MonadGet m => m (Branch00)
@@ -602,14 +604,14 @@ putRawBranch :: MonadPut m => Branch.Raw -> m ()
 putRawBranch (Branch.Raw terms types children) =
   putRelation putNameSegment putReferent terms >>
   putRelation putNameSegment putReference types >>
-  putMap putNameSegment (putHash . unc0hash) children
+  putMap putNameSegment (putHash . unRawHash) children
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
   Branch.Raw
     <$> getRelation getNameSegment getReferent
     <*> getRelation getNameSegment getReference
-    <*> getMap getNameSegment (C0Hash <$> getHash)
+    <*> getMap getNameSegment (RawHash <$> getHash)
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

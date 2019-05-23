@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Data.Word (Word64)
 import Unison.Util.Monoid (intercalateMap)
+import Unison.Reference (Reference)
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
@@ -45,6 +46,7 @@ name v = case typeOf v of
   Inference PatternBindV -> "𝕧" <> showid v
   Inference TypeConstructor -> "𝕗" <> showid v
   Inference TypeConstructorArg -> "𝕦" <> showid v
+  RefNamed r -> "ℍ" <> pack (show r) <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
@@ -84,6 +86,8 @@ data Type
   = User Text
   -- Variables created during type inference
   | Inference InferenceType
+  -- Variables created in `makeSelfContained` for Evaluation
+  | RefNamed Reference
   -- Variables created to finish a block that doesn't end with an expression
   | MissingResult
   -- Variables invented to query the typechecker for the type of subexpressions

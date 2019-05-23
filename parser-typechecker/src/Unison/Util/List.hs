@@ -12,8 +12,9 @@ multimap kvs =
   where
   step m (k,v) = Map.insertWith (++) k [v] m
 
--- prefers earlier copies
-uniqueBy :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
+-- returns the subset of `f a` which maps to unique `b`s.
+-- prefers earlier copies, if many `a` map to some `b`.
+uniqueBy, nubOrdBy :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
 uniqueBy f as = wrangle' (toList as) Set.empty where
   wrangle' [] _ = []
   wrangle' (a:as) seen =
@@ -21,6 +22,7 @@ uniqueBy f as = wrangle' (toList as) Set.empty where
     then wrangle' as seen
     else a : wrangle' as (Set.insert b seen)
     where b = f a
+nubOrdBy = uniqueBy
 
 -- prefers later copies
 uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]

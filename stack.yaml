@@ -10,7 +10,7 @@ packages:
 - parser-typechecker
 
 #compiler-check: match-exact
-resolver: lts-12.5
+resolver: lts-12.14
 
 extra-deps:
 - base58-bytestring-0.1.0

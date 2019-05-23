@@ -37,17 +37,21 @@ library
     Unison.ABT
     Unison.Blank
     Unison.Builtin
+    Unison.Builtin2
     Unison.Codecs
     Unison.Codebase
     Unison.Codebase2
     Unison.Codebase.Branch
     Unison.Codebase.Branch2
+    Unison.Codebase.OldBranch
     Unison.Codebase.Causal
     Unison.Codebase.Causal2
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor
+    Unison.Codebase.Editor2
     Unison.Codebase.Editor.Actions
+    Unison.Codebase.Editor.Actions2
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit
@@ -66,6 +70,7 @@ library
     Unison.CommandLine.InputPatterns
     Unison.CommandLine.Main
     Unison.CommandLine.OutputMessages
+    Unison.CommandLine.OutputMessages2
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.DeclPrinter
@@ -78,6 +83,7 @@ library
     Unison.Lexer
     Unison.Name
     Unison.Names
+    Unison.Names2
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
@@ -88,6 +94,7 @@ library
     Unison.PrettyPrintEnv
     Unison.PrintError
     Unison.Reference
+    Unison.Reference.Util
     Unison.Referent
     Unison.Result
     Unison.Runtime.ANF
@@ -148,9 +155,9 @@ library
     comonad,
     concurrent-supply,
     cryptonite,
+    directory,
     guid,
     data-memocombinators,
-    directory,
     errors,
     edit-distance,
     extra,
@@ -187,10 +194,23 @@ library
     text,
     time,
     transformers,
+    unliftio,
+    util,
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  extensions: LambdaCase
+  default-extensions:
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    -- OverloadedStrings,
+    -- RecordWildCards,
+    ScopedTypeVariables,
+    TupleSections
+    -- TypeApplications -- breaks lexer, need to remove space before as-patterns
+    -- ViewPatterns
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields

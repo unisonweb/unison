@@ -1,16 +1,18 @@
 module Unison.Util.TQueue where
 
+import UnliftIO (MonadIO, MonadUnliftIO)
+import UnliftIO.STM hiding (TQueue)
+import qualified UnliftIO.Async as Async
+
 import Data.Word (Word64)
 import Data.Foldable (toList)
 import Data.Functor (($>))
-import qualified Control.Concurrent.Async as Async
-import Control.Concurrent.STM hiding (TQueue)
 import qualified Data.Sequence as S
 import Data.Sequence (Seq((:<|)), (|>))
 
 data TQueue a = TQueue (TVar (Seq a)) (TVar Word64)
 
-newIO :: IO (TQueue a)
+newIO :: MonadIO m => m (TQueue a)
 newIO = TQueue <$> newTVarIO mempty <*> newTVarIO 0
 
 size :: TQueue a -> STM Int
@@ -22,22 +24,22 @@ size (TQueue q _) = S.length <$> readTVar q
 awaitSize :: Int -> TQueue a -> STM ()
 awaitSize target q = size q >>= \n ->
   if n <= target then pure ()
-  else retry
+  else retrySTM
 
 peek :: TQueue a -> STM a
 peek (TQueue v _) = readTVar v >>= \case
   a :<| _ -> pure a
-  _ -> retry
+  _ -> retrySTM
 
 dequeue :: TQueue a -> STM a
 dequeue (TQueue v _) = readTVar v >>= \case
   a :<| as -> writeTVar v as *> pure a
-  _ -> retry
+  _ -> retrySTM
 
 dequeueN :: TQueue a -> Int -> STM [a]
 dequeueN (TQueue v _) n = readTVar v >>= \s ->
   if length s >= n then writeTVar v (S.drop n s) $> toList (S.take n s)
-  else retry
+  else retrySTM
 
 -- return the number of enqueues over the life of the queue
 enqueueCount :: TQueue a -> STM Word64
@@ -54,7 +56,7 @@ enqueue (TQueue v count) a = do
   modifyTVar' v (|> a)
   modifyTVar' count (+1)
 
-raceIO :: STM a -> STM b -> IO (Either a b)
+raceIO :: MonadUnliftIO m => STM a -> STM b -> m (Either a b)
 raceIO a b = do
   aa <- Async.async $ atomically a
   ab <- Async.async $ atomically b
@@ -69,11 +71,11 @@ tryPeekWhile cond (TQueue v _) = toList . S.takeWhileL cond <$> readTVar v
 takeWhile :: (a -> Bool) -> TQueue a -> STM [a]
 takeWhile cond (TQueue v _) = readTVar v >>= \s -> let
   (left, right) = S.spanl cond s in
-  if null right then retry
+  if null right then retrySTM
   else writeTVar v right $> toList left
 
 peekWhile :: (a -> Bool) -> TQueue a -> STM [a]
 peekWhile cond (TQueue v _) = readTVar v >>= \s -> let
   (left, right) = S.spanl cond s in
-  if null right then retry
+  if null right then retrySTM
   else pure $ toList left

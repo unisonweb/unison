@@ -1,160 +1,184 @@
+--{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}
--- {-# LANGUAGE GADTs #-}
--- {-# LANGUAGE PatternSynonyms #-}
--- {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
--- {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 --
 module Unison.Codebase.Editor2 where
 
-import qualified Unison.Codebase.Branch2 as Branch2
---
--- -- import Debug.Trace
---
--- import           Data.Char                      ( toLower )
--- import Data.List (sortOn, isSuffixOf, isPrefixOf)
--- import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
--- import           Control.Monad.Extra            ( ifM )
--- import           Data.Foldable                  ( toList
---                                                 , traverse_
---                                                 )
--- import           Data.Bifunctor                 ( bimap, second )
--- import           Data.List.Extra                ( nubOrd )
--- import qualified Data.Map                      as Map
--- import Data.Map (Map)
--- import           Data.Sequence                  ( Seq )
--- import           Data.Set                       ( Set )
+-- import Debug.Trace
+
+import           Data.Char                      ( toLower )
+import Data.List (sortOn, isSuffixOf, isPrefixOf)
+import           Control.Lens            hiding ( children, transform )
+import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
+import           Control.Monad.Extra            ( ifM )
+import           Data.Foldable                  ( toList
+                                                , traverse_
+                                                )
+import           Data.Bifunctor                 ( bimap, second )
+import           Data.List.Extra                ( nubOrd )
+import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
+import           Data.Sequence                  ( Seq )
+import           Data.Set                       ( Set )
 import qualified Data.Set as Set
--- import           Data.Text                      ( Text
---                                                 , unpack
---                                                 )
--- import qualified Unison.Builtin                as B
--- import           Unison.Codebase                ( Codebase )
--- import qualified Unison.Codebase               as Codebase
+import           Data.Text                      ( Text
+                                                , unpack
+                                                )
+import qualified Unison.Builtin                as B
+import           Unison.Codebase2               ( Codebase )
+import qualified Unison.Codebase.Classes       as CC
+import qualified Unison.Codebase2              as Codebase
+import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.Codebase.Branch2         ( Branch
                                                  , Branch0
-                                                 , EditLink
-                                                 , Link
-                                                 , Path
                                                  )
 import qualified Unison.Codebase.Branch2        as Branch
--- import qualified Unison.Codebase.SearchResult  as SR
--- import qualified Unison.DataDeclaration        as DD
--- import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import qualified Unison.Codebase.OldBranch      as OldBranch
+import qualified Unison.Codebase.SearchResult  as SR
+import qualified Unison.DataDeclaration        as DD
+import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.Names                   ( Names
-                                                , NameTarget
-                                                )
--- import qualified Unison.Names as Names
--- import           Unison.Parser                  ( Ann )
--- import qualified Unison.Parser                 as Parser
--- import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Names                  as OldNames
+import           Unison.Names2                  ( Names )
+import qualified Unison.Names2                 as Names
+import           Unison.Codebase.Path           ( Path, Path', HQPath' )
+import qualified Unison.Codebase.Path          as Path
+import           Unison.Parser                  ( Ann )
+import qualified Unison.Parser                 as Parser
+import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference, pattern DerivedId )
--- import qualified Unison.Reference              as Reference
--- import           Unison.Result                  ( Note
---                                                 , Result
---                                                 )
--- import qualified Unison.Result                 as Result
+import qualified Unison.Reference              as Reference
+import           Unison.Result                  ( Note
+                                                , Result
+                                                )
+import qualified Unison.Result                 as Result
 import           Unison.Referent                ( Referent )
--- import qualified Unison.Referent               as Referent
--- import qualified Unison.Runtime.IOSource       as IOSource
--- import           Unison.Symbol                  ( Symbol )
--- import           Unison.Util.Relation          (Relation)
--- import qualified Unison.Util.Relation as R
--- import qualified Unison.Codebase.Runtime       as Runtime
--- import           Unison.Codebase.Runtime       (Runtime)
--- import qualified Unison.Codebase.TermEdit      as TermEdit
--- import qualified Unison.Term                   as Term
+import qualified Unison.Referent               as Referent
+import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Symbol                  ( Symbol )
+import           Unison.Util.Relation          (Relation)
+import qualified Unison.Util.Relation as R
+import qualified Unison.Codebase.Runtime       as Runtime
+import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Codebase.TermEdit      as TermEdit
+import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
--- import qualified Unison.Typechecker            as Typechecker
--- import qualified Unison.Typechecker.Context    as Context
--- import           Unison.Typechecker.TypeLookup  ( Decl )
--- import qualified Unison.UnisonFile             as UF
--- import           Unison.Util.Free               ( Free )
--- import qualified Unison.Util.Free              as Free
--- import           Unison.Var                     ( Var )
---
--- data Event
---   = UnisonFileChanged SourceName Text
---   | UnisonBranchChanged (Set BranchName)
---
--- type BranchName = Text
--- type Source = Text -- "id x = x\nconst a b = a"
--- type SourceName = Text -- "foo.u" or "buffer 7"
--- type TypecheckingResult v =
---   Result (Seq (Note v Ann))
---          (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
--- type Term v a = Term.AnnotatedTerm v a
--- type Type v a = Type.AnnotatedType v a
---
--- data SlurpComponent v =
---   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
---   deriving (Show)
---
--- instance Ord v => Semigroup (SlurpComponent v) where
---   (<>) = mappend
--- instance Ord v => Monoid (SlurpComponent v) where
---   mempty = SlurpComponent mempty mempty
---   c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
---                                    (implicatedTerms c1 <> implicatedTerms c2)
---
--- data SlurpResult v = SlurpResult {
---   -- The file that we tried to add from
---     originalFile :: UF.TypecheckedUnisonFile v Ann
---   -- The branch after adding everything
---   , updatedBranch :: Branch
---   -- Previously existed only in the file; now added to the codebase.
---   , adds :: SlurpComponent v
---   -- Exists in the branch and the file, with the same name and contents.
---   , duplicates :: SlurpComponent v
---   -- Not added to codebase due to the name already existing
---   -- in the branch with a different definition.
---   , collisions :: SlurpComponent v
---   -- Not added to codebase due to the name existing
---   -- in the branch with a conflict (two or more definitions).
---   , conflicts :: SlurpComponent v
---   -- Names that already exist in the branch, but whose definitions
---   -- in `originalFile` are treated as updates.
---   , updates :: SlurpComponent v
---   -- Names of terms in `originalFile` that couldn't be updated because
---   -- they refer to existing constructors. (User should instead do a find/replace,
---   -- a constructor rename, or refactor the type that the name comes from).
---   , termExistingConstructorCollisions :: Map v Referent
---   , constructorExistingTermCollisions :: Map v [Referent]
---   -- Already defined in the branch, but with a different name.
---   , needsAlias :: Branch.RefCollisions
---   , termsWithBlockedDependencies :: Map v (Set Reference)
---   , typesWithBlockedDependencies :: Map v (Set Reference)
---   } deriving (Show)
+import qualified Unison.Typechecker            as Typechecker
+import qualified Unison.Typechecker.Context    as Context
+import           Unison.Typechecker.TypeLookup  ( Decl )
+import qualified Unison.UnisonFile             as UF
+import           Unison.Util.Free               ( Free )
+import qualified Unison.Util.Free              as Free
+import           Unison.Var                     ( Var )
+
+data Event
+  = UnisonFileChanged SourceName Text
+  | IncomingRootBranch (Set Branch.Hash)
+
+type Source = Text -- "id x = x\nconst a b = a"
+type SourceName = Text -- "foo.u" or "buffer 7"
+type TypecheckingResult v =
+  Result (Seq (Note v Ann))
+         (Names, Maybe (UF.TypecheckedUnisonFile v Ann))
+type Term v a = Term.AnnotatedTerm v a
+type Type v a = Type.AnnotatedType v a
+
+type BranchPath = Path'
+type EditsPath = Path'
+type TermPath = Path'
+type TypePath = Path'
+
+-- but really "Path" not "Name"
+data NameTarget = BranchName | TermName | TypeName | EditsName
+  deriving (Eq, Ord, Show)
+
+data DefnTarget = TermName' | TypeName'
+  deriving (Eq, Ord, Show)
+
+data SlurpComponent v =
+  SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
+  deriving (Show)
+
+instance Ord v => Semigroup (SlurpComponent v) where
+  (<>) = mappend
+instance Ord v => Monoid (SlurpComponent v) where
+  mempty = SlurpComponent mempty mempty
+  c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
+                                   (implicatedTerms c1 <> implicatedTerms c2)
+
+data SlurpResult v = SlurpResult {
+  -- The file that we tried to add from
+    originalFile :: UF.TypecheckedUnisonFile v Ann
+  -- Previously existed only in the file; now added to the codebase.
+  , adds :: SlurpComponent v
+  -- Exists in the branch and the file, with the same name and contents.
+  , duplicates :: SlurpComponent v
+  -- Not added to codebase due to the name already existing
+  -- in the branch with a different definition.
+  , collisions :: SlurpComponent v
+  -- Not added to codebase due to the name existing
+  -- in the branch with a conflict (two or more definitions).
+  , conflicts :: SlurpComponent v
+  -- Names that already exist in the branch, but whose definitions
+  -- in `originalFile` are treated as updates.
+  , updates :: SlurpComponent v
+  -- Names of terms in `originalFile` that couldn't be updated because
+  -- they refer to existing constructors. (User should instead do a find/replace,
+  -- a constructor rename, or refactor the type that the name comes from).
+  , termExistingConstructorCollisions :: Map v Referent
+  , constructorExistingTermCollisions :: Map v [Referent]
+  -- Already defined in the branch, but with a different name.
+  , needsAlias :: Branch.RefCollisions
+  , termsWithBlockedDependencies :: Map v (Set Reference)
+  , typesWithBlockedDependencies :: Map v (Set Reference)
+  } deriving (Show)
+
+data RepoRef
+  = Local
+  | Github { username :: Text, repo :: Text, commit :: Text }
+  deriving (Eq, Ord, Show)
+
+data RepoLink a = RepoLink RepoRef a
+  deriving (Eq, Ord, Show)
 
 data Input
   -- names stuff:
     -- directory ops
-    = ForkBranchI Link Path -- clone w/o merge, error if would clobber
-    | MergeBranchI Link Path -- merge first causal into destination
-    | RenameBranchI Path Path -- mv foo bar vs mv foo bar/ ? -- don't a
-    | DeleteBranchI [Path]
-    | SwitchBranchI Path -- cd
-    -- definition naming
-      -- if HashQualified is unique, create alias
-    | AliasUniqueI HashQualified Name
-    | RenameUniqueI HashQualified Name
-    | UnnameAllI (Set HashQualified)
-    -- resolving naming conflicts
-    | ResolveTermNameI Referent Name
-    | ResolveTermNameI Reference Name
+    -- `Link` must describe a repo and a source path within that repo.
+    -- clone w/o merge, error if would clobber
+    = ForkBranchI (RepoLink BranchPath) BranchPath
+    -- merge first causal into destination
+    | MergeBranchI (RepoLink BranchPath) BranchPath
+    -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
+    --          Does it make sense to fork from not-the-root of a Github repo?
+    -- change directory
+    | SwitchBranchI BranchPath
+    -- the last segment of the path may be hash-qualified
+    | AliasI (Set DefnTarget) HQPath' Path'
+    | DeleteI (Set NameTarget) [HQPath']
+    | RenameI (Set NameTarget) HQPath' Path'
+    -- resolving naming conflicts within `branchpath`
+      -- Add the specified name after deleting all others for a given reference
+      -- within a given branch.
+--      | ResolveTermNameI BranchPath Referent Name
+--      | ResolveTypeNameI BranchPath Reference Name
   -- edits stuff:
-    -- -- begin applying `guid` to the todos for `path`
-    -- | ActivateEditsI Path EditGuid
-    -- -- stop applying `guid` from the todos for `path`
-    -- | DeactivateEditsI Path EditGuid
-    -- -- list work from active todos
-    -- | TodoI Path
-    -- | PropagateI -- get rid of this?
+    | TodoI EditsPath BranchPath
+    | PropagateI EditsPath BranchPath
     -- -- create and remove update directives
     -- | CreateEditsI EditGuid -- implies SetEdits?
     -- | SetEditsI EditGuid
@@ -171,110 +195,125 @@ data Input
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
-  | SlurpFileI -- todo (with Edits): AllowUpdates
+  | AddI [HashQualified]
+  | UpdateI EditsPath [HashQualified]
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
+  | ShowDefinitionByPrefixI OutputLocation [String]
   | UpdateBuiltinsI
   | QuitI
   deriving (Eq, Show)
 
--- -- Some commands, like `view`, can dump output to either console or a file.
--- data OutputLocation
---   = ConsoleLocation
---   | LatestFileLocation
---   | FileLocation FilePath
---   -- ClipboardLocation
---   deriving (Eq, Show)
---
---
--- -- Whether or not updates are allowed during file slurping
--- type AllowUpdates = Bool
---
--- data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
---   deriving (Eq, Ord, Show)
---
--- data SearchResult' v a
---   = Tm' (TermResult' v a)
---   | Tp' (TypeResult' v a)
---   deriving (Eq, Show)
--- data TermResult' v a =
---   TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
---   deriving (Eq, Show)
--- data TypeResult' v a =
---   TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
---   deriving (Eq, Show)
--- pattern Tm n t r as = Tm' (TermResult' n t r as)
--- pattern Tp n t r as = Tp' (TypeResult' n t r as)
---
--- foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
--- foldResult' f g = \case
---   Tm' tm -> f tm
---   Tp' tp -> g tp
---
--- type ListDetailed = Bool
---
--- data Output v
---   = Success Input
---   | CreatedBranch BranchName
---   | SwitchedBranch BranchName
---   | NoUnisonFile
---   | UnknownBranch BranchName
---   | RenameOutput Name Name NameChangeResult
---   | AliasOutput Name Name NameChangeResult
---   -- todo: probably remove these eventually
---   | UnknownName BranchName NameTarget Name
---   | NameAlreadyExists BranchName NameTarget Name
---   -- `name` refers to more than one `nameTarget`
---   | ConflictedName BranchName NameTarget Name
---   | BranchAlreadyExists BranchName
---   | DeletingCurrentBranch
---   | DeleteBranchConfirmation
---       [(BranchName, (PPE.PrettyPrintEnv, [SearchResult' v Ann]))]
---   | ListOfBranches BranchName [BranchName]
---   | ListOfDefinitions Branch ListDetailed [SearchResult' v Ann]
---   | SlurpOutput (SlurpResult v)
---   -- Original source, followed by the errors:
---   | ParseErrors Text [Parser.Err v]
---   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
---   | DisplayConflicts Branch0
---   | Evaluated SourceFileContents
---               PPE.PrettyPrintEnv
---               [(v, Term v ())]
---               (Map v (Ann, Term v (), Runtime.IsCacheHit))
---   | Typechecked SourceName PPE.PrettyPrintEnv (UF.TypecheckedUnisonFile v Ann)
---   | FileChangeEvent SourceName Text
---   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
---                        [(Reference, DisplayThing (Term v Ann))]
---                        [(Reference, DisplayThing (Decl v Ann))]
---   | TodoOutput Branch (TodoOutput v Ann)
---   | ListEdits Branch0
---   -- new/unrepresented references followed by old/removed
---   -- todo: eventually replace these sets with [SearchResult' v Ann]
---   -- and a nicer render.
---   | BustedBuiltins (Set Reference) (Set Reference)
---   deriving (Show)
---
--- type SourceFileContents = Text
--- type Score = Int
---
--- data TodoOutput v a
---   = TodoOutput_ {
---       todoScore :: Int,
---       todoFrontier ::
---         ( [(HashQualified, Reference, Maybe (Type v a))]
---         , [(HashQualified, Reference, DisplayThing (Decl v a))]),
---       todoFrontierDependents ::
---         ( [(Score, HashQualified, Reference, Maybe (Type v a))]
---         , [(Score, HashQualified, Reference, DisplayThing (Decl v a))]),
---       todoConflicts :: Branch0
---     } deriving (Show)
---
--- data NameChangeResult = NameChangeResult
---   { oldNameConflicted :: Set NameTarget
---   , newNameAlreadyExists :: Set NameTarget
---   , changedSuccessfully :: Set NameTarget
---   } deriving (Eq, Ord, Show)
---
+-- Some commands, like `view`, can dump output to either console or a file.
+data OutputLocation
+  = ConsoleLocation
+  | LatestFileLocation
+  | FileLocation FilePath
+  -- ClipboardLocation
+  deriving (Eq, Show)
+
+
+-- Whether or not updates are allowed during file slurping
+type AllowUpdates = Bool
+
+data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
+  deriving (Eq, Ord, Show)
+
+data SearchResult' v a
+  = Tm' (TermResult' v a)
+  | Tp' (TypeResult' v a)
+  deriving (Eq, Show)
+data TermResult' v a =
+  TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
+  deriving (Eq, Show)
+data TypeResult' v a =
+  TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
+  deriving (Eq, Show)
+pattern Tm n t r as = Tm' (TermResult' n t r as)
+pattern Tp n t r as = Tp' (TypeResult' n t r as)
+
+tmReferent :: SearchResult' v a -> Maybe Referent
+tmReferent = \case; Tm _ _ r _ -> Just r; _ -> Nothing
+tpReference :: SearchResult' v a -> Maybe Reference
+tpReference = \case; Tp _ _ r _ -> Just r; _ -> Nothing
+
+foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
+foldResult' f g = \case
+  Tm' tm -> f tm
+  Tp' tp -> g tp
+
+type ListDetailed = Bool
+
+data Output v
+  -- Generic Success response; we might consider deleting this.
+  -- I had put the `Input` field here in case we wanted the success message
+  -- to vary based on the command the user submitted.
+  = Success Input
+  -- User did `add` or `update` before typechecking a file?
+  | NoUnisonFile
+  | CreatedNewBranch Path.Absolute
+  | BranchAlreadyExists Input Path'
+  -- AliasOutput currentPath src dest result
+  | AliasOutput Path.Absolute HQPath' Path' NameChangeResult
+  | RenameOutput Path.Absolute HQPath' Path' NameChangeResult
+  -- ask confirmation before deleting the last branch that contains some defns
+  -- `Path` is one of the paths the user has requested to delete, and is paired
+  -- with whatever named definitions would not have any remaining names if
+  -- the path is deleted.
+  | DeleteBranchConfirmation
+      [(Path, (Names, [SearchResult' v Ann]))]
+  -- list of all the definitions within this branch
+  | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
+  -- show the result of add/update
+  | SlurpOutput (SlurpResult v)
+  -- Original source, followed by the errors:
+  | ParseErrors Text [Parser.Err v]
+  | TypeErrors Text Names [Context.ErrorNote v Ann]
+  | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
+  | Evaluated SourceFileContents
+              Names
+              [(v, Term v ())]
+              (Map v (Ann, Term v (), Runtime.IsCacheHit))
+  | Typechecked SourceName Names (UF.TypecheckedUnisonFile v Ann)
+  | FileChangeEvent SourceName Text
+  -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
+  | DisplayDefinitions (Maybe FilePath)
+                       Names
+                       [(Reference, DisplayThing (Term v Ann))]
+                       [(Reference, DisplayThing (Decl v Ann))]
+  | TodoOutput Names (TodoOutput v Ann)
+  -- | ListEdits Edits Branch0
+
+  -- new/unrepresented references followed by old/removed
+  -- todo: eventually replace these sets with [SearchResult' v Ann]
+  -- and a nicer render.
+  | BustedBuiltins (Set Reference) (Set Reference)
+  deriving (Show)
+
+type SourceFileContents = Text
+type Score = Int
+
+data TodoOutput v a
+  = TodoOutput_ {
+      todoScore :: Int,
+      todoFrontier ::
+        ( [(HashQualified, Reference, Maybe (Type v a))]
+        , [(HashQualified, Reference, DisplayThing (Decl v a))]),
+      todoFrontierDependents ::
+        ( [(Score, HashQualified, Reference, Maybe (Type v a))]
+        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))]),
+      todoConflicts :: OldBranch.Branch0
+    } deriving (Show)
+
+-- todo: do we want something here for nonexistent old name?
+data NameChangeResult = NameChangeResult
+  { _oldNameConflicted :: Set DefnTarget
+  , _newNameAlreadyExists :: Set DefnTarget
+  , _changedSuccessfully :: Set DefnTarget
+  } deriving (Eq, Ord, Show)
+
+makeLenses ''NameChangeResult
+
 -- instance Semigroup NameChangeResult where (<>) = mappend
 -- instance Monoid NameChangeResult where
 --   mempty = NameChangeResult mempty mempty mempty
@@ -293,15 +332,17 @@ data Input
 -- -- All collisions get left alone and are not added to successes.
 -- addCollisionHandler :: CollisionHandler
 -- addCollisionHandler = const False
---
--- data SearchMode = FuzzySearch | ExactSearch
-type AmbientAbilities = [TypeAnnotatedType v Ann]
 
-data Command i v a where
-  Input :: Command i v i
+data SearchMode = FuzzySearch | ExactSearch
+type AmbientAbilities v = [Type.AnnotatedType v Ann]
+
+data Command m i v a where
+  Eval :: m a -> Command m i v a
+
+  Input :: Command m i v i
 
   -- Presents some output to the user
-  Notify :: Output v -> Command i v ()
+  Notify :: Output v -> Command m i v ()
 
   -- This will load the namespace from the provided link, and
   -- give warnings about name conflicts and the like.
@@ -310,24 +351,26 @@ data Command i v a where
   -- It does not write any namespace stuff.  (Maybe it should?)
   -- It may complain if you are trying to write definitions into a remote link,
   -- and suggest that you can convert the link to a fork if you want.
-  AddDefsToCodebase
-    :: -- CollisionHandler -> (todo)
-       Link
-    -> UF.TypecheckedUnisonFile v Ann
-    -> Command i v (SlurpResult v)
 
-  -- Load one level of a namespace.  It may involve reading from disk,
-  -- or from http into a cache.
-  GetBranchNode :: Link -> Command i v Namespace
+--  AddDefsToCodebase
+--    :: -- CollisionHandler -> (todo)
+--       Path
+--    -> UF.TypecheckedUnisonFile v Ann
+--    -> Command m i v (Branch (Command m i v), SlurpResult v)
+
+  -- Arya: Do we need this?
+  -- -- Load one level of a namespace.  It may involve reading from disk,
+  -- -- or from http into a cache.
+  -- GetBranch :: RepoLink Path -> Command m i v Branch
 
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
-  Typecheck :: AmbientAbilities
-            -> Link
+  Typecheck :: (AmbientAbilities v)
+            -> Names
             -> SourceName
             -> Source
-            -> Command i v (TypecheckingResult v)
+            -> Command m i v (TypecheckingResult v)
 
   -- Evaluate all watched expressions in a UnisonFile and return
   -- their results, keyed by the name of the watch variable. The tuple returned
@@ -345,49 +388,52 @@ data Command i v a where
   -- It's expected that the user of this action might add the
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
-  Evaluate :: Link
-           -> UF.UnisonFile v Ann
-           -> Command i v ([(v, Term v ())], Map v
-                (Ann, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
-  -- Loads one level of a branch by hash/link from the codebase (or elsewhere),
-  -- returning `Nothing` if not found.
-  LoadBranch :: Link -> Command i v (Maybe Branch)
+  Evaluate :: UF.TypecheckedUnisonFile v Ann
+           -> Command m i v ([(v, Term v ())], Map v
+                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
-  -- Copy the code from the given link location to the local codebase at the
-  -- given path. Returns `False` and does nothing if that path is not empty.
-  ForkBranch :: Link -> Path -> Command i v Bool
 
-  -- Merges the code from the given link with the existing code at the given
-  -- path. Returns `False` if the link is dead, `True` otherwise.
-  MergeBranch :: Link -> Path -> Command i v Bool
+  -- Loads a root branch from some codebase, returning `Nothing` if not found.
+  -- Any definitions in the head of the requested root that aren't in the local
+  -- codebase are copied there.
+  LoadRootBranch :: RepoRef -> Command m i v (Branch m)
 
-  -- Return the subset of the branch tip which is in a conflicted state.
-  -- A conflict is:
-  -- * A name with more than one referent.
-  -- * An edit with more than one outcome.
-  GetConflicts :: Branch -> Command i v Branch0
+  -- RetrieveHashes repo types terms
+  RetrieveHashes :: RepoRef -> Set Reference -> Set Reference -> Command m i v ()
 
-  LoadTerm :: Reference.Id -> Command i v (Maybe (Term v Ann))
+  -- Syncs the Branch to some codebase and updates the head to the head of this causal.
+  -- Any definitions in the head of the supplied branch that aren't in the target
+  -- codebase are copied there.
+  SyncRootBranch :: RepoRef -> Branch m -> Command m i v ()
+  -- e.g.
+  --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
+  --   SynchRootBranch (Github "aryairani" "superML" "master")
+  --                   (Branch at /Lib/Arya/Public/SuperML)
 
-  LoadType :: Reference.Id -> Command i v (Maybe (Decl v Ann))
+  LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
-  -- this loads some metadata for prettier search result display
-  LoadSearchResults :: [SR.SearchResult] -> Command i v [SearchResult' v Ann]
+  LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
 
-  -- execute `_main` in UnisonFile, decompile and print the result
-  -- using the provided PPE
-  Execute :: PrettyPrintEnv -> UF.UnisonFile v Ann -> Command i v ()
+  -- Loads some metadata for prettier search result display
+  LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]
 
+  -- Execute a UnisonFile for its IO effects
+  -- todo: Execute should do some evaluation?
+  Execute :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
 -- -- Edits stuff:
---   Todo :: Edits -> Branch -> Command i v (TodoOutput v Ann)
+--   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
 --
---   Propagate :: Edits -> Branch -> Command i v Branch
---
---   -- copies an edit; needs some more ux design
---   PullEdits :: EditLink -> Command i v Bool
---   PushEdits :: EditLink -> Command i v Bool
+--   Propagate :: Edits -> Branch -> Command m i v (Branch m)
+
+
+-- may need to be different for private repo?
+loadGithubRootBranch :: Text -> Text -> Text -> m (Branch m)
+loadGithubRootBranch user repo treeish = error "todo"
+
+syncGithubRootBranch :: Text -> Text -> Text -> Branch m -> m ()
+syncGithubRootBranch user repo ghbranch b = error "todo"
 
 -- data Outcome
 --   -- New definition that was added to the branch
@@ -627,22 +673,23 @@ data Command i v a where
 --         Just (_, tm, typ) = Map.lookup termRef termsByRef
 --         in Codebase.putTerm codebase d (prepTerm tm) (ex typ)
 --       r -> error $ "Panic. Hashing produced a builtin Reference: " ++ show r
---
--- typecheck
---   :: (Monad m, Var v)
---   => [Type.AnnotatedType v Ann]
---   -> Codebase m v Ann
---   -> Names
---   -> SourceName
---   -> Text
---   -> m (TypecheckingResult v)
--- typecheck ambient codebase names sourceName src =
---   Result.getResult $ parseAndSynthesizeFile ambient
---     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
---     names
---     (unpack sourceName)
---     src
---
+
+typecheck
+  :: (Monad m, Var v)
+  => [Type.AnnotatedType v Ann]
+  -> Codebase m v Ann
+  -> Parser.ParsingEnv
+  -> SourceName
+  -> Text
+  -> m (TypecheckingResult v)
+typecheck ambient codebase names sourceName src =
+  error "todo: update to use Names2 instead of Names"
+  -- Result.getResult $ parseAndSynthesizeFile ambient
+  --   (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+  --   names
+  --   (unpack sourceName)
+  --   src
+
 -- -- Contains all the builtins
 -- builtinBranch :: Branch
 -- builtinBranch = Branch.one builtinBranch0
@@ -667,64 +714,68 @@ data Command i v a where
 --   (Codebase.branchExists codebase branchName)
 --   (Codebase.syncBranch codebase branchName branch *> pure True)
 --   (pure False)
---
--- -- Returns terms and types, respectively. For terms that are
--- -- constructors, turns them into their data types.
--- collateReferences
---   :: [Referent] -- terms requested, including ctors
---   -> [Reference] -- types requested
---   -> ([Reference], [Reference])
--- collateReferences terms types =
---   let terms' = [ r | Referent.Ref r <- terms ]
---       types' = terms >>= \case
---         Referent.Con r _ -> [r]
---         _                -> []
---   in  (terms', nubOrd $ types' <> types)
---
--- commandLine
---   :: forall i v a
---    . Var v
---   => IO i
---   -> Runtime v
---   -> (Output v -> IO ())
---   -> Codebase IO v Ann
---   -> Free (Command i v) a
---   -> IO a
--- commandLine awaitInput rt notifyUser codebase command = do
---   Free.fold go command
---  where
---   go :: forall x . Command i v x -> IO x
---   go = \case
---     -- Wait until we get either user input or a unison file update
---     Input         -> awaitInput
---     Notify output -> notifyUser output
---     SlurpFile handler branch unisonFile ->
---       fileToBranch handler codebase branch unisonFile
---     Typecheck ambient branch sourceName source ->
---       typecheck ambient codebase (Branch.toNames branch) sourceName source
---     Evaluate branch unisonFile -> evalUnisonFile branch unisonFile
---     ListBranches                      -> Codebase.branches codebase
---     LoadBranch branchName             -> Codebase.getBranch codebase branchName
---     NewBranch  branch branchName      -> newBranch codebase branch branchName
---     SyncBranch branchName branch      -> syncBranch codebase branch branchName
---     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
---     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
---     LoadTerm r -> Codebase.getTerm codebase r
---     LoadType r -> Codebase.getTypeDeclaration codebase r
---     LoadSearchResults results -> loadSearchResults codebase results
---     Todo b -> doTodo codebase (Branch.head b)
---     Propagate b -> do
---       b0 <- Codebase.propagate codebase (Branch.head b)
---       pure $ Branch.append b0 b
---     Execute branch uf -> void $ evalUnisonFile branch uf
---   evalUnisonFile branch unisonFile = do
---     let codeLookup = Codebase.toCodeLookup codebase
---     selfContained <- Codebase.makeSelfContained' codeLookup
---                                                  (Branch.head branch)
---                                                  unisonFile
---     let noCache = const (pure Nothing)
---     Runtime.evaluateWatches codeLookup noCache rt selfContained
---
+
+-- Separates type references from term references and returns terms and types,
+-- respectively. For terms that are constructors, turns them into their data
+-- types.
+collateReferences
+  :: [Referent] -- terms requested, including ctors
+  -> [Reference] -- types requested
+  -> ([Reference], [Reference])
+collateReferences terms types =
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = terms >>= \case
+        Referent.Con r _ -> [r]
+        _                -> []
+  in  (terms', nubOrd $ types' <> types)
+
+commandLine
+  :: forall i v a
+   . Var v
+  => IO i
+  -> Runtime v
+  -> (Output v -> IO ())
+  -> Codebase IO v Ann
+  -> Free (Command IO i v) a
+  -> IO a
+commandLine awaitInput rt notifyUser codebase command = do
+  Free.fold go command
+ where
+  go :: forall x . Command IO i v x -> IO x
+  go = \case
+    -- Wait until we get either user input or a unison file update
+    Eval m        -> m
+    Input         -> awaitInput
+    Notify output -> notifyUser output
+--    AddDefsToCodebase handler branch unisonFile -> error "todo"
+--      fileToBranch handler codebase branch unisonFile
+    Typecheck ambient names sourceName source -> do
+      -- todo: if guids are being shown to users, not ideal to generate new guid every time
+      namegen <- Parser.uniqueBase58Namegen
+      typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
+    Evaluate unisonFile -> evalUnisonFile unisonFile
+    LoadRootBranch Local -> Codebase.getRootBranch codebase
+    SyncRootBranch Local branch -> Codebase.putRootBranch codebase branch
+    LoadRootBranch Github{..} -> error "todo"
+    SyncRootBranch Github{..} _branch -> error "todo"
+    RetrieveHashes Local _ _ -> pure ()
+    RetrieveHashes Github{} _types _terms -> error "todo"
+    LoadTerm r -> CC.getTerm codebase r
+    LoadType r -> CC.getTypeDeclaration codebase r
+    LoadSearchResults results -> loadSearchResults codebase results
+
+--    Todo b -> doTodo codebase (Branch.head b)
+--    Propagate b -> do
+--      b0 <- Codebase.propagate codebase (Branch.head b)
+--      pure $ Branch.append b0 b
+    Execute uf -> void $ evalUnisonFile uf
+  evalUnisonFile :: UF.TypecheckedUnisonFile v Ann -> _
+  evalUnisonFile (UF.discardTypes -> unisonFile) = do
+    let codeLookup = Codebase.toCodeLookup codebase
+    selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
+    let noCache = const (pure Nothing)
+    Runtime.evaluateWatches codeLookup noCache rt selfContained
+
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 -- doTodo code b = do
 --   -- traceM $ "edited terms: " ++ show (Branch.editedTerms b)
@@ -752,25 +803,25 @@ data Command i v a where
 --       (frontierTermsNamed, frontierTypesNamed)
 --       (dirtyTermsNamed, dirtyTypesNamed)
 --       (Branch.conflicts' b)
---
--- loadSearchResults :: (Monad m, Var v) =>
---   Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
--- loadSearchResults code = traverse loadSearchResult
---   where
---   loadSearchResult = \case
---     SR.Tm (SR.TermResult name r aliases) -> do
---       typ <- case r of
---         Referent.Ref r -> Codebase.getTypeOfTerm code r
---         Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
---       pure $ Tm name typ r aliases
---     SR.Tp (SR.TypeResult name r aliases) -> do
---       dt <- case r of
---         Reference.Builtin _ -> pure BuiltinThing
---         Reference.DerivedId id ->
---           maybe (MissingThing id) RegularThing <$>
---             Codebase.getTypeDeclaration code id
---       pure $ Tp name dt r aliases
---
+
+loadSearchResults :: (Monad m, Var v) =>
+  Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
+loadSearchResults code = traverse loadSearchResult
+  where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- case r of
+        Referent.Ref r -> Codebase.getTypeOfTerm code r
+        Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
+      pure $ Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- case r of
+        Reference.Builtin _ -> pure BuiltinThing
+        Reference.DerivedId id ->
+          maybe (MissingThing id) RegularThing <$>
+            Codebase.getTypeDeclaration code id
+      pure $ Tp name dt r aliases
+
 -- loadDefinitions :: Monad m => Codebase m v a -> Set Reference
 --                 -> m ( [(Reference, Maybe (Type v a))],
 --                        [(Reference, DisplayThing (Decl v a))] )
