@@ -10,6 +10,7 @@ import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import Unison.Names (Names)
 import qualified Unison.Names as Names
+import qualified Unison.Names2 as Names2
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 
@@ -29,6 +30,9 @@ fromNames ns =
       types =
         Map.fromList [ (r, HQ.fromName n) | (n, r) <- Map.toList (Names.typeNames ns) ]
   in PrettyPrintEnv (`Map.lookup` terms) (`Map.lookup` types)
+
+fromNames2 :: Names2.Names -> PrettyPrintEnv
+fromNames2 = fromNames . Names.fromNames2
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv

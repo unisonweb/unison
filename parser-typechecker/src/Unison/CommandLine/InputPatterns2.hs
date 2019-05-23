@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine.InputPatterns where
+module Unison.CommandLine.InputPatterns2 where
 
 -- import Debug.Trace
 import           Data.List                       (intercalate)
@@ -20,8 +20,7 @@ import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor          (Input (..))
 import qualified Unison.Codebase.Editor          as E
 import           Unison.CommandLine
-import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern)
-                                                 ,IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import           Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Names                    as Names
@@ -77,11 +76,11 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . ShowDefinitionI E.ConsoleLocation)
 
---viewByPrefix :: InputPattern
---viewByPrefix
---  = InputPattern "view.recursive" [(OnePlus, exactDefinitionQueryArg)]
---    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
---    (Pure . ShowDefinitionRecursiveI E.ConsoleLocation)
+viewByPrefix :: InputPattern
+viewByPrefix
+  = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
+    "`view.recursive Foo` prints the definitions of `Foo` and `Foo.blah`."
+    (pure . ShowDefinitionRecursiveI E.ConsoleLocation)
 
 find :: InputPattern
 find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]

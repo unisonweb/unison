@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
-
+{-# LANGUAGE RankNTypes #-}
 module Unison.Codebase.Causal2 where
 
 import           Prelude                 hiding ( head
@@ -22,6 +22,7 @@ import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import           Data.Foldable                  ( for_, toList )
+import           Util                           ( bind2 )
 
 {-
 `Causal a` has 5 operations, specified algebraically here:
@@ -43,61 +44,61 @@ import           Data.Foldable                  ( for_, toList )
   * `head (sequence c1 c2) == head c2`
 -}
 
-newtype C0Hash a = C0Hash { unc0hash :: Hash }
+newtype RawHash a = RawHash { unRawHash :: Hash }
   deriving (Eq, Ord, Show)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m h e
-  = One { currentHash :: C0Hash h, head :: e }
-  | Cons { currentHash :: C0Hash h, head :: e, tail :: (C0Hash h, m (Causal m h e)) }
+  = One { currentHash :: RawHash h, head :: e }
+  | Cons { currentHash :: RawHash h, head :: e, tail :: (RawHash h, m (Causal m h e)) }
   -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: C0Hash h, head :: e, tails :: Map (C0Hash h) (m (Causal m h e)) }
+  | Merge { currentHash :: RawHash h, head :: e, tails :: Map (RawHash h) (m (Causal m h e)) }
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
-data Causal0 h e
-  = One0 e
-  | Cons0 e (C0Hash h)
-  | Merge0 e (Set (C0Hash h))
+data Raw h e
+  = RawOne e
+  | RawCons e (RawHash h)
+  | RawMerge e (Set (RawHash h))
 
 -- Don't need to deserialize the `e` to calculate `before`.
-data Raw h
-  = OneRaw
-  | ConsRaw (C0Hash h)
-  | MergeRaw (Set (C0Hash h))
+data Tails h
+  = TailsOne
+  | TailsCons (RawHash h)
+  | TailsMerge (Set (RawHash h))
 
-type Deserialize m h e = C0Hash h -> m (Causal0 h e)
+type Deserialize m h e = RawHash h -> m (Raw h e)
 
-read :: Functor m => Deserialize m h e -> C0Hash h -> m (Causal m h e)
+read :: Functor m => Deserialize m h e -> RawHash h -> m (Causal m h e)
 read d h = go <$> d h where
   go = \case
-    One0 e -> One h e
-    Cons0 e tailHash -> Cons h e (tailHash, read d tailHash)
-    Merge0 e tailHashes ->
+    RawOne e -> One h e
+    RawCons e tailHash -> Cons h e (tailHash, read d tailHash)
+    RawMerge e tailHashes ->
       Merge h e (Map.fromList [(h, read d h) | h <- toList tailHashes ])
 
-type Serialize m h e = C0Hash h -> Causal0 h e -> m ()
+type Serialize m h e = RawHash h -> Raw h e -> m ()
 
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
-sync :: Monad m => (C0Hash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
+sync :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
 sync exists serialize c = do
   b <- exists (currentHash c)
   when (not b) $ go c
   where
     go c = case c of
-      One currentHash head -> serialize currentHash $ One0 head
+      One currentHash head -> serialize currentHash $ RawOne head
       Cons currentHash head (tailHash, tailm) -> do
         -- write out the tail first, so what's on disk is always valid
         b <- exists tailHash
         when (not b) $ go =<< tailm
-        serialize currentHash (Cons0 head tailHash)
+        serialize currentHash (RawCons head tailHash)
       Merge currentHash head tails -> do
         for_ (Map.toList tails) $ \(hash, cm) -> do
           b <- exists hash
           when (not b) $ go =<< cm
-        serialize currentHash (Merge0 head (Map.keysSet tails))
+        serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
@@ -105,8 +106,8 @@ instance Eq (Causal m h a) where
 instance Ord (Causal m h a) where
   a <= b = currentHash a <= currentHash b
 
-instance Hashable (C0Hash h) where
-  tokens (C0Hash h) = Hashable.tokens h
+instance Hashable (RawHash h) where
+  tokens (RawHash h) = Hashable.tokens h
 
 merge :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
 a `merge` b =
@@ -116,6 +117,37 @@ a `merge` b =
     (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
     (a, b) ->
       merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+ where
+ -- implementation detail, form a `Merge`
+ merge0
+   :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+ merge0 m =
+   let e = if Map.null m
+         then error "Causal.merge0 empty map"
+         else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
+       h = hash (Map.keys m) -- sorted order
+   in  e <&> \e -> Merge (RawHash h) e m
+
+
+mergeWithM :: forall m h e. Monad m => (e -> e -> m e) -> Causal m h e -> Causal m h e -> m (Causal m h e)
+mergeWithM f a b =
+  ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
+  (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
+  (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
+  (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
+  (a, b) ->
+    merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+  where
+  -- implementation detail, form a `Merge`
+  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+  merge0 m =
+    let e :: m e
+        e = if Map.null m
+          then error "Causal.merge0 empty map"
+          else foldl1' (bind2 f) (fmap head <$> Map.elems m)
+          -- else foldlM1 f <$> (fmap head <$> Map.elems m)
+        h = hash (Map.keys m) -- sorted order
+    in  e <&> \e -> Merge (RawHash h) e m
 
 -- Does `h2` incorporate all of `h1`?
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
@@ -138,27 +170,14 @@ before h1 h2 = go h1 h2
   --go (Merge _ _ m1) h2@(Merge _ _ _)
   --  all (\h1 -> go h1 h2) (Map.elems m1)
 
-instance (Monad m, Semigroup e) => Semigroup (m (Causal m h e)) where
-  a <> b = do
-    x <- a
-    y <- b
-    merge x y
-
--- implementation detail, form a `Merge`
-merge0
-  :: (Applicative m, Semigroup e) => Map (C0Hash h) (m (Causal m h e)) -> m (Causal m h e)
-merge0 m =
-  let e = if Map.null m
-        then error "Causal.merge0 empty map"
-        else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
-      h = hash (Map.keys m) -- sorted order
-  in  e <&> \e -> Merge (C0Hash h) e m
-
 hash :: Hashable e => e -> Hash
 hash = Hashable.accumulate'
 
 step :: (Applicative m, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
 step f c = f (head c) `cons` c
+
+stepDistinct :: (Applicative m, Eq e, Hashable e) => (e -> e) -> Causal m h e -> Causal m h e
+stepDistinct f c = f (head c) `consDistinct` c
 
 stepIf
   :: (Applicative m, Hashable e)
@@ -172,8 +191,30 @@ stepM
   :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
 stepM f c = (`cons` c) <$> f (head c)
 
+stepDistinctM
+  :: (Applicative m, Eq e, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
+stepDistinctM f c = (`consDistinct` c) <$> f (head c)
+
 one :: Hashable e => e -> Causal m h e
-one e = One (C0Hash $ hash e) e
+one e = One (RawHash $ hash e) e
 
 cons :: (Applicative m, Hashable e) => e -> Causal m h e -> Causal m h e
-cons e tl = Cons (C0Hash $ hash [hash e, unc0hash . currentHash $ tl]) e (currentHash tl, pure tl)
+cons e tl =
+  Cons (RawHash $ hash [hash e, unRawHash . currentHash $ tl]) e (currentHash tl, pure tl)
+
+consDistinct :: (Applicative m, Eq e, Hashable e) => e -> Causal m h e -> Causal m h e
+consDistinct e tl =
+  if head tl == e then tl
+  else cons e tl
+
+transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
+transform nt c = case c of
+  One h e -> One h e
+  Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
+  Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
+
+unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
+unsafeMapHashPreserving f c = case c of
+  One h e -> One h (f e)
+  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
+  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls

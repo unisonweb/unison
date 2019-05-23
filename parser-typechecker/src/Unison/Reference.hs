@@ -11,7 +11,6 @@ module Unison.Reference
    derivedBase58,
    Component, members,
    components,
-   hashComponents,
    groupByComponent,
    componentFor,
    unsafeFromText,
@@ -32,12 +31,10 @@ import           Data.Text       (Text)
 import qualified Data.Text       as Text
 import           Data.Word       (Word64)
 import           GHC.Generics
-import qualified Unison.ABT      as ABT
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import qualified Unison.Var      as Var
 import           Data.Bytes.Get
 import           Data.Bytes.Put
 import           Data.Bytes.Serial              ( serialize
@@ -132,16 +129,6 @@ fromText t = case Text.split (=='#') t of
     _ -> bail
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
-
-hashComponents ::
-     (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)
-  => (Reference -> ABT.Term f v ())
-  -> Map.Map v (ABT.Term f v a)
-  -> Map.Map v (Reference, ABT.Term f v a)
-hashComponents embedRef tms =
-  Map.fromList [ (v, (r,e)) | ((v,e), r) <- cs ]
-  where cs = components $ ABT.hashComponents ref tms
-        ref h i n = embedRef (DerivedId (Id h i n))
 
 component :: H.Hash -> [k] -> [(k, Reference)]
 component h ks = let

@@ -10,6 +10,7 @@ import           Unison.Term                    ( AnnotatedTerm )
 import           Unison.Var                     ( Var )
 import qualified Unison.Reference as Reference
 import qualified Unison.Typechecker.TypeLookup as TL
+--import qualified Unison.Codebase.Classes as CC
 
 type Decl v a = TL.Decl v a
 

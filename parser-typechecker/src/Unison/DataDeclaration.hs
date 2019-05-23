@@ -28,6 +28,7 @@ import qualified Unison.Hashable               as Hashable
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
+import qualified Unison.Reference.Util         as Reference.Util
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
@@ -298,7 +299,7 @@ hashDecls0 :: (Eq v, Var v) => Map v (DataDeclaration' v ()) -> [(v, Reference)]
 hashDecls0 decls =
   let abts = toABT <$> decls
       ref r = ABT.tm (Type (Type.Ref r))
-      cs = Reference.hashComponents ref abts
+      cs = Reference.Util.hashComponents ref abts
   in  [ (v, r) | (v, (r, _)) <- Map.toList cs ]
 
 -- | compute the hashes of these user defined types and update any free vars

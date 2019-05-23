@@ -24,6 +24,9 @@ import qualified Unison.Term      as Term
 import           Unison.Type      (AnnotatedType)
 import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
+import qualified Unison.Names2    as Names2
+import qualified Unison.Util.Relation as R
+import qualified Unison.HashQualified as HQ
 
 unqualified :: Name -> Name
 unqualified = Name.unsafeFromText . unqualified' . Name.toText
@@ -39,7 +42,17 @@ data Names = Names
   , typeNames    :: Map Name Reference
   }
 
+-- Arya: Do we really want separate namespaces for terms and types?
 data NameTarget = TermName | TypeName deriving (Eq, Ord, Show)
+
+-- temporary hack which will not support parsing of hash-qualified anything
+fromNames2 :: Names2.Names -> Names
+fromNames2 names = Names termNames typeNames
+  where
+  termNames = Map.fromList
+    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.terms names)]
+  typeNames = Map.fromList
+    [ (n, r) | (HQ.NameOnly n, r) <- R.toList (Names2.types names)]
 
 subtractTerms :: Var v => [v] -> Names -> Names
 subtractTerms vs n = let
