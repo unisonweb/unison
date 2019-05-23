@@ -7,7 +7,6 @@ use Test passed proved failed expected unexpected pending finished label
 use Test.Scope Scope
 use Sequence flatMap
 
----
 type Test.Success = Passed Nat | Proved
 
 type Test.Status = Failed 
@@ -21,7 +20,6 @@ type Test.Report = Report (Trie Text [Test.Status])
 type Test.Test = Test (Test.Scope -> Test.Report)
 
 unique type Test.Scope = Scope [Text]
-
 
 foldSuccess : (Nat -> r) -> r -> Success -> r
 foldSuccess passed proved s = case s of
@@ -86,13 +84,13 @@ use Test.Report combine
             combine r1 r2)
 
 Test.passedWith : Text -> Test
-Test.passedWith m = label m <| passed
+Test.passedWith m = label m passed
 
 Test.provedWith : Text -> Test
-Test.provedWith m = label m <| proved
+Test.provedWith m = label m proved
 
 Test.failedWith : Text -> Test
-Test.failedWith m = Test.label m <| Test.failed
+Test.failedWith m = Test.label m Test.failed
 
 -- Report combinators
 
@@ -165,4 +163,28 @@ Success.combine s1 s2 = case (s1, s2) of
   (Proved, Passed n) -> Passed n
   (Proved, Proved) -> Proved
 
+-- Arbitrary data
+
+type Gen a = Gen (Nat -> [a])
+
+Gen.nats : Gen Nat
+Gen.nats = Gen (n -> Sequence.range 0 n)
+
+Gen.booleans : Gen Boolean
+Gen.booleans = Gen (n -> Sequence.take n [false, true])
+
+use Universal <
+
+Gen.listsOf : Gen a -> Gen [a]
+Gen.listsOf g =
+  Gen (n -> Sequence.unfold (Gen.generate n g, 0) 
+                            (s -> case s of 
+                                    (as,m) | m < n ->
+                                      Some (Sequence.take m as,(as, m + 1))
+                                    _ -> None))
+
+Gen.generate : Nat -> Gen a -> [a]
+Gen.generate n g = case g of Gen.Gen f -> f n
+
+test> Test.run (Test.provedWith "fef")
 

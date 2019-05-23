@@ -25,8 +25,11 @@ Trie.insert path v t =
 
 Trie.singleton : [k] -> v -> Trie k v
 Trie.singleton path v = 
-  if path == [] then Trie (Some v) empty 
-  else Trie.insert path v Trie.empty
+  case path of 
+    [] -> Trie (Some v) empty 
+    k +: ks -> Trie None (Map.fromSequence [(k, Trie.singleton ks v)])
+
+use Trie tail head
 
 Trie.map : (v1 -> v2) -> Trie k v1 -> Trie k v2
 Trie.map f t = Trie (map f (head t)) (map (Trie.map f) (tail t))
