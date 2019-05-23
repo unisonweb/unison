@@ -139,6 +139,7 @@ library
     Unison.Var
 
   build-depends:
+    aeson,
     ansi-terminal,
     async,
     base,
@@ -185,6 +186,7 @@ library
     regex-base,
     regex-tdfa,
     safe,
+    serialise,
     split,
     stm,
     strings,

@@ -2,17 +2,32 @@
 
 module Unison.Codebase.Serialization.Serializers
   ( TermSerializer(..)
+  , DeserializeError(..)
   , roundTrip
+  -- serializers
   , v0Serializer
   , v0SerializerCborg
   , v1Serializer
   , v1SerializerCborg
+  -- json
+  , roundTripJSON
+  , v0TermFromJson
+  , v1TermFromJson
+  , v0TermToJson
+  , v1TermToJson
+  -- testing
+  , getTermFromFile
   ) where
 
-import           Codec.CBOR.Decoding                   (Decoder)
-import           Codec.CBOR.Encoding                   (Encoding)
+import           Codec.Serialise.Decoding                   (Decoder)
+import           Codec.Serialise.Encoding                   (Encoding)
+import           Codec.CBOR.JSON                       (decodeValue,
+                                                        encodeValue)
 import qualified Codec.CBOR.Read                       as CBOR
 import qualified Codec.CBOR.Write                      as CBOR
+import           Control.Monad.IO.Class                (MonadIO, liftIO)
+import           Data.Aeson                            (Value)
+import           Data.Bifunctor                        (first,bimap)
 import qualified Data.Bytes.Get                        as Get
 import qualified Data.Bytes.Put                        as Put
 import qualified Data.ByteString                       as BS
@@ -28,15 +43,24 @@ import           Unison.Parser                         (Ann (External))
 import           Unison.Symbol                         (Symbol (..))
 import           Unison.Term                           (AnnotatedTerm)
 
+import Data.Text (Text, pack)
+import Debug.Trace (traceShowId)
+
 type Term = AnnotatedTerm Symbol Ann
 
+data DeserializeError = DeserializeError Text
+  deriving (Eq, Ord, Show)
+
 data TermSerializer = TermSerializer {
-   getTerm :: BS.ByteString -> Term
+   getTerm :: BS.ByteString -> Either DeserializeError Term
  , putTerm :: Term -> BS.ByteString
  }
 
-roundTrip :: TermSerializer -> Term -> Term
+roundTrip :: TermSerializer -> Term -> Either DeserializeError Term
 roundTrip ts = getTerm ts . putTerm ts
+
+roundTripJSON :: TermSerializer -> Term -> Either DeserializeError Term
+roundTripJSON ts t = termToJSON ts t >>= termFromJSON ts
 
 -- TODO: how to actually call this?
 -- the terms in ".unison/terms/" are compiled with V1 right?
@@ -60,7 +84,7 @@ v1Serializer = TermSerializer (deserializeTerm v1Decoder) (serializeTerm v1Encod
 
 v0SerializerCborg :: TermSerializer
 v0SerializerCborg =
-  TermSerializer (deserializeTermCborg v0DecoderCborg . BSL.fromStrict)
+  TermSerializer (deserializeTermCborg v0DecoderCborg)
                  (serializeTermCborg v0EncoderCborg)
   where
   v0DecoderCborg :: Decoder s Term
@@ -72,7 +96,7 @@ v0SerializerCborg =
 
 v1SerializerCborg :: TermSerializer
 v1SerializerCborg =
-  TermSerializer (deserializeTermCborg v1DecoderCborg . BSL.fromStrict)
+  TermSerializer (deserializeTermCborg v1DecoderCborg)
                  (serializeTermCborg v1EncoderCborg)
   where
   v1DecoderCborg :: Decoder s Term
@@ -83,8 +107,13 @@ v1SerializerCborg =
 
 --
 
-deserializeTerm :: Get.Get Term -> BS.ByteString -> Term
-deserializeTerm get = either error id . Get.runGetS get
+getTermFromFile :: MonadIO m => TermSerializer -> FilePath -> m (Either DeserializeError Term)
+getTermFromFile ts path = getTerm ts <$> liftIO (BS.readFile path)
+
+--
+
+deserializeTerm :: Get.Get Term -> BS.ByteString -> Either DeserializeError Term
+deserializeTerm get = first (DeserializeError . pack) . Get.runGetS get
 
 serializeTerm :: (forall m . Put.MonadPut m => a -> m ()) -> a -> BS.ByteString
 serializeTerm putTerm t = Put.runPutS (putTerm t)
@@ -94,6 +123,28 @@ serializeTerm putTerm t = Put.runPutS (putTerm t)
 serializeTermCborg :: (Term -> Encoding) -> Term -> BS.ByteString
 serializeTermCborg putTerm t = CBOR.toStrictByteString (putTerm t)
 
-deserializeTermCborg :: (forall s. Decoder s Term) -> BSL.ByteString -> Term
+deserializeTermCborg :: (forall s. Decoder s a) -> BS.ByteString -> Either DeserializeError a
 deserializeTermCborg decoder =
-  either (error . show) snd . CBOR.deserialiseFromBytes decoder
+  bimap (DeserializeError . pack . show) snd . CBOR.deserialiseFromBytes decoder . BSL.fromStrict
+
+---
+--- Json stuff
+---
+
+v0TermFromJson :: Value -> Either DeserializeError Term
+v0TermFromJson = termFromJSON v0SerializerCborg
+
+v0TermToJson :: Term -> Either DeserializeError Value
+v0TermToJson = termToJSON v0SerializerCborg
+
+v1TermFromJson :: Value -> Either DeserializeError Term
+v1TermFromJson = termFromJSON v1SerializerCborg
+
+v1TermToJson :: Term -> Either DeserializeError Value
+v1TermToJson = termToJSON v1SerializerCborg
+
+termToJSON :: TermSerializer -> Term -> Either DeserializeError Value
+termToJSON ts = deserializeTermCborg (decodeValue True) . traceShowId . putTerm ts
+
+termFromJSON :: TermSerializer -> Value -> Either DeserializeError Term
+termFromJSON ts = getTerm ts . CBOR.toStrictByteString . encodeValue

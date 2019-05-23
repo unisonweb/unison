@@ -1,16 +1,13 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, RankNTypes #-}
 
 module Unison.Codebase.Serialization.V0Cborg where
 
 import qualified Unison.PatternP               as Pattern
 import           Unison.PatternP                ( Pattern )
-import           Control.Applicative            ( liftA2
-                                                , liftA3
-                                                )
 import           Control.Monad                  ( replicateM )
 
-import           Codec.CBOR.Decoding
-import           Codec.CBOR.Encoding
+import           Codec.Serialise.Decoding
+import           Codec.Serialise.Encoding
 
 import           Data.Foldable                  ( toList )
 import           Data.List                      ( elemIndex )
@@ -29,6 +26,7 @@ import           Unison.Term                    ( AnnotatedTerm )
 import qualified Data.Map                      as Map
 import qualified Data.Sequence                 as Sequence
 import qualified Data.Set                      as Set
+import           Data.Word                      (Word8)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -61,6 +59,27 @@ import qualified Unison.Var                    as Var
 -- This ensures that we have a well-defined serialized form and can read
 -- and write old versions.
 
+newtype Tag = Tag Word8 deriving (Eq, Ord, Show)
+newtype Size = Size Int deriving (Eq, Ord, Show)
+
+tag :: Word8 -> Encoding
+tag = encodeWord8
+
+getTag :: Decoder s Tag
+getTag = Tag <$> decodeWord8
+
+getSize :: Decoder s Size
+getSize = Size <$> decodeListLen
+
+getDataType :: Decoder s (Tag, Size)
+getDataType = do
+  len <- getSize
+  tag <- getTag
+  return (tag, len)
+
+putDataType :: Encoding -> [Encoding] -> Encoding
+putDataType tag body = putValues (tag : body)
+
 unknownTag :: (Monad m, Show a) => String -> a -> m x
 unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++
@@ -74,9 +93,9 @@ getHash = Hash.fromBytes <$> decodeBytes
 
 putReference :: Reference -> Encoding
 putReference r = case r of
-  Reference.Builtin name -> encodeWord8 0 <> encodeString name
-  Reference.Derived hash i n -> mconcat [
-     encodeWord8 1
+  Reference.Builtin name -> putDataType (tag 0) [encodeString name]
+  Reference.Derived hash i n -> putValues [
+     tag 1
    , putHash hash
    , encodeWord64 i
    , encodeWord64 n
@@ -84,35 +103,34 @@ putReference r = case r of
   _ -> error "unpossible"
 
 getReference :: Decoder s Reference
-getReference = do
-  tag <- decodeWord8
-  case tag of
-    0 -> Reference.Builtin <$> decodeString
-    1 -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> decodeWord64 <*> decodeWord64)
-    _ -> unknownTag "Reference" tag
+getReference = getDataType >>= \case
+  (Tag 0, Size 2) -> Reference.Builtin <$> decodeString
+  (Tag 1, Size 4) -> Reference.DerivedId <$> (Reference.Id <$> getHash <*> decodeWord64 <*> decodeWord64)
+  (tag, len) -> unknownTag "Reference" (tag, len)
 
 putReferent :: Referent -> Encoding
 putReferent r = case r of
-  Referent.Ref r -> encodeWord8 0 <> putReference r
-  Referent.Con r i -> encodeWord8 1 <> putReference r <> encodeInt i
+  Referent.Ref r -> putDataType (tag 0) [putReference r]
+  Referent.Con r i -> putDataType (tag 1) [putReference r, encodeInt i]
 
 getReferent :: Decoder s Referent
-getReferent = do
-  tag <- decodeWord8
-  case tag of
-    0 -> Referent.Ref <$> getReference
-    1 -> Referent.Con <$> getReference <*> decodeInt
-    _ -> unknownTag "getReferent" tag
+getReferent = getDataType >>= \case
+  (Tag 0, Size 2) -> Referent.Ref <$> getReference
+  (Tag 1, Size 3) -> Referent.Con <$> getReference <*> decodeInt
+  (tag, len) -> unknownTag "getReferent" (tag, len)
 
 putMaybe :: Maybe a -> (a -> Encoding) -> Encoding
-putMaybe Nothing _ = encodeWord8 0
-putMaybe (Just a) putA = encodeWord8 1 <> putA a
+putMaybe Nothing _ = encodeListLen 0
+putMaybe (Just a) putA = encodeListLen 1 <> putA a
 
 getMaybe :: Decoder s a -> Decoder s (Maybe a)
-getMaybe getA = decodeWord8 >>= \tag -> case tag of
-  0 -> pure Nothing
-  1 -> Just <$> getA
-  _ -> unknownTag "Maybe" tag
+getMaybe getA = do
+  len <- getSize
+  case len of
+    Size 0 -> pure Nothing
+    Size 1 -> do !a <- getA
+                 return (Just a)
+    tag -> unknownTag "Maybe" (tag, len)
 
 putFoldable :: (Functor f, Foldable f) => f a -> (a -> Encoding) -> Encoding
 putFoldable as putA = len <> body where
@@ -129,19 +147,19 @@ putABT :: (Foldable f, Functor f, Ord v)
   -> ABT.Term f v a
   -> Encoding
 putABT putVar putA putF abt =
-  putFoldable fvs putVar <> go (ABT.annotateBound'' abt)
+  putValues [putFoldable fvs putVar, go (ABT.annotateBound'' abt)]
   where
     fvs = Set.toList $ ABT.freeVars abt
     go (ABT.Term _ (a, env) abt) = putA a <> case abt of
-      ABT.Var v      -> encodeWord8 0 <> putVarRef env v
-      ABT.Tm f       -> encodeWord8 1 <> putF go f
-      ABT.Abs v body -> encodeWord8 2 <> putVar v <> go body
-      ABT.Cycle body -> encodeWord8 3 <> go body
+      ABT.Var v      -> putDataType (tag 0) [putVarRef env v]
+      ABT.Tm f       -> putDataType (tag 1) [putF go f]
+      ABT.Abs v body -> putDataType (tag 2) [putVar v, go body]
+      ABT.Cycle body -> putDataType (tag 3) [go body]
 
     putVarRef env v = case v `elemIndex` env of
-      Just i  -> encodeWord8 0 <> encodeInt i
+      Just i  -> putDataType (tag 0) [encodeInt i]
       Nothing -> case v `elemIndex` fvs of
-        Just i -> encodeWord8 1 <> encodeInt i
+        Just i -> putDataType (tag 1) [encodeInt i]
         Nothing -> error "impossible: var not free or bound"
 
 getABT
@@ -150,36 +168,36 @@ getABT
   -> Decoder s a
   -> (forall x . Decoder s x -> Decoder s (f x))
   -> Decoder s (ABT.Term f v a)
-getABT getVar getA getF = getList getVar >>= go [] where
-  go env fvs = do
-    a <- getA
-    tag <- decodeWord8
-    case tag of
-      0 -> do
-        tag <- decodeWord8
-        case tag of
-          0 -> ABT.annotatedVar a . (env !!) <$> decodeInt
-          1 -> ABT.annotatedVar a . (fvs !!) <$> decodeInt
-          _ -> unknownTag "getABT.Var" tag
-      1 -> ABT.tm' a <$> getF (go env fvs)
-      2 -> do
-        v <- getVar
-        body <- go (v:env) fvs
-        pure $ ABT.abs' a v body
-      3 -> ABT.cycle' a <$> go env fvs
-      _ -> unknownTag "getABT" tag
+getABT getVar getA getF = getSize >>= \case
+  Size 2 ->
+    getList getVar >>= go []
+    where
+    go env fvs = do
+      a <- getA
+      getDataType >>= \case
+        (Tag 0, Size 2) -> getVarRef a env fvs
+        (Tag 1, Size 2) -> ABT.tm' a <$> getF (go env fvs)
+        (Tag 2, Size 3) -> getVar >>= \v -> ABT.abs' a v <$> go (v:env) fvs
+        (Tag 3, Size 2) -> ABT.cycle' a <$> go env fvs
+        (tag, len) -> unknownTag "getABT" (tag, len)
+
+    getVarRef a env fvs = getDataType >>= \case
+      (Tag 0, Size 2) -> ABT.annotatedVar a . (env !!) <$> decodeInt
+      (Tag 1, Size 2) -> ABT.annotatedVar a . (fvs !!) <$> decodeInt
+      (tag, len) -> unknownTag "getVarRef" (tag, len)
+  len -> unknownTag "getABT length" len
 
 
 putKind :: Kind -> Encoding
 putKind k = case k of
-  Kind.Star      -> encodeWord8 0
-  Kind.Arrow i o -> encodeWord8 1 <> putKind i <> putKind o
+  Kind.Star      -> putValues [encodeWord8 0]
+  Kind.Arrow i o -> putValues [encodeWord8 1, putKind i, putKind o]
 
 getKind :: Decoder s Kind
-getKind = decodeWord8 >>= \tag -> case tag of
-  0 -> pure Kind.Star
-  1 -> Kind.Arrow <$> getKind <*> getKind
-  _ -> unknownTag "getKind" tag
+getKind = getDataType >>= \case
+  (Tag 0, Size 1) -> pure Kind.Star
+  (Tag 1, Size 3) -> Kind.Arrow <$> getKind <*> getKind
+  (tag, len) -> unknownTag "getKind" (tag, len)
 
 putType :: (Ord v)
         => (v -> Encoding) -> (a -> Encoding)
@@ -187,93 +205,95 @@ putType :: (Ord v)
         -> Encoding
 putType putVar putA = putABT putVar putA go where
   go putChild t = case t of
-    Type.Ref r -> encodeWord8 0 <> putReference r
-    Type.Arrow i o -> encodeWord8 1 <> putChild i <> putChild o
-    Type.Ann t k -> encodeWord8 2 <> putChild t <> putKind k
-    Type.App f x -> encodeWord8 3 <> putChild f <> putChild x
-    Type.Effect e t -> encodeWord8 4 <> putChild e <> putChild t
-    Type.Effects es -> encodeWord8 5 <> putFoldable es putChild
-    Type.Forall body -> encodeWord8 6 <> putChild body
+    Type.Ref r -> putDataType (tag 0) [putReference r]
+    Type.Arrow i o -> putDataType (tag 1) [putChild i, putChild o]
+    Type.Ann t k -> putDataType (tag 2) [putChild t, putKind k]
+    Type.App f x -> putDataType (tag 3) [putChild f, putChild x]
+    Type.Effect e t -> putDataType (tag 4) [putChild e, putChild t]
+    Type.Effects es -> putDataType (tag 5) [putFoldable es putChild]
+    Type.Forall body -> putDataType (tag 6) [putChild body]
 
 getType :: (Ord v)
         => Decoder s v -> Decoder s a -> Decoder s (Type.AnnotatedType v a)
 getType getVar getA = getABT getVar getA go where
-  go getChild = decodeWord8 >>= \tag -> case tag of
-    0 -> Type.Ref <$> getReference
-    1 -> Type.Arrow <$> getChild <*> getChild
-    2 -> Type.Ann <$> getChild <*> getKind
-    3 -> Type.App <$> getChild <*> getChild
-    4 -> Type.Effect <$> getChild <*> getChild
-    5 -> Type.Effects <$> getList getChild
-    6 -> Type.Forall <$> getChild
-    _ -> unknownTag "getType" tag
+  go getChild = getDataType >>= \case
+    (Tag 0, Size 2) -> Type.Ref <$> getReference
+    (Tag 1, Size 3) -> Type.Arrow <$> getChild <*> getChild
+    (Tag 2, Size 3) -> Type.Ann <$> getChild <*> getKind
+    (Tag 3, Size 3) -> Type.App <$> getChild <*> getChild
+    (Tag 4, Size 3) -> Type.Effect <$> getChild <*> getChild
+    (Tag 5, Size 2) -> Type.Effects <$> getList getChild
+    (Tag 6, Size 2) -> Type.Forall <$> getChild
+    (tag, len) -> unknownTag "getType" (tag, len)
 
 putSymbol :: Symbol -> Encoding
-putSymbol v@(Symbol id _) = encodeWord64 id <> encodeString (Var.name v)
+putSymbol v@(Symbol id _) =
+  putValues [encodeWord64 id, encodeString (Var.name v)]
 
 getSymbol :: Decoder s Symbol
-getSymbol = Symbol <$> decodeWord64 <*> (Var.User <$> decodeString)
+getSymbol = decodeListLenOf 2 >>
+  Symbol <$> decodeWord64 <*> (Var.User <$> decodeString)
 
 putSeqOp :: Pattern.SeqOp -> Encoding
 putSeqOp = \case
-  Pattern.Cons -> encodeWord8 0
-  Pattern.Snoc -> encodeWord8 1
-  Pattern.Concat -> encodeWord8 2
+  Pattern.Cons -> tag 0
+  Pattern.Snoc -> tag 1
+  Pattern.Concat -> tag 2
   op -> error $ "unpossible SeqOp" ++ show op
 
 getSeqOp :: Decoder s Pattern.SeqOp
-getSeqOp = decodeWord8 >>= \case
-  0 -> pure Pattern.Cons
-  1 -> pure Pattern.Snoc
-  2 -> pure Pattern.Concat
+getSeqOp = getTag >>= \case
+  Tag 0 -> pure Pattern.Cons
+  Tag 1 -> pure Pattern.Snoc
+  Tag 2 -> pure Pattern.Concat
   i -> unknownTag "getSeqOp" i
 
 putPattern :: (a -> Encoding) -> Pattern a -> Encoding
 putPattern putA p = case p of
   Pattern.Unbound a
-    -> encodeWord8 0 <> putA a
+    -> putDataType (tag 0) [putA a]
   Pattern.Var a
-    -> encodeWord8 1 <> putA a
+    -> putDataType (tag 1) [putA a]
   Pattern.Boolean a b
-    -> encodeWord8 2 <> putA a <> encodeBool b
+    -> putDataType (tag 2) [putA a, encodeBool b]
   Pattern.Int a n
-    -> encodeWord8 3 <> putA a <> encodeInt64 n
+    -> putDataType (tag 3) [putA a, encodeInt64 n]
   Pattern.Nat a n
-    -> encodeWord8 4 <> putA a <> encodeWord64 n
+    -> putDataType (tag 4) [putA a, encodeWord64 n]
   Pattern.Float a n
-    -> encodeWord8 5 <> putA a <> encodeDouble n
+    -> putDataType (tag 5) [putA a, encodeDouble n]
   Pattern.Constructor a r cid ps
-    -> encodeWord8 6 <> putA a <> putReference r <> encodeInt cid
-                     <> putFoldable ps (putPattern putA)
+    -> putDataType (tag 6) [putA a, putReference r, encodeInt cid
+                    , putFoldable ps (putPattern putA)]
   Pattern.As a p
-    -> encodeWord8 7 <> putA a <> putPattern putA p
+    -> putDataType (tag 7) [putA a, putPattern putA p]
   Pattern.EffectPure a p
-    -> encodeWord8 8 <> putA a <> putPattern putA p
+    -> putDataType (tag 8) [putA a, putPattern putA p]
   Pattern.EffectBind a r cid args k
-    -> encodeWord8 9 <> putA a <> putReference r <> encodeInt cid
-                     <> putFoldable args (putPattern putA) <> putPattern putA k
+    -> putDataType (tag 9) [putA a, putReference r, encodeInt cid
+                    , putFoldable args (putPattern putA), putPattern putA k]
   Pattern.SequenceLiteral a ps
-    -> encodeWord8 10 <> putA a <> putFoldable ps (putPattern putA)
+    -> putDataType (tag 10) [putA a, putFoldable ps (putPattern putA)]
   Pattern.SequenceOp a l op r
-    -> encodeWord8 11 <> putA a <> putPattern putA l <> putSeqOp op <> putPattern putA r
+    -> putDataType (tag 11) [putA a, putPattern putA l, putSeqOp op, putPattern putA r]
   _ -> error $ "unknown pattern: " ++ show p
 
 getPattern :: Decoder s a -> Decoder s (Pattern a)
-getPattern getA = decodeWord8 >>= \tag -> case tag of
-  0 -> Pattern.Unbound <$> getA
-  1 -> Pattern.Var <$> getA
-  2 -> Pattern.Boolean <$> getA <*> decodeBool
-  3 -> Pattern.Int <$> getA <*> decodeInt64
-  4 -> Pattern.Nat <$> getA <*> decodeWord64
-  5 -> Pattern.Float <$> getA <*> decodeDouble
-  6 -> Pattern.Constructor <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA)
-  7 -> Pattern.As <$> getA <*> getPattern getA
-  8 -> Pattern.EffectPure <$> getA <*> getPattern getA
-  9 -> Pattern.EffectBind <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA) <*> getPattern getA
-  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
-  11 -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
-        where gp = getPattern getA
-  _ -> unknownTag "Pattern" tag
+getPattern getA = getDataType >>= \case
+  (Tag 0, Size 2) -> Pattern.Unbound <$> getA
+  (Tag 1, Size 2) -> Pattern.Var <$> getA
+  (Tag 2, Size 3) -> Pattern.Boolean <$> getA <*> decodeBool
+  (Tag 3, Size 3) -> Pattern.Int <$> getA <*> decodeInt64
+  (Tag 4, Size 3) -> Pattern.Nat <$> getA <*> decodeWord64
+  (Tag 5, Size 3) -> Pattern.Float <$> getA <*> decodeDouble
+  (Tag 6, Size 5) -> Pattern.Constructor <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA)
+  (Tag 7, Size 3) -> Pattern.As <$> getA <*> getPattern getA
+  (Tag 8, Size 3) -> Pattern.EffectPure <$> getA <*> getPattern getA
+  (Tag 9, Size 6) -> Pattern.EffectBind <$> getA <*> getReference <*> decodeInt <*> getList (getPattern getA) <*> getPattern getA
+  (Tag 10, Size 3) -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  (Tag 11, Size 5) -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
+              where gp = getPattern getA
+  tag -> unknownTag "Pattern" tag
 
 putTerm :: (Ord v)
         => (v -> Encoding) -> (a -> Encoding)
@@ -282,87 +302,96 @@ putTerm :: (Ord v)
 putTerm putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Term.Int n
-      -> encodeWord8 0 <> encodeInt64 n
+      -> putDataType (tag 0) [encodeInt64 n]
     Term.Nat n
-      -> encodeWord8 1 <> encodeWord64 n
+      -> putDataType (tag 1) [encodeWord64 n]
     Term.Float n
-      -> encodeWord8 2 <> encodeDouble n
+      -> putDataType (tag 2) [encodeDouble n]
     Term.Boolean b
-      -> encodeWord8 3 <> encodeBool b
+      -> putDataType (tag 3) [encodeBool b]
     Term.Text t
-      -> encodeWord8 4 <> encodeString t
+      -> putDataType (tag 4) [encodeString t]
     Term.Blank _
       -> error "can't serialize term with blanks"
     Term.Ref r
-      -> encodeWord8 5 <> putReference r
+      -> putDataType (tag 5) [putReference r]
     Term.Constructor r cid
-      -> encodeWord8 6 <> putReference r <> encodeInt cid
+      -> putDataType (tag 6) [putReference r, encodeInt cid]
     Term.Request r cid
-      -> encodeWord8 7 <> putReference r <> encodeInt cid
+      -> putDataType (tag 7) [putReference r, encodeInt cid]
     Term.Handle h a
-      -> encodeWord8 8 <> putChild h <> putChild a
+      -> putDataType (tag 8) [putChild h, putChild a]
     Term.App f arg
-      -> encodeWord8 9 <> putChild f <> putChild arg
+      -> putDataType (tag 9) [putChild f, putChild arg]
     Term.Ann e t
-      -> encodeWord8 10 <> putChild e <> putType putVar putA t
+      -> putDataType (tag 10) [putChild e, putType putVar putA t]
     Term.Sequence vs
-      -> encodeWord8 11 <> putFoldable vs putChild
+      -> putDataType (tag 11) [putFoldable vs putChild]
     Term.If cond t f
-      -> encodeWord8 12 <> putChild cond <> putChild t <> putChild f
+      -> putDataType (tag 12) [putChild cond, putChild t, putChild f]
     Term.And x y
-      -> encodeWord8 13 <> putChild x <> putChild y
+      -> putDataType (tag 13) [putChild x, putChild y]
     Term.Or x y
-      -> encodeWord8 14 <> putChild x <> putChild y
+      -> putDataType (tag 14) [putChild x, putChild y]
     Term.Lam body
-      -> encodeWord8 15 <> putChild body
+      -> putDataType (tag 15) [putChild body]
     Term.LetRec _ bs body
-      -> encodeWord8 16 <> putFoldable bs putChild <> putChild body
+      -> putDataType (tag 16) [putFoldable bs putChild, putChild body]
     Term.Let _ b body
-      -> encodeWord8 17 <> putChild b <> putChild body
+      -> putDataType (tag 17) [putChild b, putChild body]
     Term.Match s cases
-      -> encodeWord8 18 <> putChild s <> putFoldable cases (putMatchCase putA putChild)
+      -> putDataType (tag 18) [putChild s, putFoldable cases (putMatchCase putA putChild)]
 
   putMatchCase :: (a -> Encoding) -> (x -> Encoding) -> Term.MatchCase a x -> Encoding
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
-    putPattern putA pat <> putMaybe guard putChild <> putChild body
+    putValues [putPattern putA pat, putMaybe guard putChild, putChild body]
 
 getTerm :: (Ord v)
         => Decoder s v -> Decoder s a -> Decoder s (Term.AnnotatedTerm v a)
 getTerm getVar getA = getABT getVar getA go where
-  go getChild = decodeWord8 >>= \tag -> case tag of
-    0 -> Term.Int <$> decodeInt64
-    1 -> Term.Nat <$> decodeWord64
-    2 -> Term.Float <$> decodeDouble
-    3 -> Term.Boolean <$> decodeBool
-    4 -> Term.Text <$> decodeString
-    5 -> Term.Ref <$> getReference
-    6 -> Term.Constructor <$> getReference <*> decodeInt
-    7 -> Term.Request <$> getReference <*> decodeInt
-    8 -> Term.Handle <$> getChild <*> getChild
-    9 -> Term.App <$> getChild <*> getChild
-    10 -> Term.Ann <$> getChild <*> getType getVar getA
-    11 -> Term.Sequence . Sequence.fromList <$> getList getChild
-    12 -> Term.If <$> getChild <*> getChild <*> getChild
-    13 -> Term.And <$> getChild <*> getChild
-    14 -> Term.Or <$> getChild <*> getChild
-    15 -> Term.Lam <$> getChild
-    16 -> Term.LetRec False <$> getList getChild <*> getChild
-    17 -> Term.Let False <$> getChild <*> getChild
-    18 -> Term.Match <$> getChild
-                     <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
-    _ -> unknownTag "getTerm" tag
+  go getChild = getDataType >>= \case
+    (Tag 0,  Size 2) -> Term.Int <$> decodeInt64
+    (Tag 1,  Size 2) -> Term.Nat <$> decodeWord64
+    (Tag 2,  Size 2) -> Term.Float <$> decodeDouble
+    (Tag 3,  Size 2) -> Term.Boolean <$> decodeBool
+    (Tag 4,  Size 2) -> Term.Text <$> decodeString
+    (Tag 5,  Size 2) -> Term.Ref <$> getReference
+    (Tag 6,  Size 3) -> Term.Constructor <$> getReference <*> decodeInt
+    (Tag 7,  Size 3) -> Term.Request <$> getReference <*> decodeInt
+    (Tag 8,  Size 3) -> Term.Handle <$> getChild <*> getChild
+    (Tag 9,  Size 3) -> Term.App <$> getChild <*> getChild
+    (Tag 10, Size 3) -> Term.Ann <$> getChild <*> getType getVar getA
+    (Tag 11, Size 2) -> Term.Sequence . Sequence.fromList <$> getList getChild
+    (Tag 12, Size 4) -> Term.If <$> getChild <*> getChild <*> getChild
+    (Tag 13, Size 3) -> Term.And <$> getChild <*> getChild
+    (Tag 14, Size 3) -> Term.Or <$> getChild <*> getChild
+    (Tag 15, Size 2) -> Term.Lam <$> getChild
+    (Tag 16, Size 3) -> Term.LetRec False <$> getList getChild <*> getChild
+    (Tag 17, Size 3) -> Term.Let False <$> getChild <*> getChild
+    (Tag 18, Size 3) -> Term.Match <$> getChild <*> getList (getMatchCase getA getChild)
+    (tag, len) -> unknownTag "getTerm" (tag, len)
+
+  getMatchCase :: Decoder s loc -> Decoder s a -> Decoder s (Term.MatchCase loc a)
+  getMatchCase getA getChild = do
+    len <- getSize
+    case len of
+      Size 3 -> Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild
+      _ -> unknownTag "getMatchCase length" len
+
+putValues :: [Encoding] -> Encoding
+putValues es = encodeListLen (fromIntegral $ length es) <> mconcat es
 
 putPair' :: (a -> Encoding) -> (b -> Encoding) -> (a,b) -> Encoding
-putPair' putA putB (a,b) = putA a <> putB b
+putPair' putA putB (a,b) = putValues [putA a, putB b]
 
 getPair :: Decoder s a -> Decoder s b -> Decoder s (a,b)
-getPair = liftA2 (,)
+getPair getA getB = decodeListLenOf 2 >> (,) <$> getA <*> getB
 
 putTuple3' :: (a -> Encoding) -> (b -> Encoding) -> (c -> Encoding) -> (a,b,c) -> Encoding
-putTuple3' putA putB putC (a,b,c) = putA a <> putB b <> putC c
+putTuple3' putA putB putC (a,b,c) = putValues [putA a, putB b, putC c]
 
 getTuple3 :: Decoder s a -> Decoder s b -> Decoder s c -> Decoder s (a,b,c)
-getTuple3 = liftA3 (,,)
+getTuple3 getA getB getC = decodeListLenOf 2 >> (,,) <$> getA <*> getB <*> getC
 
 putRelation :: Relation a b -> (a -> Encoding) -> (b -> Encoding) -> Encoding
 putRelation r putA putB = putFoldable (Relation.toList r) (putPair' putA putB)
@@ -372,54 +401,55 @@ getRelation getA getB = Relation.fromList <$> getList (getPair getA getB)
 
 putCausal :: Causal a -> (a -> Encoding) -> Encoding
 putCausal (Causal.One hash a) putA =
-  encodeWord8 1 <> putHash hash <> putA a
+  putDataType (tag 0) [putHash hash, putA a]
 putCausal (Causal.ConsN conss tail) putA =
-  encodeWord8 2 <> putFoldable conss (putPair' putHash putA) <> putCausal tail putA
+  putDataType (tag 1) [putFoldable conss (putPair' putHash putA), putCausal tail putA]
 putCausal (Causal.Merge hash a tails) putA =
-  encodeWord8 3 <> putHash hash <> putA a <>
-    putFoldable (Map.toList tails) (putPair' putHash (`putCausal` putA))
-putCausal (Causal.Cons {}) _ =
+  putDataType (tag 2) [putHash hash, putA a,
+    putFoldable (Map.toList tails) (putPair' putHash (`putCausal` putA))]
+putCausal Causal.Cons {} _ =
   error "deserializing 'Causal': the ConsN pattern should have matched here!"
 
 getCausal :: Decoder s a -> Decoder s (Causal a)
-getCausal getA = decodeWord8 >>= \case
-  1 -> Causal.One <$> getHash <*> getA
-  2 -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
-  3 -> Causal.Merge <$> getHash <*> getA <*>
-          (Map.fromList <$> getList (getPair getHash $ getCausal getA))
-  x -> unknownTag "causal" x
+getCausal getA =
+  getDataType >>= \case
+    (Tag 0, Size 3) -> Causal.One <$> getHash <*> getA
+    (Tag 1, Size 3) -> Causal.consN <$> getList (getPair getHash getA) <*> getCausal getA
+    (Tag 2, Size 4) -> Causal.Merge <$> getHash <*> getA <*>
+                (Map.fromList <$> getList (getPair getHash $ getCausal getA))
+    (tag, len) -> unknownTag "causal" (tag, len)
 
 putTermEdit :: TermEdit -> Encoding
 putTermEdit (TermEdit.Replace r typing) =
-  encodeWord8 1 <> putReference r <> case typing of
-    TermEdit.Same -> encodeWord8 1
-    TermEdit.Subtype -> encodeWord8 2
-    TermEdit.Different -> encodeWord8 3
-putTermEdit TermEdit.Deprecate = encodeWord8 2
+  putDataType (tag 0) [putReference r, case typing of
+    TermEdit.Same -> tag 1
+    TermEdit.Subtype -> tag 2
+    TermEdit.Different -> tag 3 ]
+putTermEdit TermEdit.Deprecate = putValues [tag 1]
 
 getTermEdit :: Decoder s TermEdit
-getTermEdit = decodeWord8 >>= \case
-  1 -> TermEdit.Replace <$> getReference <*> (decodeWord8 >>= \case
-    1 -> pure TermEdit.Same
-    2 -> pure TermEdit.Subtype
-    3 -> pure TermEdit.Different
+getTermEdit = getDataType >>= \case
+  (Tag 0, Size 3) -> TermEdit.Replace <$> getReference <*> (getTag >>= \case
+    Tag 1 -> pure TermEdit.Same
+    Tag 2 -> pure TermEdit.Subtype
+    Tag 3 -> pure TermEdit.Different
     t -> unknownTag "TermEdit.Replace" t
     )
-  2 -> pure TermEdit.Deprecate
-  t -> unknownTag "TermEdit" t
+  (Tag 2, Size 1) -> pure TermEdit.Deprecate
+  (tag, len) -> unknownTag "TermEdit" (tag, len)
 
 putTypeEdit :: TypeEdit -> Encoding
-putTypeEdit (TypeEdit.Replace r) = encodeWord8 1 <> putReference r
-putTypeEdit TypeEdit.Deprecate = encodeWord8 2
+putTypeEdit (TypeEdit.Replace r) = putDataType (tag 0) [putReference r]
+putTypeEdit TypeEdit.Deprecate = putValues [tag 2]
 
 getTypeEdit :: Decoder s TypeEdit
-getTypeEdit = decodeWord8 >>= \case
-  1 -> TypeEdit.Replace <$> getReference
-  2 -> pure TypeEdit.Deprecate
-  t -> unknownTag "TypeEdit" t
+getTypeEdit = getDataType >>= \case
+  (Tag 0, Size 2) -> TypeEdit.Replace <$> getReference
+  (Tag 1, Size 1) -> pure TypeEdit.Deprecate
+  (tag, len) -> unknownTag "TypeEdit" (tag, len)
 
 putBranch :: Branch -> Encoding
-putBranch (Branch b) = putCausal b $ \b -> mconcat [
+putBranch (Branch b) = putCausal b $ \b -> putValues [
     putRelation (Branch.termNamespace b) putName putReferent
   , putRelation (Branch.typeNamespace b) putName putReference
   , putRelation (Branch.oldTermNamespace b) putName putReferent
@@ -427,33 +457,33 @@ putBranch (Branch b) = putCausal b $ \b -> mconcat [
   , putRelation (Branch.editedTerms b) putReference putTermEdit
   , putRelation (Branch.editedTypes b) putReference putTypeEdit
   ]
-
-putName :: Name -> Encoding
-putName = encodeString . Name.toText
-
-getName :: Decoder s Name
-getName = Name.unsafeFromText <$> decodeString
-
-getNamespace :: Decoder s Branch.Namespace
-getNamespace =
-  Branch.Namespace
-    <$> getRelation getName getReferent
-    <*> getRelation getName getReference
+  where
+  putName :: Name -> Encoding
+  putName = encodeString . Name.toText
 
 getBranch :: Decoder s Branch
-getBranch = Branch <$> getCausal
+getBranch = decodeListLenOf 6 >> Branch <$> getCausal
   (   Branch0
   <$> getNamespace
   <*> getNamespace
   <*> getRelation getReference getTermEdit
   <*> getRelation getReference getTypeEdit
   )
+  where
+  getNamespace :: Decoder s Branch.Namespace
+  getNamespace =
+    Branch.Namespace
+      <$> getRelation getName getReferent
+      <*> getRelation getName getReference
+
+  getName :: Decoder s Name
+  getName = Name.unsafeFromText <$> decodeString
 
 putDataDeclaration :: (Ord v)
                    => (v -> Encoding) -> (a -> Encoding)
                    -> DataDeclaration' v a
                    -> Encoding
-putDataDeclaration putV putA decl = mconcat [
+putDataDeclaration putV putA decl = putValues [
    putModifier (DataDeclaration.modifier decl)
  , putA (DataDeclaration.annotation decl)
  , putFoldable (DataDeclaration.bound decl) putV
@@ -461,21 +491,22 @@ putDataDeclaration putV putA decl = mconcat [
  ]
 
 getDataDeclaration :: (Ord v) => Decoder s v -> Decoder s a -> Decoder s (DataDeclaration' v a)
-getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
-  getModifier <*>
-  getA <*>
-  getList getV <*>
-  getList (getTuple3 getA getV (getType getV getA))
+getDataDeclaration getV getA = decodeListLenOf 4 >>
+  DataDeclaration.DataDeclaration <$>
+    getModifier <*>
+    getA <*>
+    getList getV <*>
+    getList (getTuple3 getA getV (getType getV getA))
 
 putModifier :: DataDeclaration.Modifier -> Encoding
-putModifier DataDeclaration.Structural   = encodeWord8 0
-putModifier (DataDeclaration.Unique txt) = encodeWord8 1 <> encodeString txt
+putModifier DataDeclaration.Structural   = putValues [tag 0]
+putModifier (DataDeclaration.Unique txt) = putValues [encodeWord8 1, encodeString txt]
 
 getModifier :: Decoder s DataDeclaration.Modifier
-getModifier = decodeWord8 >>= \case
-  0 -> pure DataDeclaration.Structural
-  1 -> DataDeclaration.Unique <$> decodeString
-  tag -> unknownTag "DataDeclaration.Modifier" tag
+getModifier =  getDataType >>= \case
+  (Tag 0, Size 1) -> pure DataDeclaration.Structural
+  (Tag 1, Size 2) -> DataDeclaration.Unique <$> decodeString
+  (tag, len) -> unknownTag "DataDeclaration.Modifier" (tag, len)
 
 putEffectDeclaration ::
   (Ord v) => (v -> Encoding) -> (a -> Encoding) -> EffectDeclaration' v a -> Encoding
@@ -487,11 +518,13 @@ getEffectDeclaration getV getA =
   DataDeclaration.EffectDeclaration <$> getDataDeclaration getV getA
 
 putEither :: (a -> Encoding) -> (b -> Encoding) -> Either a b -> Encoding
-putEither putL _ (Left a) = encodeWord8 0 <> putL a
-putEither _ putR (Right b) = encodeWord8 1 <> putR b
+putEither putL _ (Left a) = putDataType (tag 0) [putL a]
+putEither _ putR (Right b) = putDataType (tag 1) [putR b]
 
 getEither :: Decoder s a -> Decoder s b -> Decoder s (Either a b)
-getEither getL getR = decodeWord8 >>= \case
-  0 -> Left <$> getL
-  1 -> Right <$> getR
-  tag -> unknownTag "Either" tag
+getEither getL getR = getDataType >>= \case
+  (Tag 0, Size 2) -> do !a <- getL
+                        return (Left a)
+  (Tag 1, Size 2) -> do !b <- getR
+                        return (Right b)
+  (tag, len) -> unknownTag "Either" (tag, len)

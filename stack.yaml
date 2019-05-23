@@ -18,6 +18,7 @@ extra-deps:
 - relation-0.2.1
 - guid-0.1.0
 - cborg-json-0.2.1.0@sha256:af9137557002ca5308fe80570a9a29398dfb9708423870875223796760689ac3
+- serialise-0.2.1.0@sha256:8d6051f64c6ebfaf705195dd0b8dfb667617f2e674b290ed2e44985009e4f951
 
 ghc-options:
  # All packages

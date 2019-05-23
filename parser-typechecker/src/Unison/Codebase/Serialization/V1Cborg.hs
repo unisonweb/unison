@@ -4,8 +4,8 @@ module Unison.Codebase.Serialization.V1Cborg where
 
 import qualified Unison.PatternP               as Pattern
 import           Unison.PatternP                ( Pattern )
-import           Codec.CBOR.Decoding
-import           Codec.CBOR.Encoding
+import           Codec.Serialise.Decoding
+import           Codec.Serialise.Encoding
 import           Control.Applicative            ( liftA2
                                                 , liftA3
                                                 )
