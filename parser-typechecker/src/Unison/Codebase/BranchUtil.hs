@@ -27,19 +27,23 @@ getTerm (p, hq) b = case hq of
   terms = Branch._terms (Branch.getAt0 p b)
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
-getType (p, hq) b = case hq of
+getType (p, hq) root = case hq of
     NameOnly n -> R.lookupDom n types
     HashOnly sh -> filter sh $ Branch.deepTypeReferences b
     HashQualified n sh -> filter sh $ R.lookupDom n types
   where
+  b = Branch.getAt0 p b
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
-  types = Branch._types (Branch.getAt0 p b)
+  types = Branch._types b
 
-getTerm' :: Set BranchTarget -> Path.HQSplit -> Branch0 m -> Set Referent
-getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty
+addTermName :: Branch0 m -> Path.Split -> Referent -> Branch0 m
+addTermName = undefined
 
-getType' :: Set BranchTarget -> Path.HQSplit -> Branch0 m -> Set Reference
-getType' t = if Set.member TargetType t then getType else \_ _ -> mempty
+-- getTerm' :: Set BranchTarget -> Path.HQSplit -> Branch0 m -> Set Referent
+-- getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty
+
+-- getType' :: Set BranchTarget -> Path.HQSplit -> Branch0 m -> Set Reference
+-- getType' t = if Set.member TargetType t then getType else \_ _ -> mempty
 
 -- getAt :: Path.HQSplit ->
 

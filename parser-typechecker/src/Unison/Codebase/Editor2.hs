@@ -167,10 +167,16 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI BranchPath
-    -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) Path.HQSplit' Path.Split'
-    | DeleteI (Set NameTarget) [Path.HQSplit']
-    | RenameI (Set NameTarget) Path.HQSplit' Path'
+    | AliasTermI Path.HQSplit' Path.Split'
+    | AliasTypeI Path.HQSplit' Path.Split'
+    -- Move = Rename
+    | MoveTermI Path.HQSplit' Path.Split'
+    | MoveTypeI Path.HQSplit' Path.Split'
+    | MoveBranchI Path.Split' Path.Split'
+    | DeleteDefnI [Path.HQSplit']
+    | DeleteTermI Path.HQSplit'
+    | DeleteTypeI Path.HQSplit'
+    | DeleteBranchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.

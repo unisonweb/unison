@@ -50,6 +50,7 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 , Edits, BranchEntry
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import           Unison.Codebase.Editor2        ( Command(..)
                                                 , Input(..)
                                                 , Output(..)
@@ -151,6 +152,7 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
+  root'        <- use root
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
@@ -245,43 +247,47 @@ loop = do
         branch' <- loadBranchAt Local path
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
-      AliasI targets srcHQ destName -> do
-        -- Discussion: What should the syntax be for all these things?
-        -- .libs.blah.poo
-        -- /libs/blah/Poo.poo
-        -- .libs.blah> cd ../../apps/blah2
-        -- .libs.blah> up; up; cd apps/blah2
-        -- import .........apps.Notepad as Notepad
-        -- Option1: a mix of . and /
-        -- Option2: some / followed by some .
-        (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-        let (destPath, destNameSeg) = toAbsoluteSplit destName
-        let -- todo: could probably factor these two out, too
-            doTermConditionally =
-              if Set.notMember Editor.TermName' targets then id
-              else ifUniqueTermHQ srcNamesSeg srcNames0 hq
-                    (`Branch.addTermName` destNameSeg)
-            doTypeConditionally =
-              if Set.notMember Editor.TypeName' targets then id
-              else ifUniqueTypeHQ srcNamesSeg srcNames0 hq
-                    (`Branch.addTypeName` destNameSeg)
-        stepAtM destPath $ \b0 -> do
-          let (b0', r') = doTermConditionally . doTypeConditionally $
-                (b0, Editor.NameChangeResult mempty mempty mempty)
-          respond $ AliasOutput currentPath' srcHQ destName r'
-          pure b0'
-      RenameI targets srcHQ destName -> do
-        (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-        let (_destPath, _destNameSeg) = unsnocPath' destName
-            -- doTermConditionally =
-            --   if Set.notMember Editor.TermName targets then id
-            --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
-            -- doTypeConditionally =
-            --   if Set.notMember Editor.TypeName targets then id
-            --   else ifUniqueTypeHQ srcNamesSeg srcNames0 hq renameType
-            -- doBranchConditionally = error "todo"
-            -- renameTerm r =
-        error "todo"
+      AliasTermI srcHQ dest ->
+        let oneManyNone :: Set a -> (a -> b) -> (Set a -> b) -> b -> b
+            oneManyNone set one many none = case toList set of
+              a : [] -> one a
+              a : _ : _ -> many set
+              [] -> none
+        in oneManyNone (BranchUtil.getTerm (Path.fromAbsoluteSplit . toAbsoluteSplit $ srcHQ) (Branch.head root'))
+                    (error "todo: one")
+                    (error "todo: many")
+                    (error "todo: none")
+
+
+      -- AliasI targets srcHQ destName -> do
+      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
+      --   let (destPath, destNameSeg) = toAbsoluteSplit destName
+      --   let -- todo: could probably factor these two out, too
+      --       doTermConditionally =
+      --         if Set.notMember Editor.TermName' targets then id
+      --         else ifUniqueTermHQ srcNamesSeg srcNames0 hq
+      --               (`Branch.addTermName` destNameSeg)
+      --       doTypeConditionally =
+      --         if Set.notMember Editor.TypeName' targets then id
+      --         else ifUniqueTypeHQ srcNamesSeg srcNames0 hq
+      --               (`Branch.addTypeName` destNameSeg)
+      --   stepAtM destPath $ \b0 -> do
+      --     let (b0', r') = doTermConditionally . doTypeConditionally $
+      --           (b0, Editor.NameChangeResult mempty mempty mempty)
+      --     respond $ AliasOutput currentPath' srcHQ destName r'
+      --     pure b0'
+      -- RenameI targets srcHQ destName -> do
+      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
+      --   let (_destPath, _destNameSeg) = unsnocPath' destName
+      --       -- doTermConditionally =
+      --       --   if Set.notMember Editor.TermName targets then id
+      --       --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
+      --       -- doTypeConditionally =
+      --       --   if Set.notMember Editor.TypeName targets then id
+      --       --   else ifUniqueTypeHQ srcNamesSeg srcNames0 hq renameType
+      --       -- doBranchConditionally = error "todo"
+      --       -- renameTerm r =
+      --   error "todo"
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Editor.Type v Ann)
@@ -813,6 +819,9 @@ setAt p b = updateAtM p (const . pure $ b)
 
 stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt p f = updateAtM p (pure . Branch.step f)
+
+-- stepAtMany :: Applicative m => [(Path.Absolute, Branch0 m -> Branch0 m)] -> Action m i v ()
+-- stepAtMany steps =
 
 stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
 stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)

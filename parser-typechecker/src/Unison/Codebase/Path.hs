@@ -49,6 +49,14 @@ type HQSplit' = (Path', HQSegment)
 type SplitAbsolute = (Absolute, NameSegment)
 type HQSplitAbsolute = (Absolute, HQSegment)
 
+-- Discussion: What should the syntax be for all these things?
+-- .libs.blah.poo
+-- /libs/blah/Poo.poo
+-- .libs.blah> cd ../../apps/blah2
+-- .libs.blah> up; up; cd apps/blah2
+-- import .........apps.Notepad as Notepad
+-- Option1: a mix of . and /
+-- Option2: some / followed by some .
 parsePath :: Text -> Either String Path'
 parsePath = error "todo"
 

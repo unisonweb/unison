@@ -1,6 +1,7 @@
 -- {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -352,24 +353,43 @@ step f = over history (Causal.stepDistinct f)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
--- todo: consider adding logic somewhere to skip the cons if `f` is a no-op.
-stepAt :: (Monad n, Applicative m)
+stepAt :: forall m. Applicative m
        => Path
        -> (Branch0 m -> Branch0 m)
        -> Branch m
-       -> n (Branch m)
-stepAt path f = stepAtM path (pure . f)
+       -> Branch m
+stepAt p f b = modifyAt p g b where
+  g :: Branch m -> Branch m
+  g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
+
+-- stepManyAt consolidates several changes into a single step, by starting at the leaves and working up to the root
+stepManyAt :: Applicative m => Set (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+stepManyAt = error "todo"
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
-
-stepAtM :: forall n m. (Monad n, Applicative m)
+stepAtM :: forall n m. (Functor n, Applicative m)
         => Path -> (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
 stepAtM p f b = modifyAtM p g b where
   g :: Branch m -> n (Branch m)
   g (Branch b) = do
     b0' <- f (Causal.head b)
     pure $ Branch . Causal.consDistinct b0' $ b
+
+-- Creates a function to fix up the children field._1
+-- If the action emptied a child, then remove the mapping,
+-- otherwise update it.
+-- Todo: Fix this in hashing & serialization instead of here?
+getChildBranch :: NameSegment -> Branch0 m -> Branch m
+getChildBranch seg b = maybe empty snd $ Map.lookup seg (_children b)
+
+updateChildren ::
+  NameSegment -> Branch m -> Map NameSegment (Hash, Branch m)
+                          -> Map NameSegment (Hash, Branch m)
+updateChildren seg updatedChild =
+  if isEmpty (head updatedChild)
+  then Map.delete seg
+  else Map.insert seg (headHash updatedChild, updatedChild)
 
 -- Modify the Branch at `path` with `f`, after creating it if necessary.
 -- Because it's a `Branch`, it overwrites the history at `path`.
@@ -389,18 +409,11 @@ modifyAtM
   -> n (Branch m)
 modifyAtM path f b = case Path.toList path of
   [] -> f b
-  seg : path -> let
-    -- fixup :: ChildMap -> ChildMap
-    fixup seg b =
-      if isEmpty (head b)
-      then Map.delete seg
-      else Map.insert seg (headHash b, b)
-    child = case Map.lookup seg (_children $ head b) of
-      Nothing -> empty
-      Just (_h, b) -> b
-    in modifyAtM (Path.fromList path) f child <&>
-        \child' -> step (over children (fixup seg child')) b
-
+  seg : path -> do -- Functor
+    let child = getChildBranch seg (head b)
+    child' <- modifyAtM (Path.fromList path) f child
+    -- step the branch by updating its children according to fixup
+    pure $ step (over children (updateChildren seg child')) b
 
 instance Hashable (Branch0 m) where
   tokens b =
