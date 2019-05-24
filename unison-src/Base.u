@@ -14,7 +14,7 @@ use Optional None Some
 
 -- Function composition
 andThen : (a -> b) -> (b -> c) -> a -> c
-andThen f g x = g (f x) 
+andThen f g x = g (f x)
 
 const : a -> b -> a
 const a _ = a
@@ -118,6 +118,14 @@ namespace Sequence where
       Some a -> if Set.contains a seen then go (i + 1) seen acc
                 else go (i + 1) (Set.insert a seen) (acc `snoc` a)
     go 0 Set.empty []
+
+  intersperse : a -> [a] -> [a]
+  intersperse a as = case as of
+    [] -> []
+    hd +: tl -> cons hd (flatMap (e -> [a,e]) tl)
+
+-- > intersperse 0 [1,2,3,4,5]
+-- > intersperse 0 []
 
 -- > Sequence.foldb "" (t t2 -> "(" ++ t ++ " " ++ t2 ++ ")") (x -> x) ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Gerald", "Henry"]
 
@@ -410,7 +418,7 @@ namespace Optional where
     Some a -> a
 
   orElse : Optional a -> Optional a -> Optional a
-  orElse a b = case a of 
+  orElse a b = case a of
     None -> b
     Some _ -> a
 
@@ -422,3 +430,16 @@ namespace Optional where
   map2 : (a -> b -> c) -> Optional a -> Optional b -> Optional c
   map2 f oa ob = flatMap (a -> map (f a) ob) oa
 
+namespace Text where
+
+  concatenate : [Text] -> Text
+  concatenate ts = Sequence.foldb id (++) "" ts
+
+  sep : Text -> [Text] -> Text
+  sep s ts = intercalateMap s id ts
+
+  intercalateMap : Text -> (a -> Text) -> [a] -> Text
+  intercalateMap sep f a =
+    a |> Sequence.map f
+      |> Sequence.intersperse sep
+      |> concatenate
