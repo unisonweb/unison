@@ -55,7 +55,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as OldNames
 import           Unison.Names2                  ( Names )
 import qualified Unison.Names2                 as Names
-import           Unison.Codebase.Path           ( Path, Path', HQPath' )
+import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -167,10 +167,16 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI BranchPath
-    -- the last segment of the path may be hash-qualified
-    | AliasI (Set DefnTarget) HQPath' Path'
-    | DeleteI (Set NameTarget) [HQPath']
-    | RenameI (Set NameTarget) HQPath' Path'
+    | AliasTermI Path.HQSplit' Path.Split'
+    | AliasTypeI Path.HQSplit' Path.Split'
+    -- Move = Rename
+    | MoveTermI Path.HQSplit' Path.Split'
+    | MoveTypeI Path.HQSplit' Path.Split'
+    | MoveBranchI Path.Split' Path.Split'
+    | DeleteDefnI [Path.HQSplit']
+    | DeleteTermI Path.HQSplit'
+    | DeleteTypeI Path.HQSplit'
+    | DeleteBranchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
@@ -254,8 +260,8 @@ data Output v
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   -- AliasOutput currentPath src dest result
-  | AliasOutput Path.Absolute HQPath' Path' NameChangeResult
-  | RenameOutput Path.Absolute HQPath' Path' NameChangeResult
+  | AliasOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
+  | RenameOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -366,7 +372,7 @@ data Command m i v a where
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
-  Typecheck :: (AmbientAbilities v)
+  Typecheck :: AmbientAbilities v
             -> Names
             -> SourceName
             -> Source
@@ -738,8 +744,7 @@ commandLine
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine awaitInput rt notifyUser codebase command = do
-  Free.fold go command
+commandLine awaitInput rt notifyUser codebase command = Free.fold go command
  where
   go :: forall x . Command IO i v x -> IO x
   go = \case

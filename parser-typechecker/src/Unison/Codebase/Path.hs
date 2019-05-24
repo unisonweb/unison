@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
 
 module Unison.Codebase.Path
   -- ( Name(..)
@@ -39,24 +38,40 @@ newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
 newtype Relative = Relative Path deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
-type HashQualifiedSegment = HQ.HashQualified' NameSegment
+type HQSegment = HQ.HashQualified' NameSegment
 
-newtype HashQualified p =
-  HashQualified { unsnocHashQualified :: (p, HashQualifiedSegment)}
-  deriving (Eq, Ord, Show, Functor)
+type Split = (Path, NameSegment)
+type HQSplit = (Path, HQSegment)
 
-type HQPath' = HashQualified Path'
+type Split' = (Path', NameSegment)
+type HQSplit' = (Path', HQSegment)
 
+type SplitAbsolute = (Absolute, NameSegment)
+type HQSplitAbsolute = (Absolute, HQSegment)
+
+-- Discussion: What should the syntax be for all these things?
+-- .libs.blah.poo
+-- /libs/blah/Poo.poo
+-- .libs.blah> cd ../../apps/blah2
+-- .libs.blah> up; up; cd apps/blah2
+-- import .........apps.Notepad as Notepad
+-- Option1: a mix of . and /
+-- Option2: some / followed by some .
 parsePath :: Text -> Either String Path'
 parsePath = error "todo"
 
-parseHashQualified :: Text -> Either String (HashQualified Path')
+parseHashQualified :: Text -> Either String HQSplit'
 parseHashQualified = error "todo"
 
-toAbsoluteHashQualified ::
-  Absolute -> HashQualified Path' -> HashQualified Absolute
-toAbsoluteHashQualified a = fmap (toAbsolutePath a)
+toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
+toAbsoluteSplit a (p, s) = (toAbsolutePath a p, s)
 
+fromSplit' :: (Path', a) -> (Path, a)
+fromSplit' (Path' (Left (Absolute p)), a) = (p, a)
+fromSplit' (Path' (Right (Relative p)), a) = (p, a)
+
+fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
+fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
 absoluteEmpty = Absolute (Path mempty)
