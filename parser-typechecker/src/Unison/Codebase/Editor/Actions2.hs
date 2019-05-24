@@ -276,26 +276,26 @@ loop = do
           (respond . Editor.DestTypeAlreadyExists input dest))
         -- if many terms at source
         (respond .Editor.SourceTypeAmbiguous input srcHQ)
-      MoveTermI srcHQ dest ->
-        zeroOneOrMore (BranchUtil.getTerm (resolvePath' (HQ'.toHQ <$> srcHQ)) root0)
-        (respond $ SourceTermNotFound input (HQ'.toHQ <$> srcHQ))
+      MoveTermI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest ->
+        zeroOneOrMore (BranchUtil.getTerm (resolvePath' srcHQ') root0)
+        (respond $ SourceTermNotFound input srcHQ')
         (\r -> 
           zeroOrMore (BranchUtil.getNamedTerm (fmap HQ'.NameOnly (resolvePath' dest)) root0)
             (stepManyAt 
               [BranchUtil.makeDeleteTermName (resolvePath' . fmap HQ'.toName $ srcHQ) r
               ,BranchUtil.makeAddTermName (resolvePath' dest) r])
             (respond . Editor.DestTermAlreadyExists input dest . Set.map snd))
-        (respond . Editor.SourceTermAmbiguous input (HQ'.toHQ <$> srcHQ))
-      MoveTypeI srcHQ dest -> 
-        zeroOneOrMore (BranchUtil.getType (resolvePath' (HQ'.toHQ <$> srcHQ)) root0)
-        (respond $ SourceTypeNotFound input (HQ'.toHQ <$> srcHQ))
+        (respond . Editor.SourceTermAmbiguous input srcHQ')
+      MoveTypeI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest -> 
+        zeroOneOrMore (BranchUtil.getType (resolvePath' srcHQ') root0)
+        (respond $ SourceTypeNotFound input srcHQ')
         (\r -> 
           zeroOrMore (BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0)
             (stepManyAt 
               [BranchUtil.makeDeleteTypeName (resolvePath' . fmap HQ'.toName $ srcHQ) r
               ,BranchUtil.makeAddTypeName (resolvePath' dest) r])
             (respond . Editor.DestTypeAlreadyExists input dest))
-        (respond . Editor.SourceTypeAmbiguous input (HQ'.toHQ <$> srcHQ))
+        (respond . Editor.SourceTypeAmbiguous input srcHQ')
       
       -- RenameI targets srcHQ destName -> do
       --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
