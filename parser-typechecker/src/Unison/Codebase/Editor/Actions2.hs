@@ -10,6 +10,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.Codebase.Editor.Actions2 where
@@ -82,6 +83,7 @@ import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.Names2                  ( Names, Names0, NamesSeg )
@@ -156,22 +158,26 @@ loop = do
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
-  let unsnocPath' :: Path' -> (Absolute, NameSegment)
-      unsnocPath' = fromJust
-                . fmap (first Absolute)
-                . (\(Absolute p) -> Path.unsnoc p)
-                . Path.toAbsolutePath currentPath'
-      toAbsoluteSplit :: (Path', a) -> (Absolute, a)
-      toAbsoluteSplit = Path.toAbsoluteSplit currentPath'
-      loadHqSrc ::
-        Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
-      loadHqSrc hq = do
-        let (p, seg) = toAbsoluteSplit hq
-        b <- getAt p
-        pure ( b
-             , Branch.toNamesSeg (Branch.head b)
-             , Branch.toNames0 (Branch.head b)
-             , p, seg)
+  let 
+      root0 = Branch.head root'
+      resolvePath' :: (Path', a) -> (Path, a)
+      resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      -- unsnocPath' :: Path' -> (Absolute, NameSegment)
+      -- unsnocPath' = fromJust
+      --           . fmap (first Absolute)
+      --           . (\(Absolute p) -> Path.unsnoc p)
+      --           . Path.toAbsolutePath currentPath'
+      
+      -- todo: don't need to use this version, because the NamesSeg and deepReferentes are built into the Branch0 now.
+      -- loadHqSrc ::
+      --   Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
+      -- loadHqSrc hq = do
+      --   let (p, seg) = toAbsoluteSplit hq
+      --   b <- getAt p
+      --   pure ( b
+      --        , Branch.toNamesSeg (Branch.head b)
+      --        , Branch.toNames0 (Branch.head b)
+      --        , p, seg)
 
   let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
@@ -248,34 +254,49 @@ loop = do
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
       AliasTermI srcHQ dest ->
-        let oneManyNone :: Set a -> (a -> b) -> (Set a -> b) -> b -> b
-            oneManyNone set one many none = case toList set of
-              a : [] -> one a
-              a : _ : _ -> many set
-              [] -> none
-        in oneManyNone (BranchUtil.getTerm (Path.fromAbsoluteSplit . toAbsoluteSplit $ srcHQ) (Branch.head root'))
-                    (error "todo: one")
-                    (error "todo: many")
-                    (error "todo: none")
-
-
-      -- AliasI targets srcHQ destName -> do
-      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-      --   let (destPath, destNameSeg) = toAbsoluteSplit destName
-      --   let -- todo: could probably factor these two out, too
-      --       doTermConditionally =
-      --         if Set.notMember Editor.TermName' targets then id
-      --         else ifUniqueTermHQ srcNamesSeg srcNames0 hq
-      --               (`Branch.addTermName` destNameSeg)
-      --       doTypeConditionally =
-      --         if Set.notMember Editor.TypeName' targets then id
-      --         else ifUniqueTypeHQ srcNamesSeg srcNames0 hq
-      --               (`Branch.addTypeName` destNameSeg)
-      --   stepAtM destPath $ \b0 -> do
-      --     let (b0', r') = doTermConditionally . doTypeConditionally $
-      --           (b0, Editor.NameChangeResult mempty mempty mempty)
-      --     respond $ AliasOutput currentPath' srcHQ destName r'
-      --     pure b0'
+        zeroOneOrMore
+          (BranchUtil.getTerm (resolvePath' srcHQ) root0)
+          -- if nothing at src
+          (respond $ SourceTermNotFound input srcHQ)
+          -- if unique term at source
+          (zeroOrMore (BranchUtil.getTerm (fmap HQ.NameOnly (resolvePath' dest)) root0)
+            -- if nothing at dest
+            (stepAt . BranchUtil.makeAddTermName (resolvePath' dest))
+            -- if something at dest
+            (const . respond . Editor.DestTermAlreadyExists input dest))
+          -- if many terms at source
+          (respond .Editor.SourceTermAmbiguous input srcHQ)
+      AliasTypeI srcHQ dest ->
+        zeroOneOrMore (BranchUtil.getType (resolvePath' srcHQ) root0)
+        (respond $ SourceTypeNotFound input srcHQ)
+        (\r -> zeroOrMore (BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0)
+          -- if nothing at dest
+          (stepAt $ BranchUtil.makeAddTypeName (resolvePath' dest) r)
+          -- if something at dest
+          (respond . Editor.DestTypeAlreadyExists input dest))
+        -- if many terms at source
+        (respond .Editor.SourceTypeAmbiguous input srcHQ)
+      MoveTermI srcHQ dest ->
+        zeroOneOrMore (BranchUtil.getTerm (resolvePath' (HQ'.toHQ <$> srcHQ)) root0)
+        (respond $ SourceTermNotFound input (HQ'.toHQ <$> srcHQ))
+        (\r -> 
+          zeroOrMore (BranchUtil.getNamedTerm (fmap HQ'.NameOnly (resolvePath' dest)) root0)
+            (stepManyAt 
+              [BranchUtil.makeDeleteTermName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+              ,BranchUtil.makeAddTermName (resolvePath' dest) r])
+            (respond . Editor.DestTermAlreadyExists input dest . Set.map snd))
+        (respond . Editor.SourceTermAmbiguous input (HQ'.toHQ <$> srcHQ))
+      MoveTypeI srcHQ dest -> 
+        zeroOneOrMore (BranchUtil.getType (resolvePath' (HQ'.toHQ <$> srcHQ)) root0)
+        (respond $ SourceTypeNotFound input (HQ'.toHQ <$> srcHQ))
+        (\r -> 
+          zeroOrMore (BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0)
+            (stepManyAt 
+              [BranchUtil.makeDeleteTypeName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+              ,BranchUtil.makeAddTypeName (resolvePath' dest) r])
+            (respond . Editor.DestTypeAlreadyExists input dest))
+        (respond . Editor.SourceTypeAmbiguous input (HQ'.toHQ <$> srcHQ))
+      
       -- RenameI targets srcHQ destName -> do
       --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
       --   let (_destPath, _destNameSeg) = unsnocPath' destName
@@ -814,17 +835,20 @@ getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
 
+----- These are no good because they presume we're only going to be doing one thing
+----- at a time
+
 setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
 setAt p b = updateAtM p (const . pure $ b)
 
-stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
-stepAt p f = updateAtM p (pure . Branch.step f)
+-- stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
+-- stepAt p f = updateAtM p (pure . Branch.step f)
 
--- stepAtMany :: Applicative m => [(Path.Absolute, Branch0 m -> Branch0 m)] -> Action m i v ()
--- stepAtMany steps =
+-- -- stepAtMany :: Applicative m => [(Path.Absolute, Branch0 m -> Branch0 m)] -> Action m i v ()
+-- -- stepAtMany steps =
 
-stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
-stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)
+-- stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
+-- stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)
 
 updateAtM :: Applicative m
           => Path.Absolute
@@ -836,18 +860,15 @@ updateAtM (Path.Absolute p) f = do
   root .= b'
   when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
 
--- hqToPathSeg splits a hashqualified into a Path and the NameSeg version of a
--- HashQualified.
--- todo: delete after Path.parseHashQualified is done
-hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
-hqToPathSeg = \case
-  HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
-  HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
-  HQ.HashQualified n h -> (p',HQ.HashQualified n' h) where (p',n') = splitName n
-  where
-  splitName n = (Path.toPath' p, n') where
-    (p, n') = fromMaybe (error "hq name can't be empty")
-                        (Path.unsnoc (Path.fromName n))
+stepAt :: Applicative m => (Path.Path, Branch0 m -> Branch0 m) -> Action m i v ()
+stepAt = stepManyAt . pure
+
+stepManyAt :: Applicative m => [(Path.Path, Branch0 m -> Branch0 m)] -> Action m i v ()
+stepManyAt actions = do
+    b <- use root
+    let b' = Branch.stepManyAt actions b
+    root .= b'
+    when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
 
 -- data Target = TargetType | TargetTerm | TargetBranch
 --   deriving (Eq, Ord, Show)
@@ -937,3 +958,16 @@ ifUniqueHQImpl getRefs sourceNamesSeg sourceNames0 hq target f =
             (f h b, over Editor.changedSuccessfully (Set.insert target) result)
     _   -> \(b, result) ->
             (b,     over Editor.oldNameConflicted (Set.insert target) result)
+
+-- cata for 0, 1, or more elements of a Foldable
+-- tries to match as lazily as possible
+zeroOneOrMore :: Foldable f => f a -> b -> (a -> b) -> (f a -> b) -> b
+zeroOneOrMore f zero one more = case toList f of
+  _ : _ : _ -> more f
+  a : _ -> one a
+  _ -> zero
+
+zeroOrMore :: Foldable f => f a -> b -> (f a -> b) -> b
+zeroOrMore f zero more = case toList f of
+  a : _ -> more f
+  _ -> zero

@@ -363,8 +363,9 @@ stepAt p f b = modifyAt p g b where
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
 -- stepManyAt consolidates several changes into a single step, by starting at the leaves and working up to the root
-stepManyAt :: Applicative m => Set (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+stepManyAt :: Applicative m => [(Path, Branch0 m -> Branch0 m)] -> Branch m -> Branch m
 stepManyAt = error "todo"
+-- use Unison.Util.List.groupBy to merge the Endos at each Path
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.

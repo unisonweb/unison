@@ -80,6 +80,7 @@ library
     Unison.Hash
     Unison.Hashable
     Unison.HashQualified
+    Unison.HashQualified'
     Unison.Kind
     Unison.Lexer
     Unison.Name

@@ -170,8 +170,8 @@ data Input
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
     -- Move = Rename
-    | MoveTermI Path.HQSplit' Path.Split'
-    | MoveTypeI Path.HQSplit' Path.Split'
+    | MoveTermI Path.HQ'Split' Path.Split'
+    | MoveTypeI Path.HQ'Split' Path.Split'
     | MoveBranchI Path.Split' Path.Split'
     | DeleteDefnI [Path.HQSplit']
     | DeleteTermI Path.HQSplit'
@@ -259,9 +259,12 @@ data Output v
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
-  -- AliasOutput currentPath src dest result
-  | AliasOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
-  | RenameOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
+  | DestTermAlreadyExists Input Path.Split' (Set Referent)
+  | DestTypeAlreadyExists Input Path.Split' (Set Reference)
+  | SourceTermAmbiguous Input Path.HQSplit' (Set Referent)
+  | SourceTypeAmbiguous Input Path.HQSplit' (Set Reference)
+  | SourceTermNotFound Input Path.HQSplit'
+  | SourceTypeNotFound Input Path.HQSplit'
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
