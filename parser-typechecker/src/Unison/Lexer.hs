@@ -327,7 +327,7 @@ lexer0 scope rem =
         in Token (Blank id) pos pos' : goWhitespace l pos' rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
-      '=' : (rem @ (c : _)) | isSpace c || isAlphaNum c ->
+      '=' : (rem@(c : _)) | isSpace c || isAlphaNum c ->
         let end = inc pos
         in case topBlockName l of
           -- '=' does not open a layout block if within a type declaration
@@ -335,7 +335,7 @@ lexer0 scope rem =
           Just "unique" -> Token (Reserved "=") pos end : goWhitespace l end rem
           Just _      -> Token (Open "=") pos end : pushLayout "=" l end rem
           Nothing     -> Token (Err LayoutError) pos pos : recover l pos rem
-      '-' : '>' : (rem @ (c : _))
+      '-' : '>' : (rem@(c : _))
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
           let end = incBy "->" pos
           in case topBlockName l of
@@ -441,15 +441,15 @@ numericLit s = go s
   go ('-':s) = go2 "-" s
   go s = go2 "" s
   go2 sign s = case span isDigit s of
-    (num @ (_:_), []) -> pure $ pure (sign ++ num, [])
-    (num @ (_:_), '.':rem) -> case span isDigit rem of
-      (fractional @ (_:_), []) ->
+    (num@(_:_), []) -> pure $ pure (sign ++ num, [])
+    (num@(_:_), '.':rem) -> case span isDigit rem of
+      (fractional@(_:_), []) ->
         pure $ pure (sign ++ num ++ "." ++ fractional, [])
-      (fractional @ (_:_), c:rem)
+      (fractional@(_:_), c:rem)
         | isSep c -> pure $ pure (sign ++ num ++ "." ++ fractional, c:rem)
         | otherwise -> pure Nothing
       ([], _) -> Left (MissingFractional (sign ++ num ++ "."))
-    (num @ (_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
+    (num@(_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
     ([], _) -> pure Nothing
 
 isSep :: Char -> Bool
@@ -462,7 +462,7 @@ hasSep (ch:_) = isSep ch
 -- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
 wordyId0 :: String -> Either Err (String, String)
 wordyId0 s = span' wordyIdChar s $ \case
-  (id @ (ch:_), rem) | not (Set.member id keywords)
+  (id@(ch:_), rem) | not (Set.member id keywords)
                     && wordyIdStartChar ch
                     -> Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
@@ -515,7 +515,7 @@ splitSymboly s =
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
-  (id @ (_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
+  (id@(_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool

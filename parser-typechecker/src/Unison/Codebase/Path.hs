@@ -39,6 +39,9 @@ newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
 newtype Relative = Relative Path deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
+unsplit :: Show a => (Path, a) -> Path
+unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
+
 type HQSegment = HQ.HashQualified' NameSegment
 type HQ'Segment = HQ'.HashQualified' NameSegment
 

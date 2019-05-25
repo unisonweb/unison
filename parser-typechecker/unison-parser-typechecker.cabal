@@ -53,6 +53,13 @@ library
     Unison.Codebase.Editor2
     Unison.Codebase.Editor.Actions
     Unison.Codebase.Editor.Actions2
+    Unison.Codebase.Editor.Command
+    Unison.Codebase.Editor.HandleInput
+    Unison.Codebase.Editor.HandleCommand
+    Unison.Codebase.Editor.Input
+    Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.RemoteRepo
+    Unison.Codebase.Editor.SearchResult'
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit
@@ -211,7 +218,7 @@ library
     -- RecordWildCards,
     ScopedTypeVariables,
     TupleSections
-    -- TypeApplications -- breaks lexer, need to remove space before as-patterns
+    TypeApplications
     -- ViewPatterns
 
   if flag(optimized)

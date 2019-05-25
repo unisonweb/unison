@@ -4,69 +4,33 @@
 
 module Unison.Codebase2 where
 
-import           Control.Lens
 import           Control.Monad                  ( foldM
                                                 , forM
-                                                , join
                                                 )
 import           Data.Foldable                  ( toList
-                                                , traverse_
-                                                , forM_
                                                 )
-import           Data.Function                  ( on )
-import           Data.List
 import qualified Data.Map                      as Map
-import           Data.Map                       ( Map )
 import           Data.Maybe                     ( isJust
-                                                 , catMaybes
-                                                 , fromMaybe
+                                                , fromMaybe
+                                                , catMaybes
                                                 )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
-import           Data.Traversable               ( for )
 import qualified Unison.ABT                    as ABT
-import qualified Unison.Builtin2                as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
-import           Unison.Codebase.Branch2         ( Branch0 )
-import qualified Unison.Codebase.Branch2       as Branch
-import qualified Unison.Codebase.Causal2       as Causal
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Hash                    ( Hash )
-import           Unison.HashQualified           ( HashQualified )
-import qualified Unison.HashQualified          as HQ
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
-import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
-import           Unison.Referent                ( Referent(..) )
-import qualified Unison.Referent               as Referent
-import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
-import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Type                   as Type
-import qualified Unison.TypePrinter            as TypePrinter
-import qualified Unison.Typechecker            as Typechecker
-import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile             as UF
-import           Unison.Util.ColorText          ( ColorText )
-import qualified Unison.Util.Components        as Components
-import           Unison.Util.Pretty             ( Pretty )
-import qualified Unison.Util.Pretty            as PP
-import qualified Unison.Util.Relation          as R
-import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
-
-import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a

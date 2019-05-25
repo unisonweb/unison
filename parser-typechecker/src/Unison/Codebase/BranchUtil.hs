@@ -1,9 +1,10 @@
 module Unison.Codebase.BranchUtil where
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch2 as Branch
-import Unison.Codebase.Branch2 (Branch0)
+import Unison.Codebase.Branch2 (Branch, Branch0)
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -46,6 +47,14 @@ getType (p, hq) b = case hq of
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
   types = Branch._types (Branch.getAt0 p b)
+
+getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
+getBranch (p, seg) b = case Path.toList p of
+  [] -> snd <$> Map.lookup seg (Branch._children b)
+  h : p -> 
+    (Branch.head . snd <$> Map.lookup h (Branch._children b)) >>=
+      getBranch (Path.fromList p, seg)
+        
 
 makeAddTermName, makeDeleteTermName :: 
   Path.Split -> Referent -> (Path.Path, Branch0 m -> Branch0 m)

@@ -31,4 +31,3 @@ nubOrdBy = uniqueBy
 -- prefers later copies
 uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
 uniqueBy' f = reverse . uniqueBy f . reverse . toList
-

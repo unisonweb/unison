@@ -1,6 +1,8 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-} -- this is ok
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
@@ -13,74 +15,50 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.Codebase.Editor.Actions2 where
+module Unison.Codebase.Editor.HandleInput () where
 
-import qualified Unison.Codebase.Causal2       as Causal
+import Unison.Codebase.Editor.Command
+import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Output as Output
+
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( unless
-                                                , when
+import           Control.Monad                  ( when
                                                 )
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
-                                                , get
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
-import           Data.Bifunctor                 ( first )
-import           Data.Foldable                  ( foldl', find
+import           Data.Foldable                  ( find
                                                 , toList
-                                                , traverse_
                                                 )
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
-                                                , fromJust
                                                 )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
-import           Data.Tuple.Extra               ( (&&&) )
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
-                                                , Edits, BranchEntry
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
-import           Unison.Codebase.Editor2        ( Command(..)
-                                                , Input(..)
-                                                , Output(..)
-                                                , Event(..)
-                                                , BranchPath
-                                                , EditsPath
-                                                , TermPath
-                                                , TypePath
-                                                , RepoLink(..)
-                                                , RepoRef(..)
-                                                , SearchMode(..)
-                                                , SlurpResult(..)
-                                                , DisplayThing(..)
-                                                , NameChangeResult
-                                                  ( NameChangeResult )
-                                                , collateReferences
-                                                )
+import           Unison.Codebase.Editor2        ( Event(..) )
 import qualified Unison.Codebase.Editor2        as Editor
-import           Unison.Codebase.Path           ( Absolute(..)
-                                                , NameSegment
-                                                , Path
+import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -89,13 +67,11 @@ import           Unison.Name                    ( Name )
 import           Unison.Names2                  ( Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
-import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.ShortHash as SH
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
@@ -105,13 +81,11 @@ import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
-import qualified Unison.Util.Monoid            as Monoid
-import qualified Unison.Util.Relation          as Relation
 import qualified Unison.Util.Relation          as R
-import           Unison.Util.Relation           ( Relation )
 import           Unison.Var                     ( Var )
 
 type F m i v = Free (Command m i v)
+type Type v a = Type.AnnotatedType v a
 
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
@@ -158,16 +132,17 @@ loop = do
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
-  let 
+  let
       root0 = Branch.head root'
       resolvePath' :: (Path', a) -> (Path, a)
       resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
       -- unsnocPath' :: Path' -> (Absolute, NameSegment)
       -- unsnocPath' = fromJust
       --           . fmap (first Absolute)
       --           . (\(Absolute p) -> Path.unsnoc p)
       --           . Path.toAbsolutePath currentPath'
-      
+
       -- todo: don't need to use this version, because the NamesSeg and deepReferentes are built into the Branch0 now.
       -- loadHqSrc ::
       --   Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
@@ -228,75 +203,112 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
-      ForkBranchI (RepoLink src srcPath0) destPath0 -> do
-        let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath currentPath' p
-              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath currentPath' destPath0
-        (Branch.head -> destBranch) <- loadBranchAt Local destPath
-        if not . Branch.isEmpty $ destBranch
-        then respond $ BranchAlreadyExists input destPath0
-        else do
-          srcBranch <- loadBranchAt src srcPath
-          setAt destPath srcBranch
-          success -- could give rando stats about new defns
-      MergeBranchI (RepoLink src srcPath0) destPath0 -> do
-        let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath currentPath' p
-              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath currentPath' destPath0
-        srcBranch <- loadBranchAt src srcPath
-        updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
-      SwitchBranchI path' -> do
-        path <- use $ currentPath . to (`Path.toAbsolutePath` path')
-        currentPath .= path
-        branch' <- loadBranchAt Local path
-        when (Branch.isEmpty . Branch.head $ branch')
-          (respond $ CreatedNewBranch path)
+      -- ForkBranchI (RepoLink src srcPath0) destPath0 ->
+      --   maybe srcNotFound srcOk getSrcBranch
+      --   where
+      --   srcPath = case (src, srcPath0) of
+      --     (Local, p) -> resolvePath' p
+      --     (Github{}, p) -> resolveAsAbsolute p
+      --   srcOk srcBranch = maybe (destOk srcBranch) destExists getDestBranch
+      --   destOk srcBranch = setAt destPath srcBranch
+      --   srcNotFound = respond $ Output.SourceBranchNotFound input srcPath0
+      --   destExists = respond $ Output.DestBranchAlreadyExists input destPath0
+
+
+        -- let srcPath = case (src, srcPath0) of
+        --       (Local, p) -> resolvePath' p
+        --       (Github{}, p) -> resolveAsAbsolute p
+        --     destPath = resolvePath' destPath0
+        -- maybe
+        --   (srcNotFound)
+        --   (\srcBranch ->
+        --     maybe
+        --       (\destBranch ->
+        --           undefined)
+        --       (destAlreadyExists)
+        --       (getDest))
+        --   (getSrc)
+        -- (Branch.head -> destBranch) <- loadBranchAt Local destPath
+        -- if not . Branch.isEmpty $ destBranch
+        -- then respond $ DestBranchAlreadyExists input destPath0
+        -- else do
+        --   srcBranch <- loadBranchAt src srcPath
+        --   setAt destPath srcBranch
+        --   success -- could give rando stats about new defns
+
+      -- MergeBranchI (RepoLink src srcPath0) destPath0 -> do
+      --   undefined
+
+      --   let srcPath = case (src, srcPath0) of
+      --         (Local, p) -> Path.toAbsolutePath currentPath' p
+      --         (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
+      --       destPath = Path.toAbsolutePath currentPath' destPath0
+      --   srcBranch <- loadBranchAt src srcPath
+      --   updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
+      -- SwitchBranchI path' -> do
+      --   path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+      --   currentPath .= path
+      --   branch' <- loadBranchAt Local path
+      --   when (Branch.isEmpty . Branch.head $ branch')
+      --     (respond $ CreatedNewBranch path)
       AliasTermI srcHQ dest ->
-        zeroOneOrMore
-          (BranchUtil.getTerm (resolvePath' srcHQ) root0)
-          -- if nothing at src
-          (respond $ SourceTermNotFound input srcHQ)
-          -- if unique term at source
-          (zeroOrMore (BranchUtil.getTerm (fmap HQ.NameOnly (resolvePath' dest)) root0)
-            -- if nothing at dest
-            (stepAt . BranchUtil.makeAddTermName (resolvePath' dest))
-            -- if something at dest
-            (const . respond . Editor.DestTermAlreadyExists input dest))
-          -- if many terms at source
-          (respond .Editor.SourceTermAmbiguous input srcHQ)
+        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+        where
+        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        destOk = stepAt . BranchUtil.makeAddTermName (resolvePath' dest)
+        getSrcRefs = BranchUtil.getTerm (resolvePath' srcHQ) root0
+        getDestRefs = BranchUtil.getTerm (fmap HQ.NameOnly (resolvePath' dest)) root0
+        srcNotFound = respond $ SourceTermNotFound input srcHQ
+        srcConflicted = respond . Output.SourceTermAmbiguous input srcHQ
+        destExists = respond . Output.DestTermAlreadyExists input dest
+
       AliasTypeI srcHQ dest ->
-        zeroOneOrMore (BranchUtil.getType (resolvePath' srcHQ) root0)
-        (respond $ SourceTypeNotFound input srcHQ)
-        (\r -> zeroOrMore (BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0)
-          -- if nothing at dest
-          (stepAt $ BranchUtil.makeAddTypeName (resolvePath' dest) r)
-          -- if something at dest
-          (respond . Editor.DestTypeAlreadyExists input dest))
-        -- if many terms at source
-        (respond .Editor.SourceTypeAmbiguous input srcHQ)
+        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+        where
+        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
+        getSrcRefs = BranchUtil.getType (resolvePath' srcHQ) root0
+        getDestRefs = BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0
+        srcNotFound = respond $ SourceTypeNotFound input srcHQ
+        srcConflicted = respond . Output.SourceTypeAmbiguous input srcHQ
+        destExists = respond . Output.DestTypeAlreadyExists input dest
+
       MoveTermI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest ->
-        zeroOneOrMore (BranchUtil.getTerm (resolvePath' srcHQ') root0)
-        (respond $ SourceTermNotFound input srcHQ')
-        (\r -> 
-          zeroOrMore (BranchUtil.getNamedTerm (fmap HQ'.NameOnly (resolvePath' dest)) root0)
-            (stepManyAt 
-              [BranchUtil.makeDeleteTermName (resolvePath' . fmap HQ'.toName $ srcHQ) r
-              ,BranchUtil.makeAddTermName (resolvePath' dest) r])
-            (respond . Editor.DestTermAlreadyExists input dest . Set.map snd))
-        (respond . Editor.SourceTermAmbiguous input srcHQ')
-      MoveTypeI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest -> 
-        zeroOneOrMore (BranchUtil.getType (resolvePath' srcHQ') root0)
-        (respond $ SourceTypeNotFound input srcHQ')
-        (\r -> 
-          zeroOrMore (BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0)
-            (stepManyAt 
-              [BranchUtil.makeDeleteTypeName (resolvePath' . fmap HQ'.toName $ srcHQ) r
-              ,BranchUtil.makeAddTypeName (resolvePath' dest) r])
-            (respond . Editor.DestTypeAlreadyExists input dest))
-        (respond . Editor.SourceTypeAmbiguous input srcHQ')
-      
+        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+        where
+        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        destOk r = stepManyAt
+          [ BranchUtil.makeDeleteTermName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+          , BranchUtil.makeAddTermName (resolvePath' dest) r ]
+        getSrcRefs = BranchUtil.getTerm (resolvePath' srcHQ') root0
+        getDestRefs = BranchUtil.getNamedTerm (fmap HQ'.NameOnly (resolvePath' dest)) root0
+        srcNotFound = respond $ SourceTermNotFound input srcHQ'
+        srcConflicted = respond . Output.SourceTermAmbiguous input srcHQ'
+        destExists = respond . Output.DestTermAlreadyExists input dest . Set.map snd
+
+      MoveTypeI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest ->
+        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+        where
+        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        destOk r = stepManyAt
+          [ BranchUtil.makeDeleteTypeName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+          , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
+        getSrcRefs = BranchUtil.getType (resolvePath' srcHQ') root0
+        getDestRefs = BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0
+        srcNotFound = respond $ SourceTypeNotFound input srcHQ'
+        srcConflicted = respond . Output.SourceTypeAmbiguous input srcHQ'
+        destExists = respond . Output.DestTypeAlreadyExists input dest
+
+      -- MoveBranchI src dest ->
+      --   maybe (respond $ Output.SourceBranchNotFound input src)
+      --         (\b -> maybe
+      --           (undefined)
+      --           (respond $ Output.DestBranchAlreadyExists input dest)
+      --           (BranchUtil.getBranch (resolvePath' dest) root0)
+      --         )
+      --         (BranchUtil.getBranch (resolvePath' src) root0)
+
+
       -- RenameI targets srcHQ destName -> do
       --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
       --   let (_destPath, _destNameSeg) = unsnocPath' destName
@@ -311,13 +323,13 @@ loop = do
       --   error "todo"
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
-        let termTypes :: Map.Map Reference (Editor.Type v Ann)
+        let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
-                [ (r, t) | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
+                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results ]
             (collatedTerms, collatedTypes) = collateReferences
-              (catMaybes . map Editor.tmReferent $ results)
-              (catMaybes . map Editor.tpReference $ results)
+              (catMaybes . map Output.tmReferent $ results)
+              (catMaybes . map Output.tpReference $ results)
         loadedTerms <- for collatedTerms $ \r -> case r of
           Reference.DerivedId i -> do
             tm <- eval (LoadTerm i)
@@ -344,9 +356,9 @@ loop = do
           --     <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
           --     <> Branch.prettyPrintEnv (Branch.head currentBranch')
           loc = case outputLoc of
-            Editor.ConsoleLocation    -> Nothing
-            Editor.FileLocation path  -> Just path
-            Editor.LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+            ConsoleLocation    -> Nothing
+            FileLocation path  -> Just path
+            LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
           eval . Notify $ DisplayDefinitions loc names loadedTerms loadedTypes
           -- We set latestFile to be programmatically generated, if we
@@ -582,6 +594,21 @@ searchBranchScored b score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
+-- Separates type references from term references and returns terms and types,
+-- respectively. For terms that are constructors, turns them into their data
+-- types.
+collateReferences
+  :: [Referent] -- terms requested, including ctors
+  -> [Reference] -- types requested
+  -> ([Reference], [Reference])
+collateReferences terms types =
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = terms >>= \case
+        Referent.Con r _ -> [r]
+        _                -> []
+  in  (terms', nubOrd $ types' <> types)
+
+
 
 -- Foo#123
 -- Foo#890
@@ -816,14 +843,14 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
-loadBranchAt :: RepoRef -> Path.Absolute -> Action m i v (Branch m)
-loadBranchAt repo (Path.Absolute p) = do
-  root <- eval $ LoadRootBranch repo
-  let b = Branch.getAt' p root
-  let names0 = Branch.toNames0 $ Branch.head b
-  eval $ RetrieveHashes repo (Names.typeReferences names0)
-                             (Names.termReferences names0)
-  pure b
+-- loadBranchAt :: RepoRef -> Path.Absolute -> Action m i v (Branch m)
+-- loadBranchAt repo (Path.Absolute p) = do
+--   root <- eval $ LoadRootBranch repo
+--   let b = Branch.getAt' p root
+--   let names0 = Branch.toNames0 $ Branch.head b
+--   eval $ RetrieveHashes repo (Names.typeReferences names0)
+--                              (Names.termReferences names0)
+--   pure b
 
 
 --getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
@@ -858,7 +885,7 @@ updateAtM (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
   root .= b'
-  when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
+  when (b /= b') $ eval $ SyncLocalRootBranch b'
 
 stepAt :: Applicative m => (Path.Path, Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt = stepManyAt . pure
@@ -868,7 +895,7 @@ stepManyAt actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
     root .= b'
-    when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
+    when (b /= b') $ eval $ SyncLocalRootBranch b'
 
 -- data Target = TargetType | TargetTerm | TargetBranch
 --   deriving (Eq, Ord, Show)
@@ -922,42 +949,6 @@ matchRefsImpl byName all toSH ns n0 = \case
     Set.toList
       . Set.filter ((sh `SH.isPrefixOf`) . toSH)
       $ all n0
-
--- if hq is unique in NamesSeg / Names0, apply `f` to the NameChangeResult
--- and add to `changedSuccessfully`. Or add to `oldNameConflicted` or no-op.
-ifUniqueTermHQ  :: NamesSeg
-                -> Names0
-                -> HQSegment
-                -> (Referent -> t -> t)
-                -> (t, NameChangeResult)
-                -> (t, NameChangeResult)
-ifUniqueTermHQ sourceNamesSeg sourceNames0 hq f =
-  ifUniqueHQImpl matchTermRefs sourceNamesSeg sourceNames0 hq Editor.TermName' f
-
-ifUniqueTypeHQ  :: NamesSeg
-                -> Names0
-                -> HQSegment
-                -> (Reference -> b -> b)
-                -> (b, NameChangeResult)
-                -> (b, NameChangeResult)
-ifUniqueTypeHQ sourceNamesSeg sourceNames0 hq f =
-  ifUniqueHQImpl matchTypeRefs sourceNamesSeg sourceNames0 hq Editor.TypeName' f
-
-ifUniqueHQImpl  :: (t1 -> t2 -> t3 -> [r])
-                  -> t1
-                  -> t2
-                  -> t3
-                  -> Editor.DefnTarget
-                  -> (r -> b -> b)
-                  -> (b, NameChangeResult)
-                  -> (b, NameChangeResult)
-ifUniqueHQImpl getRefs sourceNamesSeg sourceNames0 hq target f =
-  case getRefs sourceNamesSeg sourceNames0 hq of
-    []  -> id
-    [h] -> \(b, result) ->
-            (f h b, over Editor.changedSuccessfully (Set.insert target) result)
-    _   -> \(b, result) ->
-            (b,     over Editor.oldNameConflicted (Set.insert target) result)
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
