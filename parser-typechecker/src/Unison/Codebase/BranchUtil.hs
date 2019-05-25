@@ -2,6 +2,7 @@ module Unison.Codebase.BranchUtil where
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch2 as Branch
 import Unison.Codebase.Branch2 (Branch, Branch0)
@@ -51,20 +52,26 @@ getType (p, hq) b = case hq of
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
   [] -> snd <$> Map.lookup seg (Branch._children b)
-  h : p -> 
+  h : p ->
     (Branch.head . snd <$> Map.lookup h (Branch._children b)) >>=
       getBranch (Path.fromList p, seg)
-        
 
-makeAddTermName, makeDeleteTermName :: 
-  Path.Split -> Referent -> (Path.Path, Branch0 m -> Branch0 m)
+
+makeAddTermName, makeDeleteTermName ::
+  Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeAddTermName (p, name) r = (p, Branch.addTermName r name)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeAddTypeName, makeDeleteTypeName :: 
-  Path.Split -> Reference -> (Path.Path, Branch0 m -> Branch0 m)
+makeAddTypeName, makeDeleteTypeName ::
+  Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
+
+-- to delete, just set with Branch.empty
+makeSetBranch ::
+  Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
+makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
+
 
 -- setTerm :: Path.PathSplit' -> Set Referent -> Branch0 m -> Branch0 m
 -- setType :: Path.PathSplit' -> Set Reference -> Branch0 m -> Branch0 m

@@ -1,14 +1,26 @@
 module Unison.Codebase.Editor.Input
   ( Input(..)
+  , Event(..)
   , OutputLocation(..)
   ) where
 
+import           Data.Set                       ( Set )
+import           Data.Text                      ( Text )
+import qualified Unison.Codebase.Branch2       as Branch
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 
 type Edits = Path'
+
+data Event
+  = UnisonFileChanged SourceName Source
+  | IncomingRootBranch (Set Branch.Hash)
+
+type Source = Text -- "id x = x\nconst a b = a"
+type SourceName = Text -- "foo.u" or "buffer 7"
+
 
 data Input
   -- names stuff:

@@ -4,7 +4,8 @@
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ApplicativeDo       #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -12,7 +13,7 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.Codebase.Editor.HandleInput () where
@@ -38,6 +39,7 @@ import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
+                                                , mapMaybe
                                                 )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
@@ -50,8 +52,6 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
-import           Unison.Codebase.Editor2        ( Event(..) )
-import qualified Unison.Codebase.Editor2        as Editor
 import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
@@ -137,6 +137,8 @@ loop = do
       resolvePath' :: (Path', a) -> (Path, a)
       resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
+      getAtSplit :: Path.Split' -> Maybe (Branch m)
+      getAtSplit p = BranchUtil.getBranch (resolvePath' p) root0
       -- unsnocPath' :: Path' -> (Absolute, NameSegment)
       -- unsnocPath' = fromJust
       --           . fmap (first Absolute)
@@ -178,7 +180,7 @@ loop = do
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if fromMaybe False . fmap snd $ latestFile'
-        then modifying latestFile $ (fmap (const False) <$>)
+        then modifying latestFile (fmap (const False) <$>)
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
@@ -203,38 +205,22 @@ loop = do
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
     Right input -> case input of
-      -- ForkBranchI (RepoLink src srcPath0) destPath0 ->
+      ForkLocalBranchI src dest ->
+        maybe srcNotFound srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destOk b) destExists (getAtSplit dest)
+        destOk b = do
+          stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
+          success -- could give rando stats about new defns
+        srcNotFound = respond $ Output.SourceBranchNotFound input src
+        destExists _ = respond $ Output.DestBranchAlreadyExists input dest
+
+      -- MergeBranch src dest ->
       --   maybe srcNotFound srcOk getSrcBranch
       --   where
-      --   srcPath = case (src, srcPath0) of
-      --     (Local, p) -> resolvePath' p
-      --     (Github{}, p) -> resolveAsAbsolute p
-      --   srcOk srcBranch = maybe (destOk srcBranch) destExists getDestBranch
-      --   destOk srcBranch = setAt destPath srcBranch
-      --   srcNotFound = respond $ Output.SourceBranchNotFound input srcPath0
-      --   destExists = respond $ Output.DestBranchAlreadyExists input destPath0
+      --   srcOk srcBranch = undefined
+      --   getSrcBranch = BranchUtil.getBranch (resolvePath' src) root
 
-
-        -- let srcPath = case (src, srcPath0) of
-        --       (Local, p) -> resolvePath' p
-        --       (Github{}, p) -> resolveAsAbsolute p
-        --     destPath = resolvePath' destPath0
-        -- maybe
-        --   (srcNotFound)
-        --   (\srcBranch ->
-        --     maybe
-        --       (\destBranch ->
-        --           undefined)
-        --       (destAlreadyExists)
-        --       (getDest))
-        --   (getSrc)
-        -- (Branch.head -> destBranch) <- loadBranchAt Local destPath
-        -- if not . Branch.isEmpty $ destBranch
-        -- then respond $ DestBranchAlreadyExists input destPath0
-        -- else do
-        --   srcBranch <- loadBranchAt src srcPath
-        --   setAt destPath srcBranch
-        --   success -- could give rando stats about new defns
 
       -- MergeBranchI (RepoLink src srcPath0) destPath0 -> do
       --   undefined
@@ -299,15 +285,17 @@ loop = do
         srcConflicted = respond . Output.SourceTypeAmbiguous input srcHQ'
         destExists = respond . Output.DestTypeAlreadyExists input dest
 
-      -- MoveBranchI src dest ->
-      --   maybe (respond $ Output.SourceBranchNotFound input src)
-      --         (\b -> maybe
-      --           (undefined)
-      --           (respond $ Output.DestBranchAlreadyExists input dest)
-      --           (BranchUtil.getBranch (resolvePath' dest) root0)
-      --         )
-      --         (BranchUtil.getBranch (resolvePath' src) root0)
-
+      MoveBranchI src dest ->
+        maybe srcNotFound srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destOk b) destExists (getAtSplit dest)
+        destOk b = do
+          stepManyAt
+            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
+            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
+          success -- could give rando stats about new defns
+        srcNotFound = respond $ Output.SourceBranchNotFound input src
+        destExists _ = respond $ Output.DestBranchAlreadyExists input dest
 
       -- RenameI targets srcHQ destName -> do
       --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
@@ -321,6 +309,7 @@ loop = do
       --       -- doBranchConditionally = error "todo"
       --       -- renameTerm r =
       --   error "todo"
+      
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Type v Ann)
@@ -328,8 +317,8 @@ loop = do
               Map.fromList
                 [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results ]
             (collatedTerms, collatedTypes) = collateReferences
-              (catMaybes . map Output.tmReferent $ results)
-              (catMaybes . map Output.tpReference $ results)
+              (mapMaybe Output.tmReferent results)
+              (mapMaybe Output.tpReference results)
         loadedTerms <- for collatedTerms $ \r -> case r of
           Reference.DerivedId i -> do
             tm <- eval (LoadTerm i)
@@ -468,7 +457,7 @@ loop = do
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
- where
+ -- where
   {-
   doMerge branchName b = do
     updated <- eval $ SyncBranch branchName b
@@ -865,8 +854,8 @@ getAt (Path.Absolute p) =
 ----- These are no good because they presume we're only going to be doing one thing
 ----- at a time
 
-setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
-setAt p b = updateAtM p (const . pure $ b)
+--setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
+--setAt p b = updateAtM p (const . pure $ b)
 
 -- stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
 -- stepAt p f = updateAtM p (pure . Branch.step f)

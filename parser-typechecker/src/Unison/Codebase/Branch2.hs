@@ -384,6 +384,9 @@ stepAtM p f b = modifyAtM p g b where
 getChildBranch :: NameSegment -> Branch0 m -> Branch m
 getChildBranch seg b = maybe empty snd $ Map.lookup seg (_children b)
 
+setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
+setChildBranch seg b = over children (updateChildren seg b)
+
 updateChildren ::
   NameSegment -> Branch m -> Map NameSegment (Hash, Branch m)
                           -> Map NameSegment (Hash, Branch m)
@@ -414,7 +417,7 @@ modifyAtM path f b = case Path.toList path of
     let child = getChildBranch seg (head b)
     child' <- modifyAtM (Path.fromList path) f child
     -- step the branch by updating its children according to fixup
-    pure $ step (over children (updateChildren seg child')) b
+    pure $ step (setChildBranch seg child') b
 
 instance Hashable (Branch0 m) where
   tokens b =

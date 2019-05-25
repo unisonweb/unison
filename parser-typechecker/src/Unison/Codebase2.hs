@@ -11,7 +11,6 @@ import           Data.Foldable                  ( toList
                                                 )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( isJust
-                                                , fromMaybe
                                                 , catMaybes
                                                 )
 import           Data.Set                       ( Set )
