@@ -903,21 +903,19 @@ asSearchResults b =
   tp(n,r) = SR.typeResult (hashQualifiedTypeName b n r) r (hashNamesForType r b)
 
 -- note: I expect these two functions will go away
--- Returns matching search results ordered by score
-searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [SearchResult]
+-- Returns matching search results ordered by score.
+-- The order of results corresponds to the order of queries.
+searchBranch :: forall score. Ord score => Branch0 -> (Name -> Name -> Maybe score) -> [HashQualified] -> [[SearchResult]]
 searchBranch b score queries =
-  nubOrd . fmap snd . toList $
-    searchTermNamespace b score queries <> searchTypeNamespace b score queries
+  map (\q -> nubOrd . map snd . toList $ searchTermNamespace b score q <> searchTypeNamespace b score q) queries
   where
   searchTermNamespace :: forall score. Ord score =>
     Branch0
     -> (Name -> Name -> Maybe score)
-    -> [HashQualified]
+    -> HashQualified
     -> Set (Maybe score, SearchResult)
-  searchTermNamespace b score queries = foldMap do1query queries
+  searchTermNamespace b score query = foldMap (score1hq query) (R.toList . termNamespace $ b)
     where
-    do1query :: HashQualified -> Set (Maybe score, SearchResult)
-    do1query q = foldMap (score1hq q) (R.toList . termNamespace $ b)
     score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
@@ -937,12 +935,10 @@ searchBranch b score queries =
   searchTypeNamespace :: forall score. Ord score =>
     Branch0
     -> (Name -> Name -> Maybe score)
-    -> [HashQualified]
+    -> HashQualified
     -> Set (Maybe score, SearchResult)
-  searchTypeNamespace b score queries = foldMap do1query queries
+  searchTypeNamespace b score query = foldMap (score1hq query) (R.toList . typeNamespace $ b)
     where
-    do1query :: HashQualified -> Set (Maybe score, SearchResult)
-    do1query q = foldMap (score1hq q) (R.toList . typeNamespace $ b)
     -- hashNamesForTerm r b
     score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of

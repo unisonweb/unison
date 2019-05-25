@@ -76,6 +76,8 @@ notifyUser dir o = case o of
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe terms types ->
     displayDefinitions outputLoc ppe terms types
+  NotInCodebase name ->
+    putPrettyLn . warn $ "--" <> prettyHashQualified name <> " not found in the codebase."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines

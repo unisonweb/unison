@@ -11,7 +11,7 @@ module Unison.Codebase.Editor.Actions where
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( unless, when )
+import           Control.Monad                  ( (>>=), join, unless, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 , get
@@ -19,10 +19,11 @@ import           Control.Monad.State            ( StateT
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..))
 import           Data.Foldable                  ( foldl'
+                                                , for_
                                                 , toList
                                                 , traverse_
                                                 )
-import Data.List (sortOn)
+import           Data.List                      ( partition, sortOn )
 import           Data.Maybe                     ( catMaybes, fromMaybe, fromJust )
 import qualified Data.Map as Map
 import qualified Data.Text                     as Text
@@ -157,19 +158,21 @@ loop = do
             >>= respond . ListOfDefinitions currentBranch' True
         -- ls with arguments
         SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
-          let results = searchBranch currentBranch' qs Editor.FuzzySearch
+          let results = join $ searchBranch currentBranch' qs Editor.FuzzySearch
           numberedArgs .= fmap searchResultToHQString results
           eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' True
         SearchByNameI (map HQ.fromString -> qs) -> do
-          let results = searchBranch currentBranch' qs Editor.FuzzySearch
+          let results = join $ searchBranch currentBranch' qs Editor.FuzzySearch
           numberedArgs .= fmap searchResultToHQString results
           eval (LoadSearchResults results)
             >>= respond . ListOfDefinitions currentBranch' False
         ShowDefinitionI outputLoc (fmap HQ.fromString -> qs) -> do
-          results <- eval . LoadSearchResults $
-                              searchBranch currentBranch' qs Editor.ExactSearch
-          let termTypes :: Map.Map Reference (Editor.Type v Ann)
+          resultss :: [[Editor.SearchResult' v Ann]] <-
+            for (searchBranch currentBranch' qs Editor.ExactSearch) (eval . LoadSearchResults)
+          let (misses, hits) = partition (\(_, results) -> null results) (zip qs resultss)
+              results = hits >>= snd
+              termTypes :: Map.Map Reference (Editor.Type v Ann)
               termTypes = Map.fromList
                 [ (r, t)
                 | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
@@ -209,6 +212,7 @@ loop = do
                 <|> Just (Text.unpack currentBranchName' <> ".u")
           do
             eval . Notify $ DisplayDefinitions loc ppe loadedTerms loadedTypes
+            for_ misses $ eval . Notify . NotInCodebase . fst
             -- We set latestFile to be programmatically generated, if we
             -- are viewing these definitions to a file - this will skip the
             -- next update for that file (which will happen immediately)
@@ -380,8 +384,9 @@ searchResultToHQString = \case
   SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
   _ -> error "unpossible match failure"
 
--- Return a list of definitions whose names fuzzy match the given queries.
-searchBranch :: Branch -> [HashQualified] -> SearchMode -> [SearchResult]
+-- Return a list of definitions whose names match the given queries.
+-- The order of results corresponds to the order of queries.
+searchBranch :: Branch -> [HashQualified] -> SearchMode -> [[SearchResult]]
 searchBranch (Branch.head -> b) queries = \case
   ExactSearch -> Branch.searchBranch b exactNameDistance queries
   FuzzySearch -> Branch.searchBranch b fuzzyNameDistance queries

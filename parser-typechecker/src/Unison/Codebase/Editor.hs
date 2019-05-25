@@ -236,6 +236,7 @@ data Output v
   | DisplayDefinitions (Maybe FilePath) PPE.PrettyPrintEnv
                        [(Reference, DisplayThing (Term v Ann))]
                        [(Reference, DisplayThing (Decl v Ann))]
+  | NotInCodebase HashQualified
   | TodoOutput Branch (TodoOutput v Ann)
   | ListEdits Branch0
   -- new/unrepresented references followed by old/removed
