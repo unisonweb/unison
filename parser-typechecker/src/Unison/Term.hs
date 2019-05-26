@@ -28,7 +28,7 @@ import           Data.Sequence (Seq)
 import qualified Data.Sequence as Sequence
 import           Data.Word (Word64)
 import           GHC.Generics
-import           Prelude.Extras (Eq1(..), Ord1(..), Show1(..))
+import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as B
@@ -53,7 +53,7 @@ import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
-  deriving (Show,Eq,Ord,Foldable,Functor,Generic,Generic1,Traversable)
+  deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
 
 -- | Base functor for terms in the Unison language
 -- We need `typeVar` because the term and type variables may differ.
@@ -94,7 +94,7 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
-  deriving (Ord,Foldable,Functor,Generic,Generic1,Traversable)
+  deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
 
@@ -777,7 +777,6 @@ instance Var v => Hashable1 (F v a p) where
 -- mostly boring serialization code below ...
 
 instance (Eq a, Var v) => Eq1 (F v a p) where (==#) = (==)
-instance (Ord a, Var v) => Ord1 (F v a p) where compare1 = compare
 instance (Var v) => Show1 (F v a p) where showsPrec1 = showsPrec
 
 instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
