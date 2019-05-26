@@ -142,6 +142,15 @@ loop = do
       resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
       getAtSplit :: Path.Split' -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch (resolvePath' p) root0
+      getHQTypes :: Path.HQSplit' -> Set Reference
+      getHQTypes p = BranchUtil.getType (resolvePath' p) root0
+      getHQTerms :: Path.HQSplit' -> Set Referent
+      getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
+      getTypes :: Path.Split' -> Set Reference
+      getTypes = getHQTypes . fmap HQ.NameOnly
+      getTerms :: Path.Split' -> Set Referent
+      getTerms = getHQTerms . fmap HQ.NameOnly
+
       -- unsnocPath' :: Path' -> (Absolute, NameSegment)
       -- unsnocPath' = fromJust
       --           . fmap (first Absolute)
@@ -207,7 +216,17 @@ loop = do
               e'
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
-    Right input -> case input of
+    Right input ->
+      let
+        srcBranchNotFound = respond . SourceBranchNotFound input
+        srcTypeNotFound = respond . SourceTypeNotFound input
+        srcTermNotFound = respond . SourceTermNotFound input
+        srcTypeConflicted src = respond . SourceTypeAmbiguous input src
+        srcTermConflicted src = respond . SourceTermAmbiguous input src
+        destBranchExists dest _ = respond $ DestBranchAlreadyExists input dest
+        destTypeExists dest = respond . DestTypeAlreadyExists input dest
+        destTermExists dest = respond . DestTermAlreadyExists input dest
+      in case input of
       ForkLocalBranchI src dest ->
         maybe srcNotFound srcOk (getAtSplit src)
         where
@@ -239,65 +258,43 @@ loop = do
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
 
-      AliasTermI srcHQ dest ->
-        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+      AliasTermI src dest ->
+        zeroOneOrMore (getHQTerms src) (srcTermNotFound src) srcOk (srcTermConflicted src)
         where
-        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        srcOk src = zeroOrMore (getTerms dest) (destOk src) (destTermExists dest)
         destOk = stepAt . BranchUtil.makeAddTermName (resolvePath' dest)
-        getSrcRefs = BranchUtil.getTerm (resolvePath' srcHQ) root0
-        getDestRefs = BranchUtil.getTerm (fmap HQ.NameOnly (resolvePath' dest)) root0
-        srcNotFound = respond $ SourceTermNotFound input srcHQ
-        srcConflicted = respond . Output.SourceTermAmbiguous input srcHQ
-        destExists = respond . Output.DestTermAlreadyExists input dest
 
-      AliasTypeI srcHQ dest ->
-        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+      AliasTypeI src dest ->
+        zeroOneOrMore (getHQTypes src) (srcTypeNotFound src) srcOk (srcTypeConflicted src)
         where
-        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (destTypeExists dest)
         destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
-        getSrcRefs = BranchUtil.getType (resolvePath' srcHQ) root0
-        getDestRefs = BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0
-        srcNotFound = respond $ SourceTypeNotFound input srcHQ
-        srcConflicted = respond . Output.SourceTypeAmbiguous input srcHQ
-        destExists = respond . Output.DestTypeAlreadyExists input dest
 
-      MoveTermI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest ->
-        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+      MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
+        zeroOneOrMore (getHQTerms src) (srcTermNotFound src) srcOk (srcTermConflicted src)
         where
-        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        srcOk r = zeroOrMore (getTerms dest) (destOk r) (destTermExists dest)
         destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTermName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+          [ BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTermName (resolvePath' dest) r ]
-        getSrcRefs = BranchUtil.getTerm (resolvePath' srcHQ') root0
-        getDestRefs = BranchUtil.getNamedTerm (fmap HQ'.NameOnly (resolvePath' dest)) root0
-        srcNotFound = respond $ SourceTermNotFound input srcHQ'
-        srcConflicted = respond . Output.SourceTermAmbiguous input srcHQ'
-        destExists = respond . Output.DestTermAlreadyExists input dest . Set.map snd
 
-      MoveTypeI srcHQ@(fmap HQ'.toHQ -> srcHQ') dest ->
-        zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
+      MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
+        zeroOneOrMore (getHQTypes src) (srcTypeNotFound src) srcOk (srcTypeConflicted src)
         where
-        srcOk r = zeroOrMore getDestRefs (destOk r) destExists
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (destTypeExists dest)
         destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTypeName (resolvePath' . fmap HQ'.toName $ srcHQ) r
+          [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
-        getSrcRefs = BranchUtil.getType (resolvePath' srcHQ') root0
-        getDestRefs = BranchUtil.getType (fmap HQ.NameOnly (resolvePath' dest)) root0
-        srcNotFound = respond $ SourceTypeNotFound input srcHQ'
-        srcConflicted = respond . Output.SourceTypeAmbiguous input srcHQ'
-        destExists = respond . Output.DestTypeAlreadyExists input dest
 
       MoveBranchI src dest ->
-        maybe srcNotFound srcOk (getAtSplit src)
+        maybe (srcBranchNotFound src) srcOk (getAtSplit src)
         where
-        srcOk b = maybe (destOk b) destExists (getAtSplit dest)
+        srcOk b = maybe (destOk b) (destBranchExists dest) (getAtSplit dest)
         destOk b = do
           stepManyAt
             [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
             , BranchUtil.makeSetBranch (resolvePath' dest) b ]
           success -- could give rando stats about new defns
-        srcNotFound = respond $ Output.SourceBranchNotFound input src
-        destExists _ = respond $ Output.DestBranchAlreadyExists input dest
 
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
