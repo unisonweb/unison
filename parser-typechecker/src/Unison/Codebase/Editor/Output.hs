@@ -59,6 +59,7 @@ data Output v
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
   | DestBranchAlreadyExists Input Path.Split'
+  | DestBranchNotFound Input Path.Split'
   | DestTermAlreadyExists Input Path.Split' (Set Referent)
   | DestTypeAlreadyExists Input Path.Split' (Set Reference)
   | SourceTermAmbiguous Input Path.HQSplit' (Set Referent)
@@ -89,8 +90,8 @@ data Output v
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        Names
-                       [(Reference, DisplayThing (Term v Ann))]
-                       [(Reference, DisplayThing (Decl v Ann))]
+                       (Map Reference (DisplayThing (Decl v Ann)))
+                       (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names (TodoOutput v Ann)
   -- | ListEdits Edits Names
 

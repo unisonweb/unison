@@ -16,18 +16,20 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.Codebase.Editor.HandleInput () where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0) where
 
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.RemoteRepo
 
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad                  ( when
                                                 )
+import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
@@ -44,6 +46,7 @@ import           Data.Maybe                     ( catMaybes
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
+import           Data.Tuple.Extra               ((&&&))
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
@@ -215,28 +218,27 @@ loop = do
         srcNotFound = respond $ Output.SourceBranchNotFound input src
         destExists _ = respond $ Output.DestBranchAlreadyExists input dest
 
-      -- MergeBranch src dest ->
-      --   maybe srcNotFound srcOk getSrcBranch
-      --   where
-      --   srcOk srcBranch = undefined
-      --   getSrcBranch = BranchUtil.getBranch (resolvePath' src) root
+      MergeLocalBranchI src dest ->
+        maybe srcNotFound srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit dest)
+        destEmpty b =
+          ifM (confirmedCommand input)
+              (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
+              (respond $ Output.DestBranchNotFound input dest)
+        destExists srcb destb = do
+          merged <- eval . Eval $ Branch.merge srcb destb
+          stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) merged
+          success
+        srcNotFound = respond $ Output.SourceBranchNotFound input src
 
+      SwitchBranchI path' -> do
+        path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+        currentPath .= path
+        branch' <- getAt path
+        when (Branch.isEmpty . Branch.head $ branch')
+          (respond $ CreatedNewBranch path)
 
-      -- MergeBranchI (RepoLink src srcPath0) destPath0 -> do
-      --   undefined
-
-      --   let srcPath = case (src, srcPath0) of
-      --         (Local, p) -> Path.toAbsolutePath currentPath' p
-      --         (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-      --       destPath = Path.toAbsolutePath currentPath' destPath0
-      --   srcBranch <- loadBranchAt src srcPath
-      --   updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
-      -- SwitchBranchI path' -> do
-      --   path <- use $ currentPath . to (`Path.toAbsolutePath` path')
-      --   currentPath .= path
-      --   branch' <- loadBranchAt Local path
-      --   when (Branch.isEmpty . Branch.head $ branch')
-      --     (respond $ CreatedNewBranch path)
       AliasTermI srcHQ dest ->
         zeroOneOrMore getSrcRefs srcNotFound srcOk srcConflicted
         where
@@ -297,30 +299,17 @@ loop = do
         srcNotFound = respond $ Output.SourceBranchNotFound input src
         destExists _ = respond $ Output.DestBranchAlreadyExists input dest
 
-      -- RenameI targets srcHQ destName -> do
-      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-      --   let (_destPath, _destNameSeg) = unsnocPath' destName
-      --       -- doTermConditionally =
-      --       --   if Set.notMember Editor.TermName targets then id
-      --       --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
-      --       -- doTypeConditionally =
-      --       --   if Set.notMember Editor.TypeName targets then id
-      --       --   else ifUniqueTypeHQ srcNamesSeg srcNames0 hq renameType
-      --       -- doBranchConditionally = error "todo"
-      --       -- renameTerm r =
-      --   error "todo"
-      
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
                 [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results ]
-            (collatedTerms, collatedTypes) = collateReferences
-              (mapMaybe Output.tmReferent results)
+            (collatedTypes, collatedTerms) = collateReferences
               (mapMaybe Output.tpReference results)
-        loadedTerms <- for collatedTerms $ \r -> case r of
-          Reference.DerivedId i -> do
+              (mapMaybe Output.tmReferent results)
+        loadedTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+          r@(Reference.DerivedId i) -> do
             tm <- eval (LoadTerm i)
             -- We add a type annotation to the term using if it doesn't
             -- already have one that the user provided
@@ -329,11 +318,12 @@ loop = do
               Just (tm, typ) -> case tm of
                 Term.Ann' _ _ -> RegularThing tm
                 _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-          Reference.Builtin _ -> pure (r, BuiltinThing)
-        loadedTypes <- for collatedTypes $ \r -> case r of
-          Reference.DerivedId i ->
+          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+        loadedTypes <- fmap Map.fromList . for (toList collatedTypes) $ \case
+          r@(Reference.DerivedId i) ->
             (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
-          Reference.Builtin _ -> pure (r, BuiltinThing)
+          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+
         -- makes sure that the user search terms get used as the names
         -- in the pretty-printer
         let
@@ -349,7 +339,7 @@ loop = do
             FileLocation path  -> Just path
             LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify $ DisplayDefinitions loc names loadedTerms loadedTypes
+          eval . Notify $ DisplayDefinitions loc names loadedTypes loadedTerms
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -495,11 +485,11 @@ loop = do
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
 
--- confirmedCommand :: Input -> Action m i v Bool
--- confirmedCommand i = do
---   i0 <- use lastInput
---   pure $ Just i == i0
---
+confirmedCommand :: Input -> Action m i v Bool
+confirmedCommand i = do
+  i0 <- use lastInput
+  pure $ Just i == i0
+
 -- loadBranch :: BranchName -> Action m i v (Maybe Branch)
 -- loadBranch = eval . LoadBranch
 
@@ -583,21 +573,19 @@ searchBranchScored b score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
--- Separates type references from term references and returns terms and types,
+-- Separates type references from term references and returns types and terms,
 -- respectively. For terms that are constructors, turns them into their data
 -- types.
 collateReferences
-  :: [Referent] -- terms requested, including ctors
-  -> [Reference] -- types requested
-  -> ([Reference], [Reference])
-collateReferences terms types =
+  :: Foldable f
+  => Foldable g
+  => f Reference -- types requested
+  -> g Referent -- terms requested, including ctors
+  -> (Set Reference, Set Reference)
+collateReferences (toList -> types) (toList -> terms) =
   let terms' = [ r | Referent.Ref r <- terms ]
-      types' = terms >>= \case
-        Referent.Con r _ -> [r]
-        _                -> []
-  in  (terms', nubOrd $ types' <> types)
-
-
+      types' = [ r | Referent.Con r _ <- terms ]
+  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
 -- Foo#123
 -- Foo#890
@@ -832,15 +820,16 @@ respond output = eval $ Notify output
 --   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
 --     targetBranchName
 
--- loadBranchAt :: RepoRef -> Path.Absolute -> Action m i v (Branch m)
--- loadBranchAt repo (Path.Absolute p) = do
---   root <- eval $ LoadRootBranch repo
---   let b = Branch.getAt' p root
---   let names0 = Branch.toNames0 $ Branch.head b
---   eval $ RetrieveHashes repo (Names.typeReferences names0)
---                              (Names.termReferences names0)
---   pure b
-
+loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
+loadRemoteBranchAt repo (Path.Absolute p) = do
+  root <- eval $ LoadRemoteRootBranch repo
+  let b = Branch.getAt' p root
+  let (types, terms) = collateReferences types0 terms0
+        where
+        types0 = Branch.deepTypeReferences (Branch.head root)
+        terms0 = Branch.deepReferents (Branch.head root)
+  eval $ RetrieveHashes repo types terms
+  pure b
 
 --getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
 --getAt p = go <$> use root where

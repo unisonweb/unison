@@ -21,15 +21,19 @@ import qualified Unison.Codebase.Editor.Output       as E
 
 -- import Debug.Trace
 import           Control.Monad                 (unless)
-import           Data.Bifunctor                (bimap)
+import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn)
 import           Data.List.Extra               (nubOrdOn)
 import           Data.ListLike                 (ListLike)
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
+import           Data.Set                      (Set)
 import           Data.String                   (IsString, fromString)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
+import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
@@ -83,8 +87,8 @@ notifyUser dir o = case o of
   -- Success (MergeBranchI _ _) ->
   --   putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  DisplayDefinitions outputLoc names terms types ->
-    displayDefinitions outputLoc names terms types
+  DisplayDefinitions outputLoc names types terms ->
+    displayDefinitions outputLoc names types terms
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -250,13 +254,13 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
-displayDefinitions :: Var v =>
+displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> Names
-  -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
-  -> [(Reference.Reference, DisplayThing (Codebase.Decl v a1))]
+  -> Map Reference.Reference (DisplayThing (Codebase.Decl v a1))
+  -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
-displayDefinitions outputLoc names terms types =
+displayDefinitions outputLoc names types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
   ppe = PPE.fromNames2 names
@@ -286,16 +290,17 @@ displayDefinitions outputLoc names terms types =
           "to replace the definitions currently in this branch."
        ]
   code = P.sep "\n\n" (prettyTypes <> prettyTerms)
-  prettyTerms = map go terms
-  prettyTypes = map go2 types
-  go (r, dt) =
-    let n = PPE.termName ppe (Referent.Ref r) in
+  prettyTerms = map go . Map.toList
+             -- sort by name
+             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
+  prettyTypes = map go2 . Map.toList
+              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
+  go ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing tm -> TermPrinter.prettyBinding ppe n tm
-  go2 (r, dt) =
-    let n = PPE.typeName ppe r in
+  go2 ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n

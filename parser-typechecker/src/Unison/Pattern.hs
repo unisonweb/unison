@@ -48,7 +48,7 @@ data PatternP loc
 data SeqOp = Cons
            | Snoc
            | Concat
-           deriving (Eq, Show)
+           deriving (Eq, Ord, Show)
 
 instance H.Hashable SeqOp where
   tokens Cons = [H.Tag 0]
@@ -132,6 +132,24 @@ instance Eq (PatternP loc) where
   SequenceOpP _ ph op pt == SequenceOpP _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
+instance Ord (PatternP loc) where
+  UnboundP _ <= UnboundP _ = True
+  VarP _ <= VarP _ = True
+  BooleanP _ b <= BooleanP _ b2 = b <= b2
+  IntP _ n <= IntP _ m = n <= m
+  NatP _ n <= NatP _ m = n <= m
+  FloatP _ f <= FloatP _ g = f <= g
+  ConstructorP _ r n args <= ConstructorP _ s m brgs =
+    r < s || r == s && (n < m || n == m && args <= brgs)
+  EffectPureP _ p <= EffectPureP _ q = p <= q
+  EffectBindP _ r ctor ps k <= EffectBindP _ r2 ctor2 ps2 k2 =
+    r < r2 || r == r2 && (ctor < ctor2 || ctor == ctor2 && (ps < ps2 || ps == ps2 && k <= k2))
+  AsP _ p <= AsP _ q = p <= q
+  TextP _ t <= TextP _ t2 = t <= t2
+  SequenceLiteralP _ ps <= SequenceLiteralP _ ps2 = ps <= ps2
+  SequenceOpP _ ph op pt <= SequenceOpP _ ph2 op2 pt2 =
+    ph < ph2 || ph == ph2 && (op < op2 || op == op2 && pt <= pt2)
+  _ <= _ = False
 
 
 -- idea: rename PatternP to PatternP0
