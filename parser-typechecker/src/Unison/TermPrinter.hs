@@ -4,8 +4,9 @@
 
 module Unison.TermPrinter where
 
-import           Control.Monad                  (join)
+import           Control.Monad                  ( join )
 import           Data.List
+import           Data.List.Extra                ( dropEnd )
 import           Data.Either                    ( isRight )
 import           Data.Foldable                  ( fold
                                                 )
@@ -18,7 +19,7 @@ import           Data.Maybe                     ( fromMaybe
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( splitOn,unpack )
+import           Data.Text                      ( Text, splitOn, unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
@@ -139,7 +140,6 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
--- TODO use calcImports in more places - ifthenelse, case branch, after a let, after in of handle, start of a binding after =
     Var' v -> parenIfInfix name ic . prettyHashQualified $ elideFQN im name
       where name = HQ.fromVar v
     Ref' r -> parenIfInfix name ic . prettyHashQualified' $ elideFQN im name
@@ -165,11 +165,11 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Request' ref i ->
       prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
-    Handle' h body ->
+    Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ("in" `PP.hang` pretty n (ac 2 Block im) body)
+        <> ("in" `PP.hang` (uses <> pretty n (ac 2 Block im') body))
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ l "!" <> pretty n (ac 11 Normal im) x
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> l "?"
@@ -180,7 +180,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
           <> intercalateMap ("," <> PP.softbreak <> optSpace <> optSpace)
                             (pretty n (ac 0 Normal im))
                             xs
-        <> optSpace <> "]"
+          <> optSpace <> "]"
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
       if height > 0 then PP.lines [
@@ -208,8 +208,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
         "or", pretty n (ac 10 Normal im) x,
               pretty n (ac 10 Normal im) y
       ]
-    LetRecNamed' bs e -> printLet bc bs e
-    Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e
+    LetRecNamed' bs e -> printLet bc bs e im' uses
+    Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
       ("case " <> pretty n (ac 2 Normal im) scrutinee <> " of") `PP.hang` bs
       where bs = PP.lines (map printCase branches)
@@ -237,31 +237,38 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
   commaList = sepList ("," <> PP.softbreak)
 
-  printLet :: Var v => BlockContext -> [(v, AnnotatedTerm3 v PrintAnnotation)] -> AnnotatedTerm3 v PrintAnnotation -> Pretty ColorText
-  printLet sc bs e =
+  printLet :: Var v 
+           => BlockContext 
+           -> [(v, AnnotatedTerm3 v PrintAnnotation)] 
+           -> AnnotatedTerm3 v PrintAnnotation 
+           -> Imports 
+           -> Pretty ColorText 
+           -> Pretty ColorText
+  printLet sc bs e im' uses =
     paren ((sc /= Block) && p >= 12)
-      $  letIntro
-      $  PP.lines (map printBinding bs ++
-                   [PP.group $ pretty n (ac 0 Normal im) e])
+      $  letIntro -- TODO need uses to be a function of what follows, often equal to PP.lines
+      $  uses <> (PP.lines (map printBinding bs ++
+                            [PP.group $ pretty n (ac 0 Normal im') e]))
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
-      then pretty n (ac (-1) Normal im) binding
-      else prettyBinding2 n (ac (-1) Normal im) (HQ.fromVar v) binding
+      then pretty n (ac (-1) Normal im') binding
+      else prettyBinding2 n (ac (-1) Normal im') (HQ.fromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> "let" `PP.hang` x
     isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
     isBlank _ = False
-
+    
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
-    PP.group $ lhs `PP.hang` pretty n (ac 0 Block im) body
+    PP.group $ lhs `PP.hang` (uses <> pretty n (ac 0 Block im') body)
     where
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> "->"
     printGuard (Just g) = PP.group $ PP.spaced ["|", pretty n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
+    (im', uses) = calcImports im body
   printCase _ = l "error"
 
   -- This predicate controls which binary functions we render as infix
@@ -303,6 +310,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     ps = join $ [r a f | (a, f) <- reverse xs ]
     r a f = [pretty n (ac 3 Normal im) a,
              pretty n (AmbientContext 10 Normal Infix im) f]
+
+  (im', uses) = calcImports im term
 
 pretty' ::
   Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
@@ -398,9 +407,15 @@ prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBi
     Ann' tm tp -> PP.lines [
       PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env im (-1) tp)),
       PP.group (prettyBinding env v tm) ]
-    LamsNamedOpt' vs body -> PP.group $
-      PP.group (defnLhs v vs <> " =") `PP.hang`
-      pretty env (ac (-1) Block im) (printAnnotate env body)
+    LamsNamedOpt' vs body -> 
+      let 
+        (im', uses) = calcImports im body'
+        -- In the case where we're being called from inside `pretty`, this call to 
+        -- printAnnotate is unfortunately repeating work we've already done.
+        body' = printAnnotate env body 
+      in PP.group $
+        PP.group (defnLhs v vs <> " =") `PP.hang`
+        uses <> pretty env (ac (-1) Block im') body'
      where
     t -> l "error: " <> l (show t)
    where
@@ -456,139 +471,140 @@ isSymbolic' name = case symbolyId . Name.toString $ name of
 ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
 
--- # FQN elision
---
--- The term pretty-printer inserts `use` statements in some circumstances, to
--- avoid the need for using fully-qualified names (FQNs) everywhere.  The 
--- following is an explanation and specification, as developed in issue #285.  
---
--- As an example, instead of 
---
---   foo p q r = if p 
---               then Util.bar q
---               else Util.bar r
--- 
--- we actually output the following.
--- 
---   foo p q r = use Util bar
---               if p 
---               then bar q
---               else bar r
---
--- Here, the `use` statement `use Util bar` has been inserted at the start of 
--- the block statement containing the `if`.  Within that scope, `Util.bar` can
--- be referred to just with `bar`.  We say `Util` is the prefix, and `bar` is 
--- the suffix.  
---
--- When choosing where to place `use` statements, the pretty-printer tries to
--- - float them down, deeper into the syntax tree, to keep them visually close
---   to the use sites ('usages') of the names involved, but also tries to
--- - minimize the number of repetitions of `use` statements for the same names
---   by floating them up, towards the top of the syntax tree, so that one 
---   `use` statement takes effect over more name usages.
---
--- It avoids 'shadowing', so for example won't produce output like the 
--- following.
--- 
---   foo p q r = use My bar
---               if p 
---               then bar q
---               else Your.bar r
---   
--- Here `My.bar` is imported with a `use` statement, but `Your.bar` is not - 
--- `Your.bar` is shadowing `My.bar`.  We avoid this because it would be easy
--- to misread `bar` as meaning `Your.bar`.  
---
--- Avoiding shadowing means that a `use` statement is only emitted for a name
--- when the suffix is unique, across all the names referenced in the scope of
--- the `use` statement.
---
--- We don't emit a `use` statement for a name if it only occurs once within
--- the scope (unless it's an infix operator, since they look nicer without
--- a namespace qualifier.)
---
--- The emitted code does not depend on Type-Driven Name Resolution (TDNR).
--- For example, we emit
---   foo = use Nat (+)
---         1 + 2
--- even though TDNR means that `foo = 1 + 2` would have had the same
--- meaning.  That avoids the reader having to run typechecker logic in their
--- head in order to know what functions are being called.  
---
--- Multi-level name qualification is allowed - like `Foo.Bar.baz`.  The
--- pretty-printer tries to strip off as many sections of the prefix as 
--- possible, without causing a clash with other names.  If more sections
--- can be stripped off, further down the tree, then it does this too, taking
--- care to avoid emitting any `use` statements that never actually affect 
--- anything.  
---
--- ## Specification
---
--- We output a `use` statement for prefix P and suffix S at a given scope if
---   - the scope is a block statement (so the `use` is syntactically valid)
---   - the number of usages of the thing referred to by P.S within the scope
---     - is > 1, or
---     - is 1, and S is an infix operator
---   - [uniqueness] there is no other Q with Q.S used in that scope
---   - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
---     satisfies uniqueness
---   - [narrowness] there is no block statement further down inside this one
---     which contains all of the usages, and
---   - [usefulness] the name will actually be used in this scope, in the form
---     enabled by this `use` statement.
---
--- The last clause can fail, for example, if we `use A X.c` (avoiding a clash
--- with `Y.c`, but there is a deeper block statement that contains all the
--- usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
--- this case, we want to avoid inserting the superfluous `use A X.c`, and just
--- make it `use A.X c` further down - hence the last clause in the spec.
---
--- Use statements in a block statement are sorted alphabetically by prefix.
--- Suffixes covered by a single use statement are sorted alphabetically.
--- Rather than letting a single use statement overflow a printed line, we
--- instead (TODO).
---
--- ## Algorithm
---
--- Bubbling up from the leaves of the syntax tree, we calculate for each
--- node, a `Map Suffix (Map Prefix Int)` (the 'usages map'), where the `Int`
--- is the number of usages of Prefix.Suffix at/under that node.  (Note that 
--- a usage of `A.B.c` corresponds to two entries in the outer map.)  See
--- `printAnnotate`.
--- 
--- Once we have this decoration on all the terms, we start pretty-printing.
--- As we recurse back down through the tree, we keep a `Map Name Suffix` (the
--- 'imports map'), to record the effect of all the `use` statements we've added 
--- in the nodes above.  When outputting names, we check this map to work out 
--- how to render them, using any suffix we find, or else falling back to the 
--- FQN.  At each block statement, each suffix in that term's usages map is a
--- candidate to be imported with a use statement, subject to the various 
--- rules in the specification.
---
--- # Debugging
---
--- Start by enabling the tracing in elideFQN in PrettyPrintEnv.hs.
---
--- # Semantics of imports
---
--- Here is some background on how imports work.  TODO is this all true today?
---
--- `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More 
--- generally, `use` is followed by a FQN prefix, then the local suffix. 
--- Concatenate the FQN prefix with the local suffix, with a dot between them,
--- and you get the FQN, which is bound to the name equal to the local suffix.
---
--- `use XYZ blah qux` is equivalent to the two statements (and this 
--- generalizes for any N symbols):
---   use XYZ blah
---   use XYZ qux
---
--- This syntax works the same even if XYZ or blah have dots in them, so:
--- `use Util.External My.Foo` brings `Util.External.My.Foo` into scope, bound 
--- to the name `My.Foo`.
---
--- That's it. No wildcard imports, imports that do renaming, etc. We can 
--- consider adding some features like this later.
+{- # FQN elision
+
+   The term pretty-printer inserts `use` statements in some circumstances, to
+   avoid the need for using fully-qualified names (FQNs) everywhere.  The 
+   following is an explanation and specification, as developed in issue #285.  
+  
+   As an example, instead of 
+  
+     foo p q r = if p 
+                 then Util.bar q
+                 else Util.bar r
+   
+   we actually output the following.
+   
+     foo p q r = use Util bar
+                 if p 
+                 then bar q
+                 else bar r
+  
+   Here, the `use` statement `use Util bar` has been inserted at the start of 
+   the block statement containing the `if`.  Within that scope, `Util.bar` can
+   be referred to just with `bar`.  We say `Util` is the prefix, and `bar` is 
+   the suffix.  
+  
+   When choosing where to place `use` statements, the pretty-printer tries to
+   - float them down, deeper into the syntax tree, to keep them visually close
+     to the use sites ('usages') of the names involved, but also tries to
+   - minimize the number of repetitions of `use` statements for the same names
+     by floating them up, towards the top of the syntax tree, so that one 
+     `use` statement takes effect over more name usages.
+  
+   It avoids 'shadowing', so for example won't produce output like the 
+   following.
+   
+     foo p q r = use My bar
+                 if p 
+                 then bar q
+                 else Your.bar r
+     
+   Here `My.bar` is imported with a `use` statement, but `Your.bar` is not - 
+   `Your.bar` is shadowing `My.bar`.  We avoid this because it would be easy
+   to misread `bar` as meaning `Your.bar`.  
+  
+   Avoiding shadowing means that a `use` statement is only emitted for a name
+   when the suffix is unique, across all the names referenced in the scope of
+   the `use` statement.
+  
+   We don't emit a `use` statement for a name if it only occurs once within
+   the scope (unless it's an infix operator, since they look nicer without
+   a namespace qualifier.)
+  
+   The emitted code does not depend on Type-Driven Name Resolution (TDNR).
+   For example, we emit
+     foo = use Nat (+)
+           1 + 2
+   even though TDNR means that `foo = 1 + 2` would have had the same
+   meaning.  That avoids the reader having to run typechecker logic in their
+   head in order to know what functions are being called.  
+  
+   Multi-level name qualification is allowed - like `Foo.Bar.baz`.  The
+   pretty-printer tries to strip off as many sections of the prefix as 
+   possible, without causing a clash with other names.  If more sections
+   can be stripped off, further down the tree, then it does this too, taking
+   care to avoid emitting any `use` statements that never actually affect 
+   anything.  
+  
+   ## Specification
+  
+   We output a `use` statement for prefix P and suffix S at a given scope if
+     - the scope is a block statement (so the `use` is syntactically valid)
+     - the number of usages of the thing referred to by P.S within the scope
+       - is > 1, or
+       - is 1, and S is an infix operator
+     - [uniqueness] there is no other Q with Q.S used in that scope
+     - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
+       satisfies uniqueness
+     - [TODO - narrowness] there is no block statement further down inside this one
+       which contains all of the usages, and
+     - [usefulness] the name will actually be used in this scope, in the form
+       enabled by this `use` statement.
+  
+   The last clause can fail, for example, if we `use A X.c` (avoiding a clash
+   with `Y.c`, but there is a deeper block statement that contains all the
+   usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
+   this case, we want to avoid inserting the superfluous `use A X.c`, and just
+   make it `use A.X c` further down - hence the last clause in the spec.
+  
+   Use statements in a block statement are sorted alphabetically by prefix.
+   Suffixes covered by a single use statement are sorted alphabetically.
+   Rather than letting a single use statement overflow a printed line, we
+   instead (TODO).
+  
+   ## Algorithm
+  
+   Bubbling up from the leaves of the syntax tree, we calculate for each
+   node, a `Map Suffix (Map Prefix Int)` (the 'usages map'), where the `Int`
+   is the number of usages of Prefix.Suffix at/under that node.  (Note that 
+   a usage of `A.B.c` corresponds to two entries in the outer map.)  See
+   `printAnnotate`.
+   
+   Once we have this decoration on all the terms, we start pretty-printing.
+   As we recurse back down through the tree, we keep a `Map Name Suffix` (the
+   'imports map'), to record the effect of all the `use` statements we've added 
+   in the nodes above.  When outputting names, we check this map to work out 
+   how to render them, using any suffix we find, or else falling back to the 
+   FQN.  At each block statement, each suffix in that term's usages map is a
+   candidate to be imported with a use statement, subject to the various 
+   rules in the specification.
+  
+   # Debugging
+  
+   Start by enabling the tracing in elideFQN in PrettyPrintEnv.hs.
+  
+   # Semantics of imports
+  
+   Here is some background on how imports work.  TODO is this all true today?
+  
+   `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More 
+   generally, `use` is followed by a FQN prefix, then the local suffix. 
+   Concatenate the FQN prefix with the local suffix, with a dot between them,
+   and you get the FQN, which is bound to the name equal to the local suffix.
+  
+   `use XYZ blah qux` is equivalent to the two statements (and this 
+   generalizes for any N symbols):
+     use XYZ blah
+     use XYZ qux
+  
+   This syntax works the same even if XYZ or blah have dots in them, so:
+   `use Util.External My.Foo` brings `Util.External.My.Foo` into scope, bound 
+   to the name `My.Foo`.
+  
+   That's it. No wildcard imports, imports that do renaming, etc. We can 
+   consider adding some features like this later.
+-}
 
 data PrintAnnotation = PrintAnnotation
   {
@@ -649,16 +665,21 @@ countHQ :: HQ.HashQualified -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
 
 countName :: Name -> PrintAnnotation
-countName name = case splitName name of
-  (prefix, suffix) -> PrintAnnotation { usages = Map.singleton suffix $ Map.singleton prefix 1}
---TODO A.B.x should give rise to two entries
-  
-splitName :: Name -> (Prefix, Suffix)
-splitName n = let ns = reverse $ splitOn "." (Name.toText n)
-              in (reverse $ tail ns, head ns)
+countName n = let f = \(p, s) -> (s, Map.singleton p 1)
+              in PrintAnnotation { usages = Map.fromList $ map f $ splitName n}
+
+splitName :: Name -> [(Prefix, Suffix)]
+splitName n = let ns = splitOn "." (Name.toText n)
+              in dropEnd 1 ((inits ns) `zip` (map dotConcat $ tails ns))
+-- > splitName "x" == [([], "x")]
+-- > splitName "A.x" == [(["A"], "x")]
+-- > splitName "A.B.x" == [(["A"], "B.x"), (["A.B"], "x")]
 
 joinName :: Prefix -> Suffix -> Name
-joinName p s = Name.unsafeFromText $ Text.concat $ intersperse "." $ p ++ [s]
+joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
+
+dotConcat :: [Text] -> Text
+dotConcat = Text.concat . (intersperse ".")
 
 infixl 0 |>
 (|>) :: a -> (a -> b) -> b
@@ -683,6 +704,7 @@ calcImports im tm = (im', render $ getUses result)
              |> enoughUsages
              |> groupAndCountLength
              |> longestPrefix
+             |> avoidRepeatsAndClashes
     usages' :: Map Suffix (Map Prefix Int)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
@@ -705,7 +727,7 @@ calcImports im tm = (im', render $ getUses result)
                                                                      l = length p 
                                                                  in ((n, l), (p, s, i)))
                                          |> Map.fromList
-    -- For each k1, choose the v with the largest k2.                                        
+    -- For each k1, choose the v with the largest k2.    
     longestPrefix :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
     longestPrefix m = let k1s = Set.map fst $ Map.keysSet m
                           k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m 
@@ -714,6 +736,9 @@ calcImports im tm = (im', render $ getUses result)
                           maxk2s = Map.map maximum k2s
                       in Map.mapWithKey (\k1 k2 -> fromJust $ Map.lookup (k1, k2) m) maxk2s
     im' = im `Map.union` getImportMapAdditions result
+    -- Don't do another `use` for a name for which we've already done one.
+    avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
+    avoidRepeatsAndClashes m = m `Map.difference` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
     getImportMapAdditions = Map.map (\(_, s, _) -> s)
     getUses :: Map Name (Prefix, Suffix, Int) -> Map Prefix (Set Suffix)
@@ -727,34 +752,8 @@ calcImports im tm = (im', render $ getUses result)
                  |> map snd
                  |> PP.lines'
 
--- TEMP
--- We output a `use` statement for prefix P and suffix S at a given scope if
---   - the scope is a block statement (so the `use` is syntactically valid)
---   - the number of usages of the thing referred to by P.S within the scope
---     - is > 1, or
---     - is 1, and S is an infix operator
---   - [uniqueness] there is no other Q with Q.S used in that scope
---   - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
---     satisfies uniqueness
---   - TODO [narrowness] there is no block statement further down inside this one
---     which contains all of the usages, and
---   - TODO [usefulness] the name will actually be used in this scope, in the form
---     enabled by this `use` statement.
---
--- The last clause can fail, for example, if we `use A X.c` (avoiding a clash
--- with `Y.c`, but there is a deeper block statement that contains all the
--- usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
--- this case, we want to avoid inserting the superfluous `use A X.c`, and just
--- make it `use A.X c` further down - hence the last clause in the spec.
---
--- Use statements in a block statement are sorted alphabetically by prefix.
--- Suffixes covered by a single use statement are sorted alphabetically.
--- Rather than letting a single use statement overflow a printed line, we
--- instead (TODO).
-
 -- TODO testing of: 
 -- - all use sites of elideFQN
--- - all use sites of calcimports
 -- - patterns, types, namespaces
 -- - really right to apply this to vars?
 -- - symbolic names
