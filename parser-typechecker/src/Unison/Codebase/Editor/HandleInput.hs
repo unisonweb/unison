@@ -148,10 +148,14 @@ loop = do
       getHQTypes p = BranchUtil.getType (resolvePath' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
       getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
-      getNamedHQTypes :: Path.HQ'Split' -> Set (NameSegment, Reference)
-      getNamedHQTypes p = BranchUtil.getNamedType (resolvePath' p) root0
-      getNamedHQTerms :: Path.HQ'Split' -> Set (NameSegment, Referent)
-      getNamedHQTerms p = BranchUtil.getNamedTerm (resolvePath' p) root0
+      getHQ'Terms = getHQTerms . fmap HQ'.toHQ
+      -- These don't quite make sense, because a HQ'Split' includes a name.
+      -- A regular HQSplit' may be missing a name, and then it .. well
+      -- even then, a NameSegment probably isn't going to cut it.
+      -- getNamedHQTypes :: Path.HQ'Split' -> Set (NameSegment, Reference)
+      -- getNamedHQTypes p = BranchUtil.getNamedType (resolvePath' p) root0
+      -- getNamedHQTerms :: Path.HQ'Split' -> Set (NameSegment, Referent)
+      -- getNamedHQTerms p = BranchUtil.getNamedTerm (resolvePath' p) root0
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
@@ -192,9 +196,12 @@ loop = do
                   [ err | Result.TypeError err <- toList notes ]
             in  maybe h (k names) r
   case e of
-    Left (IncomingRootBranch _names) -> error "todo: merge multiple heads"
-      -- when (Set.member currentBranchName' names)
-      --   $ switchBranch currentBranchName'
+    Left (IncomingRootBranch _names) ->
+      error $ "todo: notify user about externally deposited head, and offer\n"
+           ++ "a command to undo the merge that is about to happen.  In the\n"
+           ++ "mean time until this is implemented, you can fix the issue by\n"
+           ++ "deleting one of the heads from `.unison/branches/head/`."
+
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if fromMaybe False . fmap snd $ latestFile'
@@ -306,12 +313,12 @@ loop = do
       --  in the codebase after the delete, as it would no longer be possible
       --  do show the source for `ds` without resorting to bare hashes.
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getNamedHQTypes hq') (typeNotFound hq) go
-                      (liftM2 ifConfirmed goMany (typeConflicted hq . Set.map snd))
+        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go
+                      (liftM2 ifConfirmed goMany (typeConflicted hq))
         where
         makeDelete =
           BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
-        go (n,r) = error "todo"
+        go r = error "todo"
           -- zeroOrMore (endangeredDependents (Set.singleton r) Set.empty)
           --                 (stepAt $ makeDelete r)
           --                 (reportEndangeredDependents (Set.singleton r) Set.empty)
@@ -335,6 +342,7 @@ loop = do
       -- external ("endangered") dependents.  feel free to pick a better name ;-)
       DeleteBranchI p -> error "todo"
 
+      -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Type v Ann)
@@ -406,22 +414,23 @@ loop = do
         eval (LoadSearchResults results)
           >>= respond
           .   ListOfDefinitions names' False
---      RemoveTermNameI r path ->
---        stepAt $ Branch.deleteTermName r name
---       RemoveTypeNameI r path ->
---        stepAt $ Branch.deleteTypeName r name
-      -- ResolveTermNameI r name ->
-      --   stepAt
-      --     $ Branch.addTermName r name
-      --     . Branch.unnameAll Names.TermName name
-      -- ResolveTypeName r name ->
-      --   stepAt
-      --     $ Branch.addTypeName r name
-      --     . Branch.unnameAll Names.TypeName name
-      -- AliasUnconflictedI targets existingName newName ->
-      --   aliasUnconflicted targets existingName newName
-      -- RenameUnconflictedI targets oldName newName ->
-      --   renameUnconflicted targets oldName newName
+
+      ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
+        where
+        conflicted = getHQTypes (fmap HQ'.toNameOnlyHQ hq')
+        makeDelete r =
+          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq')) r
+        go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
+      ResolveTermNameI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTerms hq) (termNotFound hq) go (termConflicted hq)
+        where
+        conflicted = getHQTerms (fmap HQ'.toNameOnlyHQ hq')
+        makeDelete r =
+          BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq')) r
+        go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
       -- UnnameAllI hqs -> do
       --   stepAt $ \b ->
       --     let wrangle b hq = doTerms (doTypes b)
@@ -771,90 +780,6 @@ respond output = eval $ Notify output
 -- checkTodo = do
 --   b <- use currentBranch
 --   eval (Todo b) >>= respond . TodoOutput b
---
---
--- aliasUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
--- aliasUnconflicted nameTargets oldName newName =
---   modifyCurrentBranchM $ \branch ->
---     let (branch', result) = foldl' go (branch, mempty) nameTargets
---     in do
---       respond $ AliasOutput oldName newName result
---       pure $ branch'
---   where
---   go (branch, result) nameTarget = (result <>) <$> case nameTarget of
---      Names.TermName ->
---        alias nameTarget Branch.termsNamed Branch.addTermName branch
---      Names.TypeName ->
---        alias nameTarget Branch.typesNamed Branch.addTypeName branch
---                        -- the RenameOutput action and setting the loop state
---   alias
---     :: Foldable f
---     => NameTarget
---     -> (Name -> Branch0 -> f a)
---     -> (a -> Name -> Branch0 -> Branch0)
---     -> Branch
---     -> (Branch, NameChangeResult)
---   alias nameTarget named alias' branch =
---     let oldMatches        = toList . named oldName $ Branch.head branch
---         oldNameMatchCount = length oldMatches
---         newNameExists     = (not . null) (named newName $ Branch.head branch)
---     in  case oldMatches of
---           [oldMatch] | not newNameExists ->
---             ( Branch.modify (alias' oldMatch newName) branch
---             , NameChangeResult mempty mempty (Set.singleton nameTarget)
---             )
---           _ -> (branch, NameChangeResult a b mempty)
---            where
---             a =
---               if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty
---             b = if newNameExists then Set.singleton nameTarget else mempty
---
--- renameUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
--- renameUnconflicted nameTargets oldName newName =
---   modifyCurrentBranchM $ \branch ->
---     let (branch', result) = foldl' go (branch, mempty) nameTargets
---     in do
---       respond $ RenameOutput oldName newName result
---       pure branch'
---   where
---   go (branch, result) nameTarget = (result <>) <$> case nameTarget of
---     Names.TermName ->
---       rename nameTarget Branch.termsNamed Branch.renameTerm branch
---     Names.TypeName ->
---       rename nameTarget Branch.typesNamed Branch.renameType branch
---   rename
---     :: Foldable f
---     => NameTarget
---     -> (Name -> Branch0 -> f a)
---     -> (Name -> Name -> Branch0 -> Branch0)
---     -> Branch
---     -> (Branch, NameChangeResult)
---   rename nameTarget named rename' branch =
---     let oldNameMatchCount = length . named oldName $ Branch.head branch
---         newNameExists     = (not . null) (named newName $ Branch.head branch)
---     in  if (oldNameMatchCount == 1 && not newNameExists)
---           then
---             ( Branch.modify (rename' oldName newName) branch
---             , NameChangeResult mempty mempty (Set.singleton nameTarget)
---             )
---           else
---             ( branch
---             , NameChangeResult
---               (if oldNameMatchCount > 1
---                 then Set.singleton nameTarget
---                 else mempty
---               )
---               (if newNameExists then Set.singleton nameTarget else mempty)
---               mempty
---             )
---
--- -- todo: should this go away?
--- merging :: BranchName -> Branch -> Action m i v () -> Action m i v ()
--- merging targetBranchName b success =
---   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
---     targetBranchName
 
 loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
 loadRemoteBranchAt repo (Path.Absolute p) = do
@@ -867,29 +792,9 @@ loadRemoteBranchAt repo (Path.Absolute p) = do
   eval $ RetrieveHashes repo types terms
   pure b
 
---getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
---getAt p = go <$> use root where
---  go root = fromMaybe Branch.empty . Branch.getAt p
---          $ Branch.transform liftToAction root
-
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
-
------ These are no good because they presume we're only going to be doing one thing
------ at a time
-
---setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
---setAt p b = updateAtM p (const . pure $ b)
-
--- stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
--- stepAt p f = updateAtM p (pure . Branch.step f)
-
--- -- stepAtMany :: Applicative m => [(Path.Absolute, Branch0 m -> Branch0 m)] -> Action m i v ()
--- -- stepAtMany steps =
-
--- stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
--- stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)
 
 updateAtM :: Applicative m
           => Path.Absolute
@@ -901,68 +806,15 @@ updateAtM (Path.Absolute p) f = do
   root .= b'
   when (b /= b') $ eval $ SyncLocalRootBranch b'
 
-stepAt :: Applicative m => (Path.Path, Branch0 m -> Branch0 m) -> Action m i v ()
+stepAt :: Applicative m => (Path, Branch0 m -> Branch0 m) -> Action m i v ()
 stepAt = stepManyAt . pure
 
-stepManyAt :: Applicative m => [(Path.Path, Branch0 m -> Branch0 m)] -> Action m i v ()
+stepManyAt :: Applicative m => [(Path, Branch0 m -> Branch0 m)] -> Action m i v ()
 stepManyAt actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
     root .= b'
     when (b /= b') $ eval $ SyncLocalRootBranch b'
-
--- data Target = TargetType | TargetTerm | TargetBranch
---   deriving (Eq, Ord, Show)
---
--- getTerm :: Path.HQPathSplit' -> Branch0 m -> Set Referent
--- getTerm = undefined
---
--- getType :: Path.HQPathSplit' -> Branch0 m -> Set Reference
--- getType = undefined
---
--- getTerm' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Referent
--- getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty
---
--- getType' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Reference
--- getType' t = if Set.member TargetType t then getType else \_ _ -> mempty
-
--- setTerm :: Path.PathSplit' -> Set Referent -> Branch0 m -> Branch0 m
--- setType :: Path.PathSplit' -> Set Reference -> Branch0 m -> Branch0 m
--- setBranch :: Path.PathSplit' -> Branch0 m -> Branch0 m -> Branch0 m
--- setBranch somewhere new oldroot === newroot
--- deleteAt :: Target -> Branch0 m -> Branch0 m
--- move :: Path.HQPathSplit Path.Absolute
---      -> Path.PathSplit Path.Absolute
---      -> Branch0 m
---      -> Branch0 m
--- move src dest b = foldl' step b (toList (targetTypes src)) where
---   step b TargetType = set
-
-matchTermRefs :: NamesSeg -> Names0 -> HQSegment -> [Referent]
-matchTermRefs =
-  matchRefsImpl Names.termsNamed Names.termReferents Referent.toShortHash
-
-matchTypeRefs :: NamesSeg -> Names0 -> HQSegment -> [Reference]
-matchTypeRefs =
-  matchRefsImpl Names.typesNamed Names.typeReferences Reference.toShortHash
-
-matchRefsImpl :: (byName -> HQ.HashQualified' n -> Set r)
-                  -> (all -> Set r)
-                  -> (r -> SH.ShortHash)
-                  -> byName
-                  -> all
-                  -> HQ.HashQualified' n
-                  -> [r]
-matchRefsImpl byName all toSH ns n0 = \case
-  HQ.NameOnly n -> Set.toList $ byName ns (HQ.fromName n)
-  HQ.HashQualified n sh ->
-    Set.toList
-    . Set.filter ((sh `SH.isPrefixOf`) . toSH)
-    $ byName ns (HQ.fromName n)
-  HQ.HashOnly sh ->
-    Set.toList
-      . Set.filter ((sh `SH.isPrefixOf`) . toSH)
-      $ all n0
 
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible

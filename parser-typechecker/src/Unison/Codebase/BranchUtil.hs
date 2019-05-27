@@ -11,25 +11,25 @@ import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import Unison.HashQualified (HashQualified'(NameOnly, HashOnly, HashQualified))
-import qualified Unison.HashQualified' as HQ'
+-- import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Relation as R
 
-getNamedTerm :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Referent)
-getNamedTerm (p, hq') b = case hq' of
-  HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n terms)
-  HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n terms
-  where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
-  terms = Branch._terms (Branch.getAt0 p b)
-
-getNamedType :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Reference)
-getNamedType (p, hq') b = case hq' of
-  HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n types)
-  HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n types
-  where
-  filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
-  types = Branch._types (Branch.getAt0 p b)
+-- getNamedTerm :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Referent)
+-- getNamedTerm (p, hq') b = case hq' of
+--   HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n terms)
+--   HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n terms
+--   where
+--   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
+--   terms = Branch._terms (Branch.getAt0 p b)
+--
+-- getNamedType :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Reference)
+-- getNamedType (p, hq') b = case hq' of
+--   HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n types)
+--   HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n types
+--   where
+--   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
+--   types = Branch._types (Branch.getAt0 p b)
 
 getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
 getTerm (p, hq) b = case hq of

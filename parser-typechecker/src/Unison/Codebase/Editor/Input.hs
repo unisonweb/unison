@@ -12,7 +12,7 @@ import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 
-type Edits = Path'
+type Edits = Path.Split'
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -49,8 +49,8 @@ data Input
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
---      | ResolveTermNameI BranchPath Referent Name
---      | ResolveTypeNameI BranchPath Reference Name
+    | ResolveTermNameI Path.HQ'Split'
+    | ResolveTypeNameI Path.HQ'Split'
   -- edits stuff:
     | TodoI Edits Path'
     | PropagateI Edits Path'
@@ -72,7 +72,7 @@ data Input
   -- other
   | AddI [HashQualified]
   | UpdateI Edits [HashQualified]
-  | UndoRoot
+  | UndoRootI
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
