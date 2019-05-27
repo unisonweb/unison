@@ -58,15 +58,14 @@ data Output v
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
-  | DestBranchAlreadyExists Input Path.Split'
-  | DestBranchNotFound Input Path.Split'
-  | DestTermAlreadyExists Input Path.Split' (Set Referent)
-  | DestTypeAlreadyExists Input Path.Split' (Set Reference)
-  | SourceTermAmbiguous Input Path.HQSplit' (Set Referent)
-  | SourceTypeAmbiguous Input Path.HQSplit' (Set Reference)
-  | SourceTermNotFound Input Path.HQSplit'
-  | SourceTypeNotFound Input Path.HQSplit'
-  | SourceBranchNotFound Input Path.Split'
+  | BranchAlreadyExists Input Path.Split'
+  | TypeAlreadyExists Input Path.Split' (Set Reference)
+  | TermAlreadyExists Input Path.Split' (Set Referent)
+  | TypeAmbiguous Input Path.HQSplit' (Set Reference)
+  | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | BranchNotFound Input Path.Split'
+  | TypeNotFound Input Path.HQSplit'
+  | TermNotFound Input Path.HQSplit'
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if

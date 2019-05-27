@@ -27,8 +27,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( when
-                                                )
+import           Control.Monad                  ( liftM2, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -58,6 +57,7 @@ import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
+                                                , NameSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
@@ -128,6 +128,8 @@ makeLenses ''LoopState
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
+type Action' m v = Action m (Either Event Input) v
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   _uf          <- use latestTypecheckedFile
@@ -146,6 +148,10 @@ loop = do
       getHQTypes p = BranchUtil.getType (resolvePath' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
       getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
+      getNamedHQTypes :: Path.HQ'Split' -> Set (NameSegment, Reference)
+      getNamedHQTypes p = BranchUtil.getNamedType (resolvePath' p) root0
+      getNamedHQTerms :: Path.HQ'Split' -> Set (NameSegment, Referent)
+      getNamedHQTerms p = BranchUtil.getNamedTerm (resolvePath' p) root0
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
@@ -218,14 +224,16 @@ loop = do
             latestTypecheckedFile .= Just unisonFile
     Right input ->
       let
-        srcBranchNotFound = respond . SourceBranchNotFound input
-        srcTypeNotFound = respond . SourceTypeNotFound input
-        srcTermNotFound = respond . SourceTermNotFound input
-        srcTypeConflicted src = respond . SourceTypeAmbiguous input src
-        srcTermConflicted src = respond . SourceTermAmbiguous input src
-        destBranchExists dest _ = respond $ DestBranchAlreadyExists input dest
-        destTypeExists dest = respond . DestTypeAlreadyExists input dest
-        destTermExists dest = respond . DestTermAlreadyExists input dest
+        ifConfirmed = ifM (confirmedCommand input)
+        ifNotConfirmed = flip ifConfirmed
+        branchNotFound = respond . BranchNotFound input
+        typeNotFound = respond . TypeNotFound input
+        termNotFound = respond . TermNotFound input
+        typeConflicted src = respond . TypeAmbiguous input src
+        termConflicted src = respond . TermAmbiguous input src
+        branchExists dest _ = respond $ BranchAlreadyExists input dest
+        typeExists dest = respond . TypeAlreadyExists input dest
+        termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src dest ->
         maybe srcNotFound srcOk (getAtSplit src)
@@ -234,22 +242,19 @@ loop = do
         destOk b = do
           stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
           success -- could give rando stats about new defns
-        srcNotFound = respond $ Output.SourceBranchNotFound input src
-        destExists _ = respond $ Output.DestBranchAlreadyExists input dest
+        srcNotFound = respond $ BranchNotFound input src
+        destExists _ = respond $ BranchAlreadyExists input dest
 
       MergeLocalBranchI src dest ->
-        maybe srcNotFound srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit src)
         where
         srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit dest)
-        destEmpty b =
-          ifM (confirmedCommand input)
-              (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
-              (respond $ Output.DestBranchNotFound input dest)
+        destEmpty b = ifNotConfirmed (branchNotFound dest)
+          (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
         destExists srcb destb = do
           merged <- eval . Eval $ Branch.merge srcb destb
           stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) merged
           success
-        srcNotFound = respond $ Output.SourceBranchNotFound input src
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
@@ -259,42 +264,76 @@ loop = do
           (respond $ CreatedNewBranch path)
 
       AliasTermI src dest ->
-        zeroOneOrMore (getHQTerms src) (srcTermNotFound src) srcOk (srcTermConflicted src)
+        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where
-        srcOk src = zeroOrMore (getTerms dest) (destOk src) (destTermExists dest)
+        srcOk src = zeroOrMore (getTerms dest) (destOk src) (termExists dest)
         destOk = stepAt . BranchUtil.makeAddTermName (resolvePath' dest)
 
       AliasTypeI src dest ->
-        zeroOneOrMore (getHQTypes src) (srcTypeNotFound src) srcOk (srcTypeConflicted src)
+        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
         where
-        srcOk r = zeroOrMore (getTypes dest) (destOk r) (destTypeExists dest)
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
         destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
-        zeroOneOrMore (getHQTerms src) (srcTermNotFound src) srcOk (srcTermConflicted src)
+        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where
-        srcOk r = zeroOrMore (getTerms dest) (destOk r) (destTermExists dest)
+        srcOk r = zeroOrMore (getTerms dest) (destOk r) (termExists dest)
         destOk r = stepManyAt
           [ BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTermName (resolvePath' dest) r ]
 
       MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
-        zeroOneOrMore (getHQTypes src) (srcTypeNotFound src) srcOk (srcTypeConflicted src)
+        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
         where
-        srcOk r = zeroOrMore (getTypes dest) (destOk r) (destTypeExists dest)
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
         destOk r = stepManyAt
           [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
 
       MoveBranchI src dest ->
-        maybe (srcBranchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit src)
         where
-        srcOk b = maybe (destOk b) (destBranchExists dest) (getAtSplit dest)
+        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
         destOk b = do
           stepManyAt
             [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
             , BranchUtil.makeSetBranch (resolvePath' dest) b ]
           success -- could give rando stats about new defns
+
+      -- todo: delete should also complain if hq' is the last remaining name
+      --  for reference `r` that has dependents `ds` that would still remain
+      --  in the codebase after the delete, as it would no longer be possible
+      --  do show the source for `ds` without resorting to bare hashes.
+      DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getNamedHQTypes hq') (typeNotFound hq) go
+                      (liftM2 ifConfirmed goMany (typeConflicted hq . Set.map snd))
+        where
+        makeDelete =
+          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
+        go (n,r) = error "todo"
+          -- zeroOrMore (endangeredDependents (Set.singleton r) Set.empty)
+          --                 (stepAt $ makeDelete r)
+          --                 (reportEndangeredDependents (Set.singleton r) Set.empty)
+        goMany rs = error "todo"
+          -- zeroOrMore (endangeredDependents rs Set.empty)
+          --                      (stepManyAt . fmap makeDelete . toList $ rs)
+          --                      (reportEndangeredDependents rs)
+        -- given a list of types (or maybe types and terms),
+        -- list the definitions that would
+        -- endangeredDependents :: Set Reference -> Set Referent -> (Set Reference, Set Reference)
+        -- endangeredDependents = error "todo"
+        -- do we want
+        -- reportEndangeredDependents :: Set Reference -> Set Referent -> Set Reference -> Set Reference -> Action' m v ()
+        -- reportEndangeredDependents = error "todo"
+
+      -- like the previous
+      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) -> error "todo"
+
+      -- warn the user if they are deleting the last names of some definitions
+      -- stop the user if they are deleting the last names of definitions with
+      -- external ("endangered") dependents.  feel free to pick a better name ;-)
+      DeleteBranchI p -> error "todo"
 
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
@@ -937,3 +976,6 @@ zeroOrMore :: Foldable f => f a -> b -> (f a -> b) -> b
 zeroOrMore f zero more = case toList f of
   a : _ -> more f
   _ -> zero
+
+emptyOrNot :: (Monoid m, Eq m) => m -> b -> (m -> b) -> b
+emptyOrNot m zero more = if m == mempty then zero else more m

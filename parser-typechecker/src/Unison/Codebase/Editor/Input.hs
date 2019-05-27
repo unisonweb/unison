@@ -38,13 +38,13 @@ data Input
     | SwitchBranchI Path'
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
-    -- Move = Rename
+    -- Move = Rename; It's an HQ'Split' not an HQSplit', meaning the arg has to have a name.
     | MoveTermI Path.HQ'Split' Path.Split'
     | MoveTypeI Path.HQ'Split' Path.Split'
     | MoveBranchI Path.Split' Path.Split'
-    | DeleteDefnI [Path.HQSplit']
-    | DeleteTermI Path.HQSplit'
-    | DeleteTypeI Path.HQSplit'
+    -- | DeleteDefnI [Path.HQSplit']
+    | DeleteTermI Path.HQ'Split'
+    | DeleteTypeI Path.HQ'Split'
     | DeleteBranchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
