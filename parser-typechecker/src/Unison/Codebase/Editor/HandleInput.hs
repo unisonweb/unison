@@ -320,8 +320,7 @@ loop = do
           let rootNames = Branch.toNames0 root0
               name = Path.toName . Path.unsplit $ resolvedPath
               toDelete = Names.fromTypes ((name,) <$> toList rs)
-              getDependents r = eval $ GetDependents r
-          (failed, failedDependents) <- getEndangeredDependents getDependents rootNames toDelete
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
@@ -339,15 +338,25 @@ loop = do
           let rootNames = Branch.toNames0 root0
               name = Path.toName . Path.unsplit $ resolvedPath
               toDelete = Names.fromTerms ((name,) <$> toList rs)
-              getDependents r = eval $ GetDependents r
-          (failed, failedDependents) <- getEndangeredDependents getDependents rootNames toDelete
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input failed failedDependents
 
-      DeleteBranchI p -> error "todo"
+      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit p where
+        go (Branch.head -> b) = do
+          let rootNames = Branch.toNames0 root0
+              p' = resolvePath' p
+              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+          if failed == mempty then
+            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
