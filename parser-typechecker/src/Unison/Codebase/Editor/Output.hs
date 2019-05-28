@@ -72,6 +72,8 @@ data Output v
   -- the path is deleted.
   | DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
+  -- CantDelete input couldntDelete becauseTheseStillReferenceThem
+  | CantDelete Input [SearchResult' v Ann] [SearchResult' v Ann]
   -- list of all the definitions within this branch
   | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
   -- show the result of add/update

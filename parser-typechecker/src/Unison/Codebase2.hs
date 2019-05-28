@@ -16,6 +16,7 @@ import           Data.Maybe                     ( isJust
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
+import qualified Unison.Builtin2               as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
@@ -323,11 +324,11 @@ makeSelfContained' code uf = do
 --   Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
 --   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 --
--- dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
--- dependents c r
---     = Set.union (Builtin.builtinTypeDependents r)
---     . Set.map Reference.DerivedId
---   <$> dependentsImpl c r
+dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+dependents c r
+    = Set.union (Builtin.builtinTypeDependents r)
+    . Set.map Reference.DerivedId
+  <$> dependentsImpl c r
 --
 -- -- Gets the dependents of a whole component (cycle), topologically sorted,
 -- -- meaning that if X depends on Y, Y appears before X in this list.

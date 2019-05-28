@@ -311,27 +311,24 @@ loop = do
       --  in the codebase after the delete, as it would no longer be possible
       --  do show the source for `ds` without resorting to bare hashes.
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go
+        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
                       (liftM2 ifConfirmed goMany (typeConflicted hq))
         where
         -- given set(s) of definitions
         makeDelete =
           BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
-        go r = error "todo"
-          -- zeroOrMore (endangeredDependents (Set.singleton r) Set.empty)
-          --                 (stepAt $ makeDelete r)
-          --                 (reportEndangeredDependents (Set.singleton r) Set.empty)
-        goMany rs = error "todo"
-          -- zeroOrMore (endangeredDependents rs Set.empty)
-          --                      (stepManyAt . fmap makeDelete . toList $ rs)
-          --                      (reportEndangeredDependents rs)
-        -- given a list of types (or maybe types and terms),
-        -- list the definitions that would
-        -- endangeredDependents :: Set Reference -> Set Referent -> (Set Reference, Set Reference)
-        -- endangeredDependents = error "todo"
-        -- do we want
-        -- reportEndangeredDependents :: Set Reference -> Set Referent -> Set Reference -> Set Reference -> Action' m v ()
-        -- reportEndangeredDependents = error "todo"
+        goMany rs = do
+          let rootNames = Branch.toNames0 root0
+              name = Path.toName . Path.unsplit $ resolvePath' (HQ'.toName <$> hq')
+              toDelete = Names.fromTypes ((name,) <$> toList rs)
+              getDependents r = eval $ GetDependents r
+          (failed, failedDependents) <-
+            getEndangeredDependents getDependents rootNames toDelete
+          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
 
       -- like the previous
       DeleteTermI hq'@(fmap HQ'.toHQ -> hq) -> error "todo"
@@ -834,3 +831,13 @@ zeroOrMore f zero more = case toList f of
 
 emptyOrNot :: (Monoid m, Eq m) => m -> b -> (m -> b) -> b
 emptyOrNot m zero more = if m == mempty then zero else more m
+
+-- Returns
+--   ( the set of names that couldn't be deleted
+--   , the set of dependents of the names that couldn't be deleted)
+getEndangeredDependents :: (Reference -> m (Set Reference))
+                        -> Names0
+                        -> Names0
+                        -> m (Names0, Names0)
+getEndangeredDependents getDependents toBeDeleted root =
+  error "todo"

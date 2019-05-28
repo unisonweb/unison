@@ -15,7 +15,7 @@ import           Control.Applicative            ( liftA2
 import           Data.Foldable                  ( foldl' )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
--- import           Data.Set                       ( Set )
+import           Data.Set                       ( Set )
 -- import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -46,7 +46,7 @@ import qualified Unison.Name                   as Name
 -- import           Unison.Names                   ( Names )
 -- import qualified Unison.Names                  as Names
 -- import qualified Unison.Typechecker.TypeLookup as TL
--- import qualified Unison.Util.Relation          as Rel
+import qualified Unison.Util.Relation          as Rel
 
 type Term v = Term.AnnotatedTerm v Ann
 type Type v = Type.AnnotatedType v Ann
@@ -157,17 +157,17 @@ isBuiltinType r = elem r . fmap snd $ builtinTypes
 -- toSymbol :: Var v => R.Reference -> v
 -- toSymbol (R.Builtin txt) = Var.named txt
 -- toSymbol _ = error "unpossible"
---
--- -- Relation predicate: Domain depends on range.
--- builtinDependencies :: Rel.Relation R.Reference R.Reference
--- builtinDependencies =
---   Rel.fromMultimap (Type.dependencies <$> builtins0 @Symbol)
---
--- -- The dependents of a builtin type is the set of builtin terms which
--- -- mention that type.
--- builtinTypeDependents :: R.Reference -> Set R.Reference
--- builtinTypeDependents r = Rel.lookupRan r builtinDependencies
---
+
+-- Relation predicate: Domain depends on range.
+builtinDependencies :: Rel.Relation R.Reference R.Reference
+builtinDependencies =
+  Rel.fromMultimap (Type.dependencies <$> termRefTypes @Symbol)
+
+-- The dependents of a builtin type is the set of builtin terms which
+-- mention that type.
+builtinTypeDependents :: R.Reference -> Set R.Reference
+builtinTypeDependents r = Rel.lookupRan r builtinDependencies
+
 -- allReferencedTypes :: Set R.Reference
 -- allReferencedTypes = Rel.ran builtinDependencies
 

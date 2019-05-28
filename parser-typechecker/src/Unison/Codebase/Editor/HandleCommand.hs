@@ -390,6 +390,7 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
     LoadSearchResults results -> loadSearchResults codebase results
+    GetDependents r -> Codebase.dependents codebase r
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

@@ -44,7 +44,7 @@ import Unison.Codebase.Path (NameSegment)
 data Names' n = Names
   { terms :: Relation n Referent
   , types :: Relation n Reference
-  } deriving (Show)
+  } deriving (Eq,Ord,Show)
 
 type Names = Names' HashQualified
 type Names0 = Names' Name

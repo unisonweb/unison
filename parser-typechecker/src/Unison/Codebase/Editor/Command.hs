@@ -120,6 +120,11 @@ data Command m i v a where
   -- Loads some metadata for prettier search result display
   LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]
 
+  -- Get the immediate (not transitive) dependents of the given reference
+  -- This might include historical definitions not in any current path; these
+  -- should be filtered by the caller of this command if that's not desired.
+  GetDependents :: Reference -> Command m i v (Set Reference)
+
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
   Execute :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
