@@ -446,12 +446,11 @@ loop = do
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> let result = toSlurpResult hqs uf $ Branch.head currentBranch' in
-          -- still todo: add the part about prompting the user to grow their
-          -- selection automatically
-          -- Or just do it, but give them an undo command.
           if Output.isNonemptySlurp result then do
             stepAt (Path.unabsolute currentPath', branchEdit uf result)
             eval $ AddDefsToCodebase (finalFile result)
+          -- todo: notify the user if we grew their selection automatically to
+          --       include transitive dependencies, and tell them how to undo.
           else respond $ SlurpOutput result
           -- finalUF is the transitive closure of the intersection of HQs and uf
 

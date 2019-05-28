@@ -170,6 +170,9 @@ data SlurpResult v = SlurpResult {
     originalFile :: UF.TypecheckedUnisonFile v Ann
   -- the transitive closure of the user-specified HQs
   , finalFile :: UF.TypecheckedUnisonFile v Ann
+  -- Extra definitions that were added to satisfy transitive closure,
+  -- beyond what the user specified.
+  , extraDefinitions :: SlurpComponent v
   -- Previously existed only in the file; now added to the codebase.
   , adds :: SlurpComponent v
   -- Exists in the branch and the file, with the same name and contents.
