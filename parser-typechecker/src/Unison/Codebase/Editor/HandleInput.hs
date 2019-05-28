@@ -306,10 +306,6 @@ loop = do
             , BranchUtil.makeSetBranch (resolvePath' dest) b ]
           success -- could give rando stats about new defns
 
-      -- todo: delete should also complain if hq' is the last remaining name
-      --  for reference `r` that has dependents `ds` that would still remain
-      --  in the codebase after the delete, as it would no longer be possible
-      --  do show the source for `ds` without resorting to bare hashes.
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
                       (liftM2 ifConfirmed goMany (typeConflicted hq))
