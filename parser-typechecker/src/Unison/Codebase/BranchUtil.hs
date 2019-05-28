@@ -27,7 +27,7 @@ getTerm (p, hq) b = case hq of
   terms = Branch._terms (Branch.getAt0 p b)
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
-getType (p, hq) root = case hq of
+getType (p, hq) _root = case hq of
     NameOnly n -> R.lookupDom n types
     HashOnly sh -> filter sh $ Branch.deepTypeReferences b
     HashQualified n sh -> filter sh $ R.lookupDom n types

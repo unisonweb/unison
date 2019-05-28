@@ -12,6 +12,7 @@
 
 module Unison.Runtime.Rt1 where
 
+import Debug.Trace (traceM)
 import Control.Monad (foldM, join, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
@@ -142,7 +143,10 @@ atb size i m = at size i m >>= \case
 att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
-  v -> fail $ "type error, expecting T, got " <> show v
+  v   -> do
+    stackStuff <- fmap (take 200 . show) <$> traverse (MV.read m) [0 .. size - 1]
+    traceM $ "nstack:\n" <> intercalateMap "\n" (take 200) stackStuff
+    fail $ "type error, expecting T at " <> show i <> ", got " <> show v
 
 atbs :: Size -> Z -> Stack -> IO Bytes.Bytes
 atbs size i m = at size i m >>= \case

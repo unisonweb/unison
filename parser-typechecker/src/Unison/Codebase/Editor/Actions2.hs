@@ -156,16 +156,16 @@ loop = do
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
-  let unsnocPath' :: Path' -> (Absolute, NameSegment)
-      unsnocPath' = fromJust
+  let _unsnocPath' :: Path' -> (Absolute, NameSegment)
+      _unsnocPath' = fromJust
                 . fmap (first Absolute)
                 . (\(Absolute p) -> Path.unsnoc p)
                 . Path.toAbsolutePath currentPath'
       toAbsoluteSplit :: (Path', a) -> (Absolute, a)
       toAbsoluteSplit = Path.toAbsoluteSplit currentPath'
-      loadHqSrc ::
+      _loadHqSrc ::
         Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
-      loadHqSrc hq = do
+      _loadHqSrc hq = do
         let (p, seg) = toAbsoluteSplit hq
         b <- getAt p
         pure ( b
