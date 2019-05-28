@@ -35,8 +35,8 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
-newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
-newtype Relative = Relative Path deriving (Eq,Ord,Show)
+newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord,Show)
+newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
 unsplit :: Show a => (Path, a) -> Path

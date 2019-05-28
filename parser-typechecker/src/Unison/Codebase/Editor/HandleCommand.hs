@@ -391,6 +391,7 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     LoadType r -> CC.getTypeDeclaration codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
+    AddDefsToCodebase _unisonFile -> error "todo"
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

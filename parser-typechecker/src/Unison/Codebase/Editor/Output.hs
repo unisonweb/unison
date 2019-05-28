@@ -166,6 +166,8 @@ instance Ord v => Monoid (SlurpComponent v) where
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
+  -- the transitive closure of the user-specified HQs
+  , finalFile :: UF.TypecheckedUnisonFile v Ann
   -- Previously existed only in the file; now added to the codebase.
   , adds :: SlurpComponent v
   -- Exists in the branch and the file, with the same name and contents.

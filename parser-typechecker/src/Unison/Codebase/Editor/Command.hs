@@ -52,11 +52,15 @@ data Command m i v a where
   -- It may complain if you are trying to write definitions into a remote link,
   -- and suggest that you can convert the link to a fork if you want.
 
---  AddDefsToCodebase
---    :: -- CollisionHandler -> (todo)
---       Path
---    -> UF.TypecheckedUnisonFile v Ann
---    -> Command m i v (Branch (Command m i v), SlurpResult v)
+  -- literally just write some terms and types .unison/{terms,types}
+  AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
+    -- want it to literally add terms, types to disk
+
+    --  AddDefsToCodebase
+    --    :: -- CollisionHandler -> (todo)
+    --       Path
+    --    -> UF.TypecheckedUnisonFile v Ann
+    --    -> Command m i v (Branch (Command m i v), SlurpResult v)
 
   -- Arya: Do we need this?
   -- -- Load one level of a namespace.  It may involve reading from disk,

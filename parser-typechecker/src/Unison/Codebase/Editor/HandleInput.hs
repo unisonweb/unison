@@ -132,7 +132,7 @@ type Action' m v = Action m (Either Event Input) v
 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
-  _uf          <- use latestTypecheckedFile
+  uf          <- use latestTypecheckedFile
   root'        <- use root
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
@@ -443,16 +443,28 @@ loop = do
           BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq')) r
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      -- UnnameAllI hqs -> do
-      --   stepAt $ \b ->
-      --     let wrangle b hq = doTerms (doTypes b)
-      --          where
-      --           doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
-      --           doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
-      --           doTerm b (n, r) = Branch.deleteTermName r n b
-      --           doType b (n, r) = Branch.deleteTypeName r n b
-      --     in  foldl' wrangle b hqs
-      --   respond $ Success input
+      AddI hqs -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf ->
+          -- still todo: add the part about prompting the user to grow their
+          -- selection automatically
+          -- Or just do it, but give them an undo command.
+          if nonemptySlurp result then do
+            stepAt (Path.unabsolute currentPath', branchEdit uf result)
+            eval $ AddDefsToCodebase (finalFile result)
+          else respond $ SlurpOutput result
+          where
+          -- finalUF is the transitive closure of the intersection of HQs and uf
+          result = toSlurpResult hqs uf $ Branch.head currentBranch'
+          nonemptySlurp result = error "todo"
+
+          -- some namespace stuff
+            -- add some new name-defs to the namespace
+            --
+          -- write some hashes to disk too
+
+      UpdateI _edits _hqs -> error "todo"
+
       -- SlurpFileI allowUpdates -> case uf of
       --   Nothing  -> respond NoUnisonFile
       --   Just uf' -> do
@@ -465,6 +477,8 @@ loop = do
       --     when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
       --     eval . Notify $ SlurpOutput updateo
       --     currentBranch .= branch'
+
+
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
       -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
@@ -890,3 +904,9 @@ getEndangeredDependents getDependents toBeDeleted root =
   remainingRefs = Set.map Referent.toReference (Names.termReferents remaining)
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
+
+toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Branch0 m -> SlurpResult v
+toSlurpResult = error "todo"
+
+branchEdit :: UF.TypecheckedUnisonFile v Ann -> SlurpResult v -> Branch0 m -> Branch0 m
+branchEdit = error "todo"
