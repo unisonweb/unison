@@ -27,7 +27,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( liftM2, when )
+import           Control.Monad                  ( foldM, liftM2, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -67,7 +67,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names2                  ( Names, Names0, NamesSeg )
+import           Unison.Names2                  ( Names'(..), Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference )
@@ -855,9 +855,42 @@ emptyOrNot m zero more = if m == mempty then zero else more m
 -- Returns
 --   ( the set of names that couldn't be deleted
 --   , the set of dependents of the names that couldn't be deleted)
-getEndangeredDependents :: (Reference -> m (Set Reference))
+getEndangeredDependents :: forall m. Monad m
+                        => (Reference -> m (Set Reference))
                         -> Names0
                         -> Names0
                         -> m (Names0, Names0)
 getEndangeredDependents getDependents toBeDeleted root =
-  error "todo"
+  -- for each r <- toBeDeleted,
+    -- for each d <- dependents r
+      -- if d `notElem` remaining
+      -- then add r to failed, add d to failedDependents
+      -- otherwise continue
+  do
+    acc <- foldM doTerms (mempty, mempty) (R.toList $ Names.terms toBeDeleted)
+    foldM doTypes acc (R.toList $ Names.types toBeDeleted)
+  where
+  doTerms :: (Names0, Names0) -> (Name, Referent) -> m (Names0, Names0)
+  doTerms acc (name, r) =
+    List.foldl' f acc <$> getDependents (Referent.toReference r)
+    where
+    f (failed, failedDeps) d =
+      if d `Set.notMember` remainingRefs
+      then (Names.addTerm name r failed, addDependent d failedDeps)
+      else (failed, failedDeps)
+  addDependent :: Reference -> Names0 -> Names0
+  addDependent r =
+    (<> Names (Names.terms root R.|> Set.singleton (Referent.Ref r))
+              (Names.types root R.|> Set.singleton r))
+  doTypes :: (Names0, Names0) -> (Name, Reference) -> m (Names0, Names0)
+  doTypes acc (name, r) =
+    List.foldl' f acc <$> getDependents r
+    where
+    f (failed, failedDeps) d =
+      if d `Set.notMember` remainingRefs
+      then (Names.addType name r failed, addDependent d failedDeps)
+      else (failed, failedDeps)
+  remainingRefs :: Set Reference
+  remainingRefs = Set.map Referent.toReference (Names.termReferents remaining)
+                <> Names.typeReferences remaining
+    where remaining = root `Names.difference` toBeDeleted

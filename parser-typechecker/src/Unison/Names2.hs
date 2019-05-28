@@ -50,6 +50,12 @@ type Names = Names' HashQualified
 type Names0 = Names' Name
 type NamesSeg = Names' (HQ.HashQualified' NameSegment)
 
+hasTerm :: Referent -> Names' n -> Bool
+hasTerm r = R.memberRan r . terms
+
+hasType :: Reference -> Names' n -> Bool
+hasType r = R.memberRan r . types
+
 termReferents :: Names' n -> Set Referent
 termReferents Names{..} = R.ran terms
 
@@ -101,6 +107,12 @@ termAliases names n r = Set.delete n $ namesForReferent names r
 
 typeAliases :: Ord n => Names' n -> n -> Reference -> Set n
 typeAliases names n r = Set.delete n $ namesForReference names r
+
+addType :: Ord n => n -> Reference -> Names' n -> Names' n
+addType n r = (<> fromTypes [(n, r)])
+
+addTerm :: Ord n => n -> Referent -> Names' n -> Names' n
+addTerm n r = (<> fromTerms [(n, r)])
 
 -- Conditionally apply hash qualifier to term name.
 -- Should be the same as the input name if the Names0 is unconflicted.
@@ -156,14 +168,14 @@ hqTypeName' b n r =
 --   mempty { termNames = Map.fromList
 --           [ (Name.unsafeFromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
 
-fromTerms :: [(Name, Referent)] -> Names0
+fromTerms :: Ord n => [(n, Referent)] -> Names' n
 fromTerms ts = Names (R.fromList ts) mempty
 
 -- fromTypesV :: Var v => [(v, Reference)] -> Names
 -- fromTypesV env =
 --   Names mempty . Map.fromList $ fmap (first $ Name.unsafeFromVar) env
 
-fromTypes :: [(Name, Reference)] -> Names0
+fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
 
 -- | You may want to sort this list differently afterward.
@@ -187,6 +199,10 @@ prefix0 n (Names terms types) = Names terms' types' where
 
 filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
+
+difference :: Ord n => Names' n -> Names' n -> Names' n
+difference a b = Names (R.difference (terms a) (terms b))
+                  (R.difference (types a) (types b))
 
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
