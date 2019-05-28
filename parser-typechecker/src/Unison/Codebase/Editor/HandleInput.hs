@@ -243,14 +243,12 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src dest ->
-        maybe srcNotFound srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit src)
         where
-        srcOk b = maybe (destOk b) destExists (getAtSplit dest)
+        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
         destOk b = do
           stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
           success -- could give rando stats about new defns
-        srcNotFound = respond $ BranchNotFound input src
-        destExists _ = respond $ BranchAlreadyExists input dest
 
       MergeLocalBranchI src dest ->
         maybe (branchNotFound src) srcOk (getAtSplit src)
@@ -316,6 +314,7 @@ loop = do
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go
                       (liftM2 ifConfirmed goMany (typeConflicted hq))
         where
+        -- given set(s) of definitions
         makeDelete =
           BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
         go r = error "todo"
@@ -806,10 +805,14 @@ updateAtM (Path.Absolute p) f = do
   root .= b'
   when (b /= b') $ eval $ SyncLocalRootBranch b'
 
-stepAt :: Applicative m => (Path, Branch0 m -> Branch0 m) -> Action m i v ()
-stepAt = stepManyAt . pure
+stepAt :: forall m i v. Applicative m
+       => (Path, Branch0 m -> Branch0 m)
+       -> Action m i v ()
+stepAt = stepManyAt @m @[] . pure
 
-stepManyAt :: Applicative m => [(Path, Branch0 m -> Branch0 m)] -> Action m i v ()
+stepManyAt :: (Applicative m, Foldable f)
+           => f (Path, Branch0 m -> Branch0 m)
+           -> Action m i v ()
 stepManyAt actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
