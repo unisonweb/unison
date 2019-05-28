@@ -12,14 +12,16 @@ module Unison.Codebase.Editor.Output
   , TypeResult'(..)
   , pattern Tm
   , pattern Tp
+  , foldResult'
+  , isNonemptySlurp
   , tmReferent
   , tpReference
-  , foldResult'
   ) where
 
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
+import qualified Data.Set as Set
 
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Editor.Input
@@ -191,3 +193,7 @@ data SlurpResult v = SlurpResult {
   , termsWithBlockedDependencies :: Map v (Set Reference)
   , typesWithBlockedDependencies :: Map v (Set Reference)
   } deriving (Show)
+
+isNonemptySlurp :: SlurpResult v -> Bool
+isNonemptySlurp s = nonEmpty (adds s) || nonEmpty (updates s) where
+  nonEmpty (SlurpComponent a b) = not (Set.null a) || not (Set.null b)

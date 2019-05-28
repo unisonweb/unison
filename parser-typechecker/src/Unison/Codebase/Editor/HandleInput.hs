@@ -445,23 +445,15 @@ loop = do
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
-        Just uf ->
+        Just uf -> let result = toSlurpResult hqs uf $ Branch.head currentBranch' in
           -- still todo: add the part about prompting the user to grow their
           -- selection automatically
           -- Or just do it, but give them an undo command.
-          if nonemptySlurp result then do
+          if Output.isNonemptySlurp result then do
             stepAt (Path.unabsolute currentPath', branchEdit uf result)
             eval $ AddDefsToCodebase (finalFile result)
           else respond $ SlurpOutput result
-          where
           -- finalUF is the transitive closure of the intersection of HQs and uf
-          result = toSlurpResult hqs uf $ Branch.head currentBranch'
-          nonemptySlurp result = error "todo"
-
-          -- some namespace stuff
-            -- add some new name-defs to the namespace
-            --
-          -- write some hashes to disk too
 
       UpdateI _edits _hqs -> error "todo"
 
