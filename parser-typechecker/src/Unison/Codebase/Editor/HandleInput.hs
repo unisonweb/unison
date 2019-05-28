@@ -314,16 +314,14 @@ loop = do
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
                       (liftM2 ifConfirmed goMany (typeConflicted hq))
         where
-        -- given set(s) of definitions
-        makeDelete =
-          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
+        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
         goMany rs = do
           let rootNames = Branch.toNames0 root0
-              name = Path.toName . Path.unsplit $ resolvePath' (HQ'.toName <$> hq')
+              name = Path.toName . Path.unsplit $ resolvedPath
               toDelete = Names.fromTypes ((name,) <$> toList rs)
               getDependents r = eval $ GetDependents r
-          (failed, failedDependents) <-
-            getEndangeredDependents getDependents rootNames toDelete
+          (failed, failedDependents) <- getEndangeredDependents getDependents rootNames toDelete
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
@@ -331,11 +329,24 @@ loop = do
             respond $ CantDelete input failed failedDependents
 
       -- like the previous
-      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) -> error "todo"
+      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTerms hq) (termNotFound hq) (goMany . Set.singleton)
+                      (liftM2 ifConfirmed goMany (termConflicted hq))
+        where
+        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
+        goMany rs = do
+          let rootNames = Branch.toNames0 root0
+              name = Path.toName . Path.unsplit $ resolvedPath
+              toDelete = Names.fromTerms ((name,) <$> toList rs)
+              getDependents r = eval $ GetDependents r
+          (failed, failedDependents) <- getEndangeredDependents getDependents rootNames toDelete
+          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
 
-      -- warn the user if they are deleting the last names of some definitions
-      -- stop the user if they are deleting the last names of definitions with
-      -- external ("endangered") dependents.  feel free to pick a better name ;-)
       DeleteBranchI p -> error "todo"
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
