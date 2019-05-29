@@ -86,6 +86,7 @@ import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -445,14 +446,19 @@ loop = do
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
-        Just uf -> let result = toSlurpResult hqs uf $ Branch.head currentBranch' in
-          -- still todo: add the part about prompting the user to grow their
-          -- selection automatically
-          -- Or just do it, but give them an undo command.
+        Just uf ->
+          let result = Output.disallowUpdates
+                     . toSlurpResult hqs uf
+                     . Branch.toNames0
+                     . Branch.head
+                     $ currentBranch' in
           if Output.isNonemptySlurp result then do
-            stepAt (Path.unabsolute currentPath', branchEdit uf result)
-            eval $ AddDefsToCodebase (finalFile result)
-          else respond $ SlurpOutput result
+            stepAt ( Path.unabsolute currentPath'
+                   , doSlurpAdds (Output.adds result) uf)
+            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+          -- todo: notify the user if we grew their selection automatically to
+          --       include transitive dependencies, and tell them how to undo.
+          else respond $ SlurpOutput input result
           -- finalUF is the transitive closure of the intersection of HQs and uf
 
       UpdateI _edits _hqs -> error "todo"
@@ -897,8 +903,26 @@ getEndangeredDependents getDependents toBeDeleted root =
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
-toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Branch0 m -> SlurpResult v
+toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult = error "todo"
 
-branchEdit :: UF.TypecheckedUnisonFile v Ann -> SlurpResult v -> Branch0 m -> Branch0 m
-branchEdit = error "todo"
+filterBySlurpResult :: SlurpResult v
+           -> UF.TypecheckedUnisonFile v Ann
+           -> UF.TypecheckedUnisonFile v Ann
+filterBySlurpResult = error "todo"
+
+doSlurpAdds :: Output.SlurpComponent v
+            -> UF.TypecheckedUnisonFile v Ann
+            -> (Branch0 m -> Branch0 m)
+doSlurpAdds = error "todo"            
+-- doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
+--   where
+--   typeActions = map doType . toList $ Output.implicatedTypes slurp
+--   termActions = map doTerm . toList $ Output.implicatedTerms slurp
+--   doTerm _v = error "todo"
+--   doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
+--                 <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
+--     Nothing -> error $ "expected to find " ++ show v ++ " in " show uf
+--     Just r -> case Path.splitFromName (Var.name v) of
+--       Nothing -> error $ "encountered an empty var name"
+--       Just split -> BranchUtil.makeAddTypeName split r

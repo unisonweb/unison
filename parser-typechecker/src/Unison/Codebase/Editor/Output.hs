@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.Output
   , DisplayThing(..)
   , TodoOutput(..)
   , ListDetailed
+  , SlurpComponent(..)
   , SlurpResult(..)
   , SearchResult'(..)
   , TermResult'(..)
@@ -14,6 +15,7 @@ module Unison.Codebase.Editor.Output
   , pattern Tp
   , foldResult'
   , isNonemptySlurp
+  , disallowUpdates
   , tmReferent
   , tpReference
   ) where
@@ -21,7 +23,6 @@ module Unison.Codebase.Editor.Output
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
-import qualified Data.Set as Set
 
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Editor.Input
@@ -43,6 +44,7 @@ import qualified Unison.Typechecker.Context    as Context
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import qualified Unison.Util.Monoid            as Monoid
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -79,7 +81,7 @@ data Output v
   -- list of all the definitions within this branch
   | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
   -- show the result of add/update
-  | SlurpOutput (SlurpResult v)
+  | SlurpOutput Input (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text Names [Context.ErrorNote v Ann]
@@ -156,7 +158,7 @@ data TodoOutput v a
 
 data SlurpComponent v =
   SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
-  deriving (Show)
+  deriving (Eq,Ord,Show)
 
 instance Ord v => Semigroup (SlurpComponent v) where
   (<>) = mappend
@@ -165,11 +167,22 @@ instance Ord v => Monoid (SlurpComponent v) where
   c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
                                    (implicatedTerms c1 <> implicatedTerms c2)
 
+-- foo = bar + 1  -- new definition
+-- bar = 7        -- updated definition
+--
+-- > add
+-- suppose bar already exists.
+-- SlurpResult:
+-- adds = {foo}
+-- updates = {bar}
+
+
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
-  -- the transitive closure of the user-specified HQs
-  , finalFile :: UF.TypecheckedUnisonFile v Ann
+  -- Extra definitions that were added to satisfy transitive closure,
+  -- beyond what the user specified.
+  , extraDefinitions :: SlurpComponent v
   -- Previously existed only in the file; now added to the codebase.
   , adds :: SlurpComponent v
   -- Exists in the branch and the file, with the same name and contents.
@@ -188,12 +201,15 @@ data SlurpResult v = SlurpResult {
   -- a constructor rename, or refactor the type that the name comes from).
   , termExistingConstructorCollisions :: Map v Referent
   , constructorExistingTermCollisions :: Map v [Referent]
-  -- Already defined in the branch, but with a different name.
-  -- , needsAlias :: Branch.RefCollisions
+  -- -- Already defined in the branch, but with a different name.
+  , termAlias :: Map v (Set Name)
+  , typeAlias :: Map v (Set Name)
   , termsWithBlockedDependencies :: Map v (Set Reference)
   , typesWithBlockedDependencies :: Map v (Set Reference)
   } deriving (Show)
 
-isNonemptySlurp :: SlurpResult v -> Bool
-isNonemptySlurp s = nonEmpty (adds s) || nonEmpty (updates s) where
-  nonEmpty (SlurpComponent a b) = not (Set.null a) || not (Set.null b)
+disallowUpdates :: SlurpResult v -> SlurpResult v
+disallowUpdates = error "todo"
+
+isNonemptySlurp :: Ord v => SlurpResult v -> Bool
+isNonemptySlurp s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)

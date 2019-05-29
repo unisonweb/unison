@@ -13,9 +13,11 @@ fromMaybe :: Monoid a => Maybe a -> a
 fromMaybe Nothing = mempty
 fromMaybe (Just a) = a
 
-whenM :: Monoid a => Bool -> a -> a
+whenM, unlessM :: Monoid a => Bool -> a -> a
 whenM True a = a
 whenM False _ = mempty
+unlessM = whenM . not
 
-unlessM :: Monoid a => Bool -> a -> a
-unlessM b = whenM (not b)
+isEmpty, nonEmpty :: (Eq a, Monoid a) => a -> Bool
+isEmpty a = a == mempty
+nonEmpty = not . isEmpty
