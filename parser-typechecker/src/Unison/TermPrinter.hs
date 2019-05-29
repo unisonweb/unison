@@ -23,7 +23,8 @@ import           Data.Text                      ( Text, splitOn, unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
 import           Text.Read                      ( readMaybe )
-import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
+import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation ) 
+import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
@@ -169,7 +170,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       paren (p >= 2)
         $ ("handle" `PP.hang` pretty n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ("in" `PP.hang` (uses <> pretty n (ac 2 Block im') body))
+        <> ("in" `PP.hang` (uses $ [pretty n (ac 2 Block im') body]))
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ l "!" <> pretty n (ac 11 Normal im) x
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> l "?"
@@ -197,7 +198,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
-                   in uses <> pretty n (ac 2 Block im') tm
+                   in uses $ [pretty n (ac 2 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         "and", pretty n (ac 10 Normal im) x,
@@ -242,13 +243,13 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
            -> [(v, AnnotatedTerm3 v PrintAnnotation)] 
            -> AnnotatedTerm3 v PrintAnnotation 
            -> Imports 
-           -> Pretty ColorText 
+           -> ([Pretty ColorText] -> Pretty ColorText)
            -> Pretty ColorText
   printLet sc bs e im' uses =
     paren ((sc /= Block) && p >= 12)
-      $  letIntro -- TODO need uses to be a function of what follows, often equal to PP.lines
-      $  uses <> (PP.lines (map printBinding bs ++
-                            [PP.group $ pretty n (ac 0 Normal im') e]))
+      $  letIntro
+      $  (uses [(PP.lines (map printBinding bs ++
+                            [PP.group $ pretty n (ac 0 Normal im') e]))])
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty n (ac (-1) Normal im') binding
@@ -261,7 +262,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
-    PP.group $ lhs `PP.hang` (uses <> pretty n (ac 0 Block im') body)
+    PP.group $ lhs `PP.hang` (uses [pretty n (ac 0 Block im') body])
     where
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
@@ -415,7 +416,7 @@ prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBi
         body' = printAnnotate env body 
       in PP.group $
         PP.group (defnLhs v vs <> " =") `PP.hang`
-        uses <> pretty env (ac (-1) Block im') body'
+        (uses [pretty env (ac (-1) Block im') body'])
      where
     t -> l "error: " <> l (show t)
    where
@@ -549,15 +550,7 @@ ac prec bc im = AmbientContext prec bc NonInfix im
        satisfies uniqueness
      - [TODO - narrowness] there is no block statement further down inside this one
        which contains all of the usages, and
-     - [usefulness] the name will actually be used in this scope, in the form
-       enabled by this `use` statement.
-  
-   The last clause can fail, for example, if we `use A X.c` (avoiding a clash
-   with `Y.c`, but there is a deeper block statement that contains all the
-   usages of `X.c` and none of `Y.c`, at which we insert a `use A.X c`. In 
-   this case, we want to avoid inserting the superfluous `use A X.c`, and just
-   make it `use A.X c` further down - hence the last clause in the spec.
-  
+
    Use statements in a block statement are sorted alphabetically by prefix.
    Suffixes covered by a single use statement are sorted alphabetically.
    Rather than letting a single use statement overflow a printed line, we
@@ -586,7 +579,7 @@ ac prec bc im = AmbientContext prec bc NonInfix im
   
    # Semantics of imports
   
-   Here is some background on how imports work.  TODO is this all true today?
+   Here is some background on how imports work.  
   
    `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More 
    generally, `use` is followed by a FQN prefix, then the local suffix. 
@@ -687,11 +680,16 @@ x |> f = f x
 
 -- This function gets used each time we start printing a new block statement.
 -- It decides what extra imports to introduce (returning the full new set), and 
--- emits pretty-printed text that looks like
+-- determines some pretty-printed lines that looks like
 --    use A x
 --    use B y
--- for the caller to splice in at the start of the block being printed.
-calcImports :: Imports -> AnnotatedTerm3 v PrintAnnotation -> (Imports, Pretty ColorText)
+-- providing a `[Pretty ColorText] -> Pretty ColorText` that prepends those
+-- lines to the list of lines provided, and then concatenates them.
+calcImports 
+  :: Ord v 
+  => Imports 
+  -> AnnotatedTerm3 v PrintAnnotation 
+  -> (Imports, [Pretty ColorText] -> Pretty ColorText)
 calcImports im tm = (im', render $ getUses result)
   where 
     -- The guts of this function is a pipeline of transformations and filters, starting from the
@@ -705,6 +703,7 @@ calcImports im tm = (im', render $ getUses result)
              |> groupAndCountLength
              |> longestPrefix
              |> avoidRepeatsAndClashes
+             |> narrowestPossible
     usages' :: Map Suffix (Map Prefix Int)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
@@ -739,18 +738,59 @@ calcImports im tm = (im', render $ getUses result)
     -- Don't do another `use` for a name for which we've already done one.
     avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     avoidRepeatsAndClashes m = m `Map.difference` im
+    -- Is there a strictly smaller block term underneath this one, containing all the usages
+    -- of some of the names?  Skip omitting `use` statements for those, so we can do it 
+    -- further down, closer to the use sites.
+    narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
+    narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
     getImportMapAdditions = Map.map (\(_, s, _) -> s)
     getUses :: Map Name (Prefix, Suffix, Int) -> Map Prefix (Set Suffix)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
-    render :: Map Prefix (Set Suffix) -> Pretty ColorText
-    render m = Map.mapWithKey (\p ss -> l"use " <> 
-                                        intercalateMap (l".") (l . unpack) p <> l" " <>
-                                        intercalateMap (l" ") (l . unpack) (Set.toList ss)) m  --TODO redo Pretty stuff
-                 |> Map.toList
-                 |> map snd
-                 |> PP.lines'
+    render :: Map Prefix (Set Suffix) -> [Pretty ColorText] -> Pretty ColorText
+    render m rest = let uses = Map.mapWithKey (\p ss -> l"use " <> 
+                                   intercalateMap (l".") (l . unpack) p <> l" " <>
+                                   intercalateMap (l" ") (l . unpack) (Set.toList ss)) m  --TODO redo Pretty stuff
+                                 |> Map.toList
+                                 |> map snd
+                    in PP.lines (uses ++ rest)
+
+-- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
+-- block term within it, containing all usages of that name?  
+allInSubBlock :: Ord v => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
+allInSubBlock tm p s i = isJust $ ABT.find finder tm where 
+  getUsages t =    annotation t
+                |> usages
+                |> Map.lookup s
+                |> fmap (Map.lookup p)
+                |> join
+                |> fromMaybe 0
+  finder t top = if top 
+                 then ABT.Continue 
+                 else
+                   let i' = getUsages t
+                   in if i' < i 
+                      then ABT.Prune 
+                      else 
+                        if (i' == i) && (any hit $ immediateChildBlockTerms t)
+                        then ABT.Found 
+                        else ABT.Continue
+  hit t = (getUsages t) == i
+
+-- Return any blockterms at or immediately under this term.  Has to match the places in the
+-- syntax that get a call to `calcImports` in `pretty`.
+immediateChildBlockTerms :: AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
+immediateChildBlockTerms = \case
+    Handle' _ body -> [body]
+    If' cond t f -> [cond, t, f]
+    tm@(LetRecNamed' _ _) -> [tm]
+    tm@(Lets' _ _) -> [tm]
+    Match' _ branches -> concat $ map doCase branches
+    _ -> []
+  where
+    doCase (MatchCase _ _ (AbsN' _ body)) = [body]
+    doCase _ = error "bad match" []
 
 -- TODO testing of: 
 -- - all use sites of elideFQN

@@ -327,8 +327,7 @@ test = scope "termprinter" . tests $
                                                                              \(+) a b c = foo a b c"
   , tc_binding 50 "+" Nothing "a b -> foo a b" "a + b = foo a b"
   , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
-  , pending $    -- TODO FQN elision has regressed this
-    tc_breaks 32 "let\n\
+  , tc_breaks 32 "let\n\
                  \  go acc a b =\n\
                  \    case Sequence.at 0 a of\n\
                  \      Optional.None -> 0\n\
@@ -443,8 +442,7 @@ test = scope "termprinter" . tests $
                  \  use A X.c YY.c\n\
                  \  g X.c X.c YY.c YY.c"
   , pending $
-    tc_breaks 20 "handle bar\n\
-                 \in\n\
+    tc_breaks 20 "handle bar in\n\
                  \  if foo then\n\
                  \    use A.X c\n\
                  \    f c c\n\
@@ -459,7 +457,7 @@ test = scope "termprinter" . tests $
     tc_breaks 30 "let\n\
                  \  case x of\n\
                  \    (Pair p p, Pair p p) -> foo"
-  , pending $    -- TODO fix line break handling for use, see also regressed test
+  , pending $    -- TODO multi-line if condition
     tc_breaks 12 "if\n\
                  \  use A x\n\
                  \  f x x\n\
@@ -482,8 +480,24 @@ test = scope "termprinter" . tests $
                  \  c =\n\
                  \    use A x\n\
                  \    f x x\n\
-                 \  g c"  -- TODO fails since no narrowness check yet
+                 \  g c"
   , tc_breaks 20 "if foo then\n\
                  \  f x x A.x A.x\n\
                  \else g"
+  , pending $ 
+    tc_breaks 27 "case t of\n\
+                 \  () ->\n\
+                 \    a =\n\
+                 \      use A B.x\n\
+                 \      f B.x B.x\n\
+                 \      handle foo in\n\
+                 \      in\n\
+                 \        use A.B.D x\n\
+                 \        q = h x x\n\
+                 \        foo\n\
+                 \  _ ->\n\
+                 \    b =\n\
+                 \      use A.C x\n\
+                 \      g x x"
+
   ]
