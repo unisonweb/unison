@@ -213,18 +213,20 @@ data SlurpResult v = SlurpResult {
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
--- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
--- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
-disallowUpdates sr =
+-- Remove `removed` from the slurp result, and move any terms with transitive
+-- dependencies on the removed component into `defsWithBlockedDependencies`.
+-- Also removes `removed` from `extraDefinitions`.
+subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
+subtractComponent removed sr =
   sr { collisions = collisions sr <> updates sr
-     , updates = mempty
+     , adds = slurpComponentDifference (adds sr) removed
+     , updates = slurpComponentDifference (updates sr) removed
      , defsWithBlockedDependencies = blocked
      , extraDefinitions = extraDefinitions sr `slurpComponentDifference` blocked
      }
   where
   blocked = defsWithBlockedDependencies sr <> doTerms <> doTypes
-  -- for each v in adds, move to blocked if transitive dependency in updates
+  -- for each v in adds, move to blocked if transitive dependency in removed
   termDeps :: SlurpComponent v -> v -> SlurpComponent v
   termDeps seen v | Set.member v (implicatedTerms seen) = seen
   termDeps seen v = fromMaybe seen $ do
@@ -254,13 +256,19 @@ disallowUpdates sr =
 
   typeNames :: Map Reference v
   typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
-  removedTypes = implicatedTypes $ updates sr
   doTypes =
     SlurpComponent (foldMap doType . implicatedTypes $ adds sr <> updates sr) mempty
   doTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr
   doType :: v -> Set v
-  doType v = Set.intersection removedTypes (typeDeps mempty v)
-  doTerm v = slurpComponentIntersection (updates sr) (termDeps mempty v)
+  doType v = Set.intersection (implicatedTypes removed) (typeDeps mempty v)
+  doTerm v = slurpComponentIntersection removed (termDeps mempty v)
+
+-- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
+-- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
+disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
+disallowUpdates sr =
+  let sr2 = subtractComponent (updates sr) sr
+  in sr2 { collisions = collisions sr2 <> updates sr }
 
 slurpComponentDifference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
 slurpComponentDifference c1 c2 = SlurpComponent types terms where

@@ -903,7 +903,14 @@ getEndangeredDependents getDependents toBeDeleted root =
     where remaining = root `Names.difference` toBeDeleted
 
 toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
-toSlurpResult = error "todo"
+toSlurpResult _selected _uf _existingNames =
+  -- This looks at the selected names in the file and compares them to the
+  -- existing names passed in.
+  --   New names with new definitions go in `adds`
+  --   Old names with new definitions go in `updates`
+  --   New names with old definitions go in `termAlias` or `typeAlias`
+  --   ...
+  error "todo"
 
 filterBySlurpResult :: Ord v
            => SlurpResult v
