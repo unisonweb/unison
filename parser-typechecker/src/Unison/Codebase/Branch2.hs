@@ -17,7 +17,7 @@ module Unison.Codebase.Branch2 where
 
 import           Prelude                  hiding (head,read,subtract)
 
-import           Control.Lens            hiding ( children, transform )
+import           Control.Lens            hiding ( children, cons, transform )
 import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
@@ -351,22 +351,22 @@ isEmpty = (== empty0)
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
 
+cons :: Applicative m => Branch0 m -> Branch m -> Branch m
+cons = step . const
+
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
 stepAt :: forall m. Applicative m
        => Path
        -> (Branch0 m -> Branch0 m)
-       -> Branch m
-       -> Branch m
+       -> Branch m -> Branch m
 stepAt p f b = modifyAt p g b where
   g :: Branch m -> Branch m
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
--- stepManyAt consolidates several changes into a single step, by starting at the leaves and working up to the root
 stepManyAt :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
-stepManyAt = error "todo"
--- use Unison.Util.List.groupBy to merge the Endos at each Path
+stepManyAt actions = step (stepManyAt0 actions)
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
@@ -420,24 +420,29 @@ modifyAtM path f b = case Path.toList path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
-stepManyAt0 :: a
+stepAt0 :: Applicative m => Path
+                         -> (Branch0 m -> Branch0 m)
+                         -> Branch0 m -> Branch0 m
+stepAt0 p f = runIdentity . stepAt0M p (pure . f)
+
+-- stepManyAt consolidates several changes into a single step,
+-- by starting at the leaves and working up to the root
+-- use Unison.Util.List.groupBy to merge the Endos at each Path
+stepManyAt0 :: (Applicative m, Foldable f)
+           => f (Path, Branch0 m -> Branch0 m)
+           -> Branch0 m -> Branch0 m
 stepManyAt0 = error "todo"
 
-modifyAt0M
-  :: forall n m
-   . Functor n
-  => Applicative m -- because `Causal.cons` uses `pure`
-  => Path
-  -> (Branch0 m -> n (Branch0 m))
-  -> Branch0 m
-  -> n (Branch0 m)
-modifyAt0M path f b = case Path.uncons path of
+stepAt0M :: forall n m. (Functor n, Applicative m)
+         => Path
+         -> (Branch0 m -> n (Branch0 m))
+         -> Branch0 m -> n (Branch0 m)
+stepAt0M p f b = case Path.uncons p of
   Nothing -> f b
   Just (seg, path) -> do
     let child = getChildBranch seg b
-    -- child' <- modifyAt0M path f child
---    pure . setChildBranch seg child' $ b
-    error "todo" seg path child
+    child0' <- stepAt0M path f (head child)
+    pure $ setChildBranch seg (cons child0' child) b
 
 instance Hashable (Branch0 m) where
   tokens b =
