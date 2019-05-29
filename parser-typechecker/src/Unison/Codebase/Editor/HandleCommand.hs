@@ -1,7 +1,6 @@
---{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
+-- {-# OPTIONS_GHC -Wno-unused-imports #-}
+-- {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 -- {-# LANGUAGE FlexibleContexts #-}
@@ -13,312 +12,36 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
---
-module Unison.Codebase.Editor2 where
+
+module Unison.Codebase.Editor.HandleCommand where
+
+import Unison.Codebase.Editor.Output
+import Unison.Codebase.Editor.Command
+import Unison.Codebase.Editor.RemoteRepo
 
 -- import Debug.Trace
 
-import           Data.Char                      ( toLower )
-import Data.List (sortOn, isSuffixOf, isPrefixOf)
-import           Control.Lens            hiding ( children, transform )
-import           Control.Monad                  ( forM_, forM, foldM, filterM, void)
-import           Control.Monad.Extra            ( ifM )
-import           Data.Foldable                  ( toList
-                                                , traverse_
-                                                )
-import           Data.Bifunctor                 ( bimap, second )
-import           Data.List.Extra                ( nubOrd )
-import qualified Data.Map                      as Map
-import           Data.Map                       ( Map )
-import           Data.Sequence                  ( Seq )
-import           Data.Set                       ( Set )
-import qualified Data.Set as Set
+import           Data.Functor                   ( void )
 import           Data.Text                      ( Text
-                                                , unpack
                                                 )
-import qualified Unison.Builtin                as B
 import           Unison.Codebase2               ( Codebase )
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase2              as Codebase
-import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.Codebase.Branch2         ( Branch
-                                                 , Branch0
                                                  )
-import qualified Unison.Codebase.Branch2        as Branch
-import qualified Unison.Codebase.OldBranch      as OldBranch
 import qualified Unison.Codebase.SearchResult  as SR
-import qualified Unison.DataDeclaration        as DD
-import           Unison.FileParsers             ( parseAndSynthesizeFile )
-import           Unison.HashQualified           ( HashQualified )
-import           Unison.Name                    ( Name )
-import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as OldNames
-import           Unison.Names2                  ( Names )
-import qualified Unison.Names2                 as Names
-import           Unison.Codebase.Path           ( Path, Path' )
-import qualified Unison.Codebase.Path          as Path
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
-import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.Reference               ( Reference, pattern DerivedId )
 import qualified Unison.Reference              as Reference
-import           Unison.Result                  ( Note
-                                                , Result
-                                                )
-import qualified Unison.Result                 as Result
-import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
-import qualified Unison.Runtime.IOSource       as IOSource
-import           Unison.Symbol                  ( Symbol )
-import           Unison.Util.Relation          (Relation)
-import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
-import qualified Unison.Typechecker            as Typechecker
-import qualified Unison.Typechecker.Context    as Context
-import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
-
-data Event
-  = UnisonFileChanged SourceName Text
-  | IncomingRootBranch (Set Branch.Hash)
-
-type Source = Text -- "id x = x\nconst a b = a"
-type SourceName = Text -- "foo.u" or "buffer 7"
-type TypecheckingResult v =
-  Result (Seq (Note v Ann))
-         (Names, Maybe (UF.TypecheckedUnisonFile v Ann))
-type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
-
-type BranchPath = Path'
-type EditsPath = Path'
-type TermPath = Path'
-type TypePath = Path'
-
--- but really "Path" not "Name"
-data NameTarget = BranchName | TermName | TypeName | EditsName
-  deriving (Eq, Ord, Show)
-
-data DefnTarget = TermName' | TypeName'
-  deriving (Eq, Ord, Show)
-
-data SlurpComponent v =
-  SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
-  deriving (Show)
-
-instance Ord v => Semigroup (SlurpComponent v) where
-  (<>) = mappend
-instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent mempty mempty
-  c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
-                                   (implicatedTerms c1 <> implicatedTerms c2)
-
-data SlurpResult v = SlurpResult {
-  -- The file that we tried to add from
-    originalFile :: UF.TypecheckedUnisonFile v Ann
-  -- Previously existed only in the file; now added to the codebase.
-  , adds :: SlurpComponent v
-  -- Exists in the branch and the file, with the same name and contents.
-  , duplicates :: SlurpComponent v
-  -- Not added to codebase due to the name already existing
-  -- in the branch with a different definition.
-  , collisions :: SlurpComponent v
-  -- Not added to codebase due to the name existing
-  -- in the branch with a conflict (two or more definitions).
-  , conflicts :: SlurpComponent v
-  -- Names that already exist in the branch, but whose definitions
-  -- in `originalFile` are treated as updates.
-  , updates :: SlurpComponent v
-  -- Names of terms in `originalFile` that couldn't be updated because
-  -- they refer to existing constructors. (User should instead do a find/replace,
-  -- a constructor rename, or refactor the type that the name comes from).
-  , termExistingConstructorCollisions :: Map v Referent
-  , constructorExistingTermCollisions :: Map v [Referent]
-  -- Already defined in the branch, but with a different name.
-  , needsAlias :: Branch.RefCollisions
-  , termsWithBlockedDependencies :: Map v (Set Reference)
-  , typesWithBlockedDependencies :: Map v (Set Reference)
-  } deriving (Show)
-
-data RepoRef
-  = Local
-  | Github { username :: Text, repo :: Text, commit :: Text }
-  deriving (Eq, Ord, Show)
-
-data RepoLink a = RepoLink RepoRef a
-  deriving (Eq, Ord, Show)
-
-data Input
-  -- names stuff:
-    -- directory ops
-    -- `Link` must describe a repo and a source path within that repo.
-    -- clone w/o merge, error if would clobber
-    = ForkBranchI (RepoLink BranchPath) BranchPath
-    -- merge first causal into destination
-    | MergeBranchI (RepoLink BranchPath) BranchPath
-    -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
-    --          Does it make sense to fork from not-the-root of a Github repo?
-    -- change directory
-    | SwitchBranchI BranchPath
-    | AliasTermI Path.HQSplit' Path.Split'
-    | AliasTypeI Path.HQSplit' Path.Split'
-    -- Move = Rename
-    | MoveTermI Path.HQSplit' Path.Split'
-    | MoveTypeI Path.HQSplit' Path.Split'
-    | MoveBranchI Path.Split' Path.Split'
-    | DeleteDefnI [Path.HQSplit']
-    | DeleteTermI Path.HQSplit'
-    | DeleteTypeI Path.HQSplit'
-    | DeleteBranchI Path.Split'
-    -- resolving naming conflicts within `branchpath`
-      -- Add the specified name after deleting all others for a given reference
-      -- within a given branch.
---      | ResolveTermNameI BranchPath Referent Name
---      | ResolveTypeNameI BranchPath Reference Name
-  -- edits stuff:
-    | TodoI EditsPath BranchPath
-    | PropagateI EditsPath BranchPath
-    -- -- create and remove update directives
-    -- | CreateEditsI EditGuid -- implies SetEdits?
-    -- | SetEditsI EditGuid
-    -- | ClearEdits -- don't record (don't allow?) term edits
-    -- | ListEditsI EditGuid
-    -- | ReplaceTermI EditGuid Reference Reference
-    -- | ReplaceTypeI EditGuid Reference Reference
-    -- -- clear updates for a term or type
-    -- | RemoveAllTermUpdatesI EditGuid Reference
-    -- | RemoveAllTypeUpdatesI EditGuid Reference
-    -- -- resolve update conflicts
-    -- | ChooseUpdateForTermI EditGuid Reference Reference
-    -- | ChooseUpdateForTypeI EditGuid Reference Reference
-  -- execute an IO object with arguments
-  | ExecuteI String
-  -- other
-  | AddI [HashQualified]
-  | UpdateI EditsPath [HashQualified]
-  | SearchByNameI [String]
-  | ShowDefinitionI OutputLocation [String]
-  | ShowDefinitionByPrefixI OutputLocation [String]
-  | UpdateBuiltinsI
-  | QuitI
-  deriving (Eq, Show)
-
--- Some commands, like `view`, can dump output to either console or a file.
-data OutputLocation
-  = ConsoleLocation
-  | LatestFileLocation
-  | FileLocation FilePath
-  -- ClipboardLocation
-  deriving (Eq, Show)
-
-
--- Whether or not updates are allowed during file slurping
-type AllowUpdates = Bool
-
-data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
-  deriving (Eq, Ord, Show)
-
-data SearchResult' v a
-  = Tm' (TermResult' v a)
-  | Tp' (TypeResult' v a)
-  deriving (Eq, Show)
-data TermResult' v a =
-  TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
-  deriving (Eq, Show)
-data TypeResult' v a =
-  TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
-  deriving (Eq, Show)
-pattern Tm n t r as = Tm' (TermResult' n t r as)
-pattern Tp n t r as = Tp' (TypeResult' n t r as)
-
-tmReferent :: SearchResult' v a -> Maybe Referent
-tmReferent = \case; Tm _ _ r _ -> Just r; _ -> Nothing
-tpReference :: SearchResult' v a -> Maybe Reference
-tpReference = \case; Tp _ _ r _ -> Just r; _ -> Nothing
-
-foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
-foldResult' f g = \case
-  Tm' tm -> f tm
-  Tp' tp -> g tp
-
-type ListDetailed = Bool
-
-data Output v
-  -- Generic Success response; we might consider deleting this.
-  -- I had put the `Input` field here in case we wanted the success message
-  -- to vary based on the command the user submitted.
-  = Success Input
-  -- User did `add` or `update` before typechecking a file?
-  | NoUnisonFile
-  | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Input Path'
-  -- AliasOutput currentPath src dest result
-  | AliasOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
-  | RenameOutput Path.Absolute Path.HQSplit' Path.Split' NameChangeResult
-  -- ask confirmation before deleting the last branch that contains some defns
-  -- `Path` is one of the paths the user has requested to delete, and is paired
-  -- with whatever named definitions would not have any remaining names if
-  -- the path is deleted.
-  | DeleteBranchConfirmation
-      [(Path, (Names, [SearchResult' v Ann]))]
-  -- list of all the definitions within this branch
-  | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
-  -- show the result of add/update
-  | SlurpOutput (SlurpResult v)
-  -- Original source, followed by the errors:
-  | ParseErrors Text [Parser.Err v]
-  | TypeErrors Text Names [Context.ErrorNote v Ann]
-  | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
-  | Evaluated SourceFileContents
-              Names
-              [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName Names (UF.TypecheckedUnisonFile v Ann)
-  | FileChangeEvent SourceName Text
-  -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
-  | DisplayDefinitions (Maybe FilePath)
-                       Names
-                       [(Reference, DisplayThing (Term v Ann))]
-                       [(Reference, DisplayThing (Decl v Ann))]
-  | TodoOutput Names (TodoOutput v Ann)
-  -- | ListEdits Edits Branch0
-
-  -- new/unrepresented references followed by old/removed
-  -- todo: eventually replace these sets with [SearchResult' v Ann]
-  -- and a nicer render.
-  | BustedBuiltins (Set Reference) (Set Reference)
-  deriving (Show)
-
-type SourceFileContents = Text
-type Score = Int
-
-data TodoOutput v a
-  = TodoOutput_ {
-      todoScore :: Int,
-      todoFrontier ::
-        ( [(HashQualified, Reference, Maybe (Type v a))]
-        , [(HashQualified, Reference, DisplayThing (Decl v a))]),
-      todoFrontierDependents ::
-        ( [(Score, HashQualified, Reference, Maybe (Type v a))]
-        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))]),
-      todoConflicts :: OldBranch.Branch0
-    } deriving (Show)
-
--- todo: do we want something here for nonexistent old name?
-data NameChangeResult = NameChangeResult
-  { _oldNameConflicted :: Set DefnTarget
-  , _newNameAlreadyExists :: Set DefnTarget
-  , _changedSuccessfully :: Set DefnTarget
-  } deriving (Eq, Ord, Show)
-
-makeLenses ''NameChangeResult
 
 -- instance Semigroup NameChangeResult where (<>) = mappend
 -- instance Monoid NameChangeResult where
@@ -340,93 +63,6 @@ makeLenses ''NameChangeResult
 -- addCollisionHandler = const False
 
 data SearchMode = FuzzySearch | ExactSearch
-type AmbientAbilities v = [Type.AnnotatedType v Ann]
-
-data Command m i v a where
-  Eval :: m a -> Command m i v a
-
-  Input :: Command m i v i
-
-  -- Presents some output to the user
-  Notify :: Output v -> Command m i v ()
-
-  -- This will load the namespace from the provided link, and
-  -- give warnings about name conflicts and the like.
-  -- If there are no warnings, or if the `CollisionHandler` specifies to ignore
-  -- them, then this also writes the supplied definitions to `terms/`, `types/`.
-  -- It does not write any namespace stuff.  (Maybe it should?)
-  -- It may complain if you are trying to write definitions into a remote link,
-  -- and suggest that you can convert the link to a fork if you want.
-
---  AddDefsToCodebase
---    :: -- CollisionHandler -> (todo)
---       Path
---    -> UF.TypecheckedUnisonFile v Ann
---    -> Command m i v (Branch (Command m i v), SlurpResult v)
-
-  -- Arya: Do we need this?
-  -- -- Load one level of a namespace.  It may involve reading from disk,
-  -- -- or from http into a cache.
-  -- GetBranch :: RepoLink Path -> Command m i v Branch
-
-  -- Typecheck a unison file relative to a particular link.
-  -- If we want to be able to resolve relative names (seems unnecessary,
-  -- at least in M1), we can keep a map from Link to parent in memory.
-  Typecheck :: AmbientAbilities v
-            -> Names
-            -> SourceName
-            -> Source
-            -> Command m i v (TypecheckingResult v)
-
-  -- Evaluate all watched expressions in a UnisonFile and return
-  -- their results, keyed by the name of the watch variable. The tuple returned
-  -- has the form:
-  --   (hash, (ann, sourceTerm, evaluatedTerm, isCacheHit))
-  --
-  -- where
-  --   `hash` is the hash of the original watch expression definition
-  --   `ann` gives the location of the watch expression
-  --   `sourceTerm` is a closed term (no free vars) for the watch expression
-  --   `evaluatedTerm` is the result of evaluating that `sourceTerm`
-  --   `isCacheHit` is True if the result was computed by just looking up
-  --   in a cache
-  --
-  -- It's expected that the user of this action might add the
-  -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
-  -- of the same watches instantaneous.
-
-  Evaluate :: UF.TypecheckedUnisonFile v Ann
-           -> Command m i v ([(v, Term v ())], Map v
-                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
-
-
-  -- Loads a root branch from some codebase, returning `Nothing` if not found.
-  -- Any definitions in the head of the requested root that aren't in the local
-  -- codebase are copied there.
-  LoadRootBranch :: RepoRef -> Command m i v (Branch m)
-
-  -- RetrieveHashes repo types terms
-  RetrieveHashes :: RepoRef -> Set Reference -> Set Reference -> Command m i v ()
-
-  -- Syncs the Branch to some codebase and updates the head to the head of this causal.
-  -- Any definitions in the head of the supplied branch that aren't in the target
-  -- codebase are copied there.
-  SyncRootBranch :: RepoRef -> Branch m -> Command m i v ()
-  -- e.g.
-  --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
-  --   SynchRootBranch (Github "aryairani" "superML" "master")
-  --                   (Branch at /Lib/Arya/Public/SuperML)
-
-  LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
-
-  LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
-
-  -- Loads some metadata for prettier search result display
-  LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]
-
-  -- Execute a UnisonFile for its IO effects
-  -- todo: Execute should do some evaluation?
-  Execute :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
 -- -- Edits stuff:
 --   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
@@ -436,10 +72,10 @@ data Command m i v a where
 
 -- may need to be different for private repo?
 loadGithubRootBranch :: Text -> Text -> Text -> m (Branch m)
-loadGithubRootBranch user repo treeish = error "todo"
+loadGithubRootBranch _user _repo _treeish = error "todo: loadGithubRootBranch"
 
 syncGithubRootBranch :: Text -> Text -> Text -> Branch m -> m ()
-syncGithubRootBranch user repo ghbranch b = error "todo"
+syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranch"
 
 -- data Outcome
 --   -- New definition that was added to the branch
@@ -690,6 +326,7 @@ typecheck
   -> m (TypecheckingResult v)
 typecheck ambient codebase names sourceName src =
   error "todo: update to use Names2 instead of Names"
+  ambient codebase names sourceName src
   -- Result.getResult $ parseAndSynthesizeFile ambient
   --   (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
   --   names
@@ -721,20 +358,6 @@ typecheck ambient codebase names sourceName src =
 --   (Codebase.syncBranch codebase branchName branch *> pure True)
 --   (pure False)
 
--- Separates type references from term references and returns terms and types,
--- respectively. For terms that are constructors, turns them into their data
--- types.
-collateReferences
-  :: [Referent] -- terms requested, including ctors
-  -> [Reference] -- types requested
-  -> ([Reference], [Reference])
-collateReferences terms types =
-  let terms' = [ r | Referent.Ref r <- terms ]
-      types' = terms >>= \case
-        Referent.Con r _ -> [r]
-        _                -> []
-  in  (terms', nubOrd $ types' <> types)
-
 commandLine
   :: forall i v a
    . Var v
@@ -759,15 +382,16 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
       namegen <- Parser.uniqueBase58Namegen
       typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
     Evaluate unisonFile -> evalUnisonFile unisonFile
-    LoadRootBranch Local -> Codebase.getRootBranch codebase
-    SyncRootBranch Local branch -> Codebase.putRootBranch codebase branch
-    LoadRootBranch Github{..} -> error "todo"
-    SyncRootBranch Github{..} _branch -> error "todo"
-    RetrieveHashes Local _ _ -> pure ()
-    RetrieveHashes Github{} _types _terms -> error "todo"
+    LoadLocalRootBranch -> Codebase.getRootBranch codebase
+    SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
+    LoadRemoteRootBranch Github{..} -> error "todo"
+    SyncRemoteRootBranch Github{..} _branch -> error "todo"
+    RetrieveHashes Github{..} _types _terms -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
     LoadSearchResults results -> loadSearchResults codebase results
+    GetDependents r -> Codebase.dependents codebase r
+    AddDefsToCodebase _unisonFile -> error "todo"
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

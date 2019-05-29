@@ -42,6 +42,11 @@ instance (Show a, Show b) => Show (Relation a b) where
 
 -- * Functions about relations
 
+difference :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
+difference a b = fromList . S.toList $ diffSet where
+  diffSet = S.difference seta setb
+  seta = S.fromList . toList $ a
+  setb = S.fromList . toList $ b
 
 -- The size is calculated using the domain.
 -- |  @size r@ returns the number of tuples in the relation.
@@ -160,8 +165,6 @@ delete x y r = r { domain = domain', range = range' }
 -- | The Set of values associated with a value in the domain.
 lookupDom' :: Ord a => a -> Relation a b -> Maybe (Set b)
 lookupDom' x r = M.lookup x (domain r)
-
-
 
 -- | The Set of values associated with a value in the range.
 lookupRan' :: Ord b => b -> Relation a b -> Maybe (Set a)
@@ -323,8 +326,6 @@ s <|| r = fromList [ (a,b) | (a,b) <- toList r, not (a `S.member` s)]
 --    the @fromList@ constructor and @toList@ flattener:
 --    It is enough to know one half of the Relation (the domain or
 --    the range) to create to other half.
---
---
 
 insertManyRan
   :: (Foldable f, Ord a, Ord b) => a -> f b -> Relation a b -> Relation a b

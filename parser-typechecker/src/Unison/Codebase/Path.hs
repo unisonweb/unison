@@ -27,6 +27,7 @@ import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
@@ -34,17 +35,23 @@ newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
-newtype Absolute = Absolute Path deriving (Eq,Ord,Show)
-newtype Relative = Relative Path deriving (Eq,Ord,Show)
+newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord,Show)
+newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
+unsplit :: Show a => (Path, a) -> Path
+unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
+
 type HQSegment = HQ.HashQualified' NameSegment
+type HQ'Segment = HQ'.HashQualified' NameSegment
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
+type HQ'Split = (Path, HQ'Segment)
 
 type Split' = (Path', NameSegment)
 type HQSplit' = (Path', HQSegment)
+type HQ'Split' = (Path', HQ'Segment)
 
 type SplitAbsolute = (Absolute, NameSegment)
 type HQSplitAbsolute = (Absolute, HQSegment)
@@ -62,6 +69,16 @@ parsePath = error "todo"
 
 parseHashQualified :: Text -> Either String HQSplit'
 parseHashQualified = error "todo"
+-- this might be useful in implementing the above
+-- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
+-- hqToPathSeg = \case
+--   HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
+--   HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
+--   HQ.HashQualified n h -> (p',HQ.HashQualified n' h) where (p',n') = splitName n
+--   where
+--   splitName n = (Path.toPath' p, n') where
+--     (p, n') = fromMaybe (error "hq name can't be empty")
+--                         (Path.unsnoc (Path.fromName n))
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (toAbsolutePath a p, s)

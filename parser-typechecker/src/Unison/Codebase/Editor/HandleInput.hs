@@ -1,8 +1,11 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-} -- this is ok
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ApplicativeDo       #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE PatternSynonyms     #-}
@@ -10,90 +13,68 @@
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Unison.Codebase.Editor.Actions2 where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0) where
 
-import qualified Unison.Codebase.Causal2       as Causal
+import Unison.Codebase.Editor.Command
+import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.RemoteRepo
+
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( unless
-                                                , when
-                                                )
+import           Control.Monad                  ( foldM, liftM2, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
-                                                , get
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
-import           Data.Bifunctor                 ( first )
-import           Data.Foldable                  ( foldl', find
+import           Data.Foldable                  ( find
                                                 , toList
-                                                , traverse_
                                                 )
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
-                                                , fromJust
+                                                , mapMaybe
                                                 )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
-import           Data.Tuple.Extra               ( (&&&) )
+import           Data.Tuple.Extra               ((&&&))
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
-                                                , Edits, BranchEntry
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
-import           Unison.Codebase.Editor2        ( Command(..)
-                                                , Input(..)
-                                                , Output(..)
-                                                , Event(..)
-                                                , BranchPath
-                                                , EditsPath
-                                                , TermPath
-                                                , TypePath
-                                                , RepoLink(..)
-                                                , RepoRef(..)
-                                                , SearchMode(..)
-                                                , SlurpResult(..)
-                                                , DisplayThing(..)
-                                                , NameChangeResult
-                                                  ( NameChangeResult )
-                                                , collateReferences
-                                                )
-import qualified Unison.Codebase.Editor2        as Editor
-import           Unison.Codebase.Path           ( Absolute(..)
-                                                , NameSegment
-                                                , Path
+import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
+                                                , NameSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
-import qualified Unison.Codebase.TermEdit      as TermEdit
-import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names2                  ( Names, Names0, NamesSeg )
+import           Unison.Names2                  ( Names'(..), Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
-import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
 import           Unison.Result                  ( pattern Result )
-import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.ShortHash as SH
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
@@ -103,13 +84,11 @@ import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
-import qualified Unison.Util.Monoid            as Monoid
-import qualified Unison.Util.Relation          as Relation
 import qualified Unison.Util.Relation          as R
-import           Unison.Util.Relation           ( Relation )
 import           Unison.Var                     ( Var )
 
 type F m i v = Free (Command m i v)
+type Type v a = Type.AnnotatedType v a
 
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
@@ -149,29 +128,55 @@ makeLenses ''LoopState
 loopState0 :: Branch m -> Path.Absolute -> LoopState m v
 loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
+type Action' m v = Action m (Either Event Input) v
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
-  _uf          <- use latestTypecheckedFile
+  uf          <- use latestTypecheckedFile
   root'        <- use root
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
-  let _unsnocPath' :: Path' -> (Absolute, NameSegment)
-      _unsnocPath' = fromJust
-                . fmap (first Absolute)
-                . (\(Absolute p) -> Path.unsnoc p)
-                . Path.toAbsolutePath currentPath'
-      toAbsoluteSplit :: (Path', a) -> (Absolute, a)
-      toAbsoluteSplit = Path.toAbsoluteSplit currentPath'
-      _loadHqSrc ::
-        Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
-      _loadHqSrc hq = do
-        let (p, seg) = toAbsoluteSplit hq
-        b <- getAt p
-        pure ( b
-             , Branch.toNamesSeg (Branch.head b)
-             , Branch.toNames0 (Branch.head b)
-             , p, seg)
+  let
+      root0 = Branch.head root'
+      resolvePath' :: (Path', a) -> (Path, a)
+      resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
+      getAtSplit :: Path.Split' -> Maybe (Branch m)
+      getAtSplit p = BranchUtil.getBranch (resolvePath' p) root0
+      getHQTypes :: Path.HQSplit' -> Set Reference
+      getHQTypes p = BranchUtil.getType (resolvePath' p) root0
+      getHQTerms :: Path.HQSplit' -> Set Referent
+      getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
+      getHQ'Terms = getHQTerms . fmap HQ'.toHQ
+      -- These don't quite make sense, because a HQ'Split' includes a name.
+      -- A regular HQSplit' may be missing a name, and then it .. well
+      -- even then, a NameSegment probably isn't going to cut it.
+      -- getNamedHQTypes :: Path.HQ'Split' -> Set (NameSegment, Reference)
+      -- getNamedHQTypes p = BranchUtil.getNamedType (resolvePath' p) root0
+      -- getNamedHQTerms :: Path.HQ'Split' -> Set (NameSegment, Referent)
+      -- getNamedHQTerms p = BranchUtil.getNamedTerm (resolvePath' p) root0
+      getTypes :: Path.Split' -> Set Reference
+      getTypes = getHQTypes . fmap HQ.NameOnly
+      getTerms :: Path.Split' -> Set Referent
+      getTerms = getHQTerms . fmap HQ.NameOnly
+
+      -- unsnocPath' :: Path' -> (Absolute, NameSegment)
+      -- unsnocPath' = fromJust
+      --           . fmap (first Absolute)
+      --           . (\(Absolute p) -> Path.unsnoc p)
+      --           . Path.toAbsolutePath currentPath'
+
+      -- todo: don't need to use this version, because the NamesSeg and deepReferentes are built into the Branch0 now.
+      -- loadHqSrc ::
+      --   Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
+      -- loadHqSrc hq = do
+      --   let (p, seg) = toAbsoluteSplit hq
+      --   b <- getAt p
+      --   pure ( b
+      --        , Branch.toNamesSeg (Branch.head b)
+      --        , Branch.toNames0 (Branch.head b)
+      --        , p, seg)
 
   let names' = Branch.toNames (Branch.head currentBranch')
   e           <- eval Input
@@ -191,13 +196,16 @@ loop = do
                   [ err | Result.TypeError err <- toList notes ]
             in  maybe h (k names) r
   case e of
-    Left (IncomingRootBranch _names) -> error "todo: merge multiple heads"
-      -- when (Set.member currentBranchName' names)
-      --   $ switchBranch currentBranchName'
+    Left (IncomingRootBranch _names) ->
+      error $ "todo: notify user about externally deposited head, and offer\n"
+           ++ "a command to undo the merge that is about to happen.  In the\n"
+           ++ "mean time until this is implemented, you can fix the issue by\n"
+           ++ "deleting one of the heads from `.unison/branches/head/`."
+
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if fromMaybe False . fmap snd $ latestFile'
-        then modifying latestFile $ (fmap (const False) <$>)
+        then modifying latestFile (fmap (const False) <$>)
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
@@ -221,84 +229,143 @@ loop = do
               e'
             latestFile .= Just (Text.unpack sourceName, False)
             latestTypecheckedFile .= Just unisonFile
-    Right input -> case input of
-      ForkBranchI (RepoLink src srcPath0) destPath0 -> do
-        let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath currentPath' p
-              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath currentPath' destPath0
-        (Branch.head -> destBranch) <- loadBranchAt Local destPath
-        if not . Branch.isEmpty $ destBranch
-        then respond $ BranchAlreadyExists input destPath0
-        else do
-          srcBranch <- loadBranchAt src srcPath
-          setAt destPath srcBranch
+    Right input ->
+      let
+        ifConfirmed = ifM (confirmedCommand input)
+        ifNotConfirmed = flip ifConfirmed
+        branchNotFound = respond . BranchNotFound input
+        typeNotFound = respond . TypeNotFound input
+        termNotFound = respond . TermNotFound input
+        typeConflicted src = respond . TypeAmbiguous input src
+        termConflicted src = respond . TermAmbiguous input src
+        branchExists dest _ = respond $ BranchAlreadyExists input dest
+        typeExists dest = respond . TypeAlreadyExists input dest
+        termExists dest = respond . TermAlreadyExists input dest
+      in case input of
+      ForkLocalBranchI src dest ->
+        maybe (branchNotFound src) srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
+        destOk b = do
+          stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
           success -- could give rando stats about new defns
-      MergeBranchI (RepoLink src srcPath0) destPath0 -> do
-        let srcPath = case (src, srcPath0) of
-              (Local, p) -> Path.toAbsolutePath currentPath' p
-              (Github{}, p) -> Path.toAbsolutePath Path.absoluteEmpty p
-            destPath = Path.toAbsolutePath currentPath' destPath0
-        srcBranch <- loadBranchAt src srcPath
-        updateAtM destPath $ (\b -> eval . Eval $ Branch.merge srcBranch b)
+
+      MergeLocalBranchI src dest ->
+        maybe (branchNotFound src) srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit dest)
+        destEmpty b = ifNotConfirmed (branchNotFound dest)
+          (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
+        destExists srcb destb = do
+          merged <- eval . Eval $ Branch.merge srcb destb
+          stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) merged
+          success
+
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
         currentPath .= path
-        branch' <- loadBranchAt Local path
+        branch' <- getAt path
         when (Branch.isEmpty . Branch.head $ branch')
           (respond $ CreatedNewBranch path)
-      AliasTermI srcHQ dest ->
-        let oneManyNone :: Set a -> (a -> b) -> (Set a -> b) -> b -> b
-            oneManyNone set one many none = case toList set of
-              a : [] -> one a
-              a : _ : _ -> many set
-              [] -> none
-        in oneManyNone (BranchUtil.getTerm (Path.fromAbsoluteSplit . toAbsoluteSplit $ srcHQ) (Branch.head root'))
-                    (error "todo: one")
-                    (error "todo: many")
-                    (error "todo: none")
 
+      AliasTermI src dest ->
+        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
+        where
+        srcOk src = zeroOrMore (getTerms dest) (destOk src) (termExists dest)
+        destOk = stepAt . BranchUtil.makeAddTermName (resolvePath' dest)
 
-      -- AliasI targets srcHQ destName -> do
-      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-      --   let (destPath, destNameSeg) = toAbsoluteSplit destName
-      --   let -- todo: could probably factor these two out, too
-      --       doTermConditionally =
-      --         if Set.notMember Editor.TermName' targets then id
-      --         else ifUniqueTermHQ srcNamesSeg srcNames0 hq
-      --               (`Branch.addTermName` destNameSeg)
-      --       doTypeConditionally =
-      --         if Set.notMember Editor.TypeName' targets then id
-      --         else ifUniqueTypeHQ srcNamesSeg srcNames0 hq
-      --               (`Branch.addTypeName` destNameSeg)
-      --   stepAtM destPath $ \b0 -> do
-      --     let (b0', r') = doTermConditionally . doTypeConditionally $
-      --           (b0, Editor.NameChangeResult mempty mempty mempty)
-      --     respond $ AliasOutput currentPath' srcHQ destName r'
-      --     pure b0'
-      -- RenameI targets srcHQ destName -> do
-      --   (srcBranch, srcNamesSeg, srcNames0, _srcPath, hq) <- loadHqSrc srcHQ
-      --   let (_destPath, _destNameSeg) = unsnocPath' destName
-      --       -- doTermConditionally =
-      --       --   if Set.notMember Editor.TermName targets then id
-      --       --   else ifUniqueTermHQ srcNamesSeg srcNames0 hq renameTerm
-      --       -- doTypeConditionally =
-      --       --   if Set.notMember Editor.TypeName targets then id
-      --       --   else ifUniqueTypeHQ srcNamesSeg srcNames0 hq renameType
-      --       -- doBranchConditionally = error "todo"
-      --       -- renameTerm r =
-      --   error "todo"
+      AliasTypeI src dest ->
+        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
+        where
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
+        destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
+
+      MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
+        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
+        where
+        srcOk r = zeroOrMore (getTerms dest) (destOk r) (termExists dest)
+        destOk r = stepManyAt
+          [ BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> src')) r
+          , BranchUtil.makeAddTermName (resolvePath' dest) r ]
+
+      MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
+        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
+        where
+        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
+        destOk r = stepManyAt
+          [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
+          , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
+
+      MoveBranchI src dest ->
+        maybe (branchNotFound src) srcOk (getAtSplit src)
+        where
+        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
+        destOk b = do
+          stepManyAt
+            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
+            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
+          success -- could give rando stats about new defns
+
+      DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
+                      (liftM2 ifConfirmed goMany (typeConflicted hq))
+        where
+        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
+        goMany rs = do
+          let rootNames = Branch.toNames0 root0
+              name = Path.toName . Path.unsplit $ resolvedPath
+              toDelete = Names.fromTypes ((name,) <$> toList rs)
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
+
+      -- like the previous
+      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTerms hq) (termNotFound hq) (goMany . Set.singleton)
+                      (liftM2 ifConfirmed goMany (termConflicted hq))
+        where
+        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
+        goMany rs = do
+          let rootNames = Branch.toNames0 root0
+              name = Path.toName . Path.unsplit $ resolvedPath
+              toDelete = Names.fromTerms ((name,) <$> toList rs)
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
+
+      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit p where
+        go (Branch.head -> b) = do
+          let rootNames = Branch.toNames0 root0
+              p' = resolvePath' p
+              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+          if failed == mempty then
+            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input failed failedDependents
+
+      -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
-        let termTypes :: Map.Map Reference (Editor.Type v Ann)
+        let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
-                [ (r, t) | Editor.Tm _ (Just t) (Referent.Ref r) _ <- results ]
-            (collatedTerms, collatedTypes) = collateReferences
-              (catMaybes . map Editor.tmReferent $ results)
-              (catMaybes . map Editor.tpReference $ results)
-        loadedTerms <- for collatedTerms $ \r -> case r of
-          Reference.DerivedId i -> do
+                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results ]
+            (collatedTypes, collatedTerms) = collateReferences
+              (mapMaybe Output.tpReference results)
+              (mapMaybe Output.tmReferent results)
+        loadedTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+          r@(Reference.DerivedId i) -> do
             tm <- eval (LoadTerm i)
             -- We add a type annotation to the term using if it doesn't
             -- already have one that the user provided
@@ -307,11 +374,12 @@ loop = do
               Just (tm, typ) -> case tm of
                 Term.Ann' _ _ -> RegularThing tm
                 _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-          Reference.Builtin _ -> pure (r, BuiltinThing)
-        loadedTypes <- for collatedTypes $ \r -> case r of
-          Reference.DerivedId i ->
+          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+        loadedTypes <- fmap Map.fromList . for (toList collatedTypes) $ \case
+          r@(Reference.DerivedId i) ->
             (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
-          Reference.Builtin _ -> pure (r, BuiltinThing)
+          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+
         -- makes sure that the user search terms get used as the names
         -- in the pretty-printer
         let
@@ -323,11 +391,11 @@ loop = do
           --     <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
           --     <> Branch.prettyPrintEnv (Branch.head currentBranch')
           loc = case outputLoc of
-            Editor.ConsoleLocation    -> Nothing
-            Editor.FileLocation path  -> Just path
-            Editor.LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+            ConsoleLocation    -> Nothing
+            FileLocation path  -> Just path
+            LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify $ DisplayDefinitions loc names loadedTerms loadedTypes
+          eval . Notify $ DisplayDefinitions loc names loadedTypes loadedTerms
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -358,32 +426,37 @@ loop = do
         eval (LoadSearchResults results)
           >>= respond
           .   ListOfDefinitions names' False
---      RemoveTermNameI r path ->
---        stepAt $ Branch.deleteTermName r name
---       RemoveTypeNameI r path ->
---        stepAt $ Branch.deleteTypeName r name
-      -- ResolveTermNameI r name ->
-      --   stepAt
-      --     $ Branch.addTermName r name
-      --     . Branch.unnameAll Names.TermName name
-      -- ResolveTypeName r name ->
-      --   stepAt
-      --     $ Branch.addTypeName r name
-      --     . Branch.unnameAll Names.TypeName name
-      -- AliasUnconflictedI targets existingName newName ->
-      --   aliasUnconflicted targets existingName newName
-      -- RenameUnconflictedI targets oldName newName ->
-      --   renameUnconflicted targets oldName newName
-      -- UnnameAllI hqs -> do
-      --   stepAt $ \b ->
-      --     let wrangle b hq = doTerms (doTypes b)
-      --          where
-      --           doTerms b = foldl' doTerm b (Branch.resolveHQNameTerm b hq)
-      --           doTypes b = foldl' doType b (Branch.resolveHQNameType b hq)
-      --           doTerm b (n, r) = Branch.deleteTermName r n b
-      --           doType b (n, r) = Branch.deleteTypeName r n b
-      --     in  foldl' wrangle b hqs
-      --   respond $ Success input
+
+      ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
+        where
+        conflicted = getHQTypes (fmap HQ'.toNameOnlyHQ hq')
+        makeDelete r =
+          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq')) r
+        go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
+      ResolveTermNameI hq'@(fmap HQ'.toHQ -> hq) ->
+        zeroOneOrMore (getHQTerms hq) (termNotFound hq) go (termConflicted hq)
+        where
+        conflicted = getHQTerms (fmap HQ'.toNameOnlyHQ hq')
+        makeDelete r =
+          BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq')) r
+        go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
+      AddI hqs -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf -> let result = toSlurpResult hqs uf $ Branch.head currentBranch' in
+          -- still todo: add the part about prompting the user to grow their
+          -- selection automatically
+          -- Or just do it, but give them an undo command.
+          if Output.isNonemptySlurp result then do
+            stepAt (Path.unabsolute currentPath', branchEdit uf result)
+            eval $ AddDefsToCodebase (finalFile result)
+          else respond $ SlurpOutput result
+          -- finalUF is the transitive closure of the intersection of HQs and uf
+
+      UpdateI _edits _hqs -> error "todo"
+
       -- SlurpFileI allowUpdates -> case uf of
       --   Nothing  -> respond NoUnisonFile
       --   Just uf' -> do
@@ -396,6 +469,8 @@ loop = do
       --     when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
       --     eval . Notify $ SlurpOutput updateo
       --     currentBranch .= branch'
+
+
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
       -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
@@ -435,7 +510,7 @@ loop = do
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
- where
+ -- where
   {-
   doMerge branchName b = do
     updated <- eval $ SyncBranch branchName b
@@ -473,11 +548,11 @@ loop = do
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
 
--- confirmedCommand :: Input -> Action m i v Bool
--- confirmedCommand i = do
---   i0 <- use lastInput
---   pure $ Just i == i0
---
+confirmedCommand :: Input -> Action m i v Bool
+confirmedCommand i = do
+  i0 <- use lastInput
+  pure $ Just i == i0
+
 -- loadBranch :: BranchName -> Action m i v (Maybe Branch)
 -- loadBranch = eval . LoadBranch
 
@@ -561,6 +636,19 @@ searchBranchScored b score queries =
         Just score -> Set.singleton (Just score, result)
         Nothing -> mempty
 
+-- Separates type references from term references and returns types and terms,
+-- respectively. For terms that are constructors, turns them into their data
+-- types.
+collateReferences
+  :: Foldable f
+  => Foldable g
+  => f Reference -- types requested
+  -> g Referent -- terms requested, including ctors
+  -> (Set Reference, Set Reference)
+collateReferences (toList -> types) (toList -> terms) =
+  let terms' = [ r | Referent.Ref r <- terms ]
+      types' = [ r | Referent.Con r _ <- terms ]
+  in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
 -- Foo#123
 -- Foo#890
@@ -710,121 +798,21 @@ respond output = eval $ Notify output
 -- checkTodo = do
 --   b <- use currentBranch
 --   eval (Todo b) >>= respond . TodoOutput b
---
---
--- aliasUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
--- aliasUnconflicted nameTargets oldName newName =
---   modifyCurrentBranchM $ \branch ->
---     let (branch', result) = foldl' go (branch, mempty) nameTargets
---     in do
---       respond $ AliasOutput oldName newName result
---       pure $ branch'
---   where
---   go (branch, result) nameTarget = (result <>) <$> case nameTarget of
---      Names.TermName ->
---        alias nameTarget Branch.termsNamed Branch.addTermName branch
---      Names.TypeName ->
---        alias nameTarget Branch.typesNamed Branch.addTypeName branch
---                        -- the RenameOutput action and setting the loop state
---   alias
---     :: Foldable f
---     => NameTarget
---     -> (Name -> Branch0 -> f a)
---     -> (a -> Name -> Branch0 -> Branch0)
---     -> Branch
---     -> (Branch, NameChangeResult)
---   alias nameTarget named alias' branch =
---     let oldMatches        = toList . named oldName $ Branch.head branch
---         oldNameMatchCount = length oldMatches
---         newNameExists     = (not . null) (named newName $ Branch.head branch)
---     in  case oldMatches of
---           [oldMatch] | not newNameExists ->
---             ( Branch.modify (alias' oldMatch newName) branch
---             , NameChangeResult mempty mempty (Set.singleton nameTarget)
---             )
---           _ -> (branch, NameChangeResult a b mempty)
---            where
---             a =
---               if oldNameMatchCount > 1 then Set.singleton nameTarget else mempty
---             b = if newNameExists then Set.singleton nameTarget else mempty
---
--- renameUnconflicted
---   :: forall i v . Set NameTarget -> Name -> Name -> Action m i v ()
--- renameUnconflicted nameTargets oldName newName =
---   modifyCurrentBranchM $ \branch ->
---     let (branch', result) = foldl' go (branch, mempty) nameTargets
---     in do
---       respond $ RenameOutput oldName newName result
---       pure branch'
---   where
---   go (branch, result) nameTarget = (result <>) <$> case nameTarget of
---     Names.TermName ->
---       rename nameTarget Branch.termsNamed Branch.renameTerm branch
---     Names.TypeName ->
---       rename nameTarget Branch.typesNamed Branch.renameType branch
---   rename
---     :: Foldable f
---     => NameTarget
---     -> (Name -> Branch0 -> f a)
---     -> (Name -> Name -> Branch0 -> Branch0)
---     -> Branch
---     -> (Branch, NameChangeResult)
---   rename nameTarget named rename' branch =
---     let oldNameMatchCount = length . named oldName $ Branch.head branch
---         newNameExists     = (not . null) (named newName $ Branch.head branch)
---     in  if (oldNameMatchCount == 1 && not newNameExists)
---           then
---             ( Branch.modify (rename' oldName newName) branch
---             , NameChangeResult mempty mempty (Set.singleton nameTarget)
---             )
---           else
---             ( branch
---             , NameChangeResult
---               (if oldNameMatchCount > 1
---                 then Set.singleton nameTarget
---                 else mempty
---               )
---               (if newNameExists then Set.singleton nameTarget else mempty)
---               mempty
---             )
---
--- -- todo: should this go away?
--- merging :: BranchName -> Branch -> Action m i v () -> Action m i v ()
--- merging targetBranchName b success =
---   ifM (eval $ SyncBranch targetBranchName b) success . respond $ UnknownBranch
---     targetBranchName
 
-loadBranchAt :: RepoRef -> Path.Absolute -> Action m i v (Branch m)
-loadBranchAt repo (Path.Absolute p) = do
-  root <- eval $ LoadRootBranch repo
+loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
+loadRemoteBranchAt repo (Path.Absolute p) = do
+  root <- eval $ LoadRemoteRootBranch repo
   let b = Branch.getAt' p root
-  let names0 = Branch.toNames0 $ Branch.head b
-  eval $ RetrieveHashes repo (Names.typeReferences names0)
-                             (Names.termReferences names0)
+  let (types, terms) = collateReferences types0 terms0
+        where
+        types0 = Branch.deepTypeReferences (Branch.head root)
+        terms0 = Branch.deepReferents (Branch.head root)
+  eval $ RetrieveHashes repo types terms
   pure b
-
-
---getAt :: Functor m => Path -> Action m i v (Branch (Action m i v))
---getAt p = go <$> use root where
---  go root = fromMaybe Branch.empty . Branch.getAt p
---          $ Branch.transform liftToAction root
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
-
-setAt :: Applicative m => Path.Absolute -> Branch m -> Action m i v ()
-setAt p b = updateAtM p (const . pure $ b)
-
-stepAt :: Applicative m => Path.Absolute -> (Branch0 m -> Branch0 m) -> Action m i v ()
-stepAt p f = updateAtM p (pure . Branch.step f)
-
--- stepAtMany :: Applicative m => [(Path.Absolute, Branch0 m -> Branch0 m)] -> Action m i v ()
--- stepAtMany steps =
-
-stepAtM :: Applicative m => Path.Absolute -> (Branch0 m -> Action m i v (Branch0 m)) -> Action m i v ()
-stepAtM p f = updateAtM p $ (Branch.stepAtM Path.empty f)
 
 updateAtM :: Applicative m
           => Path.Absolute
@@ -834,106 +822,83 @@ updateAtM (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
   root .= b'
-  when (b /= b') $ eval $ SyncRootBranch Editor.Local b'
+  when (b /= b') $ eval $ SyncLocalRootBranch b'
 
--- hqToPathSeg splits a hashqualified into a Path and the NameSeg version of a
--- HashQualified.
--- todo: delete after Path.parseHashQualified is done
-hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
-hqToPathSeg = \case
-  HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
-  HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
-  HQ.HashQualified n h -> (p',HQ.HashQualified n' h) where (p',n') = splitName n
+stepAt :: forall m i v. Applicative m
+       => (Path, Branch0 m -> Branch0 m)
+       -> Action m i v ()
+stepAt = stepManyAt @m @[] . pure
+
+stepManyAt :: (Applicative m, Foldable f)
+           => f (Path, Branch0 m -> Branch0 m)
+           -> Action m i v ()
+stepManyAt actions = do
+    b <- use root
+    let b' = Branch.stepManyAt actions b
+    root .= b'
+    when (b /= b') $ eval $ SyncLocalRootBranch b'
+
+-- cata for 0, 1, or more elements of a Foldable
+-- tries to match as lazily as possible
+zeroOneOrMore :: Foldable f => f a -> b -> (a -> b) -> (f a -> b) -> b
+zeroOneOrMore f zero one more = case toList f of
+  _ : _ : _ -> more f
+  a : _ -> one a
+  _ -> zero
+
+zeroOrMore :: Foldable f => f a -> b -> (f a -> b) -> b
+zeroOrMore f zero more = case toList f of
+  a : _ -> more f
+  _ -> zero
+
+emptyOrNot :: (Monoid m, Eq m) => m -> b -> (m -> b) -> b
+emptyOrNot m zero more = if m == mempty then zero else more m
+
+-- Returns
+--   ( the set of names that couldn't be deleted
+--   , the set of dependents of the names that couldn't be deleted)
+getEndangeredDependents :: forall m. Monad m
+                        => (Reference -> m (Set Reference))
+                        -> Names0
+                        -> Names0
+                        -> m (Names0, Names0)
+getEndangeredDependents getDependents toBeDeleted root =
+  -- for each r <- toBeDeleted,
+    -- for each d <- dependents r
+      -- if d `notElem` remaining
+      -- then add r to failed, add d to failedDependents
+      -- otherwise continue
+  do
+    acc <- foldM doTerms (mempty, mempty) (R.toList $ Names.terms toBeDeleted)
+    foldM doTypes acc (R.toList $ Names.types toBeDeleted)
   where
-  splitName n = (Path.toPath' p, n') where
-    (p, n') = fromMaybe (error "hq name can't be empty")
-                        (Path.unsnoc (Path.fromName n))
+  doTerms :: (Names0, Names0) -> (Name, Referent) -> m (Names0, Names0)
+  doTerms acc (name, r) =
+    List.foldl' f acc <$> getDependents (Referent.toReference r)
+    where
+    f (failed, failedDeps) d =
+      if d `Set.notMember` remainingRefs
+      then (Names.addTerm name r failed, addDependent d failedDeps)
+      else (failed, failedDeps)
+  addDependent :: Reference -> Names0 -> Names0
+  addDependent r =
+    (<> Names (Names.terms root R.|> Set.singleton (Referent.Ref r))
+              (Names.types root R.|> Set.singleton r))
+  doTypes :: (Names0, Names0) -> (Name, Reference) -> m (Names0, Names0)
+  doTypes acc (name, r) =
+    List.foldl' f acc <$> getDependents r
+    where
+    f (failed, failedDeps) d =
+      if d `Set.notMember` remainingRefs
+      then (Names.addType name r failed, addDependent d failedDeps)
+      else (failed, failedDeps)
+  remainingRefs :: Set Reference
+  remainingRefs = Set.map Referent.toReference (Names.termReferents remaining)
+                <> Names.typeReferences remaining
+    where remaining = root `Names.difference` toBeDeleted
 
--- data Target = TargetType | TargetTerm | TargetBranch
---   deriving (Eq, Ord, Show)
---
--- getTerm :: Path.HQPathSplit' -> Branch0 m -> Set Referent
--- getTerm = undefined
---
--- getType :: Path.HQPathSplit' -> Branch0 m -> Set Reference
--- getType = undefined
---
--- getTerm' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Referent
--- getTerm' t = if Set.member TargetTerm t then getTerm else \_ _ -> mempty
---
--- getType' :: Set Target -> Path.HQPathSplit' -> Branch0 m -> Set Reference
--- getType' t = if Set.member TargetType t then getType else \_ _ -> mempty
+toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Branch0 m -> SlurpResult v
+toSlurpResult = error "todo"
 
--- setTerm :: Path.PathSplit' -> Set Referent -> Branch0 m -> Branch0 m
--- setType :: Path.PathSplit' -> Set Reference -> Branch0 m -> Branch0 m
--- setBranch :: Path.PathSplit' -> Branch0 m -> Branch0 m -> Branch0 m
--- setBranch somewhere new oldroot === newroot
--- deleteAt :: Target -> Branch0 m -> Branch0 m
--- move :: Path.HQPathSplit Path.Absolute
---      -> Path.PathSplit Path.Absolute
---      -> Branch0 m
---      -> Branch0 m
--- move src dest b = foldl' step b (toList (targetTypes src)) where
---   step b TargetType = set
-
-matchTermRefs :: NamesSeg -> Names0 -> HQSegment -> [Referent]
-matchTermRefs =
-  matchRefsImpl Names.termsNamed Names.termReferents Referent.toShortHash
-
-matchTypeRefs :: NamesSeg -> Names0 -> HQSegment -> [Reference]
-matchTypeRefs =
-  matchRefsImpl Names.typesNamed Names.typeReferences Reference.toShortHash
-
-matchRefsImpl :: (byName -> HQ.HashQualified' n -> Set r)
-                  -> (all -> Set r)
-                  -> (r -> SH.ShortHash)
-                  -> byName
-                  -> all
-                  -> HQ.HashQualified' n
-                  -> [r]
-matchRefsImpl byName all toSH ns n0 = \case
-  HQ.NameOnly n -> Set.toList $ byName ns (HQ.fromName n)
-  HQ.HashQualified n sh ->
-    Set.toList
-    . Set.filter ((sh `SH.isPrefixOf`) . toSH)
-    $ byName ns (HQ.fromName n)
-  HQ.HashOnly sh ->
-    Set.toList
-      . Set.filter ((sh `SH.isPrefixOf`) . toSH)
-      $ all n0
-
--- if hq is unique in NamesSeg / Names0, apply `f` to the NameChangeResult
--- and add to `changedSuccessfully`. Or add to `oldNameConflicted` or no-op.
-ifUniqueTermHQ  :: NamesSeg
-                -> Names0
-                -> HQSegment
-                -> (Referent -> t -> t)
-                -> (t, NameChangeResult)
-                -> (t, NameChangeResult)
-ifUniqueTermHQ sourceNamesSeg sourceNames0 hq f =
-  ifUniqueHQImpl matchTermRefs sourceNamesSeg sourceNames0 hq Editor.TermName' f
-
-ifUniqueTypeHQ  :: NamesSeg
-                -> Names0
-                -> HQSegment
-                -> (Reference -> b -> b)
-                -> (b, NameChangeResult)
-                -> (b, NameChangeResult)
-ifUniqueTypeHQ sourceNamesSeg sourceNames0 hq f =
-  ifUniqueHQImpl matchTypeRefs sourceNamesSeg sourceNames0 hq Editor.TypeName' f
-
-ifUniqueHQImpl  :: (t1 -> t2 -> t3 -> [r])
-                  -> t1
-                  -> t2
-                  -> t3
-                  -> Editor.DefnTarget
-                  -> (r -> b -> b)
-                  -> (b, NameChangeResult)
-                  -> (b, NameChangeResult)
-ifUniqueHQImpl getRefs sourceNamesSeg sourceNames0 hq target f =
-  case getRefs sourceNamesSeg sourceNames0 hq of
-    []  -> id
-    [h] -> \(b, result) ->
-            (f h b, over Editor.changedSuccessfully (Set.insert target) result)
-    _   -> \(b, result) ->
-            (b,     over Editor.oldNameConflicted (Set.insert target) result)
+branchEdit :: UF.TypecheckedUnisonFile v Ann -> SlurpResult v -> Branch0 m -> Branch0 m
+branchEdit = error "todo"

@@ -1,4 +1,7 @@
-{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
@@ -10,37 +13,45 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine.OutputMessages2 where
+module Unison.CommandLine.OutputMessages2 (notifyUser) where
+
+import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.Output       as E
+
 
 -- import Debug.Trace
-import           Control.Applicative           ((<|>))
-import           Control.Monad                 (join, unless, when)
-import           Data.Bifunctor                (bimap)
+import           Control.Monad                 (unless)
+import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
-import           Data.List                     (sort, sortOn)
+import           Data.List                     (sortOn)
 import           Data.List.Extra               (nubOrdOn)
 import           Data.ListLike                 (ListLike)
+import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
-import           Data.Maybe                    (listToMaybe)
 import qualified Data.Set                      as Set
+import           Data.Set                      (Set)
 import           Data.String                   (IsString, fromString)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
+import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase.Branch        (Branch, Branch0)
+import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.Codebase.Editor2       (DisplayThing (..), Input (..),
-                                                Output (..))
-import qualified Unison.Codebase.Editor2       as E
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.CommandLine            (backtick, backtickEOS,
-                                                bigproblem, putPrettyLn,
-                                                putPrettyLn', tip, warn,
-                                                watchPrinter, plural)
+import           Unison.CommandLine            (
+                                                -- backtick, backtickEOS,
+                                                bigproblem,
+                                                putPrettyLn,
+                                                -- putPrettyLn',
+                                                tip,
+                                                -- warn,
+                                                -- watchPrinter,
+                                                -- plural
+                                                )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.DeclPrinter            as DeclPrinter
@@ -48,38 +59,36 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
-                                                prettyHashQualified',
+                                                -- prettyHashQualified',
                                                 prettyName,
                                                 styleHashQualified,
                                                 styleHashQualified')
-import qualified Unison.Names                  as OldNames
 import           Unison.Names2                 (Names)
-import qualified Unison.Names2                 as Names
 import qualified Unison.PrettyPrintEnv         as PPE
-import           Unison.PrintError             (prettyParseError,
-                                                renderNoteAsANSI)
+import           Unison.PrintError             (prettyParseError
+                                               -- ,renderNoteAsANSI
+                                                )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
-import qualified Unison.Result                 as Result
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypePrinter            as TypePrinter
-import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.ColorText         as CT
-import           Unison.Util.Monoid            (intercalateMap, unlessM)
+import           Unison.Util.Monoid            (
+                                                -- intercalateMap,
+                                                unlessM)
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
-import qualified Unison.Var                    as Var
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
-  Success (MergeBranchI _ _) ->
-    putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
+  -- Success (MergeBranchI _ _) ->
+  --   putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  DisplayDefinitions outputLoc names terms types ->
-    displayDefinitions outputLoc names terms types
+  DisplayDefinitions outputLoc names types terms ->
+    displayDefinitions outputLoc names types terms
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -93,11 +102,11 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
-  RenameOutput rootPath oldName newName r -> do
-    nameChange "rename" "renamed" oldName newName r
-  AliasOutput rootPath existingName newName r -> do
-    nameChange "alias" "aliased" existingName newName r
-  DeleteBranchConfirmation uniqueDeletions -> error "todo"
+  -- RenameOutput rootPath oldName newName r -> do
+  --   nameChange "rename" "renamed" oldName newName r
+  -- AliasOutput rootPath existingName newName r -> do
+  --   nameChange "alias" "aliased" existingName newName r
+  DeleteBranchConfirmation _uniqueDeletions -> error "todo"
     -- let
     --   pretty (branchName, (ppe, results)) =
     --     header $ listOfDefinitions' ppe False results
@@ -111,21 +120,21 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions branch results withHashes -> error "todo"
+  ListOfDefinitions _branch _results _withHashes -> error "todo"
     -- listOfDefinitions (Branch.head branch) results withHashes
-  SlurpOutput s -> error "todo"
+  SlurpOutput _s -> error "todo"
     -- slurpOutput s
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
-  TypeErrors src ppenv notes -> error "todo"
+  TypeErrors _src _ppenv _notes -> error "todo"
   -- do
   --   Console.setTitle "Unison ☹︎"
   --   let showNote =
   --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
   --           . map Result.TypeError
   --   putStrLn . showNote $ notes
-  Evaluated fileContents ppe bindings watches ->
+  Evaluated _fileContents _ppe _bindings watches ->
     if null watches then putStrLn ""
     else error "todo"
       -- -- todo: hashqualify binding names if necessary to distinguish them from
@@ -161,7 +170,7 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName ppe uf -> error "todo"
+  Typechecked _sourceName _ppe _uf -> error "todo"
 --  do
 --    Console.setTitle "Unison ✅"
 --    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
@@ -202,9 +211,10 @@ notifyUser dir o = case o of
           : "I'm missing:" `P.hang`
               P.lines (fmap (P.text . Reference.toText) old)
           : []
+  x -> error $ "todo: output message for\n\n" ++ show x
   where
   renderFileName = P.group . P.blue . fromString
-  nameChange cmd pastTenseCmd oldName newName r = error "todo"
+  _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
   --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $
   --     P.wrap $ "I" <> pastTenseCmd <> "the"
@@ -244,13 +254,13 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
-displayDefinitions :: Var v =>
+displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> Names
-  -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
-  -> [(Reference.Reference, DisplayThing (Codebase.Decl v a1))]
+  -> Map Reference.Reference (DisplayThing (Codebase.Decl v a1))
+  -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
-displayDefinitions outputLoc names terms types =
+displayDefinitions outputLoc names types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
   ppe = PPE.fromNames2 names
@@ -280,16 +290,17 @@ displayDefinitions outputLoc names terms types =
           "to replace the definitions currently in this branch."
        ]
   code = P.sep "\n\n" (prettyTypes <> prettyTerms)
-  prettyTerms = map go terms
-  prettyTypes = map go2 types
-  go (r, dt) =
-    let n = PPE.termName ppe (Referent.Ref r) in
+  prettyTerms = map go . Map.toList
+             -- sort by name
+             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
+  prettyTypes = map go2 . Map.toList
+              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
+  go ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n
       RegularThing tm -> TermPrinter.prettyBinding ppe n tm
-  go2 (r, dt) =
-    let n = PPE.typeName ppe r in
+  go2 ((n, r), dt) =
     case dt of
       MissingThing r -> missing n r
       BuiltinThing -> builtin n

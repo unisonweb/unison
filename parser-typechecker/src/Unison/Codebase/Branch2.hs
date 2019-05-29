@@ -363,8 +363,10 @@ stepAt p f b = modifyAt p g b where
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
 -- stepManyAt consolidates several changes into a single step, by starting at the leaves and working up to the root
-stepManyAt :: Applicative m => Set (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
+stepManyAt :: (Applicative m, Foldable f)
+           => f (Path, Branch0 m -> Branch0 m) -> Branch m -> Branch m
 stepManyAt = error "todo"
+-- use Unison.Util.List.groupBy to merge the Endos at each Path
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
@@ -382,6 +384,9 @@ stepAtM p f b = modifyAtM p g b where
 -- Todo: Fix this in hashing & serialization instead of here?
 getChildBranch :: NameSegment -> Branch0 m -> Branch m
 getChildBranch seg b = maybe empty snd $ Map.lookup seg (_children b)
+
+setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
+setChildBranch seg b = over children (updateChildren seg b)
 
 updateChildren ::
   NameSegment -> Branch m -> Map NameSegment (Hash, Branch m)
@@ -413,7 +418,7 @@ modifyAtM path f b = case Path.toList path of
     let child = getChildBranch seg (head b)
     child' <- modifyAtM (Path.fromList path) f child
     -- step the branch by updating its children according to fixup
-    pure $ step (over children (updateChildren seg child')) b
+    pure $ step (setChildBranch seg child') b
 
 instance Hashable (Branch0 m) where
   tokens b =
