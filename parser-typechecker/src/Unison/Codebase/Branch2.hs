@@ -420,6 +420,25 @@ modifyAtM path f b = case Path.toList path of
     -- step the branch by updating its children according to fixup
     pure $ step (setChildBranch seg child') b
 
+stepManyAt0 :: a
+stepManyAt0 = error "todo"
+
+modifyAt0M
+  :: forall n m
+   . Functor n
+  => Applicative m -- because `Causal.cons` uses `pure`
+  => Path
+  -> (Branch0 m -> n (Branch0 m))
+  -> Branch0 m
+  -> n (Branch0 m)
+modifyAt0M path f b = case Path.uncons path of
+  Nothing -> f b
+  Just (seg, path) -> do
+    let child = getChildBranch seg b
+    -- child' <- modifyAt0M path f child
+--    pure . setChildBranch seg child' $ b
+    error "todo" seg path child
+
 instance Hashable (Branch0 m) where
   tokens b =
     [ H.accumulateToken . R.toList $ (_terms b)

@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.Output
   , DisplayThing(..)
   , TodoOutput(..)
   , ListDetailed
+  , SlurpComponent(..)
   , SlurpResult(..)
   , SearchResult'(..)
   , TermResult'(..)
@@ -179,8 +180,6 @@ instance Ord v => Monoid (SlurpComponent v) where
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
     originalFile :: UF.TypecheckedUnisonFile v Ann
-  -- the transitive closure of the user-specified HQs
-  , finalFile :: UF.TypecheckedUnisonFile v Ann
   -- Extra definitions that were added to satisfy transitive closure,
   -- beyond what the user specified.
   , extraDefinitions :: SlurpComponent v

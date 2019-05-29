@@ -109,6 +109,9 @@ toList = Foldable.toList . toSeq
 fromList :: [NameSegment] -> Path
 fromList = Path . Seq.fromList
 
+splitFromName :: Name -> Maybe Split
+splitFromName = unsnoc . fromName
+
 singleton :: NameSegment -> Path
 singleton n = fromList [n]
 
