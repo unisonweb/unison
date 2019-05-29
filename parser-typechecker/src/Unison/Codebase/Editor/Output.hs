@@ -210,26 +210,37 @@ data SlurpResult v = SlurpResult {
 
 -- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
 -- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. SlurpResult v -> SlurpResult v
+disallowUpdates :: forall v. Ord v => SlurpResult v -> SlurpResult v
 disallowUpdates sr =
   sr { collisions = collisions sr <> updates sr
      , updates = mempty
-     , termsWithBlockedDependencies = termsWithBlockedDependencies sr <> doTerms
-     , typesWithBlockedDependencies = typesWithBlockedDependencies sr <> doTypes
+     , defsWithBlockedDependencies = blocked
+     , extraDefinitions = extraDefinitions sr `slurpComponentDifference` blocked
      }
   where
+  blocked = defsWithBlockedDependencies sr <> doTerms <> doTypes
   -- for each v in adds, move to blocked if transitive dependency in updates
   termTransitiveDependencies :: v -> SlurpComponent v
   termTransitiveDependencies = undefined
   typeTransitiveDependencies :: v -> Set v
   typeTransitiveDependencies = undefined
-  doTypes = SlurpComponent (foldMap doType implicatedTypes) mempty
-  doTerms = foldMap doTerm implicatedTerms
-  doType v =
-    Set.intersection (implicatedTypes updates) (typeTransitiveDependencies v)
-  doTerm v = slurpComponentIntersection updates (termTransitiveDependencies v)
+  removedTypes = implicatedTypes $ updates sr
+  doTypes =
+    SlurpComponent (foldMap doType . implicatedTypes $ adds sr <> updates sr) mempty
+  doTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr
+  doType :: v -> Set v
+  doType v = Set.intersection removedTypes (typeTransitiveDependencies v)
+  doTerm v = slurpComponentIntersection (updates sr) (termTransitiveDependencies v)
 
-slurpComponentIntersection = error "todo"
+slurpComponentDifference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
+slurpComponentDifference c1 c2 = SlurpComponent types terms where
+  types = implicatedTypes c1 `Set.difference` implicatedTypes c2
+  terms = implicatedTerms c1 `Set.difference` implicatedTerms c2
+
+slurpComponentIntersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
+slurpComponentIntersection c1 c2 = SlurpComponent types terms where
+  types = implicatedTypes c1 `Set.intersection` implicatedTypes c2
+  terms = implicatedTerms c1 `Set.intersection` implicatedTerms c2
 
 isNonemptySlurp :: Ord v => SlurpResult v -> Bool
 isNonemptySlurp s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
