@@ -21,37 +21,36 @@ module Unison.Codebase.Editor.Output
   ) where
 
 import Control.Applicative
+import Control.Lens (_2, view)
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import Data.Tuple (swap)
-import qualified Data.Set as Set
-import qualified Data.Map as Map
 import Data.Text (Text)
-
-import Unison.Codebase.Path (Path')
+import Data.Tuple (swap)
 import Unison.Codebase.Editor.Input
-
-import           Unison.Name                    ( Name )
+import Unison.Codebase.Path (Path')
+import Unison.HashQualified ( HashQualified )
+import Unison.Name ( Name )
+import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
-import Unison.Names2 ( Names )
-import           Unison.HashQualified           ( HashQualified )
-
-import           Unison.Util.Relation          (Relation)
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.Runtime       as Runtime
-import qualified Unison.DataDeclaration        as DD
-import qualified Unison.Parser                 as Parser
-import qualified Unison.Reference              as Reference
-import qualified Unison.Typechecker.Context    as Context
-import qualified Unison.UnisonFile             as UF
-import           Unison.Typechecker.TypeLookup  ( Decl )
-import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
-import qualified Unison.Util.Monoid            as Monoid
+import Unison.Typechecker.TypeLookup ( Decl )
+import Unison.Util.Relation (Relation)
+import Unison.Var (Var)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Parser as Parser
+import qualified Unison.Reference as Reference
+import qualified Unison.Term as Term
+import qualified Unison.Type as Type
+import qualified Unison.Typechecker.Context as Context
+import qualified Unison.UnisonFile as UF
+import qualified Unison.Util.Monoid as Monoid
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -216,7 +215,7 @@ data SlurpResult v = SlurpResult {
 
 -- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
 -- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Ord v => SlurpResult v -> SlurpResult v
+disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
 disallowUpdates sr =
   sr { collisions = collisions sr <> updates sr
      , updates = mempty
@@ -226,33 +225,42 @@ disallowUpdates sr =
   where
   blocked = defsWithBlockedDependencies sr <> doTerms <> doTypes
   -- for each v in adds, move to blocked if transitive dependency in updates
-  termTransitiveDependencies :: v -> SlurpComponent v
-  termTransitiveDependencies = undefined
+  termDeps :: SlurpComponent v -> v -> SlurpComponent v
+  termDeps seen v | Set.member v (implicatedTerms seen) = seen
+  termDeps seen v = fromMaybe seen $ do
+    term <- findTerm v
+    let tdeps = resolveTypes $ Term.dependencies term
+        seenTypes = foldl' typeDeps (implicatedTypes seen) tdeps
+    pure $ foldl' termDeps
+                  (seen { implicatedTypes = implicatedTypes seen <> seenTypes})
+                  (Term.freeVars term)
 
-  typeTransitiveDependencies :: Set v -> v -> Set v
-  typeTransitiveDependencies seen v | Set.member v seen = seen
-  typeTransitiveDependencies seen v = fromMaybe seen $ do
+  typeDeps :: Set v -> v -> Set v
+  typeDeps seen v | Set.member v seen = seen
+  typeDeps seen v = fromMaybe seen $ do
     dd <- fmap snd (Map.lookup v (UF.dataDeclarations' uf)) <|>
           fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-    let deps = [ v | r      <- Set.toList (DD.dependencies dd)
-                   , Just v <- [Map.lookup r typeNames]]
-    pure $ foldl' typeTransitiveDependencies (Set.insert v seen) deps
+    pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
+
+  resolveTypes :: Set Reference -> [v]
+  resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
   uf = originalFile sr
+  findTerm v = view _2 <$> Map.lookup v hashedTerms
+  hashedTerms = UF.hashTerms uf
 
   invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
   invert m = Map.fromList (swap <$> Map.toList m)
 
   typeNames :: Map Reference v
-  typeNames = invert (fst <$> UF.dataDeclarations' uf) <>
-              invert (fst <$> UF.effectDeclarations' uf)
+  typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
   removedTypes = implicatedTypes $ updates sr
   doTypes =
     SlurpComponent (foldMap doType . implicatedTypes $ adds sr <> updates sr) mempty
   doTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr
   doType :: v -> Set v
-  doType v = Set.intersection removedTypes (typeTransitiveDependencies mempty v)
-  doTerm v = slurpComponentIntersection (updates sr) (termTransitiveDependencies v)
+  doType v = Set.intersection removedTypes (typeDeps mempty v)
+  doTerm v = slurpComponentIntersection (updates sr) (termDeps mempty v)
 
 slurpComponentDifference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
 slurpComponentDifference c1 c2 = SlurpComponent types terms where
