@@ -20,8 +20,14 @@ module Unison.Codebase.Editor.Output
   , tpReference
   ) where
 
+import Control.Applicative
+import Data.List (foldl')
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
+import Data.Tuple (swap)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Data.Text (Text)
 
 import Unison.Codebase.Path (Path')
@@ -37,10 +43,11 @@ import           Unison.HashQualified           ( HashQualified )
 import           Unison.Util.Relation          (Relation)
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Runtime       as Runtime
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Reference              as Reference
-import qualified Unison.UnisonFile             as UF
 import qualified Unison.Typechecker.Context    as Context
+import qualified Unison.UnisonFile             as UF
 import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
@@ -204,12 +211,58 @@ data SlurpResult v = SlurpResult {
   -- -- Already defined in the branch, but with a different name.
   , termAlias :: Map v (Set Name)
   , typeAlias :: Map v (Set Name)
-  , termsWithBlockedDependencies :: Map v (Set Reference)
-  , typesWithBlockedDependencies :: Map v (Set Reference)
+  , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
-disallowUpdates :: SlurpResult v -> SlurpResult v
-disallowUpdates = error "todo"
+-- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
+-- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
+disallowUpdates :: forall v. Ord v => SlurpResult v -> SlurpResult v
+disallowUpdates sr =
+  sr { collisions = collisions sr <> updates sr
+     , updates = mempty
+     , defsWithBlockedDependencies = blocked
+     , extraDefinitions = extraDefinitions sr `slurpComponentDifference` blocked
+     }
+  where
+  blocked = defsWithBlockedDependencies sr <> doTerms <> doTypes
+  -- for each v in adds, move to blocked if transitive dependency in updates
+  termTransitiveDependencies :: v -> SlurpComponent v
+  termTransitiveDependencies = undefined
+
+  typeTransitiveDependencies :: Set v -> v -> Set v
+  typeTransitiveDependencies seen v | Set.member v seen = seen
+  typeTransitiveDependencies seen v = fromMaybe seen $ do
+    dd <- fmap snd (Map.lookup v (UF.dataDeclarations' uf)) <|>
+          fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
+    let deps = [ v | r      <- Set.toList (DD.dependencies dd)
+                   , Just v <- [Map.lookup r typeNames]]
+    pure $ foldl' typeTransitiveDependencies (Set.insert v seen) deps
+
+  uf = originalFile sr
+
+  invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
+  invert m = Map.fromList (swap <$> Map.toList m)
+
+  typeNames :: Map Reference v
+  typeNames = invert (fst <$> UF.dataDeclarations' uf) <>
+              invert (fst <$> UF.effectDeclarations' uf)
+  removedTypes = implicatedTypes $ updates sr
+  doTypes =
+    SlurpComponent (foldMap doType . implicatedTypes $ adds sr <> updates sr) mempty
+  doTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr
+  doType :: v -> Set v
+  doType v = Set.intersection removedTypes (typeTransitiveDependencies mempty v)
+  doTerm v = slurpComponentIntersection (updates sr) (termTransitiveDependencies v)
+
+slurpComponentDifference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
+slurpComponentDifference c1 c2 = SlurpComponent types terms where
+  types = implicatedTypes c1 `Set.difference` implicatedTypes c2
+  terms = implicatedTerms c1 `Set.difference` implicatedTerms c2
+
+slurpComponentIntersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
+slurpComponentIntersection c1 c2 = SlurpComponent types terms where
+  types = implicatedTypes c1 `Set.intersection` implicatedTypes c2
+  terms = implicatedTerms c1 `Set.intersection` implicatedTerms c2
 
 isNonemptySlurp :: Ord v => SlurpResult v -> Bool
 isNonemptySlurp s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
