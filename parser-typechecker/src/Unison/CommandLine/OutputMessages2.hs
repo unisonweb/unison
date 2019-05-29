@@ -122,7 +122,7 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions _branch _results _withHashes -> error "todo"
     -- listOfDefinitions (Branch.head branch) results withHashes
-  SlurpOutput _s -> error "todo"
+  SlurpOutput _input _s -> error "todo"
     -- slurpOutput s
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"

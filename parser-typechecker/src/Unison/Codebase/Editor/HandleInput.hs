@@ -445,13 +445,17 @@ loop = do
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
-        Just uf -> let result = toSlurpResult hqs uf $ Branch.head currentBranch' in
+        Just uf ->
+          let result = toSlurpResult hqs uf
+                     . Branch.toNames0
+                     . Branch.head
+                     $ currentBranch' in
           if Output.isNonemptySlurp result then do
-            stepAt (Path.unabsolute currentPath', branchEdit uf result)
+            stepAt (Path.unabsolute currentPath', applySlurpResult uf result)
             eval $ AddDefsToCodebase (finalFile result)
           -- todo: notify the user if we grew their selection automatically to
           --       include transitive dependencies, and tell them how to undo.
-          else respond $ SlurpOutput result
+          else respond $ SlurpOutput input result
           -- finalUF is the transitive closure of the intersection of HQs and uf
 
       UpdateI _edits _hqs -> error "todo"
@@ -896,8 +900,8 @@ getEndangeredDependents getDependents toBeDeleted root =
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
-toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Branch0 m -> SlurpResult v
+toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult = error "todo"
 
-branchEdit :: UF.TypecheckedUnisonFile v Ann -> SlurpResult v -> Branch0 m -> Branch0 m
-branchEdit = error "todo"
+applySlurpResult :: UF.TypecheckedUnisonFile v Ann -> SlurpResult v -> Branch0 m -> Branch0 m
+applySlurpResult = error "todo"
