@@ -22,6 +22,7 @@ module Unison.Codebase.Editor.Output
 
 import Data.Map (Map)
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 
 import Unison.Codebase.Path (Path')
@@ -204,12 +205,31 @@ data SlurpResult v = SlurpResult {
   -- -- Already defined in the branch, but with a different name.
   , termAlias :: Map v (Set Name)
   , typeAlias :: Map v (Set Name)
-  , termsWithBlockedDependencies :: Map v (Set Reference)
-  , typesWithBlockedDependencies :: Map v (Set Reference)
+  , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
-disallowUpdates :: SlurpResult v -> SlurpResult v
-disallowUpdates = error "todo"
+-- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
+-- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
+disallowUpdates :: forall v. SlurpResult v -> SlurpResult v
+disallowUpdates sr =
+  sr { collisions = collisions sr <> updates sr
+     , updates = mempty
+     , termsWithBlockedDependencies = termsWithBlockedDependencies sr <> doTerms
+     , typesWithBlockedDependencies = typesWithBlockedDependencies sr <> doTypes
+     }
+  where
+  -- for each v in adds, move to blocked if transitive dependency in updates
+  termTransitiveDependencies :: v -> SlurpComponent v
+  termTransitiveDependencies = undefined
+  typeTransitiveDependencies :: v -> Set v
+  typeTransitiveDependencies = undefined
+  doTypes = SlurpComponent (foldMap doType implicatedTypes) mempty
+  doTerms = foldMap doTerm implicatedTerms
+  doType v =
+    Set.intersection (implicatedTypes updates) (typeTransitiveDependencies v)
+  doTerm v = slurpComponentIntersection updates (termTransitiveDependencies v)
+
+slurpComponentIntersection = error "todo"
 
 isNonemptySlurp :: Ord v => SlurpResult v -> Bool
 isNonemptySlurp s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)

@@ -15,6 +15,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0) where
 
@@ -33,6 +34,7 @@ import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
+import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
                                                 )
@@ -456,10 +458,7 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Output.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          -- todo: notify the user if we grew their selection automatically to
-          --       include transitive dependencies, and tell them how to undo.
           else respond $ SlurpOutput input result
-          -- finalUF is the transitive closure of the intersection of HQs and uf
 
       UpdateI _edits _hqs -> error "todo"
 
@@ -906,23 +905,42 @@ getEndangeredDependents getDependents toBeDeleted root =
 toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult = error "todo"
 
-filterBySlurpResult :: SlurpResult v
+filterBySlurpResult :: Ord v
+           => SlurpResult v
            -> UF.TypecheckedUnisonFile v Ann
            -> UF.TypecheckedUnisonFile v Ann
-filterBySlurpResult = error "todo"
+filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
+  UF.TypecheckedUnisonFile datas effects tlcs watches
+  where
+  keep = updates <> adds
+  keepTerms = Output.implicatedTerms keep
+  keepTypes = Output.implicatedTypes keep
+  datas = Map.restrictKeys dataDeclarations' keepTypes
+  effects = Map.restrictKeys effectDeclarations' keepTypes
+  tlcs = filter (not.null) $ fmap (List.filter filterTLC) topLevelComponents'
+  watches = filter (not.null.snd) $ fmap (second (List.filter filterTLC)) watchComponents
+  filterTLC (v,_,_) = Set.member v keepTerms
 
-doSlurpAdds :: Output.SlurpComponent v
+doSlurpAdds :: forall m v. (Applicative m, Var v)
+            => Output.SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
-doSlurpAdds = error "todo"            
--- doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
---   where
---   typeActions = map doType . toList $ Output.implicatedTypes slurp
---   termActions = map doTerm . toList $ Output.implicatedTerms slurp
---   doTerm _v = error "todo"
---   doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
---                 <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
---     Nothing -> error $ "expected to find " ++ show v ++ " in " show uf
---     Just r -> case Path.splitFromName (Var.name v) of
---       Nothing -> error $ "encountered an empty var name"
---       Just split -> BranchUtil.makeAddTypeName split r
+doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
+  where
+  typeActions = map doType . toList $ Output.implicatedTypes slurp
+  termActions = map doTerm . toList $ Output.implicatedTerms slurp
+  doTerm :: v -> (Path, Branch0 m -> Branch0 m)
+  doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
+    Nothing -> errorMissingVar v
+    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+      Nothing -> errorEmptyVar
+      Just split -> BranchUtil.makeAddTermName split (Referent.Ref r)
+  doType :: v -> (Path, Branch0 m -> Branch0 m)
+  doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
+                <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
+    Nothing -> errorMissingVar v
+    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+      Nothing -> errorEmptyVar
+      Just split -> BranchUtil.makeAddTypeName split r
+  errorEmptyVar = error "encountered an empty var name"
+  errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
