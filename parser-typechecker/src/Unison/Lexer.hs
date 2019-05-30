@@ -209,6 +209,7 @@ lexer0 scope rem =
     -- state to the lexer, so we have a hacky postprocessing pass to convert
     -- it to [1, +, 1]
     tweak [] = []
+    tweak (h@(payload -> Reserved _):t) = h : tweak t
     tweak (t1:t2@(payload -> Numeric num):rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
         t1 : Token (SymbolyId $ take 1 num) (start t2) (inc $ start t2)

@@ -285,7 +285,6 @@ loop = do
           else ifM (confirmedCommand input)
                    (deleteBranches branchNames)
                    (respond . DeleteBranchConfirmation $ uniqueToDelete)
-
         TodoI -> checkTodo
         PropagateI -> do
           b <- eval . Propagate $ currentBranch'
@@ -308,15 +307,22 @@ loop = do
         TestI showOk showFail -> do
           (Branch.head -> b) <- use currentBranch
           let ppe = Branch.prettyPrintEnv b
-          let termRefs = Set.fromList [ r | Referent.Ref r <- toList (Branch.allTerms b) ]
+          let termRefs =
+                Set.fromList [ r | Referent.Ref r <- toList (Branch.allTerms b) ]
           ws <- eval $ LoadWatches UF.TestWatch termRefs
           let
-            oks = [ (r, msg) |
-                    (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
-                    cid == DD.okConstructorId && ref == DD.testResultRef ]
-            fails = [ (r, msg) |
-                      (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
-                      cid == DD.failConstructorId && ref == DD.testResultRef ]
+            oks =
+              [ (r, msg)
+              | (r, Term.Sequence' ts) <- ws
+              , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList
+                ts
+              , cid == DD.okConstructorId && ref == DD.testResultRef
+              ]
+            fails =
+              [ (r, msg)
+              | (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws
+              , cid == DD.failConstructorId && ref == DD.testResultRef
+              ]
           respond $ TestResults ppe showOk showFail oks fails
         QuitI -> quit
 

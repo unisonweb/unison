@@ -178,13 +178,12 @@ derivedBase58 r a = ref a r
 derivedBase58' :: Text -> Reference
 derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, streamRef, vectorRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, vectorRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
-streamRef = Reference.Builtin "Stream"
 vectorRef = Reference.Builtin "Sequence"
 
 builtin :: Ord v => a -> Text -> AnnotatedType v a
@@ -204,9 +203,6 @@ boolean a = ref a $ booleanRef
 
 text :: Ord v => a -> AnnotatedType v a
 text a = ref a $ textRef
-
-stream :: Ord v => a -> AnnotatedType v a
-stream a = ref a $ streamRef
 
 vector :: Ord v => a -> AnnotatedType v a
 vector a = ref a $ vectorRef
