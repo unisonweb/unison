@@ -232,8 +232,9 @@ typeDirectedNameResolution oldNotes oldType env = do
   case catMaybes resolutions of
     [] -> pure oldType
     rs ->
-      let goAgain =
-            any ((== 1) . length . filter Context.isExact . suggestions) rs
+      let
+        goAgain =
+          any ((== 1) . length . filter Context.isExact . nub . suggestions) rs
       in  if goAgain
             then do
               traverse_ substSuggestion rs

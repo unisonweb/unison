@@ -323,13 +323,14 @@ hashDecls decls =
   in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 unitRef, pairRef, optionalRef, testResultRef :: Reference
-(unitRef, pairRef, optionalRef, testResultRef) = let
-  decls = builtinDataDecls @ Symbol
-  [(_,unit,_)] = filter (\(v, _,_) -> v == Var.named "()") decls
-  [(_,pair,_)] = filter (\(v, _,_) -> v == Var.named "Pair") decls
-  [(_,opt,_)] = filter (\(v, _,_) -> v == Var.named "Optional") decls
-  [(_,testResult,_)] = filter (\(v, _,_) -> v == Var.named "Test.Result") decls
-  in (unit, pair, opt, testResult)
+(unitRef, pairRef, optionalRef, testResultRef) =
+  let decls          = builtinDataDecls @Symbol
+      [(_, unit, _)] = filter (\(v, _, _) -> v == Var.named "()") decls
+      [(_, pair, _)] = filter (\(v, _, _) -> v == Var.named "Pair") decls
+      [(_, opt , _)] = filter (\(v, _, _) -> v == Var.named "Optional") decls
+      [(_, testResult, _)] =
+        filter (\(v, _, _) -> v == Var.named "Test.Result") decls
+  in  (unit, pair, opt, testResult)
 
 constructorId :: Reference -> Text -> Maybe Int
 constructorId ref name = do
@@ -341,41 +342,67 @@ Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
 Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
-builtinDataDecls = hashDecls $
-  Map.fromList [
-    (v "()", unit), (v "Pair", pair), (v "Optional", opt), (v "Test.Result", tr) ]
-  where
+builtinDataDecls = hashDecls $ Map.fromList
+  [ (v "()"             , unit)
+  , (v "Pair"           , pair)
+  , (v "Optional"       , opt)
+  , (v "Test.Result"    , tr)
+  ]
+ where
   v name = Var.named name
-  var name = Type.var() (v name)
-  arr = Type.arrow'
+  var name = Type.var () (v name)
+  arr  = Type.arrow'
   -- see note on `hashDecls` above for why ctor must be called `().()`.
   unit = DataDeclaration Structural () [] [((), v "().()", var "()")]
-  pair = DataDeclaration Structural () [v "a", v "b"] [
-    ((), v "Pair.Pair", Type.foralls() [v"a",v"b"]
-         (var "a" `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])))
-   ]
-  opt = DataDeclaration Structural () [v "a"] [
-    ((), v "Optional.None", Type.foralls() [v "a"]
-      (              Type.app' (var "Optional") (var "a"))),
-    ((), v "Optional.Some", Type.foralls() [v "a"]
-      (var "a" `arr` Type.app' (var "Optional") (var "a")))
-   ]
-  tr = DataDeclaration (Unique "70621e539cd802b2ad53105697800930411a3ebc") () [] [
-    ((), v "Test.Result.Fail", Type.text() `arr` var "Test.Result"),
-    ((), v "Test.Result.Ok",   Type.text() `arr` var "Test.Result") ]
+  pair = DataDeclaration
+    Structural
+    ()
+    [v "a", v "b"]
+    [ ( ()
+      , v "Pair.Pair"
+      , Type.foralls
+        ()
+        [v "a", v "b"]
+        (     var "a"
+        `arr` (var "b" `arr` Type.apps' (var "Pair") [var "a", var "b"])
+        )
+      )
+    ]
+  opt = DataDeclaration
+    Structural
+    ()
+    [v "a"]
+    [ ( ()
+      , v "Optional.None"
+      , Type.foralls () [v "a"] (Type.app' (var "Optional") (var "a"))
+      )
+    , ( ()
+      , v "Optional.Some"
+      , Type.foralls ()
+                     [v "a"]
+                     (var "a" `arr` Type.app' (var "Optional") (var "a"))
+      )
+    ]
+  tr = DataDeclaration
+    (Unique "70621e539cd802b2ad53105697800930411a3ebc")
+    ()
+    []
+    [ ((), v "Test.Result.Fail", Type.text () `arr` var "Test.Result")
+    , ((), v "Test.Result.Ok"  , Type.text () `arr` var "Test.Result")
+    ]
 
 pattern UnitRef <- (unUnitRef -> True)
 pattern PairRef <- (unPairRef -> True)
-pattern TestResultRef <- (unTestResultRef -> True)
 pattern OptionalRef <- (unOptionalRef -> True)
 pattern TupleType' ts <- (unTupleType -> Just ts)
 pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
-unitType, pairType, optionalType, testResultType :: Ord v => a -> AnnotatedType v a
+unitType, pairType, optionalType, testResultType
+  :: Ord v => a -> AnnotatedType v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
-testResultType a = Type.ref a testResultRef
+testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
 optionalType a = Type.ref a optionalRef
 
 unitTerm :: Var v => a -> AnnotatedTerm v a
@@ -417,11 +444,10 @@ unTuplePattern p = case p of
   Pattern.ConstructorP _ UnitRef 0 [] -> Just []
   _ -> Nothing
 
-unUnitRef,unPairRef,unOptionalRef,unTestResultRef :: Reference -> Bool
+unUnitRef,unPairRef,unOptionalRef:: Reference -> Bool
 unUnitRef = (== unitRef)
 unPairRef = (== pairRef)
 unOptionalRef = (== optionalRef)
-unTestResultRef = (== testResultRef)
 
 bindDecls
   :: Var v

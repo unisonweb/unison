@@ -17,3 +17,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Matt Dziuban (@mrdziuban)
 * Ben Fradet (@BenFradet)
 * Billy Kaplan (@billy1kaplan)
+* Tomas Mikula (@TomasMikula)

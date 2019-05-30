@@ -52,36 +52,48 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Term                   as Term
 
-watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
-                      -> UF.WatchKind
-                      -> Term v
-                      -> Runtime.IsCacheHit
-                      -> P.Pretty P.ColorText
-watchPrinter src ppe ann kind term isHit = P.bracket $ let
-  lines = Text.lines src
-  lineNum = fromMaybe 1 $ startingLine ann
-  lineNumWidth = length (show lineNum)
-  extra = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
-  line = lines !! (lineNum - 1)
-  addCache p = if isHit then p <> " (cached)" else p
-  in
-    P.lines [
-    fromString (show lineNum) <> " | " <> P.text line,
-    case (kind, term) of
-      (UF.TestWatch, Term.App' (Term.Constructor' _ id) (Term.Text' msg)) ->
-        "\n" <>
-        if id == DD.okConstructorId then
-          addCache (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
-        else if id == DD.failConstructorId then
-          addCache (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
-        else P.red "❓ " <> TermPrinter.prettyTop ppe term
-      _ -> P.lines [
-           fromString (replicate lineNumWidth ' ') <> fromString extra
-           <> (if isHit then id else P.purple) "⧩" ,
-           P.indentN (lineNumWidth + length extra)
-            . (if isHit then id else P.bold) $ TermPrinter.prettyTop ppe term
-           ]
-  ]
+watchPrinter
+  :: Var v
+  => Text
+  -> PPE.PrettyPrintEnv
+  -> Ann
+  -> UF.WatchKind
+  -> Term v
+  -> Runtime.IsCacheHit
+  -> P.Pretty P.ColorText
+watchPrinter src ppe ann kind term isHit =
+  P.bracket
+    $ let
+        lines        = Text.lines src
+        lineNum      = fromMaybe 1 $ startingLine ann
+        lineNumWidth = length (show lineNum)
+        extra        = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
+        line         = lines !! (lineNum - 1)
+        addCache p = if isHit then p <> " (cached)" else p
+        renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
+          "\n" <> if id == DD.okConstructorId
+            then addCache
+              (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
+            else if id == DD.failConstructorId
+              then addCache
+                (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+              else P.red "❓ " <> TermPrinter.prettyTop ppe term
+        renderTest x =
+          fromString $ "\n Unison bug: " <> show x <> " is not a test."
+      in
+        P.lines
+          [ fromString (show lineNum) <> " | " <> P.text line
+          , case (kind, term) of
+            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            _ -> P.lines
+              [ fromString (replicate lineNumWidth ' ')
+              <> fromString extra
+              <> (if isHit then id else P.purple) "⧩"
+              , P.indentN (lineNumWidth + length extra)
+              . (if isHit then id else P.bold)
+              $ TermPrinter.prettyTop ppe term
+              ]
+          ]
 
 allow :: FilePath -> Bool
 allow p =
