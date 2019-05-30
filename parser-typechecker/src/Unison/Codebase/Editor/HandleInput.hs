@@ -913,32 +913,56 @@ toSlurpResult uf existingNames =
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
   sc terms types = SlurpComponent { implicatedTerms = Set.map var (R.dom terms)
                                   , implicatedTypes = Set.map var (R.dom types) }
-     where var name = Var.named (Name.toText name)
 
+  var name = Var.named (Name.toText name)
+
+  -- conflict (n,r) if n is conflicted in names0
   conflicts :: SlurpComponent v
-  conflicts = undefined
+  conflicts = sc terms types where
+    terms = R.filterDom (conflicted . Names.termsNamed existingNames) (Names.terms fileNames0)
+    types = R.filterDom (conflicted . Names.typesNamed existingNames) (Names.types fileNames0)
+    conflicted s = Set.size s > 1
 
   ctorCollisions :: SlurpComponent v
-  ctorCollisions = mempty { implicatedTerms = a <> b } where
-    a = Map.keysSet termCtorCollisions
-    b = Map.keysSet ctorTermCollisions
+  ctorCollisions =
+    mempty { implicatedTerms = termCtorCollisions <> ctorTermCollisions }
 
-  termCtorCollisions :: Map v Referent
-  termCtorCollisions = undefined
+  -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and r is Ref and r' is Con
+  termCtorCollisions :: Set v
+  termCtorCollisions = Set.fromList
+    [ var n | (n, r@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+            , [r'@Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
+            ]
 
-  ctorTermCollisions :: Map v [Referent]
-  ctorTermCollisions = undefined
+  -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
+  -- except we relaxed it to where r' can be Con or Ref
+  ctorTermCollisions :: Set v
+  ctorTermCollisions = Set.fromList
+    [ var n | (n, r@Referent.Con{}) <- R.toList (Names.terms fileNames0)
+            , [r'] <- [toList $ Names.termsNamed existingNames n]
+            , r /= r'
+            ]
 
   extras :: SlurpComponent v
   extras = undefined
 
   -- duplicate (n,r) if (n,r) exists in names0
   dups :: SlurpComponent v
-  dups = undefined
+  dups = sc terms types where
+    terms = R.intersection (Names.terms existingNames) (Names.terms fileNames0)
+    types = R.intersection (Names.types existingNames) (Names.types fileNames0)
 
+  -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
   updates :: SlurpComponent v
-  updates = undefined
+  updates = SlurpComponent (Set.fromList types) (Set.fromList terms) where
+    terms = [ var n | (n,r'@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+                    , [r@Referent.Ref{}] <- [toList $ Names.termsNamed existingNames n]
+                    , r' /= r ]
+    types = [ var n | (n,r') <- R.toList (Names.types fileNames0)
+                    , [r] <- [toList $ Names.typesNamed existingNames n]
+                    , r' /= r ]
 
+  -- alias (n, r) if (n' /= n, r) exists in names0
   termAliases :: Map v (Set Name)
   termAliases = undefined
 
@@ -954,12 +978,8 @@ toSlurpResult uf existingNames =
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
   -- collision -- we don't populate this
-  -- conflict (n,r) if n is conflicted in names0
-  -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
-  -- termExistingConstructorCollision (n,r) if (n, r' /= r) exists in names0 and r is Ref and r' is Con
-  -- constructorExistingTermCollision (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
+
   -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
-  -- alias (n, r) if (n' /= n, r) exists in names0
 
 
 filterBySlurpResult :: Ord v

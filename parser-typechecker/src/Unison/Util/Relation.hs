@@ -1,6 +1,6 @@
 module Unison.Util.Relation where
 
-import           Prelude                 hiding ( null, map )
+import           Prelude                 hiding ( null, map, filter )
 import           Data.Bifunctor                 ( first, second )
 import           Data.Foldable                  ( foldl' )
 import qualified Data.List                     as List
@@ -92,6 +92,11 @@ union r s = Relation
   { domain = M.unionWith S.union (domain r) (domain s)
   , range  = M.unionWith S.union (range r) (range s)
   }
+
+intersection :: (Ord a, Ord b) => Relation a b -> Relation a b -> Relation a b
+intersection r s
+  | size r > size s = intersection s r
+  | otherwise       = filter (\(a, b) -> member a b s) r
 
 ---------------------------------------------------------------
 -- |

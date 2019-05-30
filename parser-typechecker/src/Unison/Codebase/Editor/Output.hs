@@ -205,8 +205,8 @@ data SlurpResult v = SlurpResult {
   -- Names of terms in `originalFile` that couldn't be updated because
   -- they refer to existing constructors. (User should instead do a find/replace,
   -- a constructor rename, or refactor the type that the name comes from).
-  , termExistingConstructorCollisions :: Map v Referent
-  , constructorExistingTermCollisions :: Map v [Referent]
+  , termExistingConstructorCollisions :: Set v
+  , constructorExistingTermCollisions :: Set v
   -- -- Already defined in the branch, but with a different name.
   , termAlias :: Map v (Set Name)
   , typeAlias :: Map v (Set Name)
