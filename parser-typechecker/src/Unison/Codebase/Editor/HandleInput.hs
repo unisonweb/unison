@@ -44,6 +44,7 @@ import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
                                                 , mapMaybe
                                                 )
+import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
@@ -900,24 +901,55 @@ getEndangeredDependents getDependents toBeDeleted root =
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
-toSlurpResult :: UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
+toSlurpResult :: forall v. Var v => UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult uf existingNames =
-  -- This looks at the selected names in the file and compares them to the
-  -- existing names passed in.
-  --   New names with new definitions go in `adds`
-  --   Old names with new definitions go in `updates`
-  --   New names with old definitions go in `termAlias` or `typeAlias`
-  --   ...
-  error "todo"
+  Output.subtractComponent (conflicts <> ctorCollisions) $
+  SlurpResult uf extras adds dups mempty conflicts updates
+              termCtorCollisions ctorTermCollisions termAliases typeAliases
+              mempty
   where
   fileNames0 = UF.typecheckedToNames0 uf
+
+  sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
+  sc terms types = mempty { implicatedTerms = Set.map var (R.dom terms)
+                          , implicatedTypes = Set.map var (R.dom types) }
+     where var name = Var.named (Name.toText name)
+
+  conflicts :: SlurpComponent v
+  conflicts = undefined
+
+  ctorCollisions :: SlurpComponent v
+  ctorCollisions = undefined
+
+  termCtorCollisions :: Map v Referent
+  termCtorCollisions = undefined
+
+  ctorTermCollisions :: Map v [Referent]
+  ctorTermCollisions = undefined
+
+  extras :: SlurpComponent v
+  extras = undefined
+
+  dups :: SlurpComponent v
+  dups = undefined
+
+  updates :: SlurpComponent v
+  updates = undefined
+
+  termAliases :: Map v (Set Name)
+  termAliases = undefined
+
+  typeAliases :: Map v (Set Name)
+  typeAliases = undefined
+
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
-  termAdds = adds (Names.terms existingNames) (Names.terms fileNames0)
-  typeAdds = adds (Names.types existingNames) (Names.types fileNames0)
-  adds :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
-  adds existingNames = R.filter go where
-    go (n, r) = (not . R.memberDom n) existingNames
-             && (not . R.memberRan r) existingNames
+  adds = sc terms types where
+    terms = add (Names.terms existingNames) (Names.terms fileNames0)
+    types = add (Names.types existingNames) (Names.types fileNames0)
+    add :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
+    add existingNames = R.filter go where
+      go (n, r) = (not . R.memberDom n) existingNames
+               && (not . R.memberRan r) existingNames
   -- duplicate (n,r) if (n,r) exists in names0
   -- collision -- we don't populate this
   -- conflict (n,r) if n is conflicted in names0

@@ -13,9 +13,10 @@ module Unison.Codebase.Editor.Output
   , TypeResult'(..)
   , pattern Tm
   , pattern Tp
+  , disallowUpdates
   , foldResult'
   , isNonemptySlurp
-  , disallowUpdates
+  , subtractComponent
   , tmReferent
   , tpReference
   ) where
