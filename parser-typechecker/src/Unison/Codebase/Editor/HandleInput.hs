@@ -904,7 +904,7 @@ getEndangeredDependents getDependents toBeDeleted root =
 toSlurpResult :: forall v. Var v => UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult uf existingNames =
   Output.subtractComponent (conflicts <> ctorCollisions) $
-  SlurpResult uf extras adds dups mempty conflicts updates
+  SlurpResult uf mempty adds dups mempty conflicts updates
               termCtorCollisions ctorTermCollisions termAliases typeAliases
               mempty
   where
@@ -936,15 +936,13 @@ toSlurpResult uf existingNames =
 
   -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
   -- except we relaxed it to where r' can be Con or Ref
+  -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
   ctorTermCollisions :: Set v
   ctorTermCollisions = Set.fromList
     [ var n | (n, r@Referent.Con{}) <- R.toList (Names.terms fileNames0)
             , [r'] <- [toList $ Names.termsNamed existingNames n]
             , r /= r'
             ]
-
-  extras :: SlurpComponent v
-  extras = undefined
 
   -- duplicate (n,r) if (n,r) exists in names0
   dups :: SlurpComponent v
@@ -964,10 +962,20 @@ toSlurpResult uf existingNames =
 
   -- alias (n, r) if (n' /= n, r) exists in names0
   termAliases :: Map v (Set Name)
-  termAliases = undefined
+  termAliases = Map.fromList
+    [ (var n, aliases)
+    | (n, r) <- R.toList $ Names.terms fileNames0
+    , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
+    , not (null aliases)
+    ]
 
   typeAliases :: Map v (Set Name)
-  typeAliases = undefined
+  typeAliases = Map.fromList
+    [ (var n, aliases)
+    | (n, r) <- R.toList $ Names.types fileNames0
+    , aliases <- [Set.delete n $ R.lookupRan r (Names.types existingNames)]
+    , not (null aliases)
+    ]
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
   adds = sc terms types where
@@ -977,9 +985,7 @@ toSlurpResult uf existingNames =
     add existingNames = R.filter go where
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
-  -- collision -- we don't populate this
 
-  -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
 
 
 filterBySlurpResult :: Ord v
