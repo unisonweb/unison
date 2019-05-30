@@ -911,15 +911,17 @@ toSlurpResult uf existingNames =
   fileNames0 = UF.typecheckedToNames0 uf
 
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
-  sc terms types = mempty { implicatedTerms = Set.map var (R.dom terms)
-                          , implicatedTypes = Set.map var (R.dom types) }
+  sc terms types = SlurpComponent { implicatedTerms = Set.map var (R.dom terms)
+                                  , implicatedTypes = Set.map var (R.dom types) }
      where var name = Var.named (Name.toText name)
 
   conflicts :: SlurpComponent v
   conflicts = undefined
 
   ctorCollisions :: SlurpComponent v
-  ctorCollisions = undefined
+  ctorCollisions = mempty { implicatedTerms = a <> b } where
+    a = Map.keysSet termCtorCollisions
+    b = Map.keysSet ctorTermCollisions
 
   termCtorCollisions :: Map v Referent
   termCtorCollisions = undefined
@@ -930,6 +932,7 @@ toSlurpResult uf existingNames =
   extras :: SlurpComponent v
   extras = undefined
 
+  -- duplicate (n,r) if (n,r) exists in names0
   dups :: SlurpComponent v
   dups = undefined
 
@@ -950,7 +953,6 @@ toSlurpResult uf existingNames =
     add existingNames = R.filter go where
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
-  -- duplicate (n,r) if (n,r) exists in names0
   -- collision -- we don't populate this
   -- conflict (n,r) if n is conflicted in names0
   -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
