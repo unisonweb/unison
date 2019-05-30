@@ -856,9 +856,6 @@ zeroOrMore f zero more = case toList f of
   a : _ -> more f
   _ -> zero
 
-emptyOrNot :: (Monoid m, Eq m) => m -> b -> (m -> b) -> b
-emptyOrNot m zero more = if m == mempty then zero else more m
-
 -- Returns
 --   ( the set of names that couldn't be deleted
 --   , the set of dependents of the names that couldn't be deleted)

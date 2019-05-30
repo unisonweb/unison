@@ -85,6 +85,10 @@ data TypecheckedUnisonFile v a =
     watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
   } deriving Show
 
+allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (AnnotatedTerm v a)
+allTerms uf =
+  Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
+
 topLevelComponents :: TypecheckedUnisonFile v a
                    -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
 topLevelComponents file =

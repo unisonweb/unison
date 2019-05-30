@@ -21,7 +21,6 @@ module Unison.Codebase.Editor.Output
   ) where
 
 import Control.Applicative
-import Control.Lens (_2, view)
 import Data.List (foldl')
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
@@ -213,29 +212,35 @@ data SlurpResult v = SlurpResult {
   , defsWithBlockedDependencies :: SlurpComponent v
   } deriving (Show)
 
--- Remove `removed` from the slurp result, and move any terms with transitive
+-- Remove `removed` from the slurp result, and move any defns with transitive
 -- dependencies on the removed component into `defsWithBlockedDependencies`.
 -- Also removes `removed` from `extraDefinitions`.
 subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
 subtractComponent removed sr =
-  sr { collisions = collisions sr <> updates sr
-     , adds = slurpComponentDifference (adds sr) removed
+  sr { adds = slurpComponentDifference (adds sr) removed
      , updates = slurpComponentDifference (updates sr) removed
      , defsWithBlockedDependencies = blocked
-     , extraDefinitions = extraDefinitions sr `slurpComponentDifference` blocked
+     , extraDefinitions = slurpComponentDifference (extraDefinitions sr) blocked
      }
   where
-  blocked = defsWithBlockedDependencies sr <> doTerms <> doTypes
+  blocked = defsWithBlockedDependencies sr <>
+    slurpComponentDifference (blockedTerms <> blockedTypes) removed
   -- for each v in adds, move to blocked if transitive dependency in removed
   termDeps :: SlurpComponent v -> v -> SlurpComponent v
   termDeps seen v | Set.member v (implicatedTerms seen) = seen
   termDeps seen v = fromMaybe seen $ do
     term <- findTerm v
-    let tdeps = resolveTypes $ Term.dependencies term
+    let -- get the `v`s for the transitive dependency types
+        -- (the ones for terms are just the `freeVars below`)
+        -- although this isn't how you'd do it for a term that's already in codebase
+        tdeps :: [v]
+        tdeps = resolveTypes $ Term.dependencies term
+        seenTypes :: Set v
         seenTypes = foldl' typeDeps (implicatedTypes seen) tdeps
-    pure $ foldl' termDeps
-                  (seen { implicatedTypes = implicatedTypes seen <> seenTypes})
-                  (Term.freeVars term)
+        seenTerms = Set.insert v (implicatedTerms seen)
+    pure $ foldl' termDeps (seen { implicatedTypes = seenTypes
+                                 , implicatedTerms = seenTerms})
+                           (Term.freeVars term)
 
   typeDeps :: Set v -> v -> Set v
   typeDeps seen v | Set.member v seen = seen
@@ -248,20 +253,26 @@ subtractComponent removed sr =
   resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
   uf = originalFile sr
-  findTerm v = view _2 <$> Map.lookup v hashedTerms
-  hashedTerms = UF.hashTerms uf
+  findTerm :: v -> Maybe (Term v Ann)
+  findTerm v = Map.lookup v allTerms
+  allTerms = UF.allTerms uf
 
   invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
   invert m = Map.fromList (swap <$> Map.toList m)
 
   typeNames :: Map Reference v
   typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
-  doTypes =
-    SlurpComponent (foldMap doType . implicatedTypes $ adds sr <> updates sr) mempty
-  doTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr
-  doType :: v -> Set v
-  doType v = Set.intersection (implicatedTypes removed) (typeDeps mempty v)
-  doTerm v = slurpComponentIntersection removed (termDeps mempty v)
+  blockedTypes = foldMap doType . implicatedTypes $ adds sr <> updates sr where
+    doType :: v -> SlurpComponent v
+    doType v =
+      if null $ Set.intersection (implicatedTypes removed) (typeDeps mempty v)
+      then mempty else mempty { implicatedTypes = Set.singleton v }
+
+  blockedTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr where
+    doTerm :: v -> SlurpComponent v
+    doTerm v =
+      if mempty == slurpComponentIntersection removed (termDeps mempty v)
+      then mempty else mempty { implicatedTerms = Set.singleton v }
 
 -- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
 -- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
