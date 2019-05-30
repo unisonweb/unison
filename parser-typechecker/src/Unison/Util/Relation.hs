@@ -184,6 +184,9 @@ filterDom f r = S.filter f (dom r) <| r
 filterRan :: (Ord a, Ord b) => (b -> Bool) -> Relation a b -> Relation a b
 filterRan f r = r |> S.filter f (ran r)
 
+filter :: (Ord a, Ord b) => ((a, b) -> Bool) -> Relation a b -> Relation a b
+filter f = fromList . List.filter f . toList
+
 -- |
 -- True if the relation @r@ is the 'empty' relation.
 null :: Relation a b -> Bool

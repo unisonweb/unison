@@ -23,6 +23,7 @@ import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name            as Name
 import           Unison.Names           (Names)
+import           Unison.Names2          (Names0)
 import qualified Unison.Names           as Names
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
@@ -163,6 +164,9 @@ toNames (UnisonFile {..}) = datas <> effects
   where
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
+
+typecheckedToNames0 :: TypecheckedUnisonFile v a -> Names0
+typecheckedToNames0 = undefined
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty

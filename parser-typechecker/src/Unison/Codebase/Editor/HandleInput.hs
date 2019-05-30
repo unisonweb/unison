@@ -450,7 +450,8 @@ loop = do
         Nothing -> respond NoUnisonFile
         Just uf ->
           let result = Output.disallowUpdates
-                     . toSlurpResult hqs uf
+                     . error "todo: applySelection hqs"
+                     . toSlurpResult uf
                      . Branch.toNames0
                      . Branch.head
                      $ currentBranch' in
@@ -899,8 +900,8 @@ getEndangeredDependents getDependents toBeDeleted root =
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
-toSlurpResult :: [HashQualified] -> UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
-toSlurpResult _selected _uf _existingNames =
+toSlurpResult :: UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
+toSlurpResult uf existingNames =
   -- This looks at the selected names in the file and compares them to the
   -- existing names passed in.
   --   New names with new definitions go in `adds`
@@ -908,6 +909,24 @@ toSlurpResult _selected _uf _existingNames =
   --   New names with old definitions go in `termAlias` or `typeAlias`
   --   ...
   error "todo"
+  where
+  fileNames0 = UF.typecheckedToNames0 uf
+  -- add (n,r) if n doesn't exist and r doesn't exist in names0
+  termAdds = adds (Names.terms existingNames) (Names.terms fileNames0)
+  typeAdds = adds (Names.types existingNames) (Names.types fileNames0)
+  adds :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
+  adds existingNames = R.filter go where
+    go (n, r) = (not . R.memberDom n) existingNames
+             && (not . R.memberRan r) existingNames
+  -- duplicate (n,r) if (n,r) exists in names0
+  -- collision -- we don't populate this
+  -- conflict (n,r) if n is conflicted in names0
+  -- update (n,r) if (n,r' /= r) exists in names0 and r, r' are Ref
+  -- termExistingConstructorCollision (n,r) if (n, r' /= r) exists in names0 and r is Ref and r' is Con
+  -- constructorExistingTermCollision (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
+  -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
+  -- alias (n, r) if (n' /= n, r) exists in names0
+
 
 filterBySlurpResult :: Ord v
            => SlurpResult v
