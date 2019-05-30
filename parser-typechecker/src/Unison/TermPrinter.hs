@@ -48,6 +48,8 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+import Debug.Trace (trace)
+-- !!
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -257,8 +259,6 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> "let" `PP.hang` x
-    isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
-    isBlank _ = False
     
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
@@ -417,7 +417,6 @@ prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBi
       in PP.group $
         PP.group (defnLhs v vs <> " =") `PP.hang`
         (uses [pretty env (ac (-1) Block im') body'])
-     where
     t -> l "error: " <> l (show t)
    where
     defnLhs v vs = if infix'
@@ -468,6 +467,10 @@ isSymbolic' :: Name -> Bool
 isSymbolic' name = case symbolyId . Name.toString $ name of
   Right _ -> True
   _       -> False
+
+isBlank :: String -> Bool
+isBlank ('_' : rest) | (isJust ((readMaybe rest) :: Maybe Int)) = True
+isBlank _ = False
 
 ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
@@ -686,7 +689,7 @@ x |> f = f x
 -- providing a `[Pretty ColorText] -> Pretty ColorText` that prepends those
 -- lines to the list of lines provided, and then concatenates them.
 calcImports 
-  :: Ord v 
+  :: (Var v, Ord v)
   => Imports 
   -> AnnotatedTerm3 v PrintAnnotation 
   -> (Imports, [Pretty ColorText] -> Pretty ColorText)
@@ -758,42 +761,51 @@ calcImports im tm = (im', render $ getUses result)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
 -- block term within it, containing all usages of that name?  
-allInSubBlock :: Ord v => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
-allInSubBlock tm p s i = isJust $ ABT.find finder tm where 
+allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
+allInSubBlock tm p s i = let found = concat $ ABT.find finder tm 
+                             result = any (/= tm) $ found
+                                        --trace ("subblock found: " ++ show tm' ++ "\n" ++ "eq: " ++ show (tm /= tm') ++ "\n") tm /= tm'
+                         in trace ("allInSubBlock " ++ show result ++ "\n" ++ show tm ++ "found: \n" ++ show found ++ "\n\n\n\n\n\n") result where 
   getUsages t =    annotation t
                 |> usages
                 |> Map.lookup s
                 |> fmap (Map.lookup p)
                 |> join
                 |> fromMaybe 0
-  finder t top = if top 
-                 then ABT.Continue 
-                 else
-                   let i' = getUsages t
-                   in if i' < i 
-                      then ABT.Prune 
-                      else 
-                        if (i' == i) && (any hit $ immediateChildBlockTerms t)
-                        then ABT.Found 
-                        else ABT.Continue
+  finder t = let result = let i' = getUsages t
+                          in if i' < i 
+                             then ABT.Prune 
+                             else 
+                               let found = filter hit $ immediateChildBlockTerms t
+                               in if (i' == i) && (not $ null found)
+                                  then ABT.Found found
+                                  else ABT.Continue
+                 children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
+             in trace ("finder " ++ show result ++ "\n" ++ children ++ "term: \n" ++ show t ++ "\n\n\n\n") result
   hit t = (getUsages t) == i
 
 -- Return any blockterms at or immediately under this term.  Has to match the places in the
 -- syntax that get a call to `calcImports` in `pretty`.
-immediateChildBlockTerms :: AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
+immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
     If' cond t f -> [cond, t, f]
-    tm@(LetRecNamed' _ _) -> [tm]
-    tm@(Lets' _ _) -> [tm]
+    tm@(LetRecNamed' bs _) -> [tm] ++ (concat $ map doLet bs)
+    tm@(Lets' bs _)        -> [tm] ++ (concat $ map doLet ((map (\(_, v, binding) -> (v, binding)) bs)))
     Match' _ branches -> concat $ map doCase branches
     _ -> []
   where
     doCase (MatchCase _ _ (AbsN' _ body)) = [body]
     doCase _ = error "bad match" []
+    doLet (v, Ann' tm _) = doLet (v, tm)
+    doLet (v, LamsNamedOpt' _ body) = if isBlank $ Var.nameStr v
+                                      then []
+                                      else [body]
+    doLet t = error (show t) []
 
 -- TODO testing of: 
 -- - all use sites of elideFQN
+-- - narrowing test where inner `use` point is each type of blockterm
 -- - patterns, types, namespaces
 -- - really right to apply this to vars?
 -- - symbolic names

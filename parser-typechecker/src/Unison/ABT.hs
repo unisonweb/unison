@@ -481,23 +481,21 @@ reannotateUp g t = case out t of
       ann = g t <> foldMap (snd . annotation) body'
     in tm' (annotation t, ann) body'
 
--- Find a subterm that matches a predicate.  Prune the search for speed.
--- The Bool argument to the predicate is True only when it is being  
--- applied to the top level term.
-data FindAction = Found | Prune | Continue
+-- Find all subterms that match a predicate, except without looking inside
+-- matching subterms.  Prune the search for speed.
+data FindAction x = Found x | Prune | Continue deriving Show
 find :: (Ord v, Foldable f, Functor f)
-  => (Term f v a -> Bool -> FindAction)
+  => (Term f v a -> FindAction x)
   -> Term f v a
-  -> Maybe (Term f v a)
-find p t = go True p t where
-  go top p t = case p t top of
-    Found -> Just t
-    Prune -> Nothing
+  -> [x]
+find p t = case p t of
+    Found x -> [x]
+    Prune -> []
     Continue -> case out t of
-      Var _ -> Nothing
-      Cycle body -> go False p body
-      Abs _ body -> go False p body
-      Tm body -> Foldable.asum (go False p <$> body)
+      Var _ -> []
+      Cycle body -> Unison.ABT.find p body
+      Abs _ body -> Unison.ABT.find p body
+      Tm body -> Foldable.concat (Unison.ABT.find p <$> body)
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable

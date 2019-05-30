@@ -441,14 +441,13 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use A X.c YY.c\n\
                  \  g X.c X.c YY.c YY.c"
-  , pending $
-    tc_breaks 20 "handle bar in\n\
-                 \  if foo then\n\
+  , tc_breaks 20 "handle bar in\n\
+                 \  (if foo then\n\
                  \    use A.X c\n\
                  \    f c c\n\
                  \  else\n\
                  \    use A.Y c\n\
-                 \    g c c"  -- TODO missing narrowness to avoid "use A X.c Y.C" under handle (and also questionable parens around if/then/else)
+                 \    g c c)"  -- TODO questionable parens around if/then/else
   , tc_breaks 20 "if foo then\n\
                  \  f (x : Pair t t)\n\
                  \else\n\
@@ -475,12 +474,11 @@ test = scope "termprinter" . tests $
   , tc_breaks 15 "handle foo in\n\
                  \  use A x\n\
                  \  f x x"
-  , pending $
-    tc_breaks 15 "let\n\
+  , tc_breaks 15 "let\n\
                  \  c =\n\
                  \    use A x\n\
                  \    f x x\n\
-                 \  g c"
+                 \  g c" 
   , tc_breaks 20 "if foo then\n\
                  \  f x x A.x A.x\n\
                  \else g"
@@ -491,13 +489,13 @@ test = scope "termprinter" . tests $
                  \      use A B.x\n\
                  \      f B.x B.x\n\
                  \      handle foo in\n\
-                 \      in\n\
                  \        use A.B.D x\n\
                  \        q = h x x\n\
                  \        foo\n\
+                 \    bar\n\
                  \  _ ->\n\
                  \    b =\n\
                  \      use A.C x\n\
-                 \      g x x"
-
+                 \      g x x\n\
+                 \    bar"  -- TODO getting a "use A.B D.x" under the a = instead of the narrower use inside the handle
   ]
