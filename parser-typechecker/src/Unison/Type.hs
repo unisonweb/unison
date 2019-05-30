@@ -178,13 +178,15 @@ derivedBase58 r a = ref a r
 derivedBase58' :: Text -> Reference
 derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, vectorRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, vectorRef, bytesRef, effectRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
 vectorRef = Reference.Builtin "Sequence"
+bytesRef = Reference.Builtin "Bytes"
+effectRef = Reference.Builtin "Effect"
 
 builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
@@ -206,6 +208,12 @@ text a = ref a $ textRef
 
 vector :: Ord v => a -> AnnotatedType v a
 vector a = ref a $ vectorRef
+
+bytes :: Ord v => a -> AnnotatedType v a
+bytes a = ref a $ bytesRef
+
+effectType :: Ord v => a -> AnnotatedType v a
+effectType a = ref a $ effectRef
 
 app :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 app a f arg = ABT.tm' a (App f arg)

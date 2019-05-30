@@ -13,6 +13,7 @@ import           Control.Applicative            ( liftA2
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
+import           Data.Text.Internal             ( Text )
 import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
@@ -46,6 +47,9 @@ type Term v = Term.AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
+
+type Type' v = AnnotatedType v ()
+type Term' v = Term.AnnotatedTerm v ()
 
 showParseError :: Var v
                => String
@@ -100,16 +104,16 @@ isBuiltinType r = elem r . fmap snd $ builtinTypes
 
 typeLookup :: Var v => TL.TypeLookup v Ann
 typeLookup =
-  TL.TypeLookup builtins0
+  TL.TypeLookup (fmap (Intrinsic <$) builtins0)
     (Map.fromList $ map snd builtinDataDecls)
     (Map.fromList $ map snd builtinEffectDecls)
 
-builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
+builtinTypedTerms :: Var v => [(v, (Term' v, Type' v))]
 builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
 
-builtinTerms :: Var v => [(v, Term v)]
+builtinTerms :: Var v => [(v, Term' v)]
 builtinTerms =
-  [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
+  [ (toSymbol r, Term.ann () (Term.ref () r) typ) |
     (r, typ) <- Map.toList builtins0 ]
 
 builtinTypesV :: Var v => [(v, R.Reference)]
@@ -156,93 +160,93 @@ builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 allReferencedTypes :: Set R.Reference
 allReferencedTypes = Rel.ran builtinDependencies
 
-builtins0 :: Var v => Map.Map R.Reference (Type v)
+builtins0 :: Var v => Map.Map R.Reference (Type' v)
 builtins0 = Map.fromList $
-  [ (R.Builtin name, t typ) |
+  [ (R.Builtin name, typ) |
     (name, typ) <-
-      [ ("Int.+", "Int -> Int -> Int")
-      , ("Int.-", "Int -> Int -> Int")
-      , ("Int.*", "Int -> Int -> Int")
-      , ("Int./", "Int -> Int -> Int")
-      , ("Int.<", "Int -> Int -> Boolean")
-      , ("Int.>", "Int -> Int -> Boolean")
-      , ("Int.<=", "Int -> Int -> Boolean")
-      , ("Int.>=", "Int -> Int -> Boolean")
-      , ("Int.==", "Int -> Int -> Boolean")
-      , ("Int.increment", "Int -> Int")
-      , ("Int.isEven", "Int -> Boolean")
-      , ("Int.isOdd", "Int -> Boolean")
-      , ("Int.signum", "Int -> Int")
-      , ("Int.negate", "Int -> Int")
-      , ("Int.truncate0", "Int -> Nat")
+      [ ("Int.+", int --> int --> int)
+      , ("Int.-", int --> int --> int)
+      , ("Int.*", int --> int --> int)
+      , ("Int./", int --> int --> int)
+      , ("Int.<", int --> int --> boolean)
+      , ("Int.>", int --> int --> boolean)
+      , ("Int.<=", int --> int --> boolean)
+      , ("Int.>=", int --> int --> boolean)
+      , ("Int.==", int --> int --> boolean)
+      , ("Int.increment", int --> int)
+      , ("Int.isEven", int --> boolean)
+      , ("Int.isOdd", int --> boolean)
+      , ("Int.signum", int --> int)
+      , ("Int.negate", int --> int)
+      , ("Int.truncate0", int --> nat)
 
-      , ("Nat.+", "Nat -> Nat -> Nat")
-      , ("Nat.drop", "Nat -> Nat -> Nat")
-      , ("Nat.sub", "Nat -> Nat -> Int")
-      , ("Nat.*", "Nat -> Nat -> Nat")
-      , ("Nat./", "Nat -> Nat -> Nat")
-      , ("Nat.mod", "Nat -> Nat -> Nat")
-      , ("Nat.<", "Nat -> Nat -> Boolean")
-      , ("Nat.>", "Nat -> Nat -> Boolean")
-      , ("Nat.<=", "Nat -> Nat -> Boolean")
-      , ("Nat.>=", "Nat -> Nat -> Boolean")
-      , ("Nat.==", "Nat -> Nat -> Boolean")
-      , ("Nat.increment", "Nat -> Nat")
-      , ("Nat.isEven", "Nat -> Boolean")
-      , ("Nat.isOdd", "Nat -> Boolean")
-      , ("Nat.toInt", "Nat -> Int")
-      , ("Nat.toText", "Nat -> Text")
+      , ("Nat.+", nat --> nat --> nat)
+      , ("Nat.drop", nat --> nat --> nat)
+      , ("Nat.sub", nat --> nat --> int)
+      , ("Nat.*", nat --> nat --> nat)
+      , ("Nat./", nat --> nat --> nat)
+      , ("Nat.mod", nat --> nat --> nat)
+      , ("Nat.<", nat --> nat --> boolean)
+      , ("Nat.>", nat --> nat --> boolean)
+      , ("Nat.<=", nat --> nat --> boolean)
+      , ("Nat.>=", nat --> nat --> boolean)
+      , ("Nat.==", nat --> nat --> boolean)
+      , ("Nat.increment", nat --> nat)
+      , ("Nat.isEven", nat --> boolean)
+      , ("Nat.isOdd", nat --> boolean)
+      , ("Nat.toInt", nat --> int)
+      , ("Nat.toText", nat --> text)
 
-      , ("Float.+", "Float -> Float -> Float")
-      , ("Float.-", "Float -> Float -> Float")
-      , ("Float.*", "Float -> Float -> Float")
-      , ("Float./", "Float -> Float -> Float")
-      , ("Float.<", "Float -> Float -> Boolean")
-      , ("Float.>", "Float -> Float -> Boolean")
-      , ("Float.<=", "Float -> Float -> Boolean")
-      , ("Float.>=", "Float -> Float -> Boolean")
-      , ("Float.==", "Float -> Float -> Boolean")
+      , ("Float.+", float --> float --> float)
+      , ("Float.-", float --> float --> float)
+      , ("Float.*", float --> float --> float)
+      , ("Float./", float --> float --> float)
+      , ("Float.<", float --> float --> boolean)
+      , ("Float.>", float --> float --> boolean)
+      , ("Float.<=", float --> float --> boolean)
+      , ("Float.>=", float --> float --> boolean)
+      , ("Float.==", float --> float --> boolean)
 
       -- Trigonmetric Functions
-      , ("Float.acos", "Float -> Float")
-      , ("Float.asin", "Float -> Float")
-      , ("Float.atan", "Float -> Float")
-      , ("Float.atan2", "Float -> Float -> Float")
-      , ("Float.cos", "Float -> Float")
-      , ("Float.sin", "Float -> Float")
-      , ("Float.tan", "Float -> Float")
+      , ("Float.acos", float --> float)
+      , ("Float.asin", float --> float)
+      , ("Float.atan", float --> float)
+      , ("Float.atan2", float --> float --> float)
+      , ("Float.cos", float --> float)
+      , ("Float.sin", float --> float)
+      , ("Float.tan", float --> float)
 
       -- Hyperbolic Functions
-      , ("Float.acosh", "Float -> Float")
-      , ("Float.asinh", "Float -> Float")
-      , ("Float.atanh", "Float -> Float")
-      , ("Float.cosh", "Float -> Float")
-      , ("Float.sinh", "Float -> Float")
-      , ("Float.tanh", "Float -> Float")
+      , ("Float.acosh", float --> float)
+      , ("Float.asinh", float --> float)
+      , ("Float.atanh", float --> float)
+      , ("Float.cosh", float --> float)
+      , ("Float.sinh", float --> float)
+      , ("Float.tanh", float --> float)
 
       -- Exponential Functions
-      , ("Float.exp", "Float -> Float")
-      , ("Float.log", "Float -> Float")
-      , ("Float.logBase", "Float -> Float -> Float")
+      , ("Float.exp", float --> float)
+      , ("Float.log", float --> float)
+      , ("Float.logBase", float --> float --> float)
 
       -- Power Functions
-      , ("Float.pow", "Float -> Float -> Float")
-      , ("Float.sqrt", "Float -> Float")
+      , ("Float.pow", float --> float --> float)
+      , ("Float.sqrt", float --> float)
 
       -- Rounding and Remainder Functions
-      , ("Float.ceiling", "Float -> Int")
-      , ("Float.floor", "Float -> Int")
-      , ("Float.round", "Float -> Int")
-      , ("Float.truncate", "Float -> Int")
+      , ("Float.ceiling", float --> int)
+      , ("Float.floor", float --> int)
+      , ("Float.round", float --> int)
+      , ("Float.truncate", float --> int)
 
       -- Float Utils
-      , ("Float.abs", "Float -> Float")
-      , ("Float.max", "Float -> Float -> Float")
-      , ("Float.min", "Float -> Float -> Float")
-      , ("Float.toText", "Float -> Text")
-      , ("Float.fromText", "Text -> Optional Float")
+      , ("Float.abs", float --> float)
+      , ("Float.max", float --> float --> float)
+      , ("Float.min", float --> float --> float)
+      , ("Float.toText", float --> text)
+      , ("Float.fromText", text --> optional float)
 
-      , ("Universal.==", "a -> a -> Boolean")
+      , ("Universal.==", forall1 "a" (\a -> a --> a --> boolean))
 
       -- Universal.compare intended as a low level function that just returns
       -- `Int` rather than some Ordering data type. If we want, later,
@@ -250,47 +254,89 @@ builtins0 = Map.fromList $
       -- returns a proper data type.
       --
       -- 0 is equal, < 0 is less than, > 0 is greater than
-      , ("Universal.compare", "a -> a -> Int")
-      , ("Universal.>", "a -> a -> Boolean")
-      , ("Universal.<", "a -> a -> Boolean")
-      , ("Universal.>=", "a -> a -> Boolean")
-      , ("Universal.<=", "a -> a -> Boolean")
+      , ("Universal.compare", forall1 "a" (\a -> a --> a --> int))
+      , ("Universal.>", forall1 "a" (\a -> a --> a --> boolean))
+      , ("Universal.<", forall1 "a" (\a -> a --> a --> boolean))
+      , ("Universal.>=", forall1 "a" (\a -> a --> a --> boolean))
+      , ("Universal.<=", forall1 "a" (\a -> a --> a --> boolean))
 
-      , ("Boolean.not", "Boolean -> Boolean")
+      , ("Boolean.not", boolean --> boolean)
 
-      , ("Text.empty", "Text")
-      , ("Text.++", "Text -> Text -> Text")
-      , ("Text.take", "Nat -> Text -> Text")
-      , ("Text.drop", "Nat -> Text -> Text")
-      , ("Text.size", "Text -> Nat")
-      , ("Text.==", "Text -> Text -> Boolean")
-      , ("Text.!=", "Text -> Text -> Boolean")
-      , ("Text.<=", "Text -> Text -> Boolean")
-      , ("Text.>=", "Text -> Text -> Boolean")
-      , ("Text.<", "Text -> Text -> Boolean")
-      , ("Text.>", "Text -> Text -> Boolean")
+      , ("Text.empty", text)
+      , ("Text.++", text --> text --> text)
+      , ("Text.take", nat --> text --> text)
+      , ("Text.drop", nat --> text --> text)
+      , ("Text.size", text --> nat)
+      , ("Text.==", text --> text --> boolean)
+      , ("Text.!=", text --> text --> boolean)
+      , ("Text.<=", text --> text --> boolean)
+      , ("Text.>=", text --> text --> boolean)
+      , ("Text.<", text --> text --> boolean)
+      , ("Text.>", text --> text --> boolean)
 
-      , ("Bytes.empty", "Bytes")
-      , ("Bytes.fromSequence", "[Nat] -> Bytes")
-      , ("Bytes.++", "Bytes -> Bytes -> Bytes")
-      , ("Bytes.take", "Nat -> Bytes -> Bytes")
-      , ("Bytes.drop", "Nat -> Bytes -> Bytes")
-      , ("Bytes.at", "Nat -> Bytes -> Optional Nat")
-      , ("Bytes.toSequence", "Bytes -> [Nat]")
-      , ("Bytes.size", "Bytes -> Nat")
-      , ("Bytes.flatten", "Bytes -> Bytes")
+      , ("Bytes.empty", bytes)
+      , ("Bytes.fromSequence", sequence nat --> bytes)
+      , ("Bytes.++", bytes --> bytes --> bytes)
+      , ("Bytes.take", nat --> bytes --> bytes)
+      , ("Bytes.drop", nat --> bytes --> bytes)
+      , ("Bytes.at", nat --> bytes --> optional nat)
+      , ("Bytes.toSequence", bytes --> sequence nat)
+      , ("Bytes.size", bytes --> nat)
+      , ("Bytes.flatten", bytes --> bytes)
 
-      , ("Sequence.empty", "[a]")
-      , ("Sequence.cons", "a -> [a] -> [a]")
-      , ("Sequence.snoc", "[a] -> a -> [a]")
-      , ("Sequence.take", "Nat -> [a] -> [a]")
-      , ("Sequence.drop", "Nat -> [a] -> [a]")
-      , ("Sequence.++", "[a] -> [a] -> [a]")
-      , ("Sequence.size", "[a] -> Nat")
-      , ("Sequence.at", "Nat -> [a] -> Optional a")
+      , ("Sequence.empty", forall1 "a" (\a -> sequence a))
+      , ("Sequence.cons", forall1 "a" (\a -> a --> sequence a --> sequence a))
+      , ("Sequence.snoc", forall1 "a" (\a -> sequence a --> a --> sequence a))
+      , ("Sequence.take", forall1 "a" (\a -> nat --> sequence a --> sequence a))
+      , ("Sequence.drop", forall1 "a" (\a -> nat --> sequence a --> sequence a))
+      , ("Sequence.++", forall1 "a" (\a -> sequence a --> sequence a --> sequence a))
+      , ("Sequence.size", forall1 "a" (\a -> sequence a --> nat))
+      , ("Sequence.at", forall1 "a" (\a -> nat --> sequence a --> optional a))
 
-      , ("Debug.watch", "Text -> a -> a")
-      , ("Effect.pure", "a -> Effect e a") -- Effect ambient e a
-      , ("Effect.bind", "'{e} a -> (a ->{ambient} b) -> Effect e a") -- Effect ambient e a
+      , ("Debug.watch", forall1 "a" (\a -> text --> a --> a))
+      , ("Effect.pure", forall2 "a" "e" (\a e -> a --> effect e a)) -- Effect ambient e a
+      , ("Effect.bind", forall4 "e" "a" "ambient" "b" (\e a ambient b -> delayed (effectful e a) --> (a --> effectful ambient b) --> effect e a)) -- Effect ambient e a
       ]
   ]
+  where
+    int = Type.int ()
+    nat = Type.nat ()
+    boolean = Type.boolean ()
+    float = Type.float ()
+    text = Type.text ()
+    bytes = Type.bytes ()
+
+    (-->) :: Ord v => Type' v -> Type' v -> Type' v
+    a --> b = Type.arrow () a b
+
+    infixr -->
+
+    forall1 :: Var v => Text -> (Type' v -> Type' v) -> Type' v
+    forall1 name body =
+      let
+        a = Var.named name
+      in Type.forall () a (body $ Type.var () a)
+
+    forall2 :: Var v => Text -> Text -> (Type' v -> Type' v -> Type' v) -> Type' v
+    forall2 name1 name2 body = forall1 name1 (\tv1 -> forall1 name2 (\tv2 -> body tv1 tv2))
+
+    forall4 :: Var v => Text -> Text -> Text -> Text -> (Type' v -> Type' v -> Type' v -> Type' v -> Type' v) -> Type' v
+    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (\tv3 tv4 -> body tv1 tv2 tv3 tv4))
+
+    app :: Ord v => Type' v -> Type' v -> Type' v
+    app f a = Type.app () f a
+
+    sequence :: Ord v => Type' v -> Type' v
+    sequence arg = Type.vector () `app` arg
+
+    optional :: Ord v => Type' v -> Type' v
+    optional arg = DD.optionalType () `app` arg
+
+    effect :: Ord v => Type' v -> Type' v -> Type' v
+    effect e a = Type.effectType () `app` e `app` a
+
+    effectful :: Ord v => Type' v -> Type' v -> Type' v
+    effectful e a = Type.effect1 () e a
+
+    delayed :: Ord v => Type' v -> Type' v
+    delayed a = DD.unitType () --> a
