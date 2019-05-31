@@ -459,28 +459,22 @@ loop = do
                      . toSlurpResult uf
                      . Branch.toNames0
                      . Branch.head
-                     $ currentBranch' in
-          if Slurp.isNonempty result then do
-            stepAt ( Path.unabsolute currentPath'
-                   , doSlurpAdds (Slurp.adds result) uf)
-            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          else respond $ SlurpOutput input result
+                     $ currentBranch'
+          in do
+            when (Slurp.isNonempty result) $ do
+              stepAt ( Path.unabsolute currentPath'
+                     , doSlurpAdds (Slurp.adds result) uf)
+              eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+            respond $ SlurpOutput input result
 
-      UpdateI _edits _hqs -> error "todo"
-
-      -- SlurpFileI allowUpdates -> case uf of
-      --   Nothing  -> respond NoUnisonFile
-      --   Just uf' -> do
-      --     let collisionHandler = if allowUpdates
-      --           then Editor.updateCollisionHandler
-      --           else Editor.addCollisionHandler
-      --     updateo <- eval $ SlurpFile collisionHandler currentBranch' uf'
-      --     let branch' = updatedBranch updateo
-      --     -- Don't bother doing anything if the branch is unchanged by the slurping
-      --     when (branch' /= currentBranch') $ doMerge currentBranchName' branch'
-      --     eval . Notify $ SlurpOutput updateo
-      --     currentBranch .= branch'
-
+      UpdateI _edits _hqs -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf -> error "todo"
+        -- take a look at the `updates` and make a patch diff to
+        -- record a replacement from the old to new references
+        -- then apply the namespaces changes like before;
+        --  probably a stepManyAt where one step to updates the namespace like before
+        --  and another step updates the specified patch
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
