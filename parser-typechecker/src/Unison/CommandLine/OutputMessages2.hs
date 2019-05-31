@@ -17,6 +17,7 @@ module Unison.CommandLine.OutputMessages2 (notifyUser) where
 
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
+import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
 -- import Debug.Trace
@@ -512,7 +513,7 @@ listOfDefinitions' ppe detailed results =
 
 -- todo: could probably use more cleanup
 -- todo: could use sample output here as a form of documentation
-slurpOutput :: Var v => PPE.PrettyPrintEnv -> E.SlurpResult v -> IO ()
+slurpOutput :: Var v => PPE.PrettyPrintEnv -> SlurpResult v -> IO ()
 slurpOutput ppe s = error "todo"
   -- putPrettyLn . P.sep "\n" . P.nonEmpty $ [
   --     addedMsg, updatedMsg, alreadyAddedMsg, namesExistMsg,

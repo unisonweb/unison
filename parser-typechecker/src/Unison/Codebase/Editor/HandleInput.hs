@@ -23,6 +23,10 @@ import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output as Output
+import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
+import qualified Unison.Codebase.Editor.SlurpResult as Slurp
+import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
+import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo
 
 import           Control.Applicative
@@ -450,15 +454,15 @@ loop = do
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf ->
-          let result = Output.disallowUpdates
-                     . error "todo: applySelection hqs"
+          let result = Slurp.disallowUpdates
+                     . applySelection hqs uf
                      . toSlurpResult uf
                      . Branch.toNames0
                      . Branch.head
                      $ currentBranch' in
-          if Output.isNonemptySlurp result then do
+          if Slurp.isNonempty result then do
             stepAt ( Path.unabsolute currentPath'
-                   , doSlurpAdds (Output.adds result) uf)
+                   , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           else respond $ SlurpOutput input result
 
@@ -901,9 +905,33 @@ getEndangeredDependents getDependents toBeDeleted root =
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
+-- Applies the selection filter to the adds/updates of a slurp result,
+-- meaning that adds/updates should only contain the selection or its transitive
+-- dependencies, and lists any unselected transitive dependencies of the
+-- selection will be added to `extraDefinitions`.
+applySelection :: forall v a. Var v =>
+  [HashQualified] -> UF.TypecheckedUnisonFile v a -> SlurpResult v -> SlurpResult v
+applySelection [] _ = id
+applySelection hqs file = \sr@SlurpResult{..} ->
+  sr { adds = adds `SC.intersection` closed
+     , updates = updates `SC.intersection` closed
+     , extraDefinitions = closed `SC.difference` selection
+     }
+  where
+  fileDependencies = UF.dependencies' file
+  selection, closed :: SlurpComponent v
+  selection = SlurpComponent selectedTypes selectedTerms
+  closed = closeSlurpComponent file selection
+  selectedTypes, selectedTerms :: Set v
+  selectedTypes = undefined
+  selectedTerms = undefined
+
+closeSlurpComponent :: UF.TypecheckedUnisonFile v a -> SlurpComponent v -> SlurpComponent v
+closeSlurpComponent = error "todo"
+
 toSlurpResult :: forall v. Var v => UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult uf existingNames =
-  Output.subtractComponent (conflicts <> ctorCollisions) $
+  Slurp.subtractComponent (conflicts <> ctorCollisions) $
   SlurpResult uf mempty adds dups mempty conflicts updates
               termCtorCollisions ctorTermCollisions termAliases typeAliases
               mempty
@@ -911,8 +939,8 @@ toSlurpResult uf existingNames =
   fileNames0 = UF.typecheckedToNames0 uf
 
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
-  sc terms types = SlurpComponent { implicatedTerms = Set.map var (R.dom terms)
-                                  , implicatedTypes = Set.map var (R.dom types) }
+  sc terms types = SlurpComponent { terms = Set.map var (R.dom terms)
+                                  , types = Set.map var (R.dom types) }
 
   var name = Var.named (Name.toText name)
 
@@ -925,7 +953,7 @@ toSlurpResult uf existingNames =
 
   ctorCollisions :: SlurpComponent v
   ctorCollisions =
-    mempty { implicatedTerms = termCtorCollisions <> ctorTermCollisions }
+    mempty { SC.terms = termCtorCollisions <> ctorTermCollisions }
 
   -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and r is Ref and r' is Con
   termCtorCollisions :: Set v
@@ -996,8 +1024,8 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   UF.TypecheckedUnisonFile datas effects tlcs watches
   where
   keep = updates <> adds
-  keepTerms = Output.implicatedTerms keep
-  keepTypes = Output.implicatedTypes keep
+  keepTerms = SC.terms keep
+  keepTypes = SC.types keep
   datas = Map.restrictKeys dataDeclarations' keepTypes
   effects = Map.restrictKeys effectDeclarations' keepTypes
   tlcs = filter (not.null) $ fmap (List.filter filterTLC) topLevelComponents'
@@ -1005,13 +1033,13 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   filterTLC (v,_,_) = Set.member v keepTerms
 
 doSlurpAdds :: forall m v. (Applicative m, Var v)
-            => Output.SlurpComponent v
+            => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
 doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
   where
-  typeActions = map doType . toList $ Output.implicatedTypes slurp
-  termActions = map doTerm . toList $ Output.implicatedTerms slurp
+  typeActions = map doType . toList $ SC.types slurp
+  termActions = map doTerm . toList $ SC.terms slurp
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
   doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
     Nothing -> errorMissingVar v

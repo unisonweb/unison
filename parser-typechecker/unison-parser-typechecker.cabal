@@ -57,6 +57,8 @@ library
     Unison.Codebase.Editor.Input
     Unison.Codebase.Editor.Output
     Unison.Codebase.Editor.RemoteRepo
+    Unison.Codebase.Editor.SlurpResult
+    Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit

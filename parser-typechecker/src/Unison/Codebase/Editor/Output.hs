@@ -6,29 +6,21 @@ module Unison.Codebase.Editor.Output
   , DisplayThing(..)
   , TodoOutput(..)
   , ListDetailed
-  , SlurpComponent(..)
-  , SlurpResult(..)
   , SearchResult'(..)
   , TermResult'(..)
   , TypeResult'(..)
   , pattern Tm
   , pattern Tp
-  , disallowUpdates
   , foldResult'
-  , isNonemptySlurp
-  , subtractComponent
   , tmReferent
   , tpReference
   ) where
 
-import Control.Applicative
-import Data.List (foldl')
 import Data.Map (Map)
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Tuple (swap)
 import Unison.Codebase.Editor.Input
+import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.Path (Path')
 import Unison.HashQualified ( HashQualified )
 import Unison.Name ( Name )
@@ -38,19 +30,14 @@ import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.Typechecker.TypeLookup ( Decl )
 import Unison.Util.Relation (Relation)
-import Unison.Var (Var)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.DataDeclaration as DD
 import qualified Unison.Parser as Parser
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
-import qualified Unison.Util.Monoid as Monoid
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -161,136 +148,3 @@ data TodoOutput v a
 --   , _newNameAlreadyExists :: Set DefnTarget
 --   , _changedSuccessfully :: Set DefnTarget
 --   } deriving (Eq, Ord, Show)
-
-data SlurpComponent v =
-  SlurpComponent { implicatedTypes :: Set v, implicatedTerms :: Set v }
-  deriving (Eq,Ord,Show)
-
-instance Ord v => Semigroup (SlurpComponent v) where
-  (<>) = mappend
-instance Ord v => Monoid (SlurpComponent v) where
-  mempty = SlurpComponent mempty mempty
-  c1 `mappend` c2 = SlurpComponent (implicatedTypes c1 <> implicatedTypes c2)
-                                   (implicatedTerms c1 <> implicatedTerms c2)
-
--- foo = bar + 1  -- new definition
--- bar = 7        -- updated definition
---
--- > add
--- suppose bar already exists.
--- SlurpResult:
--- adds = {foo}
--- updates = {bar}
-
-
-data SlurpResult v = SlurpResult {
-  -- The file that we tried to add from
-    originalFile :: UF.TypecheckedUnisonFile v Ann
-  -- Extra definitions that were added to satisfy transitive closure,
-  -- beyond what the user specified.
-  , extraDefinitions :: SlurpComponent v
-  -- Previously existed only in the file; now added to the codebase.
-  , adds :: SlurpComponent v
-  -- Exists in the branch and the file, with the same name and contents.
-  , duplicates :: SlurpComponent v
-  -- Not added to codebase due to the name already existing
-  -- in the branch with a different definition.
-  , collisions :: SlurpComponent v
-  -- Not added to codebase due to the name existing
-  -- in the branch with a conflict (two or more definitions).
-  , conflicts :: SlurpComponent v
-  -- Names that already exist in the branch, but whose definitions
-  -- in `originalFile` are treated as updates.
-  , updates :: SlurpComponent v
-  -- Names of terms in `originalFile` that couldn't be updated because
-  -- they refer to existing constructors. (User should instead do a find/replace,
-  -- a constructor rename, or refactor the type that the name comes from).
-  , termExistingConstructorCollisions :: Set v
-  , constructorExistingTermCollisions :: Set v
-  -- -- Already defined in the branch, but with a different name.
-  , termAlias :: Map v (Set Name)
-  , typeAlias :: Map v (Set Name)
-  , defsWithBlockedDependencies :: SlurpComponent v
-  } deriving (Show)
-
--- Remove `removed` from the slurp result, and move any defns with transitive
--- dependencies on the removed component into `defsWithBlockedDependencies`.
--- Also removes `removed` from `extraDefinitions`.
-subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
-subtractComponent removed sr =
-  sr { adds = slurpComponentDifference (adds sr) removed
-     , updates = slurpComponentDifference (updates sr) removed
-     , defsWithBlockedDependencies = blocked
-     , extraDefinitions = slurpComponentDifference (extraDefinitions sr) blocked
-     }
-  where
-  blocked = defsWithBlockedDependencies sr <>
-    slurpComponentDifference (blockedTerms <> blockedTypes) removed
-  -- for each v in adds, move to blocked if transitive dependency in removed
-  termDeps :: SlurpComponent v -> v -> SlurpComponent v
-  termDeps seen v | Set.member v (implicatedTerms seen) = seen
-  termDeps seen v = fromMaybe seen $ do
-    term <- findTerm v
-    let -- get the `v`s for the transitive dependency types
-        -- (the ones for terms are just the `freeVars below`)
-        -- although this isn't how you'd do it for a term that's already in codebase
-        tdeps :: [v]
-        tdeps = resolveTypes $ Term.dependencies term
-        seenTypes :: Set v
-        seenTypes = foldl' typeDeps (implicatedTypes seen) tdeps
-        seenTerms = Set.insert v (implicatedTerms seen)
-    pure $ foldl' termDeps (seen { implicatedTypes = seenTypes
-                                 , implicatedTerms = seenTerms})
-                           (Term.freeVars term)
-
-  typeDeps :: Set v -> v -> Set v
-  typeDeps seen v | Set.member v seen = seen
-  typeDeps seen v = fromMaybe seen $ do
-    dd <- fmap snd (Map.lookup v (UF.dataDeclarations' uf)) <|>
-          fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-    pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
-
-  resolveTypes :: Set Reference -> [v]
-  resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
-
-  uf = originalFile sr
-  findTerm :: v -> Maybe (Term v Ann)
-  findTerm v = Map.lookup v allTerms
-  allTerms = UF.allTerms uf
-
-  invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
-  invert m = Map.fromList (swap <$> Map.toList m)
-
-  typeNames :: Map Reference v
-  typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
-  blockedTypes = foldMap doType . implicatedTypes $ adds sr <> updates sr where
-    doType :: v -> SlurpComponent v
-    doType v =
-      if null $ Set.intersection (implicatedTypes removed) (typeDeps mempty v)
-      then mempty else mempty { implicatedTypes = Set.singleton v }
-
-  blockedTerms = foldMap doTerm . implicatedTerms $ adds sr <> updates sr where
-    doTerm :: v -> SlurpComponent v
-    doTerm v =
-      if mempty == slurpComponentIntersection removed (termDeps mempty v)
-      then mempty else mempty { implicatedTerms = Set.singleton v }
-
--- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
--- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
-disallowUpdates :: forall v. Var v => SlurpResult v -> SlurpResult v
-disallowUpdates sr =
-  let sr2 = subtractComponent (updates sr) sr
-  in sr2 { collisions = collisions sr2 <> updates sr }
-
-slurpComponentDifference :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-slurpComponentDifference c1 c2 = SlurpComponent types terms where
-  types = implicatedTypes c1 `Set.difference` implicatedTypes c2
-  terms = implicatedTerms c1 `Set.difference` implicatedTerms c2
-
-slurpComponentIntersection :: Ord v => SlurpComponent v -> SlurpComponent v -> SlurpComponent v
-slurpComponentIntersection c1 c2 = SlurpComponent types terms where
-  types = implicatedTypes c1 `Set.intersection` implicatedTypes c2
-  terms = implicatedTerms c1 `Set.intersection` implicatedTerms c2
-
-isNonemptySlurp :: Ord v => SlurpResult v -> Bool
-isNonemptySlurp s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
