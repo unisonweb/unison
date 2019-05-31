@@ -907,8 +907,8 @@ getEndangeredDependents getDependents toBeDeleted root =
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive
--- dependencies, and lists any unselected transitive dependencies of the
--- selection will be added to `extraDefinitions`.
+-- dependencies, any unselected transitive dependencies of the selection will
+-- be added to `extraDefinitions`.
 applySelection :: forall v a. Var v =>
   [HashQualified] -> UF.TypecheckedUnisonFile v a -> SlurpResult v -> SlurpResult v
 applySelection [] _ = id
@@ -918,16 +918,17 @@ applySelection hqs file = \sr@SlurpResult{..} ->
      , extraDefinitions = closed `SC.difference` selection
      }
   where
-  fileDependencies = UF.dependencies' file
+  selectedNames0 =
+    Names.filterByHQs (Set.fromList hqs) (UF.typecheckedToNames0 file)
   selection, closed :: SlurpComponent v
   selection = SlurpComponent selectedTypes selectedTerms
-  closed = closeSlurpComponent file selection
+  closed = SC.closeWithDependencies file selection
   selectedTypes, selectedTerms :: Set v
-  selectedTypes = undefined
-  selectedTerms = undefined
+  selectedTypes = Set.map var $ R.dom (Names.types selectedNames0)
+  selectedTerms = Set.map var $ R.dom (Names.types selectedNames0)
 
-closeSlurpComponent :: UF.TypecheckedUnisonFile v a -> SlurpComponent v -> SlurpComponent v
-closeSlurpComponent = error "todo"
+var :: Var v => Name -> v
+var name = Var.named (Name.toText name)
 
 toSlurpResult :: forall v. Var v => UF.TypecheckedUnisonFile v Ann -> Names0 -> SlurpResult v
 toSlurpResult uf existingNames =
@@ -941,8 +942,6 @@ toSlurpResult uf existingNames =
   sc :: R.Relation Name Referent -> R.Relation Name Reference -> SlurpComponent v
   sc terms types = SlurpComponent { terms = Set.map var (R.dom terms)
                                   , types = Set.map var (R.dom types) }
-
-  var name = Var.named (Name.toText name)
 
   -- conflict (n,r) if n is conflicted in names0
   conflicts :: SlurpComponent v

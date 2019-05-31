@@ -102,6 +102,19 @@ fromVar = fromText . Var.name
 toVar :: Var v => HashQualified -> v
 toVar = Var.named . toText
 
+-- todo: find this logic elsewhere and replace with call to this
+matchesNamedReferent :: Name -> Referent -> HashQualified -> Bool
+matchesNamedReferent n r = \case
+  NameOnly n' -> n' == n
+  HashOnly sh -> sh `SH.isPrefixOf` Referent.toShortHash r
+  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
+
+matchesNamedReference :: Name -> Reference -> HashQualified -> Bool
+matchesNamedReference n r = \case
+  NameOnly n' -> n' == n
+  HashOnly sh -> sh `SH.isPrefixOf` Reference.toShortHash r
+  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r
+
 -- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
 requalify :: HashQualified -> Referent -> HashQualified
 requalify hq r = case hq of

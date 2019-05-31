@@ -200,6 +200,13 @@ prefix0 n (Names terms types) = Names terms' types' where
 filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
+filterByHQs :: Set HashQualified -> Names0 -> Names0
+filterByHQs hqs Names{..} = Names terms' types' where
+  terms' = R.filter f terms
+  types' = R.filter g types
+  f (n, r) = any (HQ.matchesNamedReferent n r) hqs
+  g (n, r) = any (HQ.matchesNamedReference n r) hqs
+
 difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
                   (R.difference (types a) (types b))

@@ -3,19 +3,12 @@
 
 module Unison.Codebase.Editor.SlurpResult where
 
-import Control.Applicative
-import Data.List (foldl')
 import Data.Map (Map)
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import Data.Tuple (swap)
 import Unison.Name ( Name )
 import Unison.Parser ( Ann )
-import Unison.Reference ( Reference )
 import Unison.Var (Var)
-import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Unison.DataDeclaration as DD
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.UnisonFile as UF
@@ -68,56 +61,26 @@ subtractComponent removed sr =
      , extraDefinitions = SC.difference (extraDefinitions sr) blocked
      }
   where
+  -- for each v in adds, move to blocked if transitive dependency in removed
   blocked = defsWithBlockedDependencies sr <>
     SC.difference (blockedTerms <> blockedTypes) removed
-  -- for each v in adds, move to blocked if transitive dependency in removed
-  termDeps :: SlurpComponent v -> v -> SlurpComponent v
-  termDeps seen v | Set.member v (SC.terms seen) = seen
-  termDeps seen v = fromMaybe seen $ do
-    term <- findTerm v
-    let -- get the `v`s for the transitive dependency types
-        -- (the ones for terms are just the `freeVars below`)
-        -- although this isn't how you'd do it for a term that's already in codebase
-        tdeps :: [v]
-        tdeps = resolveTypes $ Term.dependencies term
-        seenTypes :: Set v
-        seenTypes = foldl' typeDeps (SC.types seen) tdeps
-        seenTerms = Set.insert v (SC.terms seen)
-    pure $ foldl' termDeps (seen { types = seenTypes
-                                 , terms = seenTerms})
-                           (Term.freeVars term)
-
-  typeDeps :: Set v -> v -> Set v
-  typeDeps seen v | Set.member v seen = seen
-  typeDeps seen v = fromMaybe seen $ do
-    dd <- fmap snd (Map.lookup v (UF.dataDeclarations' uf)) <|>
-          fmap (DD.toDataDecl . snd) (Map.lookup v (UF.effectDeclarations' uf))
-    pure $ foldl' typeDeps (Set.insert v seen) (resolveTypes $ DD.dependencies dd)
-
-  resolveTypes :: Set Reference -> [v]
-  resolveTypes rs = [ v | r <- Set.toList rs, Just v <- [Map.lookup r typeNames]]
 
   uf = originalFile sr
-  findTerm :: v -> Maybe (Term v Ann)
-  findTerm v = Map.lookup v allTerms
-  allTerms = UF.allTerms uf
-
-  invert :: forall k v . Ord k => Ord v => Map k v -> Map v k
-  invert m = Map.fromList (swap <$> Map.toList m)
-
-  typeNames :: Map Reference v
-  typeNames = invert (fst <$> UF.dataDeclarations' uf) <> invert (fst <$> UF.effectDeclarations' uf)
   blockedTypes = foldMap doType . SC.types $ adds sr <> updates sr where
+    -- include this type if it or any of its dependencies are removed
     doType :: v -> SlurpComponent v
     doType v =
-      if null $ Set.intersection (SC.types removed) (typeDeps mempty v)
-      then mempty else mempty { types = Set.singleton v }
+      if null $ Set.intersection (SC.types removed)
+                                 (SC.types (SC.closeWithDependencies uf vc))
+      then mempty else vc
+      where vc = mempty { types = Set.singleton v }
 
   blockedTerms = foldMap doTerm . SC.terms $ adds sr <> updates sr where
     doTerm :: v -> SlurpComponent v
     doTerm v =
-      if mempty == SC.intersection removed (termDeps mempty v)
-      then mempty else mempty { terms = Set.singleton v }
+      if mempty == SC.intersection removed (SC.closeWithDependencies uf vc)
+      then mempty else vc
+      where vc = mempty { terms = Set.singleton v }
 
 -- Move `updates` to `collisions`, and move any dependents of those updates to `*WithBlockedDependencies`.
 -- Subtract stuff from `extraDefinitions` that isn't in `adds` or `updates`
