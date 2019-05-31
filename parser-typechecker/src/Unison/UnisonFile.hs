@@ -25,6 +25,7 @@ import qualified Unison.Name            as Name
 import           Unison.Names           (Names)
 import           Unison.Names2          (Names0)
 import qualified Unison.Names           as Names
+import qualified Unison.Names2          as Names2
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
 import qualified Unison.Referent        as Referent
@@ -165,8 +166,16 @@ toNames (UnisonFile {..}) = datas <> effects
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
-typecheckedToNames0 :: TypecheckedUnisonFile v a -> Names0
-typecheckedToNames0 = undefined
+typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
+typecheckedToNames0 uf = Names2.Names (terms <> ctors) types where
+  terms = Relation.fromList
+    [ (Name.unsafeFromVar v, Referent.Ref r)
+    | (v, (r, _, _)) <- Map.toList $ hashTerms uf ]
+  types = Relation.fromList
+    [ (Name.unsafeFromVar v, r)
+    | (v, r) <- Map.toList $ fmap fst (dataDeclarations' uf)
+                          <> fmap fst (effectDeclarations' uf) ]
+  ctors = Relation.fromMap . Map.mapKeys Name.unsafeFromVar . hashConstructors $ uf
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
