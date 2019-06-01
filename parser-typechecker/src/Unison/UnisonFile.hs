@@ -285,7 +285,7 @@ environmentFor names0 dataDecls0 effectDecls0 =
     okVars = Map.keysSet allDecls0
     unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
       let cts = DD.constructorTypes dd
-      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences ct
+      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
                                           , not (Set.member v okVars) ]
   in
     if null overlaps && null unknownTypeRefs

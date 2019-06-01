@@ -435,10 +435,11 @@ functionResult t = go False t where
   go inArr t = if inArr then Just t else Nothing
 
 
--- | Bind all free variables that start with a lowercase letter with an outer `forall`.
-generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
-generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
-  where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
+-- | Bind all free variables (not in `except`) that start with a lowercase
+-- letter with an outer `forall`.
+generalizeLowercase :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
+  where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
 -- | This function removes all variable shadowing from the types and reduces

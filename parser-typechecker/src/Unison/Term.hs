@@ -20,7 +20,7 @@ import           Data.Int (Int64)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set, union)
+import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -46,6 +46,7 @@ import           Unison.Type (AnnotatedType, Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.ConstructorType as CT
+import Unison.Util.List (multimap)
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -189,17 +190,19 @@ freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
 
 freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
-freeTypeVars t = go t where
-  go :: Ord vt => AnnotatedTerm' vt v a -> Set vt
-  go (ABT.Term _ _ t) = case t of
-    ABT.Abs _ t -> go t
-    ABT.Var _ -> Set.empty
-    ABT.Cycle t -> go t
-    ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
-    ABT.Tm ts -> foldMap go ts
+freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
 
 freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
-freeTypeVarAnnotations e = error "todo"
+freeTypeVarAnnotations e = multimap $ go Set.empty e where
+  go bound tm = case tm of
+    Var' _ -> mempty
+    Ann' e t1@(Type.ForallsNamed' vs _) ->
+      let bound' = bound <> Set.fromList vs
+      in go bound' e <> ABT.freeVarOccurrences bound t1
+    ABT.Tm' f -> foldMap (go bound) f
+    (ABT.out -> ABT.Abs _ body) -> go bound body
+    (ABT.out -> ABT.Cycle body) -> go bound body
+    _ -> error "unpossible"
 
 substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 substTypeVar vt ty tm = go Set.empty tm where
@@ -208,15 +211,23 @@ substTypeVar vt ty tm = go Set.empty tm where
     Var' _ -> tm
     Ann' e t1@(Type.ForallsNamed' vs _) ->
       let bound' = bound <> Set.fromList vs
-      in ann loc (go bound' e)
-                 (ABT.substInheritAnnotation vt ty t1)
+      in ann loc (go bound' e) (ABT.substInheritAnnotation vt ty t1)
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
     _ -> error "unpossible"
 
-generalizeTypeSignatures :: Var v => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-generalizeTypeSignatures tm =
-  error "todo - generalize over lowercase free type variables, call once at parser root"
+generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+generalizeTypeSignatures tm = go Set.empty tm where
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e t1@(Type.ForallsNamed' vs _) ->
+      let bound' = bound <> Set.fromList vs
+      in ann loc (go bound' e) (Type.generalizeLowercase bound t1)
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
 
 unForallAnn
   :: (Ord v, Var vt)

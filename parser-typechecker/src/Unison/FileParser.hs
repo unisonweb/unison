@@ -241,5 +241,5 @@ effectDeclaration mod = do
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>
-      prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
+      prefixVar <* reserved ":" <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
       where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
