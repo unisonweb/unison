@@ -441,7 +441,7 @@ universals = universalVars . info
 existentials :: Context v loc -> Set v
 existentials = existentialVars . info
 
-freshenVar :: Var v => v -> M v loc v
+freshenVar :: Var v => v -> M v0 loc v
 freshenVar v = modEnv'
   (\e ->
     let id = freshId e in (Var.freshenId id v, e { freshId = freshId e + 1 })
@@ -771,6 +771,10 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
     existentializeArrows t
+  go tm@(Term.AnnForall' vt f) = do
+    vt' <- freshenVar vt
+    let (e, t) = f (Type.var() vt')
+    go (Term.ann (loc tm) e t)
   go (Term.Ann' e' t) = do
     t <- existentializeArrows t
     t <$ check e' t
@@ -1559,14 +1563,11 @@ synthesizeClosed builtinLoc abilities lookupType term0 = let
 verifyClosedTerm :: forall v loc . Ord v => Term v loc -> M v loc ()
 verifyClosedTerm t = do
   ok1 <- verifyClosed t id
-  ok2 <- all id <$> ABT.foreachSubterm go t
-  if ok1 && ok2
-     then pure ()
-     else failSecretlyAndDangerously
-  where
-    go :: Term v loc -> M v loc Bool
-    go (Term.Ann' _ t) = verifyClosed t TypeVar.underlying
-    go _ = pure True
+  let freeTypeVars = Map.toList $ Term.freeTypeVarAnnotations t
+      reportError (v, locs) = for_ locs $ \loc ->
+        recover () (failWith (UnknownSymbol loc (TypeVar.underlying v)))
+  for_ freeTypeVars reportError
+  when (not ok1 || (not . null) freeTypeVars) $ failSecretlyAndDangerously
 
 verifyClosed :: (Traversable f, Ord v) => ABT.Term f v a -> (v -> v2) -> M v2 a Bool
 verifyClosed t toV2 =

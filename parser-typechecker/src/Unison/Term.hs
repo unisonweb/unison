@@ -42,7 +42,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType, Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.ConstructorType as CT
@@ -197,6 +197,29 @@ freeTypeVars t = go t where
     ABT.Cycle t -> go t
     ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
     ABT.Tm ts -> foldMap go ts
+
+freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
+freeTypeVarAnnotations e = error "todo"
+
+substTypeVar :: Var vt => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+substTypeVar vt tm =
+  error "todo - perform scopetypevar style substitution"
+
+generalizeTypeSignatures :: Var v => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+generalizeTypeSignatures tm =
+  error "todo - generalize over lowercase free type variables, call once at parser root"
+
+unForallAnn
+  :: Var vt
+  => AnnotatedTerm' vt v a
+  -> Maybe (vt, AnnotatedType vt b -> (AnnotatedTerm' vt v a, AnnotatedType vt a))
+unForallAnn tm = case tm of
+  Ann' e (Type.Forall' t) -> Just (tv, sub) where
+    sub ty = (substTypeVar tv ty e, ABT.bindInheritAnnotation t ty)
+    tv = ABT.variable t
+  _ -> Nothing
+
+pattern AnnForall' vt f <- (unForallAnn -> Just (vt, f))
 
 -- nicer pattern syntax
 
