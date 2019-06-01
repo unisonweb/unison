@@ -201,16 +201,25 @@ freeTypeVars t = go t where
 freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
 freeTypeVarAnnotations e = error "todo"
 
-substTypeVar :: Var vt => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-substTypeVar vt tm =
-  error "todo - perform scopetypevar style substitution"
+substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+substTypeVar vt ty tm = go Set.empty tm where
+  go bound tm | Set.member vt bound = tm
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e t1@(Type.ForallsNamed' vs _) ->
+      let bound' = bound <> Set.fromList vs
+      in ann loc (go bound' e)
+                 (ABT.substInheritAnnotation vt ty t1)
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
 
 generalizeTypeSignatures :: Var v => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 generalizeTypeSignatures tm =
   error "todo - generalize over lowercase free type variables, call once at parser root"
 
 unForallAnn
-  :: Var vt
+  :: (Ord v, Var vt)
   => AnnotatedTerm' vt v a
   -> Maybe (vt, AnnotatedType vt b -> (AnnotatedTerm' vt v a, AnnotatedType vt a))
 unForallAnn tm = case tm of
