@@ -397,17 +397,13 @@ test = scope "termprinter" . tests $
                  \else\n\
                  \  use B x\n\
                  \  f x x"
-  , pending $ -- TODO we lose the outer let, and the use floats under the then/else
-    tc_breaks 80 "let\n\
-                 \  use A x\n\
-                 \  if foo then f x x else g x x"
+  , tc_breaks 80 "let\n\
+                 \  a =\n\
+                 \    use A x\n\
+                 \    if foo then f x x else g x x\n\
+                 \  bar"
   , tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
   , tc_breaks 80 "if foo then f A.x A.x B.x else y"   
-  , pending $  -- TODO ditto, lose both levels of let
-    tc_breaks 80 "let\n\
-                 \  use A x\n\
-                 \  let\n\
-                 \    if foo then f x x else g x x" 
   , tc_breaks 80 "if foo then A.f x else y"              
   , pending $ 
     tc_breaks 13 "if foo then\n\
@@ -447,21 +443,16 @@ test = scope "termprinter" . tests $
                  \    f c c\n\
                  \  else\n\
                  \    use A.Y c\n\
-                 \    g c c)"  -- TODO questionable parens around if/then/else
+                 \    g c c)"  -- questionable parentheses, issue #xxx
   , tc_breaks 20 "if foo then\n\
                  \  f (x : Pair t t)\n\
                  \else\n\
                  \  f (x : Pair t t)"
-  , pending $  -- TODO: "I don't know about any data constructor named "Pair""
-    tc_breaks 30 "let\n\
-                 \  case x of\n\
-                 \    (Pair p p, Pair p p) -> foo"
-  , pending $    -- TODO multi-line if condition
-    tc_breaks 12 "if\n\
+  , tc_breaks 12 "if\n\
                  \  use A x\n\
-                 \  f x x\n\
-                 \then x\n\
-                 \else y"
+                 \  f x x then\n\
+                 \  x\n\
+                 \else y"  -- missing break before 'then', issue #xxx
   , tc_breaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\
@@ -482,20 +473,74 @@ test = scope "termprinter" . tests $
   , tc_breaks 20 "if foo then\n\
                  \  f x x A.x A.x\n\
                  \else g"
-  , pending $ 
-    tc_breaks 27 "case t of\n\
+  , tc_breaks 27 "case t of\n\
                  \  () ->\n\
                  \    a =\n\
                  \      use A B.x\n\
                  \      f B.x B.x\n\
                  \      handle foo in\n\
-                 \        use A.B.D x\n\
-                 \        q = h x x\n\
+                 \        q =\n\
+                 \          use A.B.D x\n\
+                 \          h x x\n\
                  \        foo\n\
                  \    bar\n\
                  \  _ ->\n\
                  \    b =\n\
                  \      use A.C x\n\
                  \      g x x\n\
-                 \    bar"  -- TODO getting a "use A.B D.x" under the a = instead of the narrower use inside the handle
+                 \    bar"
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    handle foo in\n\
+                 \      use A x\n\
+                 \      f x x\n\
+                 \  bar"
+  , tc_breaks 16 "let\n\
+                 \  a =\n\
+                 \    b =\n\
+                 \      use A x\n\
+                 \      f x x\n\
+                 \    foo\n\
+                 \  bar" 
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    case x of\n\
+                 \      () ->\n\
+                 \        use A x\n\
+                 \        f x x\n\
+                 \  bar"
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    use A x\n\
+                 \    b = f x x\n\
+                 \    c = g x x\n\
+                 \    foo\n\
+                 \  bar"
+  , pending $
+    tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    use A TT\n\
+                 \    b : TT -> TT\n\
+                 \    b = id\n\
+                 \    foo\n\
+                 \  bar"  -- use statement doesn't take effect on type annotation, issue #xxx
+  , tc_breaks 13 "let\n\
+                 \  a =\n\
+                 \    use A p q r\n\
+                 \    f p p\n\
+                 \    f q q\n\
+                 \    f r r\n\
+                 \  foo"                 
+  , pending $
+    tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    use A B.x\n\
+                 \    b =\n\
+                 \      use A.B x\n\
+                 \      f x x\n\
+                 \    c =\n\
+                 \      g B.x B.x\n\
+                 \      h A.D.x\n\
+                 \    foo\n\
+                 \  bar" -- wip
   ]

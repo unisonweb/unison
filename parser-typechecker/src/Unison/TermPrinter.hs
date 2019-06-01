@@ -36,6 +36,7 @@ import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
 import qualified Unison.Referent               as Referent
 import           Unison.Term
+import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( AnnotatedType )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -48,8 +49,6 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
-import Debug.Trace (trace)
--- !!
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -160,7 +159,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     --      In which case the code is fine as it stands.  If it can somehow run
     --      on values produced by execution (or, one day, on terms produced by
     --      metaprograms), then it needs to be able to print them (and then the
-    --       parser ought to be able to parse them, to maintain symmetry.)
+    --      parser ought to be able to parse them, to maintain symmetry.)
     Boolean' b  -> if b then l "true" else l "false"
     Text'    s  -> l $ show s
     Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
@@ -456,8 +455,10 @@ l = fromString
 -- b = Breakable
 
 -- When we use imports in rendering (TODO), this will need revisiting, so that we can
--- render say 'foo.+ x y' as 'import foo ... x + y'.  symbolyId doesn't match
--- 'foo.+', only '+'.
+-- render say 'foo.+ x y' as 
+--   use foo (+)
+--   x + y
+-- symbolyId doesn't match 'foo.+', only '+'.
 isSymbolic :: HQ.HashQualified -> Bool
 isSymbolic (HQ.NameOnly name) = isSymbolic' name
 isSymbolic (HQ.HashQualified name _) = isSymbolic' name
@@ -506,19 +507,18 @@ ac prec bc im = AmbientContext prec bc NonInfix im
      by floating them up, towards the top of the syntax tree, so that one 
      `use` statement takes effect over more name usages.
   
-   It avoids 'shadowing', so for example won't produce output like the 
-   following.
+   It avoids producing output like the following.
    
      foo p q r = use My bar
                  if p 
                  then bar q
                  else Your.bar r
      
-   Here `My.bar` is imported with a `use` statement, but `Your.bar` is not - 
-   `Your.bar` is shadowing `My.bar`.  We avoid this because it would be easy
-   to misread `bar` as meaning `Your.bar`.  
+   Here `My.bar` is imported with a `use` statement, but `Your.bar` is not.
+   We avoid this because it would be easy to misread `bar` as meaning 
+   `Your.bar`.  Instead both names are output fully qualified.
   
-   Avoiding shadowing means that a `use` statement is only emitted for a name
+   This means that a `use` statement is only emitted for a name
    when the suffix is unique, across all the names referenced in the scope of
    the `use` statement.
   
@@ -551,13 +551,13 @@ ac prec bc im = AmbientContext prec bc NonInfix im
      - [uniqueness] there is no other Q with Q.S used in that scope
      - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
        satisfies uniqueness
-     - [TODO - narrowness] there is no block statement further down inside this one
-       which contains all of the usages, and
+     - there is no block statement further down inside this one
+       which contains all of the usages.
 
    Use statements in a block statement are sorted alphabetically by prefix.
    Suffixes covered by a single use statement are sorted alphabetically.
-   Rather than letting a single use statement overflow a printed line, we
-   instead (TODO).
+   Note that each `use` line cannot be line-broken.  Ideally they would
+   fit the available space by splitting into multiple separate `use` lines.
   
    ## Algorithm
   
@@ -737,8 +737,9 @@ calcImports im tm = (im', render $ getUses result)
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
                       in Map.mapWithKey (\k1 k2 -> fromJust $ Map.lookup (k1, k2) m) maxk2s
-    im' = im `Map.union` getImportMapAdditions result
-    -- Don't do another `use` for a name for which we've already done one.
+    im' = im `Map.union` getImportMapAdditions result  -- TODO replace not union
+    -- Don't do another `use` for a name for which we've already done one, unless the
+    -- new suffix is shorter.  TODO
     avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     avoidRepeatsAndClashes m = m `Map.difference` im
     -- Is there a strictly smaller block term underneath this one, containing all the usages
@@ -754,18 +755,22 @@ calcImports im tm = (im', render $ getUses result)
     render :: Map Prefix (Set Suffix) -> [Pretty ColorText] -> Pretty ColorText
     render m rest = let uses = Map.mapWithKey (\p ss -> l"use " <> 
                                    intercalateMap (l".") (l . unpack) p <> l" " <>
-                                   intercalateMap (l" ") (l . unpack) (Set.toList ss)) m  --TODO redo Pretty stuff
+                                   intercalateMap (l" ") (l . unpack) (Set.toList ss)) m
                                  |> Map.toList
                                  |> map snd
                     in PP.lines (uses ++ rest)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
 -- block term within it, containing all usages of that name?  
+-- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm 
                              result = any (/= tm) $ found
-                                        --trace ("subblock found: " ++ show tm' ++ "\n" ++ "eq: " ++ show (tm /= tm') ++ "\n") tm /= tm'
-                         in trace ("allInSubBlock " ++ show result ++ "\n" ++ show tm ++ "found: \n" ++ show found ++ "\n\n\n\n\n\n") result where 
+                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++ 
+                                                    show s ++ ", " ++ show i ++ "): returns " ++ 
+                                                    show result ++ "\nInput:\n" ++ show tm ++ 
+                                                    "\nFound: \n" ++ show found ++ "\n\n")
+                         in tr result where 
   getUsages t =    annotation t
                 |> usages
                 |> Map.lookup s
@@ -781,7 +786,10 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
                                   then ABT.Found found
                                   else ABT.Continue
                  children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
-             in trace ("finder " ++ show result ++ "\n" ++ children ++ "term: \n" ++ show t ++ "\n\n\n\n") result
+                 tr = const id $ trace ("\nfinder: returns " ++ show result ++ 
+                                        "\n  children:" ++ children ++ 
+                                        "\n  input: \n" ++ show t ++ "\n\n")
+             in tr $ result
   hit t = (getUsages t) == i
 
 -- Return any blockterms at or immediately under this term.  Has to match the places in the
@@ -804,11 +812,43 @@ immediateChildBlockTerms = \case
     doLet t = error (show t) []
 
 -- TODO testing of: 
--- - all use sites of elideFQN
--- - narrowing test where inner `use` point is each type of blockterm
+-- - all use sites of elideFQN, var, ref, con, rq, def (inf and pref)
 -- - patterns, types, namespaces
 -- - really right to apply this to vars?
--- - symbolic names
+-- - symbolic names, see other TODO
 -- ...
 
 -- TODO trim down long comments, improve inline commenting
+-- "use A.x has no effect but silently succeeds"
+
+{-
+
+use statements not taking effect on types?
+
+expected:
+let
+  a =
+    use A TT
+    b : TT -> TT
+    b = id
+    foo
+  bar
+actual:
+let
+  a =
+    b : TT -> TT
+    b = id
+    foo
+  bar
+show(input)  : Cycle (a. (let rec[Cycle (b. (let rec[Var id:Var TT -> Var TT] in Var foo))] in Var bar))
+
+
+
+raise issue round if/handle/case parens
+
+
+
+     foo p q r = if p 
+                 then Util.bar q
+                 else Util.bar r
+-}
