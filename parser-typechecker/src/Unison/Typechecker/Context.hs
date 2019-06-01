@@ -772,8 +772,9 @@ synthesize e = scope (InSynthesize e) $
     t <- ungeneralize =<< getEffectConstructorType r cid
     existentializeArrows t
   go tm@(Term.AnnForall' vt f) = do
-    vt' <- freshenVar vt
-    let (e, t) = f (Type.var() vt')
+    vt <- freshenVar vt
+    appendContext $ context [Var vt]
+    let (e, t) = f (Type.var() vt)
     go (Term.ann (loc tm) e t)
   go (Term.Ann' e' t) = do
     t <- existentializeArrows t
