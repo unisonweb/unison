@@ -212,6 +212,7 @@ substTypeVar vt ty tm = go Set.empty tm where
     Ann' e t1@(Type.ForallsNamed' vs _) ->
       let bound' = bound <> Set.fromList vs
       in ann loc (go bound' e) (ABT.substInheritAnnotation vt ty t1)
+    Ann' e t -> ann loc (go bound e) (ABT.substInheritAnnotation vt ty t)
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
     (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
