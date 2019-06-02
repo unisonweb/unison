@@ -771,11 +771,6 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
     existentializeArrows t
-  go tm@(Term.AnnForall' vt f) = do
-    vt <- freshenVar vt
-    appendContext $ context [Var vt]
-    let (e, t) = f (Type.var() vt)
-    go (Term.ann (loc tm) e t)
   go (Term.Ann' e' t) = do
     t <- existentializeArrows t
     t <$ check e' t
@@ -1223,7 +1218,8 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go :: Term v loc -> Type v loc -> M v loc ()
   go e (Type.Forall' body) = do -- ForallI
     x <- extendUniversal =<< ABT.freshen body freshenTypeVar
-    check e (ABT.bindInheritAnnotation body (Type.universal x))
+    let e' = Term.substTypeVar (ABT.variable body) (Type.universal x) e
+    check e' (ABT.bindInheritAnnotation body (Type.universal x))
     doRetract $ Universal x
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
