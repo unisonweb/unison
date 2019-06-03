@@ -774,9 +774,9 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Request' r cid) = do
     t <- ungeneralize =<< getEffectConstructorType r cid
     existentializeArrows t
-  go (Term.Ann' e' t) = do
+  go (Term.Ann' e t) = do
     t <- existentializeArrows t
-    t <$ check e' t
+    t <$ checkScoped e t
   go (Term.Float' _) = pure $ Type.float l -- 1I=>
   go (Term.Int' _) = pure $ Type.int l -- 1I=>
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
@@ -1128,7 +1128,7 @@ annotateLetRecBindings isTop letrec =
     Foldable.for_ (zip bindings bindingTypes) $ \(b, t) ->
       -- note: elements of a cycle have to be pure, otherwise order of effects
       -- is unclear and chaos ensues
-      withEffects0 [] (check b t)
+      withEffects0 [] (checkScoped b t)
     ensureGuardedCycle (vs `zip` bindings)
     -- compute generalized types `gt1, gt2 ...` for each binding `b1, b2...`;
     -- add annotations `v1 : gt1, v2 : gt2 ...` to the context
@@ -1200,6 +1200,15 @@ generalizeExistentials ctx t =
                            t)
       else t -- don't bother introducing a forall if type variable is unused
 
+checkScoped :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
+checkScoped e t = case t of
+  Type.Forall' body -> do -- ForallI
+    x <- extendUniversal =<< ABT.freshen body freshenTypeVar
+    let e' = Term.substTypeVar (ABT.variable body) (Type.universal x) e
+    checkScoped e' (ABT.bindInheritAnnotation body (Type.universal x))
+    doRetract $ Universal x
+  _ -> check e t
+
 -- | Check that under the given context, `e` has type `t`,
 -- updating the context in the process.
 check :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
@@ -1221,8 +1230,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
   go :: Term v loc -> Type v loc -> M v loc ()
   go e (Type.Forall' body) = do -- ForallI
     x <- extendUniversal =<< ABT.freshen body freshenTypeVar
-    let e' = Term.substTypeVar (ABT.variable body) (Type.universal x) e
-    check e' (ABT.bindInheritAnnotation body (Type.universal x))
+    check e (ABT.bindInheritAnnotation body (Type.universal x))
     doRetract $ Universal x
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
