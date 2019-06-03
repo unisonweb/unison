@@ -579,6 +579,9 @@ ac prec bc im = AmbientContext prec bc NonInfix im
    # Debugging
   
    Start by enabling the tracing in elideFQN in PrettyPrintEnv.hs.
+
+   There's also tracing in allInSubBlock to help when the narrowness check
+   is playing up.
   
    # Semantics of imports
   
@@ -737,16 +740,20 @@ calcImports im tm = (im', render $ getUses result)
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
                       in Map.mapWithKey (\k1 k2 -> fromJust $ Map.lookup (k1, k2) m) maxk2s
-    im' = im `Map.union` getImportMapAdditions result  -- TODO replace not union
     -- Don't do another `use` for a name for which we've already done one, unless the
-    -- new suffix is shorter.  TODO
+    -- new suffix is shorter.
     avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
-    avoidRepeatsAndClashes m = m `Map.difference` im
+    avoidRepeatsAndClashes = Map.filterWithKey $ 
+                               \n (_, s', _) -> case Map.lookup n im of
+                                 Just s  -> (Text.length s') < (Text.length s)
+                                 Nothing -> True
     -- Is there a strictly smaller block term underneath this one, containing all the usages
     -- of some of the names?  Skip omitting `use` statements for those, so we can do it 
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
+    -- `union` is left-biased, so this can replace existing imports.                      
+    im' = getImportMapAdditions result `Map.union` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
     getImportMapAdditions = Map.map (\(_, s, _) -> s)
     getUses :: Map Name (Prefix, Suffix, Int) -> Map Prefix (Set Suffix)
@@ -818,7 +825,6 @@ immediateChildBlockTerms = \case
 -- - symbolic names, see other TODO
 -- ...
 
--- TODO trim down long comments, improve inline commenting
 -- "use A.x has no effect but silently succeeds"
 
 {-

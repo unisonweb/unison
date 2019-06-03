@@ -530,9 +530,15 @@ test = scope "termprinter" . tests $
                  \    f p p\n\
                  \    f q q\n\
                  \    f r r\n\
-                 \  foo"                 
-  , pending $
-    tc_breaks 20 "let\n\
+                 \  foo"
+  -- The following behaviour is possibly not ideal.  Note how the `use A B.x`
+  -- would have the same effect if it was under the `c =`.  It doesn't actually
+  -- need to be above the `b =`, because all the usages of A.B.X in that tree are
+  -- covered by another use statement, the `use A.B x`.  Fixing this would 
+  -- probably require another annotation pass over the AST, to place 'candidate'
+  -- use statements, to then push some of them down on the next pass.
+  -- Not worth it!
+  , tc_breaks 20 "let\n\
                  \  a =\n\
                  \    use A B.x\n\
                  \    b =\n\
@@ -542,5 +548,5 @@ test = scope "termprinter" . tests $
                  \      g B.x B.x\n\
                  \      h A.D.x\n\
                  \    foo\n\
-                 \  bar" -- wip
+                 \  bar"
   ]
