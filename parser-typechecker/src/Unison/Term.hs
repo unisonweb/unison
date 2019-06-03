@@ -196,7 +196,7 @@ freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
 freeTypeVarAnnotations e = multimap $ go Set.empty e where
   go bound tm = case tm of
     Var' _ -> mempty
-    Ann' e t1@(Type.ForallsNamed' vs _) ->
+    Ann' e (Type.stripIntroOuters -> t1@(Type.ForallsNamed' vs _)) ->
       let bound' = bound <> Set.fromList vs
       in go bound' e <> ABT.freeVarOccurrences bound t1
     ABT.Tm' f -> foldMap (go bound) f
