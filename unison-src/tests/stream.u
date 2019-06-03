@@ -1,0 +1,73 @@
+ability Emit a where
+  emit : a ->{Emit a} ()
+
+type Stream e a r = Stream ('{e, Emit a} r)
+
+use Stream Stream
+use Optional None Some
+use Universal ==
+
+namespace Stream where
+
+  -- unfold : s -> (s ->{} Optional (a, s)) -> Stream e a ()
+  unfold s f =
+    step s = case f s of
+      None        -> ()
+      Some (a, s) -> emit a
+                     step s
+    Stream '(step s)
+
+  run : Stream e a r ->{e, Emit a} r
+  run s = case s of Stream c -> !c
+
+  run' s = case s of Stream s -> s
+
+  (++) : Stream {e} a r -> Stream {e} a r -> Stream {e} a r
+  s1 ++ s2 = Stream '(run' s1 !! run' s2)
+
+  from : Nat -> Stream e Nat ()
+  from n = unfold n (n -> Some (n, n + 1))
+
+  -- take : Nat -> Stream {} a () -> Stream {} a ()
+  take n s =
+    step n e = case e of
+      {Emit.emit a -> k} ->
+        if n Nat.== 0 then ()
+        else
+          Emit.emit a
+          handle step (n `drop` 1) in k ()
+      {r} -> ()
+    Stream ' handle step n in run s
+
+  -- map : (a -> b) -> Stream {e} a r -> Stream {e} b r
+  map f s =
+    step e = case e of
+      {r} -> r
+      {Emit.emit a -> k} ->
+        Emit.emit (f a)
+        handle step in k ()
+    Stream ' handle step in run s
+
+  -- toSeq : Stream {e} a r ->{e} [a]
+  toSeq s =
+    step acc e = case e of
+      {Emit.emit a -> k} -> handle step (acc `snoc` a) in k ()
+      {_} -> acc
+    handle step [] in run s
+
+  fromSeq : [a] -> Stream e a ()
+  fromSeq a =
+    step a = case Sequence.at 0 a of
+      None -> None
+      Some h -> Some (h, drop 1 a)
+    unfold a step
+
+> toSeq (Stream.take 7 (Stream.map (x -> x + 10) (from 0)))
+-- > toSeq (Stream.fromSeq [1,2,3] ++ Stream.fromSeq [4,5,6])
+-- > toSeq (Stream.take 20 (from 0))
+
+-- run two thunks in sequence
+a !! b =
+  !a
+  !b
+

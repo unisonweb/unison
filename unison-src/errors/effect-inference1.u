@@ -1,4 +1,4 @@
-effect Abort where
+ability Abort where
   Abort : forall a . () -> {Abort} a
 
 foo n = if n >= 1000 then n else !Abort.Abort
@@ -9,4 +9,4 @@ bar f i = f i
 bar foo 3
 
 -- as of 3935b366383fe8184f96cfe714c31ca04234cf27, this typechecks (unexpected)
--- and then bombs in the runtime because the Abort effect isn't handled.
+-- and then bombs in the runtime because the Abort ability isn't handled.

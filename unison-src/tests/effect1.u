@@ -4,7 +4,7 @@ eff f z e = case e of
   { Abort.Abort _ -> k } -> z
   { a } -> f a
 
-effect Abort where
+ability Abort where
   Abort : forall a . () -> {Abort} a
 
 

@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Sequence (Seq)
 import Data.Word (Word64)
+import Text.Read (readMaybe)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
@@ -288,10 +289,45 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       IR.maybeToOptional (N . fromIntegral <$> Bytes.at (fromIntegral i) bs)
     , mk1 "Bytes.flatten" atbs (pure . Bs) Bytes.flatten
 
-    , mk1 "Float.ceiling"  atf (pure . I) ceiling
-    , mk1 "Float.floor"    atf (pure . I) floor
-    , mk1 "Float.round"    atf (pure . I) round
-    , mk1 "Float.truncate" atf (pure . I) truncate
+    -- Trigonometric functions
+    , mk1 "Float.acos"          atf (pure . F) acos
+    , mk1 "Float.asin"          atf (pure . F) asin
+    , mk1 "Float.atan"          atf (pure . F) atan
+    , mk2 "Float.atan2"     atf atf (pure . F) atan2
+    , mk1 "Float.cos"           atf (pure . F) cos
+    , mk1 "Float.sin"           atf (pure . F) sin
+    , mk1 "Float.tan"           atf (pure . F) tan
+
+    -- Hyperbolic functions
+    , mk1 "Float.acosh"         atf (pure . F) acosh
+    , mk1 "Float.asinh"         atf (pure . F) asinh
+    , mk1 "Float.atanh"         atf (pure . F) atanh
+    , mk1 "Float.cosh"          atf (pure . F) cosh
+    , mk1 "Float.sinh"          atf (pure . F) sinh
+    , mk1 "Float.tanh"          atf (pure . F) tanh
+
+    -- Exponential functions
+    , mk1 "Float.exp"           atf (pure . F) exp
+    , mk1 "Float.log"           atf (pure . F) log
+    , mk2 "Float.logBase"   atf atf (pure . F) logBase
+
+    -- Power Functions
+    , mk2 "Float.pow"       atf atf (pure . F) (**)
+    , mk1 "Float.sqrt"          atf (pure . F) sqrt
+
+    -- Rounding and Remainder Functions
+    , mk1 "Float.ceiling"       atf (pure . I) ceiling
+    , mk1 "Float.floor"         atf (pure . I) floor
+    , mk1 "Float.round"         atf (pure . I) round
+    , mk1 "Float.truncate"      atf (pure . I) truncate
+
+    -- Float Utils
+    , mk1 "Float.abs"           atf (pure . F) abs
+    , mk2 "Float.max"       atf atf (pure . F) max
+    , mk2 "Float.min"       atf atf (pure . F) min
+    , mk1 "Float.toText"        atf (pure . T) (Text.pack . show)
+    , mk1 "Float.fromText"      att (pure . IR.maybeToOptional . fmap F) (
+        (\x -> readMaybe x :: Maybe Double) . Text.unpack)
 
     , mk2 "Debug.watch" att at id (\t v -> putStrLn (Text.unpack t) *> pure v)
     ]
@@ -427,6 +463,7 @@ run ioHandler env ir = do
       EqI i j -> do x <- ati size i m; y <- ati size j m; done (B (x == y))
       SignumI i -> do x <- ati size i m; done (I (signum x))
       NegateI i -> do x <- ati size i m; done (I (negate x))
+      Truncate0I i -> do x <- ati size i m; done (N (fromIntegral (truncate0 x)))
       ModI i j -> do x <- ati size i m; y <- ati size j m; done (I (x `mod` y))
 
       AddN i j -> do x <- atn size i m; y <- atn size j m; done (N (x + y))
@@ -439,6 +476,7 @@ run ioHandler env ir = do
       MultN i j -> do x <- atn size i m; y <- atn size j m; done (N (x * y))
       DivN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `div` y))
       ModN i j -> do x <- atn size i m; y <- atn size j m; done (N (x `mod` y))
+      ToIntN i -> do x <- atn size i m; done (I (fromIntegral x))
       GtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x > y))
       GtEqN i j -> do x <- atn size i m; y <- atn size j m; done (B (x >= y))
       LtN i j -> do x <- atn size i m; y <- atn size j m; done (B (x < y))
@@ -621,8 +659,21 @@ run ioHandler env ir = do
         -> if r == r2 && cid == cid2
            then join <$> traverse tryCase (zip args pats)
            else Nothing
-      (Sequence args, PatternSequence pats) ->
-        join <$> traverse tryCase (zip (toList args) (toList pats))
+      (Sequence args, PatternSequenceLiteral pats) ->
+        if length args == length pats then join <$> traverse tryCase (zip (toList args) pats) else Nothing
+      (Sequence args, PatternSequenceCons l r) ->
+        case args of
+          h Sequence.:<| t -> (++) <$> tryCase (h, l) <*> tryCase (IR.Sequence t, r)
+          _ -> Nothing
+      (Sequence args, PatternSequenceSnoc l r) ->
+        case args of
+          t Sequence.:|> h -> (++) <$> tryCase (IR.Sequence t, l) <*> tryCase (h, r)
+          _ -> Nothing
+      (Sequence args, PatternSequenceConcat litLen l r) ->
+        (++) <$> tryCase (IR.Sequence a1, l) <*> tryCase (IR.Sequence a2, r)
+          where
+            (a1, a2) = Sequence.splitAt i args
+            i = either id (\j -> length args - j) litLen
       (Pure v, PatternPure p) -> tryCase (v, p)
       (Pure _, PatternBind _ _ _ _) -> Nothing
       (Requested (Req r cid args k), PatternBind r2 cid2 pats kpat) ->
@@ -630,7 +681,7 @@ run ioHandler env ir = do
         then join <$> traverse tryCase (zip (args ++ [Cont k]) (pats ++ [kpat]))
         else Nothing
       (Requested _, PatternPure _) -> Nothing
-      (v, PatternAs p) -> (v:) <$> tryCase (v,p)
+      (v, PatternAs p) -> (v:) <$> tryCase (v, p)
       (_, PatternIgnore) -> Just []
       (v, PatternVar) -> Just [v]
       (v, p) -> error $
@@ -740,3 +791,6 @@ continuationConstructorId k = case k of
   One _ _ _ _ -> 0
   Chain _ _ _ -> 1
   WrapHandler _ _ -> 2
+
+truncate0 :: (Num a, Ord a) => a -> a
+truncate0 x = if x >= 0 then x else 0

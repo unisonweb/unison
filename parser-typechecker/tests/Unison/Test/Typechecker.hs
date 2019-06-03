@@ -5,7 +5,7 @@
 module Unison.Test.Typechecker where
 
 import           Control.Lens           ( view )
-import           Control.Lens.Tuple     ( _4 )
+import           Control.Lens.Tuple     ( _5 )
 import           Control.Monad          (void)
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.Map               as Map
@@ -110,17 +110,19 @@ makePassingTest rt how filepath = scope shortName $ do
     (True, Right file) -> do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
-      let term        = Parsers.parseTerm values $ UF.toNames untypedFile
+      let term        = Parsers.parseTerm values $ (mempty, UF.toNames untypedFile)
       (bindings, watches) <- io $ evaluateWatches Builtin.codeLookup
                                       (const $ pure Nothing)
                                       rt
                                       untypedFile
       case term of
-        Right tm -> let
+        Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur
-          [watchResult] = view _4 <$> Map.elems watches
-          tm' = Term.letRec' False bindings watchResult
-          in expect $ tm' == amap (const ()) tm
+          let [watchResult] = view _5 <$> Map.elems watches
+              tm' = Term.letRec' False bindings watchResult
+          -- note . show $ tm'
+          -- note . show $ amap (const ()) tm
+          expect $ tm' == amap (const ()) tm
         Left e -> crash $ show e
     _ -> pure ()
   how r

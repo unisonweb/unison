@@ -4,10 +4,12 @@
 
 module Unison.FileParsers where
 
+import qualified Unison.Parser as Parser
 import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
+import           Data.Bifunctor             ( first )
 import qualified Data.Foldable              as Foldable
 import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
@@ -23,7 +25,6 @@ import qualified Unison.Blank               as Blank
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import qualified Unison.Name                as Name
-import           Unison.Names               (Names)
 import qualified Unison.Names               as Names
 import           Unison.Parser              (Ann (Intrinsic))
 import qualified Unison.Parsers             as Parsers
@@ -39,6 +40,7 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
+import qualified Unison.Util.List           as List
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 -- import Debug.Trace
@@ -52,25 +54,10 @@ type NamedReference v = Typechecker.NamedReference v Ann
 type Result' v = Result (Seq (Note v Ann))
 type Name = Text
 
--- move to Unison.Util.List
--- prefers earlier copies
-uniqueBy :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
-uniqueBy f as = wrangle' (Foldable.toList as) Set.empty where
-  wrangle' [] _ = []
-  wrangle' (a:as) seen =
-    if Set.member b seen
-    then wrangle' as seen
-    else a : wrangle' as (Set.insert b seen)
-    where b = f a
-
--- prefers later copies
-uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
-uniqueBy' f = reverse . uniqueBy f . reverse . Foldable.toList
-
 convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
   (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
-  is' = snd <$> uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
+  is' = snd <$> List.uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
   f (_, (Context.TopLevelComponent cs)) = Right [ v | (v,_,_) <- cs ]
   f (i, _) = Left i
   -- each round of TDNR emits its own TopLevelComponent notes, so we remove
@@ -81,7 +68,7 @@ parseAndSynthesizeFile
   :: (Var v, Monad m)
   => [Type v]
   -> (Set Reference -> m (TL.TypeLookup v Ann))
-  -> Names
+  -> Parser.ParsingEnv
   -> FilePath
   -> Text
   -> ResultT
@@ -91,7 +78,7 @@ parseAndSynthesizeFile
 parseAndSynthesizeFile ambient typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
-  let refs = UF.dependencies parsedUnisonFile names
+  let refs = UF.dependencies parsedUnisonFile (snd names)
   typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) =
         synthesizeFile ambient typeLookup names parsedUnisonFile
@@ -102,18 +89,18 @@ synthesizeFile
    . Var v
   => [Type v]
   -> TL.TypeLookup v Ann
-  -> Names
+  -> Parser.ParsingEnv
   -> UnisonFile v
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
 synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
   let
     -- substitute builtins into the datas/effects/body of unisonFile
     uf@(UnisonFile dds0 eds0 _terms _watches) = unisonFile
-    term0 = UF.uberTerm uf
+    term0 = UF.typecheckingTerm uf
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
-    allTheNames = localNames <> preexistingNames
+    allTheNames = localNames <> snd preexistingNames
     ctorType r =
       fromMaybe
         (error $ "no constructor type in synthesizeFile for " <> show r)
@@ -138,15 +125,17 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     let infos = Foldable.toList $ Typechecker.infos notes
     (topLevelComponents :: [[(v, Term v, Type v)]]) <-
       let
-        topLevelBindings :: Map Name (Term v)
-        topLevelBindings = Map.mapKeys Var.name $ extractTopLevelBindings tdnrTerm
-        extractTopLevelBindings (Term.LetRecNamed' bs _) = Map.fromList bs
+        topLevelBindings :: Map v (Term v)
+        topLevelBindings = Map.mapKeys Var.reset $ extractTopLevelBindings tdnrTerm
+        extractTopLevelBindings (Term.LetRecNamedAnnotatedTop' True _ bs body) =
+          Map.fromList (first snd <$> bs) <> extractTopLevelBindings body
         extractTopLevelBindings _                        = Map.empty
         tlcsFromTypechecker =
-          uniqueBy' (fmap vars) [ t | Context.TopLevelComponent t <- infos ]
-        vars (v, _, _) = Var.name v
+          List.uniqueBy' (fmap vars)
+            [ t | Context.TopLevelComponent t <- infos ]
+          where vars (v, _, _) = v
         strippedTopLevelBinding (v, typ, redundant) = do
-          tm <- case Map.lookup (Var.name v) topLevelBindings of
+          tm <- case Map.lookup v topLevelBindings of
             Nothing ->
               Result.compilerBug $ Result.TopLevelComponentNotFound v term
             Just (Term.Ann' x _) | redundant -> pure x
@@ -161,9 +150,15 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     _          <- doTdnr tdnrTerm
     tdnredTlcs <- (traverse . traverse) doTdnrInComponent topLevelComponents
     let (watches', terms') = partition isWatch tdnredTlcs
-        isWatch = all (\(v,_,_) -> Set.member (Var.name v) watchedNames)
-        watchedNames = Set.fromList [ Var.name v | (v, _) <- UF.watches uf ]
-    pure (UF.TypecheckedUnisonFile dds0 eds0 terms' watches')
+        isWatch = all (\(v,_,_) -> Set.member v watchedVars)
+        watchedVars = Set.fromList [ v | (v, _) <- UF.allWatches uf ]
+        tlcKind [] = error "empty TLC, should never occur"
+        tlcKind tlc@((v,_,_):_) = let
+          hasE k = any (== v) . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+          in case Foldable.find hasE (Map.keys $ UF.watches uf) of
+               Nothing -> error "wat"
+               Just kind -> (kind, tlc)
+    pure $ UF.TypecheckedUnisonFile dds0 eds0 terms' (map tlcKind watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]

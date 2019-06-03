@@ -25,13 +25,13 @@ woot3 x = !x + 1
 woot4 : ∀ a . 'Foo a -> Foo a
 woot4 foo = !foo
 
-woot4-usage = woot4 '(Foo.Foo 19)
+woot4Usage = woot4 '(Foo.Foo 19)
 
-woot4-usage2 =
+woot4Usage2 =
   foo = 'let
     x : Nat
     x = 99
     Foo.Foo (x + x)
   woot4 foo
 
-> woot4-usage2
+> woot4Usage2

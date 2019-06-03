@@ -74,6 +74,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import qualified Unison.Util.Relation          as Relation
 import           Unison.Var                     ( Var )
+import qualified Unison.DataDeclaration as DD
 
 type Action i v a = MaybeT (StateT (LoopState v) (Free (Command i v))) a
 
@@ -133,12 +134,9 @@ loop = do
             withFile [] sourceName text $ \errorEnv unisonFile -> do
               eval (Notify $ Typechecked sourceName errorEnv unisonFile)
               (bindings, e) <-
-                eval . Evaluate (view currentBranch s) $ UF.discardTypes unisonFile
+                eval . Evaluate (Branch.prettyPrintEnv . Branch.head $ view currentBranch s) $ UF.discardTypes unisonFile
               let e' = Map.map go e
-                  go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-              -- todo: this would be a good spot to update the cache
-              -- with all the (hash, eval) pairs, even if it's just an
-              -- in-memory cache
+                  go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
               eval . Notify $ Evaluated text
                 (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
                 bindings
@@ -299,7 +297,7 @@ loop = do
                    "execute command"
                    ("main_ = " <> Text.pack input) $
                      \_ unisonFile ->
-                        eval . Execute (view currentBranch s) $
+                        eval . Execute (Branch.prettyPrintEnv . Branch.head $ view currentBranch s) $
                           UF.discardTypes unisonFile
         UpdateBuiltinsI -> do
           modifyCurrentBranch0 updateBuiltins
@@ -307,7 +305,21 @@ loop = do
         ListEditsI -> do
           (Branch.head -> b) <- use currentBranch
           respond $ ListEdits b
+        TestI showOk showFail -> do
+          (Branch.head -> b) <- use currentBranch
+          let ppe = Branch.prettyPrintEnv b
+          let termRefs = Set.fromList [ r | Referent.Ref r <- toList (Branch.allTerms b) ]
+          ws <- eval $ LoadWatches UF.TestWatch termRefs
+          let
+            oks = [ (r, msg) |
+                    (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
+                    cid == DD.okConstructorId && ref == DD.testResultRef ]
+            fails = [ (r, msg) |
+                      (r, Term.App' (Term.Constructor' ref cid) (Term.Text' msg)) <- ws,
+                      cid == DD.failConstructorId && ref == DD.testResultRef ]
+          respond $ TestResults ppe showOk showFail oks fails
         QuitI -> quit
+
        where
         success       = respond $ Success input
         outputSuccess = eval . Notify $ Success input

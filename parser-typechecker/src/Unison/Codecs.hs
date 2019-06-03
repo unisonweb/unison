@@ -28,7 +28,7 @@ import           Unison.Term
 import qualified Unison.Typechecker.Components as Components
 import           Unison.UnisonFile (UnisonFile(..))
 import qualified Unison.UnisonFile as UF
-import           Unison.Var
+import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
@@ -46,13 +46,13 @@ serializeTerm x = do
     ABT.Var v -> do
       putTag
       putWord8 0
-      lengthEncode $ Var.qualifiedName v
+      lengthEncode $ Var.name v
       incPosition
     ABT.Abs v body -> do
       pbody <- serializeTerm body
       putTag
       putWord8 1
-      lengthEncode $ Var.qualifiedName v
+      lengthEncode $ Var.name v
       putBackref pbody
       incPosition
     ABT.Cycle body -> do

@@ -16,6 +16,7 @@ To get cracking with Unison,
 ### What if you want a profiled build?
 
 Do:
+
     stack build --executable-profiling --library-profiling --ghc-options="-fprof-auto -rtsopts" unison-parser-typechecker
 
 Again you can leave off the flag. To run an executable with profiling enabled, do:

@@ -1,9 +1,9 @@
 type Optional a = Some a | None
 
-effect Abort where
+ability Abort where
   Abort : forall a . () -> {Abort} a
 
-effect Abort2 where
+ability Abort2 where
   Abort2  : forall a . () -> {Abort2} a
   Abort2' : forall a . () -> {Abort2} a
 
@@ -16,8 +16,8 @@ app' = 3
 arrow : Int -> Int -> Int
 arrow a = 3
 
-effect' : Nat -> { Abort } Int
-effect' n = Abort2.Abort2 ()
+ability' : Nat -> { Abort } Int
+ability' n = Abort2.Abort2 ()
 
 id : forall a . a -> a
 id x = 3

@@ -19,6 +19,17 @@ namespace Stream where
 
 ---
 
-The expression in red  needs these abilities: {𝛆, 𝛆}, but this location only has access to the {Emit a} ability,
+I found a value of type a where I expected to find one of type a:
 
-   18 |       step f s
+   11 |   unfold : s -> (s -> Optional (a, s)) -> Stream a
+   12 |   unfold s f = Stream 'let
+   13 |     -- step : (s -> Optional (a,s)) -> s ->{Emit a} ()
+   14 |     step f s = case f s of
+   15 |       None        -> ()
+   16 |       Some (a, s) -> emit a
+   17 |                      step f s
+   18 |     step f s
+
+  from right here:
+
+    4 | type Stream a = Stream ('{Emit a} ())

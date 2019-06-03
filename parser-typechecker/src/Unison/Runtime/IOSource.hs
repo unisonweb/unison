@@ -27,7 +27,7 @@ typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ TL.builtinTypeLookup)
-  r = parseAndSynthesizeFile [] tl Builtin.names "<IO.u builtin>" source
+  r = parseAndSynthesizeFile [] tl (mempty, Builtin.names) "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
@@ -53,7 +53,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference
   :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
@@ -63,13 +63,22 @@ optionReference = typeNamed "Optional"
 errorReference = typeNamed "IOError"
 errorTypeReference = typeNamed "IOErrorType"
 seekModeReference = typeNamed "SeekMode"
+threadIdReference = typeNamed "ThreadId"
+socketReference = typeNamed "Socket"
+handleReference = typeNamed "Handle"
+epochTimeReference = typeNamed "EpochTime"
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId :: DD.ConstructorId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId
+  :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
 someId = constructorNamed optionReference "Optional.Some"
 noneId = constructorNamed optionReference "Optional.None"
 ioErrorId = constructorNamed errorReference "IOError.IOError"
+handleId = constructorNamed handleReference "Handle.Handle"
+socketId = constructorNamed socketReference "Socket.Socket"
+threadIdId = constructorNamed threadIdReference "ThreadId.ThreadId"
+epochTimeId = constructorNamed epochTimeReference "EpochTime.EpochTime"
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
@@ -133,27 +142,72 @@ type Socket = Socket Text
 -- Builtin handles: standard in, out, error
 
 namespace IO where
-  stdin: Handle
+  stdin : Handle
   stdin = Handle "stdin"
 
-  stdout: Handle
+  stdout : Handle
   stdout = Handle "stdout"
 
-  stderr: Handle
+  stderr : Handle
   stderr = Handle "stderr"
 
+  -- Throw an I/O error on the left as an effect in `IO`
   rethrow : (Either IOError a) -> {IO} a
   rethrow x = case x of
     Either.Left e -> IO.throw e
     Either.Right a -> a
 
-  printLine : Text -> {IO} ()
+  -- Print a line to the standard output
+  printLine : Text ->{IO} ()
   printLine t =
-    rethrow (IO.putText stdout t)
-    rethrow (IO.putText stdout "\n")
+    IO.putText stdout t
+    IO.putText stdout "\n"
 
+  -- Read a line from the standard input
   readLine : '{IO} Text
-  readLine = '(rethrow (IO.getLine stdin))
+  readLine = '(IO.getLine stdin)
+
+  -- Open a named file in the given mode, yielding an open file handle
+  openFile : FilePath -> IOMode ->{IO} Handle
+  openFile f m = rethrow (IO.openFile_ f m)
+
+  -- Close an open file handle
+  closeFile : Handle ->{IO} ()
+  closeFile f = rethrow (IO.closeFile_ f)
+
+  -- Check whether a file handle has reached the end of the file
+  isFileEOF : Handle ->{IO} Boolean
+  isFileEOF h = rethrow (IO.isFileEOF_ h)
+
+  -- Check whether a file handle is open
+  isFileOpen : Handle ->{IO} Boolean
+  isFileOpen h = rethrow (IO.isFileOpen_ h)
+
+  -- Get a line of text from a text file handle
+  getLine : Handle ->{IO} Text
+  getLine h = rethrow (IO.getLine_ h)
+
+  -- Get the entire contents of a file as a single block of text
+  getText : Handle ->{IO} Text
+  getText h = rethrow (IO.getText_ h)
+
+  -- Write some text to a file
+  putText : Handle -> Text ->{IO} ()
+  putText h t = rethrow (IO.putText_ h t)
+
+  -- Get epoch system time
+  systemTime : '{IO} EpochTime
+  systemTime = '(rethrow (IO.systemTime_))
+
+  -- Run the given computation, and if it throws an error
+  -- handle the error with the given handler.
+  -- catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
+  -- catch c h =
+  --   k io = case io of
+  --            { IO.throw e } -> h e
+  --            x -> x
+  --   handle k in c
+
 
 -- IO Modes from the Haskell API
 type IOMode = Read | Write | Append | ReadWrite
@@ -191,24 +245,27 @@ type HostName = HostName Text
 -- For example a port number like "8080"
 type ServiceName = ServiceName Text
 
+-- Thread IDs are strings for now. Need nominal/opaque types.
+type ThreadId = ThreadId Text
+
 ability IO where
 
   -- Basic file IO
-  openFile : FilePath -> IOMode ->{IO} (Either IOError Handle)
-  closeFile : Handle ->{IO} (Either IOError ())
-  isFileEOF : Handle ->{IO} (Either IOError Boolean)
-  isFileOpen : Handle ->{IO} (Either IOError Boolean)
+  openFile_ : FilePath -> IOMode ->{IO} (Either IOError Handle)
+  closeFile_ : Handle ->{IO} (Either IOError ())
+  isFileEOF_ : Handle ->{IO} (Either IOError Boolean)
+  isFileOpen_ : Handle ->{IO} (Either IOError Boolean)
 
   -- Text input and output
 
   --getChar : Handle ->{IO} Char
-  getLine : Handle ->{IO} (Either IOError Text)
+  getLine_ : Handle ->{IO} (Either IOError Text)
   -- Get the entire contents of the file as text
-  getText : Handle ->{IO} (Either IOError Text)
+  getText_ : Handle ->{IO} (Either IOError Text)
   -- putChar : Handle -> Char ->{IO} ()
-  putText : Handle -> Text ->{IO} (Either IOError ())
+  putText_ : Handle -> Text ->{IO} (Either IOError ())
 
-  -- Note: `catch` is just a library function
+  -- Throw an error as an `IO` effect
   throw : IOError ->{IO} a
 
   -- File positioning
@@ -231,10 +288,10 @@ ability IO where
   -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
   -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
 
-  systemTime : {IO} (Either IOError EpochTime)
-
+  systemTime_ : {IO} (Either IOError EpochTime)
 
   -- File system operations
+  getTempDirectory : {IO} (Either IOError FilePath)
   getCurrentDirectory : {IO} (Either IOError FilePath)
   setCurrentDirectory : FilePath ->{IO} (Either IOError ())
   directoryContents : FilePath ->{IO} Either IOError [FilePath]
@@ -247,7 +304,6 @@ ability IO where
   renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
   getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
   getFileSize : FilePath ->{IO} (Either IOError Nat)
-
 
   -- Simple TCP Networking
 
@@ -279,5 +335,19 @@ ability IO where
 
   -- scatter/gather mode network I/O
   -- sendMany : Socket -> [Bytes] ->{IO} Int
+
+  -- Threading --
+
+  -- Fork a thread
+  fork : '{IO} a ->{IO} (Either IOError ThreadId)
+
+  -- Kill a running thread
+  kill : ThreadId ->{IO} (Either IOError ())
+
+  -- Suspend the current thread for a number of microseconds.
+  delay : Nat ->{IO} (Either IOError ())
+
+  -- Safely acquire and release a resource
+  bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
 
 |]

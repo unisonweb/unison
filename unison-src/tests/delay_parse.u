@@ -1,4 +1,4 @@
-effect T where
+ability T where
   foo : {T} ()
 
 -- parses fine

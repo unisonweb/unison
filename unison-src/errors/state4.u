@@ -1,5 +1,5 @@
---State4 effect
-effect State se2 where
+--State4 ability
+ability State se2 where
   put : ∀ se . se -> {State se} ()
   get : ∀ se . () -> {State se} se
 -- binding is not guarded by a lambda, it only can access

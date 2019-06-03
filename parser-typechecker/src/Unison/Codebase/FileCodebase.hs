@@ -3,9 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase where
 
+import           Control.Applicative
 import           Control.Concurrent             ( forkIO
                                                 , killThread
                                                 )
@@ -23,6 +25,7 @@ import           Control.Monad.IO.Class         ( MonadIO
 import           Control.Monad.STM              ( atomically )
 import qualified Data.Bytes.Get                as Get
 import qualified Data.ByteString               as BS
+import qualified Data.Char                     as Char
 import           Data.Foldable                  ( traverse_, toList )
 import           Data.List                      ( isSuffixOf
                                                 , partition
@@ -54,6 +57,7 @@ import           Unison.Codebase                ( Codebase(Codebase)
                                                 , Err(InvalidBranchFile)
                                                 , BranchName
                                                 )
+import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
@@ -66,6 +70,7 @@ import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
+import qualified Unison.UnisonFile             as UF
 -- import Debug.Trace
 
 -- checks if `path` looks like a unison codebase
@@ -132,18 +137,54 @@ termDir, declDir :: FilePath -> Reference.Id -> FilePath
 termDir path r = path </> "terms" </> componentId r
 declDir path r = path </> "types" </> componentId r
 
-encodeBuiltinName :: Text -> FilePath
-encodeBuiltinName = Hash.base58s . Hash.fromBytes . encodeUtf8
+-- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
+encodeFileName :: Text -> FilePath
+encodeFileName t = let
+  go ('/' : rem) = "$forward-slash$" <> go rem
+  go ('\\' : rem) = "$back-slash$" <> go rem
+  go (':' : rem) = "$colon$" <> go rem
+  go ('*' : rem) = "$star$" <> go rem
+  go ('?' : rem) = "$question-mark$" <> go rem
+  go ('"' : rem) = "$double-quote$" <> go rem
+  go ('<' : rem) = "$less-than$" <> go rem
+  go ('>' : rem) = "$greater-than$" <> go rem
+  go ('|' : rem) = "$pipe$" <> go rem
+  go ('$' : rem) = "$$" <> go rem
+  go (c : rem) | not (Char.isPrint c) = "$b58" <> b58 [c] <> "$" <> go rem
+               | otherwise = c : go rem
+  go [] = []
+  b58 = Hash.base58s . Hash.fromBytes . encodeUtf8 . Text.pack
+  in if t == "." then "$dot$"
+     else if t == ".." then "$dotdot$"
+     else go (Text.unpack t)
 
-decodeBuiltinName :: FilePath -> Maybe Text
-decodeBuiltinName p =
-  decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+decodeFileName :: FilePath -> Maybe Text
+decodeFileName p = let
+  go ('$' : rem) = case span (/= '$') rem of
+    ("forward-slash", (drop 1) -> rem) -> ("/" <>) <$> go rem
+    ("back-slash", (drop 1) -> rem) -> ("\\" <>) <$> go rem
+    ("colon", drop 1 -> rem) -> (":" <>) <$> go rem
+    ("star", drop 1 -> rem) -> ("*" <>) <$> go rem
+    ("question-mark", drop 1 -> rem) -> ("?" <>) <$> go rem
+    ("double-quote", drop 1 -> rem) -> ("\"" <>) <$> go rem
+    ("less-than", drop 1 -> rem) -> ("<" <>) <$> go rem
+    ("greater-than", drop 1 -> rem) -> (">" <>) <$> go rem
+    ("pipe", drop 1 -> rem) -> ("|" <>) <$> go rem
+    ("dot", _rem) -> Just "."
+    ("dotdot", _rem) -> Just ".."
+    ('b':'5':'8':left, drop 1 -> rem) -> liftA2 (<>) (unb58 left) (go rem)
+    ("", drop 1 -> rem) -> ("$" <>) <$> go rem
+    (_, _) -> Nothing
+  go (c : rem) = (c:) <$> go rem
+  go [] = Just mempty
+  unb58 p = Text.unpack . decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+  in Text.pack <$> go p
 
 builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
 builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> encodeBuiltinName name
+  path </> "terms" </> "_builtin" </> encodeFileName name
 builtinTypeDir path name =
-  path </> "types" </> "_builtin" </> encodeBuiltinName name
+  path </> "types" </> "_builtin" </> encodeFileName name
 builtinDir :: FilePath -> Reference -> Maybe FilePath
 builtinDir path r@(Reference.Builtin name) =
   if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
@@ -155,6 +196,9 @@ termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
+
+watchesDir :: FilePath -> FilePath -> FilePath
+watchesDir path kind = path </> "watches" </> encodeFileName (Text.pack kind)
 
 componentId :: Reference.Id -> String
 componentId (Reference.Id h 0 1) = Hash.base58s h
@@ -188,7 +232,8 @@ parseHash s = case splitOn "-" s of
 -- hash-based reference, rather than being Reference.Builtin
 -- and we should verify that this doesn't break the runtime
 codebase1
-  :: Var v => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
+  :: forall v a . Var v
+  => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
 codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   = let
       getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath path h)
@@ -299,6 +344,28 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
               branchFileChanges
               400000
             )
+
+      watches :: UF.WatchKind -> IO [Reference.Id]
+      watches k = do
+        let wp = watchesDir path k
+        createDirectoryIfMissing True wp
+        ls <- listDirectory wp
+        pure $ ls >>= (toList . parseHash . takeFileName)
+
+      getWatch :: UF.WatchKind -> Reference.Id
+               -> IO (Maybe (Codebase.Term v a))
+      getWatch k id = do
+        let wp = watchesDir path k
+        createDirectoryIfMissing True wp
+        S.getFromFile (V0.getTerm getV getA) (wp </> componentId id <> ".ub")
+
+      putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a
+               -> IO ()
+      putWatch k id e =
+        S.putWithParentDirs (V0.putTerm putV putA)
+                            (watchesDir path k </> componentId id <> ".ub")
+                            e
+
     in
       Codebase getTerm
                getTypeOfTerm
@@ -312,6 +379,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                branchUpdates
                dependents
                builtinTypeAnnotation
+               watches
+               getWatch
+               putWatch
 
 ubfPathToName :: FilePath -> BranchName
 ubfPathToName = Text.pack . takeFileName . takeDirectory

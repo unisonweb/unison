@@ -10,7 +10,7 @@ module Unison.TermParser where
 import qualified Data.Text as Text
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
-import           Control.Monad.Reader (ask, local)
+import           Control.Monad.Reader (asks, local)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Int (Int64)
@@ -21,7 +21,8 @@ import           Prelude hiding (and, or, seq)
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
 import qualified Unison.Lexer as L
-import           Unison.Parser
+import           Unison.Parser hiding (seq)
+import qualified Unison.Parser as Parser (seq)
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
@@ -95,8 +96,17 @@ matchCase = do
   pure . Term.MatchCase p (fmap (ABT.absChain' boundVars) guard) $ ABT.absChain' boundVars t
 
 parsePattern :: forall v. Var v => P v (Pattern Ann, [(Ann, v)])
-parsePattern = constructor <|> leaf
+parsePattern =
+  chainl1 (constructor <|> seqLiteral <|> leaf) patternInfixApp
   where
+  patternInfixApp :: P v ((Pattern Ann, [(Ann, v)])
+                  -> (Pattern Ann, [(Ann, v)])
+                  -> (Pattern Ann, [(Ann, v)]))
+  patternInfixApp = f <$> seqOp
+    where
+    f op (l, lvs) (r, rvs) =
+      (Pattern.SequenceOp (ann l <> ann r) l op r, lvs ++ rvs)
+
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
   literal = (,[]) <$> asum [true, false, number, text]
@@ -124,6 +134,8 @@ parsePattern = constructor <|> leaf
     guard . isUpper . head . L.payload $ s
     pure s
 
+  unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
+
   effectBind0 = do
     name <- ctorName
     leaves <- many leaf
@@ -133,14 +145,13 @@ parsePattern = constructor <|> leaf
   effectBind = do
     (name, leaves) <- P.try effectBind0
     (cont, vsp) <- parsePattern
-    env <- ask
+    env <- asks snd
     (ref,cid) <- case Names.patternNameds env (L.payload name) of
       Just (ref, cid) -> pure (ref, cid)
-      Nothing -> customFailure $ UnknownEffectConstructor name
-    pure $ case unzip leaves of
-      (patterns, vs) ->
-         (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont,
-          join vs ++ vsp)
+      Nothing -> customFailure $ UnknownAbilityConstructor name
+    pure $
+      let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
+      in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
     go (p, vs) = (Pattern.EffectPure (ann p) p, vs)
@@ -154,15 +165,18 @@ parsePattern = constructor <|> leaf
   constructor = do
     t <- ctorName
     let name = L.payload t
-    env <- ask
+    env <- asks snd
     case Names.patternNameds env name of
       Just (ref, cid) -> go <$> many leaf
         where
-          go pairs = case unzip pairs of
-            (patterns, vs) ->
-              let loc = foldl (<>) (ann t) $ map ann patterns
-              in (Pattern.Constructor loc ref cid patterns, join vs)
+          go = unzipPatterns f
+          f patterns vs =
+            let loc = foldl (<>) (ann t) $ map ann patterns
+            in (Pattern.Constructor loc ref cid patterns, vs)
       Nothing -> customFailure $ UnknownDataConstructor t
+
+  seqLiteral = Parser.seq f leaf
+    where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
 lam :: Var v => TermP v -> TermP v
 lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
@@ -204,12 +218,7 @@ placeholder :: Var v => TermP v
 placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 
 seq :: Var v => TermP v -> TermP v
-seq p = f <$> reserved "[" <*> elements <*> trailing
-  where
-    trailing = optional semi *> reserved "]"
-    sep = P.try $ optional semi *> reserved "," <* optional semi
-    elements = sepBy sep p
-    f open elems close = Term.seq (ann open <> ann close) elems
+seq = Parser.seq Term.seq
 
 termLeaf :: forall v. Var v => TermP v
 termLeaf = do
@@ -243,16 +252,23 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
 
+seqOp :: Var v => P v Pattern.SeqOp
+seqOp =
+  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))
+  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:"))
+  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
+
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
   where
     f (func:args) = Term.apps func ((\a -> (ann func <> ann a, a)) <$> args)
     f [] = error "'some' shouldn't produce an empty list"
 
+-- e.g. term4 + term4 - term4
 infixApp = label "infixApp" $
   chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
     where
-      f op lhs rhs =
+      f op = \lhs rhs ->
         Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
@@ -373,7 +389,7 @@ imports :: Var v => P v (Names, AnnotatedTerm v Ann -> AnnotatedTerm v Ann)
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  env <- Names.importing imported <$> ask
+  env <- Names.importing imported <$> asks snd
   let
     importTerms = [ (n, Term.var() qn) | (n,qn) <- imported ]
     substImports tm =
@@ -392,8 +408,9 @@ block'
 block' isTop s openBlock closeBlock = do
     open <- openBlock
     (env, substImports) <- imports
+    uniqueNames <- asks fst
     _ <- optional semi
-    statements <- local (const env) $ sepBy semi statement
+    statements <- local (const (uniqueNames, env)) $ sepBy semi statement
     _ <- closeBlock
     substImports <$> go open statements
   where

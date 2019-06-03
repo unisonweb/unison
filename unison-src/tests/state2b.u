@@ -1,8 +1,8 @@
---State2 effect
+--State2 ability
 
 type Optional a = None | Some a
 
-effect State s where
+ability State s where
   put : s -> {State s} ()
   get : {State s} s
 
@@ -12,7 +12,7 @@ state s eff = case eff of
   { State.put snew -> k } -> handle (state snew) in k ()
   { a } -> (s, a)
 
-modify : (s -> s) -> {State s} ()
+modify : (s ->{} s) -> {State s} ()
 modify f = State.put (f State.get)
 
 increment : '{State Nat} ()

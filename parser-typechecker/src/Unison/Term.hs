@@ -399,6 +399,9 @@ lam' a vs body = foldr (lam a) body vs
 lam'' :: Ord v => [(a,v)] -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 lam'' vs body = foldr (uncurry lam) body vs
 
+isLam :: AnnotatedTerm2 vt at ap v a -> Bool
+isLam t = arity t > 0
+
 arity :: AnnotatedTerm2 vt at ap v a -> Int
 arity (LamNamed' _ body) = 1 + arity body
 arity (Ann' e _) = arity e
@@ -603,7 +606,7 @@ unAskInfo tm = case tm of
 
 isVarKindInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Bool
 isVarKindInfo t = case t of
-  Var' v | (Var.kind v) == "info" -> True
+  Var' v | (Var.typeOf v) == Var.AskInfo -> True
   _ -> False
 
 -- Dependencies including referenced data and effect decls

@@ -1,0 +1,9 @@
+
+-- This should typecheck, since `∀ a . a -> a` can be passed in place of
+-- a `Nat -> Nat`. Verifies that subtyping of `->` is contravariant in the
+-- input types.
+rank2b : (∀ a . a -> a) -> Nat
+rank2b =
+  inner : (Nat -> Nat) -> Nat
+  inner f = 42
+  inner

@@ -13,6 +13,7 @@
 
 module Unison.Runtime.IR where
 
+import Control.Applicative ((<|>))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
@@ -24,7 +25,6 @@ import Data.Map (Map)
 import Data.Maybe (isJust,fromMaybe)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.Vector (Vector)
 import Data.Word (Word64)
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified')
@@ -169,13 +169,22 @@ decompileUnderapplied u = case u of -- todo: consider unlambda-lifting here
       traverse (decompileImpl . snd) symvals
     pure $ Term.betaReduce lam
 
+type SeqOp = Pattern.SeqOp
+pattern Snoc = Pattern.Snoc
+pattern Cons = Pattern.Cons
+pattern Concat = Pattern.Concat
 
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
 data Pattern
   = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
   | PatternData R.Reference ConstructorId [Pattern]
-  | PatternSequence (Vector Pattern)
+  | PatternSequenceLiteral [Pattern]
+  | PatternSequenceCons Pattern Pattern
+  | PatternSequenceSnoc Pattern Pattern
+  -- `Either Int Int` here represents the known constant length of either
+  -- the left or right side of a sequence concat operation
+  | PatternSequenceConcat (Either Int Int) Pattern Pattern
   | PatternPure Pattern
   | PatternBind R.Reference ConstructorId [Pattern] Pattern
   | PatternAs Pattern
@@ -200,11 +209,11 @@ data IR' ann z
   -- Ints
   | AddI z z | SubI z z | MultI z z | DivI z z
   | GtI z z | LtI z z | GtEqI z z | LtEqI z z | EqI z z
-  | SignumI z | NegateI z | ModI z z
+  | SignumI z | NegateI z | Truncate0I z | ModI z z
   -- Nats
   | AddN z z | DropN z z | SubN z z | MultN z z | DivN z z
   | GtN z z | LtN z z | GtEqN z z | LtEqN z z | EqN z z
-  | ModN z z
+  | ModN z z | ToIntN z
   -- Floats
   | AddF z z | SubF z z | MultF z z | DivF z z
   | GtF z z | LtF z z | GtEqF z z | LtEqF z z | EqF z z
@@ -264,6 +273,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     EqI a b -> P.parenthesize $ "EqI" `P.hang` P.spaced [pz a, pz b]
     SignumI a -> P.parenthesize $ "SignumI" `P.hang` P.spaced [pz a]
     NegateI a -> P.parenthesize $ "NegateI" `P.hang` P.spaced [pz a]
+    Truncate0I a -> P.parenthesize $ "Truncate0I" `P.hang` P.spaced [pz a]
     ModI a b -> P.parenthesize $ "ModI" `P.hang` P.spaced [pz a, pz b]
 
     AddN a b -> P.parenthesize $ "AddN" `P.hang` P.spaced [pz a, pz b]
@@ -277,6 +287,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     LtEqN a b -> P.parenthesize $ "LtEqN" `P.hang` P.spaced [pz a, pz b]
     EqN a b -> P.parenthesize $ "EqN" `P.hang` P.spaced [pz a, pz b]
     ModN a b -> P.parenthesize $ "ModN" `P.hang` P.spaced [pz a, pz b]
+    ToIntN a -> P.parenthesize $ "ToIntN" `P.hang` P.spaced [pz a]
 
     AddF a b -> P.parenthesize $ "AddF" `P.hang` P.spaced [pz a, pz b]
     SubF a b -> P.parenthesize $ "SubF" `P.hang` P.spaced [pz a, pz b]
@@ -517,6 +528,18 @@ compile0 env bound t =
         e -> error $ msg ++ ": ANF should have eliminated any non-Z arguments from: " ++ show e
       compileCase (Term.MatchCase pat guard rhs@(ABT.unabs -> (vs,_))) =
           (compilePattern pat, underlyingSymbol <$> vs, go <$> guard, go rhs)
+
+      getSeqLength :: Pattern.Pattern -> Maybe Int
+      getSeqLength p = case p of
+        Pattern.SequenceLiteral ps -> Just (length ps)
+        Pattern.SequenceOp l op r -> case op of
+          Pattern.Snoc -> (+ 1) <$> getSeqLength l
+          Pattern.Cons -> (+ 1) <$> getSeqLength r
+          Pattern.Concat -> (+) <$> (getSeqLength l) <*> (getSeqLength r)
+        Pattern.As p -> getSeqLength p
+        _ -> Nothing
+
+      compilePattern :: Pattern.Pattern -> Pattern
       compilePattern pat = case pat of
         Pattern.Unbound -> PatternIgnore
         Pattern.Var -> PatternVar
@@ -529,6 +552,18 @@ compile0 env bound t =
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
         Pattern.EffectBind r cid args k -> PatternBind r cid (compilePattern <$> args) (compilePattern k)
+        Pattern.SequenceLiteral ps -> PatternSequenceLiteral (compilePattern <$> ps)
+        Pattern.SequenceOp l op r -> case op of
+          Pattern.Snoc -> PatternSequenceSnoc (compilePattern l) (compilePattern r)
+          Pattern.Cons -> PatternSequenceCons (compilePattern l) (compilePattern r)
+          Pattern.Concat -> fromMaybe concatErr ((concat Left <$> getSeqLength l) <|> (concat Right <$> getSeqLength r))
+            where
+              concat :: (Int -> Either Int Int) -> Int -> Pattern
+              concat f i = PatternSequenceConcat (f i) (compilePattern l) (compilePattern r)
+              concatErr = error $ "At least one side of a concat must have a constant length. " <>
+                                  "This code should never be reached as this constraint is " <>
+                                  "applied in the typechecker."
+
         _ -> error $ "todo - compilePattern " ++ show pat
 
 type DS = StateT (Map Symbol (Term Symbol), Set RefID) IO
@@ -616,6 +651,7 @@ boundVarsIR = \case
   EqI _ _ -> mempty
   SignumI _ -> mempty
   NegateI _ -> mempty
+  Truncate0I _ -> mempty
   ModI _ _ -> mempty
   AddN _ _ -> mempty
   DropN _ _ -> mempty
@@ -628,6 +664,7 @@ boundVarsIR = \case
   LtEqN _ _ -> mempty
   EqN _ _ -> mempty
   ModN _ _ -> mempty
+  ToIntN _ -> mempty
   AddF _ _ -> mempty
   SubF _ _ -> mempty
   MultF _ _ -> mempty
@@ -664,6 +701,7 @@ decompileIR stack = \case
   EqI x y -> builtin "Int.==" [x,y]
   SignumI x -> builtin "Int.signum" [x]
   NegateI x -> builtin "Int.negate" [x]
+  Truncate0I x -> builtin "Int.truncate0" [x]
   ModI x y -> builtin "Int.mod" [x,y]
   AddN x y -> builtin "Nat.+" [x,y]
   DropN x y -> builtin "Nat.drop" [x,y]
@@ -676,6 +714,7 @@ decompileIR stack = \case
   LtEqN x y -> builtin "Nat.<=" [x,y]
   EqN x y -> builtin "Nat.==" [x,y]
   ModN x y -> builtin "Nat.mod" [x,y]
+  ToIntN x -> builtin "Nat.toInt" [x]
   AddF x y -> builtin "Float.+" [x,y]
   SubF x y -> builtin "Float.-" [x,y]
   MultF x y -> builtin "Float.*" [x,y]
@@ -737,13 +776,10 @@ decompileIR stack = \case
     PatternT t -> Pattern.Text t
     PatternData r cid pats ->
       Pattern.Constructor r cid (d <$> pats)
-    PatternSequence v -> error "todo" v
-      -- case vec of
-      --   head +: tail -> ...
-      --   init :+ last -> ...
-      --   [] -> ...
-      --   [1,2,3] -> ...
-      --   [1,2,3] ++ mid ++ [7,8,9] -> ... maybe?
+    PatternSequenceLiteral ps -> Pattern.SequenceLiteral $ decompilePattern <$> ps
+    PatternSequenceCons l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Cons (decompilePattern r)
+    PatternSequenceSnoc l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Snoc (decompilePattern r)
+    PatternSequenceConcat _ l r -> Pattern.SequenceOp (decompilePattern l) Pattern.Concat (decompilePattern r)
     PatternPure pat -> Pattern.EffectPure (d pat)
     PatternBind r cid pats k ->
       Pattern.EffectBind r cid (d <$> pats) (d k)
@@ -828,6 +864,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Int.increment", 1, AddI (Val (I 1)) (Slot 0))
         , ("Int.signum", 1, SignumI (Slot 0))
         , ("Int.negate", 1, NegateI (Slot 0))
+        , ("Int.truncate0", 1, Truncate0I (Slot 0))
         , ("Int.mod", 2, ModI (Slot 1) (Slot 0))
         , ("Int.isEven", 1, let' var (ModI (Slot 0) (Val (I 2)))
                                      (EqI (Val (I 0)) (Slot 0)))
@@ -852,6 +889,7 @@ builtins = Map.fromList $ arity0 <> arityN
         , ("Nat.isOdd", 1, let' var (ModN (Slot 0) (Val (N 2)))
                                     (let' var (EqN (Val (N 0)) (Slot 0))
                                               (Not (Slot 0))))
+        , ("Nat.toInt", 1, ToIntN (Slot 0))
 
         , ("Float.+", 2, AddF (Slot 1) (Slot 0))
         , ("Float.-", 2, SubF (Slot 1) (Slot 0))
@@ -885,11 +923,10 @@ instance Ord SymbolC where
   SymbolC _ s `compare` SymbolC _ s2 = s `compare` s2
 
 instance Var SymbolC where
-  named s = SymbolC False (Var.named s)
-  rename t (SymbolC i s) = SymbolC i (Var.rename t s)
-  name (SymbolC _ s) = Var.name s
-  clear (SymbolC _ s) = SymbolC False (Var.clear s)
-  qualifiedName (SymbolC _ s) = Var.qualifiedName s
+  typed s = SymbolC False (Var.typed s)
+  typeOf (SymbolC _ s) = Var.typeOf s
+  retype t (SymbolC b s) = SymbolC b (Var.retype t s)
+  freshId (SymbolC _ s) = Var.freshId s
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
   freshIn vs (SymbolC i s) =
     SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)

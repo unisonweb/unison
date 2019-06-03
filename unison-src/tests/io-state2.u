@@ -1,5 +1,5 @@
---IO/State2 effect
-effect IO where
+--IO/State2 ability
+ability IO where
   launchMissiles : {IO} ()
 
 foo : () -> {IO} ()
@@ -14,7 +14,7 @@ foo unit =
 type Optional a =
   Some a | None
 
-effect State se2 where
+ability State se2 where
   put : ∀ se . se -> {State se} ()
   get : ∀ se . {State se} se
 

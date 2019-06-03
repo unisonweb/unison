@@ -17,6 +17,11 @@ isMultiLine (Range (Pos startLine _) (Pos endLine _)) = startLine < endLine
 
 data Range = Range { start :: Pos, end :: Pos } deriving (Eq, Ord, Show)
 
+startingLine :: Range -> Range
+startingLine r@(Range start@(Pos startLine _) (Pos stopLine _)) =
+  if stopLine == startLine then r
+  else Range start (Pos (startLine+1) 0)
+
 instance Semigroup Range where
   (Range start end) <> (Range start2 end2) =
     Range (min start start2) (max end end2)

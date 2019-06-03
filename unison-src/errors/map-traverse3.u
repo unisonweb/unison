@@ -1,5 +1,5 @@
 --map/traverse
-effect Noop where
+ability Noop where
   noop : a -> {Noop} a
 
 type List a = Nil | Cons a (List a)

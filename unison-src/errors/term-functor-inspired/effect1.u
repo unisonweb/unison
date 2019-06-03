@@ -1,4 +1,4 @@
-effect State s where
+ability State s where
   get : () -> {State s} s
   set : s -> {State s} ()
 

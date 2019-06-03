@@ -33,8 +33,8 @@ Still here? All right then! Let's get to it.
 
 A brief code tour
 -----
-First, checkout unison with `--recursive`:
-`git checkout --recursive https://github.com/unisonweb/unison.git`
+First, clone unison with `--recursive`:
+`git clone --recursive https://github.com/unisonweb/unison.git`
 
 Next, a bit of orientation. Here's the directory structure:
 
@@ -54,6 +54,18 @@ $ git clone --recursive https://github.com/unisonweb/unison.git
 $ cd unison
 $ stack --version # we'll want to know this version if you run into trouble
 $ stack build && stack exec tests && stack exec unison
+```
+
+Note: If you get this error:
+
+```
+Stack looks for packages in the directories configured in the 'packages' and 'extra-deps' fields defined in your stack.yaml
+The current entry points to <root>/yaks/haskeline/ but no .cabal or package.yaml file could be found there.
+```
+then your local git repo is older than the haskeline submodule dependency; use this to get it:
+```
+git submodule init
+git submodule update
 ```
 
 See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.

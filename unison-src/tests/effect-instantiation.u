@@ -2,7 +2,7 @@
 blah : a -> a -> a
 blah a a2 = a2
 
-effect Foo where
+ability Foo where
   foo : {Foo} Text
 
 -- previously this didn't work as first argument was pure

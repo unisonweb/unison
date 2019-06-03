@@ -15,7 +15,7 @@ import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forever, when)
 import           Data.Foldable                   (toList)
-import           Data.List                       (isSuffixOf)
+import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
@@ -26,6 +26,7 @@ import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
 import qualified System.Console.Terminal.Size    as Terminal
+import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
 import           Unison.Codebase.Branch          (Branch, Branch0)
@@ -47,28 +48,46 @@ import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
 import           Unison.Var                      (Var)
+import qualified Unison.UnisonFile             as UF
+import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Term                   as Term
 
 watchPrinter :: Var v => Text -> PPE.PrettyPrintEnv -> Ann
+                      -> UF.WatchKind
                       -> Term v
                       -> Runtime.IsCacheHit
                       -> P.Pretty P.ColorText
-watchPrinter src ppe ann term isHit = P.bracket $ let
+watchPrinter src ppe ann kind term isHit = P.bracket $ let
   lines = Text.lines src
   lineNum = fromMaybe 1 $ startingLine ann
   lineNumWidth = length (show lineNum)
-  extra = "     " -- for the ` | > ` after the line number
+  extra = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
   line = lines !! (lineNum - 1)
-  in P.lines [
+  addCache p = if isHit then p <> " (cached)" else p
+  in
+    P.lines [
     fromString (show lineNum) <> " | " <> P.text line,
-    fromString (replicate lineNumWidth ' ')
-      <> fromString extra <> "⧩"
-      <> (if isHit then P.bold " (using cache)" else ""),
-    P.indentN (lineNumWidth + length extra)
-      . P.green $ TermPrinter.prettyTop ppe term
+    case (kind, term) of
+      (UF.TestWatch, Term.App' (Term.Constructor' _ id) (Term.Text' msg)) ->
+        "\n" <>
+        if id == DD.okConstructorId then
+          addCache (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
+        else if id == DD.failConstructorId then
+          addCache (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+        else P.red "❓ " <> TermPrinter.prettyTop ppe term
+      _ -> P.lines [
+           fromString (replicate lineNumWidth ' ') <> fromString extra
+           <> (if isHit then id else P.purple) "⧩" ,
+           P.indentN (lineNumWidth + length extra)
+            . (if isHit then id else P.bold) $ TermPrinter.prettyTop ppe term
+           ]
   ]
 
 allow :: FilePath -> Bool
-allow = (||) <$> (".u" `isSuffixOf`) <*> (".uu" `isSuffixOf`)
+allow p =
+  -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
+  not (isPrefixOf ".#" (takeFileName p)) &&
+  (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do

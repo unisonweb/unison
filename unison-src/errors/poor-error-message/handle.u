@@ -7,7 +7,7 @@
 
 type Optional a = None | Some a
 
-effect State s where
+ability State s where
   put : s -> {State s} ()
   get : {State s} s
 

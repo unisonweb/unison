@@ -65,6 +65,7 @@ import qualified Unison.DataDeclaration        as DataDeclaration
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
+import qualified Unison.Var                    as Var
 
 -- ABOUT THIS FORMAT:
 --
@@ -294,10 +295,24 @@ getType getVar getA = getABT getVar getA go where
     _ -> unknownTag "getType" tag
 
 putSymbol :: MonadPut m => Symbol -> m ()
-putSymbol (Symbol id name) = putLength id *> putText name
+putSymbol v@(Symbol id _) = putLength id *> putText (Var.name v)
 
 getSymbol :: MonadGet m => m Symbol
-getSymbol = Symbol <$> getLength <*> getText
+getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
+
+putSeqOp :: MonadPut m => Pattern.SeqOp -> m ()
+putSeqOp = \case
+  Pattern.Cons -> putWord8 0
+  Pattern.Snoc -> putWord8 1
+  Pattern.Concat -> putWord8 2
+  op -> error $ "unpossible SeqOp" ++ show op
+
+getSeqOp :: MonadGet m => m Pattern.SeqOp
+getSeqOp = getWord8 >>= \case
+  0 -> pure Pattern.Cons
+  1 -> pure Pattern.Snoc
+  2 -> pure Pattern.Concat
+  i -> unknownTag "getSeqOp" i
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of
@@ -323,6 +338,10 @@ putPattern putA p = case p of
   Pattern.EffectBind a r cid args k
     -> putWord8 9 *> putA a *> putReference r *> putLength cid
                   *> putFoldable args (putPattern putA) *> putPattern putA k
+  Pattern.SequenceLiteral a ps
+    -> putWord8 10 *> putA a *> putFoldable ps (putPattern putA)
+  Pattern.SequenceOp a l op r
+    -> putWord8 11 *> putA a *> putPattern putA l *> putSeqOp op *> putPattern putA r
   _ -> error $ "unknown pattern: " ++ show p
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
@@ -337,6 +356,9 @@ getPattern getA = getWord8 >>= \tag -> case tag of
   7 -> Pattern.As <$> getA <*> getPattern getA
   8 -> Pattern.EffectPure <$> getA <*> getPattern getA
   9 -> Pattern.EffectBind <$> getA <*> getReference <*> getLength <*> getList (getPattern getA) <*> getPattern getA
+  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  11 -> Pattern.SequenceOp <$> getA <*> gp <*> getSeqOp <*> gp
+        where gp = getPattern getA
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
@@ -517,15 +539,27 @@ putDataDeclaration :: (MonadPut m, Ord v)
                    -> DataDeclaration' v a
                    -> m ()
 putDataDeclaration putV putA decl = do
-  putA $ DataDeclaration.annotation decl
+  putModifier (DataDeclaration.modifier decl)
+  putA (DataDeclaration.annotation decl)
   putFoldable (DataDeclaration.bound decl) putV
   putFoldable (DataDeclaration.constructors' decl) (putTuple3' putA putV (putType putV putA))
 
 getDataDeclaration :: (MonadGet m, Ord v) => m v -> m a -> m (DataDeclaration' v a)
 getDataDeclaration getV getA = DataDeclaration.DataDeclaration <$>
+  getModifier <*>
   getA <*>
   getList getV <*>
   getList (getTuple3 getA getV (getType getV getA))
+
+putModifier :: MonadPut m => DataDeclaration.Modifier -> m ()
+putModifier DataDeclaration.Structural   = putWord8 0
+putModifier (DataDeclaration.Unique txt) = putWord8 1 *> putText txt
+
+getModifier :: MonadGet m => m DataDeclaration.Modifier
+getModifier = getWord8 >>= \case
+  0 -> pure DataDeclaration.Structural
+  1 -> DataDeclaration.Unique <$> getText
+  tag -> unknownTag "DataDeclaration.Modifier" tag
 
 putEffectDeclaration ::
   (MonadPut m, Ord v) => (v -> m ()) -> (a -> m ()) -> EffectDeclaration' v a -> m ()

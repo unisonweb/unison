@@ -1,5 +1,5 @@
---State2 effect
-effect State s where
+--State2 ability
+ability State s where
   put : s -> {State s} ()
 
 state : s -> Effect (State s) a -> a
