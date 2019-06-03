@@ -390,11 +390,15 @@ renderTypeError e env src = case e of
     , "\n"
     , showSourceMaybes src [ (,ErrorSite) <$> rangeForAnnotated loc | loc <- locs ]]
 
-  UnknownType {..} -> mconcat
-    [ "I don't know about the type "
-    , style ErrorSite (renderVar unknownTypeV)
-    , ".  Make sure it's imported and spelled correctly:\n\n"
-    , annotatedAsErrorSite src typeSite
+  UnknownType {..} -> mconcat [
+    if ann typeSite == Intrinsic then
+      "I don't know about the builtin type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
+    else if ann typeSite == External then
+      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ". "
+    else
+      "I don't know about the type " <> style ErrorSite (renderVar unknownTypeV) <> ":\n"
+      <> annotatedAsErrorSite src typeSite
+    , "Make sure it's imported and spelled correctly."
     ]
   UnknownTerm {..}
     | Type.isArrow expectedType && Var.typeOf unknownTermV == Var.AskInfo
