@@ -12,6 +12,7 @@ import           Data.Maybe                     ( isJust
                                                 )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
+import qualified Unison.Hashable               as H
 
 -- |
 -- This implementation avoids using @"Set (a,b)"@ because
@@ -414,3 +415,6 @@ instance (Ord a, Ord b) => Monoid (Relation a b) where
 
 instance (Ord a, Ord b) => Semigroup (Relation a b) where
   (<>) = union
+
+instance (H.Hashable a, H.Hashable b) => H.Hashable (Relation a b) where
+  tokens = H.tokens . toList

@@ -89,19 +89,30 @@ headHash (Branch c) = Causal.currentHash c
 merge :: Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
 
+-- todo: use 3-way merge for terms, types, and edits
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
-merge0 b1 b2 = unionWithM f (_children b1) (_children b2)
-  <&> \c ->
+merge0 b1 b2 = do
+  c3 <- unionWithM f (_children b1) (_children b2)
+  e3 <- unionWithM g (_edits b1) (_edits b2)
+  pure $
     Branch0 (_terms b1 <> _terms b2)
             (_types b1 <> _types b2)
-            c
-            (error "todo: merge edits")
+            c3
+            e3
             (toNamesSeg b1 <> toNamesSeg b2)
             (deepReferents b1 <> deepReferents b2)
             (deepTypeReferences b1 <> deepTypeReferences b2)
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
+  g :: (EditHash, m Edits) -> (EditHash, m Edits) -> m (EditHash, m Edits)
+  g (h1, m1) (h2, _) | h1 == h2 = pure (h1, m1)
+  g (_, m1) (_, m2) = do
+    e1 <- m1
+    e2 <- m2
+    let e3 = e1 <> e2
+    pure $ (H.accumulate' e3, pure e3)
+
 
 unionWithM :: forall m k a.
   (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
@@ -151,6 +162,13 @@ instance Eq (Branch0 m) where
     && view types a == view types b
     && view children a == view children b
     && (fmap fst . view edits) a == (fmap fst . view edits) b
+
+instance Semigroup Edits where
+  a <> b = Edits (_termEdits a <> _termEdits b) (_typeEdits a <> _typeEdits b)
+
+instance Hashable Edits where
+  tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
+               H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
 
 data ForkFailure = SrcNotFound | DestExists
 
@@ -437,8 +455,8 @@ stepAt0M p f b = case Path.uncons p of
 
 instance Hashable (Branch0 m) where
   tokens b =
-    [ H.accumulateToken . R.toList $ (_terms b)
-    , H.accumulateToken . R.toList $ (_types b)
+    [ H.accumulateToken (_terms b)
+    , H.accumulateToken (_types b)
     , H.accumulateToken (fst <$> _children b)
     ]
 
