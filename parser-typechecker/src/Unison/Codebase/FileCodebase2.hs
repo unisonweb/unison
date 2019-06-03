@@ -6,6 +6,7 @@
 module Unison.Codebase.FileCodebase2 where
 
 import           Control.Monad                  ( forever )
+import           Control.Monad.Extra            ( unlessM )
 import           Control.Monad.Error.Class      ( MonadError
                                                 , throwError
                                                 )
@@ -64,17 +65,19 @@ import           Unison.Var                     ( Var )
 type CodebasePath = FilePath
 data Err
   = InvalidBranchFile FilePath String
+  | InvalidEditsFile FilePath String
   | NoBranchHead FilePath
   | CantParseBranchHead FilePath
   | AmbiguouslyTypeAndTerm Reference.Id
   | UnknownTypeOrTerm Reference
   deriving Show
 
-termsDir, typesDir, branchesDir, branchHeadDir :: CodebasePath -> FilePath
+termsDir, typesDir, branchesDir, branchHeadDir, editsDir :: CodebasePath -> FilePath
 termsDir root = root </> "terms"
 typesDir root = root </> "types"
 branchesDir root = root </> "branches"
 branchHeadDir root = branchesDir root </> "head"
+editsDir root = root </> "edits"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentId r
@@ -141,7 +144,10 @@ typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
 branchPath :: CodebasePath -> Hash.Hash -> FilePath
-branchPath root h = branchesDir root </> Hash.base58s h ++ ".ubf"
+branchPath root h = branchesDir root </> Hash.base58s h ++ ".ub"
+
+editsPath :: CodebasePath -> Hash.Hash -> FilePath
+editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
 
 touchDependentFile :: Reference.Id -> FilePath -> IO ()
 touchDependentFile dependent fp = do
@@ -182,7 +188,8 @@ getRootBranch root = do
   branchFromFiles :: (MonadIO m, MonadError Err m)
                   => FilePath -> Branch.Hash -> m (Branch m)
   branchFromFiles rootDir rootHash =
-    Branch.read (deserializeRawBranch rootDir) rootHash
+    Branch.read (deserializeRawBranch rootDir)
+                (deserializeEdits rootDir) rootHash
 
   deserializeRawBranch
     :: (MonadIO m, MonadError Err m)
@@ -193,11 +200,18 @@ getRootBranch root = do
     liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
       Left err -> throwError $ InvalidBranchFile ubf err
       Right c0 -> pure c0
+  deserializeEdits :: (MonadIO m, MonadError Err m)
+    => CodebasePath -> Branch.EditHash -> m Branch.Edits
+  deserializeEdits root h =
+    let file = editsPath root h in
+    liftIO (S.getFromFile' V1.getEdits file) >>= \case
+      Left err -> throwError $ InvalidEditsFile file err
+      Right edits -> pure edits
 
 putRootBranch
   :: (MonadIO m, MonadError Err m) => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
-  Branch.sync hashExists (serializeRawBranch root) b
+  Branch.sync hashExists (serializeRawBranch root) (serializeEdits root) b
   updateCausalHead (branchHeadDir root) (Branch._history b)
   where
   hashExists :: MonadIO m => Branch.Hash -> m Bool
@@ -209,6 +223,13 @@ putRootBranch root b = do
   serializeRawBranch root (RawHash h) rc = liftIO $
     S.putWithParentDirs
       (V1.putRawCausal V1.putRawBranch) (branchPath root h) rc
+  serializeEdits :: MonadIO m
+    => CodebasePath -> Branch.EditHash -> m Branch.Edits -> m ()
+  serializeEdits root h medits = do
+    edits <- medits
+    unlessM (liftIO $ doesFileExist (editsPath root h)) $
+      liftIO $ S.putWithParentDirs V1.putEdits (editsPath root h) edits
+
 
 -- `headDir` is like ".unison/branches/head", or ".unison/edits/head";
 -- not ".unison"
