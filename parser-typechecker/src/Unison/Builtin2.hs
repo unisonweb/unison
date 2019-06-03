@@ -26,7 +26,7 @@ import qualified Data.Text                     as Text
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
--- import qualified Unison.DataDeclaration        as DD
+import qualified Unison.DataDeclaration        as DD
 -- import qualified Unison.FileParser             as FileParser
 -- import qualified Unison.Lexer                  as L
 import           Unison.Parser                  ( Ann(..) )
@@ -36,11 +36,12 @@ import qualified Unison.Reference              as R
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Term                   as Term
 -- import qualified Unison.TermParser             as TermParser
+import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 -- import qualified Unison.TypeParser             as TypeParser
 -- import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
--- import qualified Unison.Var                    as Var
+import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 -- import           Unison.Names                   ( Names )
@@ -49,7 +50,7 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Util.Relation          as Rel
 
 type Term v = Term.AnnotatedTerm v Ann
-type Type v = Type.AnnotatedType v Ann
+-- type Type v = Type.AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
 
@@ -177,11 +178,11 @@ builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
 
-data BuiltinDSL
+data BuiltinDSL v
   -- simple builtin: name=ref, type
-  = B Text Text
+  = B Text (Type v)
   -- deprecated builtin: name=ref, type (TBD)
-  | D Text Text
+  | D Text (Type v)
   -- rename builtin: refname, newname
   -- must not appear before corresponding B/D
   -- will overwrite newname
@@ -192,7 +193,7 @@ data BuiltinDSL
   | Alias Text Text
 
 termNameRefs :: Map Name R.Reference
-termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty builtinsSrc where
+termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty (builtinsSrc @Symbol) where
   go m = \case
     B r _tp -> Map.insert r (R.Builtin r) m
     D r _tp -> Map.insert r (R.Builtin r) m
@@ -216,93 +217,93 @@ termNameRefs = Map.mapKeys Name.unsafeFromText $ foldl' go mempty builtinsSrc wh
 termRefTypes :: Var v => Map R.Reference (Type v)
 termRefTypes = foldl' go mempty builtinsSrc where
   go m = \case
-    B r t -> Map.insert (R.Builtin r) (parseType (Text.unpack t)) m
-    D r t -> Map.insert (R.Builtin r) (parseType (Text.unpack t)) m
+    B r t -> Map.insert (R.Builtin r) t m
+    D r t -> Map.insert (R.Builtin r) t m
     _ -> m
 
-builtinsSrc :: [BuiltinDSL]
+builtinsSrc :: Var v => [BuiltinDSL v]
 builtinsSrc =
-  [ B "Int.+" "Int -> Int -> Int"
-  , B "Int.-" "Int -> Int -> Int"
-  , B "Int.*" "Int -> Int -> Int"
-  , B "Int./" "Int -> Int -> Int"
-  , B "Int.<" "Int -> Int -> Boolean"
-  , B "Int.>" "Int -> Int -> Boolean"
-  , B "Int.<=" "Int -> Int -> Boolean"
-  , B "Int.>=" "Int -> Int -> Boolean"
-  , B "Int.==" "Int -> Int -> Boolean"
-  , B "Int.increment" "Int -> Int"
-  , B "Int.isEven" "Int -> Boolean"
-  , B "Int.isOdd" "Int -> Boolean"
-  , B "Int.signum" "Int -> Int"
-  , B "Int.negate" "Int -> Int"
-  , B "Int.truncate0" "Int -> Nat"
+  [ B "Int.+" $ int --> int --> int
+  , B "Int.-" $ int --> int --> int
+  , B "Int.*" $ int --> int --> int
+  , B "Int./" $ int --> int --> int
+  , B "Int.<" $ int --> int --> boolean
+  , B "Int.>" $ int --> int --> boolean
+  , B "Int.<=" $ int --> int --> boolean
+  , B "Int.>=" $ int --> int --> boolean
+  , B "Int.==" $ int --> int --> boolean
+  , B "Int.increment" $ int --> int
+  , B "Int.isEven" $ int --> boolean
+  , B "Int.isOdd" $ int --> boolean
+  , B "Int.signum" $ int --> int
+  , B "Int.negate" $ int --> int
+  , B "Int.truncate0" $ int --> nat
 
-  , B "Nat.+" "Nat -> Nat -> Nat"
-  , B "Nat.drop" "Nat -> Nat -> Nat"
-  , B "Nat.sub" "Nat -> Nat -> Int"
-  , B "Nat.*" "Nat -> Nat -> Nat"
-  , B "Nat./" "Nat -> Nat -> Nat"
-  , B "Nat.mod" "Nat -> Nat -> Nat"
-  , B "Nat.<" "Nat -> Nat -> Boolean"
-  , B "Nat.>" "Nat -> Nat -> Boolean"
-  , B "Nat.<=" "Nat -> Nat -> Boolean"
-  , B "Nat.>=" "Nat -> Nat -> Boolean"
-  , B "Nat.==" "Nat -> Nat -> Boolean"
-  , B "Nat.increment" "Nat -> Nat"
-  , B "Nat.isEven" "Nat -> Boolean"
-  , B "Nat.isOdd" "Nat -> Boolean"
+  , B "Nat.+" $ nat --> nat --> nat
+  , B "Nat.drop" $ nat --> nat --> nat
+  , B "Nat.sub" $ nat --> nat --> int
+  , B "Nat.*" $ nat --> nat --> nat
+  , B "Nat./" $ nat --> nat --> nat
+  , B "Nat.mod" $ nat --> nat --> nat
+  , B "Nat.<" $ nat --> nat --> boolean
+  , B "Nat.>" $ nat --> nat --> boolean
+  , B "Nat.<=" $ nat --> nat --> boolean
+  , B "Nat.>=" $ nat --> nat --> boolean
+  , B "Nat.==" $ nat --> nat --> boolean
+  , B "Nat.increment" $ nat --> nat
+  , B "Nat.isEven" $ nat --> boolean
+  , B "Nat.isOdd" $ nat --> boolean
 
-  , B "Float.+" "Float -> Float -> Float"
-  , B "Float.-" "Float -> Float -> Float"
-  , B "Float.*" "Float -> Float -> Float"
-  , B "Float./" "Float -> Float -> Float"
-  , B "Float.<" "Float -> Float -> Boolean"
-  , B "Float.>" "Float -> Float -> Boolean"
-  , B "Float.<=" "Float -> Float -> Boolean"
-  , B "Float.>=" "Float -> Float -> Boolean"
-  , B "Float.==" "Float -> Float -> Boolean"
+  , B "Float.+" $ float --> float --> float
+  , B "Float.-" $ float --> float --> float
+  , B "Float.*" $ float --> float --> float
+  , B "Float./" $ float --> float --> float
+  , B "Float.<" $ float --> float --> boolean
+  , B "Float.>" $ float --> float --> boolean
+  , B "Float.<=" $ float --> float --> boolean
+  , B "Float.>=" $ float --> float --> boolean
+  , B "Float.==" $ float --> float --> boolean
 
   -- Trigonmetric Functions
-  , B "Float.acos" "Float -> Float"
-  , B "Float.asin" "Float -> Float"
-  , B "Float.atan" "Float -> Float"
-  , B "Float.atan2" "Float -> Float -> Float"
-  , B "Float.cos" "Float -> Float"
-  , B "Float.sin" "Float -> Float"
-  , B "Float.tan" "Float -> Float"
+  , B "Float.acos" $ float --> float
+  , B "Float.asin" $ float --> float
+  , B "Float.atan" $ float --> float
+  , B "Float.atan2" $ float --> float --> float
+  , B "Float.cos" $ float --> float
+  , B "Float.sin" $ float --> float
+  , B "Float.tan" $ float --> float
 
   -- Hyperbolic Functions
-  , B "Float.acosh" "Float -> Float"
-  , B "Float.asinh" "Float -> Float"
-  , B "Float.atanh" "Float -> Float"
-  , B "Float.cosh" "Float -> Float"
-  , B "Float.sinh" "Float -> Float"
-  , B "Float.tanh" "Float -> Float"
+  , B "Float.acosh" $ float --> float
+  , B "Float.asinh" $ float --> float
+  , B "Float.atanh" $ float --> float
+  , B "Float.cosh" $ float --> float
+  , B "Float.sinh" $ float --> float
+  , B "Float.tanh" $ float --> float
 
   -- Exponential Functions
-  , B "Float.exp" "Float -> Float"
-  , B "Float.log" "Float -> Float"
-  , B "Float.logBase" "Float -> Float -> Float"
+  , B "Float.exp" $ float --> float
+  , B "Float.log" $ float --> float
+  , B "Float.logBase" $ float --> float --> float
 
   -- Power Functions
-  , B "Float.pow" "Float -> Float -> Float"
-  , B "Float.sqrt" "Float -> Float"
+  , B "Float.pow" $ float --> float --> float
+  , B "Float.sqrt" $ float --> float
 
   -- Rounding and Remainder Functions
-  , B "Float.ceiling" "Float -> Int"
-  , B "Float.floor" "Float -> Int"
-  , B "Float.round" "Float -> Int"
-  , B "Float.truncate" "Float -> Int"
+  , B "Float.ceiling" $ float --> int
+  , B "Float.floor" $ float --> int
+  , B "Float.round" $ float --> int
+  , B "Float.truncate" $ float --> int
 
   -- Float Utils
-  , B "Float.abs" "Float -> Float"
-  , B "Float.max" "Float -> Float -> Float"
-  , B "Float.min" "Float -> Float -> Float"
-  , B "Float.toText" "Float -> Text"
-  , B "Float.fromText" "Text -> Optional Float"
+  , B "Float.abs" $ float --> float
+  , B "Float.max" $ float --> float --> float
+  , B "Float.min" $ float --> float --> float
+  , B "Float.toText" $ float --> text
+  , B "Float.fromText" $ text --> optional float
 
-  , B "Universal.==" "a -> a -> Boolean"
+  , B "Universal.==" $ forall1 "a" (\a -> a --> a --> boolean)
   -- Don't we want a Universal.!= ?
 
   -- Universal.compare intended as a low level function that just returns
@@ -311,46 +312,88 @@ builtinsSrc =
   -- returns a proper data type.
   --
   -- 0 is equal, < 0 is less than, > 0 is greater than
-  , B "Universal.compare" "a -> a -> Int"
-  , B "Universal.>" "a -> a -> Boolean"
-  , B "Universal.<" "a -> a -> Boolean"
-  , B "Universal.>=" "a -> a -> Boolean"
-  , B "Universal.<=" "a -> a -> Boolean"
+  , B "Universal.compare" $ forall1 "a" (\a -> a --> a --> int)
+  , B "Universal.>" $ forall1 "a" (\a -> a --> a --> boolean)
+  , B "Universal.<" $ forall1 "a" (\a -> a --> a --> boolean)
+  , B "Universal.>=" $ forall1 "a" (\a -> a --> a --> boolean)
+  , B "Universal.<=" $ forall1 "a" (\a -> a --> a --> boolean)
 
-  , B "Boolean.not" "Boolean -> Boolean"
+  , B "Boolean.not" $ boolean --> boolean
 
-  , B "Text.empty" "Text"
-  , B "Text.++" "Text -> Text -> Text"
-  , B "Text.take" "Nat -> Text -> Text"
-  , B "Text.drop" "Nat -> Text -> Text"
-  , B "Text.size" "Text -> Nat"
-  , B "Text.==" "Text -> Text -> Boolean"
-  , B "Text.!=" "Text -> Text -> Boolean"
-  , B "Text.<=" "Text -> Text -> Boolean"
-  , B "Text.>=" "Text -> Text -> Boolean"
-  , B "Text.<" "Text -> Text -> Boolean"
-  , B "Text.>" "Text -> Text -> Boolean"
+  , B "Text.empty" $ text
+  , B "Text.++" $ text --> text --> text
+  , B "Text.take" $ nat --> text --> text
+  , B "Text.drop" $ nat --> text --> text
+  , B "Text.size" $ text --> nat
+  , B "Text.==" $ text --> text --> boolean
+  , B "Text.!=" $ text --> text --> boolean
+  , B "Text.<=" $ text --> text --> boolean
+  , B "Text.>=" $ text --> text --> boolean
+  , B "Text.<" $ text --> text --> boolean
+  , B "Text.>" $ text --> text --> boolean
 
-  , B "Bytes.empty" "Bytes"
-  , B "Bytes.fromSequence" "[Nat] -> Bytes"
-  , B "Bytes.++" "Bytes -> Bytes -> Bytes"
-  , B "Bytes.take" "Nat -> Bytes -> Bytes"
-  , B "Bytes.drop" "Nat -> Bytes -> Bytes"
-  , B "Bytes.at" "Nat -> Bytes -> Optional Nat"
-  , B "Bytes.toSequence" "Bytes -> [Nat]"
-  , B "Bytes.size" "Bytes -> Nat"
-  , B "Bytes.flatten" "Bytes -> Bytes"
+  , B "Bytes.empty" $ bytes
+  , B "Bytes.fromSequence" $ sequence nat --> bytes
+  , B "Bytes.++" $ bytes --> bytes --> bytes
+  , B "Bytes.take" $ nat --> bytes --> bytes
+  , B "Bytes.drop" $ nat --> bytes --> bytes
+  , B "Bytes.at" $ nat --> bytes --> optional nat
+  , B "Bytes.toSequence" $ bytes --> sequence nat
+  , B "Bytes.size" $ bytes --> nat
+  , B "Bytes.flatten" $ bytes --> bytes
 
-  , B "Sequence.empty" "[a]"
-  , B "Sequence.cons" "a -> [a] -> [a]"
-  , B "Sequence.snoc" "[a] -> a -> [a]"
-  , B "Sequence.take" "Nat -> [a] -> [a]"
-  , B "Sequence.drop" "Nat -> [a] -> [a]"
-  , B "Sequence.++" "[a] -> [a] -> [a]"
-  , B "Sequence.size" "[a] -> Nat"
-  , B "Sequence.at" "Nat -> [a] -> Optional a"
+  , B "Sequence.empty" $ forall1 "a" (\a -> sequence a)
+  , B "Sequence.cons" $ forall1 "a" (\a -> a --> sequence a --> sequence a)
+  , B "Sequence.snoc" $ forall1 "a" (\a -> sequence a --> a --> sequence a)
+  , B "Sequence.take" $ forall1 "a" (\a -> nat --> sequence a --> sequence a)
+  , B "Sequence.drop" $ forall1 "a" (\a -> nat --> sequence a --> sequence a)
+  , B "Sequence.++" $ forall1 "a" (\a -> sequence a --> sequence a --> sequence a)
+  , B "Sequence.size" $ forall1 "a" (\a -> sequence a --> nat)
+  , B "Sequence.at" $ forall1 "a" (\a -> nat --> sequence a --> optional a)
 
-  , B "Debug.watch" "Text -> a -> a"
-  , B "Effect.pure" "a -> Effect e a" -- Effect ambient e a
-  , B "Effect.bind" "'{e} a -> (a ->{ambient} b) -> Effect e a" -- Effect ambient e a
+  , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  , B "Effect.pure" $ forall2 "e" "a" (\e a -> a --> effect e a) -- Effect ambient e a
+  , B "Effect.bind" $ forall4 "e" "a" "ambient" "b" (\e a ambient b -> delayed (effectful e a) --> (a --> effectful ambient b) --> effect e a) -- Effect ambient e a
   ]
+  where
+    int = Type.int ()
+    nat = Type.nat ()
+    boolean = Type.boolean ()
+    float = Type.float ()
+    text = Type.text ()
+    bytes = Type.bytes ()
+
+    (-->) :: Ord v => Type v -> Type v -> Type v
+    a --> b = Type.arrow () a b
+
+    infixr -->
+
+    forall1 :: Var v => Text -> (Type v -> Type v) -> Type v
+    forall1 name body =
+      let
+        a = Var.named name
+      in Type.forall () a (body $ Type.var () a)
+
+    forall2 :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
+    forall2 name1 name2 body = forall1 name1 (\tv1 -> forall1 name2 (\tv2 -> body tv1 tv2))
+
+    forall4 :: Var v => Text -> Text -> Text -> Text -> (Type v -> Type v -> Type v -> Type v -> Type v) -> Type v
+    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (\tv3 tv4 -> body tv1 tv2 tv3 tv4))
+
+    app :: Ord v => Type v -> Type v -> Type v
+    app f a = Type.app () f a
+
+    sequence :: Ord v => Type v -> Type v
+    sequence arg = Type.vector () `app` arg
+
+    optional :: Ord v => Type v -> Type v
+    optional arg = DD.optionalType () `app` arg
+
+    effect :: Ord v => Type v -> Type v -> Type v
+    effect e a = Type.effectType () `app` e `app` a
+
+    effectful :: Ord v => Type v -> Type v -> Type v
+    effectful e a = Type.effect1 () e a
+
+    delayed :: Ord v => Type v -> Type v
+    delayed a = DD.unitType () --> a
