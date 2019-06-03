@@ -8,6 +8,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Typechecker.Context
   ( synthesizeClosed
@@ -481,6 +482,7 @@ wellformedType c t = wellformed c && case t of
   Type.App' x y -> wellformedType c x && wellformedType c y
   Type.Effect1' e a -> wellformedType c e && wellformedType c a
   Type.Effects' es -> all (wellformedType c) es
+  Type.IntroOuterNamed' _ t -> wellformedType c t
   Type.Forall' t' ->
     let (v,ctx2) = extendUniversal c
     in wellformedType ctx2 (ABT.bind t' (Type.universal' (ABT.annotation t) v))
@@ -650,6 +652,7 @@ apply ctx t = case t of
   Type.Effect1' e t -> Type.effect1 a (apply ctx e) (apply ctx t)
   Type.Effects' es -> Type.effects a (map (apply ctx) es)
   Type.ForallNamed' v t' -> Type.forall a v (apply ctx t')
+  Type.IntroOuterNamed' v t' -> Type.introOuter a v (apply ctx t')
   _ -> error $ "Match error in Context.apply: " ++ show t
   where a = ABT.annotation t
 
@@ -680,7 +683,7 @@ synthesizeApps ft args =
 -- e.g. in `(f:t) x` -- finds the type of (f x) given t and x.
 synthesizeApp :: (Var v, Ord loc) => Type v loc -> (Term v loc, Int) -> M v loc (Type v loc)
 synthesizeApp ft arg | debugEnabled && traceShow ("synthesizeApp"::String, ft, arg) False = undefined
-synthesizeApp (Type.Effect'' es ft) argp@(arg, argNum) =
+synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ abilityCheck es >> go ft
   where
   go (Type.Forall' body) = do -- Forall1App
@@ -1212,7 +1215,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
         then case t of
              -- expand existentials before checking
           t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
-          t                         -> go e t
+          t                         -> go e (Type.stripIntroOuters t)
         else failWith $ IllFormedType ctx
  where
   go :: Term v loc -> Type v loc -> M v loc ()
@@ -1272,8 +1275,9 @@ check e0 t0 = scope (InCheck e0 t0) $ do
 -- This may have the effect of altering the context.
 subtype :: forall v loc . (Var v, Ord loc) => Type v loc -> Type v loc -> M v loc ()
 subtype tx ty | debugEnabled && traceShow ("subtype"::String, tx, ty) False = undefined
-subtype tx ty = scope (InSubtype tx ty) $
-  do ctx <- getContext; go (ctx :: Context v loc) tx ty
+subtype tx ty = scope (InSubtype tx ty) $ do
+  ctx <- getContext
+  go (ctx :: Context v loc) (Type.stripIntroOuters tx) (Type.stripIntroOuters ty)
   where -- Rules from figure 9
   go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
   go _ (Type.Ref' r) (Type.Ref' r2) | r == r2 = pure () -- `Unit`
@@ -1336,7 +1340,7 @@ subtype tx ty = scope (InSubtype tx ty) $
 -- in the process.
 instantiateL :: (Var v, Ord loc) => B.Blank loc -> v -> Type v loc -> M v loc ()
 instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) False = undefined
-instantiateL blank v t = scope (InInstantiateL v t) $ do
+instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $ do
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
     Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
@@ -1396,7 +1400,7 @@ nameFrom ifNotVar _ = ifNotVar
 -- in the process.
 instantiateR :: (Var v, Ord loc) => Type v loc -> B.Blank loc -> v -> M v loc ()
 instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) False = undefined
-instantiateR t blank v = scope (InInstantiateR t v) $
+instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
     Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx

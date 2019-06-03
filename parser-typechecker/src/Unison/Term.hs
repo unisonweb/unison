@@ -209,10 +209,12 @@ substTypeVar vt ty tm = go Set.empty tm where
   go bound tm | Set.member vt bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
-    Ann' e t1@(Type.ForallsNamed' vs _) ->
-      let bound' = bound <> Set.fromList vs
-      in ann loc (go bound' e) (ABT.substInheritAnnotation vt ty t1)
-    Ann' e t -> ann loc (go bound e) (ABT.substInheritAnnotation vt ty t)
+    Ann' e t -> let
+      bound' = case Type.unForalls (Type.stripIntroOuters t) of
+        Nothing -> bound
+        Just (vs, _) -> bound <> Set.fromList vs
+      t' = ABT.substInheritAnnotation vt ty (Type.stripIntroOuters t)
+      in ann loc (go bound' e) (Type.freeVarsToOuters bound t')
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
     (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
@@ -222,25 +224,15 @@ generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> Annotate
 generalizeTypeSignatures tm = go Set.empty tm where
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
-    Ann' e t1@(Type.ForallsNamed' vs _) ->
-      let bound' = bound <> Set.fromList vs
-      in ann loc (go bound' e) (Type.generalizeLowercase bound t1)
+    Ann' e t -> let
+      bound' = case Type.unForalls t of
+        Nothing -> bound
+        Just (vs, _) -> bound <> Set.fromList vs
+      in ann loc (go bound' e) (Type.freeVarsToOuters bound $ Type.generalizeLowercase bound t)
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
     (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
     _ -> error "unpossible"
-
-unForallAnn
-  :: (Ord v, Var vt)
-  => AnnotatedTerm' vt v a
-  -> Maybe (vt, AnnotatedType vt b -> (AnnotatedTerm' vt v a, AnnotatedType vt a))
-unForallAnn tm = case tm of
-  Ann' e (Type.Forall' t) -> Just (tv, sub) where
-    sub ty = (substTypeVar tv ty e, ABT.bindInheritAnnotation t ty)
-    tv = ABT.variable t
-  _ -> Nothing
-
-pattern AnnForall' vt f <- (unForallAnn -> Just (vt, f))
 
 -- nicer pattern syntax
 

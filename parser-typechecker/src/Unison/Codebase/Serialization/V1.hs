@@ -368,6 +368,7 @@ putType putVar putA typ = putABT putVar putA go typ where
     Type.Effect e t  -> putWord8 4 *> putChild e *> putChild t
     Type.Effects es  -> putWord8 5 *> putFoldable putChild es
     Type.Forall body -> putWord8 6 *> putChild body
+    Type.IntroOuter body -> putWord8 7 *> putChild body
 
 getType :: (MonadGet m, Ord v)
         => m v -> m a -> m (Type.AnnotatedType v a)
@@ -380,6 +381,7 @@ getType getVar getA = getABT getVar getA go where
     4 -> Type.Effect <$> getChild <*> getChild
     5 -> Type.Effects <$> getList getChild
     6 -> Type.Forall <$> getChild
+    7 -> Type.IntroOuter <$> getChild
     _ -> unknownTag "getType" tag
 
 putSymbol :: MonadPut m => Symbol -> m ()
