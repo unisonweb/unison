@@ -11,6 +11,7 @@ import           Control.Lens            hiding ( children, cons, transform )
 import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
+import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 
@@ -38,15 +39,25 @@ updateTerm typing r edit p =
         TermEdit.Deprecate -> id
         TermEdit.Replace r' _ -> R.delete r' (TermEdit.Replace r' Same)
       edits' :: Relation Reference TermEdit
-      edits' = deleteCycle
-             . R.insert r edit
-             . R.map f
-             $ _termEdits p
+      edits' = deleteCycle . R.insert r edit . R.map f $ _termEdits p
       f (x, TermEdit.Replace y _) | y == r = case edit of
         TermEdit.Replace r' _ -> (x, TermEdit.Replace r' (typing x r'))
         TermEdit.Deprecate -> (x, TermEdit.Deprecate)
       f p = p
   in p { _termEdits = edits' }
+
+updateType :: Reference -> TypeEdit -> Patch -> Patch
+updateType r edit p =
+  let deleteCycle = case edit of
+        TypeEdit.Deprecate -> id
+        TypeEdit.Replace r' -> R.delete r' (TypeEdit.Replace r')
+      edits' :: Relation Reference TypeEdit
+      edits' = deleteCycle . R.insert r edit . R.map f $ _typeEdits p
+      f (x, TypeEdit.Replace y) | y == r = case edit of
+        TypeEdit.Replace r' -> (x, TypeEdit.Replace r')
+        TypeEdit.Deprecate -> (x, TypeEdit.Deprecate)
+      f p = p
+  in p { _typeEdits = edits' }
 
 
 -- todo: replace with monoid for patch diff for 3-way merge
