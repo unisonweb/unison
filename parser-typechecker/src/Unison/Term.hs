@@ -224,11 +224,11 @@ generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> Annotate
 generalizeTypeSignatures tm = go Set.empty tm where
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
-    Ann' e t -> let
+    Ann' e (Type.generalizeLowercase bound -> t) -> let
       bound' = case Type.unForalls t of
         Nothing -> bound
         Just (vs, _) -> bound <> Set.fromList vs
-      in ann loc (go bound' e) (Type.freeVarsToOuters bound $ Type.generalizeLowercase bound t)
+      in ann loc (go bound' e) (Type.freeVarsToOuters bound t)
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
     (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
