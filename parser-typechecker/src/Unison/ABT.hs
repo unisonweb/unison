@@ -12,7 +12,6 @@ module Unison.ABT where
 
 import Control.Applicative
 import Control.Monad
-import Data.Bifunctor (second)
 import Data.Word (Word64)
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
@@ -369,7 +368,8 @@ rebuildUp' f (Term _ ann body) = case body of
   Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
 
 freeVarOccurrences :: (Traversable f, Ord v) => Set v -> Term f v a -> [(v, a)]
-freeVarOccurrences except t = go $ second (`Set.difference` except) <$> annotateBound t
+freeVarOccurrences except t =
+  [ (v, a) | (v,a) <- go $ annotateBound t, not (Set.member v except) ]
   where
   go e = case out e of
     Var v -> if Set.member v (snd $ annotation e)
