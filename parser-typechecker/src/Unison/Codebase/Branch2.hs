@@ -393,8 +393,10 @@ getChildBranch seg b = maybe empty snd $ Map.lookup seg (_children b)
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
 
-setEdits :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
-setEdits seg p = over edits (Map.insert seg (H.accumulate' p, pure p))
+getPatch :: Applicative m => NameSegment -> Branch0 m -> m Patch
+getPatch seg b = case Map.lookup seg (_edits b) of
+  Nothing -> pure Patch.empty
+  Just (_, p) -> p
 
 modifyEdits :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
 modifyEdits seg f = mapMOf edits update where

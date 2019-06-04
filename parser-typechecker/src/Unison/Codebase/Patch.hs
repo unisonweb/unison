@@ -8,6 +8,9 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform )
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
+import           Data.Foldable                  ( foldl' )
 import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -34,6 +37,18 @@ empty = Patch mempty mempty
 
 isEmpty :: Patch -> Bool
 isEmpty p = p == empty
+
+-- we need:
+-- all of the references from the `new` edits,
+-- plus all of the references for things we're replacing
+collectForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
+collectForTyping new old = foldl' f mempty (new ++ fromOld) where
+  f acc (r, r') = Set.union (Set.fromList [r, r']) acc
+  newLHS = Set.fromList . fmap fst $ new
+  fromOld :: [(Reference, Reference)]
+  fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . _termEdits $ old
+                     , Set.member r' newLHS ]
+
 
 updateTerm :: (Reference -> Reference -> Typing)
            -> Reference -> TermEdit -> Patch -> Patch

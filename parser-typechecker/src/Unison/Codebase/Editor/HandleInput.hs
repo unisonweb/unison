@@ -100,6 +100,8 @@ import qualified Unison.Var                    as Var
 import Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit)
+import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Typechecker as Typechecker
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -480,37 +482,48 @@ loop = do
               fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: [(Reference, TypeEdit)]
-              typeEdits = map blah (toList $ SC.types (updates result)) where
-                blah v = case (toList (Names.typesNamed names0 n)
+              typeEdits = map f (toList $ SC.types (updates result)) where
+                f v = case (toList (Names.typesNamed names0 n)
                               ,toList (Names.typesNamed fileNames0 n)) of
                   ([old],[new]) -> (old, TypeEdit.Replace new)
                   otherwise -> error $ "Expected unique matches for "
                                     ++ Var.nameStr v ++ " but got: "
                                     ++ show otherwise
                   where n = Name.fromVar v
-          (termEdits :: [(Reference, TermEdit)]) <-
-            for (toList $ SC.terms (updates result)) $ \v -> do
-              undefined
-          typing <- undefined
-          let updatePatch :: Patch -> Patch
-              updatePatch p =
-                foldl' (\p (r,e) -> Patch.updateType r e p)
-                  (foldl' (\p (r,e) -> Patch.updateTerm typing r e p) p termEdits)
-                    typeEdits
-              updateEdits :: Branch0 m -> Branch0 m
-              updateEdits = undefined -- Branch.setEdits
-                -- for each term in `updates`, get the before/after references
-                -- and the before/after types, and construct a TermEdit
-                --
-                -- similar for each type in `updates`
+          termEdits <- for (toList $ SC.terms (updates result)) $ \v ->
+            case ( toList (Names.refTermsNamed names0 (Name.fromVar v))
+                 , toList (Names.refTermsNamed fileNames0 (Name.fromVar v))) of
+              ([old],[new]) -> pure (old, new)
+              otherwise -> error $ "Expected unique matches for "
+                                ++ Var.nameStr v ++ " but got: "
+                                ++ show otherwise
+          ye'ol'Patch <- do
+            b <- getAt p
+            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          let neededTypes = Patch.collectForTyping termEdits ye'ol'Patch
+          allTypes <- fmap Map.fromList . for (toList neededTypes) $ \r ->
+            (r,) <$> (eval . LoadTypeOfTerm) r
 
+          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 allTypes) of
+                (Just (Just t1), Just (Just t2)) ->
+                  if Typechecker.isEqual t1 t2 then TermEdit.Same
+                  else if Typechecker.isSubtype t1 t2 then TermEdit.Subtype
+                  else TermEdit.Different
+                _ -> error "compiler bug: typing map not constructed properly"
+          let updatePatch :: Patch -> Patch
+              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
+                where
+                step1 p (r,e) = Patch.updateType r e p
+                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r (typing r r')) p
+              updateEdits :: Branch0 m -> m (Branch0 m)
+              updateEdits = Branch.modifyEdits seg updatePatch
 
           when (Slurp.isNonempty result) $ do
           -- take a look at the `updates` from the SlurpResult
           -- and make a patch diff to record a replacement from the old to new references
-            stepManyAt
+            stepManyAtM
               [( Path.unabsolute currentPath'
-               , doSlurpAdds (Slurp.adds result) uf)
+               , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           respond $ SlurpOutput input result

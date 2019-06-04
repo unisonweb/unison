@@ -93,6 +93,10 @@ patternName names r cid = termName names (Con r cid)
 termsNamed :: Ord n => Names' n -> n -> Set Referent
 termsNamed = flip R.lookupDom . terms
 
+refTermsNamed :: Ord n => Names' n -> n -> Set Reference
+refTermsNamed names n =
+  Set.fromList [ r | Referent.Ref r <- toList $ termsNamed names n ]
+
 typesNamed :: Ord n => Names' n -> n -> Set Reference
 typesNamed = flip R.lookupDom . types
 
