@@ -389,6 +389,7 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     RetrieveHashes Github{..} _types _terms -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
+    LoadTypeOfTerm r -> CC.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase _unisonFile -> error "todo"

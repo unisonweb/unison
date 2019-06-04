@@ -41,6 +41,7 @@ import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
+                                                , foldl'
                                                 )
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
@@ -61,6 +62,8 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import           Unison.Codebase.Patch          ( Patch )
+import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
@@ -475,6 +478,7 @@ loop = do
           let names0 = Branch.toNames0 . Branch.head $ currentBranch'
               result = applySelection hqs uf . toSlurpResult uf $ names0
               fileNames0 = UF.typecheckedToNames0 uf
+              -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: [(Reference, TypeEdit)]
               typeEdits = map blah (toList $ SC.types (updates result)) where
                 blah v = case (toList (Names.typesNamed names0 n)
@@ -484,12 +488,17 @@ loop = do
                                     ++ Var.nameStr v ++ " but got: "
                                     ++ show otherwise
                   where n = Name.fromVar v
-          (termUpdates :: [(Reference, TermEdit)]) <-
+          (termEdits :: [(Reference, TermEdit)]) <-
             for (toList $ SC.terms (updates result)) $ \v -> do
               undefined
-          let
+          typing <- undefined
+          let updatePatch :: Patch -> Patch
+              updatePatch p =
+                foldl' (\p (r,e) -> Patch.updateType r e p)
+                  (foldl' (\p (r,e) -> Patch.updateTerm typing r e p) p termEdits)
+                    typeEdits
               updateEdits :: Branch0 m -> Branch0 m
-              updateEdits = undefined
+              updateEdits = undefined -- Branch.setEdits
                 -- for each term in `updates`, get the before/after references
                 -- and the before/after types, and construct a TermEdit
                 --
@@ -870,6 +879,15 @@ stepManyAt :: (Applicative m, Foldable f)
 stepManyAt actions = do
     b <- use root
     let b' = Branch.stepManyAt actions b
+    root .= b'
+    when (b /= b') $ eval $ SyncLocalRootBranch b'
+
+stepManyAtM :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> m (Branch0 m))
+           -> Action m i v ()
+stepManyAtM actions = do
+    b <- use root
+    b' <- eval . Eval $ Branch.stepManyAtM actions b
     root .= b'
     when (b /= b') $ eval $ SyncLocalRootBranch b'
 

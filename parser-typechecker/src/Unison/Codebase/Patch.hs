@@ -29,6 +29,12 @@ data Patch = Patch
 
 makeLenses ''Patch
 
+empty :: Patch
+empty = Patch mempty mempty
+
+isEmpty :: Patch -> Bool
+isEmpty p = p == empty
+
 updateTerm :: (Reference -> Reference -> Typing)
            -> Reference -> TermEdit -> Patch -> Patch
 updateTerm typing r edit p =
