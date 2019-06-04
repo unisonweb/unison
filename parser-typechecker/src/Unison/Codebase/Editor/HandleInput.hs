@@ -453,28 +453,36 @@ loop = do
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
-        Just uf ->
+        Just uf -> do
           let result = Slurp.disallowUpdates
                      . applySelection hqs uf
                      . toSlurpResult uf
                      . Branch.toNames0
                      . Branch.head
                      $ currentBranch'
-          in do
-            when (Slurp.isNonempty result) $ do
-              stepAt ( Path.unabsolute currentPath'
-                     , doSlurpAdds (Slurp.adds result) uf)
-              eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-            respond $ SlurpOutput input result
+          when (Slurp.isNonempty result) $ do
+            stepAt ( Path.unabsolute currentPath'
+                   , doSlurpAdds (Slurp.adds result) uf)
+            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+          respond $ SlurpOutput input result
 
-      UpdateI _edits _hqs -> case uf of
+      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
         Nothing -> respond NoUnisonFile
-        Just uf -> error "todo"
-        -- take a look at the `updates` and make a patch diff to
-        -- record a replacement from the old to new references
-        -- then apply the namespaces changes like before;
-        --  probably a stepManyAt where one step to updates the namespace like before
-        --  and another step updates the specified patch
+        Just uf -> do
+          let names0 = Branch.toNames0 . Branch.head $ currentBranch'
+              result = applySelection hqs uf . toSlurpResult uf $ names0
+              fileNames0 = UF.typecheckedToNames0 uf
+              updateEdits :: Branch0 m -> Branch0 m
+              updateEdits = error "todo"
+          when (Slurp.isNonempty result) $ do
+          -- take a look at the `updates` from the SlurpResult
+          -- and make a patch diff to record a replacement from the old to new references
+            stepManyAt
+              [( Path.unabsolute currentPath'
+               , doSlurpAdds (Slurp.adds result) uf)
+              ,( Path.unabsolute p, updateEdits )]
+            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+          respond $ SlurpOutput input result
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'

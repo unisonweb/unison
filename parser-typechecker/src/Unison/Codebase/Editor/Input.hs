@@ -72,7 +72,7 @@ data Input
   | ExecuteI String
   -- other
   | AddI [HashQualified]
-  | UpdateI Edits [HashQualified]
+  | UpdateI Path.Split' [HashQualified]
   | UndoRootI
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]

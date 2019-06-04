@@ -603,10 +603,11 @@ getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
-putRawBranch (Branch.Raw terms types children) =
+putRawBranch (Branch.Raw terms types children edits) =
   putRelation putNameSegment putReferent terms >>
   putRelation putNameSegment putReference types >>
-  putMap putNameSegment (putHash . unRawHash) children
+  putMap putNameSegment (putHash . unRawHash) children >>
+  putMap putNameSegment putHash edits
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
@@ -614,6 +615,7 @@ getRawBranch =
     <$> getRelation getNameSegment getReferent
     <*> getRelation getNameSegment getReference
     <*> getMap getNameSegment (RawHash <$> getHash)
+    <*> getMap getNameSegment getHash
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
@@ -663,3 +665,12 @@ getEither getL getR = getWord8 >>= \case
 
 formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
+
+putEdits :: MonadPut m => Branch.Edits -> m ()
+putEdits edits =
+  putRelation putReference putTermEdit (Branch._termEdits edits) >>
+  putRelation putReference putTypeEdit (Branch._typeEdits edits)
+
+getEdits :: MonadGet m => m Branch.Edits
+getEdits = Branch.Edits <$> getRelation getReference getTermEdit
+                        <*> getRelation getReference getTypeEdit

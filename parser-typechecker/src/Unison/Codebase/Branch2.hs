@@ -33,7 +33,8 @@ import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import           Data.Tuple                     (swap)
 --import qualified Data.Text                     as Text
-import           Data.Foldable                  ( for_ )
+import           Data.Foldable                  ( for_, toList )
+import           Data.Traversable               ( for )
 import qualified Unison.Codebase.Causal2       as Causal
 import           Unison.Codebase.Causal2        ( Causal
                                                 , pattern RawOne
@@ -48,7 +49,7 @@ import           Unison.Codebase.Path           ( NameSegment
                                                 , Path(Path)
                                                 )
 import qualified Unison.Codebase.Path          as Path
---import           Unison.Hash                    ( Hash )
+import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import qualified Unison.HashQualified          as HQ
@@ -88,18 +89,30 @@ headHash (Branch c) = Causal.currentHash c
 merge :: Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
 
+-- todo: use 3-way merge for terms, types, and edits
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
-merge0 b1 b2 = unionWithM f (_children b1) (_children b2)
-  <&> \c ->
+merge0 b1 b2 = do
+  c3 <- unionWithM f (_children b1) (_children b2)
+  e3 <- unionWithM g (_edits b1) (_edits b2)
+  pure $
     Branch0 (_terms b1 <> _terms b2)
             (_types b1 <> _types b2)
-            c
+            c3
+            e3
             (toNamesSeg b1 <> toNamesSeg b2)
             (deepReferents b1 <> deepReferents b2)
             (deepTypeReferences b1 <> deepTypeReferences b2)
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
+  g :: (EditHash, m Edits) -> (EditHash, m Edits) -> m (EditHash, m Edits)
+  g (h1, m1) (h2, _) | h1 == h2 = pure (h1, m1)
+  g (_, m1) (_, m2) = do
+    e1 <- m1
+    e2 <- m2
+    let e3 = e1 <> e2
+    pure $ (H.accumulate' e3, pure e3)
+
 
 unionWithM :: forall m k a.
   (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
@@ -110,16 +123,13 @@ unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
     Nothing -> pure $ Map.insert k a2 m1
 
 type Hash = Causal.RawHash Raw
+type EditHash = Hash.Hash
 
 data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
---  , _edits :: Relation NameSegment Edits
-  -- Q: How will we handle merges and conflicts for `children`?
-  --    Should this be a relation?
-  --    What is the UX to resolve conflicts?
-  -- The hash we use to identify branches is the hash of their Causal node.
-  , _children :: Map NameSegment (Hash, Branch m)
+  , _children :: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
+  , _edits :: Map NameSegment (EditHash, m Edits)
   , toNamesSeg :: Names.NamesSeg
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
@@ -133,13 +143,14 @@ data Raw = Raw
   { _termsR :: Relation NameSegment Referent
   , _typesR :: Relation NameSegment Reference
   , _childrenR :: Map NameSegment Hash
+  , _editsR :: Map NameSegment EditHash
   }
 
 -- todo: move Edits to its own module?
 data Edits = Edits
   { _termEdits :: Relation Reference TermEdit
   , _typeEdits :: Relation Reference TypeEdit
-  }
+  } deriving (Eq, Ord)
 
 makeLenses ''Raw
 makeLenses ''Branch0
@@ -150,6 +161,14 @@ instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
     && view types a == view types b
     && view children a == view children b
+    && (fmap fst . view edits) a == (fmap fst . view edits) b
+
+instance Semigroup Edits where
+  a <> b = Edits (_termEdits a <> _termEdits b) (_typeEdits a <> _typeEdits b)
+
+instance Hashable Edits where
+  tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
+               H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
 
 data ForkFailure = SrcNotFound | DestExists
 
@@ -207,9 +226,10 @@ read
   :: forall m
    . Monad m
   => Causal.Deserialize m Raw Raw
+  -> (EditHash -> m Edits)
   -> Hash
   -> m (Branch m)
-read deserializeRaw h = Branch <$> Causal.read d h
+read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
  where
   fromRaw :: Raw -> m (Branch0 m)
   fromRaw Raw {..} = do
@@ -218,13 +238,12 @@ read deserializeRaw h = Branch <$> Causal.read d h
         childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
         deepReferents' = foldMap deepReferents childrenBranch0
         deepTypeReferences' = foldMap deepTypeReferences childrenBranch0
-
-    -- Branch0 _termsR _typesR <$> (
-    pure $ Branch0 _termsR _typesR children
+    edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
+    pure $ Branch0 _termsR _typesR children edits
                     namesSeg
                     deepReferents'
                     deepTypeReferences'
-  go h = (h, ) <$> read deserializeRaw h
+  go h = (h, ) <$> read deserializeRaw deserializeEdits h
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
@@ -244,14 +263,16 @@ read deserializeRaw h = Branch <$> Causal.read d h
 sync :: forall m. Monad m
      => (Hash -> m Bool)
      -> Causal.Serialize m Raw Raw
+     -> (EditHash -> m Edits -> m ())
      -> Branch m
      -> m ()
-sync exists serializeRaw b = do
-  for_ (view children (head b)) (sync exists serializeRaw . snd)
+sync exists serializeRaw serializeEdits b = do
+  for_ (view children (head b)) (sync exists serializeRaw serializeEdits . snd)
+  for_ (view edits (head b)) (uncurry serializeEdits)
   Causal.sync exists serialize0 (view history b)
   where
   toRaw :: Branch0 m -> Raw
-  toRaw Branch0{..} = Raw _terms _types (fst <$> _children)
+  toRaw Branch0{..} = Raw _terms _types (fst <$> _children) (fst <$> _edits)
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
   serialize0 h = \case
     RawOne b0 -> serializeRaw h $ RawOne (toRaw b0)
@@ -307,18 +328,6 @@ setAt path b = modifyAt path (const b)
 deleteAt :: Applicative m => Path -> Branch m -> Branch m
 deleteAt path = setAt path empty
 
-transform :: Functor m => (forall a . m a -> n a) -> Branch m -> Branch n
-transform f b = case _history b of
-  causal -> Branch . Causal.transform f $ transformB0s f causal
-  where
-  transformB0 :: Functor m => (forall a . m a -> n a) -> Branch0 m -> Branch0 n
-  transformB0 f = over (children.mapped._2) (transform f)
-
-  transformB0s :: Functor m => (forall a . m a -> n a)
-               -> Causal m Raw (Branch0 m)
-               -> Causal m Raw (Branch0 n)
-  transformB0s f = Causal.unsafeMapHashPreserving (transformB0 f)
-
 -- returns `Nothing` if no Branch at `path`
 getAt :: Path
       -> Branch m
@@ -343,7 +352,7 @@ empty :: Branch m
 empty = Branch $ Causal.one empty0
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty :: Branch0 m -> Bool
 isEmpty = (== empty0)
@@ -446,8 +455,8 @@ stepAt0M p f b = case Path.uncons p of
 
 instance Hashable (Branch0 m) where
   tokens b =
-    [ H.accumulateToken . R.toList $ (_terms b)
-    , H.accumulateToken . R.toList $ (_types b)
+    [ H.accumulateToken (_terms b)
+    , H.accumulateToken (_types b)
     , H.accumulateToken (fst <$> _children b)
     ]
 

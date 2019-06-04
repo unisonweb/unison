@@ -813,9 +813,6 @@ deprecateType old (Branch b) = Branch $ Causal.step go b
       . over (oldNamespaceL . types) (R.union $ typeNamespace b R.|> [old])
       $ b
 
-instance (Hashable a, Hashable b) => Hashable (Relation a b) where
-  tokens r = H.tokens (R.toList r)
-
 instance Hashable Branch0 where
   tokens b =
     H.tokens (termNamespace b) ++ H.tokens (typeNamespace b) ++
