@@ -1200,6 +1200,10 @@ generalizeExistentials ctx t =
                            t)
       else t -- don't bother introducing a forall if type variable is unused
 
+-- This checks `e` against the type `t`, but if `t` is a `∀`, any ∀-quantified
+-- variables are freshened and substituted into `e`. This should be called whenever
+-- a term is being checked against a type due to a user-provided signature on `e`.
+-- See its usage in `synthesize` and `annotateLetRecBindings`.
 checkScoped :: forall v loc . (Var v, Ord loc) => Term v loc -> Type v loc -> M v loc ()
 checkScoped e t = case t of
   Type.Forall' body -> do -- ForallI

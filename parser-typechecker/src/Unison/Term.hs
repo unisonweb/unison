@@ -204,6 +204,10 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
     (ABT.out -> ABT.Cycle body) -> go bound body
     _ -> error "unpossible"
 
+-- Substitution of a type variable inside a term. This
+-- will replace that type variable wherever it appears in type signatures of
+-- the term.
+-- TODO: question, is this sufficiently capture-avoiding?
 substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 substTypeVar vt ty tm = go Set.empty tm where
   go bound tm | Set.member vt bound = tm
@@ -220,6 +224,28 @@ substTypeVar vt ty tm = go Set.empty tm where
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
     _ -> error "unpossible"
 
+-- Converts free variables to bound variables using forall or introOuter. Example:
+--
+-- foo : x -> x
+-- foo a =
+--   r : x
+--   r = a
+--   r
+--
+-- This becomes:
+--
+-- foo : ∀ x . x -> x
+-- foo a =
+--   r : outer x . x -- FYI, not valid syntax
+--   r = a
+--   r
+--
+-- More specifically: in the expression `e : t`, unbound lowercase variables in `t`
+-- are bound with foralls, and any ∀-quantified type variables are made bound in
+-- `e` and its subexpressions. The result is a term with no lowercase free
+-- variables in any of its type signatures, with outer references represented
+-- with explicit `introOuter` binders. The resulting term may have uppercase
+-- free variables that are still unbound.
 generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 generalizeTypeSignatures tm = go Set.empty tm where
   go bound tm = let loc = ABT.annotation tm in case tm of

@@ -147,6 +147,9 @@ unIntroOuters t = go t []
         go _body [] = Nothing
         go body vs = Just (reverse vs, body)
 
+-- Most code doesn't care about `introOuter` binders and is fine dealing with the
+-- these outer variable references as free variables. This function strips out
+-- one or more `introOuter` binders, so `outer a b . (a, b)` becomes `(a, b)`.
 stripIntroOuters :: AnnotatedType v a -> AnnotatedType v a
 stripIntroOuters t = case unIntroOuters t of
   Just (_, t) -> t
@@ -461,6 +464,7 @@ generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
+-- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.intersection` allowed)]
