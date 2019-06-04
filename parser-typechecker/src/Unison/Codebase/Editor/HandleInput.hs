@@ -94,6 +94,9 @@ import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import Unison.Codebase.TypeEdit (TypeEdit)
+import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.TermEdit (TermEdit)
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -472,8 +475,27 @@ loop = do
           let names0 = Branch.toNames0 . Branch.head $ currentBranch'
               result = applySelection hqs uf . toSlurpResult uf $ names0
               fileNames0 = UF.typecheckedToNames0 uf
+              typeEdits :: [(Reference, TypeEdit)]
+              typeEdits = map blah (toList $ SC.types (updates result)) where
+                blah v = case (toList (Names.typesNamed names0 n)
+                              ,toList (Names.typesNamed fileNames0 n)) of
+                  ([old],[new]) -> (old, TypeEdit.Replace new)
+                  otherwise -> error $ "Expected unique matches for "
+                                    ++ Var.nameStr v ++ " but got: "
+                                    ++ show otherwise
+                  where n = Name.fromVar v
+          (termUpdates :: [(Reference, TermEdit)]) <-
+            for (toList $ SC.terms (updates result)) $ \v -> do
+              undefined
+          let
               updateEdits :: Branch0 m -> Branch0 m
-              updateEdits = error "todo"
+              updateEdits = undefined
+                -- for each term in `updates`, get the before/after references
+                -- and the before/after types, and construct a TermEdit
+                --
+                -- similar for each type in `updates`
+
+
           when (Slurp.isNonempty result) $ do
           -- take a look at the `updates` from the SlurpResult
           -- and make a patch diff to record a replacement from the old to new references
@@ -1044,14 +1066,14 @@ doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
   doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
     Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+    Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split (Referent.Ref r)
   doType :: v -> (Path, Branch0 m -> Branch0 m)
   doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
                 <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
     Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+    Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r
   errorEmptyVar = error "encountered an empty var name"

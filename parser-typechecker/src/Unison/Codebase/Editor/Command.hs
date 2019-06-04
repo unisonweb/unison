@@ -31,6 +31,7 @@ type AmbientAbilities v = [Type.AnnotatedType v Ann]
 type SourceName = Text
 type Source = Text
 type Term v a = Term.AnnotatedTerm v a
+type Type v a = Type.AnnotatedType v a
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
@@ -120,6 +121,8 @@ data Command m i v a where
   LoadTerm :: Reference.Id -> Command m i v (Maybe (Term v Ann))
 
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
+
+  LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
 
   -- Loads some metadata for prettier search result display
   LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]

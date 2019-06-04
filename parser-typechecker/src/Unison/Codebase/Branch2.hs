@@ -35,6 +35,8 @@ import           Data.Tuple                     (swap)
 --import qualified Data.Text                     as Text
 import           Data.Foldable                  ( for_, toList )
 import           Data.Traversable               ( for )
+import qualified Unison.Codebase.Patch         as Patch
+import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Causal2       as Causal
 import           Unison.Codebase.Causal2        ( Causal
                                                 , pattern RawOne
@@ -105,7 +107,8 @@ merge0 b1 b2 = do
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
-  g :: (EditHash, m Edits) -> (EditHash, m Edits) -> m (EditHash, m Edits)
+
+  g :: (EditHash, m Patch) -> (EditHash, m Patch) -> m (EditHash, m Patch)
   g (h1, m1) (h2, _) | h1 == h2 = pure (h1, m1)
   g (_, m1) (_, m2) = do
     e1 <- m1
@@ -129,7 +132,7 @@ data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
   , _children :: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
-  , _edits :: Map NameSegment (EditHash, m Edits)
+  , _edits :: Map NameSegment (EditHash, m Patch)
   , toNamesSeg :: Names.NamesSeg
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
@@ -146,29 +149,15 @@ data Raw = Raw
   , _editsR :: Map NameSegment EditHash
   }
 
--- todo: move Edits to its own module?
-data Edits = Edits
-  { _termEdits :: Relation Reference TermEdit
-  , _typeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord)
-
 makeLenses ''Raw
 makeLenses ''Branch0
 makeLenses ''Branch
-makeLenses ''Edits
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
     && view types a == view types b
     && view children a == view children b
     && (fmap fst . view edits) a == (fmap fst . view edits) b
-
-instance Semigroup Edits where
-  a <> b = Edits (_termEdits a <> _termEdits b) (_typeEdits a <> _typeEdits b)
-
-instance Hashable Edits where
-  tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
-               H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
 
 data ForkFailure = SrcNotFound | DestExists
 
@@ -226,7 +215,7 @@ read
   :: forall m
    . Monad m
   => Causal.Deserialize m Raw Raw
-  -> (EditHash -> m Edits)
+  -> (EditHash -> m Patch)
   -> Hash
   -> m (Branch m)
 read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
@@ -263,7 +252,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
 sync :: forall m. Monad m
      => (Hash -> m Bool)
      -> Causal.Serialize m Raw Raw
-     -> (EditHash -> m Edits -> m ())
+     -> (EditHash -> m Patch -> m ())
      -> Branch m
      -> m ()
 sync exists serializeRaw serializeEdits b = do
@@ -462,10 +451,7 @@ instance Hashable (Branch0 m) where
 
 -- getLocalBranch :: Hash -> IO Branch
 -- getGithubBranch :: RemotePath -> IO Branch
--- getLocalEdit :: GUID -> IO Edits
-
--- makeLenses ''Namespace
--- makeLenses ''Edits
+-- getLocalEdit :: GUID -> IO Patch
 
 -- todo: consider inlining these into Actions2
 addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m

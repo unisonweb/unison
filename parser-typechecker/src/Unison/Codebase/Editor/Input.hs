@@ -12,8 +12,6 @@ import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 
-type Edits = Path.Split'
-
 data Event
   = UnisonFileChanged SourceName Source
   | IncomingRootBranch (Set Branch.Hash)
@@ -53,8 +51,8 @@ data Input
     | ResolveTermNameI Path.HQ'Split'
     | ResolveTypeNameI Path.HQ'Split'
   -- edits stuff:
-    | TodoI Edits Path'
-    | PropagateI Edits Path'
+    | TodoI Path.Split' Path'
+    | PropagateI Path.Split' Path'
     -- -- create and remove update directives
     -- | CreateEditsI EditGuid -- implies SetEdits?
     -- | SetEditsI EditGuid

@@ -43,6 +43,8 @@ import qualified Unison.Codebase.Causal2        as Causal
 import           Unison.Codebase.Path           ( NameSegment )
 import           Unison.Codebase.Path           as Path
 import           Unison.Codebase.Path           as NameSegment
+import           Unison.Codebase.Patch          ( Patch(..) )
+import qualified Unison.Codebase.Patch          as Patch
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
@@ -664,11 +666,11 @@ getEither getL getR = getWord8 >>= \case
 formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
 
-putEdits :: MonadPut m => Branch.Edits -> m ()
+putEdits :: MonadPut m => Patch -> m ()
 putEdits edits =
-  putRelation putReference putTermEdit (Branch._termEdits edits) >>
-  putRelation putReference putTypeEdit (Branch._typeEdits edits)
+  putRelation putReference putTermEdit (Patch._termEdits edits) >>
+  putRelation putReference putTypeEdit (Patch._typeEdits edits)
 
-getEdits :: MonadGet m => m Branch.Edits
-getEdits = Branch.Edits <$> getRelation getReference getTermEdit
-                        <*> getRelation getReference getTypeEdit
+getEdits :: MonadGet m => m Patch
+getEdits = Patch <$> getRelation getReference getTermEdit
+                 <*> getRelation getReference getTypeEdit

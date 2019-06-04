@@ -53,6 +53,7 @@ import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
+import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Watch         as Watch
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
@@ -201,7 +202,7 @@ getRootBranch root = do
       Left err -> throwError $ InvalidBranchFile ubf err
       Right c0 -> pure c0
   deserializeEdits :: (MonadIO m, MonadError Err m)
-    => CodebasePath -> Branch.EditHash -> m Branch.Edits
+    => CodebasePath -> Branch.EditHash -> m Patch
   deserializeEdits root h =
     let file = editsPath root h in
     liftIO (S.getFromFile' V1.getEdits file) >>= \case
@@ -224,7 +225,7 @@ putRootBranch root b = do
     S.putWithParentDirs
       (V1.putRawCausal V1.putRawBranch) (branchPath root h) rc
   serializeEdits :: MonadIO m
-    => CodebasePath -> Branch.EditHash -> m Branch.Edits -> m ()
+    => CodebasePath -> Branch.EditHash -> m Patch -> m ()
   serializeEdits root h medits = do
     edits <- medits
     unlessM (liftIO $ doesFileExist (editsPath root h)) $
