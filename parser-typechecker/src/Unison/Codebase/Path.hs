@@ -39,6 +39,10 @@ newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord,Show)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
+--unsplit' :: Split' -> Path'
+--unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
+--unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p, seg))))
+
 unsplit :: Show a => (Path, a) -> Path
 unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
 

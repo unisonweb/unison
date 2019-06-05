@@ -168,20 +168,58 @@ cd = InputPattern "cd" [] [(Required, branchArg)]
       _ -> Left (I.help cd)
     )
 
-deleteBranch,replace,resolve :: InputPattern
+deleteBranch :: InputPattern
 deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchArg)]
   "`branch.delete <foo>` deletes the branch `foo`"
-  (pure . DeleteBranchI . fmap Text.pack)
+   (\case
+        [p] -> first fromString $ do
+          p <- Path.parseSplit' p
+          pure . Input.DeleteBranchI $ p
+        _ -> Left (I.help deleteBranch)
+      )
 
-replace = InputPattern "replace" []
-          [ (Required, exactDefinitionQueryArg)
-          , (Required, exactDefinitionQueryArg) ]
-  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
-  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+forkLocal :: InputPattern
+forkLocal = InputPattern "fork" [] [(Required, branchArg)
+                                   ,(Required, branchArg)]
+    "`fork foo bar` creates the branch `bar` as a fork of `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' src
+        dest <- Path.parsePath' dest
+        pure $ Input.ForkLocalBranchI src dest
+      _ -> Left (I.help forkLocal)
+    )
 
-resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
-  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
-  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+mergeLocal :: InputPattern
+mergeLocal = InputPattern "merge" [] [(Required, branchArg)
+                                     ,(Optional, branchArg)]
+ "`merge foo` merges the branch 'foo' into the current branch."
+ (\case
+      [src] -> first fromString $ do
+        src <- Path.parseSplit' src
+        pure $ Input.ForkLocalBranchI src Path.relativeEmpty'
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' src
+        dest <- Path.parsePath' dest
+        pure $ Input.ForkLocalBranchI src dest
+      _ -> Left (I.help mergeLocal)
+ )
+
+-- replace,resolve :: InputPattern
+--replace = InputPattern "replace" []
+--          [ (Required, exactDefinitionQueryArg)
+--          , (Required, exactDefinitionQueryArg) ]
+--  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
+--  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+--
+--resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
+--  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
+--  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+
+edit :: InputPattern
+edit = InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
+  "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
+  (pure . ShowDefinitionI Input.LatestFileLocation)
 
 help :: InputPattern
 help = InputPattern
@@ -198,31 +236,16 @@ validInputs :: [InputPattern]
 validInputs =
   [ help
   , add
-  , branch
-  , InputPattern "fork" [] [(Required, noCompletions)]
-    (P.wrap
-     "`fork foo` creates the branch 'foo' as a fork of the current branch.")
-    (\case
-      [b] -> pure . ForkBranchI $ Text.pack b
-      _ -> Left . warn . P.wrap $ "Use `fork foo` to create the branch 'foo'"
-                                <> "from the current branch."
-    )
-  , find
-  , InputPattern "merge" [] [(Required, branchArg)]
-    "`merge foo` merges the branch 'foo' into the current branch."
-    (\case
-      [b] -> pure . MergeBranchI $ Text.pack b
-      _ -> Left . warn . P.wrap $
-        "Use `merge foo` to merge the branch 'foo' into the current branch."
-    )
-  , view
-  , InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
-      "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
-      (pure . ShowDefinitionI Input.LatestFileLocation)
-  , renameTerm
-  , unname
-  , alias
   , update
+  , forkLocal
+  , mergeLocal
+  , deleteBranch
+  , find
+  , view
+  , edit
+  , renameTerm
+  , deleteTerm
+  , aliasTerm
   , InputPattern "propagate" [] []
     "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
     (const $ pure PropagateI)

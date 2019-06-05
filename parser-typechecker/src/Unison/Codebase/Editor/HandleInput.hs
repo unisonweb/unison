@@ -157,9 +157,13 @@ loop = do
       root0 = Branch.head root'
       resolvePath' :: (Path', a) -> (Path, a)
       resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      path'ToSplit :: Path' -> Maybe Path.Split
+      path'ToSplit = Path.unsnoc . Path.unabsolute . Path.toAbsolutePath currentPath'
       resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
-      getAtSplit :: Path.Split' -> Maybe (Branch m)
-      getAtSplit p = BranchUtil.getBranch (resolvePath' p) root0
+      getAtSplit :: Path.Split -> Maybe (Branch m)
+      getAtSplit p = BranchUtil.getBranch p root0
+      getAtSplit' :: Path.Split' -> Maybe (Branch m)
+      getAtSplit' = getAtSplit . resolvePath'
       getHQTypes :: Path.HQSplit' -> Set Reference
       getHQTypes p = BranchUtil.getType (resolvePath' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
@@ -259,17 +263,21 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
-        destOk b = do
-          stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
-          success -- could give rando stats about new defns
+        srcOk b = case path'ToSplit dest of
+          Nothing -> respond $ BadDestinationBranch input dest
+          Just destSplit ->
+            maybe (destOk b) (branchExists dest) (getAtSplit destSplit)
+            where
+            destOk b = do
+              stepAt . BranchUtil.makeSetBranch destSplit $ b
+              success -- could give rando stats about new defns
 
       MergeLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit dest)
+        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit' dest)
         destEmpty b = ifNotConfirmed (branchNotFound dest)
           (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
         destExists srcb destb = do
@@ -313,9 +321,9 @@ loop = do
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
 
       MoveBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
+        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit' dest)
         destOk b = do
           stepManyAt
             [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
@@ -357,7 +365,7 @@ loop = do
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input failed failedDependents
 
-      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit p where
+      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit' p where
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
               p' = resolvePath' p
