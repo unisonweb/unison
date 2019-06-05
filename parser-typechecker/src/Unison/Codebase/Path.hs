@@ -28,6 +28,7 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
+import qualified Unison.Lexer                  as Lexer
 
 -- Represents the parts of a name between the `.`s
 newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
@@ -69,10 +70,28 @@ type HQSplitAbsolute = (Absolute, HQSegment)
 -- Option1: a mix of . and /
 -- Option2: some / followed by some .
 parsePath' :: String -> Either String Path'
-parsePath' = error "todo"
+parsePath' p = case p of
+  '.' : p -> Path' . Left . Absolute . fromList <$> segs p
+  p -> Path' . Right . Relative . fromList <$> segs p
+  where
+  segs p = traverse validate (Text.splitOn "." $ Text.pack p)
+  validate seg =
+    case (fst <$> Lexer.wordyId0 (Text.unpack seg),
+          fst <$> Lexer.symbolyId0 (Text.unpack seg)) of
+      (Left e, Left _) -> Left (show e)
+      (Right a, _) -> Right (NameSegment $ Text.pack a)
+      (_, Right a) -> Right (NameSegment $ Text.pack a)
 
 parseSplit' :: String -> Either String Split'
-parseSplit' = error "todo"
+parseSplit' p = case parsePath' p of
+  Left e -> Left e
+  Right (Path' e) -> case e of
+    Left (Absolute p) -> case unsnoc p of
+      Nothing -> Left "empty path"
+      Just (p, seg) -> pure (Path' . Left . Absolute $ p, seg)
+    Right (Relative p) -> case unsnoc p of
+      Nothing -> Left "empty path"
+      Just (p, seg) -> pure (Path' . Right . Relative $ p, seg)
 
 parseHQSplit' :: String -> Either String HQSplit'
 parseHQSplit' = error "todo"
