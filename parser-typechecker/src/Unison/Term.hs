@@ -204,25 +204,45 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
     (ABT.out -> ABT.Cycle body) -> go bound body
     _ -> error "unpossible"
 
--- Substitution of a type variable inside a term. This
+-- Capture-avoiding substitution of a type variable inside a term. This
 -- will replace that type variable wherever it appears in type signatures of
--- the term. Not capture-avoiding; will bomb if `ty` has free variables
--- that collide with bound type variables in scopes where `vt` occurs.
---
--- TODO: make this function capture-avoiding. It's more complicated.
+-- the term, avoiding capture by renaming ∀-binders.
 substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 substTypeVar vt ty tm = go Set.empty tm where
   go bound tm | Set.member vt bound = tm
-  go bound _  | not (Set.null $ ABT.freeVars ty `Set.intersection` bound) =
-    error $ "todo - Term.substTypeVar would capture enclosing variables: "
-         <> show (vt, ty, ABT.freeVars ty `Set.intersection` bound)
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e t -> uncapture [] e (Type.stripIntroOuters t) where
+      fvs = ABT.freeVars ty
+      -- if the ∀ introduces a variable, v, which is free in `ty`, we pick a new
+      -- variable name for v which is unique, v', and rename v to v' in e.
+      uncapture vs e t@(Type.Forall' body) | Set.member (ABT.variable body) fvs = let
+        v = ABT.variable body
+        v2 = Var.freshIn (ABT.freeVars t) . Var.freshIn (Set.insert vt fvs) $ v
+        t2 = ABT.bindInheritAnnotation body (Type.var() v2)
+        in uncapture ((ABT.annotation t, v2):vs) (renameTypeVar v v2 e) t2
+      uncapture vs e t0 = let
+        t = foldl (\body (loc,v) -> Type.forall loc v body) t0 vs
+        bound' = case Type.unForalls (Type.stripIntroOuters t) of
+          Nothing -> bound
+          Just (vs, _) -> bound <> Set.fromList vs
+        t' = ABT.substInheritAnnotation vt ty (Type.stripIntroOuters t)
+        in ann loc (go bound' e) (Type.freeVarsToOuters bound t')
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
+
+renameTypeVar :: (Ord v, Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+renameTypeVar old new tm = go Set.empty tm where
+  go bound tm | Set.member old bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
     Ann' e t -> let
       bound' = case Type.unForalls (Type.stripIntroOuters t) of
         Nothing -> bound
         Just (vs, _) -> bound <> Set.fromList vs
-      t' = ABT.substInheritAnnotation vt ty (Type.stripIntroOuters t)
+      t' = ABT.rename old new (Type.stripIntroOuters t)
       in ann loc (go bound' e) (Type.freeVarsToOuters bound t')
     ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
     (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
