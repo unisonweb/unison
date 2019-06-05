@@ -162,6 +162,7 @@ minimalCodebaseStructure root =
   , typesDir root
   , branchesDir root
   , branchHeadDir root
+  , editsDir root
   ]
 
 -- checks if a minimal codebase structure exists at `path`

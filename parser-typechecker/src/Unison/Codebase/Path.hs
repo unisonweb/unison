@@ -64,11 +64,18 @@ type HQSplitAbsolute = (Absolute, HQSegment)
 -- import .........apps.Notepad as Notepad
 -- Option1: a mix of . and /
 -- Option2: some / followed by some .
-parsePath :: Text -> Either String Path'
-parsePath = error "todo"
+parsePath' :: String -> Either String Path'
+parsePath' = error "todo"
 
-parseHashQualified :: Text -> Either String HQSplit'
-parseHashQualified = error "todo"
+parseSplit' :: String -> Either String Split'
+parseSplit' = error "todo"
+
+parseHQSplit' :: String -> Either String HQSplit'
+parseHQSplit' = error "todo"
+
+parseHQ'Split' :: String -> Either String HQ'Split'
+parseHQ'Split' = error "todo"
+
 -- this might be useful in implementing the above
 -- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
 -- hqToPathSeg = \case
@@ -91,7 +98,10 @@ fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
 fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
-absoluteEmpty = Absolute (Path mempty)
+absoluteEmpty = Absolute empty
+
+relativeEmpty' :: Path'
+relativeEmpty' = Path' (Right (Relative empty))
 
 toAbsolutePath :: Absolute -> Path' -> Absolute
 toAbsolutePath (Absolute cur) (Path' p) = case p of

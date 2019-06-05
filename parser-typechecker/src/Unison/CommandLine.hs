@@ -195,6 +195,16 @@ autoCompleteHashQualified b (HQ.fromString -> query) =
   makeCompletion (sr, p) =
     prettyCompletion (HQ.toString . SR.name $ sr, p)
 
+autoCompleteHashQualifiedTerm :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualifiedTerm b (HQ.fromString -> query) =
+  [ prettyCompletion (HQ.toString . SR.name $ sr, p)
+  | (sr@(SR.Tm _), p) <- Find.prefixFindInBranch b query ]
+
+autoCompleteHashQualifiedType :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualifiedType b (HQ.fromString -> query) =
+  [ prettyCompletion (HQ.toString . SR.name $ sr, p)
+  | (sr@(SR.Tp _), p) <- Find.prefixFindInBranch b query ]
+
 parseInput
   :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of

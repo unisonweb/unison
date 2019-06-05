@@ -19,7 +19,6 @@ data Event
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 
-
 data Input
   -- names stuff:
     -- directory ops

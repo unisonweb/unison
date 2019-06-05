@@ -75,8 +75,11 @@ library
     Unison.Codebase.Watch
     Unison.CommandLine
     Unison.CommandLine.InputPattern
+    Unison.CommandLine.InputPattern2
     Unison.CommandLine.InputPatterns
+    Unison.CommandLine.InputPatterns2
     Unison.CommandLine.Main
+    Unison.CommandLine.Main2
     Unison.CommandLine.OutputMessages
     Unison.CommandLine.OutputMessages2
     Unison.ConstructorType
@@ -230,6 +233,16 @@ library
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
+  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  build-depends:
+    base,
+    containers,
+    safe,
+    unison-parser-typechecker
+
+executable unison2
+  main-is: Main.hs
+  hs-source-dirs: unison2
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
