@@ -82,13 +82,27 @@ add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
 update :: InputPattern
 update = InputPattern "update"
   []
-  [(ZeroPlus, noCompletions)]
+  [(Required, patchPathArg)
+  ,(ZeroPlus, noCompletions)]
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
   (\ws -> case ws of
     patchStr : ws -> first fromString $ do
       patch <- Path.parseSplit' patchStr
       pure $ Input.UpdateI patch (HQ.fromString <$> ws)
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
+
+patch :: InputPattern
+patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPathArg)]
+  "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
+  (\ws -> case ws of
+    patchStr : ws -> first fromString $ do
+      patch <- Path.parseSplit' patchStr
+      branch <- case ws of
+        [pathStr] -> Path.parsePath' pathStr
+        _ -> pure Path.relativeEmpty'
+      pure $ Input.PropagateI patch branch
+    [] -> Left $ warn "`todo` takes a patch and an optional path")
+
 
 view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
@@ -219,7 +233,7 @@ mergeLocal = InputPattern "merge" [] [(Required, branchArg)
 edit :: InputPattern
 edit = InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
   "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
-  (pure . ShowDefinitionI Input.LatestFileLocation)
+  (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
 help :: InputPattern
 help = InputPattern
@@ -231,6 +245,13 @@ help = InputPattern
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ I.help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
+
+quit = InputPattern "quit" ["exit"] []
+  "Exits the Unison command line interface."
+  (\case
+    [] -> pure Input.QuitI
+    _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
+  )
 
 validInputs :: [InputPattern]
 validInputs =
@@ -246,29 +267,21 @@ validInputs =
   , renameTerm
   , deleteTerm
   , aliasTerm
-  , InputPattern "propagate" [] []
-    "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
-    (const $ pure PropagateI)
-  , InputPattern "test" [] []
-    "`test` runs unit tests for the current branch."
-    (const $ pure $ TestI True True)
   , todo
+  , patch
+  --  , InputPattern "test" [] []
+  --    "`test` runs unit tests for the current branch."
+  --    (const $ pure $ Input.TestI True True)g
   , InputPattern "execute" [] []
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
     (\ws -> if null ws
                then Left $ warn "`execute` needs a Unison language expression."
-               else pure . ExecuteI $ intercalate " " ws)
-  , InputPattern "quit" ["exit"] []
-      "Exits the Unison command line interface."
-      (\case
-        [] -> pure QuitI
-        _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
-      )
+               else pure . Input.ExecuteI $ intercalate " " ws)
+  , quit
   , updateBuiltins
-  , InputPattern "edit.list" [] []
-      "Lists all the edits in the current branch."
-      (const . pure $ ListEditsI)
-  , deleteBranch
+--  , InputPattern "edit.list" [] []
+--      "Lists all the edits in the current branch."
+--      (const . pure $ Input.ListEditsI)
   ]
 
 allTargets :: Set.Set Names.NameTarget
@@ -290,23 +303,23 @@ branchArg = ArgumentType "branch" $ \q codebase _b -> do
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) -> do
-    pure $ fuzzyCompleteHashQualified b q
+    pure $ [] -- fuzzyCompleteHashQualified b q
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
   ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
-    pure $ autoCompleteHashQualified b q
+    pure $ [] -- autoCompleteHashQualified b q
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
   ArgumentType "term definition query" $ \q _ (Branch.head -> b) -> do
-    pure $ autoCompleteHashQualifiedType b q
+    pure $ [] -- autoCompleteHashQualifiedType b q
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
   ArgumentType "term definition query" $ \q _ (Branch.head -> b) -> do
-    pure $ autoCompleteHashQualifiedTerm b q
+    pure $ [] -- autoCompleteHashQualifiedTerm b q
 
 patchPathArg :: ArgumentType
 patchPathArg = noCompletions { I.typeName = "patch" }

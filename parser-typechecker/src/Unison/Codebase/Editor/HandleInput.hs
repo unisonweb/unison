@@ -258,7 +258,8 @@ loop = do
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
         termConflicted src = respond . TermAmbiguous input src
-        branchExists dest _ = respond $ BranchAlreadyExists input dest
+        branchExists dest _x = respond $ BranchAlreadyExists input dest
+        branchExistsSplit dest _x = branchExists (Path.unsplit' dest) _x
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
@@ -323,7 +324,7 @@ loop = do
       MoveBranchI src dest ->
         maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit' dest)
+        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
         destOk b = do
           stepManyAt
             [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty

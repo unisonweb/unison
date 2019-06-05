@@ -23,11 +23,12 @@ import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
 import Unison.Codebase.Branch (Branch)
-import Unison.Codebase.Editor (BranchName, Input (..))
+import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Runtime (Runtime)
+import Unison.Codebase.Path (Path)
 import Unison.Codebase2 (Codebase)
 import Unison.CommandLine
-import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
+import Unison.CommandLine.InputPattern2 (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns2 (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser)
 import Unison.Parser (Ann)
@@ -50,7 +51,7 @@ getUserInput
   => Map String InputPattern
   -> Codebase m v a
   -> Branch
-  -> BranchName
+  -> Path
   -> [String]
   -> m Input
 getUserInput patterns codebase branch branchName numberedArgs =
@@ -87,7 +88,7 @@ main
   :: forall v
    . Var v
   => FilePath
-  -> BranchName
+  -> Path
   -> Maybe FilePath
   -> IO (Runtime v)
   -> Codebase IO v Ann
