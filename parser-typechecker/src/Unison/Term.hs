@@ -206,11 +206,16 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
 
 -- Substitution of a type variable inside a term. This
 -- will replace that type variable wherever it appears in type signatures of
--- the term.
--- TODO: question, is this sufficiently capture-avoiding?
+-- the term. Not capture-avoiding; will bomb if `ty` has free variables
+-- that collide with bound type variables in scopes where `vt` occurs.
+--
+-- TODO: make this function capture-avoiding. It's more complicated.
 substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 substTypeVar vt ty tm = go Set.empty tm where
   go bound tm | Set.member vt bound = tm
+  go bound _  | not (Set.null $ ABT.freeVars ty `Set.intersection` bound) =
+    error $ "todo - Term.substTypeVar would capture enclosing variables: "
+         <> show (vt, ty, ABT.freeVars ty `Set.intersection` bound)
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
     Ann' e t -> let

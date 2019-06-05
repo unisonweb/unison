@@ -1613,7 +1613,7 @@ run
 run builtinLoc ambient datas effects m =
   fmap fst
     . runM m
-    . MEnv (Env 0 mempty) ambient builtinLoc datas effects
+    . MEnv (Env 1 mempty) ambient builtinLoc datas effects
     . const
     $ pure True
 
