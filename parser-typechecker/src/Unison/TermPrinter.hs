@@ -497,16 +497,14 @@ ac prec bc im = AmbientContext prec bc NonInfix im
   
    As an example, instead of 
   
-     foo p q r = if p 
-                 then Util.bar q
-                 else Util.bar r
+     foo p q r =
+       if p then Util.bar q else Util.bar r
    
    we actually output the following.
    
-     foo p q r = use Util bar
-                 if p 
-                 then bar q
-                 else bar r
+     foo p q r =
+       use Util bar
+       if p then bar q else bar r
   
    Here, the `use` statement `use Util bar` has been inserted at the start of 
    the block statement containing the `if`.  Within that scope, `Util.bar` can
@@ -522,10 +520,9 @@ ac prec bc im = AmbientContext prec bc NonInfix im
   
    It avoids producing output like the following.
    
-     foo p q r = use My bar
-                 if p 
-                 then bar q
-                 else Your.bar r
+     foo p q r = 
+       use My bar
+       if p then bar q else Your.bar r
      
    Here `My.bar` is imported with a `use` statement, but `Your.bar` is not.
    We avoid this because it would be easy to misread `bar` as meaning 
@@ -541,8 +538,9 @@ ac prec bc im = AmbientContext prec bc NonInfix im
   
    The emitted code does not depend on Type-Driven Name Resolution (TDNR).
    For example, we emit
-     foo = use Nat (+)
-           1 + 2
+     foo = 
+       use Nat +
+       1 + 2
    even though TDNR means that `foo = 1 + 2` would have had the same
    meaning.  That avoids the reader having to run typechecker logic in their
    head in order to know what functions are being called.  
@@ -833,43 +831,75 @@ immediateChildBlockTerms = \case
                                       else [body]
     doLet t = error (show t) []
 
--- TODO testing of: 
--- - all use sites of elideFQN, var, ref, con, rq, def (inf and pref)
--- - patterns, types, namespaces
--- - really right to apply this to vars?
+-- TODOs 
+
+-- think:
+-- - really right to apply this to vars?  prob not?
+
+-- test:
 -- - symbolic names, see other TODO
 -- ...
 
+-- raise:
+
 -- "use A.x has no effect but silently succeeds"
+-- issue round if/handle/case parens
+
 
 {-
 
-use statements not taking effect on types?
+namespace D where
+  ff = 6
+  D.ff = 7 
+  gg = ff + ff 
 
-expected:
-let
-  a =
-    use A TT
-    b : TT -> TT
-    b = id
-    foo
-  bar
-actual:
-let
-  a =
-    b : TT -> TT
-    b = id
-    foo
-  bar
-show(input)  : Cycle (a. (let rec[Cycle (b. (let rec[Var id:Var TT -> Var TT] in Var foo))] in Var bar))
+-- D.gg comes out as follows, using the wrong ff. 
+
+  D.gg : Nat
+  D.gg =
+    use D.D ff
+    use Nat +
+    ff + ff
 
 
+but
 
-raise issue round if/handle/case parens
+namespace D where
+  hh = 6
+  gg = hh + hh 
 
+correctly gives
 
+  D.gg : Nat
+  D.gg =
+    use D ff
+    use Nat +
+    ff + ff
 
-     foo p q r = if p 
-                 then Util.bar q
-                 else Util.bar r
 -}
+
+
+
+
+--fix:
+
+-- Given `type A.T = A.T1 Int | A.T2`, A.T.T1 is being rendered using `use A.T.A T1`
+
+{-
+
+-- Note the two `use A.T.A T1` below.
+f1 : Int
+f1 =
+    use A T x
+    use A.T.A T1
+    g = T1 +3
+    h = T1 +4
+    i : T -> T -> (Int, Int)
+    i p q =
+      use A.T.A T1
+      case (p, q) of (T1 p', T1 q') -> (p', q')
+    if true then x else x
+
+-}
+
+
