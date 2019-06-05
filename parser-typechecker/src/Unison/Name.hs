@@ -10,7 +10,7 @@ module Unison.Name
   , toString
   , toVar
   , unsafeFromText
-  , unsafeFromVar
+  , fromVar
   )
 where
 
@@ -32,8 +32,8 @@ unsafeFromText t =
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
 
-unsafeFromVar :: Var v => v -> Name
-unsafeFromVar = unsafeFromText . Var.name
+fromVar :: Var v => v -> Name
+fromVar = unsafeFromText . Var.name
 
 toString :: Name -> String
 toString = Text.unpack . toText

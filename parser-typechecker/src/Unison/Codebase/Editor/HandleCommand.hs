@@ -155,13 +155,13 @@ syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranc
 --           _otherwise -> (r0, CouldntUpdateConflicted) -- come back to this
 --
 --   outcomes0terms = map termOutcome (Map.toList $ UF.hashTerms file)
---   termOutcome (v, (r, _, _)) = outcome0 (Name.unsafeFromVar v) (Right r) []
+--   termOutcome (v, (r, _, _)) = outcome0 (Name.fromVar v) (Right r) []
 --   outcomes0types =
 --     map typeOutcome (Map.toList . fmap (second Right) $ UF.dataDeclarations' file)
 --       ++ map typeOutcome
 --              (Map.toList . fmap (second Left) $ UF.effectDeclarations' file)
 --   typeOutcome (v, (r, dd)) =
---     outcome0 (Name.unsafeFromVar v) (Left r) $ ctorNames v r dd
+--     outcome0 (Name.fromVar v) (Left r) $ ctorNames v r dd
 --   ctorNames v r (Left e) =
 --     Map.keys $ Names.termNames (DD.effectDeclToNames v r e)
 --   ctorNames v r (Right dd) =
@@ -249,10 +249,10 @@ syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranc
 --           , Branch.fromDeclaration v r dd <> b )
 --         Right r ->
 --           ( result { adds = adds result <> SlurpComponent mempty (Set.singleton v) }
---           , Branch.addTermName (Referent.Ref r) (Name.unsafeFromVar v) b )
+--           , Branch.addTermName (Referent.Ref r) (Name.fromVar v) b )
 --       Updated -> do
 --         let result' = result { updates = updates result <> sc r v }
---             name = Name.unsafeFromVar v
+--             name = Name.fromVar v
 --         case r of
 --           Left (r', dd) -> case toList (Branch.typesNamed name b0) of
 --             [r0] -> pure (result', Branch.fromDeclaration v r' dd <> Branch.replaceType r0 r' b)
@@ -273,7 +273,7 @@ syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranc
 --       CouldntUpdateConflicted ->
 --         pure (result { conflicts = conflicts result <> sc r v }, b)
 --       RequiresAlias ns -> let
---         name = Name.unsafeFromVar v
+--         name = Name.fromVar v
 --         rcs = case r of
 --           Left _ -> Branch.RefCollisions mempty (R.fromList $ (name,) <$> ns)
 --           Right _ -> Branch.RefCollisions (R.fromList $ (name,) <$> ns) mempty
@@ -282,7 +282,7 @@ syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranc
 --         pure (result {
 --           termExistingConstructorCollisions =
 --             termExistingConstructorCollisions result <>
---             pick (toList $ Branch.constructorsNamed (Name.unsafeFromVar v) b0) }, b)
+--             pick (toList $ Branch.constructorsNamed (Name.fromVar v) b0) }, b)
 --         where
 --           pick [] = error "Panic. Incorrectly determined a conflict."
 --           pick (h:_) = Map.fromList [(v, h)]
@@ -389,6 +389,7 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     RetrieveHashes Github{..} _types _terms -> error "todo"
     LoadTerm r -> CC.getTerm codebase r
     LoadType r -> CC.getTypeDeclaration codebase r
+    LoadTypeOfTerm r -> CC.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase _unisonFile -> error "todo"

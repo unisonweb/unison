@@ -35,6 +35,8 @@ import           Data.Tuple                     (swap)
 --import qualified Data.Text                     as Text
 import           Data.Foldable                  ( for_, toList )
 import           Data.Traversable               ( for )
+import qualified Unison.Codebase.Patch         as Patch
+import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Causal2       as Causal
 import           Unison.Codebase.Causal2        ( Causal
                                                 , pattern RawOne
@@ -105,7 +107,8 @@ merge0 b1 b2 = do
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
-  g :: (EditHash, m Edits) -> (EditHash, m Edits) -> m (EditHash, m Edits)
+
+  g :: (EditHash, m Patch) -> (EditHash, m Patch) -> m (EditHash, m Patch)
   g (h1, m1) (h2, _) | h1 == h2 = pure (h1, m1)
   g (_, m1) (_, m2) = do
     e1 <- m1
@@ -129,7 +132,7 @@ data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
   , _children :: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
-  , _edits :: Map NameSegment (EditHash, m Edits)
+  , _edits :: Map NameSegment (EditHash, m Patch)
   , toNamesSeg :: Names.NamesSeg
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
@@ -146,29 +149,15 @@ data Raw = Raw
   , _editsR :: Map NameSegment EditHash
   }
 
--- todo: move Edits to its own module?
-data Edits = Edits
-  { _termEdits :: Relation Reference TermEdit
-  , _typeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord)
-
 makeLenses ''Raw
 makeLenses ''Branch0
 makeLenses ''Branch
-makeLenses ''Edits
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
     && view types a == view types b
     && view children a == view children b
     && (fmap fst . view edits) a == (fmap fst . view edits) b
-
-instance Semigroup Edits where
-  a <> b = Edits (_termEdits a <> _termEdits b) (_typeEdits a <> _typeEdits b)
-
-instance Hashable Edits where
-  tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
-               H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
 
 data ForkFailure = SrcNotFound | DestExists
 
@@ -226,7 +215,7 @@ read
   :: forall m
    . Monad m
   => Causal.Deserialize m Raw Raw
-  -> (EditHash -> m Edits)
+  -> (EditHash -> m Patch)
   -> Hash
   -> m (Branch m)
 read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
@@ -263,7 +252,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
 sync :: forall m. Monad m
      => (Hash -> m Bool)
      -> Causal.Serialize m Raw Raw
-     -> (EditHash -> m Edits -> m ())
+     -> (EditHash -> m Patch -> m ())
      -> Branch m
      -> m ()
 sync exists serializeRaw serializeEdits b = do
@@ -360,6 +349,9 @@ isEmpty = (== empty0)
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
 
+stepM :: Monad m => (Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepM f = mapMOf history (Causal.stepDistinctM f)
+
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
@@ -387,6 +379,10 @@ stepAtM p f b = modifyAtM p g b where
     b0' <- f (Causal.head b)
     pure $ Branch . Causal.consDistinct b0' $ b
 
+stepManyAtM :: (Monad m, Foldable f)
+            => f (Path, Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
+stepManyAtM actions = stepM (stepManyAt0M actions)
+
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
 -- otherwise update it.
@@ -397,9 +393,24 @@ getChildBranch seg b = maybe empty snd $ Map.lookup seg (_children b)
 setChildBranch :: NameSegment -> Branch m -> Branch0 m -> Branch0 m
 setChildBranch seg b = over children (updateChildren seg b)
 
-updateChildren ::
-  NameSegment -> Branch m -> Map NameSegment (Hash, Branch m)
-                          -> Map NameSegment (Hash, Branch m)
+getPatch :: Applicative m => NameSegment -> Branch0 m -> m Patch
+getPatch seg b = case Map.lookup seg (_edits b) of
+  Nothing -> pure Patch.empty
+  Just (_, p) -> p
+
+modifyEdits :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
+modifyEdits seg f = mapMOf edits update where
+  update m = do
+    p' <- case Map.lookup seg m of
+      Nothing -> pure $ f Patch.empty
+      Just (_, p) -> f <$> p
+    let h = H.accumulate' p'
+    pure $ Map.insert seg (h, pure p') m
+
+updateChildren ::NameSegment
+               -> Branch m
+               -> Map NameSegment (Hash, Branch m)
+               -> Map NameSegment (Hash, Branch m)
 updateChildren seg updatedChild =
   if isEmpty (head updatedChild)
   then Map.delete seg
@@ -442,6 +453,11 @@ stepManyAt0 :: (Applicative m, Foldable f)
            -> Branch0 m -> Branch0 m
 stepManyAt0 = error "todo"
 
+stepManyAt0M :: (Applicative m, Foldable f)
+             => f (Path, Branch0 m -> m (Branch0 m))
+             -> Branch0 m -> m (Branch0 m)
+stepManyAt0M = error "todo"
+
 stepAt0M :: forall n m. (Functor n, Applicative m)
          => Path
          -> (Branch0 m -> n (Branch0 m))
@@ -462,10 +478,7 @@ instance Hashable (Branch0 m) where
 
 -- getLocalBranch :: Hash -> IO Branch
 -- getGithubBranch :: RemotePath -> IO Branch
--- getLocalEdit :: GUID -> IO Edits
-
--- makeLenses ''Namespace
--- makeLenses ''Edits
+-- getLocalEdit :: GUID -> IO Patch
 
 -- todo: consider inlining these into Actions2
 addTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m

@@ -63,6 +63,7 @@ library
     Unison.Codebase.FileCodebase2
     Unison.Codebase.NameEdit
     Unison.Codebase.Path
+    Unison.Codebase.Patch
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization

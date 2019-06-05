@@ -56,7 +56,7 @@ fromNames2 names = Names termNames typeNames
 
 subtractTerms :: Var v => [v] -> Names -> Names
 subtractTerms vs n = let
-  taken = Set.fromList (Name.unsafeFromVar <$> vs)
+  taken = Set.fromList (Name.fromVar <$> vs)
   in n { termNames = Map.withoutKeys (termNames n) taken }
 
 renderNameTarget :: NameTarget -> String
@@ -84,7 +84,7 @@ fromTerms ts = mempty { termNames = Map.fromList ts }
 
 fromTypesV :: Var v => [(v, Reference)] -> Names
 fromTypesV env =
-  Names mempty . Map.fromList $ fmap (first $ Name.unsafeFromVar) env
+  Names mempty . Map.fromList $ fmap (first $ Name.fromVar) env
 
 fromTypes :: [(Name, Reference)] -> Names
 fromTypes env = Names mempty $ Map.fromList env
@@ -130,7 +130,7 @@ importing shortToLongName0 (Names {..}) = let
     Nothing -> m
     Just v  -> Map.insert shortname v m
   shortToLongName = [
-    (Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v,v2) <- shortToLongName0 ]
+    (Name.fromVar v, Name.fromVar v2) | (v,v2) <- shortToLongName0 ]
   terms' = foldl' go termNames shortToLongName
   types' = foldl' go typeNames shortToLongName
   in Names terms' types'

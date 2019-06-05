@@ -136,7 +136,7 @@ dependencies uf ns = directReferences <>
     tm = typecheckingTerm uf
     directReferences = Term.dependencies tm
     freeTypeVarRefs = -- we aren't doing any special resolution for types
-      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.unsafeFromVar <$>
+      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.fromVar <$>
                   Set.toList (Term.freeTypeVars tm))
     -- foreach name in Names.termNames,
         -- if the name or unqualified name is in Term.freeVars,
@@ -169,13 +169,13 @@ toNames (UnisonFile {..}) = datas <> effects
 typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
 typecheckedToNames0 uf = Names2.Names (terms <> ctors) types where
   terms = Relation.fromList
-    [ (Name.unsafeFromVar v, Referent.Ref r)
+    [ (Name.fromVar v, Referent.Ref r)
     | (v, (r, _, _)) <- Map.toList $ hashTerms uf ]
   types = Relation.fromList
-    [ (Name.unsafeFromVar v, r)
+    [ (Name.fromVar v, r)
     | (v, r) <- Map.toList $ fmap fst (dataDeclarations' uf)
                           <> fmap fst (effectDeclarations' uf) ]
-  ctors = Relation.fromMap . Map.mapKeys Name.unsafeFromVar . hashConstructors $ uf
+  ctors = Relation.fromMap . Map.mapKeys Name.fromVar . hashConstructors $ uf
 
 typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
 typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty

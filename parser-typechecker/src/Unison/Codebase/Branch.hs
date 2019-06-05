@@ -606,7 +606,7 @@ fromTypecheckedFile
   :: forall v a . Var v => UF.TypecheckedUnisonFile v a -> Branch0
 fromTypecheckedFile file =
   let
-    toName      = Name.unsafeFromVar
+    toName      = Name.fromVar
     hashedTerms = UF.hashTerms file
     ctors :: [(v, Referent)]
     ctors = Map.toList $ UF.hashConstructors file

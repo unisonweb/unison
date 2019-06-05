@@ -41,6 +41,7 @@ import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
+                                                , foldl'
                                                 )
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
@@ -61,6 +62,8 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import           Unison.Codebase.Patch          ( Patch )
+import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path'
                                                 , HQSegment
@@ -94,6 +97,11 @@ import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import Unison.Codebase.TypeEdit (TypeEdit)
+import qualified Unison.Codebase.TypeEdit as TypeEdit
+import Unison.Codebase.TermEdit (TermEdit)
+import qualified Unison.Codebase.TermEdit as TermEdit
+import qualified Unison.Typechecker as Typechecker
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -472,14 +480,50 @@ loop = do
           let names0 = Branch.toNames0 . Branch.head $ currentBranch'
               result = applySelection hqs uf . toSlurpResult uf $ names0
               fileNames0 = UF.typecheckedToNames0 uf
-              updateEdits :: Branch0 m -> Branch0 m
-              updateEdits = error "todo"
+              -- todo: display some error if typeEdits or termEdits itself contains a loop
+              typeEdits :: [(Reference, TypeEdit)]
+              typeEdits = map f (toList $ SC.types (updates result)) where
+                f v = case (toList (Names.typesNamed names0 n)
+                              ,toList (Names.typesNamed fileNames0 n)) of
+                  ([old],[new]) -> (old, TypeEdit.Replace new)
+                  otherwise -> error $ "Expected unique matches for "
+                                    ++ Var.nameStr v ++ " but got: "
+                                    ++ show otherwise
+                  where n = Name.fromVar v
+          termEdits <- for (toList $ SC.terms (updates result)) $ \v ->
+            case ( toList (Names.refTermsNamed names0 (Name.fromVar v))
+                 , toList (Names.refTermsNamed fileNames0 (Name.fromVar v))) of
+              ([old],[new]) -> pure (old, new)
+              otherwise -> error $ "Expected unique matches for "
+                                ++ Var.nameStr v ++ " but got: "
+                                ++ show otherwise
+          ye'ol'Patch <- do
+            b <- getAt p
+            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          let neededTypes = Patch.collectForTyping termEdits ye'ol'Patch
+          allTypes <- fmap Map.fromList . for (toList neededTypes) $ \r ->
+            (r,) <$> (eval . LoadTypeOfTerm) r
+
+          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 allTypes) of
+                (Just (Just t1), Just (Just t2)) ->
+                  if Typechecker.isEqual t1 t2 then TermEdit.Same
+                  else if Typechecker.isSubtype t1 t2 then TermEdit.Subtype
+                  else TermEdit.Different
+                _ -> error "compiler bug: typing map not constructed properly"
+          let updatePatch :: Patch -> Patch
+              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
+                where
+                step1 p (r,e) = Patch.updateType r e p
+                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r (typing r r')) p
+              updateEdits :: Branch0 m -> m (Branch0 m)
+              updateEdits = Branch.modifyEdits seg updatePatch
+
           when (Slurp.isNonempty result) $ do
           -- take a look at the `updates` from the SlurpResult
           -- and make a patch diff to record a replacement from the old to new references
-            stepManyAt
+            stepManyAtM
               [( Path.unabsolute currentPath'
-               , doSlurpAdds (Slurp.adds result) uf)
+               , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           respond $ SlurpOutput input result
@@ -851,6 +895,15 @@ stepManyAt actions = do
     root .= b'
     when (b /= b') $ eval $ SyncLocalRootBranch b'
 
+stepManyAtM :: (Monad m, Foldable f)
+           => f (Path, Branch0 m -> m (Branch0 m))
+           -> Action m i v ()
+stepManyAtM actions = do
+    b <- use root
+    b' <- eval . Eval $ Branch.stepManyAtM actions b
+    root .= b'
+    when (b /= b') $ eval $ SyncLocalRootBranch b'
+
 -- cata for 0, 1, or more elements of a Foldable
 -- tries to match as lazily as possible
 zeroOneOrMore :: Foldable f => f a -> b -> (a -> b) -> (f a -> b) -> b
@@ -1044,14 +1097,14 @@ doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
   doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
     Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+    Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split (Referent.Ref r)
   doType :: v -> (Path, Branch0 m -> Branch0 m)
   doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
                 <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
     Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.unsafeFromVar v) of
+    Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r
   errorEmptyVar = error "encountered an empty var name"

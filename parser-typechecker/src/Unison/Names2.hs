@@ -93,6 +93,10 @@ patternName names r cid = termName names (Con r cid)
 termsNamed :: Ord n => Names' n -> n -> Set Referent
 termsNamed = flip R.lookupDom . terms
 
+refTermsNamed :: Ord n => Names' n -> n -> Set Reference
+refTermsNamed names n =
+  Set.fromList [ r | Referent.Ref r <- toList $ termsNamed names n ]
+
 typesNamed :: Ord n => Names' n -> n -> Set Reference
 typesNamed = flip R.lookupDom . types
 
@@ -145,7 +149,7 @@ hqTypeName' b n r =
 
 -- subtractTerms :: Var v => [v] -> Names -> Names
 -- subtractTerms vs n = let
---   taken = Set.fromList (Name.unsafeFromVar <$> vs)
+--   taken = Set.fromList (Name.fromVar <$> vs)
 --   in n { termNames = Map.withoutKeys (termNames n) taken }
 
 -- renderNameTarget :: NameTarget -> String
@@ -173,7 +177,7 @@ fromTerms ts = Names (R.fromList ts) mempty
 
 -- fromTypesV :: Var v => [(v, Reference)] -> Names
 -- fromTypesV env =
---   Names mempty . Map.fromList $ fmap (first $ Name.unsafeFromVar) env
+--   Names mempty . Map.fromList $ fmap (first $ Name.fromVar) env
 
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
@@ -252,7 +256,7 @@ difference a b = Names (R.difference (terms a) (terms b))
 --     Nothing -> m
 --     Just v  -> Map.insert shortname v m
 --   shortToLongName = [
---     (Name.unsafeFromVar v, Name.unsafeFromVar v2) | (v,v2) <- shortToLongName0 ]
+--     (Name.fromVar v, Name.fromVar v2) | (v,v2) <- shortToLongName0 ]
 --   terms' = foldl' go termNames shortToLongName
 --   types' = foldl' go typeNames shortToLongName
 --   in Names terms' types'
