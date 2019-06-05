@@ -62,7 +62,7 @@ pretty0
 pretty0 n p tp = go n p tp
   where
   go :: PrettyPrintEnv -> Int -> AnnotatedType v a -> Pretty s
-  go n p tp = case tp of
+  go n p tp = case stripIntroOuters tp of
     Var' v     -> PP.text (Var.name v)
     Ref' r     -> prettyHashQualified' $ (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"

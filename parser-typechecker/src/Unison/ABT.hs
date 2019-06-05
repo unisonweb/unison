@@ -367,13 +367,17 @@ rebuildUp' f (Term _ ann body) = case body of
   Abs x e -> f $ abs' ann x (rebuildUp' f e)
   Tm body -> f $ tm' ann (fmap (rebuildUp' f) body)
 
-freeVarAnnotations :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
-freeVarAnnotations t =
-  join . runIdentity $ foreachSubterm f (annotateBound t) where
-    f t@(Var' v)
-      | Set.notMember v (snd . annotation $ t) = pure [(v, fst . annotation $ t)]
-    f _ = pure []
-
+freeVarOccurrences :: (Traversable f, Ord v) => Set v -> Term f v a -> [(v, a)]
+freeVarOccurrences except t =
+  [ (v, a) | (v,a) <- go $ annotateBound t, not (Set.member v except) ]
+  where
+  go e = case out e of
+    Var v -> if Set.member v (snd $ annotation e)
+             then []
+             else [(v, fst $ annotation e)]
+    Cycle body -> go body
+    Abs _ body -> go body
+    Tm body -> foldMap go body
 
 foreachSubterm
   :: (Traversable f, Applicative g, Ord v)
@@ -385,17 +389,6 @@ foreachSubterm f e = case out e of
   Cycle body -> liftA2 (:) (f e) (foreachSubterm f body)
   Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
   Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
-
-freeVarOccurrences :: (Traversable f, Ord v) => Term f v a -> [(v, a)]
-freeVarOccurrences t = go $ annotateBound t
-  where
-  go e = case out e of
-    Var v -> if Set.member v (snd $ annotation e)
-             then []
-             else [(v, fst $ annotation e)]
-    Cycle body -> go body
-    Abs _ body -> go body
-    Tm body -> foldMap go body
 
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`

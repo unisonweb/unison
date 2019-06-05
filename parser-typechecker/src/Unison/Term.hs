@@ -20,7 +20,7 @@ import           Data.Int (Int64)
 import           Data.List (foldl')
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set, union)
+import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -42,10 +42,11 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import           Unison.Type (Type)
+import           Unison.Type (AnnotatedType, Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.ConstructorType as CT
+import Unison.Util.List (multimap)
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
@@ -189,14 +190,100 @@ freeVars :: AnnotatedTerm' vt v a -> Set v
 freeVars = ABT.freeVars
 
 freeTypeVars :: Ord vt => AnnotatedTerm' vt v a -> Set vt
-freeTypeVars t = go t where
-  go :: Ord vt => AnnotatedTerm' vt v a -> Set vt
-  go (ABT.Term _ _ t) = case t of
-    ABT.Abs _ t -> go t
-    ABT.Var _ -> Set.empty
-    ABT.Cycle t -> go t
-    ABT.Tm (Ann e t) -> Type.freeVars t `union` go e
-    ABT.Tm ts -> foldMap go ts
+freeTypeVars t = Map.keysSet $ freeTypeVarAnnotations t
+
+freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
+freeTypeVarAnnotations e = multimap $ go Set.empty e where
+  go bound tm = case tm of
+    Var' _ -> mempty
+    Ann' e (Type.stripIntroOuters -> t1@(Type.ForallsNamed' vs _)) ->
+      let bound' = bound <> Set.fromList vs
+      in go bound' e <> ABT.freeVarOccurrences bound t1
+    ABT.Tm' f -> foldMap (go bound) f
+    (ABT.out -> ABT.Abs _ body) -> go bound body
+    (ABT.out -> ABT.Cycle body) -> go bound body
+    _ -> error "unpossible"
+
+-- Capture-avoiding substitution of a type variable inside a term. This
+-- will replace that type variable wherever it appears in type signatures of
+-- the term, avoiding capture by renaming ∀-binders.
+substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+substTypeVar vt ty tm = go Set.empty tm where
+  go bound tm | Set.member vt bound = tm
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e t -> uncapture [] e (Type.stripIntroOuters t) where
+      fvs = ABT.freeVars ty
+      -- if the ∀ introduces a variable, v, which is free in `ty`, we pick a new
+      -- variable name for v which is unique, v', and rename v to v' in e.
+      uncapture vs e t@(Type.Forall' body) | Set.member (ABT.variable body) fvs = let
+        v = ABT.variable body
+        v2 = Var.freshIn (ABT.freeVars t) . Var.freshIn (Set.insert vt fvs) $ v
+        t2 = ABT.bindInheritAnnotation body (Type.var() v2)
+        in uncapture ((ABT.annotation t, v2):vs) (renameTypeVar v v2 e) t2
+      uncapture vs e t0 = let
+        t = foldl (\body (loc,v) -> Type.forall loc v body) t0 vs
+        bound' = case Type.unForalls (Type.stripIntroOuters t) of
+          Nothing -> bound
+          Just (vs, _) -> bound <> Set.fromList vs
+        t' = ABT.substInheritAnnotation vt ty (Type.stripIntroOuters t)
+        in ann loc (go bound' e) (Type.freeVarsToOuters bound t')
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
+
+renameTypeVar :: (Ord v, Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+renameTypeVar old new tm = go Set.empty tm where
+  go bound tm | Set.member old bound = tm
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e t -> let
+      bound' = case Type.unForalls (Type.stripIntroOuters t) of
+        Nothing -> bound
+        Just (vs, _) -> bound <> Set.fromList vs
+      t' = ABT.rename old new (Type.stripIntroOuters t)
+      in ann loc (go bound' e) (Type.freeVarsToOuters bound t')
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
+
+-- Converts free variables to bound variables using forall or introOuter. Example:
+--
+-- foo : x -> x
+-- foo a =
+--   r : x
+--   r = a
+--   r
+--
+-- This becomes:
+--
+-- foo : ∀ x . x -> x
+-- foo a =
+--   r : outer x . x -- FYI, not valid syntax
+--   r = a
+--   r
+--
+-- More specifically: in the expression `e : t`, unbound lowercase variables in `t`
+-- are bound with foralls, and any ∀-quantified type variables are made bound in
+-- `e` and its subexpressions. The result is a term with no lowercase free
+-- variables in any of its type signatures, with outer references represented
+-- with explicit `introOuter` binders. The resulting term may have uppercase
+-- free variables that are still unbound.
+generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+generalizeTypeSignatures tm = go Set.empty tm where
+  go bound tm = let loc = ABT.annotation tm in case tm of
+    Var' _ -> tm
+    Ann' e (Type.generalizeLowercase bound -> t) -> let
+      bound' = case Type.unForalls t of
+        Nothing -> bound
+        Just (vs, _) -> bound <> Set.fromList vs
+      in ann loc (go bound' e) (Type.freeVarsToOuters bound t)
+    ABT.Tm' f -> ABT.tm' loc (go bound <$> f)
+    (ABT.out -> ABT.Abs v body) -> ABT.abs' loc v (go bound body)
+    (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
+    _ -> error "unpossible"
 
 -- nicer pattern syntax
 

@@ -49,6 +49,9 @@ data F a
   | Effect a a
   | Effects [a]
   | Forall a
+  | IntroOuter a -- binder like ∀, used to introduce variables that are
+                 -- bound by outer type signatures, to support scoped type
+                 -- variables
   deriving (Foldable,Functor,Generic,Generic1,Eq,Ord,Traversable)
 
 instance Eq1 F where (==#) = (==)
@@ -104,6 +107,8 @@ pattern Effect'' es t <- (unEffect0 -> (es, t))
 -- Effect0' may match zero effects
 pattern Effect0' es t <- (unEffect0 -> (es, t))
 pattern Forall' subst <- ABT.Tm' (Forall (ABT.Abs' subst))
+pattern IntroOuter' subst <- ABT.Tm' (IntroOuter (ABT.Abs' subst))
+pattern IntroOuterNamed' v body <- ABT.Tm' (IntroOuter (ABT.out -> ABT.Abs v body))
 pattern ForallsNamed' vs body <- (unForalls -> Just (vs, body))
 pattern ForallNamed' v body <- ABT.Tm' (Forall (ABT.out -> ABT.Abs v body))
 pattern Var' v <- ABT.Var' v
@@ -135,6 +140,20 @@ unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
 unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
   where go (App' i o) acc = go i (o:acc)
         go fn args = fn:args
+
+unIntroOuters :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unIntroOuters t = go t []
+  where go (IntroOuterNamed' v body) vs = go body (v:vs)
+        go _body [] = Nothing
+        go body vs = Just (reverse vs, body)
+
+-- Most code doesn't care about `introOuter` binders and is fine dealing with the
+-- these outer variable references as free variables. This function strips out
+-- one or more `introOuter` binders, so `outer a b . (a, b)` becomes `(a, b)`.
+stripIntroOuters :: AnnotatedType v a -> AnnotatedType v a
+stripIntroOuters t = case unIntroOuters t of
+  Just (_, t) -> t
+  Nothing     -> t
 
 unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
 unForalls t = go t []
@@ -241,6 +260,9 @@ ann a e t = ABT.tm' a (Ann e t)
 
 forall :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
 forall a v body = ABT.tm' a (Forall (ABT.abs' a v body))
+
+introOuter :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
+introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
 iff :: Var v => Type v
 iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
@@ -435,11 +457,17 @@ functionResult t = go False t where
   go inArr t = if inArr then Just t else Nothing
 
 
--- | Bind all free variables that start with a lowercase letter with an outer `forall`.
-generalizeLowercase :: Var v => AnnotatedType v a -> AnnotatedType v a
-generalizeLowercase t = foldr (forall (ABT.annotation t)) t vars
-  where vars = [ v | v <- Set.toList (ABT.freeVars t), isLow v]
+-- | Bind all free variables (not in `except`) that start with a lowercase
+-- letter with an outer `forall`.
+generalizeLowercase :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
+  where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
+
+-- Convert all free variables in `allowed` to variables bound by an `introOuter`.
+freeVarsToOuters :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
+  where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.intersection` allowed)]
 
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
@@ -510,6 +538,7 @@ instance Hashable1 F where
         in [tag 4] ++ map hashed hs
       Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
       Forall a -> [tag 6, hashed (hash a)]
+      IntroOuter a -> [tag 7, hashed (hash a)]
 
 instance Show a => Show (F a) where
   showsPrec p fa = go p fa where
@@ -527,5 +556,8 @@ instance Show a => Show (F a) where
     go p (Forall body) = case p of
       0 -> showsPrec p body
       _ -> showParen True $ s"∀ " <> showsPrec 0 body
+    go p (IntroOuter body) = case p of
+      0 -> showsPrec p body
+      _ -> showParen True $ s"outer " <> showsPrec 0 body
     (<>) = (.)
     s = showString

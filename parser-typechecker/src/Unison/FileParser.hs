@@ -59,11 +59,11 @@ file = do
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
           WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind,(v,at)) : watches)
+            (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
           WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, at)) : watches)
-          Binding ((_, v), at) -> ((v,at) : terms, watches)
-          Bindings bs -> ([(v,at) | ((_,v), at) <- bs ] ++ terms, watches)
+            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+          Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
         toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
@@ -241,5 +241,5 @@ effectDeclaration mod = do
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>
-      prefixVar <* reserved ":" <*> (Type.generalizeLowercase <$> TypeParser.computationType)
+      prefixVar <* reserved ":" <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
       where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
