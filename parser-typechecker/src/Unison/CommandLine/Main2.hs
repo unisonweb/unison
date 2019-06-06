@@ -22,7 +22,7 @@ import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
-import Unison.Codebase.Branch2 (Branch0)
+import Unison.Codebase.Branch2 (Branch, Branch0)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Path (Path)
@@ -37,8 +37,8 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
-import qualified Unison.Codebase.Editor as E
-import qualified Unison.Codebase.Editor.Actions as Actions
+--import qualified Unison.Codebase.Editor2 as E
+--import qualified Unison.Codebase.Editor.Actions as Actions
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase2 as Codebase
@@ -51,14 +51,15 @@ getUserInput
   :: (MonadIO m, Line.MonadException m)
   => Map String InputPattern
   -> Codebase m v a
-  -> Branch0 m
-  -> Path
+  -> Branch m
+  -> Path.Absolute
   -> [String]
   -> m Input
 getUserInput patterns codebase branch currentPath numberedArgs =
   Line.runInputT settings $ do
     line <- Line.getInputLine $
-      P.toANSI 80 (P.green (P.text (Path.toText currentPath) <> fromString prompt))
+      P.toANSI 80 (P.green (P.text (Path.toText (Path.unabsolute currentPath))
+            <> fromString prompt))
     case line of
       Nothing -> pure QuitI
       Just l -> case parseInput patterns . fmap expandNumber . words $ l of
@@ -82,7 +83,7 @@ getUserInput patterns codebase branch currentPath numberedArgs =
         h : t -> fromMaybe (pure []) $ do
           p       <- Map.lookup h patterns
           argType <- IP.argType p (length t)
-          pure $ suggestions argType word codebase branch
+          pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
 main

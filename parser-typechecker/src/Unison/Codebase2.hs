@@ -18,6 +18,7 @@ import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin2               as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
+import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
@@ -49,7 +50,7 @@ data Codebase m v a =
 
            , getRootBranch      :: m (Branch m)
            , putRootBranch      :: Branch m -> m ()
-           , rootBranchUpdates  :: m (m (), m (Set Hash))
+           , rootBranchUpdates  :: m (m (), m (Set Branch.Hash))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            }

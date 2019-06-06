@@ -326,7 +326,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
 branchHeadUpdates :: (MonadError Err m, MonadUnliftIO m)
-                  => CodebasePath -> m (m (), m (Set Hash.Hash))
+                  => CodebasePath -> m (m (), m (Set Branch.Hash))
 branchHeadUpdates root = do
   branchHeadChanges      <- TQueue.newIO
   (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
@@ -338,7 +338,7 @@ branchHeadUpdates root = do
       (filePath, _) <- watcher
       case hashFromFilePath filePath of
         Nothing -> throwError $ CantParseBranchHead filePath
-        Just h -> atomically . TQueue.enqueue branchHeadChanges $ h
+        Just h -> atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
   -- smooth out intermediate queue
   pure
     $ ( cancelWatch >> killThread watcher1

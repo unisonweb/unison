@@ -20,7 +20,7 @@ import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPatte
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase2 as Codebase
 import qualified Unison.Codebase.Branch2 as Branch
 import qualified Unison.Codebase.Editor.HandleInput as HI
 import qualified Unison.Codebase.Editor.Input as Input
@@ -169,7 +169,7 @@ aliasTerm = InputPattern "alias.term" []
     )
 
 cd :: InputPattern
-cd = InputPattern "cd" [] [(Required, branchArg)]
+cd = InputPattern "cd" [] [(Required, branchPathArg)]
     (P.wrapColumn2
       [ ("`cd foo.bar`",
           "descends into foo.bar from the current path.")
@@ -183,7 +183,7 @@ cd = InputPattern "cd" [] [(Required, branchArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchArg)]
+deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchPathArg)]
   "`branch.delete <foo>` deletes the branch `foo`"
    (\case
         [p] -> first fromString $ do
@@ -193,8 +193,8 @@ deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchArg)]
       )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" [] [(Required, branchArg)
-                                   ,(Required, branchArg)]
+forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
+                                   ,(Required, branchPathArg)]
     "`fork foo bar` creates the branch `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
@@ -205,8 +205,8 @@ forkLocal = InputPattern "fork" [] [(Required, branchArg)
     )
 
 mergeLocal :: InputPattern
-mergeLocal = InputPattern "merge" [] [(Required, branchArg)
-                                     ,(Optional, branchArg)]
+mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
+                                     ,(Optional, branchPathArg)]
  "`merge foo` merges the branch 'foo' into the current branch."
  (\case
       [src] -> first fromString $ do
@@ -292,33 +292,27 @@ commandNames = I.patternName <$> validInputs
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ -> pure (fuzzyComplete q commandNames)
-
-branchArg :: ArgumentType
-branchArg = ArgumentType "branch" $ \q codebase _b -> do
-  branches <- Codebase.branches codebase
-  let bs = Text.unpack <$> branches
-  pure $ fuzzyComplete q bs
+  ArgumentType "command" $ \q _ _ _ -> pure (fuzzyComplete q commandNames)
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
-  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) -> do
+  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) _ -> do
     pure $ [] -- fuzzyCompleteHashQualified b q
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
-  ArgumentType "definition query" $ \q _ (Branch.head -> b) -> do
+  ArgumentType "definition query" $ \q _ (Branch.head -> b) _ -> do
     pure $ [] -- autoCompleteHashQualified b q
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) -> do
+  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ -> do
     pure $ [] -- autoCompleteHashQualifiedType b q
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) -> do
+  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ -> do
     pure $ [] -- autoCompleteHashQualifiedTerm b q
 
 patchPathArg :: ArgumentType

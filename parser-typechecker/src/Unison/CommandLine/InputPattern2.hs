@@ -11,11 +11,12 @@
 module Unison.CommandLine.InputPattern2 where
 
 import qualified System.Console.Haskeline       as Line
-import           Unison.Codebase                (Codebase)
+import           Unison.Codebase2               (Codebase)
 import           Unison.Codebase.Branch2        (Branch)
 import           Unison.Codebase.Editor.Input   (Input (..))
 import qualified Unison.Util.ColorText          as CT
 import qualified Unison.Util.Pretty             as P
+import           Unison.Codebase.Path           as Path
 
 -- InputPatterns accept some fixed number of Required arguments of various
 -- types, followed by a variable number of a single type of argument.
@@ -40,6 +41,7 @@ data ArgumentType = ArgumentType
                 => String
                 -> Codebase m v a
                 -> Branch m
+                -> Path.Absolute
                 -> m [Line.Completion]
   }
 instance Show ArgumentType where
@@ -87,6 +89,6 @@ maxArgs ip@(fmap fst . args -> args) = go args where
 
 
 noSuggestions ::
-  Monad m => String -> Codebase m v a -> Branch m -> m [Line.Completion]
-noSuggestions _ _ _ = pure []
+  Monad m => String -> Codebase m v a -> Branch m -> Path.Absolute -> m [Line.Completion]
+noSuggestions _ _ _ _ = pure []
 
