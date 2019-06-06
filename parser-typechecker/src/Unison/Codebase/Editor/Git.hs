@@ -8,12 +8,12 @@ import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
                                                 )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 import           Shellmet                       ( )
 import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 )
-import           System.FilePath                ( (</>) )
 import           Unison.Codebase.FileCodebase2  ( CodebasePath
                                                 , getRootBranch
                                                 , putRootBranch
@@ -29,10 +29,10 @@ pullGithubRootBranch
 pullGithubRootBranch localPath user repo treeish = do
   liftIO $ do
     wd <- getCurrentDirectory
-    setCurrentDirectory localPath
-    exists <- doesDirectoryExist $ localPath </> ".git"
+    exists <- doesDirectoryExist $ localPath
     let uri = githubUri user repo
-    when (not exists) $ shallowClone uri
+    when (not exists) $ shallowClone uri localPath
+    setCurrentDirectory $ localPath
     shallowPull uri treeish
     setCurrentDirectory wd
   getRootBranch localPath
@@ -40,8 +40,8 @@ pullGithubRootBranch localPath user repo treeish = do
 githubUri :: Text -> Text -> Text
 githubUri user repo = "git@github.com:" <> user <> "/" <> repo <> ".git"
 
-shallowClone :: Text -> IO ()
-shallowClone uri = "git" ["clone", "--depth=1", uri]
+shallowClone :: Text -> FilePath -> IO ()
+shallowClone uri localPath = "git" ["clone", "--depth=1", uri, Text.pack localPath]
 
 shallowPull :: Text -> Text -> IO ()
 shallowPull uri treeish = do
