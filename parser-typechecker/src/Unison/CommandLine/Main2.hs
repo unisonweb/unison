@@ -22,12 +22,12 @@ import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
-import Unison.Codebase.Branch (Branch)
+import Unison.Codebase.Branch2 (Branch0)
 import Unison.Codebase.Editor.Input (Input (..))
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase2 (Codebase)
-import Unison.CommandLine
+import Unison.CommandLine2
 import Unison.CommandLine.InputPattern2 (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns2 (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser)
@@ -39,6 +39,7 @@ import qualified Data.Text as Text
 import qualified System.Console.Haskeline as Line
 import qualified Unison.Codebase.Editor as E
 import qualified Unison.Codebase.Editor.Actions as Actions
+import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Codebase2 as Codebase
 import qualified Unison.CommandLine.InputPattern2 as IP
@@ -50,20 +51,20 @@ getUserInput
   :: (MonadIO m, Line.MonadException m)
   => Map String InputPattern
   -> Codebase m v a
-  -> Branch
+  -> Branch0 m
   -> Path
   -> [String]
   -> m Input
-getUserInput patterns codebase branch branchName numberedArgs =
+getUserInput patterns codebase branch currentPath numberedArgs =
   Line.runInputT settings $ do
     line <- Line.getInputLine $
-      P.toANSI 80 (P.green (P.text branchName <> fromString prompt))
+      P.toANSI 80 (P.green (P.text (Path.toText currentPath) <> fromString prompt))
     case line of
       Nothing -> pure QuitI
       Just l -> case parseInput patterns . fmap expandNumber . words $ l of
         Left msg -> lift $ do
           liftIO $ putPrettyLn msg
-          getUserInput patterns codebase branch branchName numberedArgs
+          getUserInput patterns codebase branch currentPath numberedArgs
         Right i -> pure i
  where
   expandNumber s = case readMay s of
@@ -93,7 +94,7 @@ main
   -> IO (Runtime v)
   -> Codebase IO v Ann
   -> IO ()
-main dir currentBranchName _initialFile startRuntime codebase =
+main dir initialPath _initialFile startRuntime codebase =
   undefined
   --do
   --currentBranch <- Codebase.getBranch codebase currentBranchName

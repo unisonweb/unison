@@ -65,8 +65,8 @@ import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
-                                                , Path'
-                                                , HQSegment
+                                                , Path' )
+import           Unison.Codebase.NameSegment    ( HQSegment
                                                 , NameSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path

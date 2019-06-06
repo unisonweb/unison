@@ -15,11 +15,10 @@ module Unison.Codebase.Path
 where
 
 import qualified Data.Foldable as Foldable
-import           Data.List                (intercalate)
 -- import           Data.String                    ( IsString
 --                                                 , fromString
 --                                                 )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, intercalate )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
@@ -28,9 +27,10 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
+import Unison.Util.Monoid (intercalateMap)
 
--- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
+import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
+import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
@@ -45,9 +45,6 @@ unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p,
 
 unsplit :: Show a => (Path, a) -> Path
 unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
-
-type HQSegment = HQ.HashQualified' NameSegment
-type HQ'Segment = HQ'.HashQualified' NameSegment
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
@@ -142,14 +139,11 @@ uncons p = case p of
   Path (hd :<| tl) -> Just (hd, Path tl)
   _ -> Nothing
 
-asIdentifier :: Path -> Text
-asIdentifier = Text.intercalate "." . fmap toText . toList
-
-asDirectory :: Path -> Text
-asDirectory p = case toList p of
-  NameSegment "_root_" : (Seq.fromList -> tail) ->
-    "/" <> asDirectory (Path tail)
-  other -> Text.intercalate "/" . fmap toText $ other
+--asDirectory :: Path -> Text
+--asDirectory p = case toList p of
+--  NameSegment "_root_" : (Seq.fromList -> tail) ->
+--    "/" <> asDirectory (Path tail)
+--  other -> Text.intercalate "/" . fmap NameSegment.toText $ other
 
 -- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
 -- /Foo/bar
@@ -164,7 +158,7 @@ fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 
 toName :: Path -> Name
-toName = Name.unsafeFromText . asIdentifier
+toName = Name.unsafeFromText . toText
 
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.
@@ -185,26 +179,7 @@ cons :: NameSegment -> Path -> Path
 cons ns (Path p) = Path (ns :<| p)
 
 instance Show Path where
-  show (Path nss) = intercalate "/" $ fmap escape1 (Foldable.toList nss)
-    where escape1 ns = escape =<< (Text.unpack . toText $ ns)
-          escape = \case '/' -> "\\/"; c -> [c]
+  show = Text.unpack . toText
 
--- unsafeFromString :: NameSegment ->
--- toString :: NameSegment -> String
--- toString = Text.unpack . toText
---
--- isPrefixOf :: Name -> Name -> Bool
--- a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
---
--- stripPrefix :: Name -> Name -> Maybe Name
--- stripPrefix prefix name =
---   Name <$> Text.stripPrefix (toText prefix) (toText name)
---
--- instance Show Name where
---   show = toString
---
--- instance IsString Name where
---   fromString = unsafeFromText . Text.pack
---
-instance H.Hashable NameSegment where
-  tokens s = [H.Text (toText s)]
+toText :: Path -> Text
+toText (Path nss) = intercalateMap "." NameSegment.toText nss
