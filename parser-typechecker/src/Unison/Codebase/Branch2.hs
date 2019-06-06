@@ -47,10 +47,9 @@ import           Unison.Codebase.SearchResult (SearchResult)
 import qualified Unison.Codebase.SearchResult as SR
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
-import           Unison.Codebase.Path           ( NameSegment
-                                                , Path(Path)
-                                                )
+import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
+import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H

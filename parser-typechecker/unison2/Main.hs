@@ -11,19 +11,20 @@ import qualified Unison.Codebase.FileCodebase2 as FileCodebase
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.CommandLine.Main2 as CommandLine
 import qualified Unison.Runtime.Rt1IO as Rt1
+import qualified Unison.Codebase.Path as Path
 
 main :: IO ()
 main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
   let codebasePath  = ".unison/v0"
-      initialBranchName = "master"
-      scratchFilePath   = "."
+      initialPath = Path.empty
+      scratchFilePath = "."
       theCodebase =
         FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
       launch = CommandLine.main
         scratchFilePath
-        initialBranchName
+        initialPath
         (headMay args)
         (pure Rt1.runtime)
         theCodebase
