@@ -27,8 +27,6 @@ import           Data.Text                      ( Text
 import           Unison.Codebase2               ( Codebase )
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase2              as Codebase
-import           Unison.Codebase.Branch2         ( Branch
-                                                 )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import           Unison.Parser                  ( Ann )
@@ -68,14 +66,6 @@ data SearchMode = FuzzySearch | ExactSearch
 --   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
 --
 --   Propagate :: Edits -> Branch -> Command m i v (Branch m)
-
-
--- may need to be different for private repo?
-loadGithubRootBranch :: Text -> Text -> Text -> m (Branch m)
-loadGithubRootBranch _user _repo _treeish = error "todo: loadGithubRootBranch"
-
-syncGithubRootBranch :: Text -> Text -> Text -> Branch m -> m ()
-syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranch"
 
 -- data Outcome
 --   -- New definition that was added to the branch
