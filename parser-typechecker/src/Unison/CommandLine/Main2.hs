@@ -90,14 +90,15 @@ getUserInput patterns codebase branch currentPath numberedArgs =
         _ -> pure []
 
 main
-  :: forall v
-   . Var v
+  :: forall m v
+   . MonadIO m
+  => Var v
   => FilePath
   -> Path
   -> Maybe FilePath
-  -> IO (Runtime v)
-  -> Codebase IO v Ann
-  -> IO ()
+  -> m (Runtime v)
+  -> Codebase m v Ann
+  -> m ()
 main dir initialPath _initialFile startRuntime codebase =
   undefined
   --do

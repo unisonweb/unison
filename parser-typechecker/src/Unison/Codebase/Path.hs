@@ -18,15 +18,12 @@ import qualified Data.Foldable as Foldable
 -- import           Data.String                    ( IsString
 --                                                 , fromString
 --                                                 )
-import           Data.Text                      ( Text, intercalate )
+import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
-import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
 
