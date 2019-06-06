@@ -61,14 +61,9 @@ type HQ'Split' = (Path', HQ'Segment)
 type SplitAbsolute = (Absolute, NameSegment)
 type HQSplitAbsolute = (Absolute, HQSegment)
 
--- Discussion: What should the syntax be for all these things?
--- .libs.blah.poo
--- /libs/blah/Poo.poo
--- .libs.blah> cd ../../apps/blah2
--- .libs.blah> up; up; cd apps/blah2
--- import .........apps.Notepad as Notepad
--- Option1: a mix of . and /
--- Option2: some / followed by some .
+-- .libs.blah.poo is Absolute
+-- libs.blah.poo is Relative
+-- Left is some parse error tbd
 parsePath' :: String -> Either String Path'
 parsePath' p = case p of
   '.' : p -> Path' . Left . Absolute . fromList <$> segs p
