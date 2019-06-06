@@ -22,7 +22,6 @@ import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
-import           Unison.Hash                    ( Hash )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term

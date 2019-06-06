@@ -1,11 +1,14 @@
-{-# LANGUAGE DoAndIfThenElse     #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
+{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
+
+-- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 
 module Unison.CommandLine.Main2 where

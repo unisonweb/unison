@@ -17,7 +17,6 @@ import           Data.String                  (fromString)
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
 import qualified Text.Regex.TDFA              as RE
-import           Unison.Codebase.Branch       (Branch0)
 import qualified Unison.Codebase.Branch       as Branch
 import           Unison.Codebase.SearchResult (SearchResult)
 import qualified Unison.Codebase.SearchResult as SR
@@ -105,7 +104,10 @@ fuzzyFindInBranch b hq =
         (fromJust . fmap Name.toString . HQ.toName . SR.name)
     Nothing -> fmap getName (candidates b hq)
 
+getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)
 getName sr = (sr, prettyHashQualified (SR.name sr))
+
+candidates :: Names.Names' Name.Name -> HashQualified -> [SearchResult]
 candidates b hq = typeCandidates <> termCandidates
   where
   -- filter branch by hash

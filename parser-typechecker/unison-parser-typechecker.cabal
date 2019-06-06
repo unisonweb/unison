@@ -141,6 +141,7 @@ library
     Unison.Util.Components
     Unison.Util.Free
     Unison.Util.Find
+    Unison.Util.Find2
     Unison.Util.Logger
     Unison.Util.List
     Unison.Util.Histogram

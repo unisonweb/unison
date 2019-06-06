@@ -1,4 +1,6 @@
-{-# LANGUAGE DoAndIfThenElse     #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
+
+-- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -19,10 +21,7 @@ import Unison.CommandLine
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
-import qualified Data.Text as Text
-import qualified Unison.Codebase2 as Codebase
 import qualified Unison.Codebase.Branch2 as Branch
-import qualified Unison.Codebase.Editor.HandleInput as HI
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern2 as I
@@ -246,6 +245,7 @@ help = InputPattern
         Just pat -> Left $ I.help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
 
+quit :: InputPattern
 quit = InputPattern "quit" ["exit"] []
   "Exits the Unison command line interface."
   (\case

@@ -30,7 +30,6 @@ import qualified System.Console.Terminal.Size    as Terminal
 import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase2                 (Codebase)
 import qualified Unison.Codebase2                 as Codebase
-import           Unison.Codebase.Branch2          (Branch, Branch0)
 import qualified Unison.Codebase.Branch2         as Branch
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.Runtime         as Runtime
