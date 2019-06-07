@@ -7,7 +7,7 @@ module Unison.Codebase2 where
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 )
-import           Data.Foldable                  ( toList
+import           Data.Foldable                  ( toList, traverse_
                                                 )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( isJust
@@ -115,16 +115,16 @@ getTypeOfConstructor _ r cid =
 -- putTermComponent code m = forM_ (toList m) $ \(ref, tm, typ) -> case ref of
 --   Reference.DerivedId id -> putTerm code id tm typ
 --   _ -> pure ()
---
--- putTypeDeclaration
---   :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
--- putTypeDeclaration c rid decl = do
---   putTypeDeclarationImpl c rid decl
---   traverse_ go $ case decl of
---     Left  ed -> DD.effectConstructorTerms rid ed
---     Right dd -> DD.dataConstructorTerms rid dd
---   where go (r, tm, typ) = putTerm c r tm typ
---
+
+putTypeDeclaration
+  :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
+putTypeDeclaration c rid decl = do
+  putTypeDeclarationImpl c rid decl
+  traverse_ go $ case decl of
+    Left  ed -> DD.effectConstructorTerms rid ed
+    Right dd -> DD.dataConstructorTerms rid dd
+  where go (r, tm, typ) = putTerm c r tm typ
+
 -- prettyBinding
 --   :: (Var.Var v, Monad m)
 --   => Codebase m v a

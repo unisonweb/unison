@@ -19,15 +19,20 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
 
+import qualified Unison.Builtin2               as B
+import           Unison.Symbol                  ( Symbol )
+
 -- import Debug.Trace
 
 import           Data.Functor                   ( void )
+import Data.Foldable (traverse_)
 import           Data.Text                      ( Text
                                                 )
-import           Unison.Codebase2               ( Codebase )
+import           Unison.Codebase2               ( Codebase, Decl )
 import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase.Branch2         ( Branch
+                                                 , Branch0
                                                  )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
@@ -35,6 +40,7 @@ import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
+import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Type                   as Type
@@ -489,3 +495,22 @@ loadSearchResults code = traverse loadSearchResult
 --   else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
 --   else if q `isPrefixOf` n               then Just 3-- matching prefix
 --   else Nothing
+
+-- | Write all of the builtins types and IO types into the codebase
+initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m ()
+initializeCodebase c = do
+  traverse_ (go Right) B.builtinDataDecls
+  traverse_ (go Left)  B.builtinEffectDecls
+  addDefsToCodebase c IOSource.typecheckedFile
+  where
+  go :: (t -> Decl Symbol Ann) -> (a, (Reference.Reference, t)) -> m ()
+  go f (_, (ref, decl)) = case ref of
+    Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
+    _                      -> pure ()
+
+addDefsToCodebase :: Monad m
+  => Codebase m Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann-> m ()
+addDefsToCodebase c uf = error "todo" c uf
+
+builtinBranch :: Branch0 m
+builtinBranch = error "todo"

@@ -137,16 +137,16 @@ isBuiltinType r = elem r . fmap snd $ builtinTypes
 -- builtinTypes :: [(Name, R.Reference)]
 -- builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
 --   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
---
--- -- | parse some builtin data types, and resolve their free variables using
--- -- | builtinTypes' and those types defined herein
--- builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
--- builtinDataDecls =
---   [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
---
--- builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
--- builtinEffectDecls = []
---
+
+-- | parse some builtin data types, and resolve their free variables using
+-- | builtinTypes' and those types defined herein
+builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls =
+  [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
+
+builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
+builtinEffectDecls = []
+
 -- codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
 -- codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
 --   pure

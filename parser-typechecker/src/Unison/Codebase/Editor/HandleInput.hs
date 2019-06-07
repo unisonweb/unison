@@ -1095,6 +1095,7 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   watches = filter (not.null.snd) $ fmap (second (List.filter filterTLC)) watchComponents
   filterTLC (v,_,_) = Set.member v keepTerms
 
+-- updates the namespace for adding `slurp`
 doSlurpAdds :: forall m v. (Applicative m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann

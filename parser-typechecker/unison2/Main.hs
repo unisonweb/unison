@@ -6,12 +6,12 @@ import Safe ( headMay )
 import System.Environment ( getArgs )
 import Unison.Codebase.Serialization.V0 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
-import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.FileCodebase2 as FileCodebase
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.CommandLine.Main2 as CommandLine
 import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 
 main :: IO ()
 main = do
@@ -32,7 +32,7 @@ main = do
   when (not exists) $ do
     putStrLn $ "☝️  No codebase exists here so I'm initializing one in: " <> codebasePath
     FileCodebase.initialize codebasePath
-  -- Editor.initializeCodebase theCodebase
+    HandleCommand.initializeCodebase theCodebase
   launch
 
 formatAnn :: S.Format Ann
