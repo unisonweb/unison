@@ -7,6 +7,7 @@ import           Control.Monad                             (forM, forM_)
 import           Control.Monad.IO.Class                    (MonadIO, liftIO)
 import           EasyTest
 
+import qualified Data.ByteString                           as BS
 import           Data.List                                 (isSuffixOf)
 import           System.Directory                          (doesDirectoryExist,
                                                             getDirectoryContents)
@@ -86,6 +87,10 @@ compiledTermsFiles =
 
 compiledTerms :: MonadIO m => TermSerializer -> m [Either DeserializeError Term]
 compiledTerms ts = traverse (getTermFromFile ts) =<< compiledTermsFiles
+
+compiledTermSize :: MonadIO m => TermSerializer -> m (Either DeserializeError [Int])
+compiledTermSize ts = fmap sequence $
+  fmap (fmap $ BS.length . putTerm ts) <$> compiledTerms v1Serializer
 
 -- all terms using the v1 serializer to read them in.
 compiledTerms' :: Test [Term]

@@ -9,8 +9,10 @@ import           Control.Monad                  ( replicateM )
 import           Codec.Serialise.Decoding
 import           Codec.Serialise.Encoding
 
+import qualified Data.ByteString.Base64        as Base64
 import           Data.Foldable                  ( toList )
 import           Data.List                      ( elemIndex )
+import           Data.Text.Encoding             (decodeUtf8, encodeUtf8)
 import           Unison.Codebase.Branch         ( Branch(..)
                                                 , Branch0(..)
                                                 )
@@ -86,10 +88,14 @@ unknownTag msg tag =
          " while deserializing: " ++ msg
 
 putHash :: Hash -> Encoding
-putHash = encodeBytes . Hash.toBytes
+putHash = encodeString . decodeUtf8 . Base64.encode . Hash.toBytes
 
 getHash :: Decoder s Hash
-getHash = Hash.fromBytes <$> decodeBytes
+getHash = do
+  eB64 <- Base64.decode . encodeUtf8 <$> decodeString
+  Hash.fromBytes <$> f eB64
+  where f (Left err) = fail $ "couldn't Base64.decode hash, " ++ err
+        f (Right hash) = return hash
 
 putReference :: Reference -> Encoding
 putReference r = case r of
@@ -520,7 +526,7 @@ putEither _ putR (Right b) = putDataType (tag 1) [putR b]
 getEither :: Decoder s a -> Decoder s b -> Decoder s (Either a b)
 getEither getL getR = getDataType >>= \case
   (Tag 0, NrArgs 0) -> do !a <- getL
-                        return (Left a)
+                          return (Left a)
   (Tag 1, NrArgs 0) -> do !b <- getR
-                        return (Right b)
+                          return (Right b)
   (tag, len) -> unknownTag "Either" (tag, len)

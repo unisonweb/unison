@@ -17,22 +17,25 @@ module Unison.Codebase.Serialization.Serializers
   , v1TermToJson
   -- testing
   , getTermFromFile
+  , v0TermFromFile
+  , v0TermFromFileToJson
   ) where
 
-import           Codec.Serialise.Decoding                   (Decoder)
-import           Codec.Serialise.Encoding                   (Encoding)
+import           Codec.Serialise.Decoding              (Decoder)
+import           Codec.Serialise.Encoding              (Encoding)
 import           Codec.CBOR.JSON                       (decodeValue,
                                                         encodeValue)
 import qualified Codec.CBOR.Read                       as CBOR
 import qualified Codec.CBOR.Write                      as CBOR
 import           Control.Monad.IO.Class                (MonadIO, liftIO)
 import           Data.Aeson                            (Value)
-import           Data.Bifunctor                        (first,bimap)
+import           Data.Bifunctor                        (first, bimap)
 import qualified Data.Bytes.Get                        as Get
 import qualified Data.Bytes.Put                        as Put
 import qualified Data.ByteString                       as BS
 import qualified Data.ByteString.Lazy                  as BSL
 import qualified Data.Serialize.Get                    as Get
+import           Data.Text                             (Text, pack)
 
 import qualified Unison.Codebase.Serialization.V0      as V0
 import qualified Unison.Codebase.Serialization.V0Cborg as V0Cborg
@@ -43,12 +46,11 @@ import           Unison.Parser                         (Ann (External))
 import           Unison.Symbol                         (Symbol (..))
 import           Unison.Term                           (AnnotatedTerm)
 
-import Data.Text (Text, pack)
 import Debug.Trace (traceShowId)
 
 type Term = AnnotatedTerm Symbol Ann
 
-data DeserializeError = DeserializeError Text
+newtype DeserializeError = DeserializeError Text
   deriving (Eq, Ord, Show)
 
 data TermSerializer = TermSerializer {
@@ -134,6 +136,14 @@ deserializeTermCborg decoder =
 v0TermFromJson :: Value -> Either DeserializeError Term
 v0TermFromJson = termFromJSON v0SerializerCborg
 
+v0TermFromFile :: FilePath -> IO (Either DeserializeError Term)
+v0TermFromFile = getTermFromFile v0Serializer
+
+v0TermFromFileToJson :: FilePath -> IO (Either DeserializeError Value)
+v0TermFromFileToJson filePath = do
+  e <- v0TermFromFile filePath
+  return $ traceShowId e >>= v0TermToJson
+
 v0TermToJson :: Term -> Either DeserializeError Value
 v0TermToJson = termToJSON v0SerializerCborg
 
@@ -144,7 +154,7 @@ v1TermToJson :: Term -> Either DeserializeError Value
 v1TermToJson = termToJSON v1SerializerCborg
 
 termToJSON :: TermSerializer -> Term -> Either DeserializeError Value
-termToJSON ts = deserializeTermCborg (decodeValue True) . traceShowId . putTerm ts
+termToJSON ts = deserializeTermCborg (decodeValue True) . putTerm ts
 
 termFromJSON :: TermSerializer -> Value -> Either DeserializeError Term
 termFromJSON ts = getTerm ts . CBOR.toStrictByteString . encodeValue

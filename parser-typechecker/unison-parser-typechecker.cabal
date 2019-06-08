@@ -144,6 +144,7 @@ library
     async,
     base,
     base58-bytestring,
+    base64-bytestring,
     bifunctors,
     bytes,
     bytestring,
