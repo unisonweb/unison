@@ -7,19 +7,15 @@ module Unison.Codebase2 where
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 )
-import           Data.Foldable                  ( toList, traverse_
-                                                )
+import           Data.Foldable                  ( toList )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( isJust
-                                                , catMaybes
-                                                )
+import           Data.Maybe                     ( catMaybes )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin2               as Builtin
 import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Branch2       as Branch
-import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
 import           Unison.Reference               ( Reference )
@@ -46,7 +42,7 @@ data Codebase m v a =
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
 
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
-           , putTypeDeclarationImpl :: Reference.Id -> Decl v a -> m ()
+           , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
 
            , getRootBranch      :: m (Branch m)
            , putRootBranch      :: Branch m -> m ()
@@ -116,15 +112,6 @@ getTypeOfConstructor _ r cid =
 -- putTermComponent code m = forM_ (toList m) $ \(ref, tm, typ) -> case ref of
 --   Reference.DerivedId id -> putTerm code id tm typ
 --   _ -> pure ()
-
-putTypeDeclaration
-  :: (Monad m, Ord v) => Codebase m v a -> Reference.Id -> Decl v a -> m ()
-putTypeDeclaration c rid decl = do
-  putTypeDeclarationImpl c rid decl
-  traverse_ go $ case decl of
-    Left  ed -> DD.effectConstructorTerms rid ed
-    Right dd -> DD.dataConstructorTerms rid dd
-  where go (r, tm, typ) = putTerm c r tm typ
 
 -- prettyBinding
 --   :: (Var.Var v, Monad m)
@@ -547,25 +534,3 @@ dependents c r
 --       fromMaybe Set.empty . fmap Term.dependencies <$> getTerm c r
 --     _ -> pure $ R.lookupDom r Builtin.builtinDependencies
 --   dependents' = dependents c
-
-instance Functor m => CC.GetDecls (Codebase m v a) m v a where
-  getTerm = Unison.Codebase2.getTerm
-  getTypeOfTerm = Unison.Codebase2.getTypeOfTerm
-  getTypeDeclaration = Unison.Codebase2.getTypeDeclaration
-
-  -- these could be more efficient in FileCodebase
-  hasTerm d id = isJust <$> Unison.Codebase2.getTerm d id
-  hasType d id = isJust <$> Unison.Codebase2.getTypeDeclaration d id
-
-instance CC.PutDecls (Codebase m v a) m v a where
-  putTerm = Unison.Codebase2.putTerm
-  putTypeDeclarationImpl = Unison.Codebase2.putTypeDeclarationImpl
-
-instance CC.GetBranch (Codebase m v a) m where
-  getRootBranch = Unison.Codebase2.getRootBranch
-
-instance CC.PutBranch (Codebase m v a) m where
-  putRootBranch = Unison.Codebase2.putRootBranch
-
-instance CC.GetDependents (Codebase m v a) m where
-  dependentsImpl = Unison.Codebase2.dependentsImpl

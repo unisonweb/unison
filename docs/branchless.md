@@ -1,3 +1,17 @@
+---
+
+### Dependents
+
+The reason we keep track of dependents is for the `todo` calculation.  When we make an edit, what are the things that need to be updated as a result?
+
+When adding term `a` that depends on "derived" term `b` or type `B`, then a change to `b` or `B` affects `a`, so we record that `a` is a dependent of `b` and `B`.
+
+When adding type `A` that depends on type `B`, a change to `B` affects `A`, so we record that `A` is a dependent of `B`.
+
+We don't do anything for constructors, because constructors don't change.  Depending on the constructor really means you depend on the type that constructor comes from. (i.e. a constructor doesn't have dependents.)  Similarly, constructor doesn't have dependencies, but its declaring type may depend on other types.
+
+---
+
 Commands
 
 ```

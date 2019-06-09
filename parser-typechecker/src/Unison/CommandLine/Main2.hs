@@ -99,10 +99,9 @@ main
   -> m (Runtime v)
   -> Codebase m v Ann
   -> m ()
-main dir initialPath _initialFile startRuntime codebase =
+main dir initialPath _initialFile startRuntime codebase = do
+  root <- Codebase.getRootBranch codebase
   undefined
-  --do
-  --currentBranch <- Codebase.getBranch codebase currentBranchName
   --eventQueue    <- Q.newIO
   --currentBranch <- case currentBranch of
   --  Nothing ->

@@ -16,10 +16,8 @@ import           UnliftIO.Concurrent            ( forkIO
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
 import           Data.Foldable                  ( traverse_, toList )
-import           Data.Functor ((<&>))
 import           Data.List.Split                ( splitOn )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
@@ -50,12 +48,15 @@ import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
+
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Watch         as Watch
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
@@ -81,16 +82,12 @@ termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentId r
 declDir root r = typesDir root </> componentId r
 
-builtinDir :: CodebasePath -> Reference -> Maybe FilePath
-builtinDir root r@(Reference.Builtin name) =
-  if Builtin.isBuiltinTerm r then Just (builtinTermDir root name)
-  else if Builtin.isBuiltinType r then Just (builtinTypeDir root name)
-  else Nothing
-builtinDir _ _ = Nothing
+dependentsDir :: CodebasePath -> Reference -> FilePath
+dependentsDir root r = root </> "dependents" </> case r of
+  Reference.Builtin name -> "_builtin" </> encodeFileName name
+  Reference.DerivedId hash -> componentId hash
 
-builtinTermDir, builtinTypeDir, watchesDir :: CodebasePath -> Text -> FilePath
-builtinTermDir root name = termsDir root </> "_builtin" </> encodeFileName name
-builtinTypeDir root name = typesDir root </> "_builtin" </> encodeFileName name
+watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root kind = root </> "watches" </> encodeFileName kind
 
 
@@ -116,26 +113,6 @@ encodeFileName t = let
      else if t == ".." then "$dotdot$"
      else go (Text.unpack t)
 
-
--- todo: can simplify this if Reference ever distinguishes terms from types
-dependentsDir :: MonadIO m
-              => CodebasePath -> Reference -> m FilePath
-dependentsDir root r = go r <&> (</> "dependents") where
-  go :: MonadIO m => Reference -> m FilePath
-  go r@(Reference.Builtin name) =
-    if Builtin.isBuiltinTerm r then pure $ builtinTermDir root name
-    else if Builtin.isBuiltinType r then pure $ builtinTypeDir root name
-    else failWith $ UnknownTypeOrTerm r
-  go r@(Reference.DerivedId id) = do
-    isTerm <- doesDirectoryExist (termDir root id)
-    isType <- doesDirectoryExist (declDir root id)
-    case (isTerm, isType) of
-      (True, True) -> failWith $ AmbiguouslyTypeAndTerm id
-      (True, False) -> pure $ termDir root id
-      (False, True) -> pure $ declDir root id
-      (False, False) -> failWith $ UnknownTypeOrTerm r
-
-
 termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
@@ -149,8 +126,8 @@ editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
 
 touchDependentFile :: Reference.Id -> FilePath -> IO ()
 touchDependentFile dependent fp = do
-  createDirectoryIfMissing True (fp </> "dependents")
-  writeFile (fp </> "dependents" </> componentId dependent) ""
+  createDirectoryIfMissing True fp
+  writeFile (fp </> componentId dependent) ""
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -279,19 +256,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
     putTerm h e typ = liftIO $ do
       S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
       S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
-      let declDependencies :: Set Reference
-          declDependencies = Term.referencedDataDeclarations e
-            <> Term.referencedEffectDeclarations e
       -- Add the term as a dependent of its dependencies
-      let err = "FileCodebase.putTerm found reference to unknown builtin."
-          deps = Term.dependencies' e
-      traverse_
-        (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
-        [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
-      traverse_ (touchDependentFile h . termDir path)
-        $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
-      traverse_ (touchDependentFile h . declDir path)
-        $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
+      let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
+      traverse_ (touchDependentFile h . dependentsDir path) deps
     getTypeOfTerm r = liftIO $ case r of
       Reference.Builtin _ -> pure $
         fmap (const builtinTypeAnnotation) <$> Map.lookup r Builtin.termRefTypes
@@ -302,17 +269,20 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
                     (V1.getDataDeclaration getV getA)
       )
       (declPath path h)
-    putDecl h decl = liftIO $ S.putWithParentDirs
-      (V1.putEither (V1.putEffectDeclaration putV putA)
-                    (V1.putDataDeclaration putV putA)
-      )
-      (declPath path h)
-      decl
+    putDecl h decl = liftIO $ do
+      S.putWithParentDirs
+        (V1.putEither (V1.putEffectDeclaration putV putA)
+                      (V1.putDataDeclaration putV putA)
+        )
+        (declPath path h)
+        decl
+      traverse_ (touchDependentFile h . dependentsDir path) deps
+      where deps = deleteComponent h . DD.dependencies . either DD.toDataDecl id $ decl
 
     dependents :: MonadIO m =>
                   Reference -> m (Set Reference.Id)
     dependents r = do
-      d <- dependentsDir path r
+      let d = dependentsDir path r
       e <- doesDirectoryExist d
       if e then do
         ls <- listDirectory d
@@ -346,3 +316,7 @@ hashFromFilePath = Hash.fromBase58 . Text.pack . takeBaseName
 
 failWith :: MonadIO m => Err -> m a
 failWith = fail . show
+
+deleteComponent :: Reference.Id -> Set Reference -> Set Reference
+deleteComponent r rs = Set.difference rs
+  (Reference.members . Reference.componentFor . Reference.DerivedId $ r)

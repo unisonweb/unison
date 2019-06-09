@@ -30,7 +30,6 @@ import qualified Data.Map as Map
 import           Data.Text                      ( Text
                                                 )
 import           Unison.Codebase2               ( Codebase, Decl )
-import qualified Unison.Codebase.Classes       as CC
 import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase.Branch2         ( Branch
                                                  , Branch0
@@ -394,9 +393,9 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     LoadRemoteRootBranch Github{..} -> error "todo"
     SyncRemoteRootBranch Github{..} _branch -> error "todo"
     RetrieveHashes Github{..} _types _terms -> error "todo"
-    LoadTerm r -> CC.getTerm codebase r
-    LoadType r -> CC.getTypeDeclaration codebase r
-    LoadTypeOfTerm r -> CC.getTypeOfTerm codebase r
+    LoadTerm r -> Codebase.getTerm codebase r
+    LoadType r -> Codebase.getTypeDeclaration codebase r
+    LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase _unisonFile -> error "todo"
