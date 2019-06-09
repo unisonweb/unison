@@ -26,6 +26,7 @@ import           Unison.Symbol                  ( Symbol )
 
 import           Data.Functor                   ( void )
 import Data.Foldable (traverse_)
+import qualified Data.Map as Map
 import           Data.Text                      ( Text
                                                 )
 import           Unison.Codebase2               ( Codebase, Decl )
@@ -497,20 +498,32 @@ loadSearchResults code = traverse loadSearchResult
 --   else Nothing
 
 -- | Write all of the builtins types and IO types into the codebase
+-- todo: Come up with a tidy way to consolidate this logic with addDefsToCodebase
 initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m ()
 initializeCodebase c = do
-  traverse_ (go Right) B.builtinDataDecls
-  traverse_ (go Left)  B.builtinEffectDecls
+  addDefsToCodebase c
+    (UF.TypecheckedUnisonFile (Map.fromList B.builtinDataDecls)
+                              (Map.fromList B.builtinEffectDecls)
+                              mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
-  where
-  go :: (t -> Decl Symbol Ann) -> (a, (Reference.Reference, t)) -> m ()
-  go f (_, (ref, decl)) = case ref of
-    Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
-    _                      -> pure ()
 
-addDefsToCodebase :: Monad m
-  => Codebase m Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann-> m ()
-addDefsToCodebase c uf = error "todo" c uf
+-- Feel free to refactor this to use some other type than TypecheckedUnisonFile
+-- if it makes sense to later.
+addDefsToCodebase :: forall m. Monad m
+  => Codebase m Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> m ()
+addDefsToCodebase c uf = do
+  traverse_ (goType Right) (UF.dataDeclarations' uf)
+  traverse_ (goType Left)  (UF.effectDeclarations' uf)
+  -- put terms
+  traverse_ goTerm (UF.hashTerms uf)
+  where
+    goTerm (Reference.DerivedId r, tm, tp) = Codebase.putTerm c r tm tp
+    goTerm b = error $ "tried to write builtin term to codebase: " ++ show b
+    goType :: (t -> Decl Symbol Ann) -> (Reference.Reference, t) -> m ()
+    goType f (ref, decl) = case ref of
+      Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
+      _                      -> pure ()
+
 
 builtinBranch :: Branch0 m
 builtinBranch = error "todo"

@@ -37,7 +37,8 @@ type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
-type Decl v a = TL.Decl v a
+type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
+
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
@@ -323,7 +324,7 @@ makeSelfContained' code uf = do
 -- isType c r = case r of
 --   Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
 --   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
---
+
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
 dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
