@@ -26,14 +26,17 @@ import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
 import Unison.Codebase.Branch2 (Branch, Branch0)
+import qualified Unison.Codebase.Branch2 as Branch
 import Unison.Codebase.Editor.Input (Input (..))
+import qualified Unison.Codebase.Editor.HandleInput as HandleInput
+import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase.Path (Path)
 import Unison.Codebase2 (Codebase)
 import Unison.CommandLine2
 import Unison.CommandLine.InputPattern2 (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns2 (validInputs)
-import Unison.CommandLine.OutputMessages (notifyUser)
+import Unison.CommandLine.OutputMessages2 (notifyUser)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
@@ -90,75 +93,59 @@ getUserInput patterns codebase branch currentPath numberedArgs =
         _ -> pure []
 
 main
-  :: forall m v
-   . MonadIO m
-  => Var v
+  :: forall v
+  . Var v
   => FilePath
-  -> Path
+  -> Path.Absolute
   -> Maybe FilePath
-  -> m (Runtime v)
-  -> Codebase m v Ann
-  -> m ()
+  -> IO (Runtime v)
+  -> Codebase IO v Ann
+  -> IO ()
 main dir initialPath _initialFile startRuntime codebase = do
   root <- Codebase.getRootBranch codebase
-  undefined
-  --eventQueue    <- Q.newIO
-  --currentBranch <- case currentBranch of
-  --  Nothing ->
-  --    Codebase.syncBranch codebase
-  --                        currentBranchName
-  --                        E.builtinBranch
-  --      <* (  putStrLn
-  --         $  "☝️  I found no branch named '"
-  --         <> Text.unpack currentBranchName
-  --         <> "' so I've created it for you."
-  --         )
-  --  Just b -> pure b
-  --do
-  --  runtime                  <- startRuntime
-  --  branchRef                <- newIORef (currentBranch, currentBranchName)
-  --  numberedArgsRef          <- newIORef []
-  --  cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-  --  cancelWatchBranchUpdates <- watchBranchUpdates (readIORef branchRef)
-  --                                                 eventQueue
-  --                                                 codebase
-  --  let patternMap =
-  --        Map.fromList
-  --          $   validInputs
-  --          >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
-  --      getInput = do
-  --        (branch, branchName) <- readIORef branchRef
-  --        numberedArgs <- readIORef numberedArgsRef
-  --        getUserInput patternMap codebase branch branchName numberedArgs
-  --  let
-  --    awaitInput = do
-  --      -- Race the user input and file watch.
-  --      Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
-  --        Left _ -> Left <$> atomically (Q.dequeue eventQueue)
-  --        x      -> pure x
-  --    cleanup = do
-  --      Runtime.terminate runtime
-  --      cancelFileSystemWatch
-  --      cancelWatchBranchUpdates
-  --    loop :: Actions.LoopState v -> IO ()
-  --    loop state = do
-  --      writeIORef
-  --        branchRef
-  --        (Actions._currentBranch state, Actions._currentBranchName state)
-  --      let free
-  --            :: Free.Free
-  --                 (E.Command (Either E.Event Input) v)
-  --                 (Maybe (), Actions.LoopState v)
-  --          free = runStateT (runMaybeT Actions.loop) state
-  --      (o, state') <- E.commandLine awaitInput
-  --                                   runtime
-  --                                   (notifyUser dir)
-  --                                   codebase
-  --                                   free
-  --      case o of
-  --        Nothing -> pure ()
-  --        Just () -> do
-  --          writeIORef numberedArgsRef (Actions._numberedArgs state')
-  --          loop state'
-  --  (`finally` cleanup)
-  --    $ loop (Actions.loopState0 currentBranch currentBranchName)
+  eventQueue <- Q.newIO
+  do
+    runtime                  <- startRuntime
+    -- we watch for root branch tip changes, but want to ignore ones we expect.
+
+    branchRef                <- newIORef (root, initialPath)
+    numberedArgsRef          <- newIORef []
+    cancelFileSystemWatch    <- watchFileSystem eventQueue dir
+    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash . fst <$>
+                                                      readIORef branchRef)
+                                                   eventQueue
+                                                   codebase
+    let patternMap =
+          Map.fromList
+            $   validInputs
+            >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
+        getInput = do
+          (branch, path) <- readIORef branchRef
+          numberedArgs <- readIORef numberedArgsRef
+          getUserInput patternMap codebase branch path numberedArgs
+    let
+      awaitInput = do
+        -- Race the user input and file watch.
+        Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
+          Left _ -> Left <$> atomically (Q.dequeue eventQueue)
+          x      -> pure x
+      cleanup = do
+        Runtime.terminate runtime
+        cancelFileSystemWatch
+        cancelWatchBranchUpdates
+      loop state = do
+        writeIORef branchRef
+          (HandleInput._root state, HandleInput._currentPath state)
+        let free = runStateT (runMaybeT HandleInput.loop) state
+        (o, state') <- HandleCommand.commandLine awaitInput
+                                     runtime
+                                     (notifyUser dir)
+                                     codebase
+                                     free
+        case o of
+          Nothing -> pure ()
+          Just () -> do
+            writeIORef numberedArgsRef (HandleInput._numberedArgs state')
+            loop state'
+    (`finally` cleanup)
+      $ loop (HandleInput.loopState0 root initialPath)

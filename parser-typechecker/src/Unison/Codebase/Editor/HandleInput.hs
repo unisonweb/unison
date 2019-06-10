@@ -17,7 +17,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Codebase.Editor.HandleInput (loop, loopState0) where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) where
 
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
