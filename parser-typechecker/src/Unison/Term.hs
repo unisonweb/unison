@@ -660,20 +660,20 @@ dependencies t =
   dependencies' t
     <> referencedDataDeclarations t
     <> referencedEffectDeclarations t
-
--- Term and type dependencies, not including references to user-defined types
-dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
-dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
- where
-  f t@(Ref r    ) = Writer.tell [r] *> pure t
-  f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
-  f t@(Nat _)     = Writer.tell [Type.natRef] *> pure t
-  f t@(Int _)     = Writer.tell [Type.intRef] *> pure t
-  f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
-  f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
-  f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
-  f t@(Sequence _) = Writer.tell [Type.vectorRef] *> pure t
-  f t             = pure t
+  where
+  -- Term and type dependencies, not including references to user-defined types
+  dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+  dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+   where
+    f t@(Ref r    ) = Writer.tell [r] *> pure t
+    f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
+    f t@(Nat _)     = Writer.tell [Type.natRef] *> pure t
+    f t@(Int _)     = Writer.tell [Type.intRef] *> pure t
+    f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
+    f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
+    f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
+    f t@(Sequence _) = Writer.tell [Type.vectorRef] *> pure t
+    f t             = pure t
 
 referencedDataDeclarations
   :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference

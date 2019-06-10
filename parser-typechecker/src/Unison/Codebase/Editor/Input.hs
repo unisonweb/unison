@@ -19,14 +19,13 @@ data Event
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 
-
 data Input
   -- names stuff:
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI Path.Split' Path.Split'
-    | ForkRemoteBranchI RemoteRepo Path Path.Split'
+    = ForkLocalBranchI Path.Split' Path'
+    | ForkRemoteBranchI RemoteRepo Path Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path.Split' Path.Split'
     | MergeRemoteBranchI RemoteRepo Path Path.Split'

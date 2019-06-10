@@ -15,7 +15,6 @@ module Unison.Codebase.Path
 where
 
 import qualified Data.Foldable as Foldable
-import           Data.List                (intercalate)
 -- import           Data.String                    ( IsString
 --                                                 , fromString
 --                                                 )
@@ -23,14 +22,13 @@ import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
-import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
+import Unison.Util.Monoid (intercalateMap)
+import qualified Unison.Lexer                  as Lexer
 
--- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
+import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
+import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
@@ -39,11 +37,12 @@ newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord,Show)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord,Show)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
 
+unsplit' :: Split' -> Path'
+unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
+unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p, seg))))
+
 unsplit :: Show a => (Path, a) -> Path
 unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
-
-type HQSegment = HQ.HashQualified' NameSegment
-type HQ'Segment = HQ'.HashQualified' NameSegment
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
@@ -56,19 +55,39 @@ type HQ'Split' = (Path', HQ'Segment)
 type SplitAbsolute = (Absolute, NameSegment)
 type HQSplitAbsolute = (Absolute, HQSegment)
 
--- Discussion: What should the syntax be for all these things?
--- .libs.blah.poo
--- /libs/blah/Poo.poo
--- .libs.blah> cd ../../apps/blah2
--- .libs.blah> up; up; cd apps/blah2
--- import .........apps.Notepad as Notepad
--- Option1: a mix of . and /
--- Option2: some / followed by some .
-parsePath :: Text -> Either String Path'
-parsePath = error "todo"
+-- .libs.blah.poo is Absolute
+-- libs.blah.poo is Relative
+-- Left is some parse error tbd
+parsePath' :: String -> Either String Path'
+parsePath' p = case p of
+  '.' : p -> Path' . Left . Absolute . fromList <$> segs p
+  p -> Path' . Right . Relative . fromList <$> segs p
+  where
+  segs p = traverse validate (Text.splitOn "." $ Text.pack p)
+  validate seg =
+    case (fst <$> Lexer.wordyId0 (Text.unpack seg),
+          fst <$> Lexer.symbolyId0 (Text.unpack seg)) of
+      (Left e, Left _) -> Left (show e)
+      (Right a, _) -> Right (NameSegment $ Text.pack a)
+      (_, Right a) -> Right (NameSegment $ Text.pack a)
 
-parseHashQualified :: Text -> Either String HQSplit'
-parseHashQualified = error "todo"
+parseSplit' :: String -> Either String Split'
+parseSplit' p = case parsePath' p of
+  Left e -> Left e
+  Right (Path' e) -> case e of
+    Left (Absolute p) -> case unsnoc p of
+      Nothing -> Left "empty path"
+      Just (p, seg) -> pure (Path' . Left . Absolute $ p, seg)
+    Right (Relative p) -> case unsnoc p of
+      Nothing -> Left "empty path"
+      Just (p, seg) -> pure (Path' . Right . Relative $ p, seg)
+
+parseHQSplit' :: String -> Either String HQSplit'
+parseHQSplit' = error "todo"
+
+parseHQ'Split' :: String -> Either String HQ'Split'
+parseHQ'Split' = error "todo"
+
 -- this might be useful in implementing the above
 -- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
 -- hqToPathSeg = \case
@@ -91,7 +110,10 @@ fromAbsoluteSplit :: (Absolute, a) -> (Path, a)
 fromAbsoluteSplit (Absolute p, a) = (p, a)
 
 absoluteEmpty :: Absolute
-absoluteEmpty = Absolute (Path mempty)
+absoluteEmpty = Absolute empty
+
+relativeEmpty' :: Path'
+relativeEmpty' = Path' (Right (Relative empty))
 
 toAbsolutePath :: Absolute -> Path' -> Absolute
 toAbsolutePath (Absolute cur) (Path' p) = case p of
@@ -128,14 +150,11 @@ uncons p = case p of
   Path (hd :<| tl) -> Just (hd, Path tl)
   _ -> Nothing
 
-asIdentifier :: Path -> Text
-asIdentifier = Text.intercalate "." . fmap toText . toList
-
-asDirectory :: Path -> Text
-asDirectory p = case toList p of
-  NameSegment "_root_" : (Seq.fromList -> tail) ->
-    "/" <> asDirectory (Path tail)
-  other -> Text.intercalate "/" . fmap toText $ other
+--asDirectory :: Path -> Text
+--asDirectory p = case toList p of
+--  NameSegment "_root_" : (Seq.fromList -> tail) ->
+--    "/" <> asDirectory (Path tail)
+--  other -> Text.intercalate "/" . fmap NameSegment.toText $ other
 
 -- > Path.fromName . Name.unsafeFromText $ ".Foo.bar"
 -- /Foo/bar
@@ -150,7 +169,7 @@ fromName :: Name -> Path
 fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 
 toName :: Path -> Name
-toName = Name.unsafeFromText . asIdentifier
+toName = Name.unsafeFromText . toText
 
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.
@@ -171,26 +190,7 @@ cons :: NameSegment -> Path -> Path
 cons ns (Path p) = Path (ns :<| p)
 
 instance Show Path where
-  show (Path nss) = intercalate "/" $ fmap escape1 (Foldable.toList nss)
-    where escape1 ns = escape =<< (Text.unpack . toText $ ns)
-          escape = \case '/' -> "\\/"; c -> [c]
+  show = Text.unpack . toText
 
--- unsafeFromString :: NameSegment ->
--- toString :: NameSegment -> String
--- toString = Text.unpack . toText
---
--- isPrefixOf :: Name -> Name -> Bool
--- a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
---
--- stripPrefix :: Name -> Name -> Maybe Name
--- stripPrefix prefix name =
---   Name <$> Text.stripPrefix (toText prefix) (toText name)
---
--- instance Show Name where
---   show = toString
---
--- instance IsString Name where
---   fromString = unsafeFromText . Text.pack
---
-instance H.Hashable NameSegment where
-  tokens s = [H.Text (toText s)]
+toText :: Path -> Text
+toText (Path nss) = intercalateMap "." NameSegment.toText nss

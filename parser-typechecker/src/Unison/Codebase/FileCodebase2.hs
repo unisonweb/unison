@@ -7,9 +7,6 @@ module Unison.Codebase.FileCodebase2 where
 
 import           Control.Monad                  ( forever )
 import           Control.Monad.Extra            ( unlessM )
-import           Control.Monad.Error.Class      ( MonadError
-                                                , throwError
-                                                )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
                                                 , liftIO )
@@ -19,10 +16,8 @@ import           UnliftIO.Concurrent            ( forkIO
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
 import           Data.Foldable                  ( traverse_, toList )
-import           Data.Functor ((<&>))
 import           Data.List.Split                ( splitOn )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
@@ -53,12 +48,15 @@ import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Codebase.Serialization.V1
                                                as V1
+
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Watch         as Watch
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
+import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 -- import Debug.Trace
@@ -77,23 +75,19 @@ termsDir, typesDir, branchesDir, branchHeadDir, editsDir :: CodebasePath -> File
 termsDir root = root </> "terms"
 typesDir root = root </> "types"
 branchesDir root = root </> "branches"
-branchHeadDir root = branchesDir root </> "head"
-editsDir root = root </> "edits"
+branchHeadDir root = branchesDir root </> "_head"
+editsDir root = root </> "patches"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentId r
 declDir root r = typesDir root </> componentId r
 
-builtinDir :: CodebasePath -> Reference -> Maybe FilePath
-builtinDir root r@(Reference.Builtin name) =
-  if Builtin.isBuiltinTerm r then Just (builtinTermDir root name)
-  else if Builtin.isBuiltinType r then Just (builtinTypeDir root name)
-  else Nothing
-builtinDir _ _ = Nothing
+dependentsDir :: CodebasePath -> Reference -> FilePath
+dependentsDir root r = root </> "dependents" </> case r of
+  Reference.Builtin name -> "_builtin" </> encodeFileName name
+  Reference.DerivedId hash -> componentId hash
 
-builtinTermDir, builtinTypeDir, watchesDir :: CodebasePath -> Text -> FilePath
-builtinTermDir root name = termsDir root </> "_builtin" </> encodeFileName name
-builtinTypeDir root name = typesDir root </> "_builtin" </> encodeFileName name
+watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root kind = root </> "watches" </> encodeFileName kind
 
 
@@ -119,26 +113,6 @@ encodeFileName t = let
      else if t == ".." then "$dotdot$"
      else go (Text.unpack t)
 
-
--- todo: can simplify this if Reference ever distinguishes terms from types
-dependentsDir :: (MonadError Err m, MonadIO m)
-              => CodebasePath -> Reference -> m FilePath
-dependentsDir root r = go r <&> (</> "dependents") where
-  go :: (MonadError Err m, MonadIO m) => Reference -> m FilePath
-  go r@(Reference.Builtin name) =
-    if Builtin.isBuiltinTerm r then pure $ builtinTermDir root name
-    else if Builtin.isBuiltinType r then pure $ builtinTypeDir root name
-    else throwError $ UnknownTypeOrTerm r
-  go r@(Reference.DerivedId id) = do
-    isTerm <- doesDirectoryExist (termDir root id)
-    isType <- doesDirectoryExist (declDir root id)
-    case (isTerm, isType) of
-      (True, True) -> throwError $ AmbiguouslyTypeAndTerm id
-      (True, False) -> pure $ termDir root id
-      (False, True) -> pure $ declDir root id
-      (False, False) -> throwError $ UnknownTypeOrTerm r
-
-
 termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
@@ -152,8 +126,8 @@ editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
 
 touchDependentFile :: Reference.Id -> FilePath -> IO ()
 touchDependentFile dependent fp = do
-  createDirectoryIfMissing True (fp </> "dependents")
-  writeFile (fp </> "dependents" </> componentId dependent) ""
+  createDirectoryIfMissing True fp
+  writeFile (fp </> componentId dependent) ""
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -162,6 +136,7 @@ minimalCodebaseStructure root =
   , typesDir root
   , branchesDir root
   , branchHeadDir root
+  , editsDir root
   ]
 
 -- checks if a minimal codebase structure exists at `path`
@@ -175,42 +150,41 @@ initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
 getRootBranch
-  :: (MonadIO m, MonadError Err m) => CodebasePath -> m (Branch m)
+  :: MonadIO m => CodebasePath -> m (Branch m)
 getRootBranch root = do
   (liftIO $ listDirectory (branchHeadDir root)) >>= \case
-    [] -> throwError $ NoBranchHead (branchHeadDir root)
+    [] -> failWith $ NoBranchHead (branchHeadDir root)
     [single] -> case Hash.fromBase58 (Text.pack single) of
-      Nothing -> throwError $ CantParseBranchHead single
+      Nothing -> failWith $ CantParseBranchHead single
       Just h -> branchFromFiles root (RawHash h)
     _conflict ->
       -- todo: might want a richer return type that reflects these merges
       error "todo; load all and merge?"
   where
-  branchFromFiles :: (MonadIO m, MonadError Err m)
+  branchFromFiles :: MonadIO m
                   => FilePath -> Branch.Hash -> m (Branch m)
   branchFromFiles rootDir rootHash =
     Branch.read (deserializeRawBranch rootDir)
                 (deserializeEdits rootDir) rootHash
 
   deserializeRawBranch
-    :: (MonadIO m, MonadError Err m)
+    :: MonadIO m
     => CodebasePath
     -> Causal.Deserialize m Branch.Raw Branch.Raw
   deserializeRawBranch root (RawHash h) = do
     let ubf = branchPath root h
     liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
-      Left err -> throwError $ InvalidBranchFile ubf err
+      Left err -> failWith $ InvalidBranchFile ubf err
       Right c0 -> pure c0
-  deserializeEdits :: (MonadIO m, MonadError Err m)
-    => CodebasePath -> Branch.EditHash -> m Patch
+  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
   deserializeEdits root h =
     let file = editsPath root h in
     liftIO (S.getFromFile' V1.getEdits file) >>= \case
-      Left err -> throwError $ InvalidEditsFile file err
+      Left err -> failWith $ InvalidEditsFile file err
       Right edits -> pure edits
 
 putRootBranch
-  :: (MonadIO m, MonadError Err m) => CodebasePath -> Branch m -> m ()
+  :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
   Branch.sync hashExists (serializeRawBranch root) (serializeEdits root) b
   updateCausalHead (branchHeadDir root) (Branch._history b)
@@ -265,7 +239,7 @@ parseHash s = case splitOn "-" s of
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
-  :: (MonadError Err m, MonadUnliftIO m, Var v)
+  :: (MonadUnliftIO m, Var v)
   => a -> S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
 codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
   Codebase getTerm
@@ -282,19 +256,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
     putTerm h e typ = liftIO $ do
       S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
       S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
-      let declDependencies :: Set Reference
-          declDependencies = Term.referencedDataDeclarations e
-            <> Term.referencedEffectDeclarations e
       -- Add the term as a dependent of its dependencies
-      let err = "FileCodebase.putTerm found reference to unknown builtin."
-          deps = Term.dependencies' e
-      traverse_
-        (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
-        [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
-      traverse_ (touchDependentFile h . termDir path)
-        $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
-      traverse_ (touchDependentFile h . declDir path)
-        $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
+      let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
+      traverse_ (touchDependentFile h . dependentsDir path) deps
     getTypeOfTerm r = liftIO $ case r of
       Reference.Builtin _ -> pure $
         fmap (const builtinTypeAnnotation) <$> Map.lookup r Builtin.termRefTypes
@@ -305,17 +269,20 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
                     (V1.getDataDeclaration getV getA)
       )
       (declPath path h)
-    putDecl h decl = liftIO $ S.putWithParentDirs
-      (V1.putEither (V1.putEffectDeclaration putV putA)
-                    (V1.putDataDeclaration putV putA)
-      )
-      (declPath path h)
-      decl
+    putDecl h decl = liftIO $ do
+      S.putWithParentDirs
+        (V1.putEither (V1.putEffectDeclaration putV putA)
+                      (V1.putDataDeclaration putV putA)
+        )
+        (declPath path h)
+        decl
+      traverse_ (touchDependentFile h . dependentsDir path) deps
+      where deps = deleteComponent h . DD.dependencies . either DD.toDataDecl id $ decl
 
-    dependents :: (MonadError Err m, MonadIO m) =>
+    dependents :: MonadIO m =>
                   Reference -> m (Set Reference.Id)
     dependents r = do
-      d <- dependentsDir path r
+      let d = dependentsDir path r
       e <- doesDirectoryExist d
       if e then do
         ls <- listDirectory d
@@ -324,8 +291,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
-branchHeadUpdates :: (MonadError Err m, MonadUnliftIO m)
-                  => CodebasePath -> m (m (), m (Set Hash.Hash))
+branchHeadUpdates :: MonadUnliftIO m
+                  => CodebasePath -> m (m (), m (Set Branch.Hash))
 branchHeadUpdates root = do
   branchHeadChanges      <- TQueue.newIO
   (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
@@ -336,8 +303,8 @@ branchHeadUpdates root = do
       -- A: nothing
       (filePath, _) <- watcher
       case hashFromFilePath filePath of
-        Nothing -> throwError $ CantParseBranchHead filePath
-        Just h -> atomically . TQueue.enqueue branchHeadChanges $ h
+        Nothing -> failWith $ CantParseBranchHead filePath
+        Just h -> atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
   -- smooth out intermediate queue
   pure
     $ ( cancelWatch >> killThread watcher1
@@ -346,3 +313,10 @@ branchHeadUpdates root = do
 
 hashFromFilePath :: FilePath -> Maybe Hash.Hash
 hashFromFilePath = Hash.fromBase58 . Text.pack . takeBaseName
+
+failWith :: MonadIO m => Err -> m a
+failWith = fail . show
+
+deleteComponent :: Reference.Id -> Set Reference -> Set Reference
+deleteComponent r rs = Set.difference rs
+  (Reference.members . Reference.componentFor . Reference.DerivedId $ r)

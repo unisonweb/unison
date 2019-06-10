@@ -29,7 +29,7 @@ import           Unison.Referent        (Referent(..))
 import           Unison.Reference        (Reference)
 import           Unison.Util.Relation   ( Relation )
 import qualified Unison.Util.Relation as R
-import Unison.Codebase.Path (NameSegment)
+import Unison.Codebase.NameSegment (NameSegment)
 
 -- import           Unison.Term      (AnnotatedTerm)
 -- import qualified Unison.Term      as Term

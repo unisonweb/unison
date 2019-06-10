@@ -65,8 +65,8 @@ import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
-                                                , Path'
-                                                , HQSegment
+                                                , Path' )
+import           Unison.Codebase.NameSegment    ( HQSegment
                                                 , NameSegment
                                                 )
 import qualified Unison.Codebase.Path          as Path
@@ -157,9 +157,13 @@ loop = do
       root0 = Branch.head root'
       resolvePath' :: (Path', a) -> (Path, a)
       resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      path'ToSplit :: Path' -> Maybe Path.Split
+      path'ToSplit = Path.unsnoc . Path.unabsolute . Path.toAbsolutePath currentPath'
       resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
-      getAtSplit :: Path.Split' -> Maybe (Branch m)
-      getAtSplit p = BranchUtil.getBranch (resolvePath' p) root0
+      getAtSplit :: Path.Split -> Maybe (Branch m)
+      getAtSplit p = BranchUtil.getBranch p root0
+      getAtSplit' :: Path.Split' -> Maybe (Branch m)
+      getAtSplit' = getAtSplit . resolvePath'
       getHQTypes :: Path.HQSplit' -> Set Reference
       getHQTypes p = BranchUtil.getType (resolvePath' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
@@ -254,22 +258,27 @@ loop = do
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
         termConflicted src = respond . TermAmbiguous input src
-        branchExists dest _ = respond $ BranchAlreadyExists input dest
+        branchExists dest _x = respond $ BranchAlreadyExists input dest
+        branchExistsSplit dest _x = branchExists (Path.unsplit' dest) _x
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
-        destOk b = do
-          stepAt . BranchUtil.makeSetBranch (resolvePath' dest) $ b
-          success -- could give rando stats about new defns
+        srcOk b = case path'ToSplit dest of
+          Nothing -> respond $ BadDestinationBranch input dest
+          Just destSplit ->
+            maybe (destOk b) (branchExists dest) (getAtSplit destSplit)
+            where
+            destOk b = do
+              stepAt . BranchUtil.makeSetBranch destSplit $ b
+              success -- could give rando stats about new defns
 
       MergeLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit dest)
+        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit' dest)
         destEmpty b = ifNotConfirmed (branchNotFound dest)
           (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
         destExists srcb destb = do
@@ -313,9 +322,9 @@ loop = do
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
 
       MoveBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit src)
+        maybe (branchNotFound src) srcOk (getAtSplit' src)
         where
-        srcOk b = maybe (destOk b) (branchExists dest) (getAtSplit dest)
+        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
         destOk b = do
           stepManyAt
             [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
@@ -357,7 +366,7 @@ loop = do
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input failed failedDependents
 
-      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit p where
+      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit' p where
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
               p' = resolvePath' p
@@ -1086,6 +1095,7 @@ filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
   watches = filter (not.null.snd) $ fmap (second (List.filter filterTLC)) watchComponents
   filterTLC (v,_,_) = Set.member v keepTerms
 
+-- updates the namespace for adding `slurp`
 doSlurpAdds :: forall m v. (Applicative m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann

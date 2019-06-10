@@ -245,12 +245,12 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
               <> Term.referencedEffectDeclarations e
         -- Add the term as a dependent of its dependencies
         let err = "FileCodebase.putTerm found reference to unknown builtin."
-            deps = Term.dependencies' e
+            deps = Term.dependencies e
         traverse_
           (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
           [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
         traverse_ (touchDependentFile h . termDir path)
-          $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
+          $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies e ]
         traverse_ (touchDependentFile h . declDir path)
           $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
       getTypeOfTerm r = case r of

@@ -55,11 +55,12 @@ data Output v
   -- User did `add` or `update` before typechecking a file?
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
-  | BranchAlreadyExists Input Path.Split'
+  | BranchAlreadyExists Input Path'
   | TypeAlreadyExists Input Path.Split' (Set Reference)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | BadDestinationBranch Input Path'
   | BranchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'

@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine where
+module Unison.CommandLine2 where
 
 -- import Debug.Trace
 import           Control.Concurrent              (forkIO, killThread)
@@ -19,6 +19,7 @@ import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
+import qualified Data.Set                        as Set
 import           Data.Maybe                      (fromMaybe)
 import           Data.String                     (IsString, fromString)
 import           Data.Text                       (Text)
@@ -27,23 +28,23 @@ import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
 import qualified System.Console.Terminal.Size    as Terminal
 import           System.FilePath                 ( takeFileName )
-import           Unison.Codebase                 (Codebase)
-import qualified Unison.Codebase                 as Codebase
-import           Unison.Codebase.Branch          (Branch, Branch0)
-import           Unison.Codebase.Editor          (BranchName, Event (..),
-                                                  Input (..))
+import           Unison.Codebase2                 (Codebase)
+import qualified Unison.Codebase2                 as Codebase
+import qualified Unison.Codebase.Branch2         as Branch
+import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.Runtime         as Runtime
 import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
-import           Unison.CommandLine.InputPattern (InputPattern (parse))
+import           Unison.CommandLine.InputPattern2 (InputPattern (parse))
 import qualified Unison.HashQualified            as HQ
+import           Unison.Names2 (Names0)
 import           Unison.Parser                   (Ann)
 import           Unison.Parser                   (startingLine)
 import qualified Unison.PrettyPrintEnv           as PPE
 import           Unison.Term                     (Term)
 import qualified Unison.TermPrinter              as TermPrinter
 import qualified Unison.Util.ColorText           as CT
-import qualified Unison.Util.Find                as Find
+import qualified Unison.Util.Find2               as Find
 import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q
@@ -109,19 +110,18 @@ watchFileSystem q dir = do
     atomically . Q.enqueue q $ UnisonFileChanged (Text.pack filePath) text
   pure (cancel >> killThread t)
 
-watchBranchUpdates :: IO (Branch, BranchName) -> TQueue Event -> Codebase IO v a -> IO (IO ())
-watchBranchUpdates currentBranch q codebase = do
+watchBranchUpdates :: IO Branch.Hash -> TQueue Event -> Codebase IO v a -> IO (IO ())
+watchBranchUpdates currentRoot q codebase = do
   (cancelExternalBranchUpdates, externalBranchUpdates) <-
-    Codebase.branchUpdates codebase
+    Codebase.rootBranchUpdates codebase
   thread <- forkIO . forever $ do
     updatedBranches <- externalBranchUpdates
-    (b, bname) <- currentBranch
-    b' <- Codebase.getBranch codebase bname
+    currentRoot <- currentRoot
     -- We only issue the event if the branch is different than what's already
     -- in memory. This skips over file events triggered by saving to disk what's
     -- already in memory.
-    when (b' /= Just b) $
-      atomically . Q.enqueue q . UnisonBranchChanged $ updatedBranches
+    when (any (/= currentRoot) updatedBranches) $
+      atomically . Q.enqueue q . IncomingRootBranch $ Set.delete currentRoot updatedBranches
   pure (cancelExternalBranchUpdates >> killThread thread)
 
 warnNote :: String -> String
@@ -160,7 +160,7 @@ prettyCompletion :: (String, P.Pretty P.ColorText) -> Line.Completion
 -- preserves formatting, but Haskeline doesn't know how to align
 prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
 
-fuzzyCompleteHashQualified :: Branch0 -> String -> [Line.Completion]
+fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =
     fixupCompletion q0 $
       makeCompletion <$> Find.fuzzyFindInBranch b query
@@ -188,19 +188,19 @@ fixupCompletion q cs@(h:t) = let
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 
-autoCompleteHashQualified :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualified :: Names0 -> String -> [Line.Completion]
 autoCompleteHashQualified b (HQ.fromString -> query) =
   makeCompletion <$> Find.prefixFindInBranch b query
   where
   makeCompletion (sr, p) =
     prettyCompletion (HQ.toString . SR.name $ sr, p)
 
-autoCompleteHashQualifiedTerm :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualifiedTerm :: Names0 -> String -> [Line.Completion]
 autoCompleteHashQualifiedTerm b (HQ.fromString -> query) =
   [ prettyCompletion (HQ.toString . SR.name $ sr, p)
   | (sr@(SR.Tm _), p) <- Find.prefixFindInBranch b query ]
 
-autoCompleteHashQualifiedType :: Branch0 -> String -> [Line.Completion]
+autoCompleteHashQualifiedType :: Names0 -> String -> [Line.Completion]
 autoCompleteHashQualifiedType b (HQ.fromString -> query) =
   [ prettyCompletion (HQ.toString . SR.name $ sr, p)
   | (sr@(SR.Tp _), p) <- Find.prefixFindInBranch b query ]

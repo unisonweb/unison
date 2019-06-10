@@ -40,9 +40,8 @@ import           Unison.Codebase.Causal2        ( Raw(..)
                                                 , unRawHash
                                                 )
 import qualified Unison.Codebase.Causal2        as Causal
-import           Unison.Codebase.Path           ( NameSegment )
-import           Unison.Codebase.Path           as Path
-import           Unison.Codebase.Path           as NameSegment
+import           Unison.Codebase.NameSegment    ( NameSegment )
+import           Unison.Codebase.NameSegment    as NameSegment
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch          as Patch
 import           Unison.Codebase.TermEdit       ( TermEdit )

@@ -33,6 +33,7 @@ import           Unison.Parser                  ( Ann(..) )
 -- import qualified Unison.Parser                 as Parser
 -- import           Unison.PrintError              ( prettyParseError )
 import qualified Unison.Reference              as R
+import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Term                   as Term
 -- import qualified Unison.TermParser             as TermParser
@@ -44,8 +45,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
--- import           Unison.Names                   ( Names )
--- import qualified Unison.Names                  as Names
+import Unison.Names2 (Names'(Names), Names0)
 -- import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
@@ -95,9 +95,14 @@ parseType = error "todo" -- is `Names` something we want to keep using?
 -- -- Primitive types and primitive terms can be deprecated in future iterations
 -- -- of the typechecker and runtime, but the builtin decls don't become
 -- -- deprecated in the same sense.  So (to do a deprecation check on these)
--- names0 :: Names
--- names0 = Names.fromTypes builtinTypes
---
+
+names0 :: Names0
+names0 = Names terms types where
+  terms = Rel.mapRan Referent.Ref $ Rel.fromMap termNameRefs
+  types = Rel.fromList builtinTypes <>
+    Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
+    Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]
+
 -- names :: Names
 -- names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol) <> allTypeNames
 --
@@ -137,16 +142,16 @@ isBuiltinType r = elem r . fmap snd $ builtinTypes
 -- builtinTypes :: [(Name, R.Reference)]
 -- builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
 --   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
---
--- -- | parse some builtin data types, and resolve their free variables using
--- -- | builtinTypes' and those types defined herein
--- builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
--- builtinDataDecls =
---   [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
---
--- builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
--- builtinEffectDecls = []
---
+
+-- | parse some builtin data types, and resolve their free variables using
+-- | builtinTypes' and those types defined herein
+builtinDataDecls :: Var v => [(v, (R.Reference, DataDeclaration v))]
+builtinDataDecls =
+  [ (v, (r, Intrinsic <$ d)) | (v, r, d) <- DD.builtinDataDecls ]
+
+builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
+builtinEffectDecls = []
+
 -- codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
 -- codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
 --   pure

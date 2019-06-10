@@ -13,8 +13,6 @@
 
 module Unison.Codebase.Branch2 where
 
--- import qualified Unison.Codebase.Branch as Branch
-
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
@@ -47,10 +45,10 @@ import           Unison.Codebase.SearchResult (SearchResult)
 import qualified Unison.Codebase.SearchResult as SR
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
-import           Unison.Codebase.Path           ( NameSegment
-                                                , Path(Path)
-                                                )
+import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
+import           Unison.Codebase.NameSegment    ( NameSegment )
+import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
@@ -58,7 +56,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.ShortHash as SH
 
 
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name(..) )
 import           Unison.Names2                  ( Names'(Names), Names, Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
@@ -102,6 +100,7 @@ merge0 b1 b2 = do
             c3
             e3
             (toNamesSeg b1 <> toNamesSeg b2)
+            (toNames0 b1 <> toNames0 b2)
             (deepReferents b1 <> deepReferents b2)
             (deepTypeReferences b1 <> deepTypeReferences b2)
   where
@@ -128,12 +127,15 @@ unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
 
+pattern Hash h = Causal.RawHash h
+
 data Branch0 m = Branch0
   { _terms :: Relation NameSegment Referent
   , _types :: Relation NameSegment Reference
   , _children :: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
   , _edits :: Map NameSegment (EditHash, m Patch)
   , toNamesSeg :: Names.NamesSeg
+  , toNames0 :: Names.Names0
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
   }
@@ -199,10 +201,10 @@ toNames b = Names hqTerms hqTypes where
   hqTypes = R.fromList [ (Names.hqTypeName names0 n r, r)
                        | (n, r) <- R.toList (Names.types names0) ]
 
-toNames0 :: Branch0 m -> Names0
-toNames0 b = fold go mempty b where
-  go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
-  go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
+--toNames0' :: Branch0 m -> Names0
+--toNames0' b = fold go mempty b where
+--  go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
+--  go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
 
 allEntries :: Branch0 m -> [(Name, BranchEntry)]
 allEntries = reverse . fold (\l n e -> (n, e) : l) []
@@ -226,10 +228,14 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     let namesSeg = toNamesSegImpl _termsR _typesR
         childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
         deepReferents' = foldMap deepReferents childrenBranch0
+        names0 = foldMap toNames0Impl (Map.toList (fmap snd children))
+             <> Names (R.mapDom nameSegToName _termsR)
+                      (R.mapDom nameSegToName _typesR)
         deepTypeReferences' = foldMap deepTypeReferences childrenBranch0
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
     pure $ Branch0 _termsR _typesR children edits
                     namesSeg
+                    names0
                     deepReferents'
                     deepTypeReferences'
   go h = (h, ) <$> read deserializeRaw deserializeEdits h
@@ -238,6 +244,9 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     RawOne raw      -> RawOne <$> fromRaw raw
     RawCons  raw h  -> flip RawCons h <$> fromRaw raw
     RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
+  toNames0Impl :: (NameSegment, Branch m) -> Names0
+  toNames0Impl (nameSegToName -> n, head -> b0) =
+    Names.prefix0 n (toNames0 b0)
   toNamesSegImpl :: Relation NameSegment Referent
                  -> Relation NameSegment Reference
                  -> Names' (HQ.HashQualified' NameSegment)
@@ -246,6 +255,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
     names :: Names' NameSegment
     names = Names terms types
+  nameSegToName = Name . NameSegment.toText
 
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
@@ -340,8 +350,11 @@ getAt0 p b = case Path.toList p of
 empty :: Branch m
 empty = Branch $ Causal.one empty0
 
+one :: Branch0 m -> Branch m
+one = Branch . Causal.one
+
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty :: Branch0 m -> Bool
 isEmpty = (== empty0)
@@ -448,15 +461,29 @@ stepAt0 p f = runIdentity . stepAt0M p (pure . f)
 -- stepManyAt consolidates several changes into a single step,
 -- by starting at the leaves and working up to the root
 -- use Unison.Util.List.groupBy to merge the Endos at each Path
+-- todo: reimplement this using step, not stepAt, to preserve the property
+-- that each path is only stepped once.
 stepManyAt0 :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 = error "todo"
+stepManyAt0 actions b = let
+  -- paths are ordered lexicographically, so parents will appear before their children
+  -- we reverse this so children are stepped before their parents
+  actions' = reverse . Map.toList $ combine <$> List.multimap actions
+  combine fs = foldl' (\f g -> g . f) id fs
+  in foldl' (\b (p, f) -> stepAt0 p f b) b actions'
 
-stepManyAt0M :: (Applicative m, Foldable f)
+-- todo: reimplement this using stepM, not stepAtM, to preserve the property
+-- that each path is only stepped once.
+stepManyAt0M :: (Monad m, Foldable f)
              => f (Path, Branch0 m -> m (Branch0 m))
              -> Branch0 m -> m (Branch0 m)
-stepManyAt0M = error "todo"
+stepManyAt0M actions b = let
+  -- paths are ordered lexicographically, so parents will appear before their children
+  -- we reverse this so children are stepped before their parents
+  actions' = reverse . Map.toList $ combine <$> List.multimap actions
+  combine fs = foldl' (\f g x -> f x >>= g) pure fs
+  in Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions'
 
 stepAt0M :: forall n m. (Functor n, Applicative m)
          => Path

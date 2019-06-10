@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
--- {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -- {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
@@ -19,20 +19,30 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
 
+import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Builtin2               as B
+import           Unison.Symbol                  ( Symbol )
+
 -- import Debug.Trace
 
 import           Data.Functor                   ( void )
+import Data.Foldable (traverse_)
+import qualified Data.Map as Map
 import           Data.Text                      ( Text
                                                 )
-import           Unison.Codebase2               ( Codebase )
-import qualified Unison.Codebase.Classes       as CC
+import           Unison.Codebase2               ( Codebase, Decl )
 import qualified Unison.Codebase2              as Codebase
+import           Unison.Codebase.Branch2        ( Branch
+                                                , Branch0
+                                                )
+import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
+import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Type                   as Type
@@ -379,12 +389,12 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     Evaluate unisonFile                      -> evalUnisonFile unisonFile
     LoadLocalRootBranch                      -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch Github {..}         -> error "todo"
-    SyncRemoteRootBranch Github {..} _branch -> error "todo"
-    RetrieveHashes Github {..} _types _terms -> error "todo"
-    LoadTerm          r                      -> CC.getTerm codebase r
-    LoadType          r                      -> CC.getTypeDeclaration codebase r
-    LoadTypeOfTerm    r                      -> CC.getTypeOfTerm codebase r
+    LoadRemoteRootBranch Github{..} -> error "todo"
+    SyncRemoteRootBranch Github{..} _branch -> error "todo"
+    RetrieveHashes Github{..} _types _terms -> error "todo"
+    LoadTerm r -> Codebase.getTerm codebase r
+    LoadType r -> Codebase.getTypeDeclaration codebase r
+    LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents     r                      -> Codebase.dependents codebase r
     AddDefsToCodebase _unisonFile            -> error "todo"
@@ -484,3 +494,38 @@ loadSearchResults code = traverse loadSearchResult
 --   else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
 --   else if q `isPrefixOf` n               then Just 3-- matching prefix
 --   else Nothing
+
+-- | Write all of the builtins types and IO types into the codebase
+initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m ()
+initializeCodebase c = do
+  addDefsToCodebase c
+    (UF.TypecheckedUnisonFile (Map.fromList B.builtinDataDecls)
+                              (Map.fromList B.builtinEffectDecls)
+                              mempty mempty)
+  addDefsToCodebase c IOSource.typecheckedFile
+  -- create Names0 for these builtins,
+--  let names0 = B.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+--  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+--  Codebase.putRootBranch c (Branch.one b0)
+  Codebase.putRootBranch c Branch.empty
+
+-- Feel free to refactor this to use some other type than TypecheckedUnisonFile
+-- if it makes sense to later.
+addDefsToCodebase :: forall m. Monad m
+  => Codebase m Symbol Ann -> UF.TypecheckedUnisonFile Symbol Ann -> m ()
+addDefsToCodebase c uf = do
+  traverse_ (goType Right) (UF.dataDeclarations' uf)
+  traverse_ (goType Left)  (UF.effectDeclarations' uf)
+  -- put terms
+  traverse_ goTerm (UF.hashTerms uf)
+  where
+    goTerm (Reference.DerivedId r, tm, tp) = Codebase.putTerm c r tm tp
+    goTerm b = error $ "tried to write builtin term to codebase: " ++ show b
+    goType :: (t -> Decl Symbol Ann) -> (Reference.Reference, t) -> m ()
+    goType f (ref, decl) = case ref of
+      Reference.DerivedId id -> Codebase.putTypeDeclaration c id (f decl)
+      _                      -> pure ()
+
+
+builtinBranch :: Branch0 m
+builtinBranch = error "todo"
