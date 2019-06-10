@@ -6,6 +6,8 @@ import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Branch2 as Branch
 import Unison.Codebase.Branch2 (Branch, Branch0)
+import qualified Unison.Names2 as Names
+import Unison.Names2 (Names0)
 import qualified Unison.Referent as Referent
 import qualified Unison.Reference as Reference
 import Unison.Referent (Referent)
@@ -14,6 +16,21 @@ import Unison.HashQualified (HashQualified'(NameOnly, HashOnly, HashQualified))
 -- import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Relation as R
+
+addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
+addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
+  where
+  typeActions = map doType . R.toList $ Names.types names0
+  termActions = map doTerm . R.toList $ Names.terms names0
+--  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
+  doTerm (n, r) = case Path.splitFromName n of
+    Nothing -> errorEmptyName
+    Just split -> makeAddTermName split r
+--  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
+  doType (n, r) = case Path.splitFromName n of
+             Nothing -> errorEmptyName
+             Just split -> makeAddTypeName split r
+  errorEmptyName = error "encountered an empty name"
 
 -- getNamedTerm :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Referent)
 -- getNamedTerm (p, hq') b = case hq' of

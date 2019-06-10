@@ -75,8 +75,8 @@ termsDir, typesDir, branchesDir, branchHeadDir, editsDir :: CodebasePath -> File
 termsDir root = root </> "terms"
 typesDir root = root </> "types"
 branchesDir root = root </> "branches"
-branchHeadDir root = branchesDir root </> "head"
-editsDir root = root </> "edits"
+branchHeadDir root = branchesDir root </> "_head"
+editsDir root = root </> "patches"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentId r

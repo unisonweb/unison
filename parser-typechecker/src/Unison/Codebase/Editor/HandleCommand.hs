@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
--- {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 -- {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 -- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
@@ -19,6 +19,7 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
 
+import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Builtin2               as B
 import           Unison.Symbol                  ( Symbol )
 
@@ -34,6 +35,7 @@ import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase.Branch2         ( Branch
                                                  , Branch0
                                                  )
+import qualified Unison.Codebase.BranchUtil as BranchUtil
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import           Unison.Parser                  ( Ann )
@@ -497,7 +499,6 @@ loadSearchResults code = traverse loadSearchResult
 --   else Nothing
 
 -- | Write all of the builtins types and IO types into the codebase
--- todo: Come up with a tidy way to consolidate this logic with addDefsToCodebase
 initializeCodebase :: forall m . Monad m => Codebase m Symbol Ann -> m ()
 initializeCodebase c = do
   addDefsToCodebase c
@@ -505,6 +506,11 @@ initializeCodebase c = do
                               (Map.fromList B.builtinEffectDecls)
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
+  -- create Names0 for these builtins,
+--  let names0 = B.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+--  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+--  Codebase.putRootBranch c (Branch.one b0)
+  Codebase.putRootBranch c Branch.empty
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.

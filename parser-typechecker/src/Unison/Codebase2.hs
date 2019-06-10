@@ -246,6 +246,12 @@ makeSelfContained' code uf = do
       (unrefb <$> UF.watches uf)
   pure $ uf'
 
+dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
+dependents c r
+    = Set.union (Builtin.builtinTypeDependents r)
+    . Set.map Reference.DerivedId
+  <$> dependentsImpl c r
+
 -- -- Creates a self-contained `UnisonFile` which bakes in
 -- -- all transitive dependencies
 -- makeSelfContained
@@ -312,12 +318,6 @@ makeSelfContained' code uf = do
 --   Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
 --   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
-dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
-dependents c r
-    = Set.union (Builtin.builtinTypeDependents r)
-    . Set.map Reference.DerivedId
-  <$> dependentsImpl c r
---
 -- -- Gets the dependents of a whole component (cycle), topologically sorted,
 -- -- meaning that if X depends on Y, Y appears before X in this list.
 -- -- If X and Y depend on each other, they will appear adjacent in

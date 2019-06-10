@@ -13,8 +13,6 @@
 
 module Unison.Codebase.Branch2 where
 
--- import qualified Unison.Codebase.Branch as Branch
-
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
@@ -352,6 +350,9 @@ getAt0 p b = case Path.toList p of
 empty :: Branch m
 empty = Branch $ Causal.one empty0
 
+one :: Branch0 m -> Branch m
+one = Branch . Causal.one
+
 empty0 :: Branch0 m
 empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
 
@@ -460,11 +461,13 @@ stepAt0 p f = runIdentity . stepAt0M p (pure . f)
 -- stepManyAt consolidates several changes into a single step,
 -- by starting at the leaves and working up to the root
 -- use Unison.Util.List.groupBy to merge the Endos at each Path
+-- todo: rewrite this to do at most one step at each path
 stepManyAt0 :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 = error "todo"
+stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
 
+-- todo: rewrite this to do at most one step at each path
 stepManyAt0M :: (Applicative m, Foldable f)
              => f (Path, Branch0 m -> m (Branch0 m))
              -> Branch0 m -> m (Branch0 m)
