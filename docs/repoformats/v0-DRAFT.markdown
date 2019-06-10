@@ -23,8 +23,8 @@ Something that still needs working out:
 
 * It's quite possible to have multiple definitions with the same hash, if Alice and Bob implement a thing with the same hash independently.
 * To avoid git conflicts, we need to tweak the repo format. Perhaps name each definition according to a hash of its content, as in:
-  * `terms/<hash>/<content-hash>.compiled.ub
-  * `terms/<hash>/<content-hash>.type.ub
+  * `terms/<hash>/<content-hash>.compiled.ub`
+  * `terms/<hash>/<content-hash>.type.ub`
 * That sort of change has some implications that we'll need to work through - like maybe the branches should not have `Reference` in them, but `Reference` + `<content-hash>`? TBD.
 
 When pulling from a remote repo, can just shallow clone to a temporary directory, and then file merge the contents of that directory with the user's codebase directory. One fixup is that the head of the temp directory should be ignored. It's up to the caller of the pull to decide what it wants to do with the `Branch` it gets back.
