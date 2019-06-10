@@ -461,6 +461,8 @@ stepAt0 p f = runIdentity . stepAt0M p (pure . f)
 -- stepManyAt consolidates several changes into a single step,
 -- by starting at the leaves and working up to the root
 -- use Unison.Util.List.groupBy to merge the Endos at each Path
+-- todo: reimplement this using step, not stepAt, to preserve the property
+-- that each path is only stepped once.
 stepManyAt0 :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
@@ -471,6 +473,8 @@ stepManyAt0 actions b = let
   combine fs = foldl' (\f g -> g . f) id fs
   in foldl' (\b (p, f) -> stepAt0 p f b) b actions'
 
+-- todo: reimplement this using stepM, not stepAtM, to preserve the property
+-- that each path is only stepped once.
 stepManyAt0M :: (Monad m, Foldable f)
              => f (Path, Branch0 m -> m (Branch0 m))
              -> Branch0 m -> m (Branch0 m)
