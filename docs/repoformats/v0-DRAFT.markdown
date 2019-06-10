@@ -34,5 +34,5 @@ Idea is that when pulling, you always end up with a codebase where the `Branch` 
 What about for pushing a branch? Example: `> merge mylibrary.v1 https://github.com/runarorama/unison`
 
 * Option 1 (full syncing): could write the branch and its transitive dependents into a temporary directory which is a valid codebase repo. Then just push that via git.
-* Option 1a (local selective syncing): Pull the remote repo in some temporary directory, then do selective sync of needed files into the temporary directory. Then do a commit to the temp repo, followed by push.
+* Option 1a (local selective syncing): Clone/pull the remote repo in some temporary directory, then do selective sync of needed files into the temporary directory. Then do a commit to the temp repo, followed by push. By recycling temporary directories, we lean on git to do selective syncing of history. The temp directories can still be deleted at any time.
 * Option 2 (remote selective syncing): Remote selective syncing, start from the root, check if the root hash already exists on the remote, if yes, stop. If no, copy that file into the temporary directory. Also check if all of the hashes referenced by the root exist on the remote. If no, copy the `terms/`, `dependents`, and/or `types/` directories into the temp. Repeat for depenents.
