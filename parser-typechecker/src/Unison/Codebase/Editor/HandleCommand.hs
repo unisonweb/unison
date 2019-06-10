@@ -365,24 +365,29 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
---    AddDefsToCodebase handler branch unisonFile -> error "todo"
---      fileToBranch handler codebase branch unisonFile
+    --    AddDefsToCodebase handler branch unisonFile -> error "todo"
+    --      fileToBranch handler codebase branch unisonFile
     Typecheck ambient names sourceName source -> do
-      -- todo: if guids are being shown to users, not ideal to generate new guid every time
+      -- todo: if guids are being shown to users,
+      -- not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen
-      typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
-    Evaluate unisonFile -> evalUnisonFile unisonFile
-    LoadLocalRootBranch -> Codebase.getRootBranch codebase
+      typecheck ambient
+                codebase
+                (namegen, OldNames.fromNames2 names)
+                sourceName
+                source
+    Evaluate unisonFile                      -> evalUnisonFile unisonFile
+    LoadLocalRootBranch                      -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch Github{..} -> error "todo"
-    SyncRemoteRootBranch Github{..} _branch -> error "todo"
-    RetrieveHashes Github{..} _types _terms -> error "todo"
-    LoadTerm r -> CC.getTerm codebase r
-    LoadType r -> CC.getTypeDeclaration codebase r
-    LoadTypeOfTerm r -> CC.getTypeOfTerm codebase r
+    LoadRemoteRootBranch Github {..}         -> error "todo"
+    SyncRemoteRootBranch Github {..} _branch -> error "todo"
+    RetrieveHashes Github {..} _types _terms -> error "todo"
+    LoadTerm          r                      -> CC.getTerm codebase r
+    LoadType          r                      -> CC.getTypeDeclaration codebase r
+    LoadTypeOfTerm    r                      -> CC.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
-    GetDependents r -> Codebase.dependents codebase r
-    AddDefsToCodebase _unisonFile -> error "todo"
+    GetDependents     r                      -> Codebase.dependents codebase r
+    AddDefsToCodebase _unisonFile            -> error "todo"
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do
