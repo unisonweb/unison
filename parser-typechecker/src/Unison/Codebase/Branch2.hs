@@ -461,17 +461,25 @@ stepAt0 p f = runIdentity . stepAt0M p (pure . f)
 -- stepManyAt consolidates several changes into a single step,
 -- by starting at the leaves and working up to the root
 -- use Unison.Util.List.groupBy to merge the Endos at each Path
--- todo: rewrite this to do at most one step at each path
 stepManyAt0 :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
+stepManyAt0 actions b = let
+  -- paths are ordered lexicographically, so parents will appear before their children
+  -- we reverse this so children are stepped before their parents
+  actions' = reverse . Map.toList $ combine <$> List.multimap actions
+  combine fs = foldl' (\f g -> g . f) id fs
+  in foldl' (\b (p, f) -> stepAt0 p f b) b actions'
 
--- todo: rewrite this to do at most one step at each path
-stepManyAt0M :: (Applicative m, Foldable f)
+stepManyAt0M :: (Monad m, Foldable f)
              => f (Path, Branch0 m -> m (Branch0 m))
              -> Branch0 m -> m (Branch0 m)
-stepManyAt0M = error "todo"
+stepManyAt0M actions b = let
+  -- paths are ordered lexicographically, so parents will appear before their children
+  -- we reverse this so children are stepped before their parents
+  actions' = reverse . Map.toList $ combine <$> List.multimap actions
+  combine fs = foldl' (\f g x -> f x >>= g) pure fs
+  in Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions'
 
 stepAt0M :: forall n m. (Functor n, Applicative m)
          => Path
