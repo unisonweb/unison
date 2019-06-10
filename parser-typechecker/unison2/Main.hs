@@ -18,7 +18,7 @@ main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
   let codebasePath  = ".unison/v0"
-      initialPath = Path.empty
+      initialPath = Path.absoluteEmpty
       scratchFilePath = "."
       theCodebase =
         FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
