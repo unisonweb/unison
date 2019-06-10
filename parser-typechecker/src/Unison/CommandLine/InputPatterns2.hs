@@ -182,8 +182,8 @@ cd = InputPattern "cd" [] [(Required, branchPathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "branch.delete" [] [(OnePlus, branchPathArg)]
-  "`branch.delete <foo>` deletes the branch `foo`"
+deleteBranch = InputPattern "delete.branch" [] [(OnePlus, branchPathArg)]
+  "`delete.branch <foo>` deletes the branch `foo`"
    (\case
         [p] -> first fromString $ do
           p <- Path.parseSplit' p
@@ -260,6 +260,7 @@ validInputs =
   , update
   , forkLocal
   , mergeLocal
+  , cd
   , deleteBranch
   , find
   , view

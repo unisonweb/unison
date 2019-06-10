@@ -5,6 +5,8 @@ module Unison.HashQualified where
 import           Data.Maybe                     ( isJust
                                                 , fromMaybe
                                                 )
+import qualified Data.Set as Set
+import           Data.Set (Set)
 import           Data.String                    ( IsString
                                                 , fromString
                                                 )
@@ -56,7 +58,7 @@ take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case
   n@(NameOnly _)    -> n
   HashOnly s        -> HashOnly (SH.take i s)
-  HashQualified n s -> HashQualified n (SH.take i s)
+  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
 
 toString :: Show n => HashQualified' n -> String
 toString = Text.unpack . toText

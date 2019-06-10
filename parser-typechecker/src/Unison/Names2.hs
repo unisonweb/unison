@@ -50,6 +50,21 @@ type Names = Names' HashQualified
 type Names0 = Names' Name
 type NamesSeg = Names' (HQ.HashQualified' NameSegment)
 
+-- todo: could be HQ'; as these are all expected to have names
+names0ToNames :: Names0 -> Names
+names0ToNames names0 = Names terms' types' where
+  terms' = R.map doTerm (terms names0)
+  types' = R.map doType (types names0)
+  length = numHashChars names0
+  doTerm (n, r) =
+    if Set.size (R.lookupDom n (terms names0)) > 1
+    then (HQ.take length $ HQ.fromNamedReferent n r, r)
+    else (HQ.NameOnly n, r)
+  doType (n, r) =
+    if Set.size (R.lookupDom n (types names0)) > 1
+    then (HQ.take length $ HQ.fromNamedReference n r, r)
+    else (HQ.NameOnly n, r)
+
 hasTerm :: Referent -> Names' n -> Bool
 hasTerm r = R.memberRan r . terms
 

@@ -13,6 +13,7 @@ import qualified Unison.Names as Names
 import qualified Unison.Names2 as Names2
 import Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
+import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -33,6 +34,13 @@ fromNames ns =
 
 fromNames2 :: Names2.Names -> PrettyPrintEnv
 fromNames2 = fromNames . Names.fromNames2
+
+fromNames0 :: Names2.Names0 -> PrettyPrintEnv
+fromNames0 names0 = let
+  names = Names2.names0ToNames names0
+  terms r = Set.lookupMin $ Names2.namesForReferent names r
+  types r = Set.lookupMin $ Names2.namesForReference names r
+  in PrettyPrintEnv terms types
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
