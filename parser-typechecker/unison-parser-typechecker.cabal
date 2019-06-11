@@ -181,6 +181,7 @@ library
     fingertree,
     free,
     fsnotify,
+    fsutils,
     hashable,
     hashtables,
     haskeline,

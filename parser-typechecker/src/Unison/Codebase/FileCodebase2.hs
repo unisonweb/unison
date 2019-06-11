@@ -149,23 +149,21 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-getRootBranch
-  :: MonadIO m => CodebasePath -> m (Branch m)
+getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
 getRootBranch root = do
-  (liftIO $ listDirectory (branchHeadDir root)) >>= \case
-    [] -> failWith $ NoBranchHead (branchHeadDir root)
-    [single] -> case Hash.fromBase58 (Text.pack single) of
-      Nothing -> failWith $ CantParseBranchHead single
-      Just h -> branchFromFiles root (RawHash h)
-    _conflict ->
-      -- todo: might want a richer return type that reflects these merges
-      error "todo; load all and merge?"
-  where
-  branchFromFiles :: MonadIO m
-                  => FilePath -> Branch.Hash -> m (Branch m)
-  branchFromFiles rootDir rootHash =
-    Branch.read (deserializeRawBranch rootDir)
-                (deserializeEdits rootDir) rootHash
+  liftIO $ listDirectory (branchHeadDir root) >>= \case
+    []               -> failWith $ NoBranchHead (branchHeadDir root)
+    [ single]        -> go single
+    c :     conflict -> foldM Branch.merge (go c) (go <$> conflict)
+ where
+  go single = case Hash.fromBase58 (Text.pack single) of
+    Nothing -> failWith $ CantParseBranchHead single
+    Just h  -> branchFromFiles root (RawHash h)
+  branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
+  branchFromFiles rootDir rootHash = Branch.read
+    (deserializeRawBranch rootDir)
+    (deserializeEdits rootDir)
+    rootHash
 
   deserializeRawBranch
     :: MonadIO m

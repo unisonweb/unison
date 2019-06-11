@@ -18,6 +18,7 @@ extra-deps:
 - relation-0.2.1
 - guid-0.1.0
 - shellmet-0.0.1
+- fsutils-0.1.2
 
 ghc-options:
  # All packages

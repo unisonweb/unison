@@ -88,7 +88,7 @@ data Output v
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       Names
+                       Names0
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names (TodoOutput v Ann)

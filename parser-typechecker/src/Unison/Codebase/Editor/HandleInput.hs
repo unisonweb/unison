@@ -198,7 +198,8 @@ loop = do
       --        , Branch.toNames0 (Branch.head b)
       --        , p, seg)
 
-  let names' = Branch.toNames (Branch.head currentBranch')
+  let -- names' = Branch.toNames (Branch.head currentBranch')
+      names0' = Branch.toNames0 root0
   e           <- eval Input
   let withFile ambient sourceName text k = do
         Result notes r <- eval
@@ -405,16 +406,16 @@ loop = do
             (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
           r@(Reference.Builtin _) -> pure (r, BuiltinThing)
 
-        -- makes sure that the user search terms get used as the names
-        -- in the pretty-printer
+        -- We might like to make sure that the user search terms get used as
+        -- the names in the pretty-printer, but the current implementation
+        -- doesn't.
         let
-          names :: Names
-          names = error $ "todo: come up with a Names here that's sufficient\n"
-                       ++  "to pretty-print these loadedTerms, loadedTypes"
-          -- ppe = -- now Names:
-          --   PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ]
-          --     <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]
-          --     <> Branch.prettyPrintEnv (Branch.head currentBranch')
+          -- The definitions will generally reference names outside the current
+          -- path.  For now we'll assume the pretty-printer will factor out
+          -- excess name prefixes.
+          names :: Names0
+          names = Branch.toNames0 root0
+
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
@@ -431,26 +432,26 @@ loop = do
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names' False
+          .   ListOfDefinitions names0' False
       SearchByNameI ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names' True
+          .   ListOfDefinitions names0' True
       -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names' True
+          .   ListOfDefinitions names0' True
       SearchByNameI (map HQ.fromString -> qs) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond
-          .   ListOfDefinitions names' False
+          .   ListOfDefinitions names0' False
 
       ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)

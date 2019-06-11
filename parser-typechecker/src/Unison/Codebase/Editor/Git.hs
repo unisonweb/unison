@@ -21,6 +21,7 @@ import           System.Directory               ( getCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
                                                 )
+import           System.Path                    ( copyDir )
 import           Unison.Codebase.FileCodebase2  ( CodebasePath
                                                 , getRootBranch
                                                 , putRootBranch
@@ -37,7 +38,7 @@ data GitError = NoGit
 -- pulls the HEAD of that Github location into the local path.
 pullFromGithub
   :: MonadIO m
-  => MonadError GitError m => CodebasePath -> Text -> Text -> Text -> m ()
+  => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
 pullFromGithub localPath user repo treeish = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError NoGit
@@ -56,13 +57,15 @@ pullFromGithub localPath user repo treeish = do
 -- and attempts to load it as a branch.
 pullGithubRootBranch
   :: MonadIO m
-  => CodebasePath
+  => FilePath
+  -> CodebasePath
   -> Text
   -> Text
   -> Text
   -> ExceptT GitError m (Branch (ExceptT Err m))
-pullGithubRootBranch localPath user repo treeish = do
+pullGithubRootBranch localPath codebasePath user repo treeish = do
   pullFromGithub localPath user repo treeish
+  copyDir localPath codebasePath
   mapExceptT (fmap $ first Err) (getRootBranch localPath)
 
 checkGitDir :: IO Bool
