@@ -14,7 +14,7 @@ module Unison.CommandLine.InputPatterns2 where
 
 -- import Debug.Trace
 import Data.Bifunctor (first)
-import Data.List (intercalate)
+import Data.List (intercalate, sortOn)
 import Data.String (fromString)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.CommandLine
@@ -239,7 +239,8 @@ help = InputPattern
     "help" ["?"] [(Optional, commandNameArg)]
     "`help` shows general help and `help <cmd>` shows help for one command."
     (\case
-      [] -> Left $ intercalateMap "\n\n" showPatternHelp validInputs
+      [] -> Left $ intercalateMap "\n\n" showPatternHelp
+        (sortOn I.patternName validInputs)
       [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ I.help pat
