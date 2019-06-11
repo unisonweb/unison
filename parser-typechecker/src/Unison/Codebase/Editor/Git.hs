@@ -33,7 +33,8 @@ data GitError = NoGit
               | NotAGitRepo FilePath
               | Err Err
 
--- may need to be different for private repo?
+-- Given a local path, a Github org, repo, and branch/commit hash,
+-- pulls the HEAD of that Github location into the local path.
 pullFromGithub
   :: MonadIO m
   => MonadError GitError m => CodebasePath -> Text -> Text -> Text -> m ()
@@ -42,9 +43,6 @@ pullFromGithub localPath user repo treeish = do
   when (isNothing gitPath) $ throwError NoGit
   wd     <- liftIO $ getCurrentDirectory
   exists <- liftIO . doesDirectoryExist $ localPath
-    --   3. The remote repo doesn't exist
-    --   4. We don't have access to the repo
-    --   6. The project is not a Unison repo
   when (not exists) $ shallowClone uri localPath
   liftIO . setCurrentDirectory $ localPath
   isGitDir <- liftIO checkGitDir
@@ -53,6 +51,9 @@ pullFromGithub localPath user repo treeish = do
   liftIO $ setCurrentDirectory wd
   where uri = githubUri user repo
 
+-- Given a local path, a Github org, repo, and branch/commit hash,
+-- pulls the HEAD of that Github location into the local path
+-- and attempts to load it as a branch.
 pullGithubRootBranch
   :: MonadIO m
   => CodebasePath
