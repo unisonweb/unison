@@ -14,6 +14,7 @@ module Unison.Codebase.Path
   -- )
 where
 
+--import Debug.Trace
 import qualified Data.Foldable as Foldable
 -- import           Data.String                    ( IsString
 --                                                 , fromString
@@ -33,9 +34,15 @@ import qualified Unison.Codebase.NameSegment as NameSegment
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
 newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
-newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord,Show)
-newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord,Show)
+newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
+newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
 newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
+
+instance Show Absolute where
+  show s = "." ++ show (unabsolute s)
+
+instance Show Relative where
+  show = show . unrelative
 
 unsplit' :: Split' -> Path'
 unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
@@ -63,7 +70,10 @@ parsePath' p = case p of
   '.' : p -> Path' . Left . Absolute . fromList <$> segs p
   p -> Path' . Right . Relative . fromList <$> segs p
   where
-  segs p = traverse validate (Text.splitOn "." $ Text.pack p)
+  segs p = traverse validate
+         . filter (not . Text.null)
+         . Text.splitOn "."
+         $ Text.pack p
   validate seg =
     case (fst <$> Lexer.wordyId0 (Text.unpack seg),
           fst <$> Lexer.symbolyId0 (Text.unpack seg)) of

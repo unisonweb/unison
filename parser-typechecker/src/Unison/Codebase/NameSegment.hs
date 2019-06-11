@@ -16,3 +16,6 @@ type HQ'Segment = HQ'.HashQualified' NameSegment
 
 instance H.Hashable NameSegment where
   tokens s = [H.Text (toText s)]
+
+isEmpty :: NameSegment -> Bool
+isEmpty ns = toText ns == mempty
