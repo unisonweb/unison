@@ -29,6 +29,7 @@ import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
 import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
 import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
@@ -111,10 +112,21 @@ parseHQSplit' s = do
   where
   shError s = "couldn't parse shorthash from " <> s
 
-
-
 parseHQ'Split' :: String -> Either String HQ'Split'
-parseHQ'Split' = error "todo"
+parseHQ'Split' s = do
+  (p, NameSegment ns) <- parseSplit' s
+  case Text.splitOn "#" ns of
+    [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    [NameSegment -> n] -> Right (p, HQ'.NameOnly n)
+    ["", sh] -> error . Text.unpack
+              $ "encountered HashOnly " <> sh <> " when expecting HQ'."
+    [NameSegment -> n, sh] ->
+      maybeToRight (shError s) . fmap (\sh -> (p, HQ'.HashQualified n sh))
+      . SH.fromText $ "#" <> sh
+    _ -> Left $ s <> " has too many #."
+  where
+  shError s = "couldn't parse shorthash from " <> s
+
 
 -- this might be useful in implementing the above
 -- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
