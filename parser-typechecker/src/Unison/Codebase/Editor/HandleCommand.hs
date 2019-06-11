@@ -25,17 +25,23 @@ import           Unison.Symbol                  ( Symbol )
 
 -- import Debug.Trace
 
+import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor                   ( void )
-import Data.Foldable (traverse_)
-import qualified Data.Map as Map
-import           Data.Text                      ( Text
+import           Data.Foldable                  ( traverse_ )
+import qualified Data.Map                      as Map
+import           Data.Text                      ( Text )
+import           System.Directory               ( getXdgDirectory
+                                                , XdgDirectory(..)
                                                 )
+import           System.FilePath                ( (</>) )
+
 import           Unison.Codebase2               ( Codebase, Decl )
 import qualified Unison.Codebase2              as Codebase
-import           Unison.Codebase.Branch2         ( Branch
-                                                 , Branch0
-                                                 )
-import qualified Unison.Codebase.BranchUtil as BranchUtil
+import           Unison.Codebase.Branch2        ( Branch
+                                                , Branch0
+                                                )
+import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import           Unison.Parser                  ( Ann )
@@ -76,14 +82,6 @@ data SearchMode = FuzzySearch | ExactSearch
 --   Todo :: Edits -> Branch -> Command m i v (TodoOutput v Ann)
 --
 --   Propagate :: Edits -> Branch -> Command m i v (Branch m)
-
-
--- may need to be different for private repo?
-loadGithubRootBranch :: Text -> Text -> Text -> m (Branch m)
-loadGithubRootBranch _user _repo _treeish = error "todo: loadGithubRootBranch"
-
-syncGithubRootBranch :: Text -> Text -> Text -> Branch m -> m ()
-syncGithubRootBranch _user _repo _ghbranch _b = error "todo: syncGithubRootBranch"
 
 -- data Outcome
 --   -- New definition that was added to the branch
@@ -383,18 +381,25 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
---    AddDefsToCodebase handler branch unisonFile -> error "todo"
---      fileToBranch handler codebase branch unisonFile
+    --    AddDefsToCodebase handler branch unisonFile -> error "todo"
+    --      fileToBranch handler codebase branch unisonFile
     Typecheck ambient names sourceName source -> do
-      -- todo: if guids are being shown to users, not ideal to generate new guid every time
+      -- todo: if guids are being shown to users,
+      -- not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen
-      typecheck ambient codebase (namegen, OldNames.fromNames2 names) sourceName source
-    Evaluate unisonFile -> evalUnisonFile unisonFile
-    LoadLocalRootBranch -> Codebase.getRootBranch codebase
+      typecheck ambient
+                codebase
+                (namegen, OldNames.fromNames2 names)
+                sourceName
+                source
+    Evaluate unisonFile        -> evalUnisonFile unisonFile
+    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch Github{..} -> error "todo"
-    SyncRemoteRootBranch Github{..} _branch -> error "todo"
-    RetrieveHashes Github{..} _types _terms -> error "todo"
+    LoadRemoteRootBranch Github {..} -> do
+      tmp <- getXdgDirectory XdgCache $ "unisonlanguage" </> "gitfiles"
+      runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
+    SyncRemoteRootBranch Github {..} _branch -> error "todo"
+    RetrieveHashes Github {..} _types _terms -> error "todo"
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

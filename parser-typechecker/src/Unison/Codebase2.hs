@@ -59,6 +59,7 @@ data Codebase m v a =
            , rootBranchUpdates  :: m (m (), m (Set Branch.Hash))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
+           , syncFromDirectory  :: FilePath -> m ()
            }
 
 -- | Write all of the builtins types and IO types into the codebase

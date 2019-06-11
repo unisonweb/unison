@@ -5,7 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import           Control.Monad                  ( forever )
+import           Control.Monad                  ( forever, foldM )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
@@ -36,6 +36,7 @@ import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , (</>)
                                                 )
+import           System.Path                    ( copyDir )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin2               as Builtin
 import           Unison.Codebase2               ( Codebase(Codebase) )
@@ -62,6 +63,7 @@ import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
 type CodebasePath = FilePath
+
 data Err
   = InvalidBranchFile FilePath String
   | InvalidEditsFile FilePath String
@@ -149,23 +151,23 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-getRootBranch
-  :: MonadIO m => CodebasePath -> m (Branch m)
+getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
 getRootBranch root = do
-  (liftIO $ listDirectory (branchHeadDir root)) >>= \case
-    [] -> failWith $ NoBranchHead (branchHeadDir root)
-    [single] -> case Hash.fromBase58 (Text.pack single) of
-      Nothing -> failWith $ CantParseBranchHead single
-      Just h -> branchFromFiles root (RawHash h)
-    _conflict ->
-      -- todo: might want a richer return type that reflects these merges
-      error "todo; load all and merge?"
-  where
-  branchFromFiles :: MonadIO m
-                  => FilePath -> Branch.Hash -> m (Branch m)
-  branchFromFiles rootDir rootHash =
-    Branch.read (deserializeRawBranch rootDir)
-                (deserializeEdits rootDir) rootHash
+  liftIO (listDirectory $ branchHeadDir root) >>= \case
+    []       -> failWith $ NoBranchHead (branchHeadDir root)
+    [single] -> go single
+    conflict -> traverse go conflict >>= \case
+      x : xs -> foldM Branch.merge x xs
+      []     -> failWith $ NoBranchHead (branchHeadDir root)
+ where
+  go single = case Hash.fromBase58 (Text.pack single) of
+    Nothing -> failWith $ CantParseBranchHead single
+    Just h  -> branchFromFiles root (RawHash h)
+  branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
+  branchFromFiles rootDir rootHash = Branch.read
+    (deserializeRawBranch rootDir)
+    (deserializeEdits rootDir)
+    rootHash
 
   deserializeRawBranch
     :: MonadIO m
@@ -251,6 +253,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
            (putRootBranch path)
            (branchHeadUpdates path)
            dependents
+           (liftIO . flip copyDir path)
   where
     getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
     putTerm h e typ = liftIO $ do

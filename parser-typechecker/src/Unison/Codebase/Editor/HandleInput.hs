@@ -852,7 +852,8 @@ respond output = eval $ Notify output
 
 loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
 loadRemoteBranchAt repo (Path.Absolute p) = do
-  root <- eval $ LoadRemoteRootBranch repo
+  roote <- eval $ LoadRemoteRootBranch repo
+  root <- either (fail . show) pure roote
   let b = Branch.getAt' p root
   let (types, terms) = collateReferences types0 terms0
         where
