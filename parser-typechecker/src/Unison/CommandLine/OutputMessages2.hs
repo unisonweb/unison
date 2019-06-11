@@ -330,9 +330,10 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' hq (Just typ) r aliases -> P.lines $
+  E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
-    , P.commas (fmap greyHash . sortOn (/= hq) $ toList aliases) <> " : " <> TypePrinter.pretty ppe (-1) typ
+    , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+      <> TypePrinter.pretty ppe (-1) typ
     , mempty
     ]
   _ -> error "Don't pass Nothing"
