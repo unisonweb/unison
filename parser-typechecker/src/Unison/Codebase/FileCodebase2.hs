@@ -5,7 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import           Control.Monad                  ( forever )
+import           Control.Monad                  ( forever, foldM )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
@@ -151,10 +151,12 @@ initialize path =
 
 getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
 getRootBranch root = do
-  liftIO $ listDirectory (branchHeadDir root) >>= \case
-    []               -> failWith $ NoBranchHead (branchHeadDir root)
-    [ single]        -> go single
-    c :     conflict -> foldM Branch.merge (go c) (go <$> conflict)
+  liftIO (listDirectory $ branchHeadDir root) >>= \case
+    []       -> failWith $ NoBranchHead (branchHeadDir root)
+    [single] -> go single
+    conflict -> traverse go conflict >>= \case
+      x : xs -> foldM Branch.merge x xs
+      []     -> failWith $ NoBranchHead (branchHeadDir root)
  where
   go single = case Hash.fromBase58 (Text.pack single) of
     Nothing -> failWith $ CantParseBranchHead single

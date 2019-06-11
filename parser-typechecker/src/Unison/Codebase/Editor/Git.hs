@@ -65,7 +65,7 @@ pullGithubRootBranch
   -> ExceptT GitError m (Branch (ExceptT Err m))
 pullGithubRootBranch localPath codebasePath user repo treeish = do
   pullFromGithub localPath user repo treeish
-  copyDir localPath codebasePath
+  liftIO $ copyDir localPath codebasePath
   mapExceptT (fmap $ first Err) (getRootBranch localPath)
 
 checkGitDir :: IO Bool
