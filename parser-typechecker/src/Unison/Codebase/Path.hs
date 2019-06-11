@@ -15,6 +15,7 @@ module Unison.Codebase.Path
 where
 
 --import Debug.Trace
+import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
 -- import           Data.String                    ( IsString
 --                                                 , fromString
@@ -27,6 +28,8 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
+import qualified Unison.HashQualified as HQ
+import qualified Unison.ShortHash as SH
 
 import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
 import qualified Unison.Codebase.NameSegment as NameSegment
@@ -93,7 +96,22 @@ parseSplit' p = case parsePath' p of
       Just (p, seg) -> pure (Path' . Right . Relative $ p, seg)
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' = error "todo"
+parseHQSplit' s = do
+  (p, NameSegment ns) <- parseSplit' s
+  case Text.splitOn "#" ns of
+    [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    [NameSegment -> n] -> Right (p, HQ.NameOnly n)
+    ["", sh] ->
+      maybeToRight (shError s) . fmap (\sh -> (p, HQ.HashOnly sh))
+      . SH.fromText $ "#" <> sh
+    [NameSegment -> n, sh] ->
+      maybeToRight (shError s) . fmap (\sh -> (p, HQ.HashQualified n sh))
+      . SH.fromText $ "#" <> sh
+    _ -> Left $ s <> " has too many #."
+  where
+  shError s = "couldn't parse shorthash from " <> s
+
+
 
 parseHQ'Split' :: String -> Either String HQ'Split'
 parseHQ'Split' = error "todo"
