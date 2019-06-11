@@ -5,8 +5,6 @@ module Unison.HashQualified where
 import           Data.Maybe                     ( isJust
                                                 , fromMaybe
                                                 )
-import qualified Data.Set as Set
-import           Data.Set (Set)
 import           Data.String                    ( IsString
                                                 , fromString
                                                 )

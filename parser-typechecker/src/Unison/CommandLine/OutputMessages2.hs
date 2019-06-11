@@ -258,14 +258,14 @@ formatMissingStuff terms types =
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
-  -> Names
+  -> Names0
   -> Map Reference.Reference (DisplayThing (Codebase.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
 displayDefinitions outputLoc names types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
-  ppe = PPE.fromNames2 names
+  ppe = PPE.fromNames0 names
   displayOnly = putPrettyLn code
   scratchAndDisplay path = do
     path' <- canonicalizePath path
