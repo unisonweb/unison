@@ -24,7 +24,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.Path (Path')
 import Unison.HashQualified ( HashQualified )
 import Unison.Name ( Name )
-import Unison.Names2 ( Names )
+import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
@@ -73,7 +73,7 @@ data Output v
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete Input [SearchResult' v Ann] [SearchResult' v Ann]
   -- list of all the definitions within this branch
-  | ListOfDefinitions Names ListDetailed [SearchResult' v Ann]
+  | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   -- show the result of add/update
   | SlurpOutput Input (SlurpResult v)
   -- Original source, followed by the errors:

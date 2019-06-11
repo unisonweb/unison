@@ -17,7 +17,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Unison.Codebase.Editor.HandleInput (loop, loopState0) where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) where
 
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -410,7 +410,7 @@ loop = do
         let
           names :: Names
           names = error $ "todo: come up with a Names here that's sufficient\n"
-                      ++  "to pretty-print these loadedTerms, loadedTypes"
+                       ++  "to pretty-print these loadedTerms, loadedTypes"
           -- ppe = -- now Names:
           --   PPE.fromTermNames [ (r, n) | Editor.Tm n _ r _ <- results ]
           --     <> PPE.fromTypeNames [ (r, n) | Editor.Tp n _ r _ <- results ]

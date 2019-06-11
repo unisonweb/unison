@@ -74,12 +74,6 @@ import qualified Unison.Util.List              as List
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
--- used by `fold`
-data BranchEntry
-  = TermEntry Referent
-  | TypeEntry Reference
-  deriving (Eq,Ord,Show)
-
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
@@ -140,6 +134,14 @@ data Branch0 m = Branch0
   , deepTypeReferences :: Set Reference
   }
 
+printDebugPaths :: Branch m -> String
+printDebugPaths = unlines . map show . Set.toList . debugPaths
+
+debugPaths :: Branch m -> Set (Path, Hash)
+debugPaths b = go Path.empty b where
+  go p b = Set.insert (p, headHash b) . Set.unions $
+    [ go (Path.snoc p seg) b | (seg, (_,b)) <- Map.toList $ _children (head b) ]
+
 data Target = TargetType | TargetTerm | TargetBranch
   deriving (Eq, Ord, Show)
 
@@ -163,29 +165,6 @@ instance Eq (Branch0 m) where
 
 data ForkFailure = SrcNotFound | DestExists
 
-fold :: forall m a. (a -> Name -> BranchEntry -> a) -> a -> Branch0 m -> a
-fold f a b = go Path.empty b a where
-  doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
-  doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
-  doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
-  go :: Path -> Branch0 m -> a -> a
-  go p b a = let
-    a1 = foldl' (doTerm p) a (R.toList . view terms $ b)
-    a2 = foldl' (doType p) a1 (R.toList . view types $ b)
-    in foldl' (doChild p) a2 (Map.toList . view children $ b)
-
-foldM :: forall m a. Monad m
-      => (a -> Name -> BranchEntry -> m a) -> a -> Branch0 m -> m a
-foldM f a b = go Path.empty b a where
-  doTerm p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TermEntry r)
-  doType p a (seg, r) = f a (Path.toName (p `Path.snoc` seg)) (TypeEntry r)
-  doChild p a (seg, (_hash, head -> b)) = go (p `Path.snoc` seg) b a
-  go :: Path -> Branch0 m -> a -> m a
-  go p b a = do
-    a1 <- Monad.foldM (doTerm p) a (R.toList . view terms $ b)
-    a2 <- Monad.foldM (doType p) a1 (R.toList . view types $ b)
-    Monad.foldM (doChild p) a2 (Map.toList . view children $ b)
-
 -- consider delegating to Names.numHashChars when ready to implement?
 -- are those enough?
 -- could move this to a read-only field in Branch0
@@ -205,9 +184,6 @@ toNames b = Names hqTerms hqTypes where
 --toNames0' b = fold go mempty b where
 --  go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
 --  go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
-
-allEntries :: Branch0 m -> [(Name, BranchEntry)]
-allEntries = reverse . fold (\l n e -> (n, e) : l) []
 
 -- asSearchResults :: Branch m -> [SearchResult]
 
@@ -275,7 +251,7 @@ sync exists serializeRaw serializeEdits b = do
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
   serialize0 h = \case
     RawOne b0 -> serializeRaw h $ RawOne (toRaw b0)
-    RawCons b0 h -> serializeRaw h $ RawCons (toRaw b0) h
+    RawCons b0 ht -> serializeRaw h $ RawCons (toRaw b0) ht
     RawMerge b0 hs -> serializeRaw h $ RawMerge (toRaw b0) hs
 
   -- this has to serialize the branch0 and its descendants in the tree,

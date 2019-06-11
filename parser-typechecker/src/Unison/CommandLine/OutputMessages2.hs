@@ -64,7 +64,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName,
                                                 styleHashQualified,
                                                 styleHashQualified')
-import           Unison.Names2                 (Names)
+import           Unison.Names2                 (Names, Names0)
 import qualified Unison.PrettyPrintEnv         as PPE
 import           Unison.PrintError             (prettyParseError
                                                -- ,renderNoteAsANSI
@@ -96,14 +96,15 @@ notifyUser dir o = case o of
       [ P.wrap "There's nothing for me to add right now."
       , ""
       , P.column2 [(P.bold "Hint:", msg dir')] ]
-   where
+    where
     msg dir = P.wrap
       $  "I'm currently watching for definitions in .u files under the"
       <> renderFileName dir
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
-  -- RenameOutput rootPath oldName newName r -> do
+  CreatedNewBranch path -> pure ()
+ -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
   --   nameChange "alias" "aliased" existingName newName r
@@ -121,8 +122,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions _branch _results _withHashes -> error "todo"
-    -- listOfDefinitions (Branch.head branch) results withHashes
+  ListOfDefinitions names detailed results ->
+     listOfDefinitions names detailed results
   SlurpOutput _input _s -> error "todo"
     -- slurpOutput s
   ParseErrors src es -> do
@@ -460,11 +461,11 @@ todoOutput ppe todo = error "todo: update TypePrinter to use Names"
   --     ]
 
 listOfDefinitions ::
-  Var v => Branch0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
-listOfDefinitions branch detailed results =
+  Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
+listOfDefinitions names detailed results =
   putPrettyLn $ listOfDefinitions' ppe detailed results
   where
-  ppe = Branch.prettyPrintEnv branch
+  ppe = PPE.fromNames0 names
 
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\

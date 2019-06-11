@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase2 where
@@ -7,7 +8,7 @@ module Unison.Codebase2 where
 import           Control.Monad                  ( foldM
                                                 , forM
                                                 )
-import           Data.Foldable                  ( toList )
+import           Data.Foldable                  ( toList, traverse_ )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( catMaybes )
 import           Data.Set                       ( Set )
@@ -18,15 +19,24 @@ import           Unison.Codebase.Branch2         ( Branch )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
+import qualified Unison.Name as Name
+import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
+import qualified Unison.Referent as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
+import           Unison.Parser                  ( Ann )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
+import qualified Unison.Runtime.IOSource       as IOSource
+import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Codebase.BranchUtil as BranchUtil
+
+import Debug.Trace
 
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
@@ -50,6 +60,36 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            }
+
+-- | Write all of the builtins types and IO types into the codebase
+initializeCodebase :: forall m. Monad m => Codebase m Symbol Ann -> m ()
+initializeCodebase c = do
+  addDefsToCodebase c
+    (UF.TypecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+                              (Map.fromList Builtin.builtinEffectDecls)
+                              mempty mempty)
+  addDefsToCodebase c IOSource.typecheckedFile
+  let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
+  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+  putRootBranch c (Branch.one b0)
+  where
+  --  Codebase.putRootBranch c (Branch.one $ BranchUtil.addFromNames0 mempty Branch.empty0)
+  -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
+  -- if it makes sense to later.
+  addDefsToCodebase :: forall m v a. (Monad m, Var v)
+    => Codebase m v a -> UF.TypecheckedUnisonFile v a -> m ()
+  addDefsToCodebase c uf = do
+    traverse_ (goType Right) (UF.dataDeclarations' uf)
+    traverse_ (goType Left)  (UF.effectDeclarations' uf)
+    -- put terms
+    traverse_ goTerm (UF.hashTerms uf)
+    where
+      goTerm (Reference.DerivedId r, tm, tp) = putTerm c r tm tp
+      goTerm b = error $ "tried to write builtin term to codebase: " ++ show b
+      goType :: (t -> Decl v a) -> (Reference.Reference, t) -> m ()
+      goType f (ref, decl) = case ref of
+        Reference.DerivedId id -> putTypeDeclaration c id (f decl)
+        _                      -> pure ()
 
 getTypeOfConstructor ::
   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))
