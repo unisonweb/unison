@@ -169,35 +169,10 @@ loop = do
       getHQTerms :: Path.HQSplit' -> Set Referent
       getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
       getHQ'Terms = getHQTerms . fmap HQ'.toHQ
-      -- These don't quite make sense, because a HQ'Split' includes a name.
-      -- A regular HQSplit' may be missing a name, and then it .. well
-      -- even then, a NameSegment probably isn't going to cut it.
-      -- getNamedHQTypes :: Path.HQ'Split' -> Set (NameSegment, Reference)
-      -- getNamedHQTypes p = BranchUtil.getNamedType (resolvePath' p) root0
-      -- getNamedHQTerms :: Path.HQ'Split' -> Set (NameSegment, Referent)
-      -- getNamedHQTerms p = BranchUtil.getNamedTerm (resolvePath' p) root0
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQTerms . fmap HQ.NameOnly
-
-      -- unsnocPath' :: Path' -> (Absolute, NameSegment)
-      -- unsnocPath' = fromJust
-      --           . fmap (first Absolute)
-      --           . (\(Absolute p) -> Path.unsnoc p)
-      --           . Path.toAbsolutePath currentPath'
-
-      -- todo: don't need to use this version, because the NamesSeg and deepReferentes are built into the Branch0 now.
-      -- loadHqSrc ::
-      --   Path.HQSplit' -> _ (Branch m, NamesSeg, Names0, Absolute, HQSegment)
-      -- loadHqSrc hq = do
-      --   let (p, seg) = toAbsoluteSplit hq
-      --   b <- getAt p
-      --   pure ( b
-      --        , Branch.toNamesSeg (Branch.head b)
-      --        , Branch.toNames0 (Branch.head b)
-      --        , p, seg)
-
   let -- names' = Branch.toNames (Branch.head currentBranch')
       names0' = Branch.toNames0 root0
   e           <- eval Input
@@ -441,7 +416,8 @@ loop = do
           .   ListOfDefinitions names0' True
       -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
-        let results = searchBranchScored currentBranch' fuzzyNameDistance qs
+        let results = uniqueBy SR.toReferent
+                    $ searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         eval (LoadSearchResults results)
           >>= respond

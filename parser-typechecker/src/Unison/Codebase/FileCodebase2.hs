@@ -214,7 +214,7 @@ updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
 updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
   -- delete existing heads
-  liftIO $ listDirectory headDir >>= traverse_ removeFile
+  liftIO $ listDirectory headDir >>= traverse_ (removeFile . (headDir </>))
   -- write new head
   liftIO $ writeFile (headDir </> Hash.base58s h) ""
 

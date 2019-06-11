@@ -74,6 +74,69 @@ import qualified Unison.Util.List              as List
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
 
+type Hash = Causal.RawHash Raw
+type EditHash = Hash.Hash
+
+data Branch0 m = Branch0
+  { _terms :: Relation NameSegment Referent
+  , _types :: Relation NameSegment Reference
+  , _children:: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
+  , _edits :: Map NameSegment (EditHash, m Patch)
+  , toNamesSeg :: Names.NamesSeg
+  , toNames0 :: Names.Names0
+  , deepReferents :: Set Referent
+  , deepTypeReferences :: Set Reference
+  }
+
+-- The raw Branch
+data Raw = Raw
+  { _termsR :: Relation NameSegment Referent
+  , _typesR :: Relation NameSegment Reference
+  , _childrenR :: Map NameSegment Hash
+  , _editsR :: Map NameSegment EditHash
+  }
+
+makeLenses ''Branch
+makeLensesFor [("_edits", "edits")] ''Branch0
+makeLenses ''Raw
+
+terms :: Lens' (Branch0 m) (Relation NameSegment Referent)
+terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
+types :: Lens' (Branch0 m) (Relation NameSegment Reference)
+types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
+children :: Lens' (Branch0 m) (Map NameSegment (Hash, Branch m))
+children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
+
+-- creates a Branch0 from the primary fields and derives the others.
+branch0 :: Relation NameSegment Referent
+        -> Relation NameSegment Reference
+        -> Map NameSegment (Hash, Branch m)
+        -> Map NameSegment (EditHash, m Patch)
+        -> Branch0 m
+branch0 terms types children edits =
+  Branch0 terms types children edits namesSeg names0 deepRefts deepTypeRefs
+  where
+  namesSeg = toNamesSegImpl terms types
+  names0 = foldMap toNames0Impl (Map.toList (fmap snd children))
+            <> Names (R.mapDom nameSegToName terms)
+                     (R.mapDom nameSegToName types)
+  deepRefts = foldMap deepReferents childrenBranch0
+  deepTypeRefs = foldMap deepTypeReferences childrenBranch0
+  childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
+
+  toNames0Impl :: (NameSegment, Branch m) -> Names0
+  toNames0Impl (nameSegToName -> n, head -> b0) =
+    Names.prefix0 n (toNames0 b0)
+  toNamesSegImpl :: Relation NameSegment Referent
+                 -> Relation NameSegment Reference
+                 -> Names' (HQ.HashQualified' NameSegment)
+  toNamesSegImpl terms types = Names terms' types' where
+    terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
+    types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
+    names :: Names' NameSegment
+    names = Names terms types
+  nameSegToName = Name . NameSegment.toText
+
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
 
@@ -118,21 +181,7 @@ unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
     Just a1 -> do a <- f a1 a2; pure $ Map.insert k a m1
     Nothing -> pure $ Map.insert k a2 m1
 
-type Hash = Causal.RawHash Raw
-type EditHash = Hash.Hash
-
 pattern Hash h = Causal.RawHash h
-
-data Branch0 m = Branch0
-  { _terms :: Relation NameSegment Referent
-  , _types :: Relation NameSegment Reference
-  , _children :: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
-  , _edits :: Map NameSegment (EditHash, m Patch)
-  , toNamesSeg :: Names.NamesSeg
-  , toNames0 :: Names.Names0
-  , deepReferents :: Set Referent
-  , deepTypeReferences :: Set Reference
-  }
 
 printDebugPaths :: Branch m -> String
 printDebugPaths = unlines . map show . Set.toList . debugPaths
@@ -144,18 +193,6 @@ debugPaths b = go Path.empty b where
 
 data Target = TargetType | TargetTerm | TargetBranch
   deriving (Eq, Ord, Show)
-
--- The raw Branch
-data Raw = Raw
-  { _termsR :: Relation NameSegment Referent
-  , _typesR :: Relation NameSegment Reference
-  , _childrenR :: Map NameSegment Hash
-  , _editsR :: Map NameSegment EditHash
-  }
-
-makeLenses ''Raw
-makeLenses ''Branch0
-makeLenses ''Branch
 
 instance Eq (Branch0 m) where
   a == b = view terms a == view terms b
@@ -180,13 +217,6 @@ toNames b = Names hqTerms hqTypes where
   hqTypes = R.fromList [ (Names.hqTypeName names0 n r, r)
                        | (n, r) <- R.toList (Names.types names0) ]
 
---toNames0' :: Branch0 m -> Names0
---toNames0' b = fold go mempty b where
---  go names name (TermEntry r) = names <> Names.fromTerms [(name, r)]
---  go names name (TypeEntry r) = names <> Names.fromTypes [(name, r)]
-
--- asSearchResults :: Branch m -> [SearchResult]
-
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?
 read
@@ -201,37 +231,14 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
   fromRaw :: Raw -> m (Branch0 m)
   fromRaw Raw {..} = do
     children <- traverse go _childrenR
-    let namesSeg = toNamesSegImpl _termsR _typesR
-        childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
-        deepReferents' = foldMap deepReferents childrenBranch0
-        names0 = foldMap toNames0Impl (Map.toList (fmap snd children))
-             <> Names (R.mapDom nameSegToName _termsR)
-                      (R.mapDom nameSegToName _typesR)
-        deepTypeReferences' = foldMap deepTypeReferences childrenBranch0
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ Branch0 _termsR _typesR children edits
-                    namesSeg
-                    names0
-                    deepReferents'
-                    deepTypeReferences'
+    pure $ branch0 _termsR _typesR children edits
   go h = (h, ) <$> read deserializeRaw deserializeEdits h
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
     RawCons  raw h  -> flip RawCons h <$> fromRaw raw
     RawMerge raw hs -> flip RawMerge hs <$> fromRaw raw
-  toNames0Impl :: (NameSegment, Branch m) -> Names0
-  toNames0Impl (nameSegToName -> n, head -> b0) =
-    Names.prefix0 n (toNames0 b0)
-  toNamesSegImpl :: Relation NameSegment Referent
-                 -> Relation NameSegment Reference
-                 -> Names' (HQ.HashQualified' NameSegment)
-  toNamesSegImpl terms types = Names terms' types' where
-    terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
-    types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
-    names :: Names' NameSegment
-    names = Names terms types
-  nameSegToName = Name . NameSegment.toText
 
 
 -- serialize a `Branch m` indexed by the hash of its corresponding Raw
