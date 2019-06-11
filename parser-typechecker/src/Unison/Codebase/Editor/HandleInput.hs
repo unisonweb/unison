@@ -594,22 +594,6 @@ loop = do
       <> Text.unpack branchName
       <> " disappeared from storage. "
       <> "I tried to put it back, but couldn't. Everybody panic!"
-  -- todo: when `branch` becomes purely switchBranch and not newBranch, fix this up.
-  switchBranch branchName = do
-    branch <- eval $ LoadBranch branchName
-    case branch of
-      Nothing -> do
-        let newBranch = Editor.builtinBranch
-        _ <- eval $ NewBranch newBranch branchName
-        currentBranch .= newBranch
-        currentBranchName .= branchName
-        respond $ CreatedBranch $ branchName
-      Just branch -> do
-        currentBranch .= branch
-        currentBranchName .= branchName
-        respond $ SwitchedBranch $ branchName
-    checkForBuiltinsMismatch
-  quit = MaybeT $ pure Nothing
   -}
 
 eval :: Command m i v a -> Action m i v a
