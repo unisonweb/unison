@@ -20,7 +20,7 @@ import qualified Unison.Codebase.Editor.Output       as E
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
--- import Debug.Trace
+--import Debug.Trace
 import           Control.Monad                 (unless)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
@@ -479,8 +479,8 @@ listOfDefinitions' ppe detailed results =
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
                   -- : ("-", "-")
-                  : (fmap (bimap prettyHashQualified
-                                (P.text . Referent.toText)) missingBuiltins))
+                  : fmap (bimap prettyHashQualified
+                                (P.text . Referent.toText)) missingBuiltins)
     ]
   where
   prettyNumberedResults =

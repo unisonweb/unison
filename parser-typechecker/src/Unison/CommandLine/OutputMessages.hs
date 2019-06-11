@@ -99,9 +99,9 @@ notifyUser dir o = case o of
   CreatedBranch branchName ->
     putPrettyLn $ "Created the new branch " <> backtickEOS (P.text branchName)
   SwitchedBranch _branchName -> pure () -- putPrettyLn "Switched."
-  RenameOutput oldName newName r -> do
+  RenameOutput oldName newName r ->
     nameChange "rename" "renamed" oldName newName r
-  AliasOutput existingName newName r -> do
+  AliasOutput existingName newName r ->
     nameChange "alias" "aliased" existingName newName r
   UnknownName branchName nameTarget name ->
     putPrettyLn . warn . P.wrap $
@@ -415,7 +415,7 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' hq (Just typ) r aliases -> P.lines $
+  E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.commas (fmap greyHash . sortOn (/= hq) $ toList aliases) <> " : " <> TypePrinter.pretty ppe (-1) typ
     , mempty
