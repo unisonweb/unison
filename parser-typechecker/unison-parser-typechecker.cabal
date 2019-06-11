@@ -62,6 +62,7 @@ library
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
+    Unison.Codebase.GitError
     Unison.Codebase.NameEdit
     Unison.Codebase.NameSegment
     Unison.Codebase.Path

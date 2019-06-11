@@ -8,10 +8,11 @@ import Data.Sequence (Seq)
 import Data.Text (Text)
 
 
-import Unison.Codebase.Editor.Output
-import Unison.Codebase.Editor.RemoteRepo
+import           Unison.Codebase.Editor.Output
+import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch2        ( Branch )
+import           Unison.Codebase.GitError
 import           Unison.Names2                  ( Names )
 import           Unison.Parser                  ( Ann )
 import           Unison.Reference               ( Reference )
@@ -104,9 +105,12 @@ data Command m i v a where
   -- codebase are copied there.
   LoadLocalRootBranch :: Command m i v (Branch m)
 
-  LoadRemoteRootBranch :: RemoteRepo -> Command m i v (Branch m)
+  LoadRemoteRootBranch ::
+    RemoteRepo -> Command m i v (Either GitError (Branch m))
+
   -- RetrieveHashes repo types terms
-  RetrieveHashes :: RemoteRepo -> Set Reference -> Set Reference -> Command m i v ()
+  RetrieveHashes ::
+    RemoteRepo -> Set Reference -> Set Reference -> Command m i v ()
 
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target

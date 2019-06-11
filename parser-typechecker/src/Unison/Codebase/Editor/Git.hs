@@ -3,15 +3,14 @@
 module Unison.Codebase.Editor.Git where
 
 import           Control.Monad                  ( when )
+import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
                                                 , ExceptT
                                                 )
-import           Control.Monad.Trans.Except     ( mapExceptT )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
                                                 )
-import           Data.Bifunctor                 ( first )
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -20,19 +19,17 @@ import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
+                                                , removeDirectory
                                                 )
-import           System.Path                    ( copyDir )
+import           Unison.Codebase.GitError
+import qualified Unison.Codebase2              as Codebase
+import           Unison.Codebase2               ( Codebase )
 import           Unison.Codebase.FileCodebase2  ( CodebasePath
                                                 , getRootBranch
                                                 , putRootBranch
-                                                , Err
+                                                , branchHeadDir
                                                 )
 import           Unison.Codebase.Branch2        ( Branch )
-
-data GitError = NoGit
-              | NoGithubAt Text
-              | NotAGitRepo FilePath
-              | Err Err
 
 -- Given a local path, a Github org, repo, and branch/commit hash,
 -- pulls the HEAD of that Github location into the local path.
@@ -52,21 +49,23 @@ pullFromGithub localPath user repo treeish = do
   liftIO $ setCurrentDirectory wd
   where uri = githubUri user repo
 
--- Given a local path, a Github org, repo, and branch/commit hash,
--- pulls the HEAD of that Github location into the local path
--- and attempts to load it as a branch.
+-- Given a local path, a Github org, repo, and branch/commit hash, pulls the
+-- HEAD of that Github location into the local path and attempts to load it as a
+-- branch. Then merges the branch into the given codebase.
 pullGithubRootBranch
   :: MonadIO m
   => FilePath
-  -> CodebasePath
+  -> Codebase m v a
   -> Text
   -> Text
   -> Text
-  -> ExceptT GitError m (Branch (ExceptT Err m))
-pullGithubRootBranch localPath codebasePath user repo treeish = do
+  -> ExceptT GitError m (Branch m)
+pullGithubRootBranch localPath codebase user repo treeish = do
   pullFromGithub localPath user repo treeish
-  liftIO $ copyDir localPath codebasePath
-  mapExceptT (fmap $ first Err) (getRootBranch localPath)
+  branch <- lift $ getRootBranch localPath
+  liftIO . removeDirectory $ branchHeadDir localPath
+  lift $ Codebase.syncFromDirectory codebase localPath
+  pure branch
 
 checkGitDir :: IO Bool
 checkGitDir = (const True <$> "git" ["rev-parse", "--git-dir"]) $? pure False
@@ -91,8 +90,7 @@ shallowPull uri treeish = do
   liftIO $ "git" ["checkout", treeish]
 
 pushGithubRootBranch
-  :: MonadError Err m
-  => MonadIO m => CodebasePath -> Text -> Text -> Text -> Branch m -> m ()
+  :: MonadIO m => CodebasePath -> Text -> Text -> Text -> Branch m -> m ()
 pushGithubRootBranch localPath user repo ghbranch b = do
   -- Error conditions:
   --   1. The path is not a git repo

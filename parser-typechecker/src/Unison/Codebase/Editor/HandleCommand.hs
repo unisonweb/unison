@@ -25,17 +25,23 @@ import           Unison.Symbol                  ( Symbol )
 
 -- import Debug.Trace
 
+import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor                   ( void )
-import Data.Foldable (traverse_)
-import qualified Data.Map as Map
-import           Data.Text                      ( Text
+import           Data.Foldable                  ( traverse_ )
+import qualified Data.Map                      as Map
+import           Data.Text                      ( Text )
+import           System.Directory               ( getXdgDirectory
+                                                , XdgDirectory(..)
                                                 )
+import           System.FilePath                ( (</>) )
+
 import           Unison.Codebase2               ( Codebase, Decl )
 import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase.Branch2        ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import           Unison.Parser                  ( Ann )
@@ -386,18 +392,20 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
                 (namegen, OldNames.fromNames2 names)
                 sourceName
                 source
-    Evaluate unisonFile                      -> evalUnisonFile unisonFile
-    LoadLocalRootBranch                      -> Codebase.getRootBranch codebase
+    Evaluate unisonFile        -> evalUnisonFile unisonFile
+    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch Github{..} -> error "todo"
-    SyncRemoteRootBranch Github{..} _branch -> error "todo"
-    RetrieveHashes Github{..} _types _terms -> error "todo"
+    LoadRemoteRootBranch Github {..} -> do
+      tmp <- getXdgDirectory XdgCache $ "unisonlanguage" </> "gitfiles"
+      runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
+    SyncRemoteRootBranch Github {..} _branch -> error "todo"
+    RetrieveHashes Github {..} _types _terms -> error "todo"
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
-    GetDependents     r                      -> Codebase.dependents codebase r
-    AddDefsToCodebase _unisonFile            -> error "todo"
+    GetDependents r -> Codebase.dependents codebase r
+    AddDefsToCodebase _unisonFile -> error "todo"
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

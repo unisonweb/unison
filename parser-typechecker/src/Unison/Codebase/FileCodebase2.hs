@@ -36,6 +36,7 @@ import           System.FilePath                ( FilePath
                                                 , takeBaseName
                                                 , (</>)
                                                 )
+import           System.Path                    ( copyDir )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin2               as Builtin
 import           Unison.Codebase2               ( Codebase(Codebase) )
@@ -62,6 +63,7 @@ import           Unison.Var                     ( Var )
 -- import Debug.Trace
 
 type CodebasePath = FilePath
+
 data Err
   = InvalidBranchFile FilePath String
   | InvalidEditsFile FilePath String
@@ -251,6 +253,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
            (putRootBranch path)
            (branchHeadUpdates path)
            dependents
+           (liftIO . flip copyDir path)
   where
     getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
     putTerm h e typ = liftIO $ do
