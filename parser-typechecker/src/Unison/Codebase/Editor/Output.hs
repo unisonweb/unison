@@ -61,7 +61,7 @@ data Output v
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
   | BadDestinationBranch Input Path'
-  | BranchNotFound Input Path.Split'
+  | BranchNotFound Input Path'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
   -- ask confirmation before deleting the last branch that contains some defns

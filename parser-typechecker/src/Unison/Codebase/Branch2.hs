@@ -315,7 +315,7 @@ getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
 getAt path root = case Path.toList path of
-  [] -> if isEmpty (head root) then Nothing else Just root
+  [] -> if isEmpty root then Nothing else Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
     Just (_h, b) -> getAt (Path.fromList path) b
     Nothing -> Nothing
@@ -339,8 +339,11 @@ one = Branch . Causal.one
 empty0 :: Branch0 m
 empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
 
-isEmpty :: Branch0 m -> Bool
-isEmpty = (== empty0)
+isEmpty0 :: Branch0 m -> Bool
+isEmpty0 = (== empty0)
+
+isEmpty :: Branch m -> Bool
+isEmpty = (== empty)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
@@ -408,7 +411,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Hash, Branch m)
                -> Map NameSegment (Hash, Branch m)
 updateChildren seg updatedChild =
-  if isEmpty (head updatedChild)
+  if isEmpty updatedChild
   then Map.delete seg
   else Map.insert seg (headHash updatedChild, updatedChild)
 

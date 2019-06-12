@@ -230,6 +230,7 @@ loop = do
         ifConfirmed = ifM (confirmedCommand input)
         ifNotConfirmed = flip ifConfirmed
         branchNotFound = respond . BranchNotFound input
+        branchNotFound' = respond . BranchNotFound input . Path.unsplit'
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
@@ -239,35 +240,53 @@ loop = do
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
-      ForkLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = case path'ToSplit dest of
-          Nothing -> respond $ BadDestinationBranch input dest
-          Just destSplit ->
-            maybe (destOk b) (branchExists dest) (getAtSplit destSplit)
-            where
-            destOk b = do
-              stepAt . BranchUtil.makeSetBranch destSplit $ b
-              success -- could give rando stats about new defns
+      ForkLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          ok <- updateAtM dest $ \destb ->
+            pure (if Branch.isEmpty destb then srcb else destb)
+          if ok then success else respond $ BadDestinationBranch input dest0
 
-      MergeLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit' dest)
-        destEmpty b = ifNotConfirmed (branchNotFound dest)
-          (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
-        destExists srcb destb = do
-          merged <- eval . Eval $ Branch.merge srcb destb
-          stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) merged
+      MergeLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          _ <- updateAtM dest $ \destb -> eval . Eval $ Branch.merge srcb destb
           success
+
+      MoveBranchI src dest ->
+        maybe (branchNotFound' src) srcOk (getAtSplit' src)
+        where
+        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
+        destOk b = do
+          stepManyAt
+            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
+            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
+          success -- could give rando stats about new defns
+
+      DeleteBranchI p ->
+        maybe (branchNotFound' p) go $ getAtSplit' p
+        where
+        go (Branch.head -> b) = do
+          let rootNames = Branch.toNames0 root0
+              p' = resolvePath' p
+              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+          if failed == mempty then
+            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input rootNames failed failedDependents
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
         currentPath .= path
         branch' <- getAt path
-        when (Branch.isEmpty . Branch.head $ branch')
-          (respond $ CreatedNewBranch path)
+        when (Branch.isEmpty $ branch') (respond $ CreatedNewBranch path)
 
       AliasTermI src dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
@@ -296,16 +315,6 @@ loop = do
         destOk r = stepManyAt
           [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
-
-      MoveBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
-        destOk b = do
-          stepManyAt
-            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
-            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
-          success -- could give rando stats about new defns
 
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
@@ -337,19 +346,6 @@ loop = do
               toDelete = Names.fromTerms ((name,) <$> toList rs)
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
-            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input rootNames failed failedDependents
-
-      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit' p where
-        go (Branch.head -> b) = do
-          let rootNames = Branch.toNames0 root0
-              p' = resolvePath' p
-              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
-          if failed == mempty then
-            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
@@ -546,7 +542,7 @@ loop = do
       -- ListEditsI -> do
       --   (Branch.head -> b) <- use currentBranch
       --   respond $ ListEdits b
-      -- QuitI -> quit
+      QuitI -> MaybeT $ pure Nothing
       _ -> error $ "todo: " <> show input
      where
       success       = respond $ Success input
@@ -842,15 +838,18 @@ getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
 
+-- Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
 updateAtM :: Applicative m
           => Path.Absolute
           -> (Branch m -> Action m i v (Branch m))
-          -> Action m i v ()
+          -> Action m i v Bool
 updateAtM (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
   root .= b'
   when (b /= b') $ eval $ SyncLocalRootBranch b'
+  pure $ b /= b'
 
 stepAt :: forall m i v. Applicative m
        => (Path, Branch0 m -> Branch0 m)

@@ -94,6 +94,10 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that type."
+  TermAlreadyExists input _ _ ->
+    putPrettyLn . P.warnCallout $ "A term by that name already exists."
+  TypeAlreadyExists input _ _ ->
+    putPrettyLn . P.warnCallout $ "A type by that name already exists."
   CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",

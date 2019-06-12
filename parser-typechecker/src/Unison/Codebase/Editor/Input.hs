@@ -24,10 +24,10 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI Path.Split' Path'
+    = ForkLocalBranchI Path' Path'
     | ForkRemoteBranchI RemoteRepo Path Path'
     -- merge first causal into destination
-    | MergeLocalBranchI Path.Split' Path.Split'
+    | MergeLocalBranchI Path' Path'
     | MergeRemoteBranchI RemoteRepo Path Path.Split'
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
