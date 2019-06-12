@@ -375,7 +375,7 @@ prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
   stuff =
     (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
       fmap (\name -> prettyDeclTriple (name, r, dt))
-           (sortOn (/= name) (toList aliases))
+           (name : toList aliases)
     where greyHash = styleHashQualified' id P.hiBlack
 
 
