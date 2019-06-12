@@ -213,10 +213,12 @@ putRootBranch root b = do
 updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
 updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
-  -- delete existing heads
-  liftIO $ listDirectory headDir >>= traverse_ (removeFile . (headDir </>))
+      hs = Hash.base58s h
   -- write new head
-  liftIO $ writeFile (headDir </> Hash.base58s h) ""
+  liftIO $ writeFile (headDir </> hs) ""
+  -- delete existing heads
+  liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
+       >>= traverse_ (removeFile . (headDir </>))
 
 -- decodeBuiltinName :: FilePath -> Maybe Text
 -- decodeBuiltinName p =
