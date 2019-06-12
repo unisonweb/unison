@@ -149,13 +149,12 @@ test = scope "termprinter" . tests $
   , tc "case e of { a } -> z"
   , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                               -- need an actual effect constructor to test this with
-  , pending $ tc "if a then (if b then c else d) else e"
-  , pending $ tc "(if b then c else d)"   -- TODO parser doesn't like bracketed ifs (`unexpected )`)
-  , pending $ tc "handle foo in (handle bar in baz)"  -- similarly
-  , pending $ tc_breaks 16 "case (if a \n\
-                           \      then b\n\
-                           \      else c) of\n\
-                           \  112 -> x"        -- similarly
+  , tc "if a then (if b then c else d) else e"
+  , tc "handle foo in (handle bar in baz)"
+  , tc_breaks 16 "case (if a then\n\
+                 \  b\n\
+                 \else c) of\n\
+                 \  112 -> x"        -- dodgy layout.  note #517 and #518
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
   , tc_diff_rtt True "let\n\
@@ -332,32 +331,8 @@ test = scope "termprinter" . tests $
                  \  go [] a b"
   , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
-  , pending $ tc_breaks 50 "if true\n\
-                 \then\n\
-                 \  case x of\n\
-                 \    12 -> x\n\
-                 \else\n\
-                 \  x"              -- TODO parser bug?  'unexpected else', parens around case doens't help, cf next test
-  , pending $ tc_breaks 50 "if true\n\
-                 \then x\n\
-                 \else\n\
-                 \  (case x of\n\
-                 \    12 -> x)"     -- TODO parser bug, 'unexpected )'
-  , tc_diff_rtt False "if true\n\
-                      \then x\n\
-                      \else case x of\n\
-                      \  12 -> x"
-                      "if true then x\n\
-                      \else\n\
-                      \  (case x of\n\
-                      \    12 -> x)" 20  -- TODO fix surplus parens around case.
-                                         -- Are they only surplus due to layout cues?
-                                         -- And no round trip, due to issue in test directly above.
-  , tc_diff_rtt False "if true\n\
-                      \then x\n\
-                      \else case x of\n\
-                      \  12 -> x"
-                      "if true then x else (case x of 12 -> x)" 50
+  , tc_breaks 50 "if true then (case x of 12 -> x) else x"  -- re parens around case note #517
+  , tc_breaks 50 "if true then x else (case x of 12 -> x)"  -- re parens around case note #517
   , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
@@ -372,11 +347,9 @@ test = scope "termprinter" . tests $
                      \  let\n\
                      \    a = 1\n\
                      \    b" 80
-  , pending $ tc_breaks 80 "if let\n\
-                           \     a = b\n\
-                           \     a\n\
-                           \then foo\n\
-                           \else bar"   -- TODO parser throws 'unexpected then'
+  , tc_breaks 80 "if\n\
+                 \  a = b\n\
+                 \  a then foo else bar"   -- missing break before 'then', issue #518
   , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
@@ -431,7 +404,7 @@ test = scope "termprinter" . tests $
                  \    f c c\n\
                  \  else\n\
                  \    use A.Y c\n\
-                 \    g c c)"  -- questionable parentheses, issue #xxx
+                 \    g c c)"  -- questionable parentheses, issue #517
   , tc_breaks 28 "if foo then\n\
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
@@ -440,7 +413,7 @@ test = scope "termprinter" . tests $
                  \  use A x\n\
                  \  f x x then\n\
                  \  x\n\
-                 \else y"  -- missing break before 'then', issue #xxx
+                 \else y"  -- missing break before 'then', issue #518
   , tc_breaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\
@@ -504,14 +477,6 @@ test = scope "termprinter" . tests $
                  \    c = g x x\n\
                  \    foo\n\
                  \  bar"
-  , pending $
-    tc_breaks 20 "let\n\
-                 \  a =\n\
-                 \    use A TT\n\
-                 \    b : TT -> TT\n\
-                 \    b = id\n\
-                 \    foo\n\
-                 \  bar"  -- use statement doesn't take effect on type annotation, issue #xxx
   , tc_breaks 13 "let\n\
                  \  a =\n\
                  \    use A p q r\n\
