@@ -295,9 +295,9 @@ data MEnv v loc = MEnv {
   builtinLocation :: loc,              -- The location of builtins
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
-  -- Returns `True` if ability checks should be performed on the
-  -- input type. See abilityCheck function for how this is used.
-  abilityCheckMask :: Type v loc -> M v loc Bool
+  -- Types for which ability check should be skipped.
+  -- See abilityCheck function for how this is used.
+  skipAbilityCheck :: [Type v loc]
 }
 
 newtype Context v loc = Context [(Element v loc, Info v)]
@@ -414,9 +414,6 @@ fromMEnv f = f <$> ask
 
 getBuiltinLocation :: M v loc loc
 getBuiltinLocation = fromMEnv builtinLocation
-
-getAbilityCheckMask :: M v loc (Type v loc -> M v loc Bool)
-getAbilityCheckMask = fromMEnv abilityCheckMask
 
 getContext :: M v loc (Context v loc)
 getContext = fromMEnv $ ctx . env
@@ -556,12 +553,14 @@ withoutAbilityCheckForExact
   :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
 withoutAbilityCheckForExact skip m = M go
   where
-  go e = runM m $ e { abilityCheckMask = tweak (abilityCheckMask e) }
-  tweak mask t = do
-    skip <- applyM skip
-    t <- applyM t
-    if t == skip then pure False
-    else mask t
+  go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
+
+shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
+shouldPerformAbilityCheck t = do
+  skip <- fromMEnv skipAbilityCheck
+  skip <- traverse applyM skip
+  t <- applyM t
+  pure $ all (/= t) skip
 
 compilerCrash :: CompilerBug v loc -> M v loc a
 compilerCrash bug = failWith $ CompilerBug bug
@@ -1540,9 +1539,8 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
 
 abilityCheck :: (Var v, Ord loc) => [Type v loc] -> M v loc ()
 abilityCheck requested = do
-  enabled <- getAbilityCheckMask
   ambient <- getAbilities
-  requested' <- filterM enabled requested
+  requested' <- filterM shouldPerformAbilityCheck requested
   ctx <- getContext
   abilityCheck' (apply ctx <$> ambient >>= Type.flattenEffects)
                 (apply ctx <$> requested' >>= Type.flattenEffects)
@@ -1613,9 +1611,7 @@ run
 run builtinLoc ambient datas effects m =
   fmap fst
     . runM m
-    . MEnv (Env 1 mempty) ambient builtinLoc datas effects
-    . const
-    $ pure True
+    $ MEnv (Env 1 mempty) ambient builtinLoc datas effects []
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
