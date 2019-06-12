@@ -922,7 +922,7 @@ getEndangeredDependents getDependents toBeDeleted root =
     List.foldl' f acc <$> getDependents (Referent.toReference r)
     where
     f (failed, failedDeps) d =
-      if d `Set.notMember` remainingRefs
+      if d `Set.member` namedRefsRemaining
       then (Names.addTerm name r failed, addDependent d failedDeps)
       else (failed, failedDeps)
   addDependent :: Reference -> Names0 -> Names0
@@ -934,11 +934,11 @@ getEndangeredDependents getDependents toBeDeleted root =
     List.foldl' f acc <$> getDependents r
     where
     f (failed, failedDeps) d =
-      if d `Set.notMember` remainingRefs
+      if d `Set.member` namedRefsRemaining
       then (Names.addType name r failed, addDependent d failedDeps)
       else (failed, failedDeps)
-  remainingRefs :: Set Reference
-  remainingRefs = Set.map Referent.toReference (Names.termReferents remaining)
+  namedRefsRemaining :: Set Reference
+  namedRefsRemaining = Set.map Referent.toReference (Names.termReferents remaining)
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 
