@@ -509,12 +509,12 @@ addTypeName r new = over types (R.insert new r)
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b | R.member n r (view terms b)
-                     = over terms (R.insert n r) $ b
+                     = over terms (R.delete n r) $ b
 deleteTermName _ _ b = b
 
 deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | R.member n r (view types b)
-                     = over types (R.insert n r) $ b
+                     = over types (R.delete n r) $ b
 deleteTypeName _ _ b = b
 
 data RefCollisions =
