@@ -32,10 +32,7 @@ tc_diff_rtt rtt s expected width =
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
        actual_reparsed = Unison.Builtin.tm actual
-   in scope s $ tests [{-(
-       do note $ "\n\n\nterm:\n" ++ s    -- !!
-          note $ "usages:\n" ++ show (annotation $ printAnnotate get_names input_term)
-       ),-} (
+   in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected:\n" ++ expected
                note $ "actual:\n"   ++ actual
@@ -405,19 +402,10 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
   , tc_breaks 80 "if foo then f A.x A.x B.x else y"   
   , tc_breaks 80 "if foo then A.f x else y"              
-  , pending $ 
-    tc_breaks 13 "if foo then\n\
-                 \  use A (+)\n\
+  , tc_breaks 13 "if foo then\n\
+                 \  use A +\n\
                  \  x + y\n\
                  \else y"
-  {- TODO - the case above seems to be parsed as  
-
-                  if foo then
-                  let rec
-                    _1 = (+)
-                     x + y
-                  else y
-  -}                 
   , tc_breaks 20 "if p then\n\
                  \  use A x\n\
                  \  use B y z\n\
@@ -549,4 +537,15 @@ test = scope "termprinter" . tests $
                  \      h A.D.x\n\
                  \    foo\n\
                  \  bar"
+  , tc_breaks 80 "let\n\
+                 \  use A x\n\
+                 \  use A.T.A T1\n\
+                 \  g = T1 +3\n\
+                 \  h = T1 +4\n\
+                 \  i : T -> T -> Int\n\
+                 \  i p q =\n\
+                 \    g' = T1 +3\n\
+                 \    h' = T1 +4\n\
+                 \    +2\n\
+                 \  if true then x else x"
   ]

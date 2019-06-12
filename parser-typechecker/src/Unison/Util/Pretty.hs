@@ -31,7 +31,6 @@ module Unison.Util.Pretty (
    indentNAfterNewline,
    leftPad,
    lines,
-   lines',
    linesSpaced,
    lit,
    map,
@@ -76,7 +75,6 @@ module Unison.Util.Pretty (
 import           Data.Char                      ( isSpace )
 import           Data.Foldable                  ( toList )
 import           Data.List                      ( foldl' , foldr1, intersperse )
-import qualified Data.List                     as List
 import           Data.Sequence                  ( Seq )
 import           Data.String                    ( IsString , fromString )
 import           Data.Text                      ( Text )
@@ -270,10 +268,6 @@ lines = intercalateMap newline id
 
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)
-
--- like lines, but with a newline on the end if there was anything to print
-lines' :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
-lines' ps = mconcat $ concat $ List.map (\l -> [l, newline]) (toList ps)
 
 prefixed :: (Foldable f, LL.ListLike s Char, IsString s)
          => Pretty s -> Pretty s -> f (Pretty s) -> Pretty s

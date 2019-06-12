@@ -506,6 +506,7 @@ reannotateUp g t = case out t of
     in tm' (annotation t, ann) body'
 
 -- Find all subterms that match a predicate.  Prune the search for speed.
+-- (Some patterns of pruning can cut the complexity of the search.)
 data FindAction x = Found x | Prune | Continue deriving Show
 find :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> FindAction x)
@@ -520,6 +521,12 @@ find p t = case p t of
           Cycle body -> Unison.ABT.find p body
           Abs _ body -> Unison.ABT.find p body
           Tm body -> Foldable.concat (Unison.ABT.find p <$> body)
+
+find' :: (Ord v, Foldable f, Functor f)
+  => (Term f v a -> Bool)
+  -> Term f v a
+  -> [Term f v a]
+find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)  
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable

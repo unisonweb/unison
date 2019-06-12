@@ -143,11 +143,11 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . prettyHashQualified $ elideFQN im name
+    Var' v -> parenIfInfix name ic . prettyHashQualified $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
-      where name = HQ.fromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ elideFQN im name
-      where name = PrettyPrintEnv.termName n (Referent.Ref r)
+      where name = elideFQN im $ HQ.fromVar (Var.reset v)
+    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
+      where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal im) tm
@@ -415,11 +415,11 @@ prettyBinding n = prettyBinding2 n (ac (-1) Block Map.empty)
 
 prettyBinding2 ::
   Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
-prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBinary term) term where
+prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
       PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env im (-1) tp)),
-      PP.group (prettyBinding env v tm) ]
+      PP.group (prettyBinding2 env a v tm) ]
     LamsNamedOpt' vs body -> 
       let 
         (im', uses) = calcImports im body'
@@ -441,7 +441,9 @@ prettyBinding2 env AmbientContext { imports = im } v term = go (symbolic && isBi
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap (PP.text . Var.name) vs
-    renderName n = parenIfInfix n NonInfix $ prettyHashQualified $ elideFQN im n
+    renderName n = let n' = elideFQN im n 
+                   in parenIfInfix n' NonInfix $ prettyHashQualified n'
+                   
   symbolic = isSymbolic v
   isBinary = \case
     Ann'          tm _ -> isBinary tm
@@ -464,14 +466,6 @@ parenIfInfix name ic =
 l :: IsString s => String -> Pretty s
 l = fromString
 
--- b :: String -> Pretty String
--- b = Breakable
-
--- When we use imports in rendering (TODO), this will need revisiting, so that we can
--- render say 'foo.+ x y' as 
---   use foo (+)
---   x + y
--- symbolyId doesn't match 'foo.+', only '+'.
 isSymbolic :: HQ.HashQualified -> Bool
 isSymbolic (HQ.NameOnly name) = isSymbolic' name
 isSymbolic (HQ.HashQualified name _) = isSymbolic' name
@@ -548,9 +542,7 @@ ac prec bc im = AmbientContext prec bc NonInfix im
    Multi-level name qualification is allowed - like `Foo.Bar.baz`.  The
    pretty-printer tries to strip off as many sections of the prefix as 
    possible, without causing a clash with other names.  If more sections
-   can be stripped off, further down the tree, then it does this too, taking
-   care to avoid emitting any `use` statements that never actually affect 
-   anything.  
+   can be stripped off, further down the tree, then it does this too.  
   
    ## Specification
   
@@ -562,7 +554,7 @@ ac prec bc im = AmbientContext prec bc NonInfix im
      - [uniqueness] there is no other Q with Q.S used in that scope
      - there is no longer prefix PP (and suffix s, with PP.s == P.S) which
        satisfies uniqueness
-     - there is no block statement further down inside this one
+     - [narrowness] there is no block statement further down inside this one
        which contains all of the usages.
 
    Use statements in a block statement are sorted alphabetically by prefix.
@@ -781,7 +773,10 @@ calcImports im tm = (im', render $ getUses result)
                     in PP.lines (uses ++ rest)
 
 -- Given a block term and a name (Prefix, Suffix) of interest, is there a strictly smaller
--- block term within it, containing all usages of that name?  
+-- block term within it, containing all usages of that name?  ABT.find does the heavy lifting.
+-- Things are complicated by the fact that you can't always tell if a term is a blockterm just
+-- by looking at it: in some cases you can only tell when you can see it in the context of
+-- the wider term that contains it.  Hence `immediateChildBlockTerms`.  
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
 allInSubBlock tm p s i = let found = concat $ ABT.find finder tm 
@@ -830,76 +825,3 @@ immediateChildBlockTerms = \case
                                       then []
                                       else [body]
     doLet t = error (show t) []
-
--- TODOs 
-
--- think:
--- - really right to apply this to vars?  prob not?
-
--- test:
--- - symbolic names, see other TODO
--- ...
-
--- raise:
-
--- "use A.x has no effect but silently succeeds"
--- issue round if/handle/case parens
-
-
-{-
-
-namespace D where
-  ff = 6
-  D.ff = 7 
-  gg = ff + ff 
-
--- D.gg comes out as follows, using the wrong ff. 
-
-  D.gg : Nat
-  D.gg =
-    use D.D ff
-    use Nat +
-    ff + ff
-
-
-but
-
-namespace D where
-  hh = 6
-  gg = hh + hh 
-
-correctly gives
-
-  D.gg : Nat
-  D.gg =
-    use D ff
-    use Nat +
-    ff + ff
-
--}
-
-
-
-
---fix:
-
--- Given `type A.T = A.T1 Int | A.T2`, A.T.T1 is being rendered using `use A.T.A T1`
-
-{-
-
--- Note the two `use A.T.A T1` below.
-f1 : Int
-f1 =
-    use A T x
-    use A.T.A T1
-    g = T1 +3
-    h = T1 +4
-    i : T -> T -> (Int, Int)
-    i p q =
-      use A.T.A T1
-      case (p, q) of (T1 p', T1 q') -> (p', q')
-    if true then x else x
-
--}
-
-
