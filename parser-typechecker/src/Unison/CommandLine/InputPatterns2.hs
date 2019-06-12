@@ -140,7 +140,20 @@ renameTerm = InputPattern "rename.term" []
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.MoveTermI src target
       _ -> Left . P.warnCallout $ P.wrap
-        "`rename.term` takes two arguments, like `rename oldname newname`.")
+        "`rename.term` takes two arguments, like `rename.term oldname newname`.")
+
+renameType :: InputPattern
+renameType = InputPattern "rename.type" []
+    [(Required, exactDefinitionTypeQueryArg)
+    ,(Required, noCompletions)]
+    "`rename.type foo bar` renames `foo` to `bar`."
+    (\case
+      [oldName, newName] -> first fromString $ do
+        src <- Path.parseHQ'Split' oldName
+        target <- Path.parseSplit' Path.definitionNameSegment newName
+        pure $ Input.MoveTypeI src target
+      _ -> Left . P.warnCallout $ P.wrap
+        "`rename.type` takes two arguments, like `rename.type oldname newname`.")
 
 deleteTerm :: InputPattern
 deleteTerm = InputPattern "delete.term" []
@@ -152,6 +165,18 @@ deleteTerm = InputPattern "delete.term" []
         pure $ Input.DeleteTermI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete.term` takes one or more arguments, like `delete.term name`."
+    )
+
+deleteType :: InputPattern
+deleteType = InputPattern "delete.type" []
+    [(OnePlus, exactDefinitionTypeQueryArg)]
+    "`delete.type foo` removes the type name `foo` from the namespace."
+    (\case
+      [query] -> first fromString $ do
+        p <- Path.parseHQ'Split' query
+        pure $ Input.DeleteTypeI p
+      _ -> Left . P.warnCallout $ P.wrap
+        "`delete.type` takes one or more arguments, like `delete.type name`."
     )
 
 aliasTerm :: InputPattern
@@ -282,6 +307,8 @@ validInputs =
   , renameTerm
   , deleteTerm
   , aliasTerm
+  , renameType
+  , deleteType
   , aliasType
   , todo
   , patch
