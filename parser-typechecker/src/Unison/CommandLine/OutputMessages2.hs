@@ -121,6 +121,8 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
+  BranchNotFound _ b ->
+    putPrettyLn . P.warnCallout $ "The branch " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure ()
  -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r

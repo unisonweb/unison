@@ -42,7 +42,11 @@ newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
 newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
-newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord,Show)
+newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord)
+
+instance Show Path' where
+  show (Path' (Left abs)) = show abs
+  show (Path' (Right rel)) = show rel
 
 instance Show Absolute where
   show s = "." ++ show (unabsolute s)
