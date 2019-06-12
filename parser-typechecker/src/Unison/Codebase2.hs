@@ -60,6 +60,7 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
+           , syncToDirectory    :: FilePath -> Branch m -> m ()
            }
 
 -- | Write all of the builtins types and IO types into the codebase

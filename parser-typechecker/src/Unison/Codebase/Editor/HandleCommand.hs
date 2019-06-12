@@ -9,7 +9,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -29,7 +28,9 @@ import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor                   ( void )
 import           Data.Foldable                  ( traverse_ )
 import qualified Data.Map                      as Map
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text
+                                                , unpack
+                                                )
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
                                                 )
@@ -330,9 +331,8 @@ typecheck
   -> SourceName
   -> Text
   -> m (TypecheckingResult v)
-typecheck ambient codebase names sourceName src =
+typecheck _ambient _codebase _names _sourceName _src =
   error "todo: update to use Names2 instead of Names"
-  ambient codebase names sourceName src
   -- Result.getResult $ parseAndSynthesizeFile ambient
   --   (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
   --   names
@@ -364,6 +364,15 @@ typecheck ambient codebase names sourceName src =
 --   (Codebase.syncBranch codebase branchName branch *> pure True)
 --   (pure False)
 
+tempGitDir :: Text -> Text -> Text -> IO FilePath
+tempGitDir username repo commit =
+  getXdgDirectory XdgCache
+    $   "unisonlanguage"
+    </> "gitfiles"
+    </> unpack username
+    </> unpack repo
+    </> unpack commit
+
 commandLine
   :: forall i v a
    . Var v
@@ -373,7 +382,7 @@ commandLine
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine awaitInput rt notifyUser codebase command = Free.fold go command
+commandLine awaitInput rt notifyUser codebase = Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
   go = \case
@@ -392,11 +401,11 @@ commandLine awaitInput rt notifyUser codebase command = Free.fold go command
                 (namegen, OldNames.fromNames2 names)
                 sourceName
                 source
-    Evaluate unisonFile        -> evalUnisonFile unisonFile
-    LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    SyncLocalRootBranch branch -> Codebase.putRootBranch codebase branch
+    Evaluate unisonFile              -> evalUnisonFile unisonFile
+    LoadLocalRootBranch              -> Codebase.getRootBranch codebase
+    SyncLocalRootBranch  branch      -> Codebase.putRootBranch codebase branch
     LoadRemoteRootBranch Github {..} -> do
-      tmp <- getXdgDirectory XdgCache $ "unisonlanguage" </> "gitfiles"
+      tmp <- tempGitDir username repo commit
       runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
     SyncRemoteRootBranch Github {..} _branch -> error "todo"
     RetrieveHashes Github {..} _types _terms -> error "todo"

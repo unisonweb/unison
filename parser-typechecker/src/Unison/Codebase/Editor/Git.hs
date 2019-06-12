@@ -2,7 +2,9 @@
 
 module Unison.Codebase.Editor.Git where
 
-import           Control.Monad                  ( when )
+import           Control.Monad                  ( when
+                                                , unless
+                                                )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
@@ -23,13 +25,15 @@ import           System.Directory               ( getCurrentDirectory
                                                 )
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase2              as Codebase
-import           Unison.Codebase2               ( Codebase )
-import           Unison.Codebase.FileCodebase2  ( CodebasePath
-                                                , getRootBranch
-                                                , putRootBranch
+import           Unison.Codebase2               ( Codebase
+                                                , syncToDirectory
+                                                )
+import           Unison.Codebase.FileCodebase2  ( getRootBranch
                                                 , branchHeadDir
                                                 )
-import           Unison.Codebase.Branch2        ( Branch )
+import           Unison.Codebase.Branch2        ( Branch
+                                                , headHash
+                                                )
 
 -- Given a local path, a Github org, repo, and branch/commit hash,
 -- pulls the HEAD of that Github location into the local path.
@@ -39,13 +43,13 @@ pullFromGithub
 pullFromGithub localPath user repo treeish = do
   gitPath <- liftIO $ findExecutable "git"
   when (isNothing gitPath) $ throwError NoGit
-  wd     <- liftIO $ getCurrentDirectory
+  wd     <- liftIO getCurrentDirectory
   exists <- liftIO . doesDirectoryExist $ localPath
-  when (not exists) $ shallowClone uri localPath
-  liftIO . setCurrentDirectory $ localPath
+  unless exists $ clone uri localPath
+  liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
-  when (not isGitDir) . throwError $ NotAGitRepo localPath
-  shallowPull uri treeish
+  unless isGitDir . throwError $ NotAGitRepo localPath
+  pull uri treeish
   liftIO $ setCurrentDirectory wd
   where uri = githubUri user repo
 
@@ -78,33 +82,47 @@ onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
   True  -> pure ()
   False -> k
 
+clone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
+clone uri localPath = "git" ["clone", uri, Text.pack localPath]
+  `onError` throwError (NoGithubAt uri)
+
 shallowClone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
 shallowClone uri localPath =
   "git" ["clone", "--depth=1", uri, Text.pack localPath]
     `onError` throwError (NoGithubAt uri)
 
-shallowPull :: MonadError GitError m => MonadIO m => Text -> Text -> m ()
-shallowPull uri treeish = do
-  "git" ["fetch", "--depth=1", uri, treeish]
-    `onError` throwError (NoGithubAt uri)
+pull :: MonadError GitError m => MonadIO m => Text -> Text -> m ()
+pull uri treeish = do
+  "git" ["fetch", uri, treeish] `onError` throwError (NoGithubAt uri)
   liftIO $ "git" ["checkout", treeish]
 
+-- Clone the given github repo and commit to the given a local path.
+-- Then given a codebase and a branch, write the branch and all its
+-- dependencies to the path, then commit and push to github.
 pushGithubRootBranch
-  :: MonadIO m => CodebasePath -> Text -> Text -> Text -> Branch m -> m ()
-pushGithubRootBranch localPath user repo ghbranch b = do
-  -- Error conditions:
-  --   1. The path is not a git repo
-  --   2. The remote repo doesn't exist
-  --   3. Git is not installed
-  --   4. We don't have push rights to the remote
-  --   5. The local path does not exist.
-  putRootBranch localPath b
+  :: MonadIO m
+  => MonadError GitError m
+  => FilePath
+  -> Codebase m v a
+  -> Branch m
+  -> Text
+  -> Text
+  -> Text
+  -> m ()
+pushGithubRootBranch localPath codebase branch user repo treeish = do
+  wd <- liftIO getCurrentDirectory
+  -- Clone and pull the remote repo
+  pullFromGithub localPath user repo treeish
+  -- Stick our changes in the checked-out copy
+  syncToDirectory codebase localPath branch
   liftIO $ do
-  -- Write the branch to the local path
-    wd <- getCurrentDirectory
     setCurrentDirectory localPath
     -- Commit our changes
-    "git" ["commit", "-m", "Sync Unison Codebase"]
+    "git"
+      [ "commit"
+      , "-m"
+      , "'Sync branch " <> Text.pack (show $ headHash branch) <> "'"
+      ]
     -- Push our changes to the repo
-    "git" ["push", "--all", githubUri user repo, ghbranch]
+    "git" ["push", "--all", githubUri user repo, treeish]
     setCurrentDirectory wd
