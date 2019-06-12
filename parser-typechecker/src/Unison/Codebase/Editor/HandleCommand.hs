@@ -407,7 +407,10 @@ commandLine awaitInput rt notifyUser codebase = Free.fold go
     LoadRemoteRootBranch Github {..} -> do
       tmp <- tempGitDir username repo commit
       runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
-    SyncRemoteRootBranch Github {..} _branch -> error "todo"
+    SyncRemoteRootBranch Github {..} branch -> do
+      tmp <- tempGitDir username repo commit
+      runExceptT
+        $ Git.pushGithubRootBranch tmp codebase branch username repo commit
     RetrieveHashes Github {..} _types _terms -> error "todo"
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r

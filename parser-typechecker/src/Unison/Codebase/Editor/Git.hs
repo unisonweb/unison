@@ -101,20 +101,19 @@ pull uri treeish = do
 -- dependencies to the path, then commit and push to github.
 pushGithubRootBranch
   :: MonadIO m
-  => MonadError GitError m
   => FilePath
   -> Codebase m v a
   -> Branch m
   -> Text
   -> Text
   -> Text
-  -> m ()
+  -> ExceptT GitError m ()
 pushGithubRootBranch localPath codebase branch user repo treeish = do
   wd <- liftIO getCurrentDirectory
   -- Clone and pull the remote repo
   pullFromGithub localPath user repo treeish
   -- Stick our changes in the checked-out copy
-  syncToDirectory codebase localPath branch
+  lift $ syncToDirectory codebase localPath branch
   liftIO $ do
     setCurrentDirectory localPath
     -- Commit our changes

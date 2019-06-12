@@ -116,7 +116,8 @@ data Command m i v a where
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
-  SyncRemoteRootBranch :: RemoteRepo -> Branch m -> Command m i v ()
+  SyncRemoteRootBranch ::
+    RemoteRepo -> Branch m -> Command m i v (Either GitError ())
   -- e.g.
   --   /Lib/Arya/Public/SuperML> push github:aryairani/superML
   --   SynchRootBranch (Github "aryairani" "superML" "master")
