@@ -354,6 +354,10 @@ stepM f = mapMOf history (Causal.stepDistinctM f)
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
+isOne :: Branch m -> Bool
+isOne (Branch Causal.One{}) = True
+isOne _ = False
+
 uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
 uncons (Branch b) = go <$> Causal.uncons b where
   go = over (_Just . _2) Branch

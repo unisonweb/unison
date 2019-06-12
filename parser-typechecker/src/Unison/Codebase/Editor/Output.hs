@@ -4,11 +4,12 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , DisplayThing(..)
-  , TodoOutput(..)
   , ListDetailed
   , SearchResult'(..)
   , TermResult'(..)
+  , TodoOutput(..)
   , TypeResult'(..)
+  , UndoFailureReason(..)
   , pattern Tm
   , pattern Tp
   , foldResult'
@@ -92,7 +93,7 @@ data Output v
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names (TodoOutput v Ann)
-  | CantUndo
+  | CantUndo UndoFailureReason
   -- | ListEdits Edits Names
 
   -- new/unrepresented references followed by old/removed
@@ -101,6 +102,8 @@ data Output v
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
   deriving (Show)
+
+data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 
 data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)

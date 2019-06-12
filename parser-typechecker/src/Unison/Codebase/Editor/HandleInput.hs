@@ -289,10 +289,11 @@ loop = do
         when (Branch.isEmpty $ branch') (respond $ CreatedNewBranch path)
 
       UndoI -> do
-        cur <- use root
-        prev <- eval . Eval $ Branch.uncons cur
+        prev <- eval . Eval $ Branch.uncons root'
         case prev of
-          Nothing -> respond CantUndo
+          Nothing ->
+            respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
+                                 else CantUndoPastMerge
           Just (_, prev) -> do
             root .= prev
             eval $ SyncLocalRootBranch prev
