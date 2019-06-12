@@ -108,7 +108,7 @@ notifyUser dir o = case o of
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
-    CantUndoPastMerge -> putPrettyLn . P.warnCallout $ "I can't undo a merge."
+    CantUndoPastMerge -> putPrettyLn . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
