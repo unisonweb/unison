@@ -322,7 +322,7 @@ loop = do
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input failed failedDependents
+            respond $ CantDelete input rootNames failed failedDependents
 
       -- like the previous
       DeleteTermI hq'@(fmap HQ'.toHQ -> hq) ->
@@ -340,7 +340,7 @@ loop = do
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input failed failedDependents
+            respond $ CantDelete input rootNames failed failedDependents
 
       DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit' p where
         go (Branch.head -> b) = do
@@ -353,7 +353,7 @@ loop = do
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input failed failedDependents
+            respond $ CantDelete input rootNames failed failedDependents
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do

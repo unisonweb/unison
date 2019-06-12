@@ -94,6 +94,14 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that type."
+  CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
+    P.lines [
+      P.wrap "I couldn't delete ",
+      "", P.indentN 2 $ listOfDefinitions' names False failed,
+      "",
+      "because it's still being used by these definitions:",
+      "", P.indentN 2 $ listOfDefinitions' names False failedDependents
+    ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -468,16 +476,14 @@ todoOutput ppe todo = error "todo: update TypePrinter to use Names"
 listOfDefinitions ::
   Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
 listOfDefinitions names detailed results =
-  putPrettyLn $ listOfDefinitions' ppe detailed results
-  where
-  ppe = PPE.fromNames0 names
+  putPrettyLn $ listOfDefinitions' names detailed results
 
 listOfDefinitions' :: Var v
-                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
+                   => Names0 -- for printing types of terms :-\
                    -> E.ListDetailed
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
   P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
