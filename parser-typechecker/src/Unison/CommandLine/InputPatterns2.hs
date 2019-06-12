@@ -167,6 +167,19 @@ aliasTerm = InputPattern "alias.term" []
         "`alias.term` takes two arguments, like `alias.term oldname newname`."
     )
 
+aliasType :: InputPattern
+aliasType = InputPattern "alias.type" []
+    [(Required, exactDefinitionTypeQueryArg), (Required, noCompletions)]
+    "`alias.type Foo Bar` introduces `Bar` with the same definition as `Foo`."
+    (\case
+      [oldName, newName] -> first fromString $ do
+        source <- Path.parseHQSplit' oldName
+        target <- Path.parseSplit' Path.definitionNameSegment newName
+        pure $ Input.AliasTypeI source target
+      _ -> Left . warn $ P.wrap
+        "`alias.type` takes two arguments, like `alias.type oldname newname`."
+    )
+
 cd :: InputPattern
 cd = InputPattern "cd" [] [(Required, branchPathArg)]
     (P.wrapColumn2
@@ -269,6 +282,7 @@ validInputs =
   , renameTerm
   , deleteTerm
   , aliasTerm
+  , aliasType
   , todo
   , patch
   --  , InputPattern "test" [] []

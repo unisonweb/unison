@@ -90,6 +90,10 @@ notifyUser dir o = case o of
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc names types terms ->
     displayDefinitions outputLoc names types terms
+  TermNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that term."
+  TypeNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that type."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
