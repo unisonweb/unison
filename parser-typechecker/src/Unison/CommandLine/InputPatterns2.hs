@@ -66,7 +66,7 @@ todo = InputPattern "todo"
   "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
   (\ws -> case ws of
     patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' patchStr
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
@@ -86,7 +86,7 @@ update = InputPattern "update"
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
   (\ws -> case ws of
     patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' patchStr
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       pure $ Input.UpdateI patch (HQ.fromString <$> ws)
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
 
@@ -95,7 +95,7 @@ patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPath
   "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
   (\ws -> case ws of
     patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' patchStr
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
@@ -137,7 +137,7 @@ renameTerm = InputPattern "rename.term" []
     (\case
       [oldName, newName] -> first fromString $ do
         src <- Path.parseHQ'Split' oldName
-        target <- Path.parseSplit' newName
+        target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.MoveTermI src target
       _ -> Left . P.warnCallout $ P.wrap
         "`rename.term` takes two arguments, like `rename oldname newname`.")
@@ -161,7 +161,7 @@ aliasTerm = InputPattern "alias.term" []
     (\case
       [oldName, newName] -> first fromString $ do
         source <- Path.parseHQSplit' oldName
-        target <- Path.parseSplit' newName
+        target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.AliasTermI source target
       _ -> Left . warn $ P.wrap
         "`alias.term` takes two arguments, like `alias.term oldname newname`."
@@ -186,7 +186,7 @@ deleteBranch = InputPattern "delete.branch" [] [(OnePlus, branchPathArg)]
   "`delete.branch <foo>` deletes the branch `foo`"
    (\case
         [p] -> first fromString $ do
-          p <- Path.parseSplit' p
+          p <- Path.parseSplit' Path.wordyNameSegment p
           pure . Input.DeleteBranchI $ p
         _ -> Left (I.help deleteBranch)
       )
@@ -197,7 +197,7 @@ forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
     "`fork foo bar` creates the branch `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' src
+        src <- Path.parseSplit' Path.wordyNameSegment src
         dest <- Path.parsePath' dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
@@ -209,10 +209,10 @@ mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
  "`merge foo` merges the branch 'foo' into the current branch."
  (\case
       [src] -> first fromString $ do
-        src <- Path.parseSplit' src
+        src <- Path.parseSplit' Path.wordyNameSegment src
         pure $ Input.ForkLocalBranchI src Path.relativeEmpty'
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' src
+        src <- Path.parseSplit' Path.wordyNameSegment src
         dest <- Path.parsePath' dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help mergeLocal)
