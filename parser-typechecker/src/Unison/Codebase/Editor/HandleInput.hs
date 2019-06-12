@@ -272,9 +272,9 @@ loop = do
         where
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
-              p' = resolvePath' p
               toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+                where p' = resolvePath' p
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then
             stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
           else do
@@ -335,9 +335,9 @@ loop = do
         makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
         goMany rs = do
           let rootNames = Branch.toNames0 root0
-              name = Path.toName . Path.unsplit $ resolvedPath
               toDelete = Names.fromTypes ((name,) <$> toList rs)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+                where name = Path.toName . Path.unsplit $ resolvedPath
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
@@ -352,10 +352,11 @@ loop = do
         resolvedPath = resolvePath' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTermName resolvedPath
         goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              name = Path.toName . Path.unsplit $ resolvedPath
+          let rootNames, toDelete :: Names0
+              rootNames = Branch.toNames0 root0
               toDelete = Names.fromTerms ((name,) <$> toList rs)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+                where name = Path.toName . Path.unsplit $ resolvedPath
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
