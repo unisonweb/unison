@@ -15,6 +15,9 @@ module Unison.Codebase.Path
 where
 
 --import Debug.Trace
+import Control.Lens hiding (unsnoc, cons)
+import qualified Control.Lens as Lens
+import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
 -- import           Data.String                    ( IsString
 --                                                 , fromString
@@ -27,6 +30,9 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
+import qualified Unison.ShortHash as SH
 
 import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
 import qualified Unison.Codebase.NameSegment as NameSegment
@@ -48,8 +54,8 @@ unsplit' :: Split' -> Path'
 unsplit' (Path' (Left (Absolute p)), seg) = Path' (Left (Absolute (unsplit (p, seg))))
 unsplit' (Path' (Right (Relative p)), seg) = Path' (Right (Relative (unsplit (p, seg))))
 
-unsplit :: Show a => (Path, a) -> Path
-unsplit (Path p, a) = Path (p :|> NameSegment (Text.pack (show a)))
+unsplit :: (Path, NameSegment) -> Path
+unsplit (Path p, a) = Path (p :|> a)
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
@@ -65,38 +71,103 @@ type HQSplitAbsolute = (Absolute, HQSegment)
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
 -- Left is some parse error tbd
+-- All the segments must be wordyIds
 parsePath' :: String -> Either String Path'
-parsePath' p = case p of
-  '.' : p -> Path' . Left . Absolute . fromList <$> segs p
-  p -> Path' . Right . Relative . fromList <$> segs p
-  where
-  segs p = traverse validate
-         . filter (not . Text.null)
-         . Text.splitOn "."
-         $ Text.pack p
-  validate seg =
-    case (fst <$> Lexer.wordyId0 (Text.unpack seg),
-          fst <$> Lexer.symbolyId0 (Text.unpack seg)) of
-      (Left e, Left _) -> Left (show e)
-      (Right a, _) -> Right (NameSegment $ Text.pack a)
-      (_, Right a) -> Right (NameSegment $ Text.pack a)
-
-parseSplit' :: String -> Either String Split'
-parseSplit' p = case parsePath' p of
+parsePath' p = case parsePath'Impl p of
   Left e -> Left e
-  Right (Path' e) -> case e of
-    Left (Absolute p) -> case unsnoc p of
+  Right (p, "") -> Right p
+  Right (p, rem) -> case Lexer.wordyId0 rem of
+    Right (seg, "") ->
+      Right (unsplit' (p, NameSegment . Text.pack $ seg))
+    Right (_, rem) ->
+      Left ("extra characters after " <> show p <> ": " ++ show rem)
+    Left e -> Left (show e)
+
+-- implementation detail of parsePath' and parseSplit'
+-- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
+-- foo.bar.baz    becomes `Right (foo.bar, "baz")
+-- foo.bar.baz#a8fj becomes `Right (foo.bar, "baz#a8fj")`
+parsePath'Impl :: String -> Either String (Path', String)
+parsePath'Impl p = case p of
+  "." -> Right (Path' . Left $ absoluteEmpty, "")
+  '.' : p -> over _1 (Path' . Left  . Absolute . fromList) <$> segs p
+  p       -> over _1 (Path' . Right . Relative . fromList) <$> segs p
+  where
+  segs p = case Lexer.wordyId p of
+    Left e         -> Left (show e)
+    Right (a, "") -> case Lens.unsnoc (Text.splitOn "." $ Text.pack a) of
       Nothing -> Left "empty path"
-      Just (p, seg) -> pure (Path' . Left . Absolute $ p, seg)
-    Right (Relative p) -> case unsnoc p of
-      Nothing -> Left "empty path"
-      Just (p, seg) -> pure (Path' . Right . Relative $ p, seg)
+      Just (segs, last) ->
+        Right (NameSegment <$> segs, Text.unpack last)
+    Right (segs, '.':rem) ->
+      let segs' = Text.splitOn "." (Text.pack segs)
+      in Right (NameSegment <$> segs', rem)
+    Right (segs, rem) ->
+      Left $ "extra characters after " <> segs <> ": " <> show rem
+
+wordyNameSegment, definitionNameSegment :: String -> Either String NameSegment
+wordyNameSegment s = case Lexer.wordyId0 s of
+  Left e -> Left (show e)
+  Right (a, "") -> Right (NameSegment (Text.pack a))
+  Right (a, rem) ->
+    Left $ "trailing characters after " <> show a <> ": " <> show rem
+
+definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s
+  where
+  symbolyNameSegment s = case Lexer.symbolyId0 s of
+    Left e -> Left (show e)
+    Right (a, "") -> Right (NameSegment (Text.pack a))
+    Right (a, rem) ->
+      Left $ "trailing characters after " <> show a <> ": " <> show rem
+
+-- parseSplit' wordyNameSegment "foo.bar.baz" returns Right (foo.bar, baz)
+-- parseSplit' wordyNameSegment "foo.bar.+" returns Left err
+-- parseSplit' wordyOrSymbolyNameSegment "foo.bar.+" returns Right (foo.bar, +)
+parseSplit' :: (String -> Either String NameSegment)
+            -> String
+            -> Either String Split'
+parseSplit' lastSegment p = do
+  (p', rem) <- parsePath'Impl p
+  seg <- lastSegment rem
+  pure (p', seg)
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' = error "todo"
+parseHQSplit' s = do
+  (p, rem) <- parsePath'Impl s
+  case Text.splitOn "#" (Text.pack rem) of
+    [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    [n] -> do
+      seg <- definitionNameSegment (Text.unpack n)
+      pure (p, HQ.NameOnly seg)
+    ["", sh] ->
+      maybeToRight (shError s) . fmap (\sh -> (p, HQ.HashOnly sh))
+      . SH.fromText $ "#" <> sh
+    [n, sh] -> do
+      seg <- definitionNameSegment (Text.unpack n)
+      maybeToRight (shError s) .
+        fmap (\sh -> (p, HQ.HashQualified seg sh)) .
+        SH.fromText $ "#" <> sh
+    _ -> Left $ s <> " has too many #."
+  where
+  shError s = "couldn't parse shorthash from " <> s
 
 parseHQ'Split' :: String -> Either String HQ'Split'
-parseHQ'Split' = error "todo"
+parseHQ'Split' s = do
+  (p, rem) <- parsePath'Impl s
+  case Text.splitOn "#" (Text.pack rem) of
+    [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    [n] -> do
+      seg <- definitionNameSegment (Text.unpack n)
+      pure (p, HQ'.NameOnly $ seg)
+    [n, sh] -> do
+      seg <- definitionNameSegment (Text.unpack n)
+      maybeToRight (shError s) .
+        fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
+        SH.fromText $ "#" <> sh
+    _ -> Left $ s <> " has too many #."
+  where
+  shError s = "couldn't parse shorthash from " <> s
+
 
 -- this might be useful in implementing the above
 -- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)

@@ -20,7 +20,7 @@ import qualified Unison.Codebase.Editor.Output       as E
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
--- import Debug.Trace
+--import Debug.Trace
 import           Control.Monad                 (unless)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
@@ -90,6 +90,18 @@ notifyUser dir o = case o of
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc names types terms ->
     displayDefinitions outputLoc names types terms
+  TermNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that term."
+  TypeNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that type."
+  CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
+    P.lines [
+      P.wrap "I couldn't delete ",
+      "", P.indentN 2 $ listOfDefinitions' names False failed,
+      "",
+      "because it's still being used by these definitions:",
+      "", P.indentN 2 $ listOfDefinitions' names False failedDependents
+    ]
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -330,9 +342,10 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' hq (Just typ) r aliases -> P.lines $
+  E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
-    , P.commas (fmap greyHash . sortOn (/= hq) $ toList aliases) <> " : " <> TypePrinter.pretty ppe (-1) typ
+    , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+      <> TypePrinter.pretty ppe (-1) typ
     , mempty
     ]
   _ -> error "Don't pass Nothing"
@@ -463,24 +476,22 @@ todoOutput ppe todo = error "todo: update TypePrinter to use Names"
 listOfDefinitions ::
   Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
 listOfDefinitions names detailed results =
-  putPrettyLn $ listOfDefinitions' ppe detailed results
-  where
-  ppe = PPE.fromNames0 names
+  putPrettyLn $ listOfDefinitions' names detailed results
 
 listOfDefinitions' :: Var v
-                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
+                   => Names0 -- for printing types of terms :-\
                    -> E.ListDetailed
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
   P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
                   -- : ("-", "-")
-                  : (fmap (bimap prettyHashQualified
-                                (P.text . Referent.toText)) missingBuiltins))
+                  : fmap (bimap prettyHashQualified
+                                (P.text . Referent.toText)) missingBuiltins)
     ]
   where
   prettyNumberedResults =

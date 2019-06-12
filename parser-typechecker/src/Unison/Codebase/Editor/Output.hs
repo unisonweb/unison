@@ -71,7 +71,7 @@ data Output v
   | DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-  | CantDelete Input [SearchResult' v Ann] [SearchResult' v Ann]
+  | CantDelete Input Names0 [SearchResult' v Ann] [SearchResult' v Ann]
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   -- show the result of add/update

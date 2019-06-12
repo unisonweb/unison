@@ -177,6 +177,7 @@ library
     data-memocombinators,
     errors,
     edit-distance,
+    either,
     extra,
     filepath,
     fingertree,

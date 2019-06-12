@@ -45,7 +45,10 @@ import           Util                           ( bind2 )
 -}
 
 newtype RawHash a = RawHash { unRawHash :: Hash }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord)
+
+instance Show (RawHash a) where
+  show = show . unRawHash
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m

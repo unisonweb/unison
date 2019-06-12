@@ -19,6 +19,12 @@ Documentation of the Unison codebase repo format. DRAFT, still evolving. We'll f
   patches/<hash>.up -- patches, linked from the branches
 ```
 
+`dependents` is updated in the following way:
+
+* When a definition `d` is added, we compute its hash, `h`, and the dependencies of `d`. For each `dep` in the dependencies of `d`, we `h` to the `dependents` directory, under `dependents/dep/h`. `h` is just an empty file, a link to a definition.
+* Note: the dependencies of a term `d` includes the dependencies of `d`'s _type_.
+* Note: git merge of `dependents` does the right thing
+
 Something that still needs working out:
 
 * It's quite possible to have multiple definitions with the same hash, if Alice and Bob implement a thing with the same hash independently.
