@@ -106,6 +106,8 @@ notifyUser dir o = case o of
       "because it's still being used by these definitions:",
       "", P.indentN 2 $ listOfDefinitions' names False failedDependents
     ]
+  CantUndo ->
+    putPrettyLn . P.warnCallout $ "I can't undo past a merge or if there's nothing more to undo."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines

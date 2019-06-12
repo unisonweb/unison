@@ -108,6 +108,11 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
+undo :: InputPattern
+undo = InputPattern "undo" [] []
+      "`undo` reverts the most recent change to the codebase."
+      (const $ pure Input.UndoI)
+
 viewByPrefix :: InputPattern
 viewByPrefix
   = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
@@ -317,6 +322,7 @@ validInputs =
   , renameBranch
   , find
   , view
+  , undo
   , edit
   , renameTerm
   , deleteTerm

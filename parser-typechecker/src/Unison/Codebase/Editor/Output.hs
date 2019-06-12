@@ -92,6 +92,7 @@ data Output v
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names (TodoOutput v Ann)
+  | CantUndo
   -- | ListEdits Edits Names
 
   -- new/unrepresented references followed by old/removed

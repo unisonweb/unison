@@ -209,6 +209,11 @@ consDistinct e tl =
   if head tl == e then tl
   else cons e tl
 
+uncons :: Applicative m => Causal m h e -> m (Maybe (e, Causal m h e))
+uncons c = case c of
+  Cons _ e (_,tl) -> fmap (e,) . Just <$> tl
+  _ -> pure Nothing
+
 transform :: Functor m => (forall a . m a -> n a) -> Causal m h e -> Causal n h e
 transform nt c = case c of
   One h e -> One h e

@@ -354,6 +354,10 @@ stepM f = mapMOf history (Causal.stepDistinctM f)
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
 
+uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
+uncons (Branch b) = go <$> Causal.uncons b where
+  go = over (_Just . _2) Branch
+
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
 stepAt :: forall m. Applicative m

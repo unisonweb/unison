@@ -288,6 +288,16 @@ loop = do
         branch' <- getAt path
         when (Branch.isEmpty $ branch') (respond $ CreatedNewBranch path)
 
+      UndoI -> do
+        cur <- use root
+        prev <- eval . Eval $ Branch.uncons cur
+        case prev of
+          Nothing -> respond CantUndo
+          Just (_, prev) -> do
+            root .= prev
+            eval $ SyncLocalRootBranch prev
+            success
+
       AliasTermI src dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where

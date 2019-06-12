@@ -65,6 +65,7 @@ data Input
     -- -- resolve update conflicts
     -- | ChooseUpdateForTermI EditGuid Reference Reference
     -- | ChooseUpdateForTypeI EditGuid Reference Reference
+  | UndoI
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
