@@ -27,11 +27,13 @@ import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn)
 import           Data.List.Extra               (nubOrdOn)
 import           Data.ListLike                 (ListLike)
+import           Data.Maybe                    (fromMaybe)
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Data.Set                      (Set)
 import           Data.String                   (IsString, fromString)
+import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)
@@ -56,6 +58,7 @@ import           Unison.CommandLine            (
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
@@ -66,12 +69,15 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 styleHashQualified,
                                                 styleHashQualified')
 import           Unison.Names2                 (Names, Names0)
+import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError             (prettyParseError
                                                -- ,renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
+import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -158,24 +164,24 @@ notifyUser dir o = case o of
   --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
   --           . map Result.TypeError
   --   putStrLn . showNote $ notes
-  Evaluated _fileContents _ppe _bindings watches ->
+  Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
-    else error "todo"
-      -- -- todo: hashqualify binding names if necessary to distinguish them from
-      -- --       defs in the codebase.  In some cases it's fine for bindings to
-      -- --       shadow codebase names, but you don't want it to capture them in
-      -- --       the decompiled output.
-      -- let prettyBindings = P.bracket . P.lines $
-      --       P.wrap "The watch expression(s) reference these definitions:" : "" :
-      --       [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
-      --       | (v, b) <- bindings]
-      --     prettyWatches = P.lines [
-      --       watchPrinter fileContents ppe ann kind evald isCacheHit |
-      --       (ann,kind,evald,isCacheHit) <-
-      --         sortOn (\(a,_,_,_)->a) . toList $ watches ]
-      -- -- todo: use P.nonempty
-      -- in putPrettyLn $ if null bindings then prettyWatches
-      --                  else prettyBindings <> "\n" <> prettyWatches
+    else
+      -- todo: hashqualify binding names if necessary to distinguish them from
+      --       defs in the codebase.  In some cases it's fine for bindings to
+      --       shadow codebase names, but you don't want it to capture them in
+      --       the decompiled output.
+      let prettyBindings = P.bracket . P.lines $
+            P.wrap "The watch expression(s) reference these definitions:" : "" :
+            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            | (v, b) <- bindings]
+          prettyWatches = P.lines [
+            watchPrinter fileContents ppe ann kind evald isCacheHit |
+            (ann,kind,evald,isCacheHit) <-
+              sortOn (\(a,_,_,_)->a) . toList $ watches ]
+      -- todo: use P.nonempty
+      in putPrettyLn $ if null bindings then prettyWatches
+                       else prettyBindings <> "\n" <> prettyWatches
 
   DisplayConflicts termNamespace typeNamespace -> do
     showConflicts "terms" terms
@@ -688,3 +694,48 @@ slurpOutput ppe s = error "todo"
 -- quoteCommand p = P.group $ "`> " <> p <> "`"
 -- quoteCommand p = P.group $ "" <> P.bold p <> ""
 -- quoteCommandEOS
+--
+
+watchPrinter
+  :: Var v
+  => Text
+  -> PPE.PrettyPrintEnv
+  -> Ann
+  -> UF.WatchKind
+  -> Codebase.Term v ()
+  -> Runtime.IsCacheHit
+  -> P.Pretty P.ColorText
+watchPrinter src ppe ann kind term isHit =
+  P.bracket
+    $ let
+        lines        = Text.lines src
+        lineNum      = fromMaybe 1 $ startingLine ann
+        lineNumWidth = length (show lineNum)
+        extra        = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
+        line         = lines !! (lineNum - 1)
+        addCache p = if isHit then p <> " (cached)" else p
+        renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
+          "\n" <> if id == DD.okConstructorId
+            then addCache
+              (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
+            else if id == DD.failConstructorId
+              then addCache
+                (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+              else P.red "❓ " <> TermPrinter.prettyTop ppe term
+        renderTest x =
+          fromString $ "\n Unison bug: " <> show x <> " is not a test."
+      in
+        P.lines
+          [ fromString (show lineNum) <> " | " <> P.text line
+          , case (kind, term) of
+            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            _ -> P.lines
+              [ fromString (replicate lineNumWidth ' ')
+              <> fromString extra
+              <> (if isHit then id else P.purple) "⧩"
+              , P.indentN (lineNumWidth + length extra)
+              . (if isHit then id else P.bold)
+              $ TermPrinter.prettyTop ppe term
+              ]
+          ]
+
