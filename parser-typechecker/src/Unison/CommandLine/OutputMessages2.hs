@@ -448,8 +448,8 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => Names -> E.TodoOutput v a -> IO ()
-todoOutput ppe todo = error "todo: update TypePrinter to use Names"
+todoOutput :: Var v => Names0 -> E.TodoOutput v a -> IO ()
+todoOutput (PPE.fromNames0 -> ppe) todo = error "todo: update TypePrinter to use Names"
   -- if noConflicts && noEdits
   -- then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
   -- else putPrettyLn (todoConflicts <> todoEdits)

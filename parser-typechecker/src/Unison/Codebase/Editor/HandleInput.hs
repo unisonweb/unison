@@ -510,6 +510,16 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           respond $ SlurpOutput input result
 
+      TodoI editPath' branchPath' -> do
+        patch <- do
+          let (p,seg) = Path.toAbsoluteSplit currentPath' editPath'
+          b <- getAt p
+          eval . Eval $ Branch.getPatch seg (Branch.head b)
+        (Branch.head -> branch) <- do
+          let p = Path.toAbsolutePath currentPath' branchPath'
+          getAt p
+        checkTodo patch branch >>= respond . TodoOutput (Branch.toNames0 branch)
+
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
       -- DeleteBranchI branchNames -> withBranches branchNames $ \bnbs -> do
@@ -523,7 +533,6 @@ loop = do
       --       else ifM (confirmedCommand input)
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
-      -- TodoI -> checkTodo
       -- PropagateI -> do
       --   b <- eval . Propagate $ currentBranch'
       --   _ <- eval $ SyncBranch currentBranchName' b
@@ -567,6 +576,9 @@ loop = do
       <> " disappeared from storage. "
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
+
+checkTodo :: Patch -> Branch0 m -> Action m i v (TodoOutput v Ann)
+checkTodo = undefined
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
@@ -816,11 +828,6 @@ respond output = eval $ Notify output
 --   old b = Set.fromList [r | r@(Reference.Builtin _) <- toList $ old' b]
 --   old' b = refs b `Set.difference` refs Editor.builtinBranch
 --   refs = Branch.allNamedReferences . Branch.head
---
--- checkTodo :: Action m i v ()
--- checkTodo = do
---   b <- use currentBranch
---   eval (Todo b) >>= respond . TodoOutput b
 
 loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
 loadRemoteBranchAt repo (Path.Absolute p) = do
