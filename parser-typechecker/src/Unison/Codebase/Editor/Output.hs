@@ -83,9 +83,9 @@ data Output v
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | Evaluated SourceFileContents
-              Names
+              PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
+              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
   | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)

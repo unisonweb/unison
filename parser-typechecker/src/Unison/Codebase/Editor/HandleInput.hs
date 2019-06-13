@@ -102,6 +102,7 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.PrettyPrintEnv as PPE
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -203,21 +204,11 @@ loop = do
           withFile [] sourceName text $ \errorEnv unisonFile -> do
             let sr = toSlurpResult unisonFile names0'
             eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
-            (bindings, e) <- error "todo"
---               eval . Evaluate (view currentBranch s) $
---                    UF.discardTypes unisonFile
+            (bindings, e) <- eval . Evaluate $ unisonFile
             let e' = Map.map go e
-                go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-            -- todo: this would be a good spot to update the cache
-            -- with all the (hash, eval) pairs, even if it's just an
-            -- in-memory cache
-            eval . Notify $ Evaluated
-              text
-              (error$"todo: produce Names2 for displaying evaluated Result.\n"
-                  ++ "It should include names from the file and the Branch,\n"
-                  ++ "and distinguish somehow between existing and new defns\n"
-                  ++ "having the same name.")
-              -- (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+                go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+            eval . Notify $ Evaluated text
+              (PPE.unionLeft errorEnv $ PPE.fromNames0 names0')
               bindings
               e'
             latestFile .= Just (Text.unpack sourceName, False)
