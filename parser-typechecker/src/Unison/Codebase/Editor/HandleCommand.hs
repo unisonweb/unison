@@ -30,6 +30,7 @@ import           Data.Functor                   ( void )
 import           Data.Foldable                  ( traverse_ )
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
                                                 )
@@ -57,6 +58,8 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
+import qualified Unison.Result as Result
+import           Unison.FileParsers             ( parseAndSynthesizeFile )
 
 typecheck
   :: (Monad m, Var v)
@@ -67,14 +70,11 @@ typecheck
   -> Text
   -> m (TypecheckingResult v)
 typecheck ambient codebase names sourceName src =
-  error "todo: update to use Names2 instead of Names"
-  ambient codebase names sourceName src
-  -- Result.getResult $ parseAndSynthesizeFile ambient
-  --   (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-  --   names
-  --   (unpack sourceName)
-  --   src
-
+  Result.getResult $ parseAndSynthesizeFile ambient
+    (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
+    names
+    (Text.unpack sourceName)
+    src
 
 commandLine
   :: forall i v a

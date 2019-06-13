@@ -21,7 +21,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
 --import Debug.Trace
-import           Control.Monad                 (unless)
+import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn)
@@ -38,6 +38,7 @@ import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
@@ -47,7 +48,7 @@ import           Unison.CommandLine            (
                                                 -- backtick, backtickEOS,
                                                 bigproblem,
                                                 putPrettyLn,
-                                                -- putPrettyLn',
+                                                putPrettyLn',
                                                 tip,
                                                 -- warn,
                                                 -- watchPrinter,
@@ -193,22 +194,22 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked _sourceName _ppe _uf -> error "todo"
---  do
---    Console.setTitle "Unison ✅"
---    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
---        typeDecls =
---          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
---          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
---    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
---      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
---            <> P.group (P.text sourceName <> ":"),
---      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
---        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
---        P.lines (TypePrinter.prettySignatures' ppe terms) ],
---      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
---    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
---      "I loaded " <> P.text sourceName <> " and didn't find anything."
+  Typechecked sourceName ppe _slurpResult uf -> do
+    -- todo: use SlurpResult
+    Console.setTitle "Unison ✅"
+    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
+        typeDecls =
+          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
+          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
+    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
+      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
+            <> P.group (P.text sourceName <> ":"),
+      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
+        P.lines (TypePrinter.prettySignatures' ppe terms) ],
+      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
+    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
+      "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but

@@ -177,26 +177,22 @@ loop = do
       names0' = Branch.toNames0 root0
   e           <- eval Input
   let withFile ambient sourceName text k = do
-        Result notes r <- eval
-             $ Typecheck ambient (error "todo") sourceName text
-          -- $ Typecheck ambient (view Branch.history $ get nav') sourceName text
+        let names = Names.names0ToNames $ names0'
+        Result notes r <- eval $ Typecheck ambient names sourceName text
         case r of
           -- Parsing failed
-          Nothing -> error "todo"
-          -- respond
-          --   $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (names, r) ->
-            let h = respond $ TypeErrors
-                  text
-                  names
-                  [ err | Result.TypeError err <- toList notes ]
-            in  maybe h (k names) r
+          Nothing -> respond $
+            ParseErrors text [ err | Result.Parsing err <- toList notes ]
+          Just (names, r) -> case r of
+            Nothing -> respond $
+              TypeErrors text names [ err | Result.TypeError err <- toList notes ]
+            Just r -> k names r
   case e of
     Left (IncomingRootBranch _names) ->
       error $ "todo: notify user about externally deposited head, and offer\n"
            ++ "a command to undo the merge that is about to happen.  In the\n"
            ++ "mean time until this is implemented, you can fix the issue by\n"
-           ++ "deleting one of the heads from `.unison/branches/head/`."
+           ++ "deleting one of the heads from `.unison/v0/branches/head/`."
 
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
@@ -205,7 +201,8 @@ loop = do
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
-            eval (Notify $ Typechecked sourceName errorEnv unisonFile)
+            let sr = toSlurpResult unisonFile names0'
+            eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
             (bindings, e) <- error "todo"
 --               eval . Evaluate (view currentBranch s) $
 --                    UF.discardTypes unisonFile

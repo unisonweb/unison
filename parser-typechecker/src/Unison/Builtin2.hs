@@ -46,7 +46,7 @@ import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Names2 (Names'(Names), Names0)
--- import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
 type Term v = Term.AnnotatedTerm v Ann
@@ -119,11 +119,13 @@ isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType r = elem r . fmap snd $ builtinTypes
 
--- typeLookup :: Var v => TL.TypeLookup v Ann
--- typeLookup =
---   TL.TypeLookup builtins0
---     (Map.fromList $ map snd builtinDataDecls)
---     (Map.fromList $ map snd builtinEffectDecls)
+typeLookup :: Var v => TL.TypeLookup v Ann
+typeLookup =
+  TL.TypeLookup
+    (fmap (const Intrinsic) <$> termRefTypes)
+    (Map.fromList $ map snd builtinDataDecls)
+    (Map.fromList $ map snd builtinEffectDecls)
+
 --
 -- builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
 -- builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
