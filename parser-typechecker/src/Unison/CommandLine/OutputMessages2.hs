@@ -354,7 +354,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
-      <> TypePrinter.pretty ppe (-1) typ
+      <> TypePrinter.pretty ppe mempty (-1) typ
     , mempty
     ]
   _ -> error "Don't pass Nothing"
