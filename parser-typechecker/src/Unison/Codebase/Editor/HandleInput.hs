@@ -200,7 +200,7 @@ loop = do
 
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
-      if fromMaybe False . fmap snd $ latestFile'
+      if maybe False snd latestFile'
         then modifying latestFile (fmap (const False) <$>)
         else do
           eval (Notify $ FileChangeEvent sourceName text)
@@ -235,7 +235,7 @@ loop = do
         typeConflicted src = respond . TypeAmbiguous input src
         termConflicted src = respond . TermAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
-        branchExistsSplit dest _x = branchExists (Path.unsplit' dest) _x
+        branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
@@ -433,16 +433,16 @@ loop = do
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
         where
         conflicted = getHQTypes (fmap HQ'.toNameOnlyHQ hq')
-        makeDelete r =
-          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq')) r
+        makeDelete =
+          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       ResolveTermNameI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTerms hq) (termNotFound hq) go (termConflicted hq)
         where
         conflicted = getHQTerms (fmap HQ'.toNameOnlyHQ hq')
-        makeDelete r =
-          BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq')) r
+        makeDelete =
+          BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq'))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       AddI hqs -> case uf of
@@ -472,17 +472,17 @@ loop = do
                 f v = case (toList (Names.typesNamed names0 n)
                               ,toList (Names.typesNamed fileNames0 n)) of
                   ([old],[new]) -> (old, TypeEdit.Replace new)
-                  otherwise -> error $ "Expected unique matches for "
-                                    ++ Var.nameStr v ++ " but got: "
-                                    ++ show otherwise
+                  _ -> error $ "Expected unique matches for "
+                            ++ Var.nameStr v ++ " but got: "
+                            ++ show otherwise
                   where n = Name.fromVar v
           termEdits <- for (toList $ SC.terms (updates result)) $ \v ->
             case ( toList (Names.refTermsNamed names0 (Name.fromVar v))
                  , toList (Names.refTermsNamed fileNames0 (Name.fromVar v))) of
               ([old],[new]) -> pure (old, new)
-              otherwise -> error $ "Expected unique matches for "
-                                ++ Var.nameStr v ++ " but got: "
-                                ++ show otherwise
+              _ -> error $ "Expected unique matches for "
+                        ++ Var.nameStr v ++ " but got: "
+                        ++ show otherwise
           ye'ol'Patch <- do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
@@ -491,10 +491,10 @@ loop = do
             (r,) <$> (eval . LoadTypeOfTerm) r
 
           let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 allTypes) of
-                (Just (Just t1), Just (Just t2)) ->
-                  if Typechecker.isEqual t1 t2 then TermEdit.Same
-                  else if Typechecker.isSubtype t1 t2 then TermEdit.Subtype
-                  else TermEdit.Different
+                (Just (Just t1), Just (Just t2))
+                  | Typechecker.isEqual t1 t2 -> TermEdit.Same
+                  | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
+                  | otherwise -> TermEdit.Different
                 _ -> error "compiler bug: typing map not constructed properly"
           let updatePatch :: Patch -> Patch
               updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
@@ -547,9 +547,17 @@ loop = do
       --   (Branch.head -> b) <- use currentBranch
       --   respond $ ListEdits b
       -- QuitI -> quit
+      PullRemoteBranchI repo path -> do
+        loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
+        success
+      PushRemoteBranchI repo path -> do
+        b <- getAt $ Path.toAbsolutePath currentPath' path
+        e <- eval $ SyncRemoteRootBranch repo b
+        either (fail . show) pure e
+        success
       _ -> error $ "todo: " <> show input
      where
-      success       = respond $ Success input
+      success = respond $ Success input
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
@@ -611,7 +619,8 @@ searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
     Just b -> Names.asSearchResults . Names.prefix0 n $ names0
       where
       lastName = Path.toName (Path.singleton last)
-      subnames = Branch.toNames0 . Branch.head $ (Branch.getAt' (Path.singleton last) b)
+      subnames = Branch.toNames0 . Branch.head $
+                   Branch.getAt' (Path.singleton last) b
       rootnames =
         Names.filter (== lastName) .
         Branch.toNames0 . set Branch.children mempty $ Branch.head b
@@ -634,9 +643,9 @@ searchBranchScored b score queries =
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
-      HQ.HashQualified qn h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      HQ.HashQualified qn h | h `SH.isPrefixOf` Referent.toShortHash ref ->
         pair qn
-      HQ.HashOnly h | h `SH.isPrefixOf` (Referent.toShortHash ref) ->
+      HQ.HashOnly h | h `SH.isPrefixOf` Referent.toShortHash ref ->
         Set.singleton (Nothing, result)
       _ -> mempty
       where
@@ -652,9 +661,9 @@ searchBranchScored b score queries =
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
-      HQ.HashQualified qn h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      HQ.HashQualified qn h | h `SH.isPrefixOf` Reference.toShortHash ref ->
         pair qn
-      HQ.HashOnly h | h `SH.isPrefixOf` (Reference.toShortHash ref) ->
+      HQ.HashOnly h | h `SH.isPrefixOf` Reference.toShortHash ref ->
         Set.singleton (Nothing, result)
       _ -> mempty
       where
@@ -826,17 +835,11 @@ respond output = eval $ Notify output
 --   b <- use currentBranch
 --   eval (Todo b) >>= respond . TodoOutput b
 
-loadRemoteBranchAt :: RemoteRepo -> Path.Absolute -> Action m i v (Branch m)
-loadRemoteBranchAt repo (Path.Absolute p) = do
-  roote <- eval $ LoadRemoteRootBranch repo
-  root <- either (fail . show) pure roote
-  let b = Branch.getAt' p root
-  let (types, terms) = collateReferences types0 terms0
-        where
-        types0 = Branch.deepTypeReferences (Branch.head root)
-        terms0 = Branch.deepReferents (Branch.head root)
-  eval $ RetrieveHashes repo types terms
-  pure b
+loadRemoteBranchAt
+  :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
+loadRemoteBranchAt repo p = updateAtM p $ \b_ -> do
+  b <- eval (LoadRemoteRootBranch repo)
+  either (fail . show) pure b
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
@@ -1062,19 +1065,19 @@ doSlurpAdds :: forall m v. (Applicative m, Var v)
             => SlurpComponent v
             -> UF.TypecheckedUnisonFile v Ann
             -> (Branch0 m -> Branch0 m)
-doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
+doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $ SC.terms slurp
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-  doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
+  doTerm v = case Map.lookup v (view _1 <$> UF.hashTerms uf) of
     Nothing -> errorMissingVar v
     Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split (Referent.Ref r)
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-  doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
-                <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
+  doType v = case Map.lookup v (fst <$> UF.dataDeclarations' uf)
+                <|> Map.lookup v (fst <$> UF.effectDeclarations' uf) of
     Nothing -> errorMissingVar v
     Just r -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar

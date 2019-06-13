@@ -411,7 +411,6 @@ commandLine awaitInput rt notifyUser codebase = Free.fold go
       tmp <- tempGitDir username repo commit
       runExceptT
         $ Git.pushGithubRootBranch tmp codebase branch username repo commit
-    RetrieveHashes Github {..} _types _terms -> error "todo"
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

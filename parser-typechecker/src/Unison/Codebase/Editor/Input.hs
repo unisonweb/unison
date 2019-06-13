@@ -8,7 +8,7 @@ import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import qualified Unison.Codebase.Branch2       as Branch
 import           Unison.HashQualified           ( HashQualified )
-import           Unison.Codebase.Path           ( Path, Path' )
+import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 
@@ -25,10 +25,10 @@ data Input
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
     = ForkLocalBranchI Path.Split' Path'
-    | ForkRemoteBranchI RemoteRepo Path Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path.Split' Path.Split'
-    | MergeRemoteBranchI RemoteRepo Path Path.Split'
+    | PullRemoteBranchI RemoteRepo Path'
+    | PushRemoteBranchI RemoteRepo Path'
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory

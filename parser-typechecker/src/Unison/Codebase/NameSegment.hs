@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.NameSegment where
 

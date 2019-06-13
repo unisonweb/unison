@@ -41,15 +41,33 @@ pullFromGithub
   :: MonadIO m
   => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
 pullFromGithub localPath user repo treeish = do
-  gitPath <- liftIO $ findExecutable "git"
-  when (isNothing gitPath) $ throwError NoGit
+  wd <- prepGitPull localPath uri
+  pull uri treeish
+  liftIO $ setCurrentDirectory wd
+  where uri = githubUri user repo
+
+prepGitPull
+  :: MonadIO m => MonadError GitError m => FilePath -> Text -> m FilePath
+prepGitPull localPath uri = do
+  checkForGit
   wd     <- liftIO getCurrentDirectory
   exists <- liftIO . doesDirectoryExist $ localPath
   unless exists $ clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
   unless isGitDir . throwError $ NotAGitRepo localPath
-  pull uri treeish
+  pure wd
+
+-- Shallow pull in preparation for a push
+shallowPullFromGithub
+  :: MonadIO m
+  => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
+shallowPullFromGithub localPath user repo treeish = do
+  wd <- prepGitPull localPath uri
+  shallowClone uri localPath
+  "git" ["checkout", treeish]
+    `onError` "git" ["checkout", "-b", treeish]
+    `onError` throwError (CheckoutFailed treeish)
   liftIO $ setCurrentDirectory wd
   where uri = githubUri user repo
 
@@ -70,6 +88,11 @@ pullGithubRootBranch localPath codebase user repo treeish = do
   liftIO . removeDirectory $ branchHeadDir localPath
   lift $ Codebase.syncFromDirectory codebase localPath
   pure branch
+
+checkForGit :: MonadIO m => MonadError GitError m => m ()
+checkForGit = do
+  gitPath <- liftIO $ findExecutable "git"
+  when (isNothing gitPath) $ throwError NoGit
 
 checkGitDir :: IO Bool
 checkGitDir = (const True <$> "git" ["rev-parse", "--git-dir"]) $? pure False
@@ -111,12 +134,13 @@ pushGithubRootBranch
 pushGithubRootBranch localPath codebase branch user repo treeish = do
   wd <- liftIO getCurrentDirectory
   -- Clone and pull the remote repo
-  pullFromGithub localPath user repo treeish
+  shallowPullFromGithub localPath user repo treeish
   -- Stick our changes in the checked-out copy
   lift $ syncToDirectory codebase localPath branch
   liftIO $ do
     setCurrentDirectory localPath
     -- Commit our changes
+    "git" ["add", "-a", "."]
     "git"
       [ "commit"
       , "-m"

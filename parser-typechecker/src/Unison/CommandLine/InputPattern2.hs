@@ -2,8 +2,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE DoAndIfThenElse     #-}
 
@@ -61,10 +59,10 @@ argType ip i = go (i, args ip) where
   go (n, (Required, _) : args) = go (n - 1, args)
   -- Vararg parameters should appear at the end of the arg list, and work for
   -- any later argument number.
-  go (_, (ZeroPlus, t) : []) = Just t
-  go (_, (OnePlus, t) : []) = Just t
+  go (_, [(ZeroPlus, t)]) = Just t
+  go (_, [(OnePlus, t)]) = Just t
   -- Optional parameters only work at position 0, under this countdown scheme.
-  go (_, (Optional, _): []) = Nothing
+  go (_, [(Optional, _)]) = Nothing
   -- The argument list spec is invalid if something follows optional or vararg
   go _ = error $ "Input pattern " <> show (patternName ip)
     <> " has an invalid argument list: " <> (show . fmap fst) (args ip)
@@ -73,7 +71,7 @@ minArgs :: InputPattern -> Int
 minArgs ip@(fmap fst . args -> args) = go args where
   go [] = 0
   go (Required : args) = 1 + go args
-  go (_ : []) = 0
+  go [_] = 0
   go _ = error $ "Invalid args for InputPattern ("
                   <> show (patternName ip) <> "): " <> show args
 
@@ -81,14 +79,17 @@ maxArgs :: InputPattern -> Maybe Int
 maxArgs ip@(fmap fst . args -> args) = go args where
   go [] = Just 0
   go (Required : args) = (1 +) <$> go args
-  go (Optional : []) = Just 0
-  go (_ : []) = Nothing
+  go [Optional] = Just 0
+  go [_] = Nothing
   go _ = error $ "Invalid args for InputPattern ("
                   <> show (patternName ip) <> "): " <> show args
 
-
-
-noSuggestions ::
-  Monad m => String -> Codebase m v a -> Branch m -> Path.Absolute -> m [Line.Completion]
+noSuggestions
+  :: Monad m
+  => String
+  -> Codebase m v a
+  -> Branch m
+  -> Path.Absolute
+  -> m [Line.Completion]
 noSuggestions _ _ _ _ = pure []
 

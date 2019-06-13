@@ -108,14 +108,11 @@ data Command m i v a where
   LoadRemoteRootBranch ::
     RemoteRepo -> Command m i v (Either GitError (Branch m))
 
-  -- RetrieveHashes repo types terms
-  RetrieveHashes ::
-    RemoteRepo -> Set Reference -> Set Reference -> Command m i v ()
-
   -- Syncs the Branch to some codebase and updates the head to the head of this causal.
   -- Any definitions in the head of the supplied branch that aren't in the target
   -- codebase are copied there.
   SyncLocalRootBranch :: Branch m -> Command m i v ()
+
   SyncRemoteRootBranch ::
     RemoteRepo -> Branch m -> Command m i v (Either GitError ())
   -- e.g.
