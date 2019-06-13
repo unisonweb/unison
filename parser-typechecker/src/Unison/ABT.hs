@@ -151,15 +151,28 @@ vmap f (Term _ a out) = case out of
   Abs v body -> abs' a (f v) (vmap f body)
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
-amap f (Term _ a out) = case out of
-  Var v -> annotatedVar (f a) v
-  Tm fa -> tm' (f a) (fmap (amap f) fa)
-  Cycle r -> cycle' (f a) (amap f r)
-  Abs v body -> abs' (f a) v (amap f body)
+amap f tm = amap' g tm where
+  g _ a = f a
+
+amap' :: (Functor f, Foldable f, Ord v) => (Term f v a -> a -> a2) -> Term f v a -> Term f v a2
+amap' f t@(Term _ a out) = case out of
+  Var v -> annotatedVar (f t a) v
+  Tm fa -> tm' (f t a) (fmap (amap' f) fa)
+  Cycle r -> cycle' (f t a) (amap' f r)
+  Abs v body -> abs' (f t a) v (amap' f body)
 
 -- | Modifies the annotations in this tree
 instance Functor f => Functor (Term f v) where
   fmap f (Term fvs a sub) = Term fvs (f a) (fmap (fmap f) sub)
+
+extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
+extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
+  go :: Functor g => (forall k . f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
+  go p = \case 
+    Var v -> Var v
+    Cycle r -> Cycle (extraMap p r)
+    Abs v r -> Abs v (extraMap p r)
+    Tm x -> Tm (fmap (extraMap p) (p x))
 
 pattern Var' v <- Term _ _ (Var v)
 pattern Cycle' vs t <- Term _ _ (Cycle (AbsN' vs t))
@@ -471,6 +484,49 @@ transform f tm = case (out tm) of
     let subterms' = fmap (transform f) subterms
     in tm' (annotation tm) (f subterms')
   Cycle body -> cycle' (annotation tm) (transform f body)
+
+-- Rebuild the tree annotations upward, starting from the leaves,
+-- using the Monoid to choose the annotation at intermediate nodes
+reannotateUp :: (Ord v, Foldable f, Functor f, Monoid b)
+  => (Term f v a -> b)
+  -> Term f v a
+  -> Term f v (a, b)
+reannotateUp g t = case out t of
+  Var v -> annotatedVar (annotation t, g t) v
+  Cycle body ->
+    let body' = reannotateUp g body
+    in cycle' (annotation t, snd (annotation body')) body'
+  Abs v body ->
+    let body' = reannotateUp g body
+    in abs' (annotation t, snd (annotation body')) v body'
+  Tm body ->
+    let
+      body' = reannotateUp g <$> body
+      ann = g t <> foldMap (snd . annotation) body'
+    in tm' (annotation t, ann) body'
+
+-- Find all subterms that match a predicate.  Prune the search for speed.
+-- (Some patterns of pruning can cut the complexity of the search.)
+data FindAction x = Found x | Prune | Continue deriving Show
+find :: (Ord v, Foldable f, Functor f)
+  => (Term f v a -> FindAction x)
+  -> Term f v a
+  -> [x]
+find p t = case p t of
+    Found x -> x : go
+    Prune -> []
+    Continue -> go 
+  where go = case out t of
+          Var _ -> []
+          Cycle body -> Unison.ABT.find p body
+          Abs _ body -> Unison.ABT.find p body
+          Tm body -> Foldable.concat (Unison.ABT.find p <$> body)
+
+find' :: (Ord v, Foldable f, Functor f)
+  => (Term f v a -> Bool)
+  -> Term f v a
+  -> [Term f v a]
+find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)  
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
