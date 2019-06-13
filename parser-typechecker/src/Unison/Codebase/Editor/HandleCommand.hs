@@ -122,7 +122,7 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
     LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
-    AddDefsToCodebase _unisonFile -> error "todo"
+    AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do
