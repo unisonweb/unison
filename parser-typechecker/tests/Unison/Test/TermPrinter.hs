@@ -27,8 +27,7 @@ get_names = PPE.fromNames Unison.Builtin.names
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = fmap (CT.toPlain) $
-        pretty get_names (ac (-1) Normal) input_term
+       prettied = fmap (CT.toPlain) $ prettyTop get_names input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -150,13 +149,12 @@ test = scope "termprinter" . tests $
   , tc "case e of { a } -> z"
   , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                               -- need an actual effect constructor to test this with
-  , pending $ tc "if a then (if b then c else d) else e"
-  , pending $ tc "(if b then c else d)"   -- TODO parser doesn't like bracketed ifs (`unexpected )`)
-  , pending $ tc "handle foo in (handle bar in baz)"  -- similarly
-  , pending $ tc_breaks 16 "case (if a \n\
-                           \      then b\n\
-                           \      else c) of\n\
-                           \  112 -> x"        -- similarly
+  , tc "if a then (if b then c else d) else e"
+  , tc "handle foo in (handle bar in baz)"
+  , tc_breaks 16 "case (if a then\n\
+                 \  b\n\
+                 \else c) of\n\
+                 \  112 -> x"        -- dodgy layout.  note #517 and #518
   , tc "handle Pair 1 1 in bar"
   , tc "handle x -> foo in bar"
   , tc_diff_rtt True "let\n\
@@ -333,32 +331,8 @@ test = scope "termprinter" . tests $
                  \  go [] a b"
   , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
-  , pending $ tc_breaks 50 "if true\n\
-                 \then\n\
-                 \  case x of\n\
-                 \    12 -> x\n\
-                 \else\n\
-                 \  x"              -- TODO parser bug?  'unexpected else', parens around case doens't help, cf next test
-  , pending $ tc_breaks 50 "if true\n\
-                 \then x\n\
-                 \else\n\
-                 \  (case x of\n\
-                 \    12 -> x)"     -- TODO parser bug, 'unexpected )'
-  , tc_diff_rtt False "if true\n\
-                      \then x\n\
-                      \else case x of\n\
-                      \  12 -> x"
-                      "if true then x\n\
-                      \else\n\
-                      \  (case x of\n\
-                      \    12 -> x)" 20  -- TODO fix surplus parens around case.
-                                         -- Are they only surplus due to layout cues?
-                                         -- And no round trip, due to issue in test directly above.
-  , tc_diff_rtt False "if true\n\
-                      \then x\n\
-                      \else case x of\n\
-                      \  12 -> x"
-                      "if true then x else (case x of 12 -> x)" 50
+  , tc_breaks 50 "if true then (case x of 12 -> x) else x"  -- re parens around case note #517
+  , tc_breaks 50 "if true then x else (case x of 12 -> x)"  -- re parens around case note #517
   , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
@@ -373,12 +347,170 @@ test = scope "termprinter" . tests $
                      \  let\n\
                      \    a = 1\n\
                      \    b" 80
-  , pending $ tc_breaks 80 "if let\n\
-                           \     a = b\n\
-                           \     a\n\
-                           \then foo\n\
-                           \else bar"   -- TODO parser throws 'unexpected then'
+  , tc_breaks 80 "if\n\
+                 \  a = b\n\
+                 \  a then foo else bar"   -- missing break before 'then', issue #518
   , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
+
+-- FQN elision tests
+  , tc_breaks 12 "if foo then\n\
+                 \  use A x\n\
+                 \  f x x\n\
+                 \else\n\
+                 \  use B y\n\
+                 \  f y y"
+  , tc_breaks 12 "if foo then\n\
+                 \  use A x\n\
+                 \  f x x\n\
+                 \else\n\
+                 \  use B x\n\
+                 \  f x x"
+  , tc_breaks 80 "let\n\
+                 \  a =\n\
+                 \    use A x\n\
+                 \    if foo then f x x else g x x\n\
+                 \  bar"
+  , tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
+  , tc_breaks 80 "if foo then f A.x A.x B.x else y"   
+  , tc_breaks 80 "if foo then A.f x else y"              
+  , tc_breaks 13 "if foo then\n\
+                 \  use A +\n\
+                 \  x + y\n\
+                 \else y"
+  , tc_breaks 20 "if p then\n\
+                 \  use A x\n\
+                 \  use B y z\n\
+                 \  f z z y y x x\n\
+                 \else q"
+  , tc_breaks 30 "if foo then\n\
+                 \  use A.X c\n\
+                 \  use AA.PP.QQ e\n\
+                 \  f c c e e\n\
+                 \else\n\
+                 \  use A.B X.d Y.d\n\
+                 \  use A.B.X f\n\
+                 \  g X.d X.d Y.d Y.d f f"
+  , tc_breaks 30 "if foo then\n\
+                 \  use A.X c\n\
+                 \  f c c\n\
+                 \else\n\
+                 \  use A X.c YY.c\n\
+                 \  g X.c X.c YY.c YY.c"
+  , tc_breaks 20 "handle bar in\n\
+                 \  (if foo then\n\
+                 \    use A.X c\n\
+                 \    f c c\n\
+                 \  else\n\
+                 \    use A.Y c\n\
+                 \    g c c)"  -- questionable parentheses, issue #517
+  , tc_breaks 28 "if foo then\n\
+                 \  f (x : (∀ t. Pair t t))\n\
+                 \else\n\
+                 \  f (x : (∀ t. Pair t t))"
+  , tc_breaks 12 "if\n\
+                 \  use A x\n\
+                 \  f x x then\n\
+                 \  x\n\
+                 \else y"  -- missing break before 'then', issue #518
+  , tc_breaks 20 "case x of\n\
+                 \  () ->\n\
+                 \    use A y\n\
+                 \    f y y"
+  , tc_breaks 12 "let\n\
+                 \  use A x\n\
+                 \  f x x\n\
+                 \  c = g x x\n\
+                 \  h x x"
+  , tc_breaks 15 "handle foo in\n\
+                 \  use A x\n\
+                 \  f x x"
+  , tc_breaks 15 "let\n\
+                 \  c =\n\
+                 \    use A x\n\
+                 \    f x x\n\
+                 \  g c" 
+  , tc_breaks 20 "if foo then\n\
+                 \  f x x A.x A.x\n\
+                 \else g"
+  , tc_breaks 27 "case t of\n\
+                 \  () ->\n\
+                 \    a =\n\
+                 \      use A B.x\n\
+                 \      f B.x B.x\n\
+                 \      handle foo in\n\
+                 \        q =\n\
+                 \          use A.B.D x\n\
+                 \          h x x\n\
+                 \        foo\n\
+                 \    bar\n\
+                 \  _ ->\n\
+                 \    b =\n\
+                 \      use A.C x\n\
+                 \      g x x\n\
+                 \    bar"
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    handle foo in\n\
+                 \      use A x\n\
+                 \      f x x\n\
+                 \  bar"
+  , tc_breaks 16 "let\n\
+                 \  a =\n\
+                 \    b =\n\
+                 \      use A x\n\
+                 \      f x x\n\
+                 \    foo\n\
+                 \  bar" 
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    case x of\n\
+                 \      () ->\n\
+                 \        use A x\n\
+                 \        f x x\n\
+                 \  bar"
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    use A x\n\
+                 \    b = f x x\n\
+                 \    c = g x x\n\
+                 \    foo\n\
+                 \  bar"
+  , tc_breaks 13 "let\n\
+                 \  a =\n\
+                 \    use A p q r\n\
+                 \    f p p\n\
+                 \    f q q\n\
+                 \    f r r\n\
+                 \  foo"
+  -- The following behaviour is possibly not ideal.  Note how the `use A B.x`
+  -- would have the same effect if it was under the `c =`.  It doesn't actually
+  -- need to be above the `b =`, because all the usages of A.B.X in that tree are
+  -- covered by another use statement, the `use A.B x`.  Fixing this would 
+  -- probably require another annotation pass over the AST, to place 'candidate'
+  -- use statements, to then push some of them down on the next pass.
+  -- Not worth it!
+  , tc_breaks 20 "let\n\
+                 \  a =\n\
+                 \    use A B.x\n\
+                 \    b =\n\
+                 \      use A.B x\n\
+                 \      f x x\n\
+                 \    c =\n\
+                 \      g B.x B.x\n\
+                 \      h A.D.x\n\
+                 \    foo\n\
+                 \  bar"
+  , tc_breaks 80 "let\n\
+                 \  use A x\n\
+                 \  use A.T.A T1\n\
+                 \  g = T1 +3\n\
+                 \  h = T1 +4\n\
+                 \  i : T -> T -> Int\n\
+                 \  i p q =\n\
+                 \    g' = T1 +3\n\
+                 \    h' = T1 +4\n\
+                 \    +2\n\
+                 \  if true then x else x"
   ]

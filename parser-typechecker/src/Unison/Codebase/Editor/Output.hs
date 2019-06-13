@@ -34,6 +34,7 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Parser as Parser
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -79,13 +80,13 @@ data Output v
   | SlurpOutput Input (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
-  | TypeErrors Text Names [Context.ErrorNote v Ann]
+  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | Evaluated SourceFileContents
-              Names
+              PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName Names (UF.TypecheckedUnisonFile v Ann)
+              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
+  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)

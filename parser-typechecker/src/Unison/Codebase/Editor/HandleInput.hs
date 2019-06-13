@@ -102,6 +102,7 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.PrettyPrintEnv as PPE
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -177,26 +178,22 @@ loop = do
       names0' = Branch.toNames0 root0
   e           <- eval Input
   let withFile ambient sourceName text k = do
-        Result notes r <- eval
-             $ Typecheck ambient (error "todo") sourceName text
-          -- $ Typecheck ambient (view Branch.history $ get nav') sourceName text
+        let names = Names.names0ToNames $ names0'
+        Result notes r <- eval $ Typecheck ambient names sourceName text
         case r of
           -- Parsing failed
-          Nothing -> error "todo"
-          -- respond
-          --   $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (names, r) ->
-            let h = respond $ TypeErrors
-                  text
-                  names
-                  [ err | Result.TypeError err <- toList notes ]
-            in  maybe h (k names) r
+          Nothing -> respond $
+            ParseErrors text [ err | Result.Parsing err <- toList notes ]
+          Just (names, r) -> case r of
+            Nothing -> respond $
+              TypeErrors text names [ err | Result.TypeError err <- toList notes ]
+            Just r -> k names r
   case e of
     Left (IncomingRootBranch _names) ->
       error $ "todo: notify user about externally deposited head, and offer\n"
            ++ "a command to undo the merge that is about to happen.  In the\n"
            ++ "mean time until this is implemented, you can fix the issue by\n"
-           ++ "deleting one of the heads from `.unison/branches/head/`."
+           ++ "deleting one of the heads from `.unison/v0/branches/head/`."
 
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
@@ -205,22 +202,13 @@ loop = do
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
-            eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-            (bindings, e) <- error "todo"
---               eval . Evaluate (view currentBranch s) $
---                    UF.discardTypes unisonFile
+            let sr = toSlurpResult unisonFile names0'
+            eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
+            (bindings, e) <- eval . Evaluate $ unisonFile
             let e' = Map.map go e
-                go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-            -- todo: this would be a good spot to update the cache
-            -- with all the (hash, eval) pairs, even if it's just an
-            -- in-memory cache
-            eval . Notify $ Evaluated
-              text
-              (error$"todo: produce Names2 for displaying evaluated Result.\n"
-                  ++ "It should include names from the file and the Branch,\n"
-                  ++ "and distinguish somehow between existing and new defns\n"
-                  ++ "having the same name.")
-              -- (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+                go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+            eval . Notify $ Evaluated text
+              (PPE.unionLeft errorEnv $ PPE.fromNames0 names0')
               bindings
               e'
             latestFile .= Just (Text.unpack sourceName, False)
