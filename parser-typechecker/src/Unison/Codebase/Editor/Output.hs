@@ -92,7 +92,7 @@ data Output v
                        Names0
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput Names (TodoOutput v Ann)
+  | TodoOutput Names0 (TodoOutput v Ann)
   | CantUndo UndoFailureReason
   -- | ListEdits Edits Names
 

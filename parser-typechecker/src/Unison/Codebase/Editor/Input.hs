@@ -11,6 +11,7 @@ import           Unison.HashQualified           ( HashQualified )
 import           Unison.Codebase.Path           ( Path, Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
+import           Unison.Reference (Reference)
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -18,6 +19,7 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
+type EditPath = Path.Split'
 
 data Input
   -- names stuff:
@@ -50,27 +52,22 @@ data Input
     | ResolveTermNameI Path.HQ'Split'
     | ResolveTypeNameI Path.HQ'Split'
   -- edits stuff:
-    | TodoI Path.Split' Path'
-    | PropagateI Path.Split' Path'
+    | AddI [HashQualified]
+    | UpdateI EditPath [HashQualified]
+    | TodoI EditPath Path'
+    | PropagateI EditPath Path'
+    | ListEditsI EditPath Path'
     -- -- create and remove update directives
-    -- | CreateEditsI EditGuid -- implies SetEdits?
-    -- | SetEditsI EditGuid
-    -- | ClearEdits -- don't record (don't allow?) term edits
-    -- | ListEditsI EditGuid
-    -- | ReplaceTermI EditGuid Reference Reference
-    -- | ReplaceTypeI EditGuid Reference Reference
-    -- -- clear updates for a term or type
-    -- | RemoveAllTermUpdatesI EditGuid Reference
-    -- | RemoveAllTypeUpdatesI EditGuid Reference
-    -- -- resolve update conflicts
-    -- | ChooseUpdateForTermI EditGuid Reference Reference
-    -- | ChooseUpdateForTypeI EditGuid Reference Reference
+    | DeprecateTermI EditPath Path.HQ'Split'
+    | DeprecateTypeI EditPath Path.HQ'Split'
+    | AddTermReplacementI EditPath Reference Reference
+    | AddTypeReplacementI EditPath Reference Reference
+    | RemoveTermReplacementI EditPath Reference Reference
+    | RemoveTypeReplacementI EditPath Reference Reference
   | UndoI
   -- execute an IO object with arguments
   | ExecuteI String
   -- other
-  | AddI [HashQualified]
-  | UpdateI Path.Split' [HashQualified]
   | UndoRootI
   | SearchByNameI [String]
   | ShowDefinitionI OutputLocation [String]
