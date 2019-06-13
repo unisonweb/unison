@@ -454,7 +454,9 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
         Nothing -> respond NoUnisonFile
@@ -508,7 +510,9 @@ loop = do
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
 
       TodoI editPath' branchPath' -> do
         patch <- do
