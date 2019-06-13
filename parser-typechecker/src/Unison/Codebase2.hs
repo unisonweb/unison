@@ -60,6 +60,13 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
+
+           -- Watch expressions are part of the codebase, the `Reference.Id` is
+           -- the hash of the source of the watch expression, and the `Term v a`
+           -- is the evaluated result of the expression, decompiled to a term.
+           , watches            :: UF.WatchKind -> m [Reference.Id]
+           , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
+           , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
            }
 
 -- | Write all of the builtins types and IO types into the codebase

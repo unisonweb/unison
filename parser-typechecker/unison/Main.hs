@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import           Control.Monad                  ( when )
 import           Safe                           ( headMay )
 import           System.Environment             ( getArgs )
+import qualified Data.Text                     as Text
 import qualified Unison.Codebase.FileCodebase  as FileCodebase
 import qualified Unison.Codebase.Serialization as S
 import           Unison.Codebase.Serialization.V0
@@ -25,7 +25,7 @@ main = do
         FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
       launch = CommandLine.main
         scratchFilePath
-        initialBranchName
+        (Text.pack initialBranchName)
         (headMay args)
         (pure Rt1.runtime)
         theCodebase

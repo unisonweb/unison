@@ -27,7 +27,7 @@ import           Unison.Symbol                  ( Symbol )
 
 import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor                   ( void )
-import           Data.Foldable                  ( traverse_ )
+import           Data.Foldable                  ( traverse_, forM_ )
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -53,6 +53,7 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
+import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
@@ -132,8 +133,21 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
   evalUnisonFile (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
     selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
-    let noCache = const (pure Nothing)
-    Runtime.evaluateWatches codeLookup noCache rt selfContained
+    let watchCache (Reference.DerivedId h) = do
+          m1 <- Codebase.getWatch codebase UF.RegularWatch h
+          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
+          pure $ Term.amap (const ()) <$> m2
+        watchCache _ = pure Nothing
+    rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
+    forM_ (Map.elems map) $
+      \(_loc, kind, hash, _src, value, isHit) ->
+      if isHit then pure ()
+      else case hash of
+        Reference.DerivedId h -> do
+          let value' = Term.amap (const Parser.External) value
+          Codebase.putWatch codebase kind h value'
+        _ -> pure ()
+    pure rs
 
 loadSearchResults :: (Monad m, Var v) =>
   Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]

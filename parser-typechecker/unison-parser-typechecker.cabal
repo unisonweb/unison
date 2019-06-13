@@ -246,6 +246,7 @@ executable unison
     base,
     containers,
     safe,
+    text,
     unison-parser-typechecker
 
 executable unison2
