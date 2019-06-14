@@ -28,7 +28,7 @@ import           Unison.Util.Relation           ( Relation )
 data Patch = Patch
   { _termEdits :: Relation Reference TermEdit
   , _typeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord)
+  } deriving (Eq, Ord, Show)
 
 makeLenses ''Patch
 
