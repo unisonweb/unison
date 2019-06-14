@@ -124,12 +124,12 @@ prettyStatus s = case s of
 statusLegend :: Set Status -> P.Pretty P.ColorText
 statusLegend s =
   P.indentN 3 "Legend:" <> "\n" <>
-  (P.sep (", " `P.orElse` "\n") (map go (toList s)))
+  (P.sep "\n" $ map go (toList s))
   where
   go s = P.group (prettyStatus s <> " " <> desc s)
   desc s = " " <> case s of
     Add -> "a new definition with a new name"
-    Update -> "a new definition using an existing name"
+    Update -> "a new definition using an existing name (ok to `update`)"
     Duplicate -> "already in the codebase with the same name"
     Collision -> "couldn't be added due to name collision (use `update`)"
     Conflicted -> "can't be updated because the name is conflicted"
