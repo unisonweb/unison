@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Unison.Blank where
 
 loc :: Recorded loc -> loc
@@ -14,9 +16,9 @@ data Recorded loc
   = Placeholder loc String
   -- A name to be resolved with type-directed name resolution.
   | Resolve loc String
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor)
 
 data Blank loc = Blank | Recorded (Recorded loc)
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Functor)
 
 

@@ -110,6 +110,11 @@ view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
       "`view foo` prints the definition of `foo`."
       (pure . Input.ShowDefinitionI Input.ConsoleLocation)
 
+undo :: InputPattern
+undo = InputPattern "undo" [] []
+      "`undo` reverts the most recent change to the codebase."
+      (const $ pure Input.UndoI)
+
 viewByPrefix :: InputPattern
 viewByPrefix
   = InputPattern "view.recursive" [] [(OnePlus, exactDefinitionQueryArg)]
@@ -231,34 +236,30 @@ deleteBranch = InputPattern "delete.branch" [] [(OnePlus, branchPathArg)]
         _ -> Left (I.help deleteBranch)
       )
 
+renameBranch :: InputPattern
+renameBranch = InputPattern "rename.branch"
+   []
+   [(Required, branchPathArg), (Required, branchPathArg)]
+   "`rename.branch foo bar` renames the branch `bar` to `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' Path.wordyNameSegment src
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MoveBranchI src dest
+      _ -> Left (I.help renameBranch)
+    )
+
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
                                    ,(Required, branchPathArg)]
     "`fork foo bar` creates the branch `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.wordyNameSegment src
+        src <- Path.parsePath' src
         dest <- Path.parsePath' dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
     )
-
-mergeLocal :: InputPattern
-mergeLocal = InputPattern
-  "merge"
-  []
-  [(Required, branchPathArg), (Optional, branchPathArg)]
-  "`merge foo` merges the branch 'foo' into the current branch."
-  (\case
-    [src] -> first fromString $ do
-      src <- Path.parseSplit' Path.wordyNameSegment src
-      pure $ Input.MergeLocalBranchI src (Path.relativeEmpty', NameSegment "")
-    [src, dest] -> first fromString $ do
-      src  <- Path.parseSplit' Path.wordyNameSegment src
-      dest <- Path.parseSplit' Path.wordyNameSegment dest
-      pure $ Input.MergeLocalBranchI src dest
-    _ -> Left (I.help mergeLocal)
-  )
 
 pull :: InputPattern
 pull = InputPattern
@@ -339,6 +340,20 @@ push = InputPattern
     _ -> Left (I.help push)
   )
 
+mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
+                                     ,(Optional, branchPathArg)]
+ "`merge foo` merges the branch 'foo' into the current branch."
+ (\case
+      [src] -> first fromString $ do
+        src <- Path.parsePath' src
+        pure $ Input.MergeLocalBranchI src Path.relativeEmpty'
+      [src, dest] -> first fromString $ do
+        src <- Path.parsePath' src
+        dest <- Path.parsePath' dest
+        pure $ Input.MergeLocalBranchI src dest
+      _ -> Left (I.help mergeLocal)
+ )
+
 -- replace,resolve :: InputPattern
 --replace = InputPattern "replace" []
 --          [ (Required, exactDefinitionQueryArg)
@@ -384,8 +399,10 @@ validInputs =
   , mergeLocal
   , cd
   , deleteBranch
+  , renameBranch
   , find
   , view
+  , undo
   , edit
   , renameTerm
   , deleteTerm

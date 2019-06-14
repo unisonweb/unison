@@ -107,12 +107,12 @@ main dir initialPath _initialFile startRuntime codebase = do
   do
     runtime                  <- startRuntime
     -- we watch for root branch tip changes, but want to ignore ones we expect.
-
-    branchRef                <- newIORef (root, initialPath)
+    rootRef                  <- newIORef root
+    pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
-    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash . fst <$>
-                                                      readIORef branchRef)
+    cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
+                                                      readIORef rootRef)
                                                    eventQueue
                                                    codebase
     let patternMap =
@@ -120,9 +120,10 @@ main dir initialPath _initialFile startRuntime codebase = do
             $   validInputs
             >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
         getInput = do
-          (branch, path) <- readIORef branchRef
+          root <- readIORef rootRef
+          path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
-          getUserInput patternMap codebase branch path numberedArgs
+          getUserInput patternMap codebase root path numberedArgs
     let
       awaitInput = do
         -- Race the user input and file watch.
@@ -134,10 +135,11 @@ main dir initialPath _initialFile startRuntime codebase = do
         cancelFileSystemWatch
         cancelWatchBranchUpdates
       loop state = do
-        writeIORef branchRef
-          (HandleInput._root state, HandleInput._currentPath state)
+        writeIORef pathRef (HandleInput._currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
+
         (o, state') <- HandleCommand.commandLine awaitInput
+                                     (writeIORef rootRef)
                                      runtime
                                      (notifyUser dir)
                                      codebase

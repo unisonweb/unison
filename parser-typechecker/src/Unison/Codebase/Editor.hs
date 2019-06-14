@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}

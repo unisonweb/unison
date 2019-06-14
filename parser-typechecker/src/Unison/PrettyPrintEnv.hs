@@ -2,18 +2,23 @@
 
 module Unison.PrettyPrintEnv where
 
-import Control.Applicative ((<|>))
-import Data.Maybe (fromMaybe)
-import Unison.Reference (Reference)
-import qualified Data.Map as Map
-import Unison.HashQualified (HashQualified)
-import qualified Unison.HashQualified as HQ
-import Unison.Names (Names)
-import qualified Unison.Names as Names
-import qualified Unison.Names2 as Names2
-import Unison.Referent (Referent)
-import qualified Unison.Referent as Referent
-import qualified Data.Set as Set
+import           Control.Applicative            ( (<|>) )
+import           Data.Map                       ( Map )
+import           Data.Maybe                     ( fromMaybe )
+import           Data.Text                      ( Text )
+import           Debug.Trace                    ( trace )
+import           Unison.HashQualified           ( HashQualified )
+import           Unison.Name                    ( Name )
+import           Unison.Names                   ( Names )
+import           Unison.Reference               ( Reference )
+import           Unison.Referent                ( Referent )
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Unison.HashQualified          as HQ
+import qualified Unison.Name                   as Name
+import qualified Unison.Names                  as Names
+import qualified Unison.Names2                 as Names2
+import qualified Unison.Referent               as Referent
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -83,3 +88,25 @@ instance Monoid PrettyPrintEnv where
   mappend = unionLeft
 instance Semigroup PrettyPrintEnv where
   (<>) = mappend
+
+-- Type aliases relating to Fully-Qualified Names, e.g. 'Acme.API.foo'
+-- Used primarily by the FQN elision code - see TermPrinter.PrintAnnotation.
+
+-- Note that a Suffix can include dots.
+type Suffix = Text
+-- Each member of a Prefix list is dot-free.
+type Prefix = [Text]
+-- Keys are FQNs, values are shorter names which are equivalent, thanks to use
+-- statements that are in scope.
+type Imports = Map Name Suffix
+
+-- Give the shortened version of an FQN, if there's been a `use` statement for that FQN.
+elideFQN :: Imports -> HQ.HashQualified -> HQ.HashQualified
+elideFQN imports hq =
+  let hash = HQ.toHash hq
+      name' = do name <- HQ.toName hq
+                 let hit = fmap Name.unsafeFromText (Map.lookup name imports)
+                 -- Cut out the "const id $" to get tracing of FQN elision attempts.
+                 let t = const id $ trace ("hit: " ++ show hit ++ " finding: " ++ show hq ++ " in imports: " ++ show imports)
+                 t (pure $ fromMaybe name hit)
+  in HQ.fromNameHash name' hash

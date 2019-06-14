@@ -21,23 +21,26 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
 --import Debug.Trace
-import           Control.Monad                 (unless)
+import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn)
 import           Data.List.Extra               (nubOrdOn)
 import           Data.ListLike                 (ListLike)
+import           Data.Maybe                    (fromMaybe)
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import           Data.Set                      (Set)
 import           Data.String                   (IsString, fromString)
+import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
+import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
@@ -47,7 +50,7 @@ import           Unison.CommandLine            (
                                                 -- backtick, backtickEOS,
                                                 bigproblem,
                                                 putPrettyLn,
-                                                -- putPrettyLn',
+                                                putPrettyLn',
                                                 tip,
                                                 -- warn,
                                                 -- watchPrinter,
@@ -55,6 +58,7 @@ import           Unison.CommandLine            (
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
@@ -65,12 +69,15 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 styleHashQualified,
                                                 styleHashQualified')
 import           Unison.Names2                 (Names, Names0)
+import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError             (prettyParseError
                                                -- ,renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent               as Referent
+import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -94,6 +101,10 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that type."
+  TermAlreadyExists input _ _ ->
+    putPrettyLn . P.warnCallout $ "A term by that name already exists."
+  TypeAlreadyExists input _ _ ->
+    putPrettyLn . P.warnCallout $ "A type by that name already exists."
   CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
@@ -102,6 +113,9 @@ notifyUser dir o = case o of
       "because it's still being used by these definitions:",
       "", P.indentN 2 $ listOfDefinitions' names False failedDependents
     ]
+  CantUndo reason -> case reason of
+    CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
+    CantUndoPastMerge -> putPrettyLn . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
     putPrettyLn . P.callout "😶" $ P.lines
@@ -115,6 +129,8 @@ notifyUser dir o = case o of
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
+  BranchNotFound _ b ->
+    putPrettyLn . P.warnCallout $ "The branch " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> pure ()
  -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
@@ -136,7 +152,7 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions names detailed results ->
      listOfDefinitions names detailed results
-  SlurpOutput _input _s -> error "todo"
+  SlurpOutput _input _ppe _s -> error "todo"
     -- slurpOutput s
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
@@ -148,24 +164,24 @@ notifyUser dir o = case o of
   --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
   --           . map Result.TypeError
   --   putStrLn . showNote $ notes
-  Evaluated _fileContents _ppe _bindings watches ->
+  Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
-    else error "todo"
-      -- -- todo: hashqualify binding names if necessary to distinguish them from
-      -- --       defs in the codebase.  In some cases it's fine for bindings to
-      -- --       shadow codebase names, but you don't want it to capture them in
-      -- --       the decompiled output.
-      -- let prettyBindings = P.bracket . P.lines $
-      --       P.wrap "The watch expression(s) reference these definitions:" : "" :
-      --       [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
-      --       | (v, b) <- bindings]
-      --     prettyWatches = P.lines [
-      --       watchPrinter fileContents ppe ann kind evald isCacheHit |
-      --       (ann,kind,evald,isCacheHit) <-
-      --         sortOn (\(a,_,_,_)->a) . toList $ watches ]
-      -- -- todo: use P.nonempty
-      -- in putPrettyLn $ if null bindings then prettyWatches
-      --                  else prettyBindings <> "\n" <> prettyWatches
+    else
+      -- todo: hashqualify binding names if necessary to distinguish them from
+      --       defs in the codebase.  In some cases it's fine for bindings to
+      --       shadow codebase names, but you don't want it to capture them in
+      --       the decompiled output.
+      let prettyBindings = P.bracket . P.lines $
+            P.wrap "The watch expression(s) reference these definitions:" : "" :
+            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            | (v, b) <- bindings]
+          prettyWatches = P.lines [
+            watchPrinter fileContents ppe ann kind evald isCacheHit |
+            (ann,kind,evald,isCacheHit) <-
+              sortOn (\(a,_,_,_)->a) . toList $ watches ]
+      -- todo: use P.nonempty
+      in putPrettyLn $ if null bindings then prettyWatches
+                       else prettyBindings <> "\n" <> prettyWatches
 
   DisplayConflicts termNamespace typeNamespace -> do
     showConflicts "terms" terms
@@ -184,22 +200,22 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked _sourceName _ppe _uf -> error "todo"
---  do
---    Console.setTitle "Unison ✅"
---    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
---        typeDecls =
---          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
---          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
---    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
---      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
---            <> P.group (P.text sourceName <> ":"),
---      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
---        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
---        P.lines (TypePrinter.prettySignatures' ppe terms) ],
---      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
---    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
---      "I loaded " <> P.text sourceName <> " and didn't find anything."
+  Typechecked sourceName ppe _slurpResult uf -> do
+    -- todo: use SlurpResult
+    Console.setTitle "Unison ✅"
+    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
+        typeDecls =
+          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
+          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
+    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
+      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
+            <> P.group (P.text sourceName <> ":"),
+      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
+        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
+        P.lines (TypePrinter.prettySignatures' ppe terms) ],
+      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
+    else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
+      "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
@@ -345,7 +361,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
-      <> TypePrinter.pretty ppe (-1) typ
+      <> TypePrinter.pretty ppe mempty (-1) typ
     , mempty
     ]
   _ -> error "Don't pass Nothing"
@@ -366,7 +382,7 @@ prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
   stuff =
     (P.hiBlack "-- " <> greyHash (HQ.fromReference r)) :
       fmap (\name -> prettyDeclTriple (name, r, dt))
-           (sortOn (/= name) (toList aliases))
+           (name : toList aliases)
     where greyHash = styleHashQualified' id P.hiBlack
 
 
@@ -432,8 +448,8 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => Names -> E.TodoOutput v a -> IO ()
-todoOutput ppe todo = error "todo: update TypePrinter to use Names"
+todoOutput :: Var v => Names0 -> E.TodoOutput v a -> IO ()
+todoOutput (PPE.fromNames0 -> ppe) todo = error "todo: update TypePrinter to use Names"
   -- if noConflicts && noEdits
   -- then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
   -- else putPrettyLn (todoConflicts <> todoEdits)
@@ -678,3 +694,48 @@ slurpOutput ppe s = error "todo"
 -- quoteCommand p = P.group $ "`> " <> p <> "`"
 -- quoteCommand p = P.group $ "" <> P.bold p <> ""
 -- quoteCommandEOS
+--
+
+watchPrinter
+  :: Var v
+  => Text
+  -> PPE.PrettyPrintEnv
+  -> Ann
+  -> UF.WatchKind
+  -> Codebase.Term v ()
+  -> Runtime.IsCacheHit
+  -> P.Pretty P.ColorText
+watchPrinter src ppe ann kind term isHit =
+  P.bracket
+    $ let
+        lines        = Text.lines src
+        lineNum      = fromMaybe 1 $ startingLine ann
+        lineNumWidth = length (show lineNum)
+        extra        = "     " <> replicate (length kind) ' ' -- for the ` | > ` after the line number
+        line         = lines !! (lineNum - 1)
+        addCache p = if isHit then p <> " (cached)" else p
+        renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
+          "\n" <> if id == DD.okConstructorId
+            then addCache
+              (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
+            else if id == DD.failConstructorId
+              then addCache
+                (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+              else P.red "❓ " <> TermPrinter.prettyTop ppe term
+        renderTest x =
+          fromString $ "\n Unison bug: " <> show x <> " is not a test."
+      in
+        P.lines
+          [ fromString (show lineNum) <> " | " <> P.text line
+          , case (kind, term) of
+            (UF.TestWatch, Term.Sequence' tests) -> foldMap renderTest tests
+            _ -> P.lines
+              [ fromString (replicate lineNumWidth ' ')
+              <> fromString extra
+              <> (if isHit then id else P.purple) "⧩"
+              , P.indentN (lineNumWidth + length extra)
+              . (if isHit then id else P.bold)
+              $ TermPrinter.prettyTop ppe term
+              ]
+          ]
+

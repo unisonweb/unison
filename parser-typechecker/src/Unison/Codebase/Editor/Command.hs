@@ -26,6 +26,7 @@ import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.PrettyPrintEnv         as PPE
 
 
 type AmbientAbilities v = [Type.AnnotatedType v Ann]
@@ -36,7 +37,7 @@ type Type v a = Type.AnnotatedType v a
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (Names, Maybe (UF.TypecheckedUnisonFile v Ann))
+         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   Eval :: m a -> Command m i v a

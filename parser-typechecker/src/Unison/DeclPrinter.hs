@@ -5,7 +5,7 @@
 
 module Unison.DeclPrinter where
 
-import Data.List (isPrefixOf)
+import           Data.List                      ( isPrefixOf )
 import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
 import           Unison.DataDeclaration         ( DataDeclaration'
@@ -54,7 +54,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   constructor (n, (_, _, t)) =
     prettyPattern env r name n
       <>       " :"
-      `P.hang` TypePrinter.pretty env (-1) t
+      `P.hang` TypePrinter.pretty env Map.empty (-1) t
   header = prettyEffectHeader name (DD.EffectDeclaration dd) <> " where"
 
 prettyPattern
@@ -82,13 +82,13 @@ prettyDataDecl env r name dd =
     Nothing -> prettyPattern env r name n
     Just ts -> case fieldNames env r name dd of
       Nothing -> P.group . P.hang' (prettyPattern env r name n) "      "
-               $ P.spaced (TypePrinter.pretty0 env 10 <$> init ts)
+               $ P.spaced (TypePrinter.pretty0 env Map.empty 10 <$> init ts)
       Just fs -> P.group $ "{ "
                         <> P.sep ("," <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> " }"
   field (fname, typ) = P.group $
-    prettyHashQualified fname <> " :" `P.hang` TypePrinter.pretty0 env (-1) typ
+    prettyHashQualified fname <> " :" `P.hang` TypePrinter.pretty0 env Map.empty (-1) typ
   header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
 
 -- Comes up with field names for a data declaration which has the form of a

@@ -52,6 +52,16 @@ toHash = \case
   HashQualified _ sh -> Just sh
   HashOnly sh        -> Just sh
 
+-- partial: assumes either a name or hash is provided (or both)
+fromNameHash :: Maybe Name -> Maybe ShortHash -> HashQualified
+fromNameHash n h = case n of
+  Just name -> case h of
+    Just hash -> HashQualified name hash
+    Nothing -> NameOnly name
+  Nothing -> case h of
+    Just hash -> HashOnly hash
+    Nothing -> error "bad HQ construction"
+
 take :: Int -> HashQualified' n -> HashQualified' n
 take i = \case
   n@(NameOnly _)    -> n

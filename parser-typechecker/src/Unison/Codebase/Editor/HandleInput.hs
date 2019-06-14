@@ -102,6 +102,7 @@ import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
+import qualified Unison.PrettyPrintEnv as PPE
 
 type F m i v = Free (Command m i v)
 type Type v a = Type.AnnotatedType v a
@@ -177,26 +178,22 @@ loop = do
       names0' = Branch.toNames0 root0
   e           <- eval Input
   let withFile ambient sourceName text k = do
-        Result notes r <- eval
-             $ Typecheck ambient (error "todo") sourceName text
-          -- $ Typecheck ambient (view Branch.history $ get nav') sourceName text
+        let names = Names.names0ToNames $ names0'
+        Result notes r <- eval $ Typecheck ambient names sourceName text
         case r of
           -- Parsing failed
-          Nothing -> error "todo"
-          -- respond
-          --   $ ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (names, r) ->
-            let h = respond $ TypeErrors
-                  text
-                  names
-                  [ err | Result.TypeError err <- toList notes ]
-            in  maybe h (k names) r
+          Nothing -> respond $
+            ParseErrors text [ err | Result.Parsing err <- toList notes ]
+          Just (names, r) -> case r of
+            Nothing -> respond $
+              TypeErrors text names [ err | Result.TypeError err <- toList notes ]
+            Just r -> k names r
   case e of
     Left (IncomingRootBranch _names) ->
       error $ "todo: notify user about externally deposited head, and offer\n"
            ++ "a command to undo the merge that is about to happen.  In the\n"
            ++ "mean time until this is implemented, you can fix the issue by\n"
-           ++ "deleting one of the heads from `.unison/branches/head/`."
+           ++ "deleting one of the heads from `.unison/v0/branches/head/`."
 
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
@@ -205,22 +202,13 @@ loop = do
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
-            eval (Notify $ Typechecked sourceName errorEnv unisonFile)
-            (bindings, e) <- error "todo"
---               eval . Evaluate (view currentBranch s) $
---                    UF.discardTypes unisonFile
+            let sr = toSlurpResult unisonFile names0'
+            eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
+            (bindings, e) <- eval . Evaluate $ unisonFile
             let e' = Map.map go e
-                go (ann, _hash, _uneval, eval, isHit) = (ann, eval, isHit)
-            -- todo: this would be a good spot to update the cache
-            -- with all the (hash, eval) pairs, even if it's just an
-            -- in-memory cache
-            eval . Notify $ Evaluated
-              text
-              (error$"todo: produce Names2 for displaying evaluated Result.\n"
-                  ++ "It should include names from the file and the Branch,\n"
-                  ++ "and distinguish somehow between existing and new defns\n"
-                  ++ "having the same name.")
-              -- (errorEnv <> Branch.prettyPrintEnv (Branch.head currentBranch'))
+                go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+            eval . Notify $ Evaluated text
+              (PPE.unionLeft errorEnv $ PPE.fromNames0 names0')
               bindings
               e'
             latestFile .= Just (Text.unpack sourceName, False)
@@ -230,6 +218,7 @@ loop = do
         ifConfirmed = ifM (confirmedCommand input)
         ifNotConfirmed = flip ifConfirmed
         branchNotFound = respond . BranchNotFound input
+        branchNotFound' = respond . BranchNotFound input . Path.unsplit'
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
@@ -239,35 +228,64 @@ loop = do
         typeExists dest = respond . TypeAlreadyExists input dest
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
-      ForkLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = case path'ToSplit dest of
-          Nothing -> respond $ BadDestinationBranch input dest
-          Just destSplit ->
-            maybe (destOk b) (branchExists dest) (getAtSplit destSplit)
-            where
-            destOk b = do
-              stepAt . BranchUtil.makeSetBranch destSplit $ b
-              success -- could give rando stats about new defns
+      ForkLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          ok <- updateAtM dest $ \destb ->
+            pure (if Branch.isEmpty destb then srcb else destb)
+          if ok then success else respond $ BadDestinationBranch input dest0
 
-      MergeLocalBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = maybe (destEmpty b) (destExists b) (getAtSplit' dest)
-        destEmpty b = ifNotConfirmed (branchNotFound dest)
-          (stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) b)
-        destExists srcb destb = do
-          merged <- eval . Eval $ Branch.merge srcb destb
-          stepAt $ BranchUtil.makeSetBranch (resolvePath' dest) merged
+      MergeLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          _ <- updateAtM dest $ \destb -> eval . Eval $ Branch.merge srcb destb
           success
+
+      MoveBranchI src dest ->
+        maybe (branchNotFound' src) srcOk (getAtSplit' src)
+        where
+        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
+        destOk b = do
+          stepManyAt
+            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
+            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
+          success -- could give rando stats about new defns
+
+      DeleteBranchI p ->
+        maybe (branchNotFound' p) go $ getAtSplit' p
+        where
+        go (Branch.head -> b) = do
+          let rootNames = Branch.toNames0 root0
+              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
+                where p' = resolvePath' p
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
+          if failed == mempty then
+            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
+          else do
+            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
+            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            respond $ CantDelete input rootNames failed failedDependents
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
         currentPath .= path
         branch' <- getAt path
-        when (Branch.isEmpty . Branch.head $ branch')
-          (respond $ CreatedNewBranch path)
+        when (Branch.isEmpty $ branch') (respond $ CreatedNewBranch path)
+
+      UndoI -> do
+        prev <- eval . Eval $ Branch.uncons root'
+        case prev of
+          Nothing ->
+            respond . CantUndo $ if Branch.isOne root' then CantUndoPastStart
+                                 else CantUndoPastMerge
+          Just (_, prev) -> do
+            root .= prev
+            eval $ SyncLocalRootBranch prev
+            success
 
       AliasTermI src dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
@@ -297,16 +315,6 @@ loop = do
           [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
           , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
 
-      MoveBranchI src dest ->
-        maybe (branchNotFound src) srcOk (getAtSplit' src)
-        where
-        srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
-        destOk b = do
-          stepManyAt
-            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
-            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
-          success -- could give rando stats about new defns
-
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
                       (liftM2 ifConfirmed goMany (typeConflicted hq))
@@ -315,9 +323,9 @@ loop = do
         makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
         goMany rs = do
           let rootNames = Branch.toNames0 root0
-              name = Path.toName . Path.unsplit $ resolvedPath
               toDelete = Names.fromTypes ((name,) <$> toList rs)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+                where name = Path.toName . Path.unsplit $ resolvedPath
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
@@ -332,24 +340,12 @@ loop = do
         resolvedPath = resolvePath' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTermName resolvedPath
         goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              name = Path.toName . Path.unsplit $ resolvedPath
+          let rootNames, toDelete :: Names0
+              rootNames = Branch.toNames0 root0
               toDelete = Names.fromTerms ((name,) <$> toList rs)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
+                where name = Path.toName . Path.unsplit $ resolvedPath
+          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
-            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input rootNames failed failedDependents
-
-      DeleteBranchI p -> maybe (branchNotFound p) go $ getAtSplit' p where
-        go (Branch.head -> b) = do
-          let rootNames = Branch.toNames0 root0
-              p' = resolvePath' p
-              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) rootNames toDelete
-          if failed == mempty then
-            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
           else do
             failed <- eval . LoadSearchResults $ Names.asSearchResults failed
             failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
@@ -458,7 +454,9 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
         Nothing -> respond NoUnisonFile
@@ -512,7 +510,19 @@ loop = do
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
+
+      TodoI editPath' branchPath' -> do
+        patch <- do
+          let (p,seg) = Path.toAbsoluteSplit currentPath' editPath'
+          b <- getAt p
+          eval . Eval $ Branch.getPatch seg (Branch.head b)
+        (Branch.head -> branch) <- do
+          let p = Path.toAbsolutePath currentPath' branchPath'
+          getAt p
+        checkTodo patch branch >>= respond . TodoOutput (Branch.toNames0 branch)
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
@@ -527,7 +537,6 @@ loop = do
       --       else ifM (confirmedCommand input)
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
-      -- TodoI -> checkTodo
       -- PropagateI -> do
       --   b <- eval . Propagate $ currentBranch'
       --   _ <- eval $ SyncBranch currentBranchName' b
@@ -546,7 +555,6 @@ loop = do
       -- ListEditsI -> do
       --   (Branch.head -> b) <- use currentBranch
       --   respond $ ListEdits b
-      -- QuitI -> quit
       PullRemoteBranchI repo path -> do
         loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
         success
@@ -555,6 +563,7 @@ loop = do
         e <- eval $ SyncRemoteRootBranch repo b
         either (fail . show) pure e
         success
+      QuitI -> MaybeT $ pure Nothing
       _ -> error $ "todo: " <> show input
      where
       success = respond $ Success input
@@ -579,6 +588,9 @@ loop = do
       <> " disappeared from storage. "
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
+
+checkTodo :: Patch -> Branch0 m -> Action m i v (TodoOutput v Ann)
+checkTodo = undefined
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
@@ -829,11 +841,6 @@ respond output = eval $ Notify output
 --   old b = Set.fromList [r | r@(Reference.Builtin _) <- toList $ old' b]
 --   old' b = refs b `Set.difference` refs Editor.builtinBranch
 --   refs = Branch.allNamedReferences . Branch.head
---
--- checkTodo :: Action m i v ()
--- checkTodo = do
---   b <- use currentBranch
---   eval (Todo b) >>= respond . TodoOutput b
 
 loadRemoteBranchAt
   :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
@@ -845,15 +852,18 @@ getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
   use root <&> fromMaybe Branch.empty . Branch.getAt p
 
+-- Update a branch at the given path, returning `True` if
+-- an update occurred and false otherwise
 updateAtM :: Applicative m
           => Path.Absolute
           -> (Branch m -> Action m i v (Branch m))
-          -> Action m i v ()
+          -> Action m i v Bool
 updateAtM (Path.Absolute p) f = do
   b <- use root
   b' <- Branch.modifyAtM p f b
   root .= b'
   when (b /= b') $ eval $ SyncLocalRootBranch b'
+  pure $ b /= b'
 
 stepAt :: forall m i v. Applicative m
        => (Path, Branch0 m -> Branch0 m)
@@ -914,7 +924,7 @@ getEndangeredDependents getDependents toBeDeleted root =
     List.foldl' f acc <$> getDependents (Referent.toReference r)
     where
     f (failed, failedDeps) d =
-      if d `Set.notMember` remainingRefs
+      if d `Set.member` namedRefsRemaining
       then (Names.addTerm name r failed, addDependent d failedDeps)
       else (failed, failedDeps)
   addDependent :: Reference -> Names0 -> Names0
@@ -926,11 +936,11 @@ getEndangeredDependents getDependents toBeDeleted root =
     List.foldl' f acc <$> getDependents r
     where
     f (failed, failedDeps) d =
-      if d `Set.notMember` remainingRefs
+      if d `Set.member` namedRefsRemaining
       then (Names.addType name r failed, addDependent d failedDeps)
       else (failed, failedDeps)
-  remainingRefs :: Set Reference
-  remainingRefs = Set.map Referent.toReference (Names.termReferents remaining)
+  namedRefsRemaining :: Set Reference
+  namedRefsRemaining = Set.map Referent.toReference (Names.termReferents remaining)
                 <> Names.typeReferences remaining
     where remaining = root `Names.difference` toBeDeleted
 

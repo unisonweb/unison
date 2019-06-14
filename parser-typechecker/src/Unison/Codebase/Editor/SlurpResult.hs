@@ -1,21 +1,27 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.SlurpResult where
 
+import Data.Foldable (toList)
 import Data.Map (Map)
 import Data.Set (Set)
+import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
 import Unison.Parser ( Ann )
 import Unison.Var (Var)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
+import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
-
-import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
-import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import qualified Unison.Util.Pretty as P
+import qualified Unison.Var as Var
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -91,3 +97,65 @@ disallowUpdates sr =
 
 isNonempty :: Ord v => SlurpResult v -> Bool
 isNonempty s = Monoid.nonEmpty (adds s) || Monoid.nonEmpty (updates s)
+
+data Status =
+  Add | Update | Duplicate | Alias | Collision | Conflicted |
+  TermExistingConstructorCollision | ConstructorExistingTermCollision |
+  ExtraDefinition |
+  BlockedDependency
+
+prettyStatus :: Status -> P.Pretty P.ColorText
+prettyStatus s = case s of
+  Add -> P.green "+"
+  Update -> P.green "Δ"
+  Duplicate -> P.hiBlack "d"
+  Collision -> P.red "x"
+  Conflicted -> P.red "c"
+  TermExistingConstructorCollision -> P.red "y"
+  ConstructorExistingTermCollision -> P.red "z"
+  BlockedDependency -> P.hiRed "b"
+  ExtraDefinition -> P.purple "e"
+  Alias -> P.blue "a"
+
+{-
+  + = added, Δ = updated, a = alias, d = duplicate (use `help messages.add` to learn more)
+
+  + | Stream.unfold : s -> (s -> Optional (a, s)) -> Stream s
+  Δ | Stream.range  : Nat -> Nat -> Stream s Nat
+  Δ | Stream.map    : (a -> b) -> Stream a -> Stream b
+  a | blah, curName : Foo
+  a | blah2, olName : Bar
+  d | dup1          : Nat
+  d | dup2          : Nat
+
+  + | ability Woot
+-}
+pretty :: Var v => PPE.PrettyPrintEnv -> SlurpResult v -> (P.Pretty P.ColorText, Set Status)
+pretty ppe sr = let
+  tms = UF.hashTerms (originalFile sr)
+  termLineFor status v = case Map.lookup v tms of
+    Just (_,_,ty) ->
+      (prettyStatus status <> " | " <> lhs,
+       ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty))
+      where
+      lhs = case Map.lookup v (termAlias sr) of
+        Nothing -> P.bold (P.text $ Var.name v)
+        Just ns -> P.sep "," (P.bold (P.text $ Var.name v) : (P.shown <$> toList ns))
+    Nothing ->
+      (prettyStatus status <> " | " <> P.bold (P.text (Var.name v)),
+       ": " <> P.red "Unison bug, unknown type")
+
+  termMsgs = P.column2 $
+    (termLineFor Add <$> toList (terms (adds sr))) ++
+    (termLineFor Update <$> toList (terms (updates sr))) ++
+    (termLineFor Alias <$> Map.keys (termAlias sr)) ++
+    (termLineFor Duplicate <$> toList (terms (duplicates sr))) ++
+    (termLineFor Conflicted <$> toList (terms (conflicts sr))) ++
+    (termLineFor Collision <$> toList (terms (collisions sr))) ++
+    (termLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr)) ++
+    (termLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
+    (termLineFor BlockedDependency <$> toList (terms (defsWithBlockedDependencies sr)))
+
+  typeMsgs = ""
+  statuses = error "todo"
+  in (P.sepNonEmpty "\n\n" [termMsgs, typeMsgs], statuses)

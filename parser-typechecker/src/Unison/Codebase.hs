@@ -101,6 +101,8 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+           , syncFromDirectory  :: FilePath -> m ()
+           , syncToDirectory    :: FilePath -> Branch m -> m ()
            }
 
 getTypeOfConstructor ::

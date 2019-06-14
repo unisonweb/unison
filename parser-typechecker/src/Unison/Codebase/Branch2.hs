@@ -315,7 +315,7 @@ getAt :: Path
       -> Branch m
       -> Maybe (Branch m)
 getAt path root = case Path.toList path of
-  [] -> if isEmpty (head root) then Nothing else Just root
+  [] -> if isEmpty root then Nothing else Just root
   seg : path -> case Map.lookup seg (_children $ head root) of
     Just (_h, b) -> getAt (Path.fromList path) b
     Nothing -> Nothing
@@ -339,8 +339,11 @@ one = Branch . Causal.one
 empty0 :: Branch0 m
 empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
 
-isEmpty :: Branch0 m -> Bool
-isEmpty = (== empty0)
+isEmpty0 :: Branch0 m -> Bool
+isEmpty0 = (== empty0)
+
+isEmpty :: Branch m -> Bool
+isEmpty = (== empty)
 
 step :: Applicative m => (Branch0 m -> Branch0 m) -> Branch m -> Branch m
 step f = over history (Causal.stepDistinct f)
@@ -350,6 +353,14 @@ stepM f = mapMOf history (Causal.stepDistinctM f)
 
 cons :: Applicative m => Branch0 m -> Branch m -> Branch m
 cons = step . const
+
+isOne :: Branch m -> Bool
+isOne (Branch Causal.One{}) = True
+isOne _ = False
+
+uncons :: Applicative m => Branch m -> m (Maybe (Branch0 m, Branch m))
+uncons (Branch b) = go <$> Causal.uncons b where
+  go = over (_Just . _2) Branch
 
 -- Modify the branch0 at the head of at `path` with `f`,
 -- after creating it if necessary.  Preserves history.
@@ -408,7 +419,7 @@ updateChildren ::NameSegment
                -> Map NameSegment (Hash, Branch m)
                -> Map NameSegment (Hash, Branch m)
 updateChildren seg updatedChild =
-  if isEmpty (head updatedChild)
+  if isEmpty updatedChild
   then Map.delete seg
   else Map.insert seg (headHash updatedChild, updatedChild)
 
@@ -502,12 +513,12 @@ addTypeName r new = over types (R.insert new r)
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b | R.member n r (view terms b)
-                     = over terms (R.insert n r) $ b
+                     = over terms (R.delete n r) $ b
 deleteTermName _ _ b = b
 
 deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | R.member n r (view types b)
-                     = over types (R.insert n r) $ b
+                     = over types (R.delete n r) $ b
 deleteTypeName _ _ b = b
 
 data RefCollisions =

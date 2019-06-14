@@ -4,11 +4,12 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , DisplayThing(..)
-  , TodoOutput(..)
   , ListDetailed
   , SearchResult'(..)
   , TermResult'(..)
+  , TodoOutput(..)
   , TypeResult'(..)
+  , UndoFailureReason(..)
   , pattern Tm
   , pattern Tp
   , foldResult'
@@ -33,6 +34,7 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Parser as Parser
+import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
 import qualified Unison.Type as Type
@@ -61,7 +63,7 @@ data Output v
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
   | BadDestinationBranch Input Path'
-  | BranchNotFound Input Path.Split'
+  | BranchNotFound Input Path'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
   -- ask confirmation before deleting the last branch that contains some defns
@@ -75,23 +77,24 @@ data Output v
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   -- show the result of add/update
-  | SlurpOutput Input (SlurpResult v)
+  | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
-  | TypeErrors Text Names [Context.ErrorNote v Ann]
+  | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
   | Evaluated SourceFileContents
-              Names
+              PPE.PrettyPrintEnv
               [(v, Term v ())]
-              (Map v (Ann, Term v (), Runtime.IsCacheHit))
-  | Typechecked SourceName Names (UF.TypecheckedUnisonFile v Ann)
+              (Map v (Ann, UF.WatchKind, Term v (), Runtime.IsCacheHit))
+  | Typechecked SourceName PPE.PrettyPrintEnv (SlurpResult v) (UF.TypecheckedUnisonFile v Ann)
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
                        Names0
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput Names (TodoOutput v Ann)
+  | TodoOutput Names0 (TodoOutput v Ann)
+  | CantUndo UndoFailureReason
   -- | ListEdits Edits Names
 
   -- new/unrepresented references followed by old/removed
@@ -100,6 +103,8 @@ data Output v
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
   deriving (Show)
+
+data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 
 data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
   deriving (Eq, Ord, Show)
