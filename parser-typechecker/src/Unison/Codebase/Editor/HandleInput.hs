@@ -1138,39 +1138,17 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   termActions = map doTerm . toList $ SC.terms slurp
   names = UF.typecheckedToNames0 uf
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-<<<<<<< HEAD
-  doTerm v = case Map.lookup v (view _1 <$> UF.hashTerms uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
-||||||| merged common ancestors
-  doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
-=======
   doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
->>>>>>> 20fb6defa0d0eaba751090b1d6d813294aee30da
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTermName split r
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-<<<<<<< HEAD
-  doType v = case Map.lookup v (fst <$> UF.dataDeclarations' uf)
-                <|> Map.lookup v (fst <$> UF.effectDeclarations' uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
-||||||| merged common ancestors
-  doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
-                <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
-=======
   doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
->>>>>>> 20fb6defa0d0eaba751090b1d6d813294aee30da
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r
     wha -> error $ "Unison bug, typechecked file w/ multiple types named "
