@@ -14,7 +14,6 @@ import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn)
 import Data.String (fromString)
 import Unison.Codebase.Editor.Input (Input)
-import Unison.Codebase.NameSegment (NameSegment (..))
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.Util.Monoid (intercalateMap)
@@ -340,6 +339,7 @@ push = InputPattern
     _ -> Left (I.help push)
   )
 
+mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
                                      ,(Optional, branchPathArg)]
  "`merge foo` merges the branch 'foo' into the current branch."

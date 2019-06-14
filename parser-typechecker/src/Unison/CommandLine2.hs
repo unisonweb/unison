@@ -18,7 +18,6 @@ import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
 import qualified Data.Set                        as Set
-import           Data.Maybe                      (fromMaybe)
 import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)

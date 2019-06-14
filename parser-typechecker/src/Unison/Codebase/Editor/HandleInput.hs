@@ -32,7 +32,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( foldM, liftM2, when )
+import           Control.Monad                  ( foldM, liftM2, when, void )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -844,7 +844,7 @@ respond output = eval $ Notify output
 
 loadRemoteBranchAt
   :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
-loadRemoteBranchAt repo p = updateAtM p $ \b_ -> do
+loadRemoteBranchAt repo p = void . updateAtM p $ \b_ -> do
   b <- eval (LoadRemoteRootBranch repo)
   either (fail . show) pure b
 
