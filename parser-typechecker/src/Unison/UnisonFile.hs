@@ -6,6 +6,7 @@
 
 module Unison.UnisonFile where
 
+import Control.Lens
 import           Control.Applicative    ((<|>))
 import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
@@ -86,6 +87,12 @@ data TypecheckedUnisonFile v a =
     topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
     watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
   } deriving Show
+
+lookupDecl :: Ord v => v -> TypecheckedUnisonFile v a
+           -> Maybe (Reference, Either (EffectDeclaration' v a) (DataDeclaration' v a))
+lookupDecl v uf =
+  over _2 Right <$> (Map.lookup v (dataDeclarations' uf)  ) <|>
+  over _2 Left  <$> (Map.lookup v (effectDeclarations' uf))
 
 allTerms :: Ord v => TypecheckedUnisonFile v a -> Map v (AnnotatedTerm v a)
 allTerms uf =

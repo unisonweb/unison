@@ -89,6 +89,7 @@ import           Unison.Util.Monoid            (
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
+import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
@@ -152,8 +153,11 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions names detailed results ->
      listOfDefinitions names detailed results
-  SlurpOutput _input _ppe _s -> error "todo"
-    -- slurpOutput s
+  SlurpOutput _input ppe s ->
+    putPrettyLn $
+      SlurpResult.pretty ppe s <> "\n\n" <>
+      filestatusTip
+
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
@@ -175,7 +179,7 @@ notifyUser dir o = case o of
             P.wrap "The watch expression(s) reference these definitions:" : "" :
             [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
             | (v, b) <- bindings]
-          prettyWatches = P.lines [
+          prettyWatches = P.sep "\n\n" [
             watchPrinter fileContents ppe ann kind evald isCacheHit |
             (ann,kind,evald,isCacheHit) <-
               sortOn (\(a,_,_,_)->a) . toList $ watches ]
@@ -200,19 +204,13 @@ notifyUser dir o = case o of
     -- do
     -- Console.clearScreen
     -- Console.setCursorPosition 0 0
-  Typechecked sourceName ppe _slurpResult uf -> do
-    -- todo: use SlurpResult
+  Typechecked sourceName ppe slurpResult uf -> do
     Console.setTitle "Unison ✅"
-    let terms = sortOn fst [ (HQ.fromVar v, typ) | (v, _, typ) <- join $ UF.topLevelComponents uf ]
-        typeDecls =
-          [ (HQ.fromVar v, Left e)  | (v, (_,e)) <- Map.toList (UF.effectDeclarations' uf) ] ++
-          [ (HQ.fromVar v, Right d) | (v, (_,d)) <- Map.toList (UF.dataDeclarations' uf) ]
     if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
       P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
             <> P.group (P.text sourceName <> ":"),
-      P.indentN 2 . P.sepNonEmpty "\n\n" $ [
-        P.lines (fmap (uncurry DeclPrinter.prettyDeclHeader) typeDecls),
-        P.lines (TypePrinter.prettySignatures' ppe terms) ],
+      P.indentN 2 $ SlurpResult.pretty ppe slurpResult,
+      filestatusTip,
       P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
@@ -739,3 +737,5 @@ watchPrinter src ppe ann kind term isHit =
               ]
           ]
 
+filestatusTip :: P.Pretty CT.ColorText
+filestatusTip = tip "Use `help filestatus` to learn more."

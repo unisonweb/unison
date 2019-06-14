@@ -230,6 +230,10 @@ difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
                   (R.difference (types a) (types b))
 
+contains :: Names' n -> Reference -> Bool
+contains names r = R.memberRan (Referent.Ref r) (terms names)
+                || R.memberRan r (types names)
+
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
 --   where

@@ -130,7 +130,6 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
-    LoadSearchResults results -> loadSearchResults codebase results
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
 
@@ -158,25 +157,6 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
           Codebase.putWatch codebase kind h value'
         _ -> pure ()
     pure rs
-
-loadSearchResults :: (Monad m, Var v) =>
-  Codebase m v a -> [SR.SearchResult] -> m [SearchResult' v a]
-loadSearchResults code = traverse loadSearchResult
-  where
-  loadSearchResult = \case
-    SR.Tm (SR.TermResult name r aliases) -> do
-      typ <- case r of
-        Referent.Ref r -> Codebase.getTypeOfTerm code r
-        Referent.Con r cid -> Codebase.getTypeOfConstructor code r cid
-      pure $ Tm name typ r aliases
-    SR.Tp (SR.TypeResult name r aliases) -> do
-      dt <- case r of
-        Reference.Builtin _ -> pure BuiltinThing
-        Reference.DerivedId id ->
-          maybe (MissingThing id) RegularThing <$>
-            Codebase.getTypeDeclaration code id
-      pure $ Tp name dt r aliases
-
 
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 -- doTodo code b = do

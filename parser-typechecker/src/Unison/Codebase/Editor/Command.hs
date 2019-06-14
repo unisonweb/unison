@@ -22,7 +22,6 @@ import           Unison.Typechecker.TypeLookup  ( Decl )
 
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Reference              as Reference
-import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
@@ -126,9 +125,6 @@ data Command m i v a where
   LoadType :: Reference.Id -> Command m i v (Maybe (Decl v Ann))
 
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
-
-  -- Loads some metadata for prettier search result display
-  LoadSearchResults :: [SR.SearchResult] -> Command m i v [SearchResult' v Ann]
 
   -- Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
