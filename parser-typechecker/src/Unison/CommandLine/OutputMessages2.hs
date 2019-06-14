@@ -11,6 +11,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE RecordWildCards     #-}
 
 
 module Unison.CommandLine.OutputMessages2 (notifyUser) where
@@ -44,6 +45,8 @@ import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Codebase.Patch         as Patch
+import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine            (
@@ -68,7 +71,8 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName,
                                                 styleHashQualified,
                                                 styleHashQualified')
-import           Unison.Names2                 (Names, Names0)
+import           Unison.Names2                 (Names'(..), Names, Names0)
+import qualified Unison.Names2                 as Names
 import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
@@ -76,6 +80,7 @@ import           Unison.PrintError             (prettyParseError
                                                -- ,renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
+import           Unison.Reference              ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
@@ -447,45 +452,72 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
     formatConflict = either formatTypeEdits formatTermEdits
 
 todoOutput :: Var v => Names0 -> E.TodoOutput v a -> IO ()
-todoOutput (PPE.fromNames0 -> ppe) todo = error "todo: update TypePrinter to use Names"
-  -- if noConflicts && noEdits
-  -- then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
-  -- else putPrettyLn (todoConflicts <> todoEdits)
-  -- where
-  -- noConflicts = E.todoConflicts todo == mempty
-  -- noEdits = E.todoScore todo == 0
-  -- (frontierTerms, frontierTypes) = E.todoFrontier todo
-  -- (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
-  -- corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
-  -- corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
-  -- goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
-  -- todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-  --   [error "todo", error "todo"]
-  --   -- [ renderEditConflicts ppe branch
-  --   -- , renderNameConflicts conflictedTypeNames conflictedTermNames ]
-  --   where
-  --   -- -- If a conflict is both an edit and a name conflict, we show it in the edit
-  --   -- -- conflicts section
-  --   -- c = Branch.nameOnlyConflicts (E.todoConflicts todo)
-  --   -- conflictedTypeNames = Branch.allTypeNames c
-  --   -- conflictedTermNames = Branch.allTermNames c
-  -- todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-  --     [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
-  --             <> "transitive dependent(s) left to upgrade."
-  --             <> "Your edit frontier is the dependents of these definitions:")
-  --     , P.indentN 2 . P.lines $ (
-  --         (prettyDeclTriple <$> toList frontierTypes) ++
-  --         TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
-  --         )
-  --     , P.wrap "I recommend working on them in the following order:"
-  --     , P.indentN 2 . P.lines $
-  --         let unscore (_score,a,b,c) = (a,b,c)
-  --         in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-  --            (TypePrinter.prettySignatures'
-  --               ppe
-  --               (goodTerms $ unscore <$> dirtyTerms))
-  --     , formatMissingStuff corruptTerms corruptTypes
-  --     ]
+todoOutput (PPE.fromNames0 -> ppe) todo =
+  if noConflicts && noEdits
+  then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
+  else putPrettyLn (todoConflicts <> todoEdits)
+  where
+  noConflicts = E.nameConflicts todo == mempty
+             && E.editConflicts todo == Patch.empty
+  noEdits = E.todoScore todo == 0
+  (frontierTerms, frontierTypes) = E.todoFrontier todo
+  (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
+  corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
+  corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
+  goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
+  todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
+    [ renderEditConflicts ppe (E.editConflicts todo)
+    , renderNameConflicts conflictedTypeNames conflictedTermNames ]
+    where
+    -- If a conflict is both an edit and a name conflict, we show it in the edit
+    -- conflicts section
+    c :: Names0
+    c = removeEditConflicts (E.editConflicts todo) (E.nameConflicts todo)
+    conflictedTypeNames = (R.dom . Names.terms) c
+    conflictedTermNames = (R.dom . Names.types) c
+    -- e.g. `foo#a` has been independently updated to `foo#b` and `foo#c`.
+    -- This means there will be a name conflict:
+    --    foo -> #b
+    --    foo -> #c
+    -- as well as an edit conflict:
+    --    #a -> #b
+    --    #a -> #c
+    -- We want to hide/ignore the name conflicts that are also targets of an
+    -- edit conflict, so that the edit conflict will be dealt with first.
+    -- For example, if hash `h` has multiple edit targets { #x, #y, #z, ...},
+    -- we'll temporarily remove name conflicts pointing to { #x, #y, #z, ...}.
+    removeEditConflicts :: Ord n => Patch -> Names' n -> Names' n
+    removeEditConflicts Patch{..} Names{..} = Names terms' types' where
+      terms' = R.filterRan (`Set.notMember` conflictedTermEditTargets) terms
+      types' = R.filterRan (`Set.notMember` conflictedTypeEditTargets) types
+      conflictedTypeEditTargets :: Set Reference
+      conflictedTypeEditTargets =
+        Set.fromList $ toList (R.ran typeEditConflicts) >>= TypeEdit.references
+      conflictedTermEditTargets :: Set Referent.Referent
+      conflictedTermEditTargets =
+        Set.fromList . fmap Referent.Ref
+          $ toList (R.ran termEditConflicts) >>= TermEdit.references
+      typeEditConflicts = R.filterDom (`R.manyDom` _typeEdits) _typeEdits
+      termEditConflicts = R.filterDom (`R.manyDom` _termEdits) _termEdits
+
+
+  todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
+      [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+              <> "transitive dependent(s) left to upgrade."
+              <> "Your edit frontier is the dependents of these definitions:")
+      , P.indentN 2 . P.lines $ (
+          (prettyDeclTriple <$> toList frontierTypes) ++
+          TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
+          )
+      , P.wrap "I recommend working on them in the following order:"
+      , P.indentN 2 . P.lines $
+          let unscore (_score,a,b,c) = (a,b,c)
+          in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+             (TypePrinter.prettySignatures'
+                ppe
+                (goodTerms $ unscore <$> dirtyTerms))
+      , formatMissingStuff corruptTerms corruptTypes
+      ]
 
 listOfDefinitions ::
   Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()

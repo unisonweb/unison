@@ -80,7 +80,6 @@ updateType r edit p =
       f p = p
   in p { _typeEdits = edits' }
 
-
 -- todo: replace with monoid for patch diff for 3-way merge
 instance Semigroup Patch where
   a <> b = Patch (_termEdits a <> _termEdits b)
