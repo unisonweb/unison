@@ -130,6 +130,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
+    IsTerm r -> Codebase.isTerm codebase r
+    IsType r -> Codebase.isType codebase r
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
 

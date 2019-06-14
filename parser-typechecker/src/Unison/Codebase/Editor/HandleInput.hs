@@ -83,7 +83,7 @@ import           Unison.Name                    ( Name )
 import           Unison.Names2                  ( Names'(..), Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
 import           Unison.Parser                  ( Ann(..) )
-import           Unison.Reference               ( Reference )
+import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent )
 import qualified Unison.Referent               as Referent
@@ -98,6 +98,7 @@ import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
 import qualified Unison.Util.Relation          as R
+import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import Unison.Codebase.TypeEdit (TypeEdit)
@@ -585,69 +586,67 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
--- use Command.GetDependents
 checkTodo :: Patch -> Names0 -> Action m i v (TodoOutput v Ann)
 checkTodo patch names0 = do
-  undefined
-  -- f <- frontier' (eval . GetDependents) patch names0
-  -- let dirty = R.dom f
-  --     frontier = R.ran f
-  --     ppe = PPE.fromNames0 names0
-  -- (frontierTerms, frontierTypes) <- error "todo" -- loadDefinitions code frontier
-  -- (dirtyTerms, dirtyTypes) <- error "todo" -- loadDefinitions code dirty
-  -- -- todo: something more intelligent here?
-  -- scoreFn <- pure $ const 1
-  -- remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) b frontier
-  -- let
-  --   addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
-  --   addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
-  --   frontierTermsNamed = addTermNames frontierTerms
-  --   frontierTypesNamed = addTypeNames frontierTypes
-  --   dirtyTermsNamed = sortOn (\(s,_,_,_) -> s) $
-  --     [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-  --   dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
-  --     [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
-  -- pure $
-  --   TodoOutput_
-  --     (Set.size remainingTransitive)
-  --     (frontierTermsNamed, frontierTypesNamed)
-  --     (dirtyTermsNamed, dirtyTypesNamed)
-  --     undefined --      (Branch.conflicts' b)
-  -- pure $ undefined
-  -- where
-  -- frontierTransitiveDependents ::
-  --   Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)
-  -- frontierTransitiveDependents dependents names0 rs = do
-  --   let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
-  --   tdeps <- transitiveClosure branchDependents rs
-  --   -- we don't want the frontier in the result
-  --   pure $ tdeps `Set.difference` rs
+  f <- frontier' (eval . GetDependents) patch names0
+  let dirty = R.dom f
+      frontier = R.ran f
+      ppe = PPE.fromNames0 names0
+  (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
+  (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
+  -- todo: something more intelligent here?
+  scoreFn <- pure $ const 1
+  remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) names0 frontier
+  let
+    addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
+    addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
+    frontierTermsNamed = addTermNames frontierTerms
+    frontierTypesNamed = addTypeNames frontierTypes
+    dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s) $
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
+    dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s) $
+      [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+  pure $
+    TodoOutput_
+      (Set.size remainingTransitive)
+      (frontierTermsNamed, frontierTypesNamed)
+      (dirtyTermsNamed, dirtyTypesNamed)
+      undefined --      (Branch.conflicts' b)
+      undefined
+  where
+  frontierTransitiveDependents ::
+    Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)
+  frontierTransitiveDependents dependents names0 rs = do
+    let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
+    tdeps <- transitiveClosure branchDependents rs
+    -- we don't want the frontier in the result
+    pure $ tdeps `Set.difference` rs
+
+  -- (d, f) when d is "dirty" (needs update),
+  --             f is in the frontier,
+  --         and d depends of f
+  -- a ⋖ b = a depends on b (with no intermediate dependencies)
+  -- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
   --
-  -- -- (d, f) when d is "dirty" (needs update),
-  -- --             f is in the frontier,
-  -- --         and d depends of f
-  -- -- a ⋖ b = a depends on b (with no intermediate dependencies)
-  -- -- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
-  -- --
-  -- -- The range of this relation is the frontier, and the domain is
-  -- -- the set of dirty references.
-  -- frontier' :: forall m . Monad m
-  --          => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
-  --          -> Patch
-  --          -> Names0
-  --          -> m (R.Relation Reference Reference)
-  -- frontier' getDependents patch names = let
-  --   edited :: Set Reference
-  --   edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-  --   addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
-  --   addDependents dependents ref =
-  --     (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
-  --       <$> getDependents ref
-  --   in do
-  --     -- (r,r2) ∈ dependsOn if r depends on r2
-  --     dependsOn <- foldM addDependents R.empty edited
-  --     -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-  --     pure $ R.filterDom (not . flip Set.member edited) dependsOn
+  -- The range of this relation is the frontier, and the domain is
+  -- the set of dirty references.
+  frontier' :: forall m . Monad m
+           => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+           -> Patch
+           -> Names0
+           -> m (R.Relation Reference Reference)
+  frontier' getDependents patch names = let
+    edited :: Set Reference
+    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
+    addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
+    addDependents dependents ref =
+      (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
+        <$> getDependents ref
+    in do
+      -- (r,r2) ∈ dependsOn if r depends on r2
+      dependsOn <- foldM addDependents R.empty edited
+      -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
+      pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
@@ -1161,16 +1160,27 @@ loadSearchResults = traverse loadSearchResult
   where
   loadSearchResult = \case
     SR.Tm (SR.TermResult name r aliases) -> do
-      typ <- case r of
-        Referent.Ref r -> eval $ LoadTypeOfTerm r
-        Referent.Con r cid -> getTypeOfConstructor r cid
+      typ <- loadReferentType r
       pure $ Tm name typ r aliases
     SR.Tp (SR.TypeResult name r aliases) -> do
-      dt <- case r of
-        Reference.Builtin _ -> pure BuiltinThing
-        Reference.DerivedId id ->
-          maybe (MissingThing id) RegularThing <$> eval (LoadType id)
+      dt <- loadTypeDisplayThing r
       pure $ Tp name dt r aliases
+
+loadDisplayInfo ::
+  Set Reference -> Action m i v ([(Reference, Maybe (Type v Ann))]
+                                ,[(Reference, DisplayThing (DD.Decl v Ann))])
+loadDisplayInfo refs = do
+  termRefs <- filterM (eval . IsTerm) (toList refs)
+  typeRefs <- filterM (eval . IsType) (toList refs)
+  terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTypeOfTerm r)
+  types <- forM typeRefs $ \r -> (r,) <$> loadTypeDisplayThing r
+  pure (terms, types)
+
+loadReferentType :: Referent -> _ (Maybe (Type _ _))
+loadReferentType = \case
+  Referent.Ref r -> eval $ LoadTypeOfTerm r
+  Referent.Con r cid -> getTypeOfConstructor r cid
+  where
   getTypeOfConstructor :: Reference -> Int -> Action m i v (Maybe (Type v Ann))
   getTypeOfConstructor (Reference.DerivedId r) cid = do
     maybeDecl <- eval $ LoadType r
@@ -1180,23 +1190,8 @@ loadSearchResults = traverse loadSearchResult
   getTypeOfConstructor r cid =
     error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
-loadDefinitions ::
-  Set Reference -> Action m i v ([(Reference.Id, Maybe (Term v Ann))]
-                                ,[(Reference.Id, DisplayThing (DD.Decl v Ann))])
-loadDefinitions (Set.map Reference.unsafeId -> refs) = do
-  termRefs <- filterM isTerm (toList refs)
-  typeRefs <- filterM isType (toList refs)
-  terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTerm r)
-  types <- forM typeRefs $ \r -> do
-    maybeThing <- eval $ LoadType r
-    case maybeThing of
-      Nothing -> pure $ (r, MissingThing r)
-      Just thing -> pure (r, RegularThing thing)
-  pure (terms, types)
-
--- todo: these implementations currently read the whole thing from disk
--- we could have a more efficient implementation that just looks for a file
--- again, or have it baked into the Reference somehow.
-isTerm, isType :: Reference.Id -> Action m i v Bool
-isTerm r = isJust <$> eval (LoadTerm r)
-isType r = isJust <$> eval (LoadType r)
+loadTypeDisplayThing :: Reference -> _ (DisplayThing (DD.Decl _ _))
+loadTypeDisplayThing = \case
+  Reference.Builtin _ -> pure BuiltinThing
+  Reference.DerivedId id ->
+    maybe (MissingThing id) RegularThing <$> eval (LoadType id)

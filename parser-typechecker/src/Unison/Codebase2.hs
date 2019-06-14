@@ -10,7 +10,7 @@ import           Control.Monad                  ( foldM
                                                 )
 import           Data.Foldable                  ( toList, traverse_ )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes )
+import           Data.Maybe                     ( catMaybes, isJust )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
@@ -357,14 +357,15 @@ dependents c r
 --  where
 --   terms = Branch.allTerms b
 --   types = Branch.allTypes b
---
--- isTerm :: Functor m => Codebase m v a -> Reference -> m Bool
--- isTerm code = fmap isJust . getTypeOfTerm code
---
--- isType :: Applicative m => Codebase m v a -> Reference -> m Bool
--- isType c r = case r of
---   Reference.Builtin b -> pure (Name.unsafeFromText b `Set.member` Builtin.builtinTypeNames)
---   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+
+-- todo: could have a way to look this up just by checking for a file rather than loading it
+isTerm :: Functor m => Codebase m v a -> Reference -> m Bool
+isTerm code = fmap isJust . getTypeOfTerm code
+
+isType :: Applicative m => Codebase m v a -> Reference -> m Bool
+isType c r = case r of
+  Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
+  Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
 
 -- -- Gets the dependents of a whole component (cycle), topologically sorted,
 -- -- meaning that if X depends on Y, Y appears before X in this list.

@@ -126,6 +126,10 @@ data Command m i v a where
 
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
 
+  -- todo: eliminate these hopefully
+  IsTerm :: Reference -> Command m i v Bool
+  IsType :: Reference -> Command m i v Bool
+
   -- Get the immediate (not transitive) dependents of the given reference
   -- This might include historical definitions not in any current path; these
   -- should be filtered by the caller of this command if that's not desired.
