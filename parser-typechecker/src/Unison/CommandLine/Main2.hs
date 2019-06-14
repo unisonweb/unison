@@ -7,9 +7,6 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-
 
 module Unison.CommandLine.Main2 where
 
@@ -75,15 +72,13 @@ getUserInput patterns codebase branch currentPath numberedArgs =
         Right i -> pure i
  where
   expandNumber s = case readMay s of
-    Just i -> case atMay numberedArgs (i - 1) of
-      Just s -> s
-      Nothing -> show i
+    Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
     Nothing -> s
   settings    = Line.Settings tabComplete (Just ".unisonHistory") True
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
     if null prev
-      then pure $ fuzzyComplete word (Map.keys patterns)
+      then pure . fuzzyComplete word $ Map.keys patterns
     -- User has finished a command name; use completions for that command
       else case words $ reverse prev of
         h : t -> fromMaybe (pure []) $ do
