@@ -611,8 +611,8 @@ checkTodo patch names0 = do
       (Set.size remainingTransitive)
       (frontierTermsNamed, frontierTypesNamed)
       (dirtyTermsNamed, dirtyTypesNamed)
-      undefined --      (Branch.conflicts' b)
-      undefined
+      (Names.conflicts names0)
+      (Patch.conflicts patch)
   where
   frontierTransitiveDependents ::
     Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)

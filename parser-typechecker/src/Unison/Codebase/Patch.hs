@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Patch where
 
@@ -79,6 +80,10 @@ updateType r edit p =
         TypeEdit.Deprecate -> (x, TypeEdit.Deprecate)
       f p = p
   in p { _typeEdits = edits' }
+
+conflicts :: Patch -> Patch
+conflicts Patch{..} =
+  Patch (R.filterManyDom _termEdits) (R.filterManyDom _typeEdits)
 
 -- todo: replace with monoid for patch diff for 3-way merge
 instance Semigroup Patch where

@@ -234,6 +234,10 @@ contains :: Names' n -> Reference -> Bool
 contains names r = R.memberRan (Referent.Ref r) (terms names)
                 || R.memberRan r (types names)
 
+-- | filters out everything from the domain except what's conflicted
+conflicts :: Ord n => Names' n -> Names' n
+conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
+
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
 --   where
