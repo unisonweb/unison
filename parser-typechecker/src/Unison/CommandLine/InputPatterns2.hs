@@ -397,6 +397,8 @@ validInputs =
   , update
   , forkLocal
   , mergeLocal
+  , push
+  , pull
   , cd
   , deleteBranch
   , renameBranch
