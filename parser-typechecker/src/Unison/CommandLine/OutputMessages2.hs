@@ -321,7 +321,7 @@ displayDefinitions outputLoc names types terms =
         P.wrap $
           "You can edit them there, then do" <> makeExample' IP.update <>
           "to replace the definitions currently in this branch."
-       ]
+      ]
   code = P.sep "\n\n" (prettyTypes <> prettyTerms)
   prettyTerms = map go . Map.toList
              -- sort by name
@@ -424,8 +424,8 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
         `P.hang` P.commas (P.blue . prettyName <$> toList conflictedNames)
 
 renderEditConflicts ::
-  PPE.PrettyPrintEnv -> Branch.Branch0 -> P.Pretty CT.ColorText
-renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
+  PPE.PrettyPrintEnv -> Patch -> P.Pretty CT.ColorText
+renderEditConflicts ppe Patch{..} =
   unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $ [
     P.wrap $ "These" <> P.bold "definitions were edited differently"
           <> "in branches that have been merged into this branch."
@@ -434,6 +434,11 @@ renderEditConflicts ppe (Branch.editConflicts -> editConflicts) =
     tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
     ]
   where
+    -- todo: could possibly simplify all of this, but today is a copy/paste day.
+    editConflicts :: [Either (Reference, Set TypeEdit.TypeEdit) (Reference, Set TermEdit.TermEdit)]
+    editConflicts =
+      (Left <$> (Map.toList . R.toMultimap . R.filterDom (`R.manyDom` _typeEdits)) _typeEdits) <>
+      (Right <$> (Map.toList . R.toMultimap . R.filterDom (`R.manyDom` _termEdits)) _termEdits)
     name = either (typeName . fst) (termName . fst)
     typeName r = styleHashQualified P.bold (PPE.typeName ppe r)
     termName r = styleHashQualified P.bold (PPE.termName ppe (Referent.Ref r))
@@ -466,7 +471,7 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
   corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
   goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (undefined $ E.editConflicts todo)
+    [ renderEditConflicts ppe (E.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit

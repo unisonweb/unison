@@ -399,6 +399,9 @@ fromMultimap :: (Ord a, Ord b) => Map a (Set b) -> Relation a b
 fromMultimap m =
   foldl' (\r (a, bs) -> insertManyRan a bs r) empty $ Map.toList m
 
+toMultimap :: Relation a b -> Map a (Set b)
+toMultimap = domain
+
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
 
