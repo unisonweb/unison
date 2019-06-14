@@ -466,7 +466,7 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
   corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
   goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (E.editConflicts todo)
+    [ renderEditConflicts ppe (undefined $ E.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
