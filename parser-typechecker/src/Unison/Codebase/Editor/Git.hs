@@ -2,6 +2,7 @@
 
 module Unison.Codebase.Editor.Git where
 
+import Debug.Trace
 import           Control.Monad                  ( when
                                                 , unless
                                                 )
@@ -16,7 +17,7 @@ import           Control.Monad.IO.Class         ( MonadIO
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Shellmet                       ( ($?) )
+import           Shellmet                       ( ($?), ($|) )
 import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
@@ -64,10 +65,10 @@ shallowPullFromGithub
   => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
 shallowPullFromGithub localPath user repo treeish = do
   wd <- prepGitPull localPath uri
-  shallowClone uri localPath
-  "git" ["checkout", treeish]
-    `onError` "git" ["checkout", "-b", treeish]
-    `onError` throwError (CheckoutFailed treeish)
+  unless (Text.null treeish) $
+    "git" ["checkout", treeish]
+      `onError` "git" ["checkout", "-b", treeish]
+      `onError` throwError (CheckoutFailed treeish)
   liftIO $ setCurrentDirectory wd
   where uri = githubUri user repo
 
@@ -85,7 +86,9 @@ pullGithubRootBranch
 pullGithubRootBranch localPath codebase user repo treeish = do
   pullFromGithub localPath user repo treeish
   branch <- lift $ getRootBranch localPath
-  liftIO . removeDirectory $ branchHeadDir localPath
+  headExists <- liftIO $ doesDirectoryExist $ branchHeadDir localPath
+  when headExists $
+    liftIO . removeDirectory $ branchHeadDir localPath
   lift $ Codebase.syncFromDirectory codebase localPath
   pure branch
 
@@ -132,20 +135,24 @@ pushGithubRootBranch
   -> Text
   -> ExceptT GitError m ()
 pushGithubRootBranch localPath codebase branch user repo treeish = do
+  traceM "Pushing..."
   wd <- liftIO getCurrentDirectory
   -- Clone and pull the remote repo
+  traceM "Shallow pull..."
   shallowPullFromGithub localPath user repo treeish
   -- Stick our changes in the checked-out copy
+  traceM $ "Syncing code to " <> show localPath
   lift $ syncToDirectory codebase localPath branch
   liftIO $ do
     setCurrentDirectory localPath
     -- Commit our changes
-    "git" ["add", "-a", "."]
-    "git"
-      [ "commit"
-      , "-m"
-      , "'Sync branch " <> Text.pack (show $ headHash branch) <> "'"
-      ]
+    status <- "git" $| ["status", "--short"]
+    unless (Text.null status) $ do
+      "git" ["add", "--all", "."]
+      "git" ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
     -- Push our changes to the repo
-    "git" ["push", "--all", githubUri user repo, treeish]
+    if Text.null treeish
+      then "git" ["push", "--all", githubUri user repo]
+      else "git" ["push", githubUri user repo, treeish]
     setCurrentDirectory wd
+

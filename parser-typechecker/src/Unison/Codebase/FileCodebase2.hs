@@ -4,7 +4,8 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import           Control.Monad                  ( forever, foldM )
+import Debug.Trace
+import           Control.Monad                  ( forever, foldM, unless )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
@@ -28,6 +29,7 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
                                                 , doesDirectoryExist
                                                 , listDirectory
+                                                , createDirectory
                                                 , removeFile
                                                 -- , removeDirectoryRecursive
                                                 )
@@ -194,8 +196,10 @@ getRootBranch root =
 putRootBranch
   :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
+  traceM $ "Putting root branch to " <> show root
   Branch.sync hashExists (serializeRawBranch root) (serializeEdits root) b
   updateCausalHead (branchHeadDir root) (Branch._history b)
+  traceM "Updated causal head."
   where
   hashExists :: MonadIO m => Branch.Hash -> m Bool
   hashExists (RawHash h) = liftIO $ doesFileExist (branchPath root h)
@@ -221,7 +225,11 @@ updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
       hs = Hash.base58s h
   -- write new head
+  traceM $ "Writing new head " <> show hs
+  exists <- doesDirectoryExist headDir
+  unless exists $ createDirectory headDir
   liftIO $ writeFile (headDir </> hs) ""
+  traceM $ "Wrote new head " <> show hs
   -- delete existing heads
   liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
        >>= traverse_ (removeFile . (headDir </>))
