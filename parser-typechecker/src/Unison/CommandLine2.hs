@@ -3,8 +3,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 
@@ -20,7 +18,6 @@ import           Data.ListLike                   (ListLike)
 import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
 import qualified Data.Set                        as Set
-import           Data.Maybe                      (fromMaybe)
 import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
@@ -45,7 +42,7 @@ import qualified Unison.Util.TQueue              as Q
 allow :: FilePath -> Bool
 allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
-  not (isPrefixOf ".#" (takeFileName p)) &&
+  not (".#" `isPrefixOf` takeFileName p) &&
   (isSuffixOf ".u" p || isSuffixOf ".uu" p)
 
 watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
@@ -83,7 +80,7 @@ tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
 tip s = P.column2 [("Tip:", P.wrap s)]
 
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-warn s = emojiNote "⚠️" s
+warn = emojiNote "⚠️"
 
 problem :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 problem = emojiNote "❗️"
@@ -95,7 +92,7 @@ emojiNote :: (ListLike s Char, IsString s) => String -> P.Pretty s -> P.Pretty s
 emojiNote lead s = P.group (fromString lead) <> "\n" <> P.wrap s
 
 nothingTodo :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
-nothingTodo s = emojiNote "😶" s
+nothingTodo = emojiNote "😶"
 
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True
@@ -173,7 +170,7 @@ prompt = "> "
 -- `plural ["meow", "meow"] "cat" "cats" = "cats"`
 plural :: Foldable f => f a -> b -> b -> b
 plural items one other = case toList items of
-  _ : [] -> one
+  [_] -> one
   _ -> other
 
 plural' :: Integral a => a -> b -> b -> b
@@ -193,4 +190,4 @@ putPrettyLn' p = do
 
 getAvailableWidth :: IO Int
 getAvailableWidth =
-  fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+  maybe 80 (\s -> 100 `min` Terminal.width s) <$> Terminal.size

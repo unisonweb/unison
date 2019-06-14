@@ -60,6 +60,7 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
+           , syncToDirectory    :: FilePath -> Branch m -> m ()
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -80,8 +81,6 @@ initializeCodebase c = do
   let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
   let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
   putRootBranch c (Branch.one b0)
-  where
-  --  Codebase.putRootBranch c (Branch.one $ BranchUtil.addFromNames0 mempty Branch.empty0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
 -- if it makes sense to later.

@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase2 where
@@ -15,7 +14,7 @@ import           UnliftIO.Concurrent            ( forkIO
                                                 )
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
-import           Data.Foldable                  ( traverse_, toList )
+import           Data.Foldable                  ( traverse_, toList, forM_ )
 import           Data.List.Split                ( splitOn )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
@@ -37,7 +36,12 @@ import           System.FilePath                ( FilePath
                                                 , takeFileName
                                                 , (</>)
                                                 )
-import           System.Path                    ( copyDir )
+import           System.Directory               ( copyFile )
+import           System.Path                    ( replaceRoot
+                                                , walkDir
+                                                , subDirs
+                                                , files
+                                                )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin2               as Builtin
 import qualified Unison.Codebase2              as Codebase
@@ -147,7 +151,7 @@ minimalCodebaseStructure root =
 -- checks if a minimal codebase structure exists at `path`
 exists :: CodebasePath -> IO Bool
 exists root =
-  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
+  and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
 
 -- creates a minimal codebase structure at `path`
 initialize :: CodebasePath -> IO ()
@@ -155,7 +159,7 @@ initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
 getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
-getRootBranch root = do
+getRootBranch root =
   liftIO (listDirectory $ branchHeadDir root) >>= \case
     []       -> failWith $ NoBranchHead (branchHeadDir root)
     [single] -> go single
@@ -167,10 +171,9 @@ getRootBranch root = do
     Nothing -> failWith $ CantParseBranchHead single
     Just h  -> branchFromFiles root (RawHash h)
   branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
-  branchFromFiles rootDir rootHash = Branch.read
+  branchFromFiles rootDir = Branch.read
     (deserializeRawBranch rootDir)
     (deserializeEdits rootDir)
-    rootHash
 
   deserializeRawBranch
     :: MonadIO m
@@ -244,6 +247,22 @@ parseHash s = case splitOn "-" s of
  where
   makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase58 (Text.pack h)
 
+-- Adapted from
+-- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
+copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
+copyDir predicate from to = do
+  createDirectoryIfMissing True to
+  walked <- walkDir from
+  forM_ walked $ \d -> do
+    mapM_ (createDirectoryIfMissing True . replaceRoot from to)
+      . filter predicate
+      $ subDirs d
+    forM_ (filter predicate $ files d)
+      $ \path -> copyFile path $ replaceRoot from to path
+
+copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
+copyFromGit = (liftIO .) . flip (copyDir (/= ".git"))
+
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a. (MonadUnliftIO m, Var v)
@@ -258,7 +277,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
            (putRootBranch path)
            (branchHeadUpdates path)
            dependents
-           (liftIO . flip copyDir path)
+           (copyFromGit path)
+           putRootBranch
            watches
            getWatch
            putWatch
@@ -320,25 +340,28 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
-branchHeadUpdates :: MonadUnliftIO m
-                  => CodebasePath -> m (m (), m (Set Branch.Hash))
+branchHeadUpdates
+  :: MonadUnliftIO m => CodebasePath -> m (m (), m (Set Branch.Hash))
 branchHeadUpdates root = do
   branchHeadChanges      <- TQueue.newIO
   (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
 --  -- add .ubf file changes to intermediate queue
-  watcher1               <- forkIO $ do
-    forever $ do
+  watcher1               <-
+    forkIO
+    $ forever
+    $ do
       -- Q: what does watcher return on a file deletion?
       -- A: nothing
-      (filePath, _) <- watcher
-      case hashFromFilePath filePath of
-        Nothing -> failWith $ CantParseBranchHead filePath
-        Just h -> atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+        (filePath, _) <- watcher
+        case hashFromFilePath filePath of
+          Nothing -> failWith $ CantParseBranchHead filePath
+          Just h ->
+            atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
   -- smooth out intermediate queue
   pure
-    $ ( cancelWatch >> killThread watcher1
-      , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
-      )
+    ( cancelWatch >> killThread watcher1
+    , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+    )
 
 hashFromFilePath :: FilePath -> Maybe Hash.Hash
 hashFromFilePath = Hash.fromBase58 . Text.pack . takeBaseName

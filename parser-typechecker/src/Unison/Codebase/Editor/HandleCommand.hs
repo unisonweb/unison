@@ -9,7 +9,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -77,6 +76,15 @@ typecheck ambient codebase names sourceName src =
     (Text.unpack sourceName)
     src
 
+tempGitDir :: Text -> Text -> Text -> IO FilePath
+tempGitDir username repo commit =
+  getXdgDirectory XdgCache
+    $   "unisonlanguage"
+    </> "gitfiles"
+    </> Text.unpack username
+    </> Text.unpack repo
+    </> Text.unpack commit
+
 commandLine
   :: forall i v a
    . Var v
@@ -113,10 +121,12 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
       setBranchRef branch
       Codebase.putRootBranch codebase branch
     LoadRemoteRootBranch Github {..} -> do
-      tmp <- getXdgDirectory XdgCache $ "unisonlanguage" </> "gitfiles"
+      tmp <- tempGitDir username repo commit
       runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
-    SyncRemoteRootBranch Github {..} _branch -> error "todo"
-    RetrieveHashes Github {..} _types _terms -> error "todo"
+    SyncRemoteRootBranch Github {..} branch -> do
+      tmp <- tempGitDir username repo commit
+      runExceptT
+        $ Git.pushGithubRootBranch tmp codebase branch username repo commit
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

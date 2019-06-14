@@ -5,10 +5,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
-
 
 module Unison.CommandLine.InputPatterns2 where
 
@@ -29,6 +26,8 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
+import qualified Data.Text as Text
+import Unison.Codebase.Editor.RemoteRepo
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -60,18 +59,20 @@ updateBuiltins = InputPattern "builtins.update" [] []
   (const . pure $ Input.UpdateBuiltinsI)
 
 todo :: InputPattern
-todo = InputPattern "todo"
+todo = InputPattern
+  "todo"
   []
   [(Required, patchPathArg), (Optional, branchPathArg)]
   "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
-  (\ws -> case ws of
+  (\case
     patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      patch  <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
-        _ -> pure Path.relativeEmpty'
+        _         -> pure Path.relativeEmpty'
       pure $ Input.TodoI patch branch
-    [] -> Left $ warn "`todo` takes a patch and an optional path")
+    [] -> Left $ warn "`todo` takes a patch and an optional path"
+  )
 
 add :: InputPattern
 add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
@@ -84,7 +85,7 @@ update = InputPattern "update"
   [(Required, patchPathArg)
   ,(ZeroPlus, noCompletions)]
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
-  (\ws -> case ws of
+  (\case
     patchStr : ws -> first fromString $ do
       patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       pure $ Input.UpdateI patch (HQ.fromString <$> ws)
@@ -93,7 +94,7 @@ update = InputPattern "update"
 patch :: InputPattern
 patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPathArg)]
   "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
-  (\ws -> case ws of
+  (\case
     patchStr : ws -> first fromString $ do
       patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
@@ -259,6 +260,85 @@ forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
       _ -> Left (I.help forkLocal)
     )
 
+pull :: InputPattern
+pull = InputPattern
+  "pull"
+  []
+  [(Required, githubOwner), (Required, githubRepo), (Optional, branchPathArg)]
+  (P.wrapColumn2
+    [ ( "`pull foo bar`"
+      , "pulls the contents of the Github repo foo/bar into the current path."
+      )
+    , ( "`pull foo bar baz.qux`"
+      , "pulls the contents of the Github repo foo/bar into baz.qux relative "
+        <> "to the current path."
+      )
+    , ( "`pull foo bar .baz.qux`"
+      , "pulls the Github repo foo/bar into the absolute path .baz.qux."
+      )
+    , ( "`pull foo bar baz qux`"
+      , "pulls the contents of the branch or commit named qux from Github repo "
+        <> "foo/bar into the path baz."
+      )
+    ]
+  )
+  (\case
+    [owner, repo] -> pure $ Input.PullRemoteBranchI
+      (Github (Text.pack owner) (Text.pack repo) "")
+      Path.relativeEmpty'
+    [owner, repo, path] -> do
+      p <- first fromString $ Path.parsePath' path
+      pure $ Input.PullRemoteBranchI
+        (Github (Text.pack owner) (Text.pack repo) "")
+        p
+    [owner, repo, path, treeish] -> do
+      p <- first fromString $ Path.parsePath' path
+      pure $ Input.PullRemoteBranchI
+        (Github (Text.pack owner) (Text.pack repo) $ Text.pack treeish)
+        p
+    _ -> Left (I.help pull)
+  )
+
+push :: InputPattern
+push = InputPattern
+  "push"
+  []
+  [(Required, githubOwner), (Required, githubRepo), (Optional, branchPathArg)]
+  (P.wrapColumn2
+    [ ( "`push foo bar`"
+      , "pushes the contents of the current path to the Github repo foo/bar."
+      )
+    , ( "`push foo bar baz.qux`"
+      , "pushes the contents of baz.qux relative to the current path "
+        <> "to the Github repo foo/bar."
+      )
+    , ( "`push foo bar .baz.qux`"
+      , "pushes the contents of the absolute path .baz.qux "
+        <> "to the Github repo foo/bar."
+      )
+    , ( "`push foo bar baz qux`"
+      , "pushes the contents of the path baz "
+        <> "to the branch qux at the Github repo foo/bar."
+      )
+    ]
+  )
+  (\case
+    [owner, repo] -> first fromString . pure $ Input.PushRemoteBranchI
+      (Github (Text.pack owner) (Text.pack repo) "")
+      Path.relativeEmpty'
+    [owner, repo, path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.PushRemoteBranchI
+        (Github (Text.pack owner) (Text.pack repo) "")
+        p
+    [owner, repo, path, treeish] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.PushRemoteBranchI
+        (Github (Text.pack owner) (Text.pack repo) $ Text.pack treeish)
+        p
+    _ -> Left (I.help push)
+  )
+
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
                                      ,(Optional, branchPathArg)]
@@ -339,7 +419,7 @@ validInputs =
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
     (\ws -> if null ws
                then Left $ warn "`execute` needs a Unison language expression."
-               else pure . Input.ExecuteI $ intercalate " " ws)
+               else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
 --  , InputPattern "edit.list" [] []
@@ -359,24 +439,24 @@ commandNameArg =
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
-  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) _ -> do
-    pure $ [] -- fuzzyCompleteHashQualified b q
+  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) _ ->
+    pure [] -- fuzzyCompleteHashQualified b q
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
-  ArgumentType "definition query" $ \q _ (Branch.head -> b) _ -> do
-    pure $ [] -- autoCompleteHashQualified b q
+  ArgumentType "definition query" $ \q _ (Branch.head -> b) _ ->
+    pure [] -- autoCompleteHashQualified b q
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ -> do
-    pure $ [] -- autoCompleteHashQualifiedType b q
+  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
+    pure [] -- autoCompleteHashQualifiedType b q
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ -> do
-    pure $ [] -- autoCompleteHashQualifiedTerm b q
+  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
+    pure [] -- autoCompleteHashQualifiedTerm b q
 
 patchPathArg :: ArgumentType
 patchPathArg = noCompletions { I.typeName = "patch" }
@@ -385,6 +465,12 @@ patchPathArg = noCompletions { I.typeName = "patch" }
 
 branchPathArg :: ArgumentType
 branchPathArg = noCompletions { I.typeName = "branch" }
+
+githubOwner :: ArgumentType
+githubOwner = noCompletions { I.typeName = "Github-owner"}
+
+githubRepo :: ArgumentType
+githubRepo = noCompletions { I.typeName = "Github-repo"}
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions

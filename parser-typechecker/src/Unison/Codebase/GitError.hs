@@ -6,5 +6,6 @@ import System.IO (FilePath)
 data GitError = NoGit
               | NoGithubAt Text
               | NotAGitRepo FilePath
+              | CheckoutFailed Text
               deriving Show
 
