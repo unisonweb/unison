@@ -153,8 +153,11 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions names detailed results ->
      listOfDefinitions names detailed results
-  SlurpOutput _input _ppe _s -> error "todo"
-    -- slurpOutput s
+  SlurpOutput _input ppe s ->
+    putPrettyLn $
+      SlurpResult.pretty ppe s <> "\n\n" <>
+      filestatusTip
+
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
@@ -207,7 +210,7 @@ notifyUser dir o = case o of
       P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
             <> P.group (P.text sourceName <> ":"),
       P.indentN 2 $ SlurpResult.pretty ppe slurpResult,
-      tip "Use `help filestatus` to learn more.",
+      filestatusTip,
       P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
@@ -734,3 +737,5 @@ watchPrinter src ppe ann kind term isHit =
               ]
           ]
 
+filestatusTip :: P.Pretty CT.ColorText
+filestatusTip = tip "Use `help filestatus` to learn more."
