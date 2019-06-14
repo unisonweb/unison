@@ -15,6 +15,7 @@ import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
+import qualified Unison.DataDeclaration as DD
 import qualified Unison.DeclPrinter as DeclPrinter
 import qualified Unison.HashQualified as HQ
 import qualified Unison.PrettyPrintEnv as PPE
@@ -64,8 +65,8 @@ data SlurpResult v = SlurpResult {
 -- Also removes `removed` from `extraDefinitions`.
 subtractComponent :: forall v. Var v => SlurpComponent v -> SlurpResult v -> SlurpResult v
 subtractComponent removed sr =
-  sr { adds = SC.difference (adds sr) removed
-     , updates = SC.difference (updates sr) removed
+  sr { adds = SC.difference (adds sr) (removed <> blocked)
+     , updates = SC.difference (updates sr) (removed <> blocked)
      , defsWithBlockedDependencies = blocked
      , extraDefinitions = SC.difference (extraDefinitions sr) blocked
      }
@@ -75,12 +76,16 @@ subtractComponent removed sr =
     SC.difference (blockedTerms <> blockedTypes) removed
 
   uf = originalFile sr
+  constructorsFor v = case UF.lookupDecl v uf of
+    Nothing -> mempty
+    Just (_, e) -> Set.fromList . DD.constructorVars $ either DD.toDataDecl id e
+
   blockedTypes = foldMap doType . SC.types $ adds sr <> updates sr where
     -- include this type if it or any of its dependencies are removed
     doType :: v -> SlurpComponent v
     doType v =
-      if null $ Set.intersection (SC.types removed)
-                                 (SC.types (SC.closeWithDependencies uf vc))
+      if null (Set.intersection (SC.types removed) (SC.types (SC.closeWithDependencies uf vc)))
+         && null (Set.intersection (SC.terms removed) (constructorsFor v))
       then mempty else vc
       where vc = mempty { types = Set.singleton v }
 
@@ -107,6 +112,15 @@ data Status =
   ExtraDefinition |
   BlockedDependency
   deriving (Ord,Eq,Show)
+
+isFailure :: Status -> Bool
+isFailure s = case s of
+  TermExistingConstructorCollision -> True
+  ConstructorExistingTermCollision -> True
+  BlockedDependency -> True
+  Collision -> True
+  Conflicted -> True
+  _ -> False
 
 prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
@@ -155,7 +169,7 @@ pretty ppe sr = case pretty' ppe sr of
   d  dup1          : Nat
   d  dup2          : Nat
 
-  + | ability Woot
+  +  ability Woot
 -}
 pretty' :: Var v => PPE.PrettyPrintEnv -> SlurpResult v -> (P.Pretty P.ColorText, Set Status)
 pretty' ppe sr = let
@@ -168,7 +182,9 @@ pretty' ppe sr = let
       lhs = case Map.lookup v (termAlias sr) of
         Nothing -> P.bold (P.text $ Var.name v)
         Just ns -> P.sep "," (P.bold (P.text $ Var.name v) : (P.shown <$> toList ns))
-    Nothing -> []
+    Nothing ->
+      if isFailure status then [(prettyStatus status <> "  " <> P.text (Var.name v), "")]
+      else []
   typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
     Just (_, dd) ->
       prettyStatus status <> "  " <> DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd
