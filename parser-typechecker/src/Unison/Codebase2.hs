@@ -60,6 +60,13 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
+
+           -- Watch expressions are part of the codebase, the `Reference.Id` is
+           -- the hash of the source of the watch expression, and the `Term v a`
+           -- is the evaluated result of the expression, decompiled to a term.
+           , watches            :: UF.WatchKind -> m [Reference.Id]
+           , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
+           , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
            }
 
 -- | Write all of the builtins types and IO types into the codebase
@@ -75,22 +82,23 @@ initializeCodebase c = do
   putRootBranch c (Branch.one b0)
   where
   --  Codebase.putRootBranch c (Branch.one $ BranchUtil.addFromNames0 mempty Branch.empty0)
-  -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
-  -- if it makes sense to later.
-  addDefsToCodebase :: forall m v a. (Monad m, Var v)
-    => Codebase m v a -> UF.TypecheckedUnisonFile v a -> m ()
-  addDefsToCodebase c uf = do
-    traverse_ (goType Right) (UF.dataDeclarations' uf)
-    traverse_ (goType Left)  (UF.effectDeclarations' uf)
-    -- put terms
-    traverse_ goTerm (UF.hashTerms uf)
-    where
-      goTerm (Reference.DerivedId r, tm, tp) = putTerm c r tm tp
-      goTerm b = error $ "tried to write builtin term to codebase: " ++ show b
-      goType :: (t -> Decl v a) -> (Reference.Reference, t) -> m ()
-      goType f (ref, decl) = case ref of
-        Reference.DerivedId id -> putTypeDeclaration c id (f decl)
-        _                      -> pure ()
+
+-- Feel free to refactor this to use some other type than TypecheckedUnisonFile
+-- if it makes sense to later.
+addDefsToCodebase :: forall m v a. (Monad m, Var v)
+  => Codebase m v a -> UF.TypecheckedUnisonFile v a -> m ()
+addDefsToCodebase c uf = do
+  traverse_ (goType Right) (UF.dataDeclarations' uf)
+  traverse_ (goType Left)  (UF.effectDeclarations' uf)
+  -- put terms
+  traverse_ goTerm (UF.hashTerms uf)
+  where
+    goTerm (Reference.DerivedId r, tm, tp) = putTerm c r tm tp
+    goTerm b = error $ "tried to write builtin term to codebase: " ++ show b
+    goType :: (t -> Decl v a) -> (Reference.Reference, t) -> m ()
+    goType f (ref, decl) = case ref of
+      Reference.DerivedId id -> putTypeDeclaration c id (f decl)
+      _                      -> pure ()
 
 getTypeOfConstructor ::
   (Monad m, Ord v) => Codebase m v a -> Reference -> Int -> m (Maybe (Type v a))

@@ -450,7 +450,9 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
         Nothing -> respond NoUnisonFile
@@ -504,7 +506,9 @@ loop = do
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          respond $ SlurpOutput input result
+          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
+              ppe2 = PPE.fromNames0 names0'
+          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
 
       TodoI editPath' branchPath' -> do
         patch <- do
@@ -1130,19 +1134,23 @@ doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
   where
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $ SC.terms slurp
+  names = UF.typecheckedToNames0 uf
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
-  doTerm v = case Map.lookup v (fmap (view _1) $ UF.hashTerms uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
+  doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
+    [] -> errorMissingVar v
+    [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
-      Just split -> BranchUtil.makeAddTermName split (Referent.Ref r)
+      Just split -> BranchUtil.makeAddTermName split r
+    wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
+                <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
-  doType v = case Map.lookup v (fmap fst $ UF.dataDeclarations' uf)
-                <|> Map.lookup v (fmap fst $ UF.effectDeclarations' uf) of
-    Nothing -> errorMissingVar v
-    Just r -> case Path.splitFromName (Name.fromVar v) of
+  doType v = case toList (Names.typesNamed names (Name.fromVar v)) of
+    [] -> errorMissingVar v
+    [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
       Just split -> BranchUtil.makeAddTypeName split r
+    wha -> error $ "Unison bug, typechecked file w/ multiple types named "
+                <> Var.nameStr v <> ": " <> show wha
   errorEmptyVar = error "encountered an empty var name"
   errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
 

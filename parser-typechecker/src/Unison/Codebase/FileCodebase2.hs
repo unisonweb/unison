@@ -34,11 +34,13 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
+                                                , takeFileName
                                                 , (</>)
                                                 )
 import           System.Path                    ( copyDir )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin2               as Builtin
+import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase2               ( Codebase(Codebase) )
 import           Unison.Codebase.Causal2        ( Causal
                                                 , RawHash(..)
@@ -60,6 +62,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
+import qualified Unison.UnisonFile             as UF
 -- import Debug.Trace
 
 type CodebasePath = FilePath
@@ -90,8 +93,8 @@ dependentsDir root r = root </> "dependents" </> case r of
   Reference.DerivedId hash -> componentId hash
 
 watchesDir :: CodebasePath -> Text -> FilePath
+watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
 watchesDir root kind = root </> "watches" </> encodeFileName kind
-
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
@@ -243,7 +246,7 @@ parseHash s = case splitOn "-" s of
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
-  :: (MonadUnliftIO m, Var v)
+  :: forall m v a. (MonadUnliftIO m, Var v)
   => a -> S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
 codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
   Codebase getTerm
@@ -256,6 +259,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
            (branchHeadUpdates path)
            dependents
            (liftIO . flip copyDir path)
+           watches
+           getWatch
+           putWatch
   where
     getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
     putTerm h e typ = liftIO $ do
@@ -284,8 +290,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
       traverse_ (touchDependentFile h . dependentsDir path) deps
       where deps = deleteComponent h . DD.dependencies . either DD.toDataDecl id $ decl
 
-    dependents :: MonadIO m =>
-                  Reference -> m (Set Reference.Id)
+    dependents :: Reference -> m (Set Reference.Id)
     dependents r = do
       let d = dependentsDir path r
       e <- doesDirectoryExist d
@@ -293,6 +298,25 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path =
         ls <- listDirectory d
         pure . Set.fromList $ ls >>= (toList . parseHash)
       else pure Set.empty
+
+    watches :: UF.WatchKind -> m [Reference.Id]
+    watches k = liftIO $ do
+      let wp = watchesDir path (Text.pack k)
+      createDirectoryIfMissing True wp
+      ls <- listDirectory wp
+      pure $ ls >>= (toList . parseHash . takeFileName)
+
+    getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
+    getWatch k id = liftIO $ do
+      let wp = watchesDir path (Text.pack k)
+      createDirectoryIfMissing True wp
+      S.getFromFile (V1.getTerm getV getA) (wp </> componentId id <> ".ub")
+
+    putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a -> m ()
+    putWatch k id e = liftIO $
+      S.putWithParentDirs (V1.putTerm putV putA)
+                          (watchesDir path (Text.pack k) </> componentId id <> ".ub")
+                          e
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them

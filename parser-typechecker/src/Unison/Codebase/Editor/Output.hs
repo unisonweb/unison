@@ -77,7 +77,7 @@ data Output v
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   -- show the result of add/update
-  | SlurpOutput Input (SlurpResult v)
+  | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   -- Original source, followed by the errors:
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]

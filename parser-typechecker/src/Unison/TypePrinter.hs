@@ -43,6 +43,11 @@ import qualified Unison.DataDeclaration as DD
 
 -}
 
+prettyTop
+  :: forall s v a . (IsString s, LL.ListLike s Char, Var v)
+  => PrettyPrintEnv -> AnnotatedType v a -> Pretty s
+prettyTop ppe ty = pretty ppe mempty (-1) ty
+
 pretty
   :: forall s v a . (IsString s, LL.ListLike s Char, Var v)
   => PrettyPrintEnv
