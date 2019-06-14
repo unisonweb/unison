@@ -27,7 +27,6 @@ import           Data.Text.IO                  (readFile, writeFile)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
-import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch        (Branch, Branch0)
 import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.Editor        (DisplayThing (..), Input (..),
@@ -41,6 +40,7 @@ import           Unison.CommandLine            (backtick, backtickEOS,
                                                 watchPrinter, plural)
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
+import           Unison.DataDeclaration        ( Decl )
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
@@ -59,7 +59,6 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Result                 as Result
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
-import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.ColorText         as CT
@@ -347,7 +346,7 @@ displayDefinitions :: Var v =>
   Maybe FilePath
   -> PPE.PrettyPrintEnv
   -> [(Reference.Reference, DisplayThing (Unison.Term.AnnotatedTerm v a1))]
-  -> [(Reference.Reference, DisplayThing (Codebase.Decl v a1))]
+  -> [(Reference.Reference, DisplayThing (Decl v a1))]
   -> IO ()
 displayDefinitions outputLoc ppe terms types =
   maybe displayOnly scratchAndDisplay outputLoc
@@ -449,7 +448,7 @@ prettyAliases aliases = if length aliases < 2 then mempty else
   (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
+  (HQ.HashQualified, Reference.Reference, DisplayThing (Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
    BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)

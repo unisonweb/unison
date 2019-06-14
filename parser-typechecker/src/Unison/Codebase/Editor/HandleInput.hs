@@ -106,7 +106,6 @@ import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Typechecker.TypeLookup (Decl)
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -1180,7 +1179,7 @@ loadSearchResults = traverse loadSearchResult
 
 loadDefinitions ::
   Set Reference -> Action m i v ([(Reference.Id, Maybe (Term v Ann))]
-                                ,[(Reference.Id, DisplayThing (Decl v Ann))])
+                                ,[(Reference.Id, DisplayThing (DD.Decl v Ann))])
 loadDefinitions (Set.map Reference.unsafeId -> refs) = do
   termRefs <- filterM isTerm (toList refs)
   typeRefs <- filterM isType (toList refs)

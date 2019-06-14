@@ -285,7 +285,7 @@ formatMissingStuff terms types =
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> Names0
-  -> Map Reference.Reference (DisplayThing (Codebase.Decl v a1))
+  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
 displayDefinitions outputLoc names types terms =
@@ -391,7 +391,7 @@ prettyAliases aliases = if length aliases < 2 then mempty else error "todo"
   -- (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
 prettyDeclTriple :: Var v =>
-  (HQ.HashQualified, Reference.Reference, DisplayThing (TL.Decl v a))
+  (HQ.HashQualified, Reference.Reference, DisplayThing (DD.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
    BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)

@@ -36,6 +36,7 @@ import           Unison.Codebase.Branch         ( Branch
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
+import           Unison.DataDeclaration         ( Decl )
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
@@ -65,7 +66,6 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.Typechecker.Context    as Context
-import           Unison.Typechecker.TypeLookup  ( Decl )
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free

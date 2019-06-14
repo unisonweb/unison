@@ -39,6 +39,7 @@ import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import qualified Unison.DataDeclaration        as DD
+import           Unison.DataDeclaration         ( Decl )
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name )
@@ -74,7 +75,6 @@ type EffectDeclaration v a = DD.EffectDeclaration' v a
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 type BranchName = Text
-type Decl v a = TL.Decl v a
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))

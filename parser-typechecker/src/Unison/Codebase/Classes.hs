@@ -12,6 +12,7 @@ module Unison.Codebase.Classes
 
 import           Data.Set                       ( Set )
 import           Unison.Codebase.Branch2        ( Branch )
+import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
@@ -20,7 +21,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
-type Decl v a = TL.Decl v a
 
 class GetDecls d m v a | d -> m v a where
   getTerm            :: d -> Reference.Id -> m (Maybe (Term v a))

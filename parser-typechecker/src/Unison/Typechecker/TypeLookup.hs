@@ -14,8 +14,6 @@ import qualified Unison.Referent as Referent
 type Type v a = AnnotatedType v a
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
--- todo: move to DataDeclaration.hs
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 -- Used for typechecking.
 data TypeLookup v a =
@@ -24,7 +22,7 @@ data TypeLookup v a =
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
 
-asDataDecl :: Decl v a -> DataDeclaration v a
+asDataDecl :: DD.Decl v a -> DataDeclaration v a
 asDataDecl = either DD.toDataDecl id
 
 builtinTypeLookup :: Var v => TypeLookup v ()

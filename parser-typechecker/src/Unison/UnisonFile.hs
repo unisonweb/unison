@@ -103,7 +103,7 @@ topLevelComponents :: TypecheckedUnisonFile v a
 topLevelComponents file =
   topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
-getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (TL.Decl v a)
+getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (DD.Decl v a)
 getDecl' uf v =
   (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
   (Left . snd <$> Map.lookup v (effectDeclarations' uf))

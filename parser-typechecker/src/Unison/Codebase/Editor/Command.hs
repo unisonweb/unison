@@ -18,7 +18,7 @@ import           Unison.Parser                  ( Ann )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
                                                 , Result)
-import           Unison.Typechecker.TypeLookup  ( Decl )
+import           Unison.DataDeclaration         ( Decl )
 
 import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.Reference              as Reference

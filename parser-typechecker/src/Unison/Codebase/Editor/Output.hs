@@ -29,7 +29,7 @@ import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
-import Unison.Typechecker.TypeLookup ( Decl )
+import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
