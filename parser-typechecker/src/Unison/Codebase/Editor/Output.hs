@@ -136,17 +136,18 @@ type SourceFileContents = Text
 
 type Score = Int
 
-data TodoOutput v a
-  = TodoOutput_ {
-      todoScore :: Int,
-      todoFrontier ::
+data TodoOutput v a = TodoOutput_
+  { todoScore :: Int
+  , todoFrontier ::
         ( [(HashQualified, Reference, Maybe (Type v a))]
-        , [(HashQualified, Reference, DisplayThing (Decl v a))]),
-      todoFrontierDependents ::
+        , [(HashQualified, Reference, DisplayThing (Decl v a))])
+  , todoFrontierDependents ::
         ( [(Score, HashQualified, Reference, Maybe (Type v a))]
-        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))])--,
-      -- todoConflicts :: OldBranch.Branch0
-    } deriving (Show)
+        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))])
+  , nameConflicts :: Names0
+  , editConflicts :: Names0
+  -- todoConflicts :: OldBranch.Branch0
+  } deriving (Show)
 
 -- -- todo: do we want something here for nonexistent old name?
 -- data NameChangeResult = NameChangeResult

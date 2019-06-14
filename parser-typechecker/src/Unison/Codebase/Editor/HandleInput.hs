@@ -32,7 +32,8 @@ import Unison.Codebase.Editor.RemoteRepo
 import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( foldM, liftM2, when )
+import           Control.Monad                  ( filterM, foldM, forM,
+                                                  liftM2, when )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -47,6 +48,7 @@ import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
+                                                , isJust
                                                 , mapMaybe
                                                 )
 import           Data.Map                       ( Map )
@@ -72,6 +74,7 @@ import           Unison.Codebase.NameSegment    ( HQSegment
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
+import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -103,8 +106,10 @@ import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Typechecker.TypeLookup (Decl)
 
 type F m i v = Free (Command m i v)
+type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
 -- type (Action m i v) a
@@ -266,8 +271,8 @@ loop = do
           if failed == mempty then
             stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
           else do
-            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
-            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            failed <- loadSearchResults $ Names.asSearchResults failed
+            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input rootNames failed failedDependents
 
       SwitchBranchI path' -> do
@@ -328,8 +333,8 @@ loop = do
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
-            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
-            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            failed <- loadSearchResults $ Names.asSearchResults failed
+            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input rootNames failed failedDependents
 
       -- like the previous
@@ -347,13 +352,13 @@ loop = do
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
           else do
-            failed <- eval . LoadSearchResults $ Names.asSearchResults failed
-            failedDependents <- eval . LoadSearchResults $ Names.asSearchResults failedDependents
+            failed <- loadSearchResults $ Names.asSearchResults failed
+            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
             respond $ CantDelete input rootNames failed failedDependents
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        results <- eval . LoadSearchResults $ searchBranchExact currentBranch' hqs
+        results <- loadSearchResults $ searchBranchExact currentBranch' hqs
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
@@ -401,30 +406,21 @@ loop = do
       SearchByNameI [] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions names0' False
+        loadSearchResults results >>= respond . ListOfDefinitions names0' False
       SearchByNameI ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions names0' True
+        loadSearchResults results >>= respond . ListOfDefinitions names0' True
       -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
         let results = uniqueBy SR.toReferent
                     $ searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions names0' True
+        loadSearchResults results >>= respond . ListOfDefinitions names0' True
       SearchByNameI (map HQ.fromString -> qs) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
-        eval (LoadSearchResults results)
-          >>= respond
-          .   ListOfDefinitions names0' False
-
+        loadSearchResults results >>= respond . ListOfDefinitions names0' False
       ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
         where
@@ -515,10 +511,11 @@ loop = do
           let (p,seg) = Path.toAbsoluteSplit currentPath' editPath'
           b <- getAt p
           eval . Eval $ Branch.getPatch seg (Branch.head b)
-        (Branch.head -> branch) <- do
+        branch <- do
           let p = Path.toAbsolutePath currentPath' branchPath'
           getAt p
-        checkTodo patch branch >>= respond . TodoOutput (Branch.toNames0 branch)
+        let names0 = (Branch.toNames0 . Branch.head) branch
+        checkTodo patch names0 >>= respond . TodoOutput names0
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
@@ -577,8 +574,69 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
-checkTodo :: Patch -> Branch0 m -> Action m i v (TodoOutput v Ann)
-checkTodo = undefined
+-- use Command.GetDependents
+checkTodo :: Patch -> Names0 -> Action m i v (TodoOutput v Ann)
+checkTodo patch names0 = do
+  undefined
+  -- f <- frontier' (eval . GetDependents) patch names0
+  -- let dirty = R.dom f
+  --     frontier = R.ran f
+  --     ppe = PPE.fromNames0 names0
+  -- (frontierTerms, frontierTypes) <- error "todo" -- loadDefinitions code frontier
+  -- (dirtyTerms, dirtyTypes) <- error "todo" -- loadDefinitions code dirty
+  -- -- todo: something more intelligent here?
+  -- scoreFn <- pure $ const 1
+  -- remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) b frontier
+  -- let
+  --   addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
+  --   addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
+  --   frontierTermsNamed = addTermNames frontierTerms
+  --   frontierTypesNamed = addTypeNames frontierTypes
+  --   dirtyTermsNamed = sortOn (\(s,_,_,_) -> s) $
+  --     [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
+  --   dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
+  --     [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+  -- pure $
+  --   TodoOutput_
+  --     (Set.size remainingTransitive)
+  --     (frontierTermsNamed, frontierTypesNamed)
+  --     (dirtyTermsNamed, dirtyTypesNamed)
+  --     undefined --      (Branch.conflicts' b)
+  -- pure $ undefined
+  -- where
+  -- frontierTransitiveDependents ::
+  --   Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)
+  -- frontierTransitiveDependents dependents names0 rs = do
+  --   let branchDependents r = Set.filter (Names.contains names0) <$> dependents r
+  --   tdeps <- transitiveClosure branchDependents rs
+  --   -- we don't want the frontier in the result
+  --   pure $ tdeps `Set.difference` rs
+  --
+  -- -- (d, f) when d is "dirty" (needs update),
+  -- --             f is in the frontier,
+  -- --         and d depends of f
+  -- -- a ⋖ b = a depends on b (with no intermediate dependencies)
+  -- -- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
+  -- --
+  -- -- The range of this relation is the frontier, and the domain is
+  -- -- the set of dirty references.
+  -- frontier' :: forall m . Monad m
+  --          => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+  --          -> Patch
+  --          -> Names0
+  --          -> m (R.Relation Reference Reference)
+  -- frontier' getDependents patch names = let
+  --   edited :: Set Reference
+  --   edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
+  --   addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
+  --   addDependents dependents ref =
+  --     (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
+  --       <$> getDependents ref
+  --   in do
+  --     -- (r,r2) ∈ dependsOn if r depends on r2
+  --     dependsOn <- foldM addDependents R.empty edited
+  --     -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
+  --     pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
@@ -764,7 +822,7 @@ respond output = eval $ Notify output
 --      -> Branch0
 --      -> (PPE.PrettyPrintEnv, Action m i v [Editor.SearchResult' v Ann])
 --   go known =
---     Branch.prettyPrintEnv &&& eval . LoadSearchResults . pickResults known
+--     Branch.prettyPrintEnv &&& loadSearchResults . pickResults known
 --   pickResults :: Set Reference -> Branch0 -> [SearchResult]
 --   pickResults known = filter (keep known) . Branch.asSearchResults
 --   keep :: Set Reference -> SearchResult -> Bool
@@ -1087,3 +1145,48 @@ doSlurpAdds slurp uf b = Branch.stepManyAt0 (typeActions <> termActions) b
       Just split -> BranchUtil.makeAddTypeName split r
   errorEmptyVar = error "encountered an empty var name"
   errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
+
+loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
+loadSearchResults = traverse loadSearchResult
+  where
+  loadSearchResult = \case
+    SR.Tm (SR.TermResult name r aliases) -> do
+      typ <- case r of
+        Referent.Ref r -> eval $ LoadTypeOfTerm r
+        Referent.Con r cid -> getTypeOfConstructor r cid
+      pure $ Tm name typ r aliases
+    SR.Tp (SR.TypeResult name r aliases) -> do
+      dt <- case r of
+        Reference.Builtin _ -> pure BuiltinThing
+        Reference.DerivedId id ->
+          maybe (MissingThing id) RegularThing <$> eval (LoadType id)
+      pure $ Tp name dt r aliases
+  getTypeOfConstructor :: Reference -> Int -> Action m i v (Maybe (Type v Ann))
+  getTypeOfConstructor (Reference.DerivedId r) cid = do
+    maybeDecl <- eval $ LoadType r
+    pure $ case maybeDecl of
+      Nothing -> Nothing
+      Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
+  getTypeOfConstructor r cid =
+    error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
+loadDefinitions ::
+  Set Reference -> Action m i v ([(Reference.Id, Maybe (Term v Ann))]
+                                ,[(Reference.Id, DisplayThing (Decl v Ann))])
+loadDefinitions (Set.map Reference.unsafeId -> refs) = do
+  termRefs <- filterM isTerm (toList refs)
+  typeRefs <- filterM isType (toList refs)
+  terms <- forM termRefs $ \r -> (r,) <$> eval (LoadTerm r)
+  types <- forM typeRefs $ \r -> do
+    maybeThing <- eval $ LoadType r
+    case maybeThing of
+      Nothing -> pure $ (r, MissingThing r)
+      Just thing -> pure (r, RegularThing thing)
+  pure (terms, types)
+
+-- todo: these implementations currently read the whole thing from disk
+-- we could have a more efficient implementation that just looks for a file
+-- again, or have it baked into the Reference somehow.
+isTerm, isType :: Reference.Id -> Action m i v Bool
+isTerm r = isJust <$> eval (LoadTerm r)
+isType r = isJust <$> eval (LoadType r)

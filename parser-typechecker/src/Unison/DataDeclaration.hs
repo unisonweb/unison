@@ -48,6 +48,7 @@ import qualified Unison.Pattern                as Pattern
 type ConstructorId = Int
 
 type DataDeclaration v = DataDeclaration' v ()
+type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
 data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
