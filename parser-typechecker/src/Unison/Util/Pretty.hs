@@ -450,12 +450,10 @@ border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
 border n p = "\n" <> indentN n p <> "\n"
 
 callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-callout header p =
-  lines ["┌\n" <> indent ("│  ") (header <> "\n\n" <> p), "└"]
+callout header p = header <> "\n\n" <> p
 
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-bracket p =
-  lines ["┌\n" <> indent ("│  ") p, "└"]
+bracket p = indent ("  ") p
 
 warnCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s

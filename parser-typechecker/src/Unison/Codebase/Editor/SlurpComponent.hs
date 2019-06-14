@@ -21,6 +21,9 @@ data SlurpComponent v =
   SlurpComponent { types :: Set v, terms :: Set v }
   deriving (Eq,Ord,Show)
 
+isEmpty :: SlurpComponent v -> Bool
+isEmpty sc = Set.null (types sc) && Set.null (terms sc)
+
 empty :: Ord v => SlurpComponent v
 empty = SlurpComponent mempty mempty
 
