@@ -604,29 +604,26 @@ putNameSegment = putText . NameSegment.toText
 getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
-putMetadataEdits :: MonadPut m => Metadata.Edits -> m ()
-putMetadataEdits e = do
-  putFoldable putReference $ Metadata.inserts e
-  putFoldable putReference $ Metadata.deletes e
+putMetadata :: MonadPut m => Metadata.Metadata -> m ()
+putMetadata = putMap putReference (putMap putMetadataType (putFoldable putReference))
 
-getMetadataEdits :: MonadGet m => m Metadata.Edits
-getMetadataEdits =
-  Metadata.Edits <$> (Set.fromList <$> getList getReference)
-                 <*> (Set.fromList <$> getList getReference)
+getMetadata :: MonadGet m => m Metadata.Metadata
+getMetadata =
+  getMap getReference (getMap getMetadataType (Set.fromList <$> getList getReference))
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
-putRawBranch (Branch.Raw terms types children edits metadataEdits) =
+putRawBranch (Branch.Raw terms types children edits metadata) =
   putRelation putNameSegment putReferent terms >>
   putRelation putNameSegment putReference types >>
   putMap putNameSegment (putHash . unRawHash) children >>
   putMap putNameSegment putHash edits >>
-  putMap putReference (putMap putMetadataType putMetadataEdits) metadataEdits
+  putMetadata metadata
 
 getMetadataType :: MonadGet m => m Metadata.Type
-getMetadataType = getText
+getMetadataType = getReference
 
 putMetadataType :: MonadPut m => Metadata.Type -> m ()
-putMetadataType = putText
+putMetadataType = putReference
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
@@ -635,7 +632,7 @@ getRawBranch =
     <*> getRelation getNameSegment getReference
     <*> getMap getNameSegment (RawHash <$> getHash)
     <*> getMap getNameSegment getHash
-    <*> getMap getReference (getMap getMetadataType getMetadataEdits)
+    <*> getMetadata
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
