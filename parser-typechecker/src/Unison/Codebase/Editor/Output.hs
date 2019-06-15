@@ -91,7 +91,7 @@ data Output v
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       Names0
+                       PPE.PrettyPrintEnv
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names0 (TodoOutput v Ann)

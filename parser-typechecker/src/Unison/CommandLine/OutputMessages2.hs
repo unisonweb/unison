@@ -101,8 +101,8 @@ notifyUser dir o = case o of
   -- Success (MergeBranchI _ _) ->
   --   putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  DisplayDefinitions outputLoc names types terms ->
-    displayDefinitions outputLoc names types terms
+  DisplayDefinitions outputLoc ppe types terms ->
+    displayDefinitions outputLoc ppe types terms
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -289,14 +289,13 @@ formatMissingStuff terms types =
 
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
-  -> Names0
+  -> PPE.PrettyPrintEnv
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
-displayDefinitions outputLoc names types terms =
+displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
-  ppe = PPE.fromNames0 names
   displayOnly = putPrettyLn code
   scratchAndDisplay path = do
     path' <- canonicalizePath path
