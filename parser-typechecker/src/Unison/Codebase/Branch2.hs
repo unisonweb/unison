@@ -85,12 +85,12 @@ data Branch0 m = Branch0
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- changes to the metadata added during this step; generally quite small as
   -- it is just the delta. Use `metadata` function to obtain the current metadata
-  , _metadataEdits :: Map (Metadata.Type, Reference) Metadata.Edits
+  , _metadataEdits :: Metadata.EditsSet
   , toNamesSeg :: Names.NamesSeg
   , toNames0 :: Names.Names0
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
-  , deepMetadataEdits :: Map (Metadata.Type, Reference) Metadata.Edits
+  , deepMetadataEdits :: Metadata.EditsSet
   }
 
 -- The raw Branch
@@ -99,7 +99,7 @@ data Raw = Raw
   , _typesR :: Relation NameSegment Reference
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
-  , _metadataEditsR :: Map (Metadata.Type, Reference) Metadata.Edits
+  , _metadataEditsR :: Metadata.EditsSet
   }
 
 makeLenses ''Branch
@@ -112,15 +112,31 @@ types :: Lens' (Branch0 m) (Relation NameSegment Reference)
 types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits _metadataEdits)
 children :: Lens' (Branch0 m) (Map NameSegment (Hash, Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits _metadataEdits)
-metadataEdits :: Lens' (Branch0 m) (Map (Metadata.Type, Reference) Metadata.Edits)
+metadataEdits :: Lens' (Branch0 m) (Metadata.EditsSet)
 metadataEdits = lens _metadataEdits (\Branch0{..} x -> branch0 _terms _types _children _edits x)
+
+metadata :: Monad m
+         => (Branch m -> m (Maybe (Metadata.EditsSet)))
+         -> Branch m
+         -> m (Metadata.EditsSet)
+metadata cache b = cache b >>= \case
+  Just md -> pure md
+  Nothing ->
+    let combine md = Metadata.appendSets md (deepMetadataEdits (head b))
+    in combine <$> case _history b of
+      Causal.One _ _ -> pure mempty
+      Causal.Cons _ _ (_, tl) -> tl >>= \tl -> combine <$> metadata cache (Branch tl)
+      Causal.Merge _ _ m -> do
+        causals <- traverse id (Map.elems m)
+        mds <- traverse (metadata cache . Branch) causals
+        pure . combine $ foldl' Metadata.mergeSets mempty mds
 
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 :: Relation NameSegment Referent
         -> Relation NameSegment Reference
         -> Map NameSegment (Hash, Branch m)
         -> Map NameSegment (EditHash, m Patch)
-        -> Map (Metadata.Type, Reference) Metadata.Edits
+        -> Metadata.EditsSet
         -> Branch0 m
 branch0 terms types children edits md =
   Branch0 terms types children edits md namesSeg names0 deepRefts deepTypeRefs deepMd
@@ -132,11 +148,9 @@ branch0 terms types children edits md =
   deepRefts = foldMap deepReferents childrenBranch0
   deepTypeRefs = foldMap deepTypeReferences childrenBranch0
   childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
-  deepMd :: Map (Metadata.Type, Reference) Metadata.Edits
-  deepMd = Map.unionWith Metadata.append md $
-     foldl' (Map.unionWith Metadata.merge)
-            mempty
-            (deepMetadataEdits <$> childrenBranch0)
+  deepMd :: Metadata.EditsSet
+  deepMd = Metadata.appendSets md $
+    foldl' Metadata.mergeSets mempty (deepMetadataEdits <$> childrenBranch0)
 
   toNames0Impl :: (NameSegment, Branch m) -> Names0
   toNames0Impl (nameSegToName -> n, head -> b0) =
@@ -170,12 +184,12 @@ merge0 b1 b2 = do
             (_types b1 <> _types b2)
             c3
             e3
-            (Map.unionWith Metadata.merge (_metadataEdits b1) (_metadataEdits b2))
+            (Metadata.mergeSets (_metadataEdits b1) (_metadataEdits b2))
             (toNamesSeg b1 <> toNamesSeg b2)
             (toNames0 b1 <> toNames0 b2)
             (deepReferents b1 <> deepReferents b2)
             (deepTypeReferences b1 <> deepTypeReferences b2)
-            (Map.unionWith Metadata.merge (deepMetadataEdits b1) (deepMetadataEdits b2))
+            (Metadata.mergeSets (deepMetadataEdits b1) (deepMetadataEdits b2))
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)

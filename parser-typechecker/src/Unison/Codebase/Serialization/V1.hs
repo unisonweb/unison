@@ -620,7 +620,7 @@ putRawBranch (Branch.Raw terms types children edits metadataEdits) =
   putRelation putNameSegment putReference types >>
   putMap putNameSegment (putHash . unRawHash) children >>
   putMap putNameSegment putHash edits >>
-  putMap (putPair putMetadataType putReference) putMetadataEdits metadataEdits
+  putMap putReference (putMap putMetadataType putMetadataEdits) metadataEdits
 
 getMetadataType :: MonadGet m => m Metadata.Type
 getMetadataType = getText
@@ -635,7 +635,7 @@ getRawBranch =
     <*> getRelation getNameSegment getReference
     <*> getMap getNameSegment (RawHash <$> getHash)
     <*> getMap getNameSegment getHash
-    <*> getMap (getPair getMetadataType getReference) getMetadataEdits
+    <*> getMap getReference (getMap getMetadataType getMetadataEdits)
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
