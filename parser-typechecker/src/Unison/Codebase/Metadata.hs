@@ -17,6 +17,14 @@ insert src typ r =
   where
   collide = Map.unionWith (<>)
 
+delete :: Reference -> Type -> Referent -> Metadata -> Metadata
+delete src typ r md = case Map.lookup src md of
+  Nothing -> md
+  Just m -> case Map.lookup typ m of
+    Just s | Set.member r s ->
+      Map.insert src (Map.insert typ (Set.delete r s) m) md
+    _ -> md
+
 -- parallel composition - commutative and associative
 merge :: Metadata -> Metadata -> Metadata
 merge = Map.unionWith (Map.unionWith (<>))

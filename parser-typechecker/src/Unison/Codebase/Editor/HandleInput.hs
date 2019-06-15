@@ -321,6 +321,17 @@ loop = do
             step = over Branch.metadata (Metadata.insert src mdType mdValue)
           _ -> error "todo - output for link failure"
 
+      UnlinkI src mdType mdValue -> do
+        let srcl = toList (Set.map Referent.toReference (getHQ'Terms src) <>
+                           getHQ'Types src)
+            (parent, last) = resolvePath' src
+            mdTypel = toList (getHQTypes mdType)
+            mdValuel = toList (getHQTerms mdValue)
+        case (srcl, mdTypel, mdValuel) of
+          ([src], [mdType], [mdValue]) -> stepAt (parent, step) where
+            step = over Branch.metadata (Metadata.delete src mdType mdValue)
+          _ -> error "todo - output for link failure"
+
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where
