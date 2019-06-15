@@ -605,11 +605,11 @@ getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
 putMetadata :: MonadPut m => Metadata.Metadata -> m ()
-putMetadata = putMap putReference (putMap putMetadataType (putFoldable putReference))
+putMetadata = putMap putReference (putMap putMetadataType (putFoldable putReferent))
 
 getMetadata :: MonadGet m => m Metadata.Metadata
 getMetadata =
-  getMap getReference (getMap getMetadataType (Set.fromList <$> getList getReference))
+  getMap getReference (getMap getMetadataType (Set.fromList <$> getList getReferent))
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
 putRawBranch (Branch.Raw terms types children edits metadata) =

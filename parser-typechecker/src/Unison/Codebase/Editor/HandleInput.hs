@@ -65,6 +65,7 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
@@ -179,6 +180,7 @@ loop = do
       getHQTerms :: Path.HQSplit' -> Set Referent
       getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
       getHQ'Terms = getHQTerms . fmap HQ'.toHQ
+      getHQ'Types = getHQTypes . fmap HQ'.toHQ
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
@@ -307,6 +309,17 @@ loop = do
         where
         srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
         destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
+
+      LinkI src mdType mdValue -> do
+        let srcl = toList (Set.map Referent.toReference (getHQ'Terms src) <>
+                           getHQ'Types src)
+            (parent, last) = resolvePath' src
+            mdTypel = toList (getHQTypes mdType)
+            mdValuel = toList (getHQTerms mdValue)
+        case (srcl, mdTypel, mdValuel) of
+          ([src], [mdType], [mdValue]) -> stepAt (parent, step) where
+            step = over Branch.metadata (Metadata.insert src mdType mdValue)
+          _ -> error "todo - output for link failure"
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
