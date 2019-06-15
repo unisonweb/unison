@@ -63,6 +63,7 @@ library
     Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
     Unison.Codebase.GitError
+    Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
     Unison.Codebase.NameSegment
     Unison.Codebase.Path

@@ -40,6 +40,7 @@ import           Unison.Codebase.Causal2        ( Raw(..)
                                                 , unRawHash
                                                 )
 import qualified Unison.Codebase.Causal2        as Causal
+import qualified Unison.Codebase.Metadata       as Metadata
 import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Codebase.NameSegment    as NameSegment
 import           Unison.Codebase.Patch          ( Patch(..) )
@@ -603,12 +604,29 @@ putNameSegment = putText . NameSegment.toText
 getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
+putMetadataEdits :: MonadPut m => Metadata.Edits -> m ()
+putMetadataEdits e = do
+  putFoldable putReference $ Metadata.inserts e
+  putFoldable putReference $ Metadata.deletes e
+
+getMetadataEdits :: MonadGet m => m Metadata.Edits
+getMetadataEdits =
+  Metadata.Edits <$> (Set.fromList <$> getList getReference)
+                 <*> (Set.fromList <$> getList getReference)
+
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
-putRawBranch (Branch.Raw terms types children edits) =
+putRawBranch (Branch.Raw terms types children edits metadataEdits) =
   putRelation putNameSegment putReferent terms >>
   putRelation putNameSegment putReference types >>
   putMap putNameSegment (putHash . unRawHash) children >>
-  putMap putNameSegment putHash edits
+  putMap putNameSegment putHash edits >>
+  putMap (putPair putMetadataType putReference) putMetadataEdits metadataEdits
+
+getMetadataType :: MonadGet m => m Metadata.Type
+getMetadataType = getText
+
+putMetadataType :: MonadPut m => Metadata.Type -> m ()
+putMetadataType = putText
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
@@ -617,6 +635,7 @@ getRawBranch =
     <*> getRelation getNameSegment getReference
     <*> getMap getNameSegment (RawHash <$> getHash)
     <*> getMap getNameSegment getHash
+    <*> getMap (getPair getMetadataType getReference) getMetadataEdits
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())

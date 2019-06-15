@@ -49,6 +49,7 @@ import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Codebase.NameSegment   as NameSegment
+import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
@@ -82,10 +83,14 @@ data Branch0 m = Branch0
   , _types :: Relation NameSegment Reference
   , _children:: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
   , _edits :: Map NameSegment (EditHash, m Patch)
+  -- changes to the metadata added during this step; generally quite small as
+  -- it is just the delta. Use `metadata` function to obtain the current metadata
+  , _metadataEdits :: Map (Metadata.Type, Reference) Metadata.Edits
   , toNamesSeg :: Names.NamesSeg
   , toNames0 :: Names.Names0
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
+  , deepMetadataEdits :: Map (Metadata.Type, Reference) Metadata.Edits
   }
 
 -- The raw Branch
@@ -94,6 +99,7 @@ data Raw = Raw
   , _typesR :: Relation NameSegment Reference
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
+  , _metadataEditsR :: Map (Metadata.Type, Reference) Metadata.Edits
   }
 
 makeLenses ''Branch
@@ -101,20 +107,23 @@ makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
 terms :: Lens' (Branch0 m) (Relation NameSegment Referent)
-terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
+terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits _metadataEdits)
 types :: Lens' (Branch0 m) (Relation NameSegment Reference)
-types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
+types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits _metadataEdits)
 children :: Lens' (Branch0 m) (Map NameSegment (Hash, Branch m))
-children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
+children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits _metadataEdits)
+metadataEdits :: Lens' (Branch0 m) (Map (Metadata.Type, Reference) Metadata.Edits)
+metadataEdits = lens _metadataEdits (\Branch0{..} x -> branch0 _terms _types _children _edits x)
 
 -- creates a Branch0 from the primary fields and derives the others.
 branch0 :: Relation NameSegment Referent
         -> Relation NameSegment Reference
         -> Map NameSegment (Hash, Branch m)
         -> Map NameSegment (EditHash, m Patch)
+        -> Map (Metadata.Type, Reference) Metadata.Edits
         -> Branch0 m
-branch0 terms types children edits =
-  Branch0 terms types children edits namesSeg names0 deepRefts deepTypeRefs
+branch0 terms types children edits md =
+  Branch0 terms types children edits md namesSeg names0 deepRefts deepTypeRefs deepMd
   where
   namesSeg = toNamesSegImpl terms types
   names0 = foldMap toNames0Impl (Map.toList (fmap snd children))
@@ -123,6 +132,11 @@ branch0 terms types children edits =
   deepRefts = foldMap deepReferents childrenBranch0
   deepTypeRefs = foldMap deepTypeReferences childrenBranch0
   childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
+  deepMd :: Map (Metadata.Type, Reference) Metadata.Edits
+  deepMd = Map.unionWith Metadata.append md $
+     foldl' (Map.unionWith Metadata.merge)
+            mempty
+            (deepMetadataEdits <$> childrenBranch0)
 
   toNames0Impl :: (NameSegment, Branch m) -> Names0
   toNames0Impl (nameSegToName -> n, head -> b0) =
@@ -156,10 +170,12 @@ merge0 b1 b2 = do
             (_types b1 <> _types b2)
             c3
             e3
+            (Map.unionWith Metadata.merge (_metadataEdits b1) (_metadataEdits b2))
             (toNamesSeg b1 <> toNamesSeg b2)
             (toNames0 b1 <> toNames0 b2)
             (deepReferents b1 <> deepReferents b2)
             (deepTypeReferences b1 <> deepTypeReferences b2)
+            (Map.unionWith Metadata.merge (deepMetadataEdits b1) (deepMetadataEdits b2))
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
@@ -232,7 +248,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
   fromRaw Raw {..} = do
     children <- traverse go _childrenR
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
-    pure $ branch0 _termsR _typesR children edits
+    pure $ branch0 _termsR _typesR children edits _metadataEditsR
   go h = (h, ) <$> read deserializeRaw deserializeEdits h
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
@@ -254,7 +270,7 @@ sync exists serializeRaw serializeEdits b = do
   Causal.sync exists serialize0 (view history b)
   where
   toRaw :: Branch0 m -> Raw
-  toRaw Branch0{..} = Raw _terms _types (fst <$> _children) (fst <$> _edits)
+  toRaw Branch0{..} = Raw _terms _types (fst <$> _children) (fst <$> _edits) _metadataEdits
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
   serialize0 h = \case
     RawOne b0 -> serializeRaw h $ RawOne (toRaw b0)
@@ -337,7 +353,7 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)
