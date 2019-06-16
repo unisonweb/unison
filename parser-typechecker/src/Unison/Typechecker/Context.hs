@@ -829,7 +829,9 @@ synthesize e = scope (InSynthesize e) $
     pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
-    (marker, e) <- annotateLetRecBindings isTop letrec
+    marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+    appendContext . context $ [marker]
+    e <- annotateLetRecBindings isTop letrec
     t <- synthesize e
     (_, _, ctx2) <- breakAt marker <$> getContext
     (generalizeExistentials ctx2 t) <$ doRetract marker
@@ -1058,16 +1060,15 @@ resetContextAfter x a = do
   setContext ctx
   pure a
 
--- | Synthesize and generalize the type of each binding in a let rec
--- and return the new context in which all bindings are annotated with
--- their type. Also returns the freshened version of `body` and a marker
--- which should be used to retract the context after checking/synthesis
--- of `body` is complete. See usage in `synthesize` and `check` for `LetRec'` case.
+-- | Synthesize and generalize the type of each binding in a let rec.
+-- Updates the context so that all bindings are annotated with
+-- their type. Also returns the freshened version of `body`.
+-- See usage in `synthesize` and `check` for `LetRec'` case.
 annotateLetRecBindings
   :: (Var v, Ord loc)
   => Term.IsTop
   -> ((v -> M v loc v) -> M v loc ([(v, Term v loc)], Term v loc))
-  -> M v loc (Element v loc, Term v loc)
+  -> M v loc (Term v loc)
 annotateLetRecBindings isTop letrec =
   -- If this is a top-level letrec, then emit a TopLevelComponent note,
   -- which asks if the user-provided type annotations were needed.
@@ -1075,7 +1076,7 @@ annotateLetRecBindings isTop letrec =
   then do
     -- First, typecheck (using annotateLetRecBindings') the bindings with any
     -- user-provided annotations.
-    (marker, body, vts) <- annotateLetRecBindings' True
+    (body, vts) <- annotateLetRecBindings' True
     -- Then, try typechecking again, but ignoring any user-provided annotations.
     -- This will infer whatever type.  If it altogether fails to typecheck here
     -- then, ...(1)
@@ -1084,15 +1085,15 @@ annotateLetRecBindings isTop letrec =
     -- convert from typechecker TypeVar back to regular `v` vars
     let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
     case withoutAnnotations of
-      Just (_, _, vts') -> do
+      Just (_, vts') -> do
         r <- all id <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
         btw $ TopLevelComponent ((\(v,b) -> (Var.reset v, b,r)) . unTypeVar <$> vts)
       -- ...(1) we'll assume all the user-provided annotations were needed
       Nothing -> btw
         $ TopLevelComponent ((\(v, b) -> (Var.reset v, b, False)) . unTypeVar <$> vts)
-    pure (marker, body)
+    pure body
   -- If this isn't a top-level letrec, then we don't have to do anything special
-  else (\(marker, body, _) -> (marker, body)) <$> annotateLetRecBindings' True
+  else fst <$> annotateLetRecBindings' True
  where
   annotateLetRecBindings' useUserAnnotations = do
     (bindings, body) <- letrec freshenVar
@@ -1135,10 +1136,9 @@ annotateLetRecBindings isTop letrec =
     let gen bindingType _arity = generalizeExistentials ctx2 bindingType
         bindingTypesGeneralized = zipWith gen bindingTypes bindingArities
         annotations             = zipWith Ann vs bindingTypesGeneralized
-    marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
     doRetract (Marker e1)
-    appendContext . context $ marker : annotations
-    pure (marker, body, vs `zip` bindingTypesGeneralized)
+    appendContext . context $ annotations
+    pure (body, vs `zip` bindingTypesGeneralized)
 
 ensureGuardedCycle :: Var v => [(v, Term v loc)] -> M v loc ()
 ensureGuardedCycle bindings = let
@@ -1254,7 +1254,9 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     doRetract $ Ann v tbinding
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t = do
-    (marker, e) <- annotateLetRecBindings isTop letrec
+    marker <- Marker <$> freshenVar (ABT.v' "let-rec-marker")
+    appendContext . context $ [marker]
+    e <- annotateLetRecBindings isTop letrec
     check e t
     doRetract marker
   go block@(Term.Handle' h body) t = do
