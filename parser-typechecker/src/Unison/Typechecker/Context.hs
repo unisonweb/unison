@@ -380,24 +380,26 @@ unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
 
 replace :: (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc -> Context v loc
 replace e focus ctx =
-  let (l,mid,r) = breakAt e ctx
-  in if null mid then ctx
-     else l `mappend` focus `mappend` r
+  case breakAt e ctx of
+    Just (l, _, r) -> l `mappend` focus `mappend` r
+    Nothing -> ctx
 
 breakAt :: (Var v, Ord loc)
         => Element v loc
         -> Context v loc
-        -> (Context v loc, [Element v loc], Context v loc)
+        -> Maybe (Context v loc, Element v loc, Context v loc)
 breakAt m (Context xs) =
-  let
-    (r, l) = break (\(e,_) -> e === m) xs
-  -- l is a suffix of xs and is already a valid context;
-  -- r needs to be rebuilt
+  case focusAt (\(e,_) -> e === m) xs of
+    Just (r, m, l) ->
+      -- l is a suffix of xs and is already a valid context;
+      -- r needs to be rebuilt
+      Just (Context l, fst m, context . map fst $ r)
+    Nothing -> Nothing
+  where
     Existential _ v === Existential _ v2 | v == v2 = True
     Universal v     === Universal v2 | v == v2 = True
     Marker v        === Marker v2 | v == v2 = True
     _ === _ = False
-  in (Context (drop 1 l), fst <$> take 1 l, context . map fst $ reverse r)
 
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
@@ -1481,12 +1483,10 @@ solve ctx v t
   | v `elem` (map fst (solved ctx)) = same =<< lookup v (solved ctx)
   where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
                 | otherwise = Nothing
-solve ctx v t
-  | wellformedType ctxL (Type.getPolytype t) = Just ctx'
-  | otherwise                                = Nothing
-  where (ctxL, focus, ctxR) = breakAt (existential v) ctx
-        mid = [ Solved blank v t | Existential blank v <- focus ]
-        ctx' = ctxL `mappend` context mid `mappend` ctxR
+solve ctx v t = case breakAt (existential v) ctx of
+  Just (ctxL, Existential blank v, ctxR) | wellformedType ctxL (Type.getPolytype t) ->
+    Just $ ctxL `mappend` context [Solved blank v t] `mappend` ctxR
+  _ -> Nothing
 
 abilityCheck' :: forall v loc . (Var v, Ord loc) => [Type v loc] -> [Type v loc] -> M v loc ()
 abilityCheck' [] [] = pure ()
