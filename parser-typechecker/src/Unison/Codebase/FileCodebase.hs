@@ -159,26 +159,30 @@ encodeFileName t = let
      else go (Text.unpack t)
 
 decodeFileName :: FilePath -> Maybe Text
-decodeFileName p = let
-  go ('$' : rem) = case span (/= '$') rem of
-    ("forward-slash", (drop 1) -> rem) -> ("/" <>) <$> go rem
-    ("back-slash", (drop 1) -> rem) -> ("\\" <>) <$> go rem
-    ("colon", drop 1 -> rem) -> (":" <>) <$> go rem
-    ("star", drop 1 -> rem) -> ("*" <>) <$> go rem
-    ("question-mark", drop 1 -> rem) -> ("?" <>) <$> go rem
-    ("double-quote", drop 1 -> rem) -> ("\"" <>) <$> go rem
-    ("less-than", drop 1 -> rem) -> ("<" <>) <$> go rem
-    ("greater-than", drop 1 -> rem) -> (">" <>) <$> go rem
-    ("pipe", drop 1 -> rem) -> ("|" <>) <$> go rem
-    ("dot", _rem) -> Just "."
-    ("dotdot", _rem) -> Just ".."
-    ('b':'5':'8':left, drop 1 -> rem) -> liftA2 (<>) (unb58 left) (go rem)
-    ("", drop 1 -> rem) -> ("$" <>) <$> go rem
-    (_, _) -> Nothing
-  go (c : rem) = (c:) <$> go rem
-  go [] = Just mempty
-  unb58 p = Text.unpack . decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
-  in Text.pack <$> go p
+decodeFileName p
+  = let
+      go ('$' : rem) = case span (/= '$') rem of
+        ("forward-slash", drop 1 -> rem) -> ("/" <>) <$> go rem
+        ("back-slash"   , drop 1 -> rem) -> ("\\" <>) <$> go rem
+        ("colon"        , drop 1 -> rem) -> (":" <>) <$> go rem
+        ("star"         , drop 1 -> rem) -> ("*" <>) <$> go rem
+        ("question-mark", drop 1 -> rem) -> ("?" <>) <$> go rem
+        ("double-quote" , drop 1 -> rem) -> ("\"" <>) <$> go rem
+        ("less-than"    , drop 1 -> rem) -> ("<" <>) <$> go rem
+        ("greater-than" , drop 1 -> rem) -> (">" <>) <$> go rem
+        ("pipe"         , drop 1 -> rem) -> ("|" <>) <$> go rem
+        ("dot"          , _rem         ) -> Just "."
+        ("dotdot"       , _rem         ) -> Just ".."
+        ('b' : '5' : '8' : left, drop 1 -> rem) ->
+          liftA2 (<>) (unb58 left) (go rem)
+        ("", drop 1 -> rem) -> ("$" <>) <$> go rem
+        (_ , _            ) -> Nothing
+      go (c : rem) = (c :) <$> go rem
+      go []        = Just mempty
+      unb58 p = Text.unpack . decodeUtf8 . Hash.toBytes <$> Hash.fromBase58
+        (Text.pack p)
+    in
+      Text.pack <$> go p
 
 builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
 builtinTermDir path name =
@@ -186,10 +190,9 @@ builtinTermDir path name =
 builtinTypeDir path name =
   path </> "types" </> "_builtin" </> encodeFileName name
 builtinDir :: FilePath -> Reference -> Maybe FilePath
-builtinDir path r@(Reference.Builtin name) =
-  if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
-  else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
-  else Nothing
+builtinDir path r@(Reference.Builtin name)
+  | Builtin.isBuiltinTerm r = Just (builtinTermDir path name)
+  | Builtin.isBuiltinType r = Just (builtinTypeDir path name)
 builtinDir _ _ = Nothing
 
 termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
@@ -248,11 +251,11 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
             deps = Term.dependencies e
         traverse_
           (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
-          [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
+          [ r | r@(Reference.Builtin _) <- Set.toList deps]
         traverse_ (touchDependentFile h . termDir path)
-          $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies e ]
+          [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies e ]
         traverse_ (touchDependentFile h . declDir path)
-          $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
+          [ r | Reference.DerivedId r <- Set.toList declDependencies ]
       getTypeOfTerm r = case r of
         Reference.Builtin _ -> pure $
           fmap (const builtinTypeAnnotation) <$> Map.lookup r Builtin.builtins0
@@ -263,12 +266,11 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                       (V0.getDataDeclaration getV getA)
         )
         (declPath path h)
-      putDecl h decl = S.putWithParentDirs
+      putDecl h = S.putWithParentDirs
         (V0.putEither (V0.putEffectDeclaration putV putA)
                       (V0.putDataDeclaration putV putA)
         )
         (declPath path h)
-        decl
       branches = map Text.pack <$> do
         files <- listDirectory (branchesPath path)
         let paths = (branchesPath path </>) <$> files
@@ -330,7 +332,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
         branchFileChanges      <- TQueue.newIO
         (cancelWatch, watcher) <- Watch.watchDirectory' (branchesPath path)
         -- add .ubf file changes to intermediate queue
-        watcher1               <- forkIO $ do
+        watcher1               <- forkIO $
           forever $ do
             (filePath, _) <- watcher
             when (".ubf" `isSuffixOf` filePath)
@@ -339,11 +341,11 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
               $ filePath
         -- smooth out intermediate queue
         pure
-          $ ( cancelWatch >> killThread watcher1
-            , Set.map ubfPathToName . Set.fromList <$> Watch.collectUntilPause
-              branchFileChanges
-              400000
-            )
+          ( cancelWatch >> killThread watcher1
+          , Set.map ubfPathToName . Set.fromList <$> Watch.collectUntilPause
+            branchFileChanges
+            400000
+          )
 
       watches :: UF.WatchKind -> IO [Reference.Id]
       watches k = do
@@ -361,11 +363,9 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
 
       putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a
                -> IO ()
-      putWatch k id e =
+      putWatch k id =
         S.putWithParentDirs (V0.putTerm putV putA)
                             (watchesDir path k </> componentId id <> ".ub")
-                            e
-
     in
       Codebase getTerm
                getTypeOfTerm
