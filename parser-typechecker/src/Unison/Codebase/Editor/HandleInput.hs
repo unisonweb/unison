@@ -590,7 +590,7 @@ loop = do
       PushRemoteBranchI repo path -> do
         b <- getAt $ Path.toAbsolutePath currentPath' path
         e <- eval $ SyncRemoteRootBranch repo b
-        either (fail . show) pure e
+        either (eval . Notify . GitError) pure e
         success
       QuitI -> MaybeT $ pure Nothing
       _ -> error $ "todo: " <> show input
@@ -627,16 +627,16 @@ checkTodo patch names0 = do
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   -- todo: something more intelligent here?
-  scoreFn <- pure $ const 1
+  let scoreFn = const 1
   remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) names0 frontier
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
     frontierTermsNamed = addTermNames frontierTerms
     frontierTypesNamed = addTypeNames frontierTypes
-    dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s) $
+    dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s)
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-    dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s) $
+    dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s)
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
   pure $
     TodoOutput_
@@ -946,9 +946,9 @@ respond output = eval $ Notify output
 
 loadRemoteBranchAt
   :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
-loadRemoteBranchAt repo p = void . updateAtM p $ \b_ -> do
+loadRemoteBranchAt repo p = do
   b <- eval (LoadRemoteRootBranch repo)
-  either (fail . show) pure b
+  either (eval . Notify . GitError) (void . updateAtM p . const . pure) b
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =

@@ -8,8 +8,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
 
@@ -43,6 +41,7 @@ import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.GitError
 import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Patch         as Patch
@@ -220,6 +219,21 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
+  GitError e -> case e of
+                  NoGit -> putPrettyLn' . P.wrap $ "I couldn't find git. "
+                           <> "Make sure it's installed and on your path."
+                  NoGithubAt p ->
+                    putPrettyLn' . P.wrap $ "I couldn't access a git "
+                      <> "repository at " <> P.text p
+                      <> ". Make sure the repo exists "
+                      <> "and that you have access to it."
+                  NotAGitRepo p ->
+                    putPrettyLn' . P.wrap $ "The directory at " <> P.string p
+                    <> "doesn't seem to contain a git repository."
+                  CheckoutFailed t ->
+                    putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
+                    <> P.text t <> ". Make sure there's a branch or commit "
+                    <> "with that name."
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably

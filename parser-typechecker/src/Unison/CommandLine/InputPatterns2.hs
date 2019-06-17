@@ -284,12 +284,12 @@ pull = InputPattern
   )
   (\case
     [owner, repo] -> pure $ Input.PullRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "")
+      (Github (Text.pack owner) (Text.pack repo) "master")
       Path.relativeEmpty'
     [owner, repo, path] -> do
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "")
+        (Github (Text.pack owner) (Text.pack repo) "master")
         p
     [owner, repo, path, treeish] -> do
       p <- first fromString $ Path.parsePath' path
@@ -324,12 +324,12 @@ push = InputPattern
   )
   (\case
     [owner, repo] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "")
+      (Github (Text.pack owner) (Text.pack repo) "master")
       Path.relativeEmpty'
     [owner, repo, path] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.PushRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "")
+        (Github (Text.pack owner) (Text.pack repo) "master")
         p
     [owner, repo, path, treeish] -> first fromString $ do
       p <- Path.parsePath' path
