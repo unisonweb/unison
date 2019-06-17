@@ -153,6 +153,7 @@ library
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation
+    Unison.Util.Star3
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable
