@@ -65,8 +65,10 @@ import           Unison.Referent                ( Referent(Con,Ref) )
 import qualified Unison.Referent              as Referent
 import qualified Unison.Reference             as Reference
 
-import qualified Unison.Util.Relation          as R
+import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
+import qualified Unison.Util.Star3             as Star3
+import           Unison.Util.Star3              ( Star3 )
 import qualified Unison.Util.List              as List
 
 
@@ -79,13 +81,10 @@ type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
 
 data Branch0 m = Branch0
-  { _terms :: Relation NameSegment Referent
-  , _types :: Relation NameSegment Reference
+  { _terms :: Star3 Referent NameSegment Metadata.Type Metadata.Value
+  , _types :: Star3 Reference NameSegment Metadata.Type Metadata.Value
   , _children:: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
   , _edits :: Map NameSegment (EditHash, m Patch)
-  -- changes to the metadata added during this step; generally quite small as
-  -- it is just the delta. Use `metadata` function to obtain the current metadata
-  , _metadata :: Metadata.Metadata
   , toNamesSeg :: Names.NamesSeg
   , toNames0 :: Names.Names0
   , deepReferents :: Set Referent
