@@ -5,7 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import           Control.Monad                  ( forever, foldM, unless )
+import           Control.Monad                  ( forever, foldM, unless, when )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
@@ -20,6 +20,7 @@ import           Data.Foldable                  ( traverse_
                                                 , forM_
                                                 , for_
                                                 )
+import           Data.List                      ( isSuffixOf )
 import           Data.List.Split                ( splitOn )
 import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
@@ -46,9 +47,10 @@ import           System.FilePath                ( FilePath
                                                 )
 import           System.Directory               ( copyFile )
 import           System.Path                    ( replaceRoot
-                                                , walkDir
+                                                , createDir
                                                 , subDirs
                                                 , files
+                                                , dirPath
                                                 )
 import           Text.Read                      ( readMaybe )
 import qualified Unison.Builtin2               as Builtin
@@ -265,16 +267,15 @@ parseHash s = case splitOn "-" s of
 copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
 copyDir predicate from to = do
   createDirectoryIfMissing True to
-  walked <- walkDir from
-  forM_ walked $ \d -> do
-    mapM_ (createDirectoryIfMissing True . replaceRoot from to)
-      . filter predicate
-      $ subDirs d
-    forM_ (filter predicate $ files d)
-      $ \path -> copyFile path $ replaceRoot from to path
+  d <- createDir from
+  when (predicate $ dirPath d) $ do
+    forM_ (subDirs d)
+      $ \path -> copyDir predicate path (replaceRoot from to path)
+    forM_ (files d) $ \path -> copyFile path (replaceRoot from to path)
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
-copyFromGit = (liftIO .) . flip (copyDir (/= ".git"))
+copyFromGit = (liftIO .) . flip
+  (copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))))
 
 writeAllTermsAndTypes
   :: forall m v a
@@ -286,10 +287,9 @@ writeAllTermsAndTypes
   -> FilePath
   -> Branch m
   -> m ()
-writeAllTermsAndTypes putV putA codebase localPath = Branch.sync
-  (hashExists localPath)
-  serialize
-  (serializeEdits localPath)
+writeAllTermsAndTypes putV putA codebase localPath branch = do
+  Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
+  updateCausalHead (branchHeadDir localPath) $ Branch._history branch
  where
   serialize :: Causal.Serialize m Branch.Raw Branch.Raw
   serialize rh rawBranch = do
