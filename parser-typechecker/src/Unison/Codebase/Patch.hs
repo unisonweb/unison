@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Unison.Codebase.Patch where
 
@@ -28,7 +29,7 @@ import           Unison.Util.Relation           ( Relation )
 data Patch = Patch
   { _termEdits :: Relation Reference TermEdit
   , _typeEdits :: Relation Reference TypeEdit
-  } deriving (Eq, Ord)
+  } deriving (Eq, Ord, Show)
 
 makeLenses ''Patch
 
@@ -80,6 +81,9 @@ updateType r edit p =
       f p = p
   in p { _typeEdits = edits' }
 
+conflicts :: Patch -> Patch
+conflicts Patch{..} =
+  Patch (R.filterManyDom _termEdits) (R.filterManyDom _typeEdits)
 
 -- todo: replace with monoid for patch diff for 3-way merge
 instance Semigroup Patch where

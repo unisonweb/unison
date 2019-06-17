@@ -53,6 +53,11 @@ isConstructor :: Referent -> Bool
 isConstructor (Con _ _) = True
 isConstructor _         = False
 
+toTermReference :: Referent -> Maybe Reference
+toTermReference = \case
+  Ref r -> Just r
+  _ -> Nothing
+
 toReference :: Referent -> Reference
 toReference = \case
   Ref r -> r

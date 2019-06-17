@@ -193,6 +193,10 @@ filterRan f r = r |> S.filter f (ran r)
 filter :: (Ord a, Ord b) => ((a, b) -> Bool) -> Relation a b -> Relation a b
 filter f = fromList . List.filter f . toList
 
+-- | Restricts the relation to domain elements having multiple range elements
+filterManyDom :: (Ord a, Ord b) => Relation a b -> Relation a b
+filterManyDom r = filterDom (`manyDom` r) r
+
 -- |
 -- True if the relation @r@ is the 'empty' relation.
 null :: Relation a b -> Bool
@@ -398,6 +402,9 @@ fromMap = fromList . Map.toList
 fromMultimap :: (Ord a, Ord b) => Map a (Set b) -> Relation a b
 fromMultimap m =
   foldl' (\r (a, bs) -> insertManyRan a bs r) empty $ Map.toList m
+
+toMultimap :: Relation a b -> Map a (Set b)
+toMultimap = domain
 
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList

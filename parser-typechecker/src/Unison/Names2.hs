@@ -77,6 +77,73 @@ termReferents Names{..} = R.ran terms
 termReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 
+-- | Guide to unionLeft*
+-- Is it ok to create new aliases for parsing?
+--    Sure.
+-- Is it ok to create name conflicts for parsing?
+--    It's okay but not great. The user will have to hash-qualify to disambiguate.
+--
+-- Is it ok to create new aliases for pretty-printing?
+--    Not helpful, we need to choose a name to show.
+--    We'll just have to choose one at random if there are aliases.
+-- Is it ok to create name conflicts for pretty-printing?
+--    Still okay but not great.  The pretty-printer will have to hash-qualify
+--    to disambiguate.
+--
+-- Thus, for parsing:
+--       unionLeftName is good if the name `n` on the left is the only `n` the
+--           user will want to reference.  It allows the rhs to add aliases.
+--       unionLeftRef allows new conflicts but no new aliases.  Lame?
+--       (<>) is ok for parsing if we expect to add some conflicted names,
+--           e.g. from history
+--
+-- For pretty-printing:
+--       Probably don't want to add new aliases, unless we don't know which
+--       `Names` is higher priority.  So if we do have a preferred `Names`,
+--       don't use `unionLeftName` or (<>).
+--       You don't want to create new conflicts either if you have a preferred
+--       `Names`.  So in this case, don't use `unionLeftRef` either.
+--       I guess that leaves `unionLeft`.
+--
+-- Not sure if the above is helpful or correct!
+
+-- unionLeft two Names, excluding new name conflicts.
+-- e.g. unionLeftName [foo -> #a, bar -> #a, cat -> #c]
+--                    [foo -> #b, baz -> #c]
+--                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
+-- Btw, it's ok to create name conflicts for parsing environments, if you don't
+-- mind disambiguating.
+unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
+unionLeftName a b = Names terms' types' where
+  terms' = foldl' go (terms a) (R.toList $ terms b)
+  types' = foldl' go (types a) (R.toList $ types b)
+  go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
+  go acc (n, r) = if R.memberDom n acc then acc else R.insert n r acc
+
+-- unionLeft two Names, excluding new aliases.
+-- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
+--                   [foo -> #b, baz -> #c]
+--                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
+unionLeftRef :: Ord n => Names' n -> Names' n -> Names' n
+unionLeftRef a b = Names terms' types' where
+  terms' = foldl' go (terms a) (R.toList $ terms b)
+  types' = foldl' go (types a) (R.toList $ types b)
+  go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
+  go acc (n, r) = if R.memberRan r acc then acc else R.insert n r acc
+
+-- unionLeft two Names, but don't create new aliases or new name conflicts.
+-- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
+--                [foo -> #b, baz -> #c]
+--              = [foo -> #a, bar -> #a, cat -> #c]
+unionLeft :: Ord n => Names' n -> Names' n -> Names' n
+unionLeft a b = Names terms' types' where
+  terms' = foldl' go (terms a) (R.toList $ terms b)
+  types' = foldl' go (types a) (R.toList $ types b)
+  go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
+  go acc (n, r) =
+    if R.memberDom n acc || R.memberRan r acc then acc else R.insert n r acc
+
+
 typeReferences :: Names' n -> Set Reference
 typeReferences Names{..} = R.ran types
 
@@ -203,6 +270,13 @@ asSearchResults b =
   map (uncurry (typeSearchResult b)) (R.toList . types $ b) <>
   map (uncurry (termSearchResult b)) (R.toList . terms $ b)
 
+fromSearchResults :: [SearchResult] -> Names
+fromSearchResults = foldl' go mempty where
+  go Names{..} (SR.Tp SR.TypeResult{..}) =
+    Names terms (R.insert typeName reference types)
+  go Names{..} (SR.Tm SR.TermResult{..}) =
+    Names (R.insert termName referent terms) types
+
 termSearchResult :: Names0 -> Name -> Referent -> SearchResult
 termSearchResult b n r =
   SR.termResult (hqTermName b n r) r (hqTermAliases b n r)
@@ -233,6 +307,10 @@ difference a b = Names (R.difference (terms a) (terms b))
 contains :: Names' n -> Reference -> Bool
 contains names r = R.memberRan (Referent.Ref r) (terms names)
                 || R.memberRan r (types names)
+
+-- | filters out everything from the domain except what's conflicted
+conflicts :: Ord n => Names' n -> Names' n
+conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
 
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2

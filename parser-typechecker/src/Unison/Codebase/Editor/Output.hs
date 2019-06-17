@@ -23,6 +23,7 @@ import Data.Text (Text)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.Path (Path')
+import Unison.Codebase.Patch (Patch)
 import Unison.HashQualified ( HashQualified )
 import Unison.Name ( Name )
 import Unison.Names2 ( Names, Names0 )
@@ -90,7 +91,7 @@ data Output v
   | FileChangeEvent SourceName Text
   -- "display" definitions, possibly to a FilePath on disk (e.g. editing)
   | DisplayDefinitions (Maybe FilePath)
-                       Names0
+                       PPE.PrettyPrintEnv
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names0 (TodoOutput v Ann)
@@ -145,8 +146,7 @@ data TodoOutput v a = TodoOutput_
         ( [(Score, HashQualified, Reference, Maybe (Type v a))]
         , [(Score, HashQualified, Reference, DisplayThing (Decl v a))])
   , nameConflicts :: Names0
-  , editConflicts :: Names0
-  -- todoConflicts :: OldBranch.Branch0
+  , editConflicts :: Patch
   } deriving (Show)
 
 -- -- todo: do we want something here for nonexistent old name?

@@ -48,6 +48,7 @@ import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
+                                                , fromJust
                                                 , isJust
                                                 , mapMaybe
                                                 )
@@ -108,6 +109,8 @@ import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 
+import Debug.Trace
+
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -161,6 +164,7 @@ loop = do
   currentBranch' <- getAt currentPath'
   let
       root0 = Branch.head root'
+      currentBranch0 = Branch.head currentBranch'
       resolvePath' :: (Path', a) -> (Path, a)
       resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       path'ToSplit :: Path' -> Maybe Path.Split
@@ -358,14 +362,20 @@ loop = do
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        results <- loadSearchResults $ searchBranchExact currentBranch' hqs
+        let results = searchBranchExact currentBranch' hqs
+            queryNames = Names terms types where
+              -- todo: wouldn't need guard if SR used a Name or a HQ'
+              toName = fromJust . HQ.toName
+              terms = R.fromList [ (toName hq, r) | SR.Tm' hq r _as <- results, HQ.hasName hq ]
+              types = R.fromList [ (toName hq, r) | SR.Tp' hq r _as <- results, HQ.hasName hq ]
+        results' <- loadSearchResults results
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
-                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results ]
+                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
             (collatedTypes, collatedTerms) = collateReferences
-              (mapMaybe Output.tpReference results)
-              (mapMaybe Output.tmReferent results)
+              (mapMaybe Output.tpReference results')
+              (mapMaybe Output.tmReferent results')
         loadedTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
           r@(Reference.DerivedId i) -> do
             tm <- eval (LoadTerm i)
@@ -389,15 +399,19 @@ loop = do
           -- The definitions will generally reference names outside the current
           -- path.  For now we'll assume the pretty-printer will factor out
           -- excess name prefixes.
-          names :: Names0
-          names = Branch.toNames0 root0
+          rootNames, currentBranchNames :: Names0
+          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
+          currentBranchNames = Branch.toNames0 currentBranch0
+          ppe = PPE.fromNames0 $ queryNames
+                                   `Names.unionLeft` currentBranchNames
+                                   `Names.unionLeft` rootNames
 
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
             LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify $ DisplayDefinitions loc names loadedTypes loadedTerms
+          eval . Notify $ DisplayDefinitions loc ppe loadedTypes loadedTerms
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -611,8 +625,8 @@ checkTodo patch names0 = do
       (Set.size remainingTransitive)
       (frontierTermsNamed, frontierTypesNamed)
       (dirtyTermsNamed, dirtyTypesNamed)
-      undefined --      (Branch.conflicts' b)
-      undefined
+      (Names.conflicts names0)
+      (Patch.conflicts patch)
   where
   frontierTransitiveDependents ::
     Monad m => (Reference -> m (Set Reference)) -> Names0 -> Set Reference -> m (Set Reference)
@@ -780,17 +794,31 @@ searchBranchExact b queries = let
       n == name && q `SH.isPrefixOf` toShortHash r
   filteredTypes, filteredTerms, deduped :: [SearchResult]
   filteredTypes =
-    [ SR.typeResult query r (Names.hqTypeAliases names0 name r)
+    -- construct a search result with appropriately hash-qualified version of the query
+    -- for each (n,r) see if it matches a query.  If so, get appropriately hash-qualified version.
+    [ SR.typeResult (Names.hqTypeName names0 name r) r
+                    (Names.hqTypeAliases names0 name r)
     | (name, r) <- R.toList $ Names.types names0
-    , Just query <- [find (matchesHashPrefix Reference.toShortHash (name, r)) queries ]
+    , any (matchesHashPrefix Reference.toShortHash (name, r)) queries
     ]
   filteredTerms =
-    [ SR.termResult query r (Names.hqTermAliases names0 name r)
+    [ SR.termResult (Names.hqTermName names0 name r) r
+                    (Names.hqTermAliases names0 name r)
     | (name, r) <- R.toList $ Names.terms names0
-    , Just query <- [find (matchesHashPrefix Referent.toShortHash (name, r)) queries ]
+    , any (matchesHashPrefix Referent.toShortHash (name, r)) queries
     ]
   deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
+  doTerm (n, r) =
+    if Set.size (R.lookupDom n (Names.terms names0)) > 1
+    then (HQ.take length $ HQ.fromNamedReferent n r, r)
+    else (HQ.NameOnly n, r)
+  doType (n, r) =
+    if Set.size (R.lookupDom n (Names.types names0)) > 1
+    then (HQ.take length $ HQ.fromNamedReference n r, r)
+    else (HQ.NameOnly n, r)
+  length = Names.numHashChars names0
   in List.sort deduped
+
 
 -- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
 -- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
