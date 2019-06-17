@@ -29,9 +29,9 @@ instance (Ord fact, Ord d1, Ord d2, Ord d3) => Semigroup (Star3 fact d1 d2 d3) w
 instance (Ord fact, Ord d1, Ord d2, Ord d3) => Monoid (Star3 fact d1 d2 d3) where
   mempty = Star3 mempty mempty mempty mempty
   s1 `mappend` s2 = Star3 fact' d1' d2' d3' where
-    fact' = Set.intersection (fact s1) (fact s2)
-    d1' = (fact' R.<| d1 s1) <> (fact' R.<| d1 s2)
-    d2' = (fact' R.<| d2 s1) <> (fact' R.<| d2 s2)
-    d3' = (fact' R.<| d3 s1) <> (fact' R.<| d3 s2)
+    fact' = fact s1 <> fact s2
+    d1'   = d1 s1 <> d1 s2
+    d2'   = d2 s1 <> d2 s2
+    d3'   = d3 s1 <> d3 s2
 
 -- Star Reference/Referent NameSegment Metadata.Type Metadata.Value
