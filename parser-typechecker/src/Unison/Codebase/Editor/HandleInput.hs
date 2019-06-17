@@ -162,6 +162,7 @@ loop = do
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
+  e           <- eval Input
   let
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -183,11 +184,28 @@ loop = do
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQTerms . fmap HQ.NameOnly
-  let -- names' = Branch.toNames (Branch.head currentBranch')
-      names0' = Branch.toNames0 root0
-  e           <- eval Input
-  let withFile ambient sourceName text k = do
-        let names = Names.names0ToNames $ names0'
+      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
+      -- summarizeNames title names = trace (title ++ ": " ++ show (R.size (Names.types names)) ++ " types, " ++ show (R.size (Names.terms names)) ++ " terms") names
+      currentPathNames0 = Branch.toNames0 currentBranch0
+      -- all names, but with local names in their relative form only, rather
+      -- than absolute; external names appear as absolute
+      currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+        absDot = Names.prefix0 (Name.Name "")
+        -- externalNames = summarizeNames "externalNames" $ (summarizeNames "rootNames" rootNames) `Names.difference` (summarizeNames "pathPrefixed" $ pathPrefixed currentPathNames0)
+        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
+        rootNames = Branch.toNames0 root0
+        pathPrefixed = case Path.unabsolute currentPath' of
+          Path.Path (toList -> []) -> id
+          p -> Names.prefix0 (Path.toName p)
+      -- | Names used as a basis for computing slurp results.
+      -- todo: include relevant external names if we support writing outside of this branch
+      toSlurpResultNames _uf = currentAndExternalNames0
+      -- parsing should respond to local and absolute names
+      parseNames0 = currentPathNames0 <> absoluteRootNames0
+      -- pretty-printing should use local names where available
+      prettyPrintNames0 = currentAndExternalNames0
+      withFile ambient sourceName text k = do
+        let names = Names.names0ToNames parseNames0
         Result notes r <- eval $ Typecheck ambient names sourceName text
         case r of
           -- Parsing failed
@@ -211,13 +229,13 @@ loop = do
         else do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
-            let sr = toSlurpResult unisonFile names0'
+            let sr = toSlurpResult unisonFile (toSlurpResultNames unisonFile)
             eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
             (bindings, e) <- eval . Evaluate $ unisonFile
             let e' = Map.map go e
                 go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
             eval . Notify $ Evaluated text
-              (PPE.unionLeft errorEnv $ PPE.fromNames0 names0')
+              (PPE.unionLeft errorEnv $ PPE.fromNames0 prettyPrintNames0)
               bindings
               e'
             latestFile .= Just (Text.unpack sourceName, False)
@@ -420,21 +438,25 @@ loop = do
       SearchByNameI [] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results >>= respond . ListOfDefinitions names0' False
+        loadSearchResults results
+          >>= respond . ListOfDefinitions currentPathNames0 False
       SearchByNameI ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results >>= respond . ListOfDefinitions names0' True
+        loadSearchResults results
+          >>= respond . ListOfDefinitions currentPathNames0 True
       -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
         let results = uniqueBy SR.toReferent
                     $ searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results >>= respond . ListOfDefinitions names0' True
+        loadSearchResults results
+          >>= respond . ListOfDefinitions currentPathNames0 True
       SearchByNameI (map HQ.fromString -> qs) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results >>= respond . ListOfDefinitions names0' False
+        loadSearchResults results
+          >>= respond . ListOfDefinitions currentPathNames0 False
       ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
         where
@@ -456,28 +478,25 @@ loop = do
         Just uf -> do
           let result = Slurp.disallowUpdates
                      . applySelection hqs uf
-                     . toSlurpResult uf
-                     . Branch.toNames0
-                     . Branch.head
-                     $ currentBranch'
+                     $ toSlurpResult uf (toSlurpResultNames uf)
           when (Slurp.isNonempty result) $ do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
-              ppe2 = PPE.fromNames0 names0'
-          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
+          let fileNames0 = UF.typecheckedToNames0 uf
+          let ppe = PPE.fromNames0 $ Names.unionLeft fileNames0 prettyPrintNames0
+          respond $ SlurpOutput input ppe result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
-          let names0 = Branch.toNames0 . Branch.head $ currentBranch'
-              result = applySelection hqs uf . toSlurpResult uf $ names0
+          let result = applySelection hqs uf
+                     $ toSlurpResult uf (toSlurpResultNames uf)
               fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
               typeEdits :: [(Reference, TypeEdit)]
               typeEdits = map f (toList $ SC.types (updates result)) where
-                f v = case (toList (Names.typesNamed names0 n)
+                f v = case (toList (Names.typesNamed parseNames0 n)
                               ,toList (Names.typesNamed fileNames0 n)) of
                   ([old],[new]) -> (old, TypeEdit.Replace new)
                   _ -> error $ "Expected unique matches for "
@@ -485,7 +504,7 @@ loop = do
                             ++ show otherwise
                   where n = Name.fromVar v
           termEdits <- for (toList $ SC.terms (updates result)) $ \v ->
-            case ( toList (Names.refTermsNamed names0 (Name.fromVar v))
+            case ( toList (Names.refTermsNamed parseNames0 (Name.fromVar v))
                  , toList (Names.refTermsNamed fileNames0 (Name.fromVar v))) of
               ([old],[new]) -> pure (old, new)
               _ -> error $ "Expected unique matches for "
@@ -520,9 +539,8 @@ loop = do
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          let ppe1 = PPE.fromNames0 . UF.typecheckedToNames0 $ uf
-              ppe2 = PPE.fromNames0 names0'
-          respond $ SlurpOutput input (ppe1 `PPE.unionLeft` ppe2) result
+          let ppe = PPE.fromNames0 $ fileNames0 `Names.unionLeft` prettyPrintNames0
+          respond $ SlurpOutput input ppe result
 
       TodoI editPath' branchPath' -> do
         patch <- do

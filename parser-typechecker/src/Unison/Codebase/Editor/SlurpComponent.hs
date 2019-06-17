@@ -21,6 +21,11 @@ data SlurpComponent v =
   SlurpComponent { types :: Set v, terms :: Set v }
   deriving (Eq,Ord,Show)
 
+
+-- containsType, containsTerm :: Ord v => v -> SlurpComponent v -> Bool
+-- containsType v sc = Set.member v (types sc)
+-- containsTerm v sc = Set.member v (terms sc)
+
 isEmpty :: SlurpComponent v -> Bool
 isEmpty sc = Set.null (types sc) && Set.null (terms sc)
 
