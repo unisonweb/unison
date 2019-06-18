@@ -76,19 +76,19 @@ import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError             (prettyParseError
-                                               -- ,renderNoteAsANSI
+                                               ,renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.ColorText         as CT
-import           Unison.Util.Monoid            (
-                                                -- intercalateMap,
+import           Unison.Util.Monoid            (intercalateMap,
                                                 unlessM)
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
@@ -165,13 +165,12 @@ notifyUser dir o = case o of
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
-  TypeErrors _src _ppenv _notes -> error "todo"
-  -- do
-  --   Console.setTitle "Unison ☹︎"
-  --   let showNote =
-  --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
-  --           . map Result.TypeError
-  --   putStrLn . showNote $ notes
+  TypeErrors src ppenv notes -> do
+    Console.setTitle "Unison ☹︎"
+    let showNote =
+          intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+            . map Result.TypeError
+    putStrLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else
