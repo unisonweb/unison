@@ -298,27 +298,39 @@ loop = do
             eval $ SyncLocalRootBranch prev
             success
 
-      AliasTermI src dest ->
-        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
+      AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
+        ([src], []) -> stepAt (BranchUtil.makeAddTermName (resolvePath' dest) src ol'Md)
+        ([], _)     -> termNotFound src
+        (rs, _)     -> termConflicted src (Set.fromList rs)
+        (_, rs)     -> termExists dest (Set.fromList rs)
         where
-        srcOk src = zeroOrMore (getTerms dest) (destOk src) (termExists dest)
-        destOk = stepAt . BranchUtil.makeAddTermName (resolvePath' dest)
+        ol'Md = error "copy over old metadata"
 
-      AliasTypeI src dest ->
-        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
+      AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
+        ([src], []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) src ol'Md)
+        ([], _)     -> typeNotFound src
+        (rs, _)     -> typeConflicted src (Set.fromList rs)
+        (_, rs)     -> typeExists dest (Set.fromList rs)
         where
-        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
-        destOk = stepAt . BranchUtil.makeAddTypeName (resolvePath' dest)
+        ol'Md = error "copy over old metadata"
 
       LinkI src mdType mdValue -> do
-        let srcl = toList (Set.map Referent.toReference (getHQ'Terms src) <>
-                           getHQ'Types src)
+        let srcle = toList (getHQ'Terms src)
+            srclt = toList (getHQ'Types src)
             (parent, last) = resolvePath' src
             mdTypel = toList (getHQTypes mdType)
             mdValuel = toList (getHQTerms mdValue)
-        case (srcl, mdTypel, mdValuel) of
-          ([src], [mdType], [mdValue]) -> stepAt (parent, step) where
-            step = over Branch.metadata (Metadata.insert src mdType mdValue)
+        case (srcle, srclt, mdTypel, mdValuel) of
+          (srcle, srclt, [mdType], [mdValue])
+            | length srcle < 2 && length srclt < 2 ->
+              stepAt (parent, step)
+              where
+              step b0 = let
+                tmUpdates terms = foldl' go terms srcle where
+                  go src terms = Metadata.insert (src, mdType, mdValue) terms
+                tyUpdates types = foldl' go types srclt where
+                  go src types = Metadata.insert (src, mdType, mdValue) types
+                in over Branch.terms tmUpdates . over Branch.types tyUpdates
           _ -> error "todo - output for link failure"
 
       UnlinkI src mdType mdValue -> do
@@ -329,7 +341,8 @@ loop = do
             mdValuel = toList (getHQTerms mdValue)
         case (srcl, mdTypel, mdValuel) of
           ([src], [mdType], [mdValue]) -> stepAt (parent, step) where
-            step = over Branch.metadata (Metadata.delete src mdType mdValue)
+            step = over Branch.terms (Metadata.delete (src, mdType, mdValue))
+                 . over Branch.types (Metadata.delete (src, mdType, mdValue))
           _ -> error "todo - output for link failure"
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->

@@ -3,8 +3,10 @@ module Unison.Codebase.Metadata where
 import Data.Map (Map)
 import Data.Set (Set)
 import Unison.Referent (Referent)
+import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Unison.Util.Star3 as Star3
 
 type Type = Referent
 type Value = Referent
@@ -12,13 +14,14 @@ type Value = Referent
 -- keys can be terms or types
 type Metadata = Map Type (Set Value)
 
-insert :: Type -> Referent -> Metadata -> Metadata
-insert typ r = Map.insertWith (<>) typ (Set.singleton r)
+insert :: (Ord a, Ord n) => (a, Type, Value) -> Star3 a n Type Value -> Star3 a n Type Value
+insert = Star3.insertD23
 
-delete :: Type -> Value -> Metadata -> Metadata
-delete typ r md = case Map.lookup typ md of
-  Just s | Set.member r s -> Map.insert typ (Set.delete r s) md
-  _ -> md
+delete :: (Ord a, Ord n) => (a, Type, Value) -> Star3 a n Type Value -> Star3 a n Type Value
+delete = Star3.deleteD23
+
+-- metadataFor :: (Ord r) => n -> r -> Star3 r n Type Value -> Metadata
+-- metadataFor n r = error "todo"
 
 -- parallel composition - commutative and associative
 merge :: Metadata -> Metadata -> Metadata

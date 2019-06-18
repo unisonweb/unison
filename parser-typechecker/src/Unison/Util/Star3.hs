@@ -40,6 +40,9 @@ deletePrimaryD1 (f, x) s = let
        Star3 (Set.delete f (fact s)) d1' (R.deleteDom f (d2 s)) (R.deleteDom f (d3 s))
      else s { d1 = d1' }
 
+lookupD1 :: (Ord fact, Ord d1) => d1 -> Star3 fact d1 d2 d3 -> Set fact
+lookupD1 x s = R.lookupRan x (d1 s)
+
 memberD1 :: (Ord fact, Ord d1) => (fact,d1) -> Star3 fact d1 d2 d3 -> Bool
 memberD1 (f, x) s = R.member f x (d1 s)
 
@@ -58,6 +61,23 @@ insert (f, d1i, d2i, d3i) s = Star3 fact' d1' d2' d3' where
   d1'   = R.insert f d1i (d1 s)
   d2'   = R.insert f d2i (d2 s)
   d3'   = R.insert f d3i (d3 s)
+
+insertD23 :: (Ord fact, Ord d1, Ord d2, Ord d3)
+          => (fact, d2, d3)
+          -> Star3 fact d1 d2 d3
+          -> Star3 fact d1 d2 d3
+insertD23 (f, x, y) s = Star3 fact' (d1 s) d2' d3' where
+  fact' = Set.insert f (fact s)
+  d2'   = R.insert f x (d2 s)
+  d3'   = R.insert f y (d3 s)
+
+deleteD23 :: (Ord fact, Ord d1, Ord d2, Ord d3)
+          => (fact, d2, d3)
+          -> Star3 fact d1 d2 d3
+          -> Star3 fact d1 d2 d3
+deleteD23 (f, x, y) s = Star3 (fact s) (d1 s) d2' d3' where
+  d2' = R.delete f x (d2 s)
+  d3' = R.delete f y (d3 s)
 
 instance (Ord fact, Ord d1, Ord d2, Ord d3) => Semigroup (Star3 fact d1 d2 d3) where
   (<>) = mappend

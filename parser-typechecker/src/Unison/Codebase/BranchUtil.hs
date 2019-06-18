@@ -16,6 +16,8 @@ import Unison.HashQualified (HashQualified'(NameOnly, HashOnly, HashQualified))
 -- import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 import qualified Unison.Util.Relation as R
+import qualified Unison.Util.Star3 as Star3
+import Unison.Codebase.Metadata (Metadata)
 
 addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
@@ -25,11 +27,11 @@ addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
 --  doTerm :: (Name, Referent) -> (Path, Branch0 m -> Branch0 m)
   doTerm (n, r) = case Path.splitFromName n of
     Nothing -> errorEmptyName
-    Just split -> makeAddTermName split r
+    Just split -> makeAddTermName split r mempty -- no metadata
 --  doType :: (Name, Reference) -> (Path, Branch0 m -> Branch0 m)
   doType (n, r) = case Path.splitFromName n of
              Nothing -> errorEmptyName
-             Just split -> makeAddTypeName split r
+             Just split -> makeAddTypeName split r mempty -- no metadata
   errorEmptyName = error "encountered an empty name"
 
 -- getNamedTerm :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Referent)
@@ -50,18 +52,18 @@ addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
 
 getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
 getTerm (p, hq) b = case hq of
-    NameOnly n -> R.lookupDom n terms
+    NameOnly n -> Star3.lookupD1 n terms
     HashOnly sh -> filter sh $ Branch.deepReferents b
-    HashQualified n sh -> filter sh $ R.lookupDom n terms
+    HashQualified n sh -> filter sh $ Star3.lookupD1 n terms
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
   terms = Branch._terms (Branch.getAt0 p b)
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
-    NameOnly n -> R.lookupDom n types
+    NameOnly n -> Star3.lookupD1 n types
     HashOnly sh -> filter sh $ Branch.deepTypeReferences b
-    HashQualified n sh -> filter sh $ R.lookupDom n types
+    HashQualified n sh -> filter sh $ Star3.lookupD1 n types
   where
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
   types = Branch._types (Branch.getAt0 p b)
@@ -74,14 +76,16 @@ getBranch (p, seg) b = case Path.toList p of
       getBranch (Path.fromList p, seg)
 
 
-makeAddTermName, makeDeleteTermName ::
-  Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
-makeAddTermName (p, name) r = (p, Branch.addTermName r name)
+makeAddTermName :: Path.Split -> Referent -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
+
+makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
 
-makeAddTypeName, makeDeleteTypeName ::
-  Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
-makeAddTypeName (p, name) r = (p, Branch.addTypeName r name)
+makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
+makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)
+
+makeDeleteTypeName :: Path.Split -> Reference -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 
 -- to delete, just set with Branch.empty
