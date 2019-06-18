@@ -399,6 +399,16 @@ quit = InputPattern "quit" ["exit"] []
     _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
   )
 
+viewPatch :: InputPattern
+viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
+  "Lists all the edits in the given patch."
+  (\case
+    patchStr : [] -> first fromString $ do
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      Right $ Input.ListEditsI patch
+    _ -> Left $ warn "`view.patch` takes a patch and that's it."
+   )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -414,6 +424,7 @@ validInputs =
   , find
   , view
   , findPatch
+  , viewPatch
   , undo
   , edit
   , renameTerm
@@ -434,14 +445,6 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
- , InputPattern "view.patch" [] [(Required, patchPathArg)]
-     "Lists all the edits in the given patch."
-     (\case
-       patchStr : [] -> first fromString $ do
-         patch <- Path.parseSplit' Path.wordyNameSegment patchStr
-         Right $ Input.ListEditsI patch
-       _ -> Left $ warn "`view.patch` takes a patch and that's it."
-       )
   ]
 
 allTargets :: Set.Set Names.NameTarget
