@@ -75,8 +75,8 @@ import qualified Unison.Names2                 as Names
 import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
-import           Unison.PrintError             (prettyParseError
-                                               ,renderNoteAsANSI
+import           Unison.PrintError              ( prettyParseError
+                                                , renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
@@ -86,10 +86,12 @@ import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.ColorText         as CT
-import           Unison.Util.Monoid            (intercalateMap,
-                                                unlessM)
+import           Unison.Util.Monoid             ( intercalateMap
+                                                , unlessM
+                                                )
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
@@ -277,12 +279,15 @@ notifyUser dir o = case o of
             : fmap (P.text . Reference.toText) old
         (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
           : "" : fmap (P.text . Reference.toText) new
-        (new@(_:_), old@(_:_)) -> P.wrap ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use " <> makeExample' IP.updateBuiltins <> " to add the ones you're missing and deprecate the ones I'm missing. 😉")
-          : "You're missing:" `P.hang`
-              P.lines (fmap (P.text . Reference.toText) new)
-          : "I'm missing:" `P.hang`
-              P.lines (fmap (P.text . Reference.toText) old)
-          : []
+        (new@(_:_), old@(_:_)) ->
+          [ P.wrap
+            ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use "
+            <> makeExample' IP.updateBuiltins
+            <> " to add the ones you're missing and deprecate the ones I'm missing. 😉"
+            )
+          , "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new)
+          , "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
+          ]
   ListOfPatches patches ->
     -- todo: make this prettier
     putPrettyLn . P.lines . fmap prettyName $ toList patches
@@ -559,9 +564,9 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
       , P.indentN 2 . P.lines $
           let unscore (_score,a,b,c) = (a,b,c)
           in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-             (TypePrinter.prettySignatures'
+             TypePrinter.prettySignatures'
                 ppe
-                (goodTerms $ unscore <$> dirtyTerms))
+                (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
       ]
 
