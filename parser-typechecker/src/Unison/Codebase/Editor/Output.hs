@@ -96,7 +96,7 @@ data Output v
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names0 (TodoOutput v Ann)
   | CantUndo UndoFailureReason
-  -- | ListEdits Edits Names
+  | ListEdits Patch Names0
 
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]

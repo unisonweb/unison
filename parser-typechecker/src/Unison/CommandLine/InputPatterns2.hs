@@ -424,9 +424,14 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
---  , InputPattern "edit.list" [] []
---      "Lists all the edits in the current branch."
---      (const . pure $ Input.ListEditsI)
+ , InputPattern "view.patch" [] [(Required, patchPathArg)]
+     "Lists all the edits in the given patch."
+     (\case
+       patchStr : [] -> first fromString $ do
+         patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+         Right $ Input.ListEditsI patch
+       _ -> Left $ warn "`view.patch` takes a patch and that's it."
+       )
   ]
 
 allTargets :: Set.Set Names.NameTarget

@@ -19,6 +19,27 @@ andThen f g x = g (f x)
 const : a -> b -> a
 const a _ = a
 
+use Sequence take at size drop snoc cons ++
+
+use Nat + / 
+
+use Universal compare
+
+use Pair Pair
+
+namespace Tuple where
+  at1 : Pair a b -> a
+  at1 p = case p of Pair.Pair a b -> a
+
+  at2 : Pair a (Pair b c) -> b
+  at2 p = case p of (_, (b, _)) -> b
+
+  at3 : Pair a (Pair b (Pair c d)) -> c
+  at3 p = case p of (_, (_, (c, _))) -> c
+
+  at4 : Pair a (Pair b (Pair c (Pair d e))) -> d
+  at4 p = case p of (_, (_, (_, (d, _)))) -> d
+
 namespace Sequence where
 
   map : (a -> b) -> [a] -> [b]
@@ -73,7 +94,7 @@ namespace Sequence where
 
   sortBy : (a -> b) -> [a] -> [a]
   sortBy f as =
-    tweak p = (f (Tuple.at1 p), Tuple.at2 p, Tuple.at1 p)
+    tweak p = case p of (p1,p2) -> (f p1, p2, p1)
     Heap.sort (map tweak (indexed as)) |> map Tuple.at3
 
   halve : [a] -> ([a], [a])
@@ -95,7 +116,7 @@ namespace Sequence where
 
   unsnoc : [a] -> Optional ([a], a)
   unsnoc as =
-    i = size as `drop` 1
+    i = size (drop 1 as)
     case at i as of
       None -> None
       Some a -> Some (take i as, a)
@@ -168,20 +189,6 @@ namespace Search where
 -- > Sequence.map (e -> indexOf e ex) ex
 -- > lubIndexOf 193 ex
 
-use Pair Pair
-
-namespace Tuple where
-  at1 : Pair a b -> a
-  at1 p = case p of Pair a _ -> a
-
-  at2 : Pair a (Pair b c) -> b
-  at2 p = case p of Pair _ (Pair b _) -> b
-
-  at3 : Pair a (Pair b (Pair c d)) -> c
-  at3 p = case p of Pair _ (Pair _ (Pair c _)) -> c
-
-  at4 : Pair a (Pair b (Pair c (Pair d e))) -> d
-  at4 p = case p of Pair _ (Pair _ (Pair _ (Pair d _))) -> d
 
 (|>) : a -> (a -> b) -> b
 a |> f = f a
@@ -379,7 +386,8 @@ namespace Heap where
       Some a -> case b of
         None -> Some a
         Some b -> Some (union a b)
-    single kv = Some (singleton (Tuple.at1 kv) (Tuple.at2 kv))
+    single kv = case kv of 
+      (k, v) -> Some (singleton k v)
     Sequence.foldb single op None kvs
 
   fromKeys : [a] -> Optional (Heap a a)

@@ -235,6 +235,32 @@ notifyUser dir o = case o of
                     putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
                     <> P.text t <> ". Make sure there's a branch or commit "
                     <> "with that name."
+  ListEdits patch names0 -> do
+    let
+      ppe = PPE.fromNames0 names0
+      types = Patch._typeEdits patch
+      terms = Patch._termEdits patch
+
+      prettyTermEdit (r, TermEdit.Deprecate) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> (deprecated)")
+      prettyTermEdit (r, TermEdit.Replace r' _typing) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> " <> (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
+      prettyTypeEdit (r, TypeEdit.Deprecate) =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> (deprecated)")
+      prettyTypeEdit (r, TypeEdit.Replace r') =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
+    when (not $ R.null types) $
+       putPrettyLn $ "Edited Types:" `P.hang`
+        P.column2 (prettyTypeEdit <$> R.toList types)
+    when (not $ R.null terms) $
+       putPrettyLn $ "Edited Terms:" `P.hang`
+        P.column2 (prettyTermEdit <$> R.toList terms)
+    when (R.null types && R.null terms)
+         (putPrettyLn "This patch is empty.")
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
