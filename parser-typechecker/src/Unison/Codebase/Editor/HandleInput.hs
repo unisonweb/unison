@@ -607,9 +607,9 @@ loop = do
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
-      -- ListEditsI -> do
-      --   (Branch.head -> b) <- use currentBranch
-      --   respond $ ListEdits b
+      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
+        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
+        respond $ ListEdits patch (Branch.toNames0 currentBranch0)
       PullRemoteBranchI repo path -> do
         loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
         success

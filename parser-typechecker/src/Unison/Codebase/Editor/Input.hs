@@ -56,7 +56,7 @@ data Input
     | UpdateI EditPath [HashQualified]
     | TodoI EditPath Path'
     | PropagateI EditPath Path'
-    | ListEditsI EditPath Path'
+    | ListEditsI EditPath
     -- -- create and remove update directives
     | DeprecateTermI EditPath Path.HQ'Split'
     | DeprecateTypeI EditPath Path.HQ'Split'
