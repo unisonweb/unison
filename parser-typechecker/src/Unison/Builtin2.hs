@@ -101,7 +101,7 @@ names0 :: Names0
 names0 = Names terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.fromVar vc, Referent.Con r cid)
-                 | (vt,(r,decl)) <- builtinDataDecls @Symbol <>
+                 | (_,(r,decl)) <- builtinDataDecls @Symbol <>
                     ((second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
   types = Rel.fromList builtinTypes <>
