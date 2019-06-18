@@ -214,14 +214,6 @@ data ForkFailure = SrcNotFound | DestExists
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
 
-toNames :: Branch0 m -> Names
-toNames b = Names hqTerms hqTypes where
-  names0 = toNames0 b
-  hqTerms = R.fromList [ (Names.hqTermName names0 n r, r)
-                       | (n, r) <- R.toList (Names.terms names0) ]
-  hqTypes = R.fromList [ (Names.hqTypeName names0 n r, r)
-                       | (n, r) <- R.toList (Names.types names0) ]
-
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?
 read
