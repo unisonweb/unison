@@ -214,6 +214,34 @@ data ForkFailure = SrcNotFound | DestExists
 numHashChars :: Branch m -> Int
 numHashChars _b = 3
 
+-- todo: Can this be made parametric on Causal2?
+-- todo: Can it still quit once `missing` is empty?
+findRefsInHistory :: forall m.
+  Monad m => Set Reference -> Branch m -> m (Names0)
+findRefsInHistory refs (Branch c) = go refs mempty [c] [] where
+  -- double-ended queue, used to go fairly / breadth first through multiple tails.
+  -- unsure as to whether I need to be passing a Names0 as an accumulator
+  go :: Set Reference -> Set Hash -> [Causal m Raw (Branch0 m)] -> [Causal m Raw (Branch0 m)] -> m Names0
+  go (toList -> []) _ _ _ = pure mempty
+  go _missing _seen _deq@[] _enq@[] = pure mempty
+  go missing seen [] enqueue = go missing seen (reverse enqueue) []
+  go missing seen (c:rest) enqueue =
+    if Set.member (Causal.currentHash c) seen then go missing seen rest enqueue
+    else (getNames missing (Causal.head c) <>) <$> case c of
+      Causal.One h _ -> go missing (Set.insert h seen) rest enqueue
+      Causal.Cons h _ (_, mt) -> do
+        t <- mt
+        go missing (Set.insert h seen) rest (t : enqueue)
+      Causal.Merge h _ mts -> do
+        ts <- sequence $ toList mts
+        go missing (Set.insert h seen) rest (ts ++ enqueue)
+  getNames :: Set Reference -> Branch0 m -> Names0
+  getNames rs b = Names terms' types' where
+    Names terms types = toNames0 b
+    terms' = terms R.|> (Set.map Referent.Ref rs)
+    types' = types R.|> rs
+
+
 -- Question: How does Deserialize throw a not-found error?
 -- Question: What is the previous question?
 read
