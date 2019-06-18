@@ -33,7 +33,7 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad                  ( filterM, foldM, forM,
-                                                  liftM2, when, void)
+                                                  join, liftM2, when, void)
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -492,42 +492,66 @@ loop = do
         Just uf -> do
           let result = applySelection hqs uf
                      $ toSlurpResult uf (toSlurpResultNames uf)
-              fileNames0 = UF.typecheckedToNames0 uf
+          let fileNames0 = UF.typecheckedToNames0 uf
               -- todo: display some error if typeEdits or termEdits itself contains a loop
-              typeEdits :: [(Reference, TypeEdit)]
-              typeEdits = map f (toList $ SC.types (updates result)) where
+              typeEdits :: Map Name (Reference, Reference)
+              typeEdits = Map.fromList $ map f (toList $ SC.types (updates result)) where
                 f v = case (toList (Names.typesNamed parseNames0 n)
-                              ,toList (Names.typesNamed fileNames0 n)) of
-                  ([old],[new]) -> (old, TypeEdit.Replace new)
-                  _ -> error $ "Expected unique matches for "
+                           ,toList (Names.typesNamed fileNames0 n)) of
+                  ([old],[new]) -> (n, (old, new))
+                  otherwise -> error $ "Expected unique matches for "
                             ++ Var.nameStr v ++ " but got: "
                             ++ show otherwise
                   where n = Name.fromVar v
-          termEdits <- for (toList $ SC.terms (updates result)) $ \v ->
-            case ( toList (Names.refTermsNamed parseNames0 (Name.fromVar v))
-                 , toList (Names.refTermsNamed fileNames0 (Name.fromVar v))) of
-              ([old],[new]) -> pure (old, new)
-              _ -> error $ "Expected unique matches for "
-                        ++ Var.nameStr v ++ " but got: "
-                        ++ show otherwise
+              hashTerms :: Map Reference (Type v Ann)
+              hashTerms = Map.fromList (toList hashTerms0) where
+                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+              termEdits :: Map Name (Reference, Reference)
+              termEdits = Map.fromList $ map g (toList $ SC.terms (updates result)) where
+                g v = case ( toList (Names.refTermsNamed parseNames0 n)
+                           , toList (Names.refTermsNamed fileNames0 n)) of
+                  ([old], [new]) -> (n, (old, new))
+                  otherwise -> error $ "Expected unique matches for "
+                            ++ Var.nameStr v ++ " but got: "
+                            ++ show otherwise
+                  where n = Name.fromVar v
           ye'ol'Patch <- do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
-          let neededTypes = Patch.collectForTyping termEdits ye'ol'Patch
-          allTypes <- fmap Map.fromList . for (toList neededTypes) $ \r ->
-            (r,) <$> (eval . LoadTypeOfTerm) r
+          -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
+          -- with (a0 -> a') in patch'.
+          -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
+          -- we must know the type of a0, a, a'.
+          let
+            -- we need:
+            -- all of the `old` references from the `new` edits,
+            -- plus all of the `old` references for edits from patch we're replacing
+            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
+            collectOldForTyping new old = foldl' f mempty (new ++ fromOld) where
+              f acc (r, _r') = Set.insert r acc
+              newLHS = Set.fromList . fmap fst $ new
+              fromOld :: [(Reference, Reference)]
+              fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old
+                                 , Set.member r' newLHS ]
+            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
 
-          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 allTypes) of
-                (Just (Just t1), Just (Just t2))
+          allTypes :: Map Reference (Type v Ann) <-
+            fmap Map.fromList . for (toList neededTypes) $ \r ->
+              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
+
+          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
+                (Just t1, Just t2)
                   | Typechecker.isEqual t1 t2 -> TermEdit.Same
                   | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
                   | otherwise -> TermEdit.Different
-                _ -> error "compiler bug: typing map not constructed properly"
+                e -> error $ "compiler bug: typing map not constructed properly\n" <>
+                  "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
+
           let updatePatch :: Patch -> Patch
               updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
                 where
-                step1 p (r,e) = Patch.updateType r e p
-                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r (typing r r')) p
+                step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
+                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
               updateEdits :: Branch0 m -> m (Branch0 m)
               updateEdits = Branch.modifyEdits seg updatePatch
 
@@ -536,6 +560,8 @@ loop = do
           -- and make a patch diff to record a replacement from the old to new references
             stepManyAtM
               [( Path.unabsolute currentPath'
+               , pure . doSlurpUpdates typeEdits termEdits)
+              ,( Path.unabsolute currentPath'
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updateEdits )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
@@ -1200,6 +1226,26 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
                 <> Var.nameStr v <> ": " <> show wha
   errorEmptyVar = error "encountered an empty var name"
   errorMissingVar v = error $ "expected to find " ++ show v ++ " in " ++ show uf
+
+doSlurpUpdates :: Applicative m
+               => Map Name (Reference, Reference)
+               -> Map Name (Reference, Reference)
+               -> (Branch0 m -> Branch0 m)
+doSlurpUpdates typeEdits termEdits = Branch.stepManyAt0 (typeActions <> termActions)
+  where
+  typeActions = join . map doType . Map.toList $ typeEdits
+  termActions = join . map doTerm . Map.toList $ termEdits
+  doType, doTerm ::
+    (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
+  doType (n, (old, new)) = case Path.splitFromName n of
+    Nothing -> errorEmptyVar
+    Just split -> [ BranchUtil.makeDeleteTypeName split old
+                  , BranchUtil.makeAddTypeName split new ]
+  doTerm (n, (old, new)) = case Path.splitFromName n of
+    Nothing -> errorEmptyVar
+    Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
+                  , BranchUtil.makeAddTermName split (Referent.Ref new) ]
+  errorEmptyVar = error "encountered an empty var name"
 
 loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
 loadSearchResults = traverse loadSearchResult
