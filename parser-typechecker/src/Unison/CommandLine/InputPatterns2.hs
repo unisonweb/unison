@@ -135,6 +135,15 @@ find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     )
     (pure . Input.SearchByNameI)
 
+findPatch :: InputPattern
+findPatch = InputPattern "find.patch" [] []
+    (P.wrapColumn2
+      [ ("`find`"
+        , "lists all patches in the current branch.")
+      ]
+    )
+    (pure . const Input.FindPatchI)
+
 renameTerm :: InputPattern
 renameTerm = InputPattern "rename.term" []
     [(Required, exactDefinitionTermQueryArg)
@@ -404,6 +413,7 @@ validInputs =
   , renameBranch
   , find
   , view
+  , findPatch
   , undo
   , edit
   , renameTerm

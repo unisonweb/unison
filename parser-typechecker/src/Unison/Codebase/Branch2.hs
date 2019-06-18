@@ -183,6 +183,11 @@ unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
 
 pattern Hash h = Causal.RawHash h
 
+toList0 :: Branch0 m -> [(Path, Branch0 m)]
+toList0 b = go Path.empty b where
+  go p b = (p, b) : (Map.toList (_children b) >>= (\(seg, (_h, cb)) ->
+    go (Path.snoc p seg) (head cb) ))
+
 printDebugPaths :: Branch m -> String
 printDebugPaths = unlines . map show . Set.toList . debugPaths
 

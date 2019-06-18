@@ -70,6 +70,7 @@ data Input
   -- other
   | UndoRootI
   | SearchByNameI [String]
+  | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
   | UpdateBuiltinsI
