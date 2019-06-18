@@ -29,16 +29,16 @@ use Pair Pair
 
 namespace Tuple where
   at1 : Pair a b -> a
-  at1 p = case p of Pair.Pair a b -> a
+  at1 p = case p of Pair a _ -> a
 
   at2 : Pair a (Pair b c) -> b
-  at2 p = case p of (_, (b, _)) -> b
+  at2 p = case p of Pair _ (Pair b _) -> b
 
   at3 : Pair a (Pair b (Pair c d)) -> c
-  at3 p = case p of (_, (_, (c, _))) -> c
+  at3 p = case p of Pair _ (Pair _ (Pair c _)) -> c
 
   at4 : Pair a (Pair b (Pair c (Pair d e))) -> d
-  at4 p = case p of (_, (_, (_, (d, _)))) -> d
+  at4 p = case p of Pair _ (Pair _ (Pair _ (Pair d _))) -> d
 
 namespace Sequence where
 
