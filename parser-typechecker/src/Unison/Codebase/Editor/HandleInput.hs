@@ -299,26 +299,28 @@ loop = do
             success
 
       AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
-        ([src], []) -> stepAt (BranchUtil.makeAddTermName (resolvePath' dest) src ol'Md)
-        ([], _)     -> termNotFound src
-        (rs, _)     -> termConflicted src (Set.fromList rs)
-        (_, rs)     -> termExists dest (Set.fromList rs)
+        ([r],       []) -> stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (ol'Md r))
+        ([r], rs@(_:_)) -> termExists dest (Set.fromList rs)
+        ([],         _) -> termNotFound src
+        (rs,         _) -> termConflicted src (Set.fromList rs)
         where
-        ol'Md = error "copy over old metadata"
+        p = resolvePath' src
+        ol'Md r = BranchUtil.getTermMetadata p r root0
 
       AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
-        ([src], []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) src ol'Md)
-        ([], _)     -> typeNotFound src
-        (rs, _)     -> typeConflicted src (Set.fromList rs)
-        (_, rs)     -> typeExists dest (Set.fromList rs)
+        ([r],       []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (ol'Md r))
+        ([r], rs@(_:_)) -> typeExists dest (Set.fromList rs)
+        ([],         _) -> typeNotFound src
+        (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
-        ol'Md = error "copy over old metadata"
+        p = resolvePath' src
+        ol'Md r = BranchUtil.getTypeMetadata p r root0
 
       LinkI src mdType mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             (parent, last) = resolvePath' src
-            mdTypel = toList (getHQTypes mdType)
+            mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
           (srcle, srclt, [mdType], [mdValue])
@@ -327,39 +329,50 @@ loop = do
               where
               step b0 = let
                 tmUpdates terms = foldl' go terms srcle where
-                  go src terms = Metadata.insert (src, mdType, mdValue) terms
+                  go terms src = Metadata.insert (src, mdType, mdValue) terms
                 tyUpdates types = foldl' go types srclt where
-                  go src types = Metadata.insert (src, mdType, mdValue) types
-                in over Branch.terms tmUpdates . over Branch.types tyUpdates
+                  go types src = Metadata.insert (src, mdType, mdValue) types
+                in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           _ -> error "todo - output for link failure"
 
       UnlinkI src mdType mdValue -> do
-        let srcl = toList (Set.map Referent.toReference (getHQ'Terms src) <>
-                           getHQ'Types src)
+        let srcle = toList (getHQ'Terms src)
+            srclt = toList (getHQ'Types src)
             (parent, last) = resolvePath' src
-            mdTypel = toList (getHQTypes mdType)
+            mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
-        case (srcl, mdTypel, mdValuel) of
-          ([src], [mdType], [mdValue]) -> stepAt (parent, step) where
-            step = over Branch.terms (Metadata.delete (src, mdType, mdValue))
-                 . over Branch.types (Metadata.delete (src, mdType, mdValue))
+        case (srcle, srclt, mdTypel, mdValuel) of
+          (srcle, srclt, [mdType], [mdValue])
+            | length srcle < 2 && length srclt < 2 ->
+              stepAt (parent, step)
+              where
+              step b0 = let
+                tmUpdates terms = foldl' go terms srcle where
+                  go terms src = Metadata.delete (src, mdType, mdValue) terms
+                tyUpdates types = foldl' go types srclt where
+                  go types src = Metadata.delete (src, mdType, mdValue) types
+                in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           _ -> error "todo - output for link failure"
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where
         srcOk r = zeroOrMore (getTerms dest) (destOk r) (termExists dest)
+        p = resolvePath' (HQ'.toName <$> src')
+        mdSrc r = BranchUtil.getTermMetadata p r root0
         destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> src')) r
-          , BranchUtil.makeAddTermName (resolvePath' dest) r ]
+          [ BranchUtil.makeDeleteTermName p r
+          , BranchUtil.makeAddTermName (resolvePath' dest) r (mdSrc r)]
 
       MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
         where
+        p = resolvePath' (HQ'.toName <$> src')
+        mdSrc r = BranchUtil.getTypeMetadata p r root0
         srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
         destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> src')) r
-          , BranchUtil.makeAddTypeName (resolvePath' dest) r ]
+          [ BranchUtil.makeDeleteTypeName p r
+          , BranchUtil.makeAddTypeName (resolvePath' dest) r (mdSrc r) ]
 
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
@@ -1206,7 +1219,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
-      Just split -> BranchUtil.makeAddTermName split r
+      Just split -> BranchUtil.makeAddTermName split r Metadata.empty
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)
@@ -1214,7 +1227,7 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
-      Just split -> BranchUtil.makeAddTypeName split r
+      Just split -> BranchUtil.makeAddTypeName split r Metadata.empty
     wha -> error $ "Unison bug, typechecked file w/ multiple types named "
                 <> Var.nameStr v <> ": " <> show wha
   errorEmptyVar = error "encountered an empty var name"

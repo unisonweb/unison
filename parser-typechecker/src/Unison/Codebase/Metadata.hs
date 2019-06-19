@@ -5,7 +5,6 @@ import Data.Set (Set)
 import Unison.Referent (Referent)
 import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Unison.Util.Star3 as Star3
 
 type Type = Referent
@@ -20,9 +19,6 @@ insert = Star3.insertD23
 delete :: (Ord a, Ord n) => (a, Type, Value) -> Star3 a n Type Value -> Star3 a n Type Value
 delete = Star3.deleteD23
 
--- metadataFor :: (Ord r) => n -> r -> Star3 r n Type Value -> Metadata
--- metadataFor n r = error "todo"
-
 -- parallel composition - commutative and associative
 merge :: Metadata -> Metadata -> Metadata
 merge = Map.unionWith (<>)
@@ -30,3 +26,6 @@ merge = Map.unionWith (<>)
 -- sequential composition, right-biased
 append :: Metadata -> Metadata -> Metadata
 append = Map.unionWith (flip const)
+
+empty :: Metadata
+empty = mempty
