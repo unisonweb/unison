@@ -32,6 +32,7 @@ import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
+import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.Parser as Parser
@@ -105,6 +106,10 @@ data Output v
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
   | GitError GitError
+  | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
+               (Map Reference (DisplayThing (Decl v Ann)))
+               (Map Reference (DisplayThing (Term v Ann)))
+  | LinkFailure Input
   deriving (Show)
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show

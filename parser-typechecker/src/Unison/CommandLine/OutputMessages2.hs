@@ -104,6 +104,18 @@ notifyUser dir o = case o of
   Success _    -> putPrettyLn $ P.bold "Done."
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
+  DisplayLinks ppe md types terms ->
+    if Map.null md then putPrettyLn $ P.wrap "Nothing to show here. Use the `link` command to add links from this definition."
+    else
+      putPrettyLn $ intercalateMap "\n\n" go (Map.toList md)
+      where
+      go (key, rs) = P.lines [
+        P.bold (prettyHashQualified $ PPE.termName ppe key),
+        "",
+        P.indentN 2 $ displayDefinitions' ppe (Map.restrictKeys types rs)
+                                              (Map.restrictKeys terms rs)
+        ]
+  LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -334,6 +346,38 @@ formatMissingStuff terms types =
     <> "\n\n"
     <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
+displayDefinitions' :: Var v => Ord a1
+  => PPE.PrettyPrintEnv
+  -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
+  -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
+  -> P.Pretty P.ColorText
+displayDefinitions' ppe types terms = P.sep "\n\n" (prettyTypes <> prettyTerms)
+  where
+  prettyTerms = map go . Map.toList
+             -- sort by name
+             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
+  prettyTypes = map go2 . Map.toList
+              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
+  go ((n, r), dt) =
+    case dt of
+      MissingThing r -> missing n r
+      BuiltinThing -> builtin n
+      RegularThing tm -> TermPrinter.prettyBinding ppe n tm
+  go2 ((n, r), dt) =
+    case dt of
+      MissingThing r -> missing n r
+      BuiltinThing -> builtin n
+      RegularThing decl -> case decl of
+        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
+        Right d -> DeclPrinter.prettyDataDecl ppe r n d
+  builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
+  missing n r = P.wrap (
+    "-- The name " <> prettyHashQualified n <> " is assigned to the "
+    <> "reference " <> fromString (show r ++ ",")
+    <> "which is missing from the codebase.")
+    <> P.newline
+    <> tip "You might need to repair the codebase manually."
+
 displayDefinitions :: Var v => Ord a1 =>
   Maybe FilePath
   -> PPE.PrettyPrintEnv
@@ -368,31 +412,7 @@ displayDefinitions outputLoc ppe types terms =
           "You can edit them there, then do" <> makeExample' IP.update <>
           "to replace the definitions currently in this branch."
       ]
-  code = P.sep "\n\n" (prettyTypes <> prettyTerms)
-  prettyTerms = map go . Map.toList
-             -- sort by name
-             $ Map.mapKeys (first (PPE.termName ppe . Referent.Ref) . dupe) terms
-  prettyTypes = map go2 . Map.toList
-              $ Map.mapKeys (first (PPE.typeName ppe) . dupe) types
-  go ((n, r), dt) =
-    case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing tm -> TermPrinter.prettyBinding ppe n tm
-  go2 ((n, r), dt) =
-    case dt of
-      MissingThing r -> missing n r
-      BuiltinThing -> builtin n
-      RegularThing decl -> case decl of
-        Left d  -> DeclPrinter.prettyEffectDecl ppe r n d
-        Right d -> DeclPrinter.prettyDataDecl ppe r n d
-  builtin n = P.wrap $ "--" <> prettyHashQualified n <> " is built-in."
-  missing n r = P.wrap (
-    "-- The name " <> prettyHashQualified n <> " is assigned to the "
-    <> "reference " <> fromString (show r ++ ",")
-    <> "which is missing from the codebase.")
-    <> P.newline
-    <> tip "You might need to repair the codebase manually."
+  code = displayDefinitions' ppe types terms
 
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText

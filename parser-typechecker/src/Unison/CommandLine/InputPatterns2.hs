@@ -409,6 +409,50 @@ viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
    )
 
+link :: InputPattern
+link = InputPattern "link" []
+  [(Required, exactDefinitionQueryArg),
+   (Required, exactDefinitionQueryArg),
+   (Required, exactDefinitionQueryArg) ]
+  "`link src key dest` associates `(key, dest)` with the `src` definition. Use `links src` or `links src key` to view outgoing links, and `unlink src linkType dest` to remove a link."
+  (\case
+    [src, linkKey, dest] -> first fromString $ do
+      src <- Path.parseHQ'Split' src
+      linkKey <- Path.parseHQSplit' linkKey
+      dest <- Path.parseHQSplit' dest
+      Right $ Input.LinkI src linkKey dest
+    _ -> Left (I.help link)
+   )
+
+links :: InputPattern
+links = InputPattern "links" []
+  [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
+  "`link src` shows all outgoing links from `src`. `link src key` shows all links for the given key."
+  (\case
+    src : rest | length rest < 2 -> first fromString $ do
+      src <- Path.parseHQ'Split' src
+      linkKey <- case rest of
+        [] -> pure Nothing
+        s : _ -> Just <$> Path.parseHQSplit' s
+      Right $ Input.LinksI src linkKey
+    _ -> Left (I.help links)
+  )
+
+unlink :: InputPattern
+unlink = InputPattern "unlink" ["delete.link"]
+  [(Required, exactDefinitionQueryArg),
+   (Required, exactDefinitionQueryArg),
+   (Required, exactDefinitionQueryArg) ]
+  "`unlink src linkKey dest` removes a link from `src` to `dest`."
+  (\case
+    [src, linkKey, dest] -> first fromString $ do
+      src <- Path.parseHQ'Split' src
+      linkKey <- Path.parseHQSplit' linkKey
+      dest <- Path.parseHQSplit' dest
+      Right $ Input.UnlinkI src linkKey dest
+    _ -> Left (I.help unlink)
+   )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -435,6 +479,9 @@ validInputs =
   , aliasType
   , todo
   , patch
+  , link
+  , unlink
+  , links
   --  , InputPattern "test" [] []
   --    "`test` runs unit tests for the current branch."
   --    (const $ pure $ Input.TestI True True)g
