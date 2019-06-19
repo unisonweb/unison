@@ -51,6 +51,15 @@ d13s s = [ (f, x, y) | f <- Set.toList (fact s)
                      , x <- Set.toList (R.lookupDom f (d1 s))
                      , y <- Set.toList (R.lookupDom f (d3 s)) ]
 
+mapD1 :: (Ord fact, Ord d1, Ord d1a) => (d1 -> d1a) -> Star3 fact d1 d2 d3 -> Star3 fact d1a d2 d3
+mapD1 f s = s { d1 = R.mapRan f (d1 s) }
+
+mapD2 :: (Ord fact, Ord d2, Ord d2a) => (d2 -> d2a) -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2a d3
+mapD2 f s = s { d2 = R.mapRan f (d2 s) }
+
+mapD3 :: (Ord fact, Ord d3, Ord d3a) => (d3 -> d3a) -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3a
+mapD3 f s = s { d3 = R.mapRan f (d3 s) }
+
 fromList :: (Ord fact, Ord d1, Ord d2, Ord d3)
          => [(fact, d1, d2, d3)] -> Star3 fact d1 d2 d3
 fromList = foldl' (flip insert) mempty

@@ -58,6 +58,7 @@ import qualified Unison.ShortHash as SH
 
 
 import           Unison.Name                    ( Name(..) )
+import qualified Unison.Name                   as Name
 import           Unison.Names2                  ( Names'(Names), Names, Names0 )
 import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
@@ -119,10 +120,16 @@ branch0 :: Star3 Referent NameSegment Metadata.Type Metadata.Value
         -> Map NameSegment (EditHash, m Patch)
         -> Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits namesSeg names0 deepRefts deepTypeRefs deepTerms deepTypes
+  Branch0 terms types children edits namesSeg names0 deepRefts deepTypeRefs deepTerms' deepTypes'
   where
-  deepTerms = undefined
-  deepTypes = undefined
+  deepTerms' =
+    Star3.mapD1 nameSegToName terms <> foldMap go (Map.toList (snd <$> children))
+    where
+    go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTerms $ head b)
+  deepTypes' =
+    Star3.mapD1 nameSegToName types <> foldMap go (Map.toList (snd <$> children))
+    where
+    go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
   termsr = R.swap $ Star3.d1 terms
   typesr = R.swap $ Star3.d1 types
   namesSeg = toNamesSegImpl termsr typesr
