@@ -342,8 +342,9 @@ loop = do
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
           (srcle, srclt, [mdType], [Referent.Ref mdValue])
-            | length srcle < 2 && length srclt < 2 ->
+            | length srcle < 2 && length srclt < 2 -> do
               stepAt (parent, step)
+              success
               where
               step b0 = let
                 tmUpdates terms = foldl' go terms srcle where
@@ -361,8 +362,9 @@ loop = do
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
           (srcle, srclt, [mdType], [Referent.Ref mdValue])
-            | length srcle < 2 && length srclt < 2 ->
+            | length srcle < 2 && length srclt < 2 -> do
               stepAt (parent, step)
+              success
               where
               step b0 = let
                 tmUpdates terms = foldl' go terms srcle where
