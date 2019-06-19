@@ -78,7 +78,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Relation          as Rel
+import qualified Unison.Util.Star3             as Star3
 -- import Debug.Trace
 
 type CodebasePath = FilePath
@@ -302,14 +302,14 @@ writeAllTermsAndTypes putV putA codebase localPath branch = do
       <> " from the codebase while I wasn't looking."
   writeBranch :: Branch.Raw -> m ()
   writeBranch (Branch.Raw terms types _ _) = do
-    for_ (toList $ Rel.ran types) $ \case
+    for_ (toList $ Star3.fact types) $ \case
       Reference.DerivedId i -> do
         alreadyExists <- liftIO . doesPathExist $ termPath localPath i
         unless alreadyExists $ do
           mayDecl <- Codebase.getTypeDeclaration codebase i
           maybe (calamity i) (putDecl putV putA localPath i) mayDecl
       _ -> pure ()
-    for_ (toList $ Rel.ran terms) $ \case
+    for_ (toList $ Star3.fact terms) $ \case
       Ref r@(Reference.DerivedId i) -> do
         alreadyExists <- liftIO . doesPathExist $ termPath localPath i
         unless alreadyExists $ do

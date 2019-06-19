@@ -1289,20 +1289,27 @@ doSlurpUpdates :: Applicative m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
                -> (Branch0 m -> Branch0 m)
-doSlurpUpdates typeEdits termEdits = Branch.stepManyAt0 (typeActions <> termActions)
+doSlurpUpdates typeEdits termEdits b0 = Branch.stepManyAt0 (typeActions <> termActions) b0
   where
   typeActions = join . map doType . Map.toList $ typeEdits
   termActions = join . map doTerm . Map.toList $ termEdits
+  -- we copy over the metadata on the old thing
+  -- todo: if the thing being updated, m, is metadata for something x in b0
+  -- update x's md to reference `m`
   doType, doTerm ::
     (Name, (Reference, Reference)) -> [(Path, Branch0 m -> Branch0 m)]
   doType (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTypeName split old
-                  , BranchUtil.makeAddTypeName split new ]
+                  , BranchUtil.makeAddTypeName split new oldMd ]
+      where
+      oldMd = BranchUtil.getTypeMetadata split old b0
   doTerm (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
-                  , BranchUtil.makeAddTermName split (Referent.Ref new) ]
+                  , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
+      where
+      oldMd = BranchUtil.getTermMetadata split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 
 loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
