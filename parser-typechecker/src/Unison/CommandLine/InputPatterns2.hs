@@ -135,6 +135,15 @@ find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     )
     (pure . Input.SearchByNameI)
 
+findPatch :: InputPattern
+findPatch = InputPattern "find.patch" [] []
+    (P.wrapColumn2
+      [ ("`find`"
+        , "lists all patches in the current branch.")
+      ]
+    )
+    (pure . const Input.FindPatchI)
+
 renameTerm :: InputPattern
 renameTerm = InputPattern "rename.term" []
     [(Required, exactDefinitionTermQueryArg)
@@ -390,6 +399,16 @@ quit = InputPattern "quit" ["exit"] []
     _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
   )
 
+viewPatch :: InputPattern
+viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
+  "Lists all the edits in the given patch."
+  (\case
+    patchStr : [] -> first fromString $ do
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      Right $ Input.ListEditsI patch
+    _ -> Left $ warn "`view.patch` takes a patch and that's it."
+   )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -404,6 +423,8 @@ validInputs =
   , renameBranch
   , find
   , view
+  , findPatch
+  , viewPatch
   , undo
   , edit
   , renameTerm
@@ -424,14 +445,6 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
- , InputPattern "view.patch" [] [(Required, patchPathArg)]
-     "Lists all the edits in the given patch."
-     (\case
-       patchStr : [] -> first fromString $ do
-         patch <- Path.parseSplit' Path.wordyNameSegment patchStr
-         Right $ Input.ListEditsI patch
-       _ -> Left $ warn "`view.patch` takes a patch and that's it."
-       )
   ]
 
 allTargets :: Set.Set Names.NameTarget

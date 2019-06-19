@@ -288,6 +288,9 @@ notifyUser dir o = case o of
           , "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new)
           , "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
           ]
+  ListOfPatches patches ->
+    -- todo: make this prettier
+    putPrettyLn . P.lines . fmap prettyName $ toList patches
   x -> error $ "todo: output message for\n\n" ++ show x
   where
   renderFileName = P.group . P.blue . fromString

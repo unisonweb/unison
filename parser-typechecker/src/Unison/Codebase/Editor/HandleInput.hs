@@ -434,6 +434,12 @@ loop = do
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
           latestFile .= ((, True) <$> loc)
+      FindPatchI ->
+        let patches = Set.fromList
+              [ (Path.toName $ Path.snoc p seg)
+              | (p, b) <- Branch.toList0 currentBranch0
+              , (seg, (_h, mp)) <- Map.toList (Branch._edits b) ]
+        in respond $ ListOfPatches patches
       -- ls with no arguments
       SearchByNameI [] -> do
         let results = listBranch $ Branch.head currentBranch'
@@ -609,7 +615,9 @@ loop = do
       --   checkTodo
       ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
         patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
-        respond $ ListEdits patch (Branch.toNames0 currentBranch0)
+        names0 <- eval . Eval $
+          Branch.findRefsInHistory (Patch.allReferences patch) currentBranch'
+        respond $ ListEdits patch names0
       PullRemoteBranchI repo path -> do
         loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
         success

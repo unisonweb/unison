@@ -9,8 +9,8 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform )
 --import           Control.Monad.Extra            ( whenM )
 -- import           Data.GUID                (genText)
--- import           Data.Set                       ( Set )
--- import qualified Data.Set                      as Set
+import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
 -- import           Data.Foldable                  ( foldl' )
 import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -38,6 +38,16 @@ empty = Patch mempty mempty
 
 isEmpty :: Patch -> Bool
 isEmpty p = p == empty
+
+allReferences :: Patch -> Set Reference
+allReferences p = typeReferences p <> termReferences p where
+  typeReferences p = Set.fromList
+    [ r | (old, TypeEdit.Replace new) <- R.toList (_typeEdits p)
+        , r <- [old, new] ]
+  termReferences p = Set.fromList
+    [ r | (old, TermEdit.Replace new _) <- R.toList (_termEdits p)
+        , r <- [old, new] ]
+
 
 updateTerm :: (Reference -> Reference -> Typing)
            -> Reference -> TermEdit -> Patch -> Patch
