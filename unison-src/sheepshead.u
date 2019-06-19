@@ -1,25 +1,21 @@
-type Suit = ♣ | ♠ | ♥ | ♦
+type Suit = Club | Spade | Heart | Diamond
 type Card = Card Rank Suit
-type Rank = A | K | Q | J | 10_ | 9_ | 8_ | 7_
+type Rank = A | K | Q | J | _10 | _9 | _8 | _7
 type NonEmpty a = NonEmpty a [a]
 
-use Rank A K Q J 10_ 9_ 8_ 7_
+use Rank A K Q J _10 _9 _8 _7
 use Suit Club Spade Heart Diamond
 use NonEmpty NonEmpty
-use UInt64 (==)
+use Optional Some None
 
 namespace Suit where
-  club = ♣
-  spade = ♠
-  heart = ♥
-  diamond = ♦
-  all = [♣, ♠, ♥, ♦]
+  all = [Club, Spade, Heart, Diamond]
 
 namespace Rank where
-  all = [A, 10_, K, Q, J, 9_, 8_, 7_]
+  all = [A, _10, K, Q, J, _9, _8, _7]
   points r = case r of
     A -> 11
-    10_ -> 10
+    _10 -> 10
     K -> 4
     Q -> 3
     J -> 2
@@ -29,17 +25,15 @@ namespace Rank where
     K -> "K"
     Q -> "Q"
     J -> "J"
-    10_ -> "10"
-    9_ -> "9"
-    8_ -> "8"
-    7_ -> "7"
+    _10 -> "10"
+    _9 -> "9"
+    _8 -> "8"
+    _7 -> "7"
 
 namespace NonEmpty where
   toList n = case n of
     NonEmpty h t -> Sequence.cons h t
   fromList : [a] -> Optional (NonEmpty a)
-  fromList l =
-    if Sequence.size l == 0 then None
-    else Some (NonEmpty (Sequence.at 0 l) (Sequence.drop 1 l))
-
-()
+  fromList l = case Sequence.at 0 l of
+    None -> None
+    Some a -> Some (NonEmpty a (Sequence.drop 1 l))
