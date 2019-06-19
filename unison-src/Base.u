@@ -19,12 +19,6 @@ andThen f g x = g (f x)
 const : a -> b -> a
 const a _ = a
 
-use Sequence take at size drop snoc cons ++
-
-use Nat + / 
-
-use Universal compare
-
 use Pair Pair
 
 namespace Tuple where
