@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -18,6 +17,7 @@ import           Data.Foldable                  ( toList
                                                 , traverse_
                                                 )
 import           Data.Bifunctor                 ( bimap, second )
+import           Data.Functor                   ( ($>) )
 import           Data.List.Extra                ( nubOrd )
 import qualified Data.Map                      as Map
 import Data.Map (Map)
@@ -432,13 +432,11 @@ outcomes okToUpdate b file = let
       -- It's a term
       Right _ -> case toList $ Branch.termsNamed n b of
         [] -> (r0, Added)
-        referents ->
-          if not (okToUpdate n) then (r0, CouldntUpdate)
-          else if length referents > 1
-          then (r0, CouldntUpdateConflicted)
-          else if any Referent.isConstructor referents
-          then (r0, TermExistingConstructorCollision)
-          else (r0, Updated)
+        referents | not (okToUpdate n) -> (r0, CouldntUpdate)
+                  | length referents > 1 -> (r0, CouldntUpdateConflicted)
+                  | any Referent.isConstructor referents ->
+                      (r0, TermExistingConstructorCollision)
+                  | otherwise -> (r0, Updated)
       -- It's a type
       Left _ -> let
         ctorNameCollisions :: Set Referent
@@ -484,7 +482,7 @@ removeTransitive
   -> [(Either Reference Reference, Outcome)]
   -> [(Either Reference Reference, Outcome)]
 removeTransitive dependencies outcomes0 = let
-  ref r = either id id r
+  ref = either id id
   -- `Set Reference` that have been removed
   removed0 = Set.fromList [ ref r | (r, o) <- outcomes0, blocksDependent o ]
   trim :: Set Reference
@@ -499,9 +497,9 @@ removeTransitive dependencies outcomes0 = let
           Set.intersection removedAlready (R.lookupDom (ref r) dependencies)
       in
         -- if r's outcome is already a sort of failure, then keep that outcome
-        if blocksDependent o then (r, o)
         -- or if none of r's dependencies are removed, then don't change r's outcome
-        else if Set.null removedDeps then (r, o)
+        if blocksDependent o || Set.null removedDeps
+        then (r, o)
         -- else some of r's deps block r
         else (r, CouldntAddDependencies removedDeps)
     removed = Set.fromList [ ref r | (r, o) <- outcomes', blocksDependent o ]
@@ -568,10 +566,10 @@ fileToBranch handleCollisions codebase branch uf = do
             [Referent.Ref r0] -> do
               Just type1 <- Codebase.getTypeOfTerm codebase r0
               let Just (_, _, type2) = Map.lookup r' termsByRef
-              let typing =
-                    if Typechecker.isEqual type1 type2 then TermEdit.Same
-                    else if Typechecker.isSubtype type2 type1 then TermEdit.Subtype
-                    else TermEdit.Different
+              let typing
+                    | Typechecker.isEqual type1 type2 = TermEdit.Same
+                    | Typechecker.isSubtype type2 type1 = TermEdit.Subtype
+                    | otherwise = TermEdit.Different
               pure (result', Branch.addTermName (Referent.Ref r') name $
                              Branch.replaceTerm r0 r' typing b)
             _ -> error $ "Panic. Tried to replace a term that's conflicted." ++ show v
@@ -602,7 +600,7 @@ fileToBranch handleCollisions codebase branch uf = do
           result { termsWithBlockedDependencies = termsWithBlockedDependencies result <>
                    Map.fromList [(v, rs)] }, b)
     declsByRef :: Map Reference (v, Decl v Ann)
-    declsByRef = Map.fromList $
+    declsByRef = Map.fromList
       [ (r, (v, d)) | (v, (r,d)) <- mconcat [
           Map.toList . fmap (second Right) $ UF.dataDeclarations' uf
         , Map.toList . fmap (second Left) $ UF.effectDeclarations' uf ]]
@@ -644,15 +642,14 @@ builtinBranch = Branch.one builtinBranch0
 
 builtinBranch0 :: Branch0
 builtinBranch0 =
-  (  Branch.fromNames B.names
+  Branch.fromNames B.names
   <> Branch.fromTypecheckedFile IOSource.typecheckedFile
-  )
 
 newBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
-newBranch codebase branch branchName = forkBranch codebase branch branchName
+newBranch = forkBranch
 
 forkBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
-forkBranch codebase branch branchName = do
+forkBranch codebase branch branchName =
   ifM (Codebase.branchExists codebase branchName)
       (pure False)
       ((branch ==) <$> Codebase.syncBranch codebase branchName branch)
@@ -660,7 +657,7 @@ forkBranch codebase branch branchName = do
 syncBranch :: Monad m => Codebase m v a -> Branch -> BranchName -> m Bool
 syncBranch codebase branch branchName = ifM
   (Codebase.branchExists codebase branchName)
-  (Codebase.syncBranch codebase branchName branch *> pure True)
+  (Codebase.syncBranch codebase branchName branch $> True)
   (pure False)
 
 -- Returns terms and types, respectively. For terms that are
@@ -685,8 +682,7 @@ commandLine
   -> Codebase IO v Ann
   -> Free (Command i v) a
   -> IO a
-commandLine awaitInput rt notifyUser codebase command = do
-  Free.fold go command
+commandLine awaitInput rt notifyUser codebase = Free.fold go
  where
   go :: forall x . Command i v x -> IO x
   go = \case
@@ -698,12 +694,16 @@ commandLine awaitInput rt notifyUser codebase command = do
     Typecheck ambient branch sourceName source -> do
       -- todo: if guids are being shown to users, not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen
-      typecheck ambient codebase (namegen, Branch.toNames branch) sourceName source
-    Evaluate ppe unisonFile           -> evalUnisonFile ppe unisonFile
-    ListBranches                      -> Codebase.branches codebase
-    LoadBranch branchName             -> Codebase.getBranch codebase branchName
-    NewBranch  branch branchName      -> newBranch codebase branch branchName
-    SyncBranch branchName branch      -> syncBranch codebase branch branchName
+      typecheck ambient
+                codebase
+                (namegen, Branch.toNames branch)
+                sourceName
+                source
+    Evaluate ppe unisonFile          -> evalUnisonFile ppe unisonFile
+    ListBranches                     -> Codebase.branches codebase
+    LoadBranch branchName            -> Codebase.getBranch codebase branchName
+    NewBranch  branch     branchName -> newBranch codebase branch branchName
+    SyncBranch branchName branch     -> syncBranch codebase branch branchName
     GetConflicts branch -> pure $ Branch.conflicts' (Branch.head branch)
     DeleteBranch branchName -> Codebase.deleteBranch codebase branchName
     LoadTerm          r              -> Codebase.getTerm codebase r
@@ -713,25 +713,27 @@ commandLine awaitInput rt notifyUser codebase command = do
     Propagate         b              -> do
       b0 <- Codebase.propagate codebase (Branch.head b)
       pure $ Branch.append b0 b
-    Execute ppe uf -> void $ evalUnisonFile ppe uf
+    Execute     ppe  uf   -> void $ evalUnisonFile ppe uf
     LoadWatches kind refs -> do
       let rids = [ id | Reference.DerivedId id <- toList refs ]
-      tms <- traverse (\r -> (r,) <$> Codebase.getWatch codebase kind r) rids
-      pure $ [ (Reference.DerivedId r, e) | (r, Just e) <- tms ]
+      tms <- traverse (\r -> (r, ) <$> Codebase.getWatch codebase kind r) rids
+      pure [ (Reference.DerivedId r, e) | (r, Just e) <- tms ]
   evalUnisonFile ppe unisonFile = do
     let codeLookup = Codebase.toCodeLookup codebase
-    selfContained <- Codebase.makeSelfContained' codeLookup
-                                                 ppe
-                                                 unisonFile
+    selfContained <- Codebase.makeSelfContained' codeLookup ppe unisonFile
     let watchCache (Reference.DerivedId h) = do
           m1 <- Codebase.getWatch codebase UF.RegularWatch h
-          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
+          m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h)
+                      (pure . Just)
+                      m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
-    rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
-    forM_ (Map.elems map) $
-      \(_loc, kind, hash, _src, value, isHit) ->
-      if isHit then pure ()
+    rs@(_, map) <- Runtime.evaluateWatches codeLookup
+                                           watchCache
+                                           rt
+                                           selfContained
+    forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) -> if isHit
+      then pure ()
       else case hash of
         Reference.DerivedId h -> do
           let value' = Term.amap (const Parser.External) value
@@ -749,16 +751,16 @@ doTodo code b = do
   (frontierTerms, frontierTypes) <- loadDefinitions code frontier
   (dirtyTerms, dirtyTypes) <- loadDefinitions code dirty
   -- todo: something more intelligent here?
-  scoreFn <- pure $ const 1
+  let scoreFn = const 1
   remainingTransitive <- Codebase.frontierTransitiveDependents code b frontier
   let
     addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
     addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
     frontierTermsNamed = addTermNames frontierTerms
     frontierTypesNamed = addTypeNames frontierTypes
-    dirtyTermsNamed = sortOn (\(s,_,_,_) -> s) $
+    dirtyTermsNamed = sortOn (\(s,_,_,_) -> s)
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-    dirtyTypesNamed = sortOn (\(s,_,_,_) -> s) $
+    dirtyTypesNamed = sortOn (\(s,_,_,_) -> s)
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
   pure $
     TodoOutput_
@@ -792,7 +794,7 @@ loadDefinitions code refs = do
   termRefs <- filterM (Codebase.isTerm code) (toList refs)
   terms <- forM termRefs $ \r -> (r,) <$> Codebase.getTypeOfTerm code r
   typeRefs <- filterM (Codebase.isType code) (toList refs)
-  types <- forM typeRefs $ \r -> do
+  types <- forM typeRefs $ \r ->
     case r of
       Reference.Builtin _ -> pure (r, BuiltinThing)
       Reference.DerivedId id -> do
@@ -816,9 +818,10 @@ initializeCodebase c = do
 
 -- todo: probably don't use this anywhere
 nameDistance :: Name -> Name -> Maybe Int
-nameDistance (Name.toString -> q) (Name.toString -> n) =
-  if q == n                              then Just 0-- exact match is top choice
-  else if map toLower q == map toLower n then Just 1-- ignore case
-  else if q `isSuffixOf` n               then Just 2-- matching suffix is p.good
-  else if q `isPrefixOf` n               then Just 3-- matching prefix
-  else Nothing
+nameDistance (Name.toString -> q) (Name.toString -> n) |
+  q == n                           = Just 0-- exact match is top choice
+  | map toLower q == map toLower n = Just 1-- ignore case
+  | q `isSuffixOf` n               = Just 2-- matching suffix is p.good
+  | q `isPrefixOf` n               = Just 3-- matching prefix
+  | otherwise = Nothing
+

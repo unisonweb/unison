@@ -12,6 +12,7 @@ module Unison.Builtin2 where
 import           Control.Applicative            ( liftA2
                                                 -- , (<|>)
                                                 )
+import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( foldl' )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
@@ -98,7 +99,11 @@ parseType = error "todo" -- is `Names` something we want to keep using?
 
 names0 :: Names0
 names0 = Names terms types where
-  terms = Rel.mapRan Referent.Ref $ Rel.fromMap termNameRefs
+  terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
+    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid)
+                 | (_,(r,decl)) <- builtinDataDecls @Symbol <>
+                    ((second . second) DD.toDataDecl <$> builtinEffectDecls)
+                 , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]

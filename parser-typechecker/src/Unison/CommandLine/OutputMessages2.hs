@@ -8,8 +8,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE RecordWildCards     #-}
 
@@ -43,6 +41,7 @@ import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.GitError
 import           Unison.Codebase.Branch        (Branch0)
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Patch         as Patch
@@ -76,21 +75,23 @@ import qualified Unison.Names2                 as Names
 import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
-import           Unison.PrintError             (prettyParseError
-                                               -- ,renderNoteAsANSI
+import           Unison.PrintError              ( prettyParseError
+                                                , renderNoteAsANSI
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
 import qualified Unison.Referent               as Referent
+import qualified Unison.Result                 as Result
 import qualified Unison.Term                   as Term
 import           Unison.Term                   (AnnotatedTerm)
 import qualified Unison.TermPrinter            as TermPrinter
 import qualified Unison.Typechecker.TypeLookup as TL
+import qualified Unison.Typechecker            as Typechecker
 import qualified Unison.TypePrinter            as TypePrinter
 import qualified Unison.Util.ColorText         as CT
-import           Unison.Util.Monoid            (
-                                                -- intercalateMap,
-                                                unlessM)
+import           Unison.Util.Monoid             ( intercalateMap
+                                                , unlessM
+                                                )
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
@@ -166,13 +167,12 @@ notifyUser dir o = case o of
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
-  TypeErrors _src _ppenv _notes -> error "todo"
-  -- do
-  --   Console.setTitle "Unison ☹︎"
-  --   let showNote =
-  --         intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
-  --           . map Result.TypeError
-  --   putStrLn . showNote $ notes
+  TypeErrors src ppenv notes -> do
+    Console.setTitle "Unison ☹︎"
+    let showNote =
+          intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+            . map Result.TypeError
+    putStrLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else
@@ -220,6 +220,47 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
+  GitError e -> case e of
+                  NoGit -> putPrettyLn' . P.wrap $ "I couldn't find git. "
+                           <> "Make sure it's installed and on your path."
+                  NoGithubAt p ->
+                    putPrettyLn' . P.wrap $ "I couldn't access a git "
+                      <> "repository at " <> P.text p
+                      <> ". Make sure the repo exists "
+                      <> "and that you have access to it."
+                  NotAGitRepo p ->
+                    putPrettyLn' . P.wrap $ "The directory at " <> P.string p
+                    <> "doesn't seem to contain a git repository."
+                  CheckoutFailed t ->
+                    putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
+                    <> P.text t <> ". Make sure there's a branch or commit "
+                    <> "with that name."
+  ListEdits patch names0 -> do
+    let
+      ppe = PPE.fromNames0 names0
+      types = Patch._typeEdits patch
+      terms = Patch._termEdits patch
+
+      prettyTermEdit (r, TermEdit.Deprecate) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> (deprecated)")
+      prettyTermEdit (r, TermEdit.Replace r' _typing) =
+        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> " <> (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
+      prettyTypeEdit (r, TypeEdit.Deprecate) =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> (deprecated)")
+      prettyTypeEdit (r, TypeEdit.Replace r') =
+        (prettyHashQualified $ PPE.typeName ppe r
+        , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
+    when (not $ R.null types) $
+       putPrettyLn $ "Edited Types:" `P.hang`
+        P.column2 (prettyTypeEdit <$> R.toList types)
+    when (not $ R.null terms) $
+       putPrettyLn $ "Edited Terms:" `P.hang`
+        P.column2 (prettyTermEdit <$> R.toList terms)
+    when (R.null types && R.null terms)
+         (putPrettyLn "This patch is empty.")
   BustedBuiltins (Set.toList -> new) (Set.toList -> old) ->
     -- todo: this could be prettier!  Have a nice list like `find` gives, but
     -- that requires querying the codebase to determine term types.  Probably
@@ -238,12 +279,18 @@ notifyUser dir o = case o of
             : fmap (P.text . Reference.toText) old
         (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
           : "" : fmap (P.text . Reference.toText) new
-        (new@(_:_), old@(_:_)) -> P.wrap ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use " <> makeExample' IP.updateBuiltins <> " to add the ones you're missing and deprecate the ones I'm missing. 😉")
-          : "You're missing:" `P.hang`
-              P.lines (fmap (P.text . Reference.toText) new)
-          : "I'm missing:" `P.hang`
-              P.lines (fmap (P.text . Reference.toText) old)
-          : []
+        (new@(_:_), old@(_:_)) ->
+          [ P.wrap
+            ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use "
+            <> makeExample' IP.updateBuiltins
+            <> " to add the ones you're missing and deprecate the ones I'm missing. 😉"
+            )
+          , "You're missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) new)
+          , "I'm missing:" `P.hang` P.lines (fmap (P.text . Reference.toText) old)
+          ]
+  ListOfPatches patches ->
+    -- todo: make this prettier
+    putPrettyLn . P.lines . fmap prettyName $ toList patches
   x -> error $ "todo: output message for\n\n" ++ show x
   where
   renderFileName = P.group . P.blue . fromString
@@ -517,9 +564,9 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
       , P.indentN 2 . P.lines $
           let unscore (_score,a,b,c) = (a,b,c)
           in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
-             (TypePrinter.prettySignatures'
+             TypePrinter.prettySignatures'
                 ppe
-                (goodTerms $ unscore <$> dirtyTerms))
+                (goodTerms $ unscore <$> dirtyTerms)
       , formatMissingStuff corruptTerms corruptTypes
       ]
 

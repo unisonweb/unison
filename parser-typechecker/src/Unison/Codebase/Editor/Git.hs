@@ -2,7 +2,6 @@
 
 module Unison.Codebase.Editor.Git where
 
-import Debug.Trace
 import           Control.Monad                  ( when
                                                 , unless
                                                 )
@@ -22,7 +21,7 @@ import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
-                                                , removeDirectory
+                                                , removePathForcibly
                                                 )
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase2              as Codebase
@@ -88,7 +87,7 @@ pullGithubRootBranch localPath codebase user repo treeish = do
   branch <- lift $ getRootBranch localPath
   headExists <- liftIO $ doesDirectoryExist $ branchHeadDir localPath
   when headExists $
-    liftIO . removeDirectory $ branchHeadDir localPath
+    liftIO . removePathForcibly $ branchHeadDir localPath
   lift $ Codebase.syncFromDirectory codebase localPath
   pure branch
 
@@ -135,13 +134,10 @@ pushGithubRootBranch
   -> Text
   -> ExceptT GitError m ()
 pushGithubRootBranch localPath codebase branch user repo treeish = do
-  traceM "Pushing..."
   wd <- liftIO getCurrentDirectory
   -- Clone and pull the remote repo
-  traceM "Shallow pull..."
   shallowPullFromGithub localPath user repo treeish
   -- Stick our changes in the checked-out copy
-  traceM $ "Syncing code to " <> show localPath
   lift $ syncToDirectory codebase localPath branch
   liftIO $ do
     setCurrentDirectory localPath

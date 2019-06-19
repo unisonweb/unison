@@ -22,7 +22,7 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Control.Monad.Writer
 import           Data.Foldable              (for_, toList, traverse_)
-import           Data.List                  (nub)
+import           Data.List                  (nub, nubBy)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
@@ -164,10 +164,11 @@ synthesize env t = let
   in tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
-isSubtype t1 t2 = case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
-  Context.Result es _ ob -> case ob of
-    Nothing -> error $ "some errors occurred during subtype checking " ++ show es
-    Just b -> b
+isSubtype t1 t2 =
+  case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
+    Context.Result es _ ob -> fromMaybe
+      (error $ "some errors occurred during subtype checking " ++ show es)
+      ob
   where tvar = ABT.vmap TypeVar.Universal
 
 isEqual :: Var v => Type v loc -> Type v loc -> Bool
@@ -246,10 +247,10 @@ typeDirectedNameResolution oldNotes oldType env = do
  where
   addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
-    = for_ vtts $ \(v, typ, _) -> do
+    = for_ vtts $ \(v, typ, _) ->
       unqualifiedTerms %= Map.insertWith (<>)
                               (Var.unqualifiedName v)
-                              ([NamedReference (Var.name v) typ (Left v)])
+                              [NamedReference (Var.name v) typ (Left v)]
   addTypedComponent _ = pure ()
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
@@ -288,13 +289,17 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Context.InfoNote v loc
     -> Result (Notes v loc) (Maybe (Resolution v loc))
   resolveNote env (Context.SolvedBlank (B.Resolve loc n) _ it)
-    = fmap (Just . Resolution (Text.pack n) it loc . join)
+    = fmap (Just . Resolution (Text.pack n) it loc . dedupe . join)
       . traverse (resolve env it)
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
       $ view unqualifiedTerms env
   resolveNote _ n = btw n >> pure Nothing
+  dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
+  dedupe = nubBy $ \x y -> case (x, y) of
+    (Context.Suggestion _ _ r1, Context.Suggestion _ _ r2) -> r1 == r2
+    (x, y) -> x == y
   resolve
     :: Env v loc
     -> Context.Type v loc

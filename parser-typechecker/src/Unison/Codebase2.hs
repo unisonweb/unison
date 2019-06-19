@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase2 where
 

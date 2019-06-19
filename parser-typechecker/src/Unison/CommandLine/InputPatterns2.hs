@@ -135,6 +135,15 @@ find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     )
     (pure . Input.SearchByNameI)
 
+findPatch :: InputPattern
+findPatch = InputPattern "find.patch" [] []
+    (P.wrapColumn2
+      [ ("`find`"
+        , "lists all patches in the current branch.")
+      ]
+    )
+    (pure . const Input.FindPatchI)
+
 renameTerm :: InputPattern
 renameTerm = InputPattern "rename.term" []
     [(Required, exactDefinitionTermQueryArg)
@@ -284,12 +293,12 @@ pull = InputPattern
   )
   (\case
     [owner, repo] -> pure $ Input.PullRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "")
+      (Github (Text.pack owner) (Text.pack repo) "master")
       Path.relativeEmpty'
     [owner, repo, path] -> do
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "")
+        (Github (Text.pack owner) (Text.pack repo) "master")
         p
     [owner, repo, path, treeish] -> do
       p <- first fromString $ Path.parsePath' path
@@ -324,12 +333,12 @@ push = InputPattern
   )
   (\case
     [owner, repo] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "")
+      (Github (Text.pack owner) (Text.pack repo) "master")
       Path.relativeEmpty'
     [owner, repo, path] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.PushRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "")
+        (Github (Text.pack owner) (Text.pack repo) "master")
         p
     [owner, repo, path, treeish] -> first fromString $ do
       p <- Path.parsePath' path
@@ -390,6 +399,16 @@ quit = InputPattern "quit" ["exit"] []
     _  -> Left "Use `quit`, `exit`, or <Ctrl-D> to quit."
   )
 
+viewPatch :: InputPattern
+viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
+  "Lists all the edits in the given patch."
+  (\case
+    patchStr : [] -> first fromString $ do
+      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      Right $ Input.ListEditsI patch
+    _ -> Left $ warn "`view.patch` takes a patch and that's it."
+   )
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -404,6 +423,8 @@ validInputs =
   , renameBranch
   , find
   , view
+  , findPatch
+  , viewPatch
   , undo
   , edit
   , renameTerm
@@ -424,9 +445,6 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
---  , InputPattern "edit.list" [] []
---      "Lists all the edits in the current branch."
---      (const . pure $ Input.ListEditsI)
   ]
 
 allTargets :: Set.Set Names.NameTarget

@@ -171,8 +171,11 @@ pretty ppe sr = case pretty' ppe sr of
 
   +  ability Woot
 -}
-pretty' :: Var v => PPE.PrettyPrintEnv -> SlurpResult v -> (P.Pretty P.ColorText, Set Status)
+pretty' :: forall v. Var v => PPE.PrettyPrintEnv -> SlurpResult v -> (P.Pretty P.ColorText, Set Status)
 pretty' ppe sr = let
+  termAlias', typeAlias' :: [v]
+  termAlias' = filter (`Set.notMember` (terms $ duplicates sr)) (Map.keys (termAlias sr))
+  typeAlias' = filter (`Set.notMember` (types $ duplicates sr)) (Map.keys (typeAlias sr))
   tms = UF.hashTerms (originalFile sr)
   termLineFor status v = case Map.lookup v tms of
     Just (_,_,ty) ->
@@ -181,23 +184,28 @@ pretty' ppe sr = let
       where
       lhs = case Map.lookup v (termAlias sr) of
         Nothing -> P.bold (P.text $ Var.name v)
-        Just ns -> P.sep "," (P.bold (P.text $ Var.name v) : (P.shown <$> toList ns))
+        Just ns -> P.sep ", " (P.bold (P.text $ Var.name v) : (P.shown <$> toList ns))
     Nothing ->
       if isFailure status then [(prettyStatus status <> "  " <> P.text (Var.name v), "")]
       else []
   typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
     Just (_, dd) ->
-      prettyStatus status <> "  " <> DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd
+      (prettyStatus status <> "  " <> DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd, aliases)
     Nothing ->
-      prettyStatus status <> "  "
+      (prettyStatus status <> "  "
         <> P.bold (P.text (Var.name v))
-        <> P.red (P.wrap ("(Unison bug, unknown type)"))
+        <> P.red (P.wrap ("(Unison bug, unknown type)")), aliases)
+    where
+    aliases = case Map.lookup v (typeAlias sr) of
+      Nothing -> ""
+      Just ns -> "  (existing " <> n <> ": " <> P.sep ", " (P.shown <$> toList ns) <> ")"
+        where n = if Set.size ns == 1 then "name" else "names"
 
   termMsgs = P.column2 . join $
     (termLineFor Add <$> toList (terms (adds sr))) ++
     (termLineFor ExtraDefinition <$> toList (terms (extraDefinitions sr))) ++
     (termLineFor Update <$> toList (terms (updates sr))) ++
-    (termLineFor Alias <$> Map.keys (termAlias sr)) ++
+    (termLineFor Alias <$> termAlias') ++
     (termLineFor Duplicate <$> toList (terms (duplicates sr))) ++
     (termLineFor Conflicted <$> toList (terms (conflicts sr))) ++
     (termLineFor Collision <$> toList (terms (collisions sr))) ++
@@ -205,11 +213,11 @@ pretty' ppe sr = let
     (termLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
     (termLineFor BlockedDependency <$> toList (terms (defsWithBlockedDependencies sr)))
 
-  typeMsgs = P.lines $
+  typeMsgs = P.column2 $
     (typeLineFor Add <$> toList (types (adds sr))) ++
     (typeLineFor ExtraDefinition <$> toList (types (extraDefinitions sr))) ++
     (typeLineFor Update <$> toList (types (updates sr))) ++
-    (typeLineFor Alias <$> Map.keys (typeAlias sr)) ++
+    (typeLineFor Alias <$> typeAlias') ++
     (typeLineFor Duplicate <$> toList (types (duplicates sr))) ++
     (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
     (typeLineFor Collision <$> toList (types (collisions sr))) ++
@@ -219,7 +227,7 @@ pretty' ppe sr = let
     [ if SC.isEmpty (adds sr) then [] else [Add]
     , if SC.isEmpty (extraDefinitions sr) then [] else [ExtraDefinition]
     , if SC.isEmpty (updates sr) then [] else [Update]
-    , if Map.null (termAlias sr) && Map.null (typeAlias sr) then [] else [Alias]
+    , if null termAlias' && null typeAlias' then [] else [Alias]
     , if SC.isEmpty (duplicates sr) then [] else [Duplicate]
     , if SC.isEmpty (conflicts sr) then [] else [Conflicted]
     , if SC.isEmpty (collisions sr) then [] else [Collision]
@@ -228,4 +236,4 @@ pretty' ppe sr = let
     , if SC.isEmpty (defsWithBlockedDependencies sr) then [] else [BlockedDependency]
     ]
 
-  in (P.sepNonEmpty "\n\n" [termMsgs, typeMsgs], statuses)
+  in (P.sepNonEmpty "\n\n" [typeMsgs, termMsgs], statuses)

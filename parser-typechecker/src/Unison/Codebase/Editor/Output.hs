@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Codebase.Editor.Output
@@ -22,6 +21,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
+import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.HashQualified ( HashQualified )
@@ -77,6 +77,7 @@ data Output v
   | CantDelete Input Names0 [SearchResult' v Ann] [SearchResult' v Ann]
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
+  | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   -- Original source, followed by the errors:
@@ -96,13 +97,14 @@ data Output v
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names0 (TodoOutput v Ann)
   | CantUndo UndoFailureReason
-  -- | ListEdits Edits Names
+  | ListEdits Patch Names0
 
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
+  | GitError GitError
   deriving (Show)
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show

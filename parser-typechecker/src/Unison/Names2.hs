@@ -44,7 +44,7 @@ import Unison.Codebase.NameSegment (NameSegment)
 data Names' n = Names
   { terms :: Relation n Referent
   , types :: Relation n Reference
-  } deriving (Eq,Ord,Show)
+  } deriving (Eq,Ord)
 
 type Names = Names' HashQualified
 type Names0 = Names' Name
@@ -300,6 +300,10 @@ filterByHQs hqs Names{..} = Names terms' types' where
   f (n, r) = any (HQ.matchesNamedReferent n r) hqs
   g (n, r) = any (HQ.matchesNamedReference n r) hqs
 
+filterTerms, filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
+filterTerms f (Names terms types) = Names (R.filterDom f terms) types
+filterTypes f (Names terms types) = Names terms (R.filterDom f types)
+
 difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
                   (R.difference (types a) (types b))
@@ -364,3 +368,9 @@ instance Ord n => Monoid (Names' n) where
   mempty = Names mempty mempty
   Names e1 t1 `mappend` Names e2 t2 =
     Names (e1 <> e2) (t1 <> t2)
+
+instance Show n => Show (Names' n) where
+  show (Names terms types) = "Terms:\n" ++
+    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms) ++ "\n" ++
+    "Types:\n" ++
+    foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types) ++ "\n"

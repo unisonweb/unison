@@ -11,7 +11,7 @@ import           Control.Lens            hiding ( children, cons, transform )
 -- import           Data.GUID                (genText)
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Foldable                  ( foldl' )
+-- import           Data.Foldable                  ( foldl' )
 import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
@@ -39,16 +39,14 @@ empty = Patch mempty mempty
 isEmpty :: Patch -> Bool
 isEmpty p = p == empty
 
--- we need:
--- all of the references from the `new` edits,
--- plus all of the references for things we're replacing
-collectForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
-collectForTyping new old = foldl' f mempty (new ++ fromOld) where
-  f acc (r, r') = Set.union (Set.fromList [r, r']) acc
-  newLHS = Set.fromList . fmap fst $ new
-  fromOld :: [(Reference, Reference)]
-  fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . _termEdits $ old
-                     , Set.member r' newLHS ]
+allReferences :: Patch -> Set Reference
+allReferences p = typeReferences p <> termReferences p where
+  typeReferences p = Set.fromList
+    [ r | (old, TypeEdit.Replace new) <- R.toList (_typeEdits p)
+        , r <- [old, new] ]
+  termReferences p = Set.fromList
+    [ r | (old, TermEdit.Replace new _) <- R.toList (_termEdits p)
+        , r <- [old, new] ]
 
 
 updateTerm :: (Reference -> Reference -> Typing)
@@ -93,4 +91,3 @@ instance Semigroup Patch where
 instance Hashable Patch where
   tokens e = [ H.Hashed (H.accumulate (H.tokens (_termEdits e))),
                H.Hashed (H.accumulate (H.tokens (_typeEdits e))) ]
-

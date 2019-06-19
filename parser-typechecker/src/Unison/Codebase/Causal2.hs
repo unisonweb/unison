@@ -1,6 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE PatternSynonyms, ViewPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RankNTypes #-}
 module Unison.Codebase.Causal2 where
 
@@ -10,7 +8,7 @@ import           Prelude                 hiding ( head
                                                 )
 import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
-import           Control.Monad                  ( when )
+import           Control.Monad                  ( unless )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
@@ -65,6 +63,11 @@ data Raw h e
   | RawCons e (RawHash h)
   | RawMerge e (Set (RawHash h))
 
+rawHead :: Raw h e -> e
+rawHead (RawOne e    ) = e
+rawHead (RawCons  e _) = e
+rawHead (RawMerge e _) = e
+
 -- Don't need to deserialize the `e` to calculate `before`.
 data Tails h
   = TailsOne
@@ -85,23 +88,24 @@ type Serialize m h e = RawHash h -> Raw h e -> m ()
 
 -- Sync a causal to some persistent store, stopping when hitting a Hash which
 -- has already been written, according to the `exists` function provided.
-sync :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
+sync
+  :: Monad m => (RawHash h -> m Bool) -> Serialize m h e -> Causal m h e -> m ()
 sync exists serialize c = do
   b <- exists (currentHash c)
-  when (not b) $ go c
-  where
-    go c = case c of
-      One currentHash head -> serialize currentHash $ RawOne head
-      Cons currentHash head (tailHash, tailm) -> do
-        -- write out the tail first, so what's on disk is always valid
-        b <- exists tailHash
-        when (not b) $ go =<< tailm
-        serialize currentHash (RawCons head tailHash)
-      Merge currentHash head tails -> do
-        for_ (Map.toList tails) $ \(hash, cm) -> do
-          b <- exists hash
-          when (not b) $ go =<< cm
-        serialize currentHash (RawMerge head (Map.keysSet tails))
+  unless b $ go c
+ where
+  go c = case c of
+    One currentHash head -> serialize currentHash $ RawOne head
+    Cons currentHash head (tailHash, tailm) -> do
+      -- write out the tail first, so what's on disk is always valid
+      b <- exists tailHash
+      unless b $ go =<< tailm
+      serialize currentHash (RawCons head tailHash)
+    Merge currentHash head tails -> do
+      for_ (Map.toList tails) $ \(hash, cm) -> do
+        b <- exists hash
+        unless b $ go =<< cm
+      serialize currentHash (RawMerge head (Map.keysSet tails))
 
 instance Eq (Causal m h a) where
   a == b = currentHash a == currentHash b
@@ -153,7 +157,7 @@ mergeWithM f a b =
 
 -- Does `h2` incorporate all of `h1`?
 before :: Monad m => Causal m h e -> Causal m h e -> m Bool
-before h1 h2 = go h1 h2
+before = go
  where
   -- stopping condition if both are equal
   go h1 h2 | h1 == h2 = pure True
@@ -187,7 +191,7 @@ stepIf
   -> (e -> e)
   -> Causal m h e
   -> Causal m h e
-stepIf cond f c = if (cond $ head c) then step f c else c
+stepIf cond f c = if cond (head c) then step f c else c
 
 stepM
   :: (Applicative m, Hashable e) => (e -> m e) -> Causal m h e -> m (Causal m h e)
