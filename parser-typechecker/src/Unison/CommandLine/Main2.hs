@@ -113,14 +113,14 @@ main dir initialPath _initialFile startRuntime codebase = do
     let patternMap =
           Map.fromList
             $   validInputs
-            >>= (\p -> [(patternName p, p)] ++ ((, p) <$> aliases p))
+            >>= (\p -> (patternName p, p) : ((, p) <$> aliases p))
         getInput = do
           root <- readIORef rootRef
           path <- readIORef pathRef
           numberedArgs <- readIORef numberedArgsRef
           getUserInput patternMap codebase root path numberedArgs
     let
-      awaitInput = do
+      awaitInput =
         -- Race the user input and file watch.
         Async.race (atomically $ Q.peek eventQueue) getInput >>= \case
           Left _ -> Left <$> atomically (Q.dequeue eventQueue)
