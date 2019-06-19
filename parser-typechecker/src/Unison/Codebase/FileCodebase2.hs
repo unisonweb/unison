@@ -92,7 +92,8 @@ data Err
   | UnknownTypeOrTerm Reference
   deriving Show
 
-termsDir, typesDir, branchesDir, branchHeadDir, editsDir :: CodebasePath -> FilePath
+termsDir, typesDir, branchesDir, branchHeadDir, editsDir
+  :: CodebasePath -> FilePath
 termsDir root = root </> "terms"
 typesDir root = root </> "types"
 branchesDir root = root </> "branches"
@@ -309,6 +310,7 @@ writeAllTermsAndTypes putV putA codebase localPath branch = do
           mayDecl <- Codebase.getTypeDeclaration codebase i
           maybe (calamity i) (putDecl putV putA localPath i) mayDecl
       _ -> pure ()
+    -- Write all terms
     for_ (toList $ Star3.fact terms) $ \case
       Ref r@(Reference.DerivedId i) -> do
         alreadyExists <- liftIO . doesPathExist $ termPath localPath i
@@ -317,6 +319,9 @@ writeAllTermsAndTypes putV putA codebase localPath branch = do
           mayType <- Codebase.getTypeOfTerm codebase r
           fromMaybe (calamity i)
                     (putTerm putV putA localPath i <$> mayTerm <*> mayType)
+          -- If the term is a test, write the cached value too.
+          mayTest <- Codebase.getWatch codebase UF.TestWatch i
+          maybe (pure ()) (putWatch putV putA localPath UF.TestWatch i) mayTest
       _ -> pure ()
 
 putTerm
@@ -356,6 +361,21 @@ putDecl putV putA path h decl = liftIO $ do
  where
   deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
 
+putWatch
+  :: MonadIO m
+  => Var v
+  => S.Put v
+  -> S.Put a
+  -> FilePath
+  -> UF.WatchKind
+  -> Reference.Id
+  -> Codebase.Term v a
+  -> m ()
+putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
+  (V1.putTerm putV putA)
+  (watchesDir path (Text.pack k) </> componentId id <> ".ub")
+  e
+
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
   :: forall m v a
@@ -377,7 +397,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                      (writeAllTermsAndTypes putV putA c)
                      watches
                      getWatch
-                     putWatch
+                     (putWatch putV putA path)
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
@@ -416,12 +436,6 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
     let wp = watchesDir path (Text.pack k)
     createDirectoryIfMissing True wp
     S.getFromFile (V1.getTerm getV getA) (wp </> componentId id <> ".ub")
-
-  putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a -> m ()
-  putWatch k id e = liftIO $ S.putWithParentDirs
-    (V1.putTerm putV putA)
-    (watchesDir path (Text.pack k) </> componentId id <> ".ub")
-    e
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
