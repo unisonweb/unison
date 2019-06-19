@@ -323,7 +323,7 @@ loop = do
         (rs,         _) -> termConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTermMetadata p r root0
+        ol'Md r = BranchUtil.getTermMetadataAt p r root0
 
       AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
         ([r],       []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (ol'Md r))
@@ -332,7 +332,7 @@ loop = do
         (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTypeMetadata p r root0
+        ol'Md r = BranchUtil.getTypeMetadataAt p r root0
 
       LinkI src mdType mdValue -> do
         let srcle = toList (getHQ'Terms src)
@@ -341,7 +341,7 @@ loop = do
             mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [mdType], [mdValue])
+          (srcle, srclt, [mdType], [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 ->
               stepAt (parent, step)
               where
@@ -351,7 +351,7 @@ loop = do
                 tyUpdates types = foldl' go types srclt where
                   go types src = Metadata.insert (src, mdType, mdValue) types
                 in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-          _ -> error "todo - output for link failure"
+          _ -> respond $ LinkFailure input
 
       UnlinkI src mdType mdValue -> do
         let srcle = toList (getHQ'Terms src)
@@ -360,7 +360,7 @@ loop = do
             mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [mdType], [mdValue])
+          (srcle, srclt, [mdType], [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 ->
               stepAt (parent, step)
               where
@@ -370,14 +370,35 @@ loop = do
                 tyUpdates types = foldl' go types srclt where
                   go types src = Metadata.delete (src, mdType, mdValue) types
                 in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
-          _ -> error "todo - output for link failure"
+          _ -> respond $ LinkFailure input
+
+      LinksI src key -> do
+        let srcle = toList (getHQ'Terms src)
+            srclt = toList (getHQ'Types src)
+            p@(parent, last) = resolvePath' src
+            mdTerms = foldl' Metadata.merge mempty [
+              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+            mdTypes = foldl' Metadata.merge mempty [
+              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+            allMd = Metadata.merge mdTerms mdTypes
+            allowed = maybe (Map.keysSet allMd) getHQTerms key
+        let allMd' = Map.restrictKeys allMd allowed
+            allRefs = toList (Set.unions (Map.elems allMd'))
+            ppe = PPE.fromNames0 prettyPrintNames0
+        termDisplays <- Map.fromList <$> do
+          terms <- filterM (eval . IsTerm) allRefs
+          traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
+        typeDisplays <- Map.fromList <$> do
+          types <- filterM (eval . IsType) allRefs
+          traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
+        respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
         where
         srcOk r = zeroOrMore (getTerms dest) (destOk r) (termExists dest)
         p = resolvePath' (HQ'.toName <$> src')
-        mdSrc r = BranchUtil.getTermMetadata p r root0
+        mdSrc r = BranchUtil.getTermMetadataAt p r root0
         destOk r = stepManyAt
           [ BranchUtil.makeDeleteTermName p r
           , BranchUtil.makeAddTermName (resolvePath' dest) r (mdSrc r)]
@@ -386,7 +407,7 @@ loop = do
         zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
         where
         p = resolvePath' (HQ'.toName <$> src')
-        mdSrc r = BranchUtil.getTypeMetadata p r root0
+        mdSrc r = BranchUtil.getTypeMetadataAt p r root0
         srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
         destOk r = stepManyAt
           [ BranchUtil.makeDeleteTypeName p r
@@ -1303,13 +1324,13 @@ doSlurpUpdates typeEdits termEdits b0 = Branch.stepManyAt0 (typeActions <> termA
     Just split -> [ BranchUtil.makeDeleteTypeName split old
                   , BranchUtil.makeAddTypeName split new oldMd ]
       where
-      oldMd = BranchUtil.getTypeMetadata split old b0
+      oldMd = BranchUtil.getTypeMetadataAt split old b0
   doTerm (n, (old, new)) = case Path.splitFromName n of
     Nothing -> errorEmptyVar
     Just split -> [ BranchUtil.makeDeleteTermName split (Referent.Ref old)
                   , BranchUtil.makeAddTermName split (Referent.Ref new) oldMd ]
       where
-      oldMd = BranchUtil.getTermMetadata split (Referent.Ref old) b0
+      oldMd = BranchUtil.getTermMetadataAt split (Referent.Ref old) b0
   errorEmptyVar = error "encountered an empty var name"
 
 loadSearchResults :: Ord v => [SR.SearchResult] -> Action m i v [SearchResult' v Ann]
@@ -1346,6 +1367,20 @@ loadReferentType = \case
       Just decl -> DD.typeOfConstructor (either DD.toDataDecl id decl) cid
   getTypeOfConstructor r cid =
     error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
+
+loadTermDisplayThing :: Ord v => Reference -> _ (DisplayThing (Term v _))
+loadTermDisplayThing r = case r of
+  Reference.Builtin _ -> pure BuiltinThing
+  Reference.DerivedId id -> do
+    tm <- eval (LoadTerm id)
+    case tm of
+      Nothing -> pure $ MissingThing id
+      Just (tm@(Term.Ann' _ _)) -> pure $ RegularThing tm
+      Just tm -> do
+        ty <- eval $ LoadTypeOfTerm r
+        case ty of
+          Nothing -> pure $ MissingThing id
+          Just ty -> pure $ RegularThing (Term.ann (ABT.annotation tm) tm ty)
 
 loadTypeDisplayThing :: Reference -> _ (DisplayThing (DD.Decl _ _))
 loadTypeDisplayThing = \case

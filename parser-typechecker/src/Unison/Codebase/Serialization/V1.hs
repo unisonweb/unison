@@ -648,10 +648,10 @@ putMetadataType :: MonadPut m => Metadata.Type -> m ()
 putMetadataType = putReferent
 
 getMetadataValue :: MonadGet m => m Metadata.Value
-getMetadataValue = getReferent
+getMetadataValue = getReference
 
 putMetadataValue :: MonadPut m => Metadata.Value -> m ()
-putMetadataValue = putReferent
+putMetadataValue = putReference
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =

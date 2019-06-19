@@ -61,12 +61,21 @@ getTerm (p, hq) b = case hq of
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
   terms = Branch._terms (Branch.getAt0 p b)
 
-getTermMetadata :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
-getTermMetadata (path,_) r b = Set.fromList <$> List.multimap mdList
+-- Only returns metadata for the term at the exact level given
+getTermMetadataAt :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
+getTermMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ terms
   terms = Branch._terms $ Branch.getAt0 path b
+
+-- Returns metadata at or below the exact level given
+getTermMetadataUnder :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
+getTermMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
+  where
+  mdList :: [(Metadata.Type, Metadata.Value)]
+  mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ terms
+  terms = Branch.deepTerms $ Branch.getAt0 path b
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
@@ -77,12 +86,19 @@ getType (p, hq) b = case hq of
   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
   types = Branch._types (Branch.getAt0 p b)
 
-getTypeMetadata :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
-getTypeMetadata (path,_) r b = Set.fromList <$> List.multimap mdList
+getTypeMetadataAt :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
+getTypeMetadataAt (path,_) r b = Set.fromList <$> List.multimap mdList
   where
   mdList :: [(Metadata.Type, Metadata.Value)]
   mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ types
   types = Branch._types $ Branch.getAt0 path b
+
+getTypeMetadataUnder :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
+getTypeMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
+  where
+  mdList :: [(Metadata.Type, Metadata.Value)]
+  mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ types
+  types = Branch.deepTypes $ Branch.getAt0 path b
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
