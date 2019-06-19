@@ -40,6 +40,7 @@ import           Unison.Codebase.Causal2        ( Raw(..)
                                                 , unRawHash
                                                 )
 import qualified Unison.Codebase.Causal2        as Causal
+import qualified Unison.Codebase.Metadata       as Metadata
 import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Codebase.NameSegment    as NameSegment
 import           Unison.Codebase.Patch          ( Patch(..) )
@@ -67,6 +68,8 @@ import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import           Unison.Util.Star3             ( Star3 )
+import qualified Unison.Util.Star3             as Star3
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.DataDeclaration        as DataDeclaration
@@ -576,10 +579,38 @@ getTypeEdit = getWord8 >>= \case
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
+putStar3
+  :: MonadPut m
+  => (f -> m ())
+  -> (d1 -> m ())
+  -> (d2 -> m ())
+  -> (d3 -> m ())
+  -> Star3 f d1 d2 d3
+  -> m ()
+putStar3 putF putD1 putD2 putD3 s = do
+  putFoldable putF (Star3.fact s)
+  putRelation putF putD1 (Star3.d1 s)
+  putRelation putF putD2 (Star3.d2 s)
+  putRelation putF putD3 (Star3.d3 s)
+
+getStar3
+  :: (MonadGet m, Ord fact, Ord d1, Ord d2, Ord d3)
+  => m fact
+  -> m d1
+  -> m d2
+  -> m d3
+  -> m (Star3 fact d1 d2 d3)
+getStar3 getF getD1 getD2 getD3 =
+  Star3.Star3
+    <$> (Set.fromList <$> getList getF)
+    <*> getRelation getF getD1
+    <*> getRelation getF getD2
+    <*> getRelation getF getD3
+
 putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
-  putRelation putNameSegment putReferent (Branch._terms b)
-  putRelation putNameSegment putReference (Branch._types b)
+  putStar3 putReferent putNameSegment putMetadataType putMetadataValue (Branch._terms b)
+  putStar3 putReference putNameSegment putMetadataType putMetadataValue (Branch._types b)
   putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
               (Map.toList (Branch._children b))
 
@@ -604,17 +635,29 @@ getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
-putRawBranch (Branch.Raw terms types children edits) =
-  putRelation putNameSegment putReferent terms >>
-  putRelation putNameSegment putReference types >>
-  putMap putNameSegment (putHash . unRawHash) children >>
+putRawBranch (Branch.Raw terms types children edits) = do
+  putStar3 putReferent putNameSegment putMetadataType putMetadataValue terms
+  putStar3 putReference putNameSegment putMetadataType putMetadataValue types
+  putMap putNameSegment (putHash . unRawHash) children
   putMap putNameSegment putHash edits
+
+getMetadataType :: MonadGet m => m Metadata.Type
+getMetadataType = getReferent
+
+putMetadataType :: MonadPut m => Metadata.Type -> m ()
+putMetadataType = putReferent
+
+getMetadataValue :: MonadGet m => m Metadata.Value
+getMetadataValue = getReferent
+
+putMetadataValue :: MonadPut m => Metadata.Value -> m ()
+putMetadataValue = putReferent
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
   Branch.Raw
-    <$> getRelation getNameSegment getReferent
-    <*> getRelation getNameSegment getReference
+    <$> getStar3 getReferent getNameSegment getMetadataType getMetadataValue
+    <*> getStar3 getReference getNameSegment getMetadataType getMetadataValue
     <*> getMap getNameSegment (RawHash <$> getHash)
     <*> getMap getNameSegment getHash
 

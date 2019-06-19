@@ -67,6 +67,15 @@ data Input
   | UndoI
   -- execute an IO object with arguments
   | ExecuteI String
+  -- metadata
+  -- link src <link-type> apiDocsValue
+  | LinkI Path.HQ'Split' Path.HQSplit' Path.HQSplit'
+  -- unlink src <link-type> apiDocsValue
+  | UnlinkI Path.HQ'Split' Path.HQSplit' Path.HQSplit'
+  -- links <link-type> src
+  | LinksI Path.HQ'Split' Path.HQSplit'
+  -- link.types src
+  | LinkTypes Path.HQ'Split'
   -- other
   | UndoRootI
   | SearchByNameI [String]
