@@ -513,10 +513,12 @@ instance Hashable (Branch0 m) where
 
 -- todo: consider inlining these into Actions2
 addTermName :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
-addTermName r new md = over terms undefined -- (R.insert new r)
+addTermName r new md =
+  over terms (Metadata.insertWithMetadata (r,md) . Star3.insertD1 (r,new))
 
 addTypeName :: Reference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
-addTypeName r new md = over types undefined -- (R.insert new r)
+addTypeName r new md =
+  over types (Metadata.insertWithMetadata (r,md) . Star3.insertD1 (r,new))
 
 -- addTermNameAt :: Path.Split -> Referent -> Branch0 m -> Branch0 m
 -- addTypeNameAt :: Path.Split -> Reference -> Branch0 m -> Branch0 m

@@ -23,9 +23,49 @@ toList s = [ (f, x, y, z) | f <- Set.toList (fact s)
                           , y <- Set.toList (R.lookupDom f (d2 s))
                           , z <- Set.toList (R.lookupDom f (d3 s)) ]
 
+d23s :: (Ord fact, Ord d2, Ord d3)
+     => Star3 fact d1 d2 d3
+     -> [(fact, d2, d3)]
+d23s s = [ (f, x, y) | f <- Set.toList (fact s)
+                     , x <- Set.toList (R.lookupDom f (d2 s))
+                     , y <- Set.toList (R.lookupDom f (d3 s)) ]
+
+d23s' :: (Ord fact, Ord d2, Ord d3)
+      => Star3 fact d1 d2 d3
+      -> [(d2, d3)]
+d23s' s = [ (x, y) | f <- Set.toList (fact s)
+                   , x <- Set.toList (R.lookupDom f (d2 s))
+                   , y <- Set.toList (R.lookupDom f (d3 s)) ]
+
+d12s :: (Ord fact, Ord d1, Ord d2)
+     => Star3 fact d1 d2 d3
+     -> [(fact, d1, d2)]
+d12s s = [ (f, x, y) | f <- Set.toList (fact s)
+                     , x <- Set.toList (R.lookupDom f (d1 s))
+                     , y <- Set.toList (R.lookupDom f (d2 s)) ]
+
+d13s :: (Ord fact, Ord d1, Ord d3)
+     => Star3 fact d1 d2 d3
+     -> [(fact, d1, d3)]
+d13s s = [ (f, x, y) | f <- Set.toList (fact s)
+                     , x <- Set.toList (R.lookupDom f (d1 s))
+                     , y <- Set.toList (R.lookupDom f (d3 s)) ]
+
 fromList :: (Ord fact, Ord d1, Ord d2, Ord d3)
          => [(fact, d1, d2, d3)] -> Star3 fact d1 d2 d3
 fromList = foldl' (flip insert) mempty
+
+selectFact
+  :: (Ord fact, Ord d1, Ord d2, Ord d3)
+  => Set fact
+  -> Star3 fact d1 d2 d3
+  -> Star3 fact d1 d2 d3
+selectFact fs s = Star3 fact' d1' d2' d3' where
+  fact' = Set.intersection fs (fact s)
+  d1'   = fs R.<| d1 s
+  d2'   = fs R.<| d2 s
+  d3'   = fs R.<| d3 s
+
 
 -- Deletes tuples of the form (fact, d1, _, _).
 -- If no other (fact, dk, _, _) tuples exist for any other dk, then
@@ -42,6 +82,14 @@ deletePrimaryD1 (f, x) s = let
 
 lookupD1 :: (Ord fact, Ord d1) => d1 -> Star3 fact d1 d2 d3 -> Set fact
 lookupD1 x s = R.lookupRan x (d1 s)
+
+insertD1
+  :: (Ord fact, Ord d1)
+  => (fact, d1)
+  -> Star3 fact d1 d2 d3
+  -> Star3 fact d1 d2 d3
+insertD1 (f,x) s = s { fact = Set.insert f (fact s)
+                     , d1   = R.insert f x (d1 s) }
 
 memberD1 :: (Ord fact, Ord d1) => (fact,d1) -> Star3 fact d1 d2 d3 -> Bool
 memberD1 (f, x) s = R.member f x (d1 s)

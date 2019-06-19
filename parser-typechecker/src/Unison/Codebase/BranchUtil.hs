@@ -19,6 +19,7 @@ import qualified Unison.Util.Relation as R
 import qualified Unison.Util.Star3 as Star3
 import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
+import qualified Unison.Util.List as List
 
 addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
@@ -61,7 +62,11 @@ getTerm (p, hq) b = case hq of
   terms = Branch._terms (Branch.getAt0 p b)
 
 getTermMetadata :: (Path.Path, a) -> Referent -> Branch0 m -> Metadata
-getTermMetadata (path,_) b = error "todo - getTermMetadata"
+getTermMetadata (path,_) r b = Set.fromList <$> List.multimap mdList
+  where
+  mdList :: [(Metadata.Type, Metadata.Value)]
+  mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ terms
+  terms = Branch._terms $ Branch.getAt0 path b
 
 getType :: Path.HQSplit -> Branch0 m -> Set Reference
 getType (p, hq) b = case hq of
@@ -73,7 +78,11 @@ getType (p, hq) b = case hq of
   types = Branch._types (Branch.getAt0 p b)
 
 getTypeMetadata :: (Path.Path, a) -> Reference -> Branch0 m -> Metadata
-getTypeMetadata (path,_) b = error "todo - getTermMetadata"
+getTypeMetadata (path,_) r b = Set.fromList <$> List.multimap mdList
+  where
+  mdList :: [(Metadata.Type, Metadata.Value)]
+  mdList = Star3.d23s' . Star3.selectFact (Set.singleton r) $ types
+  types = Branch._types $ Branch.getAt0 path b
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
