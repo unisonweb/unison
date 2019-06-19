@@ -150,7 +150,8 @@ notifyUser dir o = case o of
       <> "commands."
   BranchNotFound _ b ->
     putPrettyLn . P.warnCallout $ "The branch " <> P.blue (P.shown b) <> " doesn't exist."
-  CreatedNewBranch path -> pure ()
+  CreatedNewBranch path -> putPrettyLn . P.okCallout $
+    "The branch " <> P.blue (P.shown path) <> "is empty."
  -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do

@@ -303,7 +303,7 @@ loop = do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
         currentPath .= path
         branch' <- getAt path
-        when (Branch.isEmpty $ branch') (respond $ CreatedNewBranch path)
+        when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
       UndoI -> do
         prev <- eval . Eval $ Branch.uncons root'
@@ -507,7 +507,7 @@ loop = do
           latestFile .= ((, True) <$> loc)
       FindPatchI ->
         let patches = Set.fromList
-              [ (Path.toName $ Path.snoc p seg)
+              [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, (_h, mp)) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
@@ -576,9 +576,9 @@ loop = do
                 f v = case (toList (Names.typesNamed parseNames0 n)
                            ,toList (Names.typesNamed fileNames0 n)) of
                   ([old],[new]) -> (n, (old, new))
-                  otherwise -> error $ "Expected unique matches for "
-                            ++ Var.nameStr v ++ " but got: "
-                            ++ show otherwise
+                  _ -> error $ "Expected unique matches for "
+                                  ++ Var.nameStr v ++ " but got: "
+                                  ++ show otherwise
                   where n = Name.fromVar v
               hashTerms :: Map Reference (Type v Ann)
               hashTerms = Map.fromList (toList hashTerms0) where
@@ -588,9 +588,9 @@ loop = do
                 g v = case ( toList (Names.refTermsNamed parseNames0 n)
                            , toList (Names.refTermsNamed fileNames0 n)) of
                   ([old], [new]) -> (n, (old, new))
-                  otherwise -> error $ "Expected unique matches for "
-                            ++ Var.nameStr v ++ " but got: "
-                            ++ show otherwise
+                  _ -> error $ "Expected unique matches for "
+                                 ++ Var.nameStr v ++ " but got: "
+                                 ++ show otherwise
                   where n = Name.fromVar v
           ye'ol'Patch <- do
             b <- getAt p
@@ -1375,7 +1375,7 @@ loadTermDisplayThing r = case r of
     tm <- eval (LoadTerm id)
     case tm of
       Nothing -> pure $ MissingThing id
-      Just (tm@(Term.Ann' _ _)) -> pure $ RegularThing tm
+      Just tm@(Term.Ann' _ _) -> pure $ RegularThing tm
       Just tm -> do
         ty <- eval $ LoadTypeOfTerm r
         case ty of
