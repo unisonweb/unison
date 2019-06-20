@@ -19,7 +19,7 @@ data Event
 
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
-type EditPath = Path.Split'
+type PatchPath = Path.Split'
 
 data Input
   -- names stuff:
@@ -53,21 +53,21 @@ data Input
     | ResolveTypeNameI Path.HQ'Split'
   -- edits stuff:
     | AddI [HashQualified]
-    | UpdateI EditPath [HashQualified]
-    | TodoI EditPath Path'
-    | TestI Bool Bool -- TestI showSuccesses showFailures
-    | PropagateI EditPath Path'
-    | ListEditsI EditPath
+    | UpdateI PatchPath [HashQualified]
+    | TodoI PatchPath Path'
+    | PatchI PatchPath Path'
+    | ListEditsI PatchPath
     -- -- create and remove update directives
-    | DeprecateTermI EditPath Path.HQ'Split'
-    | DeprecateTypeI EditPath Path.HQ'Split'
-    | AddTermReplacementI EditPath Reference Reference
-    | AddTypeReplacementI EditPath Reference Reference
-    | RemoveTermReplacementI EditPath Reference Reference
-    | RemoveTypeReplacementI EditPath Reference Reference
+    | DeprecateTermI PatchPath Path.HQ'Split'
+    | DeprecateTypeI PatchPath Path.HQ'Split'
+    | AddTermReplacementI PatchPath Reference Reference
+    | AddTypeReplacementI PatchPath Reference Reference
+    | RemoveTermReplacementI PatchPath Reference Reference
+    | RemoveTypeReplacementI PatchPath Reference Reference
   | UndoI
   -- execute an IO object with arguments
   | ExecuteI String
+  | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
   | LinkI Path.HQ'Split' Path.HQSplit'

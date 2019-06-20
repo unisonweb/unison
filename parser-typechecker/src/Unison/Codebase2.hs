@@ -9,6 +9,7 @@ import           Control.Monad                  ( foldM
                                                 )
 import           Data.Foldable                  ( toList, traverse_ )
 import qualified Data.Map                      as Map
+import           Data.Map                       ( Map )
 import           Data.Maybe                     ( catMaybes, isJust )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
@@ -383,40 +384,38 @@ isType c r = case r of
 --     $ \r -> fmap (r, ) $ Branch.dependencies refOps r
 --   pure . fmap fst . join $ Components.components id withDependencies
 --   where refOps = referenceOps c
---
--- -- Turns a cycle of references into a term with free vars that we can edit
--- -- and hash again.
--- unhashComponent
---   :: forall m v a . (Monad m, Var v)
---   => Codebase m v a
---   -> Branch0
---   -> Reference
---   -> m (Maybe (Map v (Reference, Term v a, Type v a)))
--- unhashComponent code b ref = do
---   let component = Reference.members $ Reference.componentFor ref
---       ppe = Branch.prettyPrintEnv b
---   isTerm <- isTerm code ref
---   isType <- isType code ref
---   if isTerm then do
---     let
---       termInfo :: Reference -> m (v, (Reference, Term v a, Type v a))
---       termInfo termRef = do
---         tpm <- getTypeOfTerm code termRef
---         tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
---         case termRef of
---           Reference.DerivedId id -> do
---             mtm <- getTerm code id
---             tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
---             pure (HQ.toVar $ PPE.termName ppe (Referent.Ref termRef), (termRef, tm, tp))
---           _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
---       unhash m =
---         let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
---             dropType (r,tm,_tp) = (r,tm)
---         in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
---     Just . unhash . Map.fromList <$> traverse termInfo (toList component)
---   else if isType then pure Nothing
---   else fail $ "Invalid reference: " <> show ref
---
+
+-- Turns a cycle of references into a term with free vars that we can edit
+-- and hash again.
+unhashComponent
+  :: forall m v a . (Monad m, Var v)
+  => Codebase m v a
+  -> Reference
+  -> m (Maybe (Map v (Reference, Term v a, Type v a)))
+unhashComponent code ref = do
+  let component = Reference.members $ Reference.componentFor ref
+  isTerm <- isTerm code ref
+  isType <- isType code ref
+  if isTerm then do
+    let
+      termInfo :: Reference -> m (v, (Reference, Term v a, Type v a))
+      termInfo termRef = do
+        tpm <- getTypeOfTerm code termRef
+        tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
+        case termRef of
+          Reference.DerivedId id -> do
+            mtm <- getTerm code id
+            tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+            pure (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
+          _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
+      unhash m =
+        let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
+            dropType (r,tm,_tp) = (r,tm)
+        in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+    Just . unhash . Map.fromList <$> traverse termInfo (toList component)
+  else if isType then pure Nothing
+  else fail $ "Invalid reference: " <> show ref
+
 -- propagate :: (Monad m, Var v, Ord a, Monoid a) => Codebase m v a -> Branch0 -> m Branch0
 -- propagate code b = do
 --   fs <- R.ran <$> frontier code b

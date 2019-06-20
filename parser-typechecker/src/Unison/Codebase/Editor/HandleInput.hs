@@ -171,25 +171,31 @@ loop = do
   let
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
-      resolvePath' :: (Path', a) -> (Path, a)
-      resolvePath' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      resolveSplit' :: (Path', a) -> (Path, a)
+      resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
+      resolvePath' :: Path' -> Path
+      resolvePath' = Path.unabsolute . Path.toAbsolutePath currentPath'
       path'ToSplit :: Path' -> Maybe Path.Split
       path'ToSplit = Path.unsnoc . Path.unabsolute . Path.toAbsolutePath currentPath'
-      resolveAsAbsolute = Path.fromAbsoluteSplit . Path.toAbsoluteSplit Path.absoluteEmpty
       getAtSplit :: Path.Split -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
-      getAtSplit' = getAtSplit . resolvePath'
+      getAtSplit' = getAtSplit . resolveSplit'
       getHQTypes :: Path.HQSplit' -> Set Reference
-      getHQTypes p = BranchUtil.getType (resolvePath' p) root0
+      getHQTypes p = BranchUtil.getType (resolveSplit' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
-      getHQTerms p = BranchUtil.getTerm (resolvePath' p) root0
+      getHQTerms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Terms = getHQTerms . fmap HQ'.toHQ
       getHQ'Types = getHQTypes . fmap HQ'.toHQ
       getTypes :: Path.Split' -> Set Reference
       getTypes = getHQTypes . fmap HQ.NameOnly
       getTerms :: Path.Split' -> Set Referent
       getTerms = getHQTerms . fmap HQ.NameOnly
+      getPatchAt :: Path.Split' -> Action' m v Patch
+      getPatchAt patchPath' = do
+        let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
+        b <- getAt p
+        eval . Eval $ Branch.getPatch seg (Branch.head b)
       absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
       -- summarizeNames title names = trace (title ++ ": " ++ show (R.size (Names.types names)) ++ " types, " ++ show (R.size (Names.terms names)) ++ " terms") names
       currentPathNames0 = Branch.toNames0 currentBranch0
@@ -197,7 +203,6 @@ loop = do
       -- than absolute; external names appear as absolute
       currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
         absDot = Names.prefix0 (Name.Name "")
-        -- externalNames = summarizeNames "externalNames" $ (summarizeNames "rootNames" rootNames) `Names.difference` (summarizeNames "pathPrefixed" $ pathPrefixed currentPathNames0)
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
         rootNames = Branch.toNames0 root0
         pathPrefixed = case Path.unabsolute currentPath' of
@@ -285,8 +290,8 @@ loop = do
         srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
         destOk b = do
           stepManyAt
-            [ BranchUtil.makeSetBranch (resolvePath' src) Branch.empty
-            , BranchUtil.makeSetBranch (resolvePath' dest) b ]
+            [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty
+            , BranchUtil.makeSetBranch (resolveSplit' dest) b ]
           success -- could give rando stats about new defns
 
       DeleteBranchI p ->
@@ -295,10 +300,10 @@ loop = do
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
               toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-                where p' = resolvePath' p
+                where p' = resolveSplit' p
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then
-            stepAt $ BranchUtil.makeSetBranch (resolvePath' p) Branch.empty
+            stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
           else do
             failed <- loadSearchResults $ Names.asSearchResults failed
             failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
@@ -323,30 +328,30 @@ loop = do
 
       AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
         ([r],       []) -> do
-          stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (oldMD r))
+          stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
           success
         ([r], rs@(_:_)) -> termExists dest (Set.fromList rs)
         ([],         _) -> termNotFound src
         (rs,         _) -> termConflicted src (Set.fromList rs)
         where
-        p = resolvePath' src
+        p = resolveSplit' src
         oldMD r = BranchUtil.getTermMetadataAt p r root0
 
       AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
         ([r],       []) -> do
-          stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (oldMD r))
+          stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
           success
         ([r], rs@(_:_)) -> typeExists dest (Set.fromList rs)
         ([],         _) -> typeNotFound src
         (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
-        p = resolvePath' src
+        p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            (parent, last) = resolvePath' src
+            (parent, last) = resolveSplit' src
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
@@ -369,7 +374,7 @@ loop = do
       UnlinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            (parent, last) = resolvePath' src
+            (parent, last) = resolveSplit' src
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
@@ -392,7 +397,7 @@ loop = do
       LinksI src mdTypeStr -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            p@(parent, last) = resolvePath' src
+            p@(parent, last) = resolveSplit' src
             mdTerms = foldl' Metadata.merge mempty [
               BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
             mdTypes = foldl' Metadata.merge mempty [
@@ -424,12 +429,12 @@ loop = do
           ([r], []) -> do
             stepManyAt
               [ BranchUtil.makeDeleteTermName p r
-              , BranchUtil.makeAddTermName (resolvePath' dest) r (mdSrc r)]
+              , BranchUtil.makeAddTermName (resolveSplit' dest) r (mdSrc r)]
             success
           ([_], rs) -> termExists dest (Set.fromList rs)
           ([],   _) -> termNotFound src
           (rs,   _) -> termConflicted src (Set.fromList rs)
-        where p = resolvePath' (HQ'.toName <$> src')
+        where p = resolveSplit' (HQ'.toName <$> src')
               mdSrc r = BranchUtil.getTermMetadataAt p r root0
 
       MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
@@ -437,13 +442,13 @@ loop = do
           ([r], []) -> do
             stepManyAt
               [ BranchUtil.makeDeleteTypeName p r
-              , BranchUtil.makeAddTypeName (resolvePath' dest) r (mdSrc r) ]
+              , BranchUtil.makeAddTypeName (resolveSplit' dest) r (mdSrc r) ]
             success
           ([_], rs) -> typeExists dest (Set.fromList rs)
           ([], _)   -> typeNotFound src
           (rs, _)   -> typeConflicted src (Set.fromList rs)
         where
-        p = resolvePath' (HQ'.toName <$> src')
+        p = resolveSplit' (HQ'.toName <$> src')
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
       DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) -> case toList (getHQTypes hq) of
@@ -451,7 +456,7 @@ loop = do
         [r] -> goMany (Set.singleton r)
         (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
         where
-        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        resolvedPath = resolveSplit' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
         goMany rs = do
           let rootNames = Branch.toNames0 root0
@@ -470,7 +475,7 @@ loop = do
         [r] -> goMany (Set.singleton r)
         (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
         where
-        resolvedPath = resolvePath' (HQ'.toName <$> hq')
+        resolvedPath = resolveSplit' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTermName resolvedPath
         goMany rs = do
           let rootNames, toDelete :: Names0
@@ -574,7 +579,7 @@ loop = do
         where
         conflicted = getHQTypes (fmap HQ'.toNameOnlyHQ hq')
         makeDelete =
-          BranchUtil.makeDeleteTypeName (resolvePath' (HQ'.toName <$> hq'))
+          BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq'))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       ResolveTermNameI hq'@(fmap HQ'.toHQ -> hq) ->
@@ -582,7 +587,7 @@ loop = do
         where
         conflicted = getHQTerms (fmap HQ'.toNameOnlyHQ hq')
         makeDelete =
-          BranchUtil.makeDeleteTermName (resolvePath' (HQ'.toName <$> hq'))
+          BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq'))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       AddI hqs -> case uf of
@@ -681,13 +686,9 @@ loop = do
           respond $ SlurpOutput input ppe result
 
       TodoI editPath' branchPath' -> do
-        patch <- do
-          let (p,seg) = Path.toAbsoluteSplit currentPath' editPath'
-          b <- getAt p
-          eval . Eval $ Branch.getPatch seg (Branch.head b)
-        branch <- do
-          let p = Path.toAbsolutePath currentPath' branchPath'
-          getAt p
+        patch <- getPatchAt editPath'
+        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+        -- checkTodo only needs the local names
         let names0 = (Branch.toNames0 . Branch.head) branch
         checkTodo patch names0 >>= respond . TodoOutput names0
 
@@ -742,11 +743,13 @@ loop = do
       --       else ifM (confirmedCommand input)
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
-      -- PropagateI -> do
-      --   b <- eval . Propagate $ currentBranch'
-      --   _ <- eval $ SyncBranch currentBranchName' b
-      --   _ <- success
-      --   currentBranch .= b
+      PatchI patchPath scopePath -> do
+        patch <- getPatchAt patchPath
+        stepAtM (resolvePath' scopePath, propagatePatch patch)
+        branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
+        -- checkTodo only needs the local names
+        let names0 = (Branch.toNames0 . Branch.head) branch
+        checkTodo patch names0 >>= respond . TodoOutput names0
       -- ExecuteI input ->
       --   withFile [Type.ref External $ IOSource.ioReference]
       --            "execute command"
@@ -798,7 +801,7 @@ loop = do
 
 checkTodo :: Patch -> Names0 -> Action m i v (TodoOutput v Ann)
 checkTodo patch names0 = do
-  f <- frontier' (eval . GetDependents) patch names0
+  f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
       frontier = R.ran f
       ppe = PPE.fromNames0 names0
@@ -832,31 +835,34 @@ checkTodo patch names0 = do
     -- we don't want the frontier in the result
     pure $ tdeps `Set.difference` rs
 
-  -- (d, f) when d is "dirty" (needs update),
-  --             f is in the frontier,
-  --         and d depends of f
-  -- a ⋖ b = a depends on b (with no intermediate dependencies)
-  -- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
-  --
-  -- The range of this relation is the frontier, and the domain is
-  -- the set of dirty references.
-  frontier' :: forall m . Monad m
-           => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
-           -> Patch
-           -> Names0
-           -> m (R.Relation Reference Reference)
-  frontier' getDependents patch names = let
-    edited :: Set Reference
-    edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
-    addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
-    addDependents dependents ref =
-      (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
-        <$> getDependents ref
-    in do
-      -- (r,r2) ∈ dependsOn if r depends on r2
-      dependsOn <- foldM addDependents R.empty edited
-      -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
-      pure $ R.filterDom (not . flip Set.member edited) dependsOn
+propagatePatch :: Patch -> Branch0 m -> m (Branch0 m)
+propagatePatch = undefined
+
+-- (d, f) when d is "dirty" (needs update),
+--             f is in the frontier,
+--         and d depends of f
+-- a ⋖ b = a depends on b (with no intermediate dependencies)
+-- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
+--
+-- The range of this relation is the frontier, and the domain is
+-- the set of dirty references.
+computeFrontier :: forall m . Monad m
+         => (Reference -> m (Set Reference)) -- eg Codebase.dependents codebase
+         -> Patch
+         -> Names0
+         -> m (R.Relation Reference Reference)
+computeFrontier getDependents patch names = let
+  edited :: Set Reference
+  edited = R.dom (Patch._termEdits patch) <> R.dom (Patch._typeEdits patch)
+  addDependents :: R.Relation Reference Reference -> Reference -> m (R.Relation Reference Reference)
+  addDependents dependents ref =
+    (\ds -> R.insertManyDom ds ref dependents) . Set.filter (Names.contains names)
+      <$> getDependents ref
+  in do
+    -- (r,r2) ∈ dependsOn if r depends on r2
+    dependsOn <- foldM addDependents R.empty edited
+    -- Dirty is everything that `dependsOn` Frontier, minus already edited defns
+    pure $ R.filterDom (not . flip Set.member edited) dependsOn
 
 eval :: Command m i v a -> Action m i v a
 eval = lift . lift . Free.eval
@@ -1149,6 +1155,11 @@ stepAt :: forall m i v. Applicative m
        => (Path, Branch0 m -> Branch0 m)
        -> Action m i v ()
 stepAt = stepManyAt @m @[] . pure
+
+stepAtM :: forall m i v. Monad m
+        => (Path, Branch0 m -> m (Branch0 m))
+        -> Action m i v ()
+stepAtM = stepManyAtM @m @[] . pure
 
 stepManyAt :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
