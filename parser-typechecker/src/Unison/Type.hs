@@ -39,6 +39,9 @@ import qualified Unison.TypeVar as TypeVar
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
+import qualified Unison.Util.Relation as R
+import qualified Unison.Names2 as Names
+import qualified Unison.Name as Name
 
 -- | Base functor for types in the Unison language
 data F a
@@ -72,6 +75,10 @@ freeVars = ABT.freeVars
 
 bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
 bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
+
+bindBuiltins' :: Var v => Names.Names0 -> AnnotatedType v a -> AnnotatedType v a
+bindBuiltins' ns =
+  bindBuiltins [ (Var.named (Name.toText n), r) | (n, r) <- R.toList $ Names.types ns ]
 
 data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 
@@ -517,6 +524,9 @@ cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 cleanup :: Var v => AnnotatedType v a -> AnnotatedType v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
+
+toReference :: Var v => AnnotatedType v a -> Reference
+toReference t = Reference.Derived (ABT.hash t) 0 1
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

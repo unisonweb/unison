@@ -68,12 +68,12 @@ data Input
   -- execute an IO object with arguments
   | ExecuteI String
   -- metadata
-  -- link src <link-key> apiDocsValue
-  | LinkI Path.HQ'Split' Path.HQSplit' Path.HQSplit'
-  -- unlink src <link-key> apiDocsValue
-  | UnlinkI Path.HQ'Split' Path.HQSplit' Path.HQSplit'
-  -- links src <link-key>
-  | LinksI Path.HQ'Split' (Maybe Path.HQSplit')
+  -- link from to
+  | LinkI Path.HQ'Split' Path.HQSplit'
+  -- unlink from to
+  | UnlinkI Path.HQ'Split' Path.HQSplit'
+  -- links from <type>
+  | LinksI Path.HQ'Split' (Maybe String)
   -- other
   | UndoRootI
   | SearchByNameI [String]

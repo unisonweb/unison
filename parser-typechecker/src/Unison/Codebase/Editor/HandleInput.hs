@@ -84,6 +84,8 @@ import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
 import           Unison.Names2                  ( Names'(..), Names, Names0, NamesSeg )
 import qualified Unison.Names2                  as Names
+import qualified Unison.Names                  as OldNames
+import qualified Unison.Parsers                as Parsers
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )
 import qualified Unison.Reference              as Reference
@@ -334,47 +336,53 @@ loop = do
         p = resolvePath' src
         ol'Md r = BranchUtil.getTypeMetadataAt p r root0
 
-      LinkI src mdType mdValue -> do
+      LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             (parent, last) = resolvePath' src
-            mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
-        case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [Referent.Ref mdType], [Referent.Ref mdValue])
+        case (srcle, srclt, mdValuel) of
+          (srcle, srclt, [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
-              stepAt (parent, step)
-              success
-              where
-              step b0 = let
-                tmUpdates terms = foldl' go terms srcle where
-                  go terms src = Metadata.insert (src, mdType, mdValue) terms
-                tyUpdates types = foldl' go types srclt where
-                  go types src = Metadata.insert (src, mdType, mdValue) types
-                in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+              mdType <- eval $ LoadTypeOfTerm mdValue
+              case mdType of
+                Nothing -> respond $ LinkFailure input
+                Just ty -> do
+                  stepAt (parent, step (Type.toReference ty))
+                  success
+                where
+                step mdType b0 = let
+                  tmUpdates terms = foldl' go terms srcle where
+                    go terms src = Metadata.insert (src, mdType, mdValue) terms
+                  tyUpdates types = foldl' go types srclt where
+                    go types src = Metadata.insert (src, mdType, mdValue) types
+                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           _ -> respond $ LinkFailure input
 
-      UnlinkI src mdType mdValue -> do
+      UnlinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             (parent, last) = resolvePath' src
-            mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
-        case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [Referent.Ref mdType], [Referent.Ref mdValue])
+        case (srcle, srclt, mdValuel) of
+          (srcle, srclt, [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
-              stepAt (parent, step)
-              success
-              where
-              step b0 = let
-                tmUpdates terms = foldl' go terms srcle where
-                  go terms src = Metadata.delete (src, mdType, mdValue) terms
-                tyUpdates types = foldl' go types srclt where
-                  go types src = Metadata.delete (src, mdType, mdValue) types
-                in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
+              mdType <- eval $ LoadTypeOfTerm mdValue
+              case mdType of
+                Nothing -> respond $ LinkFailure input
+                Just ty -> do
+                  stepAt (parent, step (Type.toReference ty))
+                  success
+                where
+                step mdType b0 = let
+                  tmUpdates terms = foldl' go terms srcle where
+                    go terms src = Metadata.delete (src, mdType, mdValue) terms
+                  tyUpdates types = foldl' go types srclt where
+                    go types src = Metadata.delete (src, mdType, mdValue) types
+                  in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           _ -> respond $ LinkFailure input
 
-      LinksI src key -> do
+      LinksI src mdTypeStr -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             p@(parent, last) = resolvePath' src
@@ -383,18 +391,26 @@ loop = do
             mdTypes = foldl' Metadata.merge mempty [
               BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
             allMd = Metadata.merge mdTerms mdTypes
-            allowed =
-              maybe (Map.keysSet allMd) (Set.map Referent.toReference . getHQTerms) key
-        let allMd' = Map.restrictKeys allMd allowed
-            allRefs = toList (Set.unions (Map.elems allMd'))
-            ppe = PPE.fromNames0 prettyPrintNames0
-        termDisplays <- Map.fromList <$> do
-          terms <- filterM (eval . IsTerm) allRefs
-          traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
-        typeDisplays <- Map.fromList <$> do
-          types <- filterM (eval . IsType) allRefs
-          traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
-        respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
+            allowed = case mdTypeStr of
+              Just str -> case Parsers.parseType str mempty of
+                Left e -> Left e
+                Right ty0 -> let
+                  ty = Type.bindBuiltins' parseNames0 ty0
+                  in Right $ Set.singleton (Type.toReference ty)
+              Nothing -> Right (Map.keysSet allMd)
+        case allowed of
+          Left e -> respond $ ParseErrors (Text.pack (fromMaybe "" mdTypeStr)) [e]
+          Right allowed -> do
+            let allMd' = Map.restrictKeys allMd allowed
+                allRefs = toList (Set.unions (Map.elems allMd'))
+                ppe = PPE.fromNames0 prettyPrintNames0
+            termDisplays <- Map.fromList <$> do
+              terms <- filterM (eval . IsTerm) allRefs
+              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
+            typeDisplays <- Map.fromList <$> do
+              types <- filterM (eval . IsType) allRefs
+              traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
+            respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
         zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)

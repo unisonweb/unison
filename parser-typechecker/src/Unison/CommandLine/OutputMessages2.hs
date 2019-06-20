@@ -109,12 +109,9 @@ notifyUser dir o = case o of
     else
       putPrettyLn $ intercalateMap "\n\n" go (Map.toList md)
       where
-      go (key, rs) = P.lines [
-        P.bold (prettyHashQualified $ PPE.termName ppe (Referent.Ref key)),
-        "",
-        P.indentN 2 $ displayDefinitions' ppe (Map.restrictKeys types rs)
-                                              (Map.restrictKeys terms rs)
-        ]
+      go (key, rs) =
+        displayDefinitions' ppe (Map.restrictKeys types rs)
+                                (Map.restrictKeys terms rs)
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
