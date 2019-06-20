@@ -110,7 +110,7 @@ notifyUser dir o = case o of
       putPrettyLn $ intercalateMap "\n\n" go (Map.toList md)
       where
       go (key, rs) = P.lines [
-        P.bold (prettyHashQualified $ PPE.termName ppe key),
+        P.bold (prettyHashQualified $ PPE.termName ppe (Referent.Ref key)),
         "",
         P.indentN 2 $ displayDefinitions' ppe (Map.restrictKeys types rs)
                                               (Map.restrictKeys terms rs)

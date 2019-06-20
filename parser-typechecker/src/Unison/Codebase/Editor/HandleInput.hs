@@ -341,7 +341,7 @@ loop = do
             mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [mdType], [Referent.Ref mdValue])
+          (srcle, srclt, [Referent.Ref mdType], [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
               stepAt (parent, step)
               success
@@ -361,7 +361,7 @@ loop = do
             mdTypel = toList (getHQTerms mdType)
             mdValuel = toList (getHQTerms mdValue)
         case (srcle, srclt, mdTypel, mdValuel) of
-          (srcle, srclt, [mdType], [Referent.Ref mdValue])
+          (srcle, srclt, [Referent.Ref mdType], [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
               stepAt (parent, step)
               success
@@ -383,7 +383,8 @@ loop = do
             mdTypes = foldl' Metadata.merge mempty [
               BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
             allMd = Metadata.merge mdTerms mdTypes
-            allowed = maybe (Map.keysSet allMd) getHQTerms key
+            allowed =
+              maybe (Map.keysSet allMd) (Set.map Referent.toReference . getHQTerms) key
         let allMd' = Map.restrictKeys allMd allowed
             allRefs = toList (Set.unions (Map.elems allMd'))
             ppe = PPE.fromNames0 prettyPrintNames0

@@ -642,10 +642,10 @@ putRawBranch (Branch.Raw terms types children edits) = do
   putMap putNameSegment putHash edits
 
 getMetadataType :: MonadGet m => m Metadata.Type
-getMetadataType = getReferent
+getMetadataType = getReference
 
 putMetadataType :: MonadPut m => Metadata.Type -> m ()
-putMetadataType = putReferent
+putMetadataType = putReference
 
 getMetadataValue :: MonadGet m => m Metadata.Value
 getMetadataValue = getReference
