@@ -107,8 +107,6 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
-    --    AddDefsToCodebase handler branch unisonFile -> error "todo"
-    --      fileToBranch handler codebase branch unisonFile
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time

@@ -7,6 +7,7 @@ import Data.List (foldl')
 import Unison.Reference (Reference)
 import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Unison.Util.Star3 as Star3
 
 type Type = Reference
@@ -14,6 +15,8 @@ type Value = Reference
 
 -- keys can be terms or types
 type Metadata = Map Type (Set Value)
+
+type Star a n = Star3 a n Type (Type, Value)
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star3 a n Type Value -> Star3 a n Type Value
 inserts tups s = foldl' (flip insert) s tups
@@ -42,3 +45,6 @@ append = Map.unionWith (flip const)
 
 empty :: Metadata
 empty = mempty
+
+singleton :: Type -> Value -> Metadata
+singleton ty v = Map.singleton ty (Set.singleton v)

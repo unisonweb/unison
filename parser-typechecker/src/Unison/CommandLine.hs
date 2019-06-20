@@ -245,6 +245,11 @@ putPrettyLn' p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.indentN 2 p
 
+putPretty' :: P.Pretty CT.ColorText -> IO ()
+putPretty' p = do
+  width <- getAvailableWidth
+  putStr . P.toANSI width $ P.indentN 2 p
+
 getAvailableWidth :: IO Int
 getAvailableWidth =
   fromMaybe 80 . fmap (\s -> 100 `min` Terminal.width s) <$> Terminal.size

@@ -1360,12 +1360,17 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   typeActions = map doType . toList $ SC.types slurp
   termActions = map doTerm . toList $ SC.terms slurp
   names = UF.typecheckedToNames0 uf
+  tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
+  md (Referent.Ref r) v =
+    if Set.member v tests then Metadata.singleton r isTest
+    else Metadata.empty
+  md _ _ = Metadata.empty
   doTerm :: v -> (Path, Branch0 m -> Branch0 m)
   doTerm v = case toList (Names.termsNamed names (Name.fromVar v)) of
     [] -> errorMissingVar v
     [r] -> case Path.splitFromName (Name.fromVar v) of
       Nothing -> errorEmptyVar
-      Just split -> BranchUtil.makeAddTermName split r Metadata.empty
+      Just split -> BranchUtil.makeAddTermName split r (md r v)
     wha -> error $ "Unison bug, typechecked file w/ multiple terms named "
                 <> Var.nameStr v <> ": " <> show wha
   doType :: v -> (Path, Branch0 m -> Branch0 m)

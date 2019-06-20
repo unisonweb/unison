@@ -51,6 +51,7 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine            (
                                                 -- backtick, backtickEOS,
                                                 bigproblem,
+                                                putPretty',
                                                 putPrettyLn,
                                                 putPrettyLn',
                                                 tip,
@@ -112,6 +113,26 @@ notifyUser dir o = case o of
       go (key, rs) =
         displayDefinitions' ppe (Map.restrictKeys types rs)
                                 (Map.restrictKeys terms rs)
+  TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
+    CachedTests 0 _ -> putPrettyLn . P.callout "😶" $ "No tests to run."
+    CachedTests n n' | n == n' -> putPrettyLn $
+      P.lines [ displayTestResults ppe oks fails, "" , cacheMsg ]
+    CachedTests n m -> putPretty' $
+      P.lines [ displayTestResults ppe oks fails, "" , cacheMsg, moreTests, "✅" ]
+      where
+      moreTests = P.wrap $ "There are " <> P.shown (n - m) <> "to run, starting execution..."
+    NewlyComputed -> putPrettyLn $ displayTestResults ppe oks fails
+    where
+      cacheMsg = P.wrap "☝  All the above tests were found in the test cache."
+
+  TestIncrementalOutputStart ppe (n,total) r _src ->
+    putPretty' $ P.shown (total - n) <> " left, current test: "
+              <> prettyHashQualified (PPE.termName ppe $ Referent.Ref r)
+
+  TestIncrementalOutputEnd _ppe (n,total) _r result ->
+    if isTestOk result then putPretty' "\r✅  "
+    else putPretty' "\r🚫  "
+
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
@@ -412,6 +433,32 @@ displayDefinitions outputLoc ppe types terms =
       ]
   code = displayDefinitions' ppe types terms
 
+displayTestResults :: PPE.PrettyPrintEnv
+                   -> [(Reference, Text)]
+                   -> [(Reference, Text)]
+                   -> P.Pretty CT.ColorText
+displayTestResults ppe oks fails = let
+  name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
+  okMsg =
+    if null oks then mempty
+    else P.column2 [ (P.green "◉ " <> name r, ": " <> P.green (P.text msg)) | (r, msg) <- oks ]
+  okSummary =
+    if null oks then mempty
+    else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
+  failMsg =
+    if null fails then mempty
+    else P.column2 [ (P.red "✗ " <> name r, ": " <> P.red (P.text msg)) | (r, msg) <- fails ]
+  failSummary =
+    if null fails then mempty
+    else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
+  tipMsg =
+    if null oks && null fails then mempty
+    else tip $ "Use " <> P.blue ("view " <> name (fst $ head (fails ++ oks))) <> "to view the source of a test."
+  in if null oks && null fails then "😶 No tests available."
+     else P.sep "\n\n" . P.nonEmpty $ [
+          okMsg, failMsg,
+          P.sep ", " . P.nonEmpty $ [failSummary, okSummary], tipMsg]
+
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSig' ppe = \case
@@ -683,3 +730,12 @@ watchPrinter src ppe ann kind term isHit =
 
 filestatusTip :: P.Pretty CT.ColorText
 filestatusTip = tip "Use `help filestatus` to learn more."
+
+isTestOk :: Codebase.Term v Ann -> Bool
+isTestOk tm = case tm of
+  Term.Sequence' ts -> all isSuccess ts where
+    isSuccess (Term.App' (Term.Constructor' ref cid) _) =
+      cid == DD.okConstructorId &&
+      ref == DD.testResultRef
+    isSuccess _ = False
+  _ -> False
