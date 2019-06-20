@@ -319,22 +319,26 @@ loop = do
             success
 
       AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
-        ([r],       []) -> stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (ol'Md r))
+        ([r],       []) -> do
+          stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (oldMD r))
+          success
         ([r], rs@(_:_)) -> termExists dest (Set.fromList rs)
         ([],         _) -> termNotFound src
         (rs,         _) -> termConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTermMetadataAt p r root0
+        oldMD r = BranchUtil.getTermMetadataAt p r root0
 
       AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
-        ([r],       []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (ol'Md r))
+        ([r],       []) -> do
+          stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (oldMD r))
+          success
         ([r], rs@(_:_)) -> typeExists dest (Set.fromList rs)
         ([],         _) -> typeNotFound src
         (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTypeMetadataAt p r root0
+        oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
