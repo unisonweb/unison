@@ -4,13 +4,12 @@ import Data.Foldable (toList)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.List (foldl')
-import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
 import qualified Unison.Util.Star3 as Star3
 
-type Type = Referent
+type Type = Reference
 type Value = Reference
 
 -- keys can be terms or types
