@@ -33,6 +33,9 @@ data Runtime v = Runtime
 
 type IsCacheHit = Bool
 
+noCache :: Reference -> IO (Maybe (Term v))
+noCache _ = pure Nothing
+
 -- Evaluates the watch expressions in the file, returning a `Map` of their
 -- results. This has to be a bit fancy to handle that the definitions in the
 -- file depend on each other and evaluation must proceed in a way that respects

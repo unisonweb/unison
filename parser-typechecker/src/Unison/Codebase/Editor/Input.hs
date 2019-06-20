@@ -67,6 +67,7 @@ data Input
   | UndoI
   -- execute an IO object with arguments
   | ExecuteI String
+  | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
   | LinkI Path.HQ'Split' Path.HQSplit'

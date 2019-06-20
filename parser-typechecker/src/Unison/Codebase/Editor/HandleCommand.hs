@@ -14,6 +14,8 @@
 
 module Unison.Codebase.Editor.HandleCommand where
 
+import Data.Foldable (toList)
+import Data.Maybe (catMaybes)
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
@@ -59,6 +61,7 @@ import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Var                     ( Var )
+import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 
@@ -116,6 +119,7 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
                 sourceName
                 source
     Evaluate unisonFile        -> evalUnisonFile unisonFile
+    Evaluate1 term             -> eval1 term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> do
       setBranchRef branch
@@ -130,6 +134,11 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
+    PutWatch kind r e -> Codebase.putWatch codebase kind r e
+    LoadWatches kind rs -> catMaybes <$> traverse go (toList rs) where
+      go (Reference.Builtin _) = pure Nothing
+      go r@(Reference.DerivedId rid) =
+        fmap (r,) <$> Codebase.getWatch codebase kind rid
     IsTerm r -> Codebase.isTerm codebase r
     IsType r -> Codebase.isType codebase r
     GetDependents r -> Codebase.dependents codebase r
@@ -140,6 +149,17 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
     Execute uf -> void $ evalUnisonFile uf
+
+  eval1 :: Term.AnnotatedTerm v Ann -> IO (Term.AnnotatedTerm v Ann)
+  eval1 tm = do
+    let codeLookup = Codebase.toCodeLookup codebase
+    let uf = UF.UnisonFile mempty mempty mempty
+               (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
+    selfContained <- Codebase.makeSelfContained' codeLookup uf
+    (_, map) <- Runtime.evaluateWatches codeLookup Runtime.noCache rt selfContained
+    let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
+    pure (Term.amap (const Parser.External) value)
+
   evalUnisonFile :: UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase

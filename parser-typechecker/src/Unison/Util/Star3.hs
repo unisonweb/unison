@@ -75,6 +75,21 @@ selectFact fs s = Star3 fact' d1' d2' d3' where
   d2'   = fs R.<| d2 s
   d3'   = fs R.<| d3 s
 
+select1D3
+  :: (Ord fact, Ord d1, Ord d2, Ord d3)
+  => d3 -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+select1D3 = selectD3 . Set.singleton
+
+selectD3
+  :: (Ord fact, Ord d1, Ord d2, Ord d3)
+  => Set d3
+  -> Star3 fact d1 d2 d3
+  -> Star3 fact d1 d2 d3
+selectD3 d3s s = Star3 fact' d1' d2' d3' where
+  fact' = Set.intersection (R.dom d3') (fact s)
+  d1'   = R.dom d3' R.<| d1 s
+  d2'   = R.dom d3' R.<| d2 s
+  d3'   = d3 s R.|> d3s
 
 -- Deletes tuples of the form (fact, d1, _, _).
 -- If no other (fact, dk, _, _) tuples exist for any other dk, then

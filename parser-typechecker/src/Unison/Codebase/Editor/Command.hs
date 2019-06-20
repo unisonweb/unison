@@ -99,6 +99,14 @@ data Command m i v a where
            -> Command m i v ([(v, Term v ())], Map v
                 (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
 
+  -- Evaluate a single closed definition
+  Evaluate1 :: Term v Ann -> Command m i v (Term v Ann)
+
+  -- Add a cached watch to the codebase
+  PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
+
+  -- Loads any cached watches of the given kind
+  LoadWatches :: UF.WatchKind -> Set Reference -> Command m i v [(Reference, Term v Ann)]
 
   -- Loads a root branch from some codebase, returning `Nothing` if not found.
   -- Any definitions in the head of the requested root that aren't in the local
