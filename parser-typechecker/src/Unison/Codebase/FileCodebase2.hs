@@ -272,7 +272,9 @@ copyDir predicate from to = do
   when (predicate $ dirPath d) $ do
     forM_ (subDirs d)
       $ \path -> copyDir predicate path (replaceRoot from to path)
-    forM_ (files d) $ \path -> copyFile path (replaceRoot from to path)
+    forM_ (files d) $ \path -> do
+      exists <- doesFileExist to
+      unless exists . copyFile path $ replaceRoot from to path
 
 copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
 copyFromGit = (liftIO .) . flip
