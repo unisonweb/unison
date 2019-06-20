@@ -322,22 +322,26 @@ loop = do
             success
 
       AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
-        ([r],       []) -> stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (ol'Md r))
+        ([r],       []) -> do
+          stepAt (BranchUtil.makeAddTermName (resolvePath' dest) r (oldMD r))
+          success
         ([r], rs@(_:_)) -> termExists dest (Set.fromList rs)
         ([],         _) -> termNotFound src
         (rs,         _) -> termConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTermMetadataAt p r root0
+        oldMD r = BranchUtil.getTermMetadataAt p r root0
 
       AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
-        ([r],       []) -> stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (ol'Md r))
+        ([r],       []) -> do
+          stepAt (BranchUtil.makeAddTypeName (resolvePath' dest) r (oldMD r))
+          success
         ([r], rs@(_:_)) -> typeExists dest (Set.fromList rs)
         ([],         _) -> typeNotFound src
         (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
         p = resolvePath' src
-        ol'Md r = BranchUtil.getTypeMetadataAt p r root0
+        oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
@@ -416,28 +420,36 @@ loop = do
             respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
 
       MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
-        zeroOneOrMore (getHQTerms src) (termNotFound src) srcOk (termConflicted src)
-        where
-        srcOk r = zeroOrMore (getTerms dest) (destOk r) (termExists dest)
-        p = resolvePath' (HQ'.toName <$> src')
-        mdSrc r = BranchUtil.getTermMetadataAt p r root0
-        destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTermName p r
-          , BranchUtil.makeAddTermName (resolvePath' dest) r (mdSrc r)]
+        case (toList (getHQTerms src), toList (getTerms dest)) of
+          ([r], []) -> do
+            stepManyAt
+              [ BranchUtil.makeDeleteTermName p r
+              , BranchUtil.makeAddTermName (resolvePath' dest) r (mdSrc r)]
+            success
+          ([_], rs) -> termExists dest (Set.fromList rs)
+          ([],   _) -> termNotFound src
+          (rs,   _) -> termConflicted src (Set.fromList rs)
+        where p = resolvePath' (HQ'.toName <$> src')
+              mdSrc r = BranchUtil.getTermMetadataAt p r root0
 
       MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
-        zeroOneOrMore (getHQTypes src) (typeNotFound src) srcOk (typeConflicted src)
+        case (toList (getHQTypes src), toList (getTypes dest)) of
+          ([r], []) -> do
+            stepManyAt
+              [ BranchUtil.makeDeleteTypeName p r
+              , BranchUtil.makeAddTypeName (resolvePath' dest) r (mdSrc r) ]
+            success
+          ([_], rs) -> typeExists dest (Set.fromList rs)
+          ([], _)   -> typeNotFound src
+          (rs, _)   -> typeConflicted src (Set.fromList rs)
         where
         p = resolvePath' (HQ'.toName <$> src')
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
-        srcOk r = zeroOrMore (getTypes dest) (destOk r) (typeExists dest)
-        destOk r = stepManyAt
-          [ BranchUtil.makeDeleteTypeName p r
-          , BranchUtil.makeAddTypeName (resolvePath' dest) r (mdSrc r) ]
 
-      DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) (goMany . Set.singleton)
-                      (liftM2 ifConfirmed goMany (typeConflicted hq))
+      DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) -> case toList (getHQTypes hq) of
+        [] -> typeNotFound hq
+        [r] -> goMany (Set.singleton r)
+        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
         where
         resolvedPath = resolvePath' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
@@ -453,9 +465,10 @@ loop = do
             respond $ CantDelete input rootNames failed failedDependents
 
       -- like the previous
-      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getHQTerms hq) (termNotFound hq) (goMany . Set.singleton)
-                      (liftM2 ifConfirmed goMany (termConflicted hq))
+      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) -> case toList (getHQTerms hq) of
+        [] -> termNotFound hq
+        [r] -> goMany (Set.singleton r)
+        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
         where
         resolvedPath = resolvePath' (HQ'.toName <$> hq')
         makeDelete = BranchUtil.makeDeleteTermName resolvedPath
