@@ -4,6 +4,7 @@
 
 module Unison.Runtime.IOSource where
 
+import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
 import Data.List (elemIndex, genericIndex)
 import Data.String (fromString)
@@ -33,6 +34,14 @@ typecheckedFile = let
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
     (Just (_, Just file), _) -> file
 
+typecheckedFileTerms :: Map.Map Symbol R.Reference
+typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile
+
+termNamed :: String -> R.Reference
+termNamed s = case Map.lookup (Var.nameds s) typecheckedFileTerms of
+  Nothing -> error $ "No builtin term called: " <> s
+  Just r  -> r
+
 codeLookup :: CodeLookup Symbol Identity Ann
 codeLookup = CL.fromUnisonFile $ UF.discardTypes typecheckedFile
 
@@ -53,7 +62,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference
   :: R.Reference
 ioReference = abilityNamed "IO"
 bufferModeReference = typeNamed "BufferMode"
@@ -67,6 +76,11 @@ threadIdReference = typeNamed "ThreadId"
 socketReference = typeNamed "Socket"
 handleReference = typeNamed "Handle"
 epochTimeReference = typeNamed "EpochTime"
+isTestReference = typeNamed "IsTest"
+
+isTest :: R.Reference
+isTest = termNamed "links.isTest"
+-- todo (isTestReference, termNamed "links.isTest")
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId
   :: DD.ConstructorId
@@ -128,6 +142,12 @@ source = fromString [r|
 type Either a b = Left a | Right b
 
 type Optional a = None | Some a
+
+-- This is linked to definitions that are considered tests
+unique[e6dca08b40458b03ca1660cfbdaecaa7279b42d18257898b5fd1c34596aac36f] type
+  IsTest = IsTest
+
+links.isTest = IsTest.IsTest
 
 -- Handles are unique identifiers.
 -- The implementation of IO in the runtime will supply Haskell

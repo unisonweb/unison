@@ -55,6 +55,7 @@ data Input
     | AddI [HashQualified]
     | UpdateI EditPath [HashQualified]
     | TodoI EditPath Path'
+    | TestI Bool Bool -- TestI showSuccesses showFailures
     | PropagateI EditPath Path'
     | ListEditsI EditPath
     -- -- create and remove update directives

@@ -6,6 +6,7 @@ module Unison.Codebase.Editor.Output
   , ListDetailed
   , SearchResult'(..)
   , TermResult'(..)
+  , TestReportStats(..)
   , TodoOutput(..)
   , TypeResult'(..)
   , UndoFailureReason(..)
@@ -68,6 +69,7 @@ data Output v
   | BranchNotFound Input Path'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
+  | TermNotFound' Input Reference.Id
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -97,6 +99,11 @@ data Output v
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
   | TodoOutput Names0 (TodoOutput v Ann)
+  | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
+  | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
+  | TestResults TestReportStats
+      PPE.PrettyPrintEnv ShowSuccesses ShowFailures
+                [(Reference, Text)] [(Reference, Text)]
   | CantUndo UndoFailureReason
   | ListEdits Patch Names0
 
@@ -111,6 +118,15 @@ data Output v
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input
   deriving (Show)
+
+data TestReportStats
+  = CachedTests TotalCount CachedCount
+  | NewlyComputed deriving Show
+
+type TotalCount = Int -- total number of tests
+type CachedCount = Int -- number of tests found in the cache
+type ShowSuccesses = Bool -- whether to list results or just summarize
+type ShowFailures = Bool  -- whether to list results or just summarize
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 

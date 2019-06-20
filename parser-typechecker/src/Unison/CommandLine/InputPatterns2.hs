@@ -475,9 +475,9 @@ validInputs =
   , link
   , unlink
   , links
-  --  , InputPattern "test" [] []
-  --    "`test` runs unit tests for the current branch."
-  --    (const $ pure $ Input.TestI True True)g
+  , InputPattern "test" [] []
+    "`test` runs unit tests for the current branch."
+    (const $ pure $ Input.TestI True True)
   , InputPattern "execute" [] []
     "`execute foo` evaluates the Unison expression `foo` of type `()` with access to the `IO` ability."
     (\ws -> if null ws
