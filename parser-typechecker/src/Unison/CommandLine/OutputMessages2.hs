@@ -236,12 +236,12 @@ notifyUser dir o = case o of
   GitError e -> case e of
                   NoGit -> putPrettyLn' . P.wrap $ "I couldn't find git. "
                            <> "Make sure it's installed and on your path."
-                  NoGithubAt p ->
+                  NoRemoteRepoAt p ->
                     putPrettyLn' . P.wrap $ "I couldn't access a git "
                       <> "repository at " <> P.text p
                       <> ". Make sure the repo exists "
                       <> "and that you have access to it."
-                  NotAGitRepo p ->
+                  NoLocalRepoAt p ->
                     putPrettyLn' . P.wrap $ "The directory at " <> P.string p
                     <> "doesn't seem to contain a git repository."
                   CheckoutFailed t ->
@@ -266,10 +266,10 @@ notifyUser dir o = case o of
       prettyTypeEdit (r, TypeEdit.Replace r') =
         (prettyHashQualified $ PPE.typeName ppe r
         , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
-    when (not $ R.null types) $
+    unless (R.null types) $
        putPrettyLn $ "Edited Types:" `P.hang`
         P.column2 (prettyTypeEdit <$> R.toList types)
-    when (not $ R.null terms) $
+    unless (R.null terms) $
        putPrettyLn $ "Edited Terms:" `P.hang`
         P.column2 (prettyTermEdit <$> R.toList terms)
     when (R.null types && R.null terms)

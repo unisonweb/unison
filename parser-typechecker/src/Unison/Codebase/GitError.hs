@@ -4,8 +4,8 @@ import Data.Text (Text)
 import System.IO (FilePath)
 
 data GitError = NoGit
-              | NoGithubAt Text
-              | NotAGitRepo FilePath
+              | NoRemoteRepoAt Text
+              | NoLocalRepoAt FilePath
               | CheckoutFailed Text
               deriving Show
 

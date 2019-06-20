@@ -273,37 +273,36 @@ pull :: InputPattern
 pull = InputPattern
   "pull"
   []
-  [(Required, githubOwner), (Required, githubRepo), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, branchPathArg)]
   (P.wrapColumn2
-    [ ( "`pull foo bar`"
-      , "pulls the contents of the Github repo foo/bar into the current path."
+    [ ( "`pull ssh://example.org/path/to/repo.git`"
+      , "pulls the contents of the given git url into the current path."
       )
-    , ( "`pull foo bar baz.qux`"
-      , "pulls the contents of the Github repo foo/bar into baz.qux relative "
+    , ( "`pull ssh://example.org/path/to/repo.git foo.bar`"
+      , "pulls the contents of the given git url into `foo.bar` relative "
         <> "to the current path."
       )
-    , ( "`pull foo bar .baz.qux`"
-      , "pulls the Github repo foo/bar into the absolute path .baz.qux."
+    , ( "`pull ssh://example.org/path/to/repo.git .foo.bar`"
+      , "pulls the contents of the given git url into into the absolute path "
+        <> "`.foo.bar`."
       )
-    , ( "`pull foo bar baz qux`"
-      , "pulls the contents of the branch or commit named qux from Github repo "
-        <> "foo/bar into the path baz."
+    , ( "`pull ssh://example.org/path/to/repo.git foo bar`"
+      , "pulls the contents of the git branch or commit named `bar` from the "
+        <> " given git url into the path `bar`."
       )
     ]
   )
   (\case
-    [owner, repo] -> pure $ Input.PullRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "master")
+    [url] -> pure $ Input.PullRemoteBranchI
+      (GitRepo (Text.pack url) "master")
       Path.relativeEmpty'
-    [owner, repo, path] -> do
+    [url, path] -> do
+      p <- first fromString $ Path.parsePath' path
+      pure $ Input.PullRemoteBranchI (GitRepo (Text.pack url) "master") p
+    [url, path, treeish] -> do
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "master")
-        p
-    [owner, repo, path, treeish] -> do
-      p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) $ Text.pack treeish)
+        (GitRepo (Text.pack url) $ Text.pack treeish)
         p
     _ -> Left (I.help pull)
   )
@@ -312,38 +311,36 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, githubOwner), (Required, githubRepo), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, branchPathArg)]
   (P.wrapColumn2
-    [ ( "`push foo bar`"
-      , "pushes the contents of the current path to the Github repo foo/bar."
+    [ ( "`push ssh://example.org/path/to/repo.git`"
+      , "pushes the contents of the current path to the given git url."
       )
-    , ( "`push foo bar baz.qux`"
-      , "pushes the contents of baz.qux relative to the current path "
-        <> "to the Github repo foo/bar."
+    , ( "`push ssh://example.org/path/to/repo.git foo.bar`"
+      , "pushes the contents of `foo.bar` relative to the current path "
+        <> "to the given git url."
       )
-    , ( "`push foo bar .baz.qux`"
-      , "pushes the contents of the absolute path .baz.qux "
-        <> "to the Github repo foo/bar."
+    , ( "`push ssh://example.org/path/to/repo.git .foo.bar`"
+      , "pushes the contents of the absolute path `.foo.bar` "
+        <> "to the given gir url."
       )
-    , ( "`push foo bar baz qux`"
-      , "pushes the contents of the path baz "
-        <> "to the branch qux at the Github repo foo/bar."
+    , ( "`push ssh://example.org/path/to/repo.git foo bar`"
+      , "pushes the contents of the path `foo` "
+        <> "to the git branch `bar` at the given git url."
       )
     ]
   )
   (\case
-    [owner, repo] -> first fromString . pure $ Input.PushRemoteBranchI
-      (Github (Text.pack owner) (Text.pack repo) "master")
+    [url] -> first fromString . pure $ Input.PushRemoteBranchI
+      (GitRepo (Text.pack url) "master")
       Path.relativeEmpty'
-    [owner, repo, path] -> first fromString $ do
+    [url, path] -> first fromString $ do
+      p <- Path.parsePath' path
+      pure $ Input.PushRemoteBranchI (GitRepo (Text.pack url) "master") p
+    [url, path, treeish] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.PushRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) "master")
-        p
-    [owner, repo, path, treeish] -> first fromString $ do
-      p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI
-        (Github (Text.pack owner) (Text.pack repo) $ Text.pack treeish)
+        (GitRepo (Text.pack url) $ Text.pack treeish)
         p
     _ -> Left (I.help push)
   )
@@ -533,11 +530,9 @@ patchPathArg = noCompletions { I.typeName = "patch" }
 branchPathArg :: ArgumentType
 branchPathArg = noCompletions { I.typeName = "branch" }
 
-githubOwner :: ArgumentType
-githubOwner = noCompletions { I.typeName = "Github-owner"}
-
-githubRepo :: ArgumentType
-githubRepo = noCompletions { I.typeName = "Github-repo"}
-
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
+
+gitUrlArg :: ArgumentType
+gitUrlArg = noCompletions { I.typeName = "git-url" }
+

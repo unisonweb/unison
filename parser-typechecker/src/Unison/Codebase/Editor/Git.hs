@@ -35,16 +35,15 @@ import           Unison.Codebase.Branch2        ( Branch
                                                 , headHash
                                                 )
 
--- Given a local path, a Github org, repo, and branch/commit hash,
--- pulls the HEAD of that Github location into the local path.
-pullFromGithub
+-- Given a local path, a remote git repo url, and branch/commit hash,
+-- pulls the HEAD of that remote repo into the local path.
+pullFromGit
   :: MonadIO m
-  => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
-pullFromGithub localPath user repo treeish = do
-  wd <- prepGitPull localPath uri
-  pull uri treeish
+  => MonadError GitError m => FilePath -> Text -> Text -> m ()
+pullFromGit localPath url treeish = do
+  wd <- prepGitPull localPath url
+  pull url treeish
   liftIO $ setCurrentDirectory wd
-  where uri = githubUri user repo
 
 prepGitPull
   :: MonadIO m => MonadError GitError m => FilePath -> Text -> m FilePath
@@ -55,35 +54,33 @@ prepGitPull localPath uri = do
   unless exists $ clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
-  unless isGitDir . throwError $ NotAGitRepo localPath
+  unless isGitDir . throwError $ NoLocalRepoAt localPath
   pure wd
 
 -- Shallow pull in preparation for a push
-shallowPullFromGithub
+shallowPullFromGit
   :: MonadIO m
-  => MonadError GitError m => FilePath -> Text -> Text -> Text -> m ()
-shallowPullFromGithub localPath user repo treeish = do
-  wd <- prepGitPull localPath uri
+  => MonadError GitError m => FilePath -> Text -> Text -> m ()
+shallowPullFromGit localPath url treeish = do
+  wd <- prepGitPull localPath url
   unless (Text.null treeish) $
     "git" ["checkout", treeish]
       `onError` "git" ["checkout", "-b", treeish]
       `onError` throwError (CheckoutFailed treeish)
   liftIO $ setCurrentDirectory wd
-  where uri = githubUri user repo
 
--- Given a local path, a Github org, repo, and branch/commit hash, pulls the
--- HEAD of that Github location into the local path and attempts to load it as a
+-- Given a local path, a remote repo url, and branch/commit hash, pulls the
+-- HEAD of that remote repo into the local path and attempts to load it as a
 -- branch. Then merges the branch into the given codebase.
-pullGithubRootBranch
+pullGitRootBranch
   :: MonadIO m
   => FilePath
   -> Codebase m v a
   -> Text
   -> Text
-  -> Text
   -> ExceptT GitError m (Branch m)
-pullGithubRootBranch localPath codebase user repo treeish = do
-  pullFromGithub localPath user repo treeish
+pullGitRootBranch localPath codebase url treeish = do
+  pullFromGit localPath url treeish
   branch <- lift $ getRootBranch localPath
   headExists <- liftIO $ doesDirectoryExist $ branchHeadDir localPath
   when headExists $
@@ -99,9 +96,6 @@ checkForGit = do
 checkGitDir :: IO Bool
 checkGitDir = (const True <$> "git" ["rev-parse", "--git-dir"]) $? pure False
 
-githubUri :: Text -> Text -> Text
-githubUri user repo = "git@github.com:" <> user <> "/" <> repo <> ".git"
-
 onError :: MonadError e m => MonadIO m => IO () -> m () -> m ()
 onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
   True  -> pure ()
@@ -109,34 +103,33 @@ onError x k = liftIO ((const True <$> x) $? pure False) >>= \case
 
 clone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
 clone uri localPath = "git" ["clone", uri, Text.pack localPath]
-  `onError` throwError (NoGithubAt uri)
+  `onError` throwError (NoRemoteRepoAt uri)
 
 shallowClone :: MonadError GitError m => MonadIO m => Text -> FilePath -> m ()
 shallowClone uri localPath =
   "git" ["clone", "--depth=1", uri, Text.pack localPath]
-    `onError` throwError (NoGithubAt uri)
+    `onError` throwError (NoRemoteRepoAt uri)
 
 pull :: MonadError GitError m => MonadIO m => Text -> Text -> m ()
 pull uri treeish = do
-  "git" ["fetch", uri, treeish] `onError` throwError (NoGithubAt uri)
+  "git" ["fetch", uri, treeish] `onError` throwError (NoRemoteRepoAt uri)
   liftIO $ "git" ["checkout", treeish]
 
--- Clone the given github repo and commit to the given a local path.
+-- Clone the given remote repo and commit to the given a local path.
 -- Then given a codebase and a branch, write the branch and all its
--- dependencies to the path, then commit and push to github.
-pushGithubRootBranch
+-- dependencies to the path, then commit and push to the remote repo.
+pushGitRootBranch
   :: MonadIO m
   => FilePath
   -> Codebase m v a
   -> Branch m
   -> Text
   -> Text
-  -> Text
   -> ExceptT GitError m ()
-pushGithubRootBranch localPath codebase branch user repo treeish = do
+pushGitRootBranch localPath codebase branch url treeish = do
   wd <- liftIO getCurrentDirectory
   -- Clone and pull the remote repo
-  shallowPullFromGithub localPath user repo treeish
+  shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
   lift $ syncToDirectory codebase localPath branch
   liftIO $ do
@@ -148,7 +141,7 @@ pushGithubRootBranch localPath codebase branch user repo treeish = do
       "git" ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
     -- Push our changes to the repo
     if Text.null treeish
-      then "git" ["push", "--all", githubUri user repo]
-      else "git" ["push", githubUri user repo, treeish]
+      then "git" ["push", "--all", url]
+      else "git" ["push", url, treeish]
     setCurrentDirectory wd
 

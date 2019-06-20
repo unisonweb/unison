@@ -187,7 +187,7 @@ merge0 b1 b2 = do
     e1 <- m1
     e2 <- m2
     let e3 = e1 <> e2
-    pure $ (H.accumulate' e3, pure e3)
+    pure (H.accumulate' e3, pure e3)
 
 
 unionWithM :: forall m k a.
@@ -201,7 +201,7 @@ unionWithM f m1 m2 = Monad.foldM go m1 $ Map.toList m2 where
 pattern Hash h = Causal.RawHash h
 
 toList0 :: Branch0 m -> [(Path, Branch0 m)]
-toList0 b = go Path.empty b where
+toList0 = go Path.empty where
   go p b = (p, b) : (Map.toList (_children b) >>= (\(seg, (_h, cb)) ->
     go (Path.snoc p seg) (head cb) ))
 
@@ -209,7 +209,7 @@ printDebugPaths :: Branch m -> String
 printDebugPaths = unlines . map show . Set.toList . debugPaths
 
 debugPaths :: Branch m -> Set (Path, Hash)
-debugPaths b = go Path.empty b where
+debugPaths = go Path.empty where
   go p b = Set.insert (p, headHash b) . Set.unions $
     [ go (Path.snoc p seg) b | (seg, (_,b)) <- Map.toList $ _children (head b) ]
 
@@ -234,7 +234,7 @@ numHashChars _b = 3
 -- todo: Can this be made parametric on Causal2?
 -- todo: Can it still quit once `missing` is empty?
 findRefsInHistory :: forall m.
-  Monad m => Set Reference -> Branch m -> m (Names0)
+  Monad m => Set Reference -> Branch m -> m Names0
 findRefsInHistory refs (Branch c) = go refs mempty [c] [] where
   -- double-ended queue, used to go fairly / breadth first through multiple tails.
   -- unsure as to whether I need to be passing a Names0 as an accumulator
@@ -255,7 +255,7 @@ findRefsInHistory refs (Branch c) = go refs mempty [c] [] where
   getNames :: Set Reference -> Branch0 m -> Names0
   getNames rs b = Names terms' types' where
     Names terms types = toNames0 b
-    terms' = terms R.|> (Set.map Referent.Ref rs)
+    terms' = terms R.|> Set.map Referent.Ref rs
     types' = types R.|> rs
 
 
@@ -410,7 +410,7 @@ stepAt :: forall m. Applicative m
        => Path
        -> (Branch0 m -> Branch0 m)
        -> Branch m -> Branch m
-stepAt p f b = modifyAt p g b where
+stepAt p f = modifyAt p g where
   g :: Branch m -> Branch m
   g (Branch b) = Branch . Causal.consDistinct (f (Causal.head b)) $ b
 
@@ -422,7 +422,7 @@ stepManyAt actions = step (stepManyAt0 actions)
 -- after creating it if necessary.  Preserves history.
 stepAtM :: forall n m. (Functor n, Applicative m)
         => Path -> (Branch0 m -> n (Branch0 m)) -> Branch m -> n (Branch m)
-stepAtM p f b = modifyAtM p g b where
+stepAtM p f = modifyAtM p g where
   g :: Branch m -> n (Branch m)
   g (Branch b) = do
     b0' <- f (Causal.head b)
@@ -506,7 +506,7 @@ stepManyAt0 actions b = let
   -- paths are ordered lexicographically, so parents will appear before their children
   -- we reverse this so children are stepped before their parents
   actions' = reverse . Map.toList $ combine <$> List.multimap actions
-  combine fs = foldl' (\f g -> g . f) id fs
+  combine = foldl' (flip (.)) id
   in foldl' (\b (p, f) -> stepAt0 p f b) b actions'
 
 -- todo: reimplement this using stepM, not stepAtM, to preserve the property
@@ -518,7 +518,7 @@ stepManyAt0M actions b = let
   -- paths are ordered lexicographically, so parents will appear before their children
   -- we reverse this so children are stepped before their parents
   actions' = reverse . Map.toList $ combine <$> List.multimap actions
-  combine fs = foldl' (\f g x -> f x >>= g) pure fs
+  combine = foldl' (\f g x -> f x >>= g) pure
   in Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions'
 
 stepAt0M :: forall n m. (Functor n, Applicative m)
@@ -557,12 +557,12 @@ addTypeName r new md =
 
 deleteTermName :: Referent -> NameSegment -> Branch0 m -> Branch0 m
 deleteTermName r n b | Star3.memberD1 (r,n) (view terms b)
-                     = over terms (Star3.deletePrimaryD1 (r,n)) $ b
+                     = over terms (Star3.deletePrimaryD1 (r,n)) b
 deleteTermName _ _ b = b
 
 deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | Star3.memberD1 (r,n) (view types b)
-                     = over types (Star3.deletePrimaryD1 (r,n)) $ b
+                     = over types (Star3.deletePrimaryD1 (r,n)) b
 deleteTypeName _ _ b = b
 
 data RefCollisions =

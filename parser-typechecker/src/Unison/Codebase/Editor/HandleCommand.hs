@@ -45,6 +45,7 @@ import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
+import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Reference              as Reference
@@ -76,13 +77,12 @@ typecheck ambient codebase names sourceName src =
     (Text.unpack sourceName)
     src
 
-tempGitDir :: Text -> Text -> Text -> IO FilePath
-tempGitDir username repo commit =
+tempGitDir :: Text -> Text -> IO FilePath
+tempGitDir url commit =
   getXdgDirectory XdgCache
     $   "unisonlanguage"
     </> "gitfiles"
-    </> Text.unpack username
-    </> Text.unpack repo
+    </> Hash.showBase58 url
     </> Text.unpack commit
 
 commandLine
@@ -95,8 +95,8 @@ commandLine
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine awaitInput setBranchRef rt notifyUser codebase command =
- Free.fold go command
+commandLine awaitInput setBranchRef rt notifyUser codebase =
+ Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
   go = \case
@@ -120,13 +120,13 @@ commandLine awaitInput setBranchRef rt notifyUser codebase command =
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch
-    LoadRemoteRootBranch Github {..} -> do
-      tmp <- tempGitDir username repo commit
-      runExceptT $ Git.pullGithubRootBranch tmp codebase username repo commit
-    SyncRemoteRootBranch Github {..} branch -> do
-      tmp <- tempGitDir username repo commit
+    LoadRemoteRootBranch GitRepo {..} -> do
+      tmp <- tempGitDir url commit
+      runExceptT $ Git.pullGitRootBranch tmp codebase url commit
+    SyncRemoteRootBranch GitRepo {..} branch -> do
+      tmp <- tempGitDir url commit
       runExceptT
-        $ Git.pushGithubRootBranch tmp codebase branch username repo commit
+        $ Git.pushGitRootBranch tmp codebase branch url commit
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r

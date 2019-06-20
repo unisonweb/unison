@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Unison.Hash (Hash, toBytes, base58, base58s, fromBase58, fromBytes, unsafeFromBase58) where
+module Unison.Hash (Hash, toBytes, base58, base58s, fromBase58, fromBytes, unsafeFromBase58, showBase58) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (doubleBE, word64BE, int64BE, toLazyByteString)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics
@@ -35,9 +36,9 @@ toBytesImpl = toBytes
 instance H.Accumulate Hash where
   accumulate = fromBytes . BA.convert . CH.hashFinalize . go CH.hashInit where
     go :: CH.Context CH.SHA3_512 -> [H.Token Hash] -> CH.Context CH.SHA3_512
-    go acc tokens = CH.hashUpdates acc $ (tokens >>= toBS)
+    go acc tokens = CH.hashUpdates acc (tokens >>= toBS)
     toBS (H.Tag b) = [B.singleton b]
-    toBS (H.Bytes bs) = [encodeLength (B.length $ bs), bs]
+    toBS (H.Bytes bs) = [encodeLength $ B.length bs, bs]
     toBS (H.Int i) = BL.toChunks . toLazyByteString . int64BE $ i
     toBS (H.Nat i) = BL.toChunks . toLazyByteString . word64BE $ i
     toBS (H.Double d) = BL.toChunks . toLazyByteString . doubleBE $ d
@@ -46,8 +47,7 @@ instance H.Accumulate Hash where
       in [encodeLength (B.length tbytes), tbytes]
     toBS (H.Hashed h) = [toBytes h]
     encodeLength :: Integral n => n -> B.ByteString
-    encodeLength len =
-      BL.toStrict . toLazyByteString . word64BE . fromIntegral $ len
+    encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
   fromBytes = fromBytesImpl
   toBytes = toBytesImpl
 
@@ -63,9 +63,12 @@ fromBase58 :: Text -> Maybe Hash
 fromBase58 txt = Hash <$> Base58.decodeBase58 Base58.bitcoinAlphabet (encodeUtf8 txt)
 
 unsafeFromBase58 :: Text -> Hash
-unsafeFromBase58 txt = case fromBase58 txt of
-  Just h -> h
-  Nothing -> error $ "invalid base58: " ++ Text.unpack txt
+unsafeFromBase58 txt =
+  fromMaybe (error $ "invalid base58: " ++ Text.unpack txt) $ fromBase58 txt
 
 fromBytes :: ByteString -> Hash
 fromBytes = Hash
+
+showBase58 :: H.Hashable t => t -> String
+showBase58 = base58s . H.accumulate'
+
