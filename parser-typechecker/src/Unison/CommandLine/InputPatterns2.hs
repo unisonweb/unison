@@ -100,7 +100,7 @@ patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPath
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
-      pure $ Input.PropagateI patch branch
+      pure $ Input.PatchI patch branch
     [] -> Left $ warn "`todo` takes a patch and an optional path")
 
 
