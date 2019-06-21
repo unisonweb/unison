@@ -81,23 +81,25 @@ newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
 
+type Star r n = Metadata.Star r n -- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
+
 data Branch0 m = Branch0
-  { _terms :: Star3 Referent NameSegment Metadata.Type Metadata.Value
-  , _types :: Star3 Reference NameSegment Metadata.Type Metadata.Value
+  { _terms :: Star Referent NameSegment
+  , _types :: Star Reference NameSegment
   , _children:: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
   , _edits :: Map NameSegment (EditHash, m Patch)
   , toNamesSeg :: Names.NamesSeg
   , toNames0 :: Names.Names0
   , deepReferents :: Set Referent
   , deepTypeReferences :: Set Reference
-  , deepTerms :: Star3 Referent Name Metadata.Type Metadata.Value
-  , deepTypes :: Star3 Reference Name Metadata.Type Metadata.Value
+  , deepTerms :: Star Referent Name
+  , deepTypes :: Star Reference Name
   }
 
 -- The raw Branch
 data Raw = Raw
-  { _termsR :: Star3 Referent NameSegment Metadata.Type Metadata.Value
-  , _typesR :: Star3 Reference NameSegment Metadata.Type Metadata.Value
+  { _termsR :: Star Referent NameSegment
+  , _typesR :: Star Reference NameSegment
   , _childrenR :: Map NameSegment Hash
   , _editsR :: Map NameSegment EditHash
   }
@@ -106,16 +108,16 @@ makeLenses ''Branch
 makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
-terms :: Lens' (Branch0 m) (Star3 Referent NameSegment Metadata.Type Metadata.Value)
+terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
-types :: Lens' (Branch0 m) (Star3 Reference NameSegment Metadata.Type Metadata.Value)
+types :: Lens' (Branch0 m) (Star Reference NameSegment)
 types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
 children :: Lens' (Branch0 m) (Map NameSegment (Hash, Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
 -- creates a Branch0 from the primary fields and derives the others.
-branch0 :: Star3 Referent NameSegment Metadata.Type Metadata.Value
-        -> Star3 Reference NameSegment Metadata.Type Metadata.Value
+branch0 :: Metadata.Star Referent NameSegment
+        -> Metadata.Star Reference NameSegment
         -> Map NameSegment (Hash, Branch m)
         -> Map NameSegment (EditHash, m Patch)
         -> Branch0 m

@@ -78,9 +78,8 @@ handleReference = typeNamed "Handle"
 epochTimeReference = typeNamed "EpochTime"
 isTestReference = typeNamed "IsTest"
 
-isTest :: R.Reference
-isTest = termNamed "links.isTest"
--- todo (isTestReference, termNamed "links.isTest")
+isTest :: (R.Reference, R.Reference)
+isTest = (isTestReference, termNamed "links.isTest")
 
 eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId
   :: DD.ConstructorId

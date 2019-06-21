@@ -18,22 +18,19 @@ type Metadata = Map Type (Set Value)
 
 type Star a n = Star3 a n Type (Type, Value)
 
-inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star3 a n Type Value -> Star3 a n Type Value
+inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n
 inserts tups s = foldl' (flip insert) s tups
 
 insertWithMetadata
-  :: (Ord a, Ord n)
-  => (a, Metadata)
-  -> Star3 a n Type Value
-  -> Star3 a n Type Value
+  :: (Ord a, Ord n) => (a, Metadata) -> Star a n -> Star a n
 insertWithMetadata (a, md) =
   inserts [ (a, ty, v) | (ty, vs) <- Map.toList md, v <- toList vs ]
 
-insert :: (Ord a, Ord n) => (a, Type, Value) -> Star3 a n Type Value -> Star3 a n Type Value
-insert = Star3.insertD23
+insert :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
+insert (a, ty, v) = Star3.insertD23 (a, ty, (ty,v))
 
-delete :: (Ord a, Ord n) => (a, Type, Value) -> Star3 a n Type Value -> Star3 a n Type Value
-delete = Star3.deleteD23
+delete :: (Ord a, Ord n) => (a, Type, Value) -> Star a n -> Star a n
+delete (a, ty, v) = Star3.deleteD23 (a, ty, (ty,v))
 
 -- parallel composition - commutative and associative
 merge :: Metadata -> Metadata -> Metadata

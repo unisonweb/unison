@@ -643,10 +643,17 @@ getStar3 getF getD1 getD2 getD3 =
 
 putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
-  putStar3 putReferent putNameSegment putMetadataType putMetadataValue (Branch._terms b)
-  putStar3 putReference putNameSegment putMetadataType putMetadataValue (Branch._types b)
+  putBranchStar putReferent putNameSegment (Branch._terms b)
+  putBranchStar putReference putNameSegment (Branch._types b)
   putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
               (Map.toList (Branch._children b))
+
+putBranchStar :: MonadPut m => (a -> m ()) -> (n -> m ()) -> Branch.Star a n -> m ()
+putBranchStar putA putN =
+  putStar3 putA putN putMetadataType (putPair putMetadataType putMetadataValue)
+
+getBranchStar :: (Ord a, Ord n, MonadGet m) => m a -> m n -> m (Branch.Star a n)
+getBranchStar getA getN = getStar3 getA getN getMetadataType (getPair getMetadataType getMetadataValue)
 
 -- getBranch0 :: MonadGet m => m (Branch00)
 
@@ -670,8 +677,8 @@ getNameSegment = NameSegment <$> getText
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
 putRawBranch (Branch.Raw terms types children edits) = do
-  putStar3 putReferent putNameSegment putMetadataType putMetadataValue terms
-  putStar3 putReference putNameSegment putMetadataType putMetadataValue types
+  putBranchStar putReferent putNameSegment terms
+  putBranchStar putReference putNameSegment types
   putMap putNameSegment (putHash . unRawHash) children
   putMap putNameSegment putHash edits
 
@@ -690,8 +697,8 @@ putMetadataValue = putReference
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
   Branch.Raw
-    <$> getStar3 getReferent getNameSegment getMetadataType getMetadataValue
-    <*> getStar3 getReference getNameSegment getMetadataType getMetadataValue
+    <$> getBranchStar getReferent getNameSegment
+    <*> getBranchStar getReference getNameSegment
     <*> getMap getNameSegment (RawHash <$> getHash)
     <*> getMap getNameSegment getHash
 
