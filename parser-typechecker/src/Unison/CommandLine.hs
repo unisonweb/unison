@@ -251,6 +251,13 @@ putPrettyLn' p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.indentN 2 p
 
+clearCurrentLine :: IO ()
+clearCurrentLine = do
+  width <- getAvailableWidth
+  putStr "\r"
+  putStr . replicate width $ ' '
+  putStr "\r"
+
 putPretty' :: P.Pretty CT.ColorText -> IO ()
 putPretty' p = do
   width <- getAvailableWidth

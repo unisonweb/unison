@@ -51,6 +51,7 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.CommandLine            (
                                                 -- backtick, backtickEOS,
                                                 bigproblem,
+                                                clearCurrentLine,
                                                 putPretty',
                                                 putPrettyLn,
                                                 putPrettyLn',
@@ -124,18 +125,20 @@ notifyUser dir o = case o of
            P.lines [ "", cache, "", displayTestResults False ppe oks fails, "", "✅  " ]
       where
     NewlyComputed -> do
-      putPretty' $ "\r  " <> P.bold "New test results:" <> fromString (replicate 40 ' ')
+      clearCurrentLine
+      putPretty' $ "  " <> P.bold "New test results:"
       putPrettyLn $ P.lines ["", displayTestResults True ppe oks fails ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
 
-  TestIncrementalOutputStart ppe (n,total) r _src ->
+  TestIncrementalOutputStart ppe (n,total) r _src -> do
     putPretty' $ P.shown (total - n) <> " tests left to run, current test: "
               <> prettyHashQualified (PPE.termName ppe $ Referent.Ref r)
 
-  TestIncrementalOutputEnd _ppe (n,total) _r result ->
-    if isTestOk result then putPretty' "\r  ✅  "
-    else putPretty' "\r  🚫  "
+  TestIncrementalOutputEnd _ppe (n,total) _r result -> do
+    clearCurrentLine
+    if isTestOk result then putPretty' "  ✅  "
+    else putPretty' "  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   TermNotFound input _ ->
