@@ -12,12 +12,16 @@ module Unison.CommandLine.InputPatterns2 where
 -- import Debug.Trace
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn)
+import Data.Map (Map)
 import Data.String (fromString)
 import Unison.Codebase.Editor.Input (Input)
+import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.Util.Monoid (intercalateMap)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch2 as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
@@ -26,8 +30,6 @@ import qualified Unison.HashQualified as HQ
 import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
-import qualified Data.Text as Text
-import Unison.Codebase.Editor.RemoteRepo
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -376,6 +378,23 @@ edit = InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
   "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
   (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
+helpTopics :: Map String (P.Pretty P.ColorText)
+helpTopics = Map.fromList [
+  ("testcache", testCacheMsg),
+  ("filestatus", fileStatusMsg)
+  ]
+  where
+  fileStatusMsg = "🚧  Under construction!! Todo: docs here."
+  testCacheMsg = P.callout "🎈" . P.lines $ [
+    P.wrap $ "Unison caches the results of " <> P.blue "test>"
+          <> "watch expressions. Since these expressions are pure and"
+          <> "always yield the same result when evaluated, there's no need"
+          <> "to run them more than once!",
+    "",
+    P.wrap $ "A test is rerun only if it has changed, or if one"
+          <> "of the definitions it depends on has changed."
+    ]
+
 help :: InputPattern
 help = InputPattern
     "help" ["?"] [(Optional, commandNameArg)]
@@ -383,10 +402,13 @@ help = InputPattern
     (\case
       [] -> Left $ intercalateMap "\n\n" showPatternHelp
         (sortOn I.patternName validInputs)
+      [isHelp -> Just msg] -> Left msg
       [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ I.help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
+    where
+      isHelp s = Map.lookup s helpTopics
 
 quit :: InputPattern
 quit = InputPattern "quit" ["exit"] []
@@ -495,7 +517,7 @@ commandNames = I.patternName <$> validInputs
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (fuzzyComplete q commandNames)
+  ArgumentType "command" $ \q _ _ _ -> pure (fuzzyComplete q (commandNames <> Map.keys helpTopics))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
