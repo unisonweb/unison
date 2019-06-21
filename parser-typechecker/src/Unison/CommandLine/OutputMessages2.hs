@@ -117,15 +117,15 @@ notifyUser dir o = case o of
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> putPrettyLn . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> putPrettyLn $
-      P.lines [ cache, "", displayTestResults ppe oks fails ]
+      P.lines [ cache, "", displayTestResults True ppe oks fails ]
     CachedTests n m -> putPretty' $
       if m == 0 then "✅  "
       else P.indentN 2 $
-           P.lines [ "", cache, "", displayTestResults ppe oks fails, "", "✅  " ]
+           P.lines [ "", cache, "", displayTestResults False ppe oks fails, "", "✅  " ]
       where
     NewlyComputed -> do
       putPretty' $ "\r  " <> P.bold "New test results:" <> fromString (replicate 40 ' ')
-      putPrettyLn $ P.lines ["", displayTestResults ppe oks fails ]
+      putPrettyLn $ P.lines ["", displayTestResults True ppe oks fails ]
     where
       cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
 
@@ -437,11 +437,12 @@ displayDefinitions outputLoc ppe types terms =
       ]
   code = displayDefinitions' ppe types terms
 
-displayTestResults :: PPE.PrettyPrintEnv
+displayTestResults :: Bool -- whether to show the tip
+                   -> PPE.PrettyPrintEnv
                    -> [(Reference, Text)]
                    -> [(Reference, Text)]
                    -> P.Pretty CT.ColorText
-displayTestResults ppe oks fails = let
+displayTestResults showTip ppe oks fails = let
   name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
   okMsg =
     if null oks then mempty
@@ -456,7 +457,7 @@ displayTestResults ppe oks fails = let
     if null fails then mempty
     else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
   tipMsg =
-    if null oks && null fails then mempty
+    if not showTip || (null oks && null fails) then mempty
     else tip $ "Use " <> P.blue ("view " <> name (fst $ head (fails ++ oks))) <> "to view the source of a test."
   in if null oks && null fails then "😶 No tests available."
      else P.sep "\n\n" . P.nonEmpty $ [
