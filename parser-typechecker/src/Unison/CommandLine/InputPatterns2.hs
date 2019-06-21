@@ -381,9 +381,17 @@ edit = InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
 helpTopics :: Map String (P.Pretty P.ColorText)
 helpTopics = Map.fromList [
   ("testcache", testCacheMsg),
-  ("filestatus", fileStatusMsg)
+  ("filestatus", fileStatusMsg),
+  ("topics", topics)
   ]
   where
+  topics = P.callout "🌻" $ P.lines [
+    "Here's a list of topics I can tell you more about: ",
+    "",
+    P.indentN 2 $ P.sep "\n" (P.string <$> Map.keys helpTopics),
+    "",
+    aside "Example" "use `help filestatus` to learn more about that topic."
+    ]
   fileStatusMsg = "🚧  Under construction!! Todo: docs here."
   testCacheMsg = P.callout "🎈" . P.lines $ [
     P.wrap $ "Unison caches the results of " <> P.blue "test>"
