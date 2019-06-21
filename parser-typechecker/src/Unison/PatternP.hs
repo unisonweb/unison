@@ -1,4 +1,4 @@
-{-# Language PatternSynonyms, ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.PatternP where
 

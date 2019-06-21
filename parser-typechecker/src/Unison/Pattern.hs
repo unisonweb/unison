@@ -132,7 +132,7 @@ instance Eq (PatternP loc) where
   SequenceOpP _ ph op pt == SequenceOpP _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2
   _ == _ = False
 
-foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m 
+foldMap' :: Monoid m => (PatternP loc -> m) -> PatternP loc -> m
 foldMap' f p = case p of
     UnboundP _              -> f p
     VarP _                  -> f p
