@@ -117,6 +117,8 @@ data Output v
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
   | LinkFailure Input
+  -- todo: tell the user to run `todo` on the same patch they just used
+  | PatchNeedsToBeConflictFree
   deriving (Show)
 
 data TestReportStats

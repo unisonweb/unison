@@ -461,14 +461,17 @@ propagate'
   -> m Branch0
 propagate' code frontier b = go edits b =<< dirty
  where
+  dirty :: m [Reference]
   dirty =
     Set.toList . Set.unions <$> traverse (dependents code) (Set.toList frontier)
+  edits :: Map Reference TermEdit
   edits =
     Map.fromList
       .    R.toList
       .    R.filterRan (TermEdit.isTypePreserving)
       $    frontier
       R.<| Branch.editedTerms b
+  update :: Map Reference TermEdit -> Term v a -> Term v a
   update edits =
     Term.updateDependencies (Map.mapMaybe TermEdit.toReference edits)
   go :: Map Reference TermEdit -> Branch0 -> [Reference] -> m Branch0

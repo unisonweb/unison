@@ -839,9 +839,9 @@ propagatePatch :: Patch -> Branch0 m -> m (Branch0 m)
 propagatePatch = undefined
 
 -- (d, f) when d is "dirty" (needs update),
---             f is in the frontier,
---         and d depends of f
--- a ⋖ b = a depends on b (with no intermediate dependencies)
+--             f is in the frontier (an edited dependency of d),
+--         and d depends on f
+-- a ⋖ b = a depends directly on b
 -- dirty(d) ∧ frontier(f) <=> not(edited(d)) ∧ edited(f) ∧ d ⋖ f
 --
 -- The range of this relation is the frontier, and the domain is
@@ -871,10 +871,6 @@ confirmedCommand :: Input -> Action m i v Bool
 confirmedCommand i = do
   i0 <- use lastInput
   pure $ Just i == i0
-
--- loadBranch :: BranchName -> Action m i v (Maybe Branch)
--- loadBranch = eval . LoadBranch
-
 
 listBranch :: Branch0 m -> [SearchResult]
 listBranch (Branch.toNames0 -> b) =
@@ -1476,3 +1472,106 @@ loadTypeDisplayThing = \case
   Reference.Builtin _ -> pure BuiltinThing
   Reference.DerivedId id ->
     maybe (MissingThing id) RegularThing <$> eval (LoadType id)
+
+-- Description:
+------------------
+-- For any `Reference` in the frontier which has a type edit, do no propagation.
+-- (for now, until we have a richer type edit algebra).
+--
+-- For any `Reference` in the frontier which has an unconflicted, type-preserving
+-- term edit, `old -> new`, replace `old` with `new` in dependents of the
+-- frontier, and call `propagate'` recursively on the new frontier.
+--
+-- If the term is `Typing.Same`, the dependents don't need to be typechecked.
+-- If the term is `Typing.Subtype`, and the dependent only has inferred type,
+-- it should be re-typechecked, and the new inferred type should be used.
+--
+-- This will create a whole bunch of new terms in the codebase and move the
+-- names onto those new terms. Uses `Term.updateDependencies` to perform
+-- the substitutions.
+--
+-- Algorithm:
+----------------
+-- compute the frontier relation (dependencies of updated terms)
+-- for each dirty definition d:
+--  for each member c of cycle(d):
+--   construct c', an updated c incorporating all type-preserving edits
+--   add an edit c -> c'
+--   save c' to a `Map Reference Term`
+
+-- propagate only deals with Terms
+propagate :: forall m v. Applicative m
+  => Patch -> Branch m -> Action' m v (Branch m)
+propagate patch b = validatePatch patch >>= \case
+  Nothing -> do
+    respond PatchNeedsToBeConflictFree
+    pure b
+  Just initialEdits -> do
+    initialDirty <- toList . R.dom
+                      <$> computeFrontier (eval . GetDependents) patch names0
+    (termEdits, newTerms) <- collectEdits initialEdits mempty initialDirty
+    -- todo: can eliminate this filter if collectEdits doesn't leave temporary
+    -- terms in the map!
+--    writeTerms (Map.filter _ newTerms)
+    -- if we are propagating type-preserving edits, then
+    undefined
+  where
+  names0 = (Branch.toNames0 . Branch.head) b
+  validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
+  validatePatch p = pure $ R.toMap (Patch._termEdits p)
+  collectEdits :: Map Reference TermEdit
+               -> Map Reference (Term v a)
+               -> [Reference]
+               -> Action' m v (Map Reference TermEdit, Map Reference (Term v a))
+  collectEdits edits newTerms dirty = error "todo"
+
+  -- Turns a cycle of references into a term with free vars that we can edit
+  -- and hash again.
+  -- todo: Maybe this an others can be moved to HandleCommand, in the
+  --  Free (Command m i v) monad, passing in the actions that are needed.
+  -- However, if we want this to be parametric in the annotation type, then
+  -- Command would have to be made parametric in the annotation type too.
+  unhashComponent
+    :: forall m v . (Monad m, Var v)
+    => Reference
+    -> Action' m v (Maybe (Map v (Reference, Term v _, Type v _)))
+  unhashComponent ref = do
+    let component = Reference.members $ Reference.componentFor ref
+    isTerm <- eval $ IsTerm ref
+    isType <- eval $ IsType ref
+    if isTerm then do
+      let
+        termInfo :: Reference -> Action' m v (v, (Reference, Term v Ann, Type v Ann))
+        termInfo termRef = do
+          tpm <- eval $ LoadTypeOfTerm termRef
+          tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
+          case termRef of
+            Reference.DerivedId id -> do
+              mtm <- eval $ LoadTerm id
+              tm <- maybe (fail $ "Missing term with id " <> show id) pure mtm
+              pure (Var.typed (Var.RefNamed termRef), (termRef, tm, tp))
+            _ -> fail $ "Cannot unhashComponent for a builtin: " ++ show termRef
+        unhash m =
+          let f (ref,_oldTm,oldTyp) (_ref,newTm) = (ref,newTm,oldTyp)
+              dropType (r,tm,_tp) = (r,tm)
+          in Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+      Just . unhash . Map.fromList <$> traverse termInfo (toList component)
+    else if isType then pure Nothing
+    else fail $ "Invalid reference: " <> show ref
+
+--
+
+--  typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
+--                 => Codebase m v a
+--                 -> [(v, Term v a)]
+--                 -> m (Map v (Type v a))
+--  typecheckTerms code bindings = do
+--    let tm = Term.letRec' True bindings $ DD.unitTerm mempty
+--    env <- typecheckingEnvironment' code tm
+--    (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
+--    -- todo: assert that the output map has a type for all variables in the input
+--    case o of
+--      Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
+--      Just _ -> pure $
+--        Map.fromList [ (v, typ) | Context.TopLevelComponent c <- toList (Typechecker.infos notes)
+--                                , (v, typ, _) <- c ]

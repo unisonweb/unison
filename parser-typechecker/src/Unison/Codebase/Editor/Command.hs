@@ -134,7 +134,7 @@ data Command m i v a where
 
   LoadTypeOfTerm :: Reference -> Command m i v (Maybe (Type v Ann))
 
-  -- todo: eliminate these hopefully
+  -- todo: eliminate these hopefully (why, again? because we can know from the Reference?)
   IsTerm :: Reference -> Command m i v Bool
   IsType :: Reference -> Command m i v Bool
 

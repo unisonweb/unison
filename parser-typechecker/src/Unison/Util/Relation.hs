@@ -406,6 +406,14 @@ fromMultimap m =
 toMultimap :: Relation a b -> Map a (Set b)
 toMultimap = domain
 
+-- Returns Nothing if Relation isn't one-to-one.
+toMap :: Ord a => Relation a b -> Maybe (Map a b)
+toMap r =
+  let mm = toMultimap r in
+  if all (\s -> S.size s == 1) mm
+  then Just (S.findMin <$> mm)
+  else Nothing
+
 fromSet :: (Ord a, Ord b) => Set (a,b) -> Relation a b
 fromSet = fromList . S.toList
 
