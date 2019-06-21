@@ -136,6 +136,9 @@ backtickEOS s = P.group ("`" <> s <> "`.")
 tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
 tip s = P.column2 [("Tip:", P.wrap s)]
 
+note :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
+note s = P.column2 [("Note:", P.wrap s)]
+
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 warn s = emojiNote "⚠️" s
 
@@ -248,7 +251,7 @@ putPrettyLn' p = do
 putPretty' :: P.Pretty CT.ColorText -> IO ()
 putPretty' p = do
   width <- getAvailableWidth
-  putStr . P.toANSI width $ P.indentN 2 p
+  putStr . P.toANSI width $ p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =

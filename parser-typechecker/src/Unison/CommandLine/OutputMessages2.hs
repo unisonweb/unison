@@ -55,6 +55,7 @@ import           Unison.CommandLine            (
                                                 putPrettyLn,
                                                 putPrettyLn',
                                                 tip,
+                                                note
                                                 -- warn,
                                                 -- watchPrinter,
                                                 -- plural
@@ -116,22 +117,25 @@ notifyUser dir o = case o of
   TestResults stats ppe _showSuccess _showFailures oks fails -> case stats of
     CachedTests 0 _ -> putPrettyLn . P.callout "😶" $ "No tests to run."
     CachedTests n n' | n == n' -> putPrettyLn $
-      P.lines [ displayTestResults ppe oks fails, "" , cacheMsg ]
+      P.lines [ cache, "", displayTestResults ppe oks fails ]
     CachedTests n m -> putPretty' $
-      P.lines [ displayTestResults ppe oks fails, "" , cacheMsg, moreTests, "✅" ]
+      if m == 0 then "✅  "
+      else P.indentN 2 $
+           P.lines [ "", cache, "", displayTestResults ppe oks fails, "", "✅  " ]
       where
-      moreTests = P.wrap $ "There are " <> P.shown (n - m) <> "to run, starting execution..."
-    NewlyComputed -> putPrettyLn $ displayTestResults ppe oks fails
+    NewlyComputed -> do
+      putPretty' $ "\r  " <> P.bold "New test results:" <> fromString (replicate 40 ' ')
+      putPrettyLn $ P.lines ["", displayTestResults ppe oks fails ]
     where
-      cacheMsg = P.wrap "☝  All the above tests were found in the test cache."
+      cache = P.bold "Cached test results " <> "(`help testcache` to learn more)"
 
   TestIncrementalOutputStart ppe (n,total) r _src ->
-    putPretty' $ P.shown (total - n) <> " left, current test: "
+    putPretty' $ P.shown (total - n) <> " tests left to run, current test: "
               <> prettyHashQualified (PPE.termName ppe $ Referent.Ref r)
 
   TestIncrementalOutputEnd _ppe (n,total) _r result ->
-    if isTestOk result then putPretty' "\r✅  "
-    else putPretty' "\r🚫  "
+    if isTestOk result then putPretty' "\r  ✅  "
+    else putPretty' "\r  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   TermNotFound input _ ->
