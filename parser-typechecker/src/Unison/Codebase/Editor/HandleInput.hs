@@ -1512,10 +1512,12 @@ propagate patch b = validatePatch patch >>= \case
     (termEdits, newTerms) <- collectEdits initialEdits mempty initialDirty
     -- todo: can eliminate this filter if collectEdits doesn't leave temporary
     -- terms in the map!
---    writeTerms (Map.filter _ newTerms)
+    let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference $ toList termEdits
+--    writeTerms (Map.filter (`Set.member` termEditTargets) newTerms)
     -- if we are propagating type-preserving edits, then
     undefined
   where
+--  writeTerms
   names0 = (Branch.toNames0 . Branch.head) b
   validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
   validatePatch p = pure $ R.toMap (Patch._termEdits p)
