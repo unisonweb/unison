@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Unison.Util.Star3 where
 
 import Data.List (foldl')
@@ -150,6 +152,14 @@ deleteD23 :: (Ord fact, Ord d1, Ord d2, Ord d3)
 deleteD23 (f, x, y) s = Star3 (fact s) (d1 s) d2' d3' where
   d2' = R.delete f x (d2 s)
   d3' = R.delete f y (d3 s)
+
+replaceFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
+            => fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+replaceFact f f' Star3{..} =
+  Star3 ((Set.insert f' . Set.delete f) fact)
+        (R.replaceDom f f' d1)
+        (R.replaceDom f f' d2)
+        (R.replaceDom f f' d3)
 
 instance (Ord fact, Ord d1, Ord d2, Ord d3) => Semigroup (Star3 fact d1 d2 d3) where
   (<>) = mappend

@@ -43,6 +43,7 @@ import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
                                                 , foldl'
+                                                , traverse_
                                                 )
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
@@ -61,12 +62,12 @@ import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch2        ( Branch
-                                                , Branch0
+                                                , Branch0(..)
                                                 )
 import qualified Unison.Codebase.Branch2       as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Metadata      as Metadata
-import           Unison.Codebase.Patch          ( Patch )
+import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path' )
@@ -174,9 +175,11 @@ loop = do
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolvePath' :: Path' -> Path
-      resolvePath' = Path.unabsolute . Path.toAbsolutePath currentPath'
+      resolvePath' = Path.unabsolute . resolveToAbsolute
+      resolveToAbsolute :: Path' -> Path.Absolute
+      resolveToAbsolute = Path.toAbsolutePath currentPath'
       path'ToSplit :: Path' -> Maybe Path.Split
-      path'ToSplit = Path.unsnoc . Path.unabsolute . Path.toAbsolutePath currentPath'
+      path'ToSplit = Path.unsnoc . resolvePath'
       getAtSplit :: Path.Split -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
@@ -745,11 +748,13 @@ loop = do
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
       PatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        stepAtM (resolvePath' scopePath, propagatePatch patch)
-        branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
-        -- checkTodo only needs the local names
-        let names0 = (Branch.toNames0 . Branch.head) branch
-        checkTodo patch names0 >>= respond . TodoOutput names0
+        changed <- updateAtM (resolveToAbsolute scopePath) (propagate patch)
+        if changed then do
+          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
+          -- checkTodo only needs the local names
+          let names0 = (Branch.toNames0 . Branch.head) branch
+          checkTodo patch names0 >>= respond . TodoOutput names0
+        else respond $ NothingToPatch patchPath scopePath
       -- ExecuteI input ->
       --   withFile [Type.ref External $ IOSource.ioReference]
       --            "execute command"
@@ -834,9 +839,6 @@ checkTodo patch names0 = do
     tdeps <- transitiveClosure branchDependents rs
     -- we don't want the frontier in the result
     pure $ tdeps `Set.difference` rs
-
-propagatePatch :: Patch -> Branch0 m -> m (Branch0 m)
-propagatePatch = undefined
 
 -- (d, f) when d is "dirty" (needs update),
 --             f is in the frontier (an edited dependency of d),
@@ -1500,6 +1502,8 @@ loadTypeDisplayThing = \case
 --   save c' to a `Map Reference Term`
 
 -- propagate only deals with Terms
+-- "dirty" means in need of update
+-- "frontier" means updated definitions responsible for the "dirty"
 propagate :: forall m v. Applicative m
   => Patch -> Branch m -> Action' m v (Branch m)
 propagate patch b = validatePatch patch >>= \case
@@ -1507,25 +1511,39 @@ propagate patch b = validatePatch patch >>= \case
     respond PatchNeedsToBeConflictFree
     pure b
   Just initialEdits -> do
-    initialDirty <- toList . R.dom
-                      <$> computeFrontier (eval . GetDependents) patch names0
+    initialDirty <- toList . R.dom <$> computeFrontier
+                                          (eval . GetDependents)
+                                          (typePreservingTermEdits patch)
+                                          names0
     (termEdits, newTerms) <- collectEdits initialEdits mempty initialDirty
-    -- todo: can eliminate this filter if collectEdits doesn't leave temporary
-    -- terms in the map!
-    let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference $ toList termEdits
---    writeTerms (Map.filter (`Set.member` termEditTargets) newTerms)
-    -- if we are propagating type-preserving edits, then
-    undefined
+
+    -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
+    let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference
+                        $ toList termEdits
+    (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
+
+    pure $ Branch.step
+        (Branch.stepAll
+          (updateNames (Map.mapMaybe TermEdit.toReference termEdits))) b
   where
---  writeTerms
+  updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
+  updateNames edits Branch0{..} = Branch.branch0 terms _types _children _edits
+    where
+    terms = foldl' replace _terms (Map.toList edits)
+    replace s (r,r') = Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
+  typePreservingTermEdits :: Patch -> Patch
+  typePreservingTermEdits Patch{..} = Patch termEdits mempty where
+    termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
+  writeTerms = traverse_ (\(Reference.DerivedId id, (tm, tp)) -> eval $ PutTerm id tm tp)
   names0 = (Branch.toNames0 . Branch.head) b
   validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
   validatePatch p = pure $ R.toMap (Patch._termEdits p)
   collectEdits :: Map Reference TermEdit
                -> Map Reference (Term v a)
                -> [Reference]
-               -> Action' m v (Map Reference TermEdit, Map Reference (Term v a))
+               -> Action' m v (Map Reference TermEdit, Map Reference (Term v a, Type v a))
   collectEdits edits newTerms dirty = error "todo"
+
 
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.

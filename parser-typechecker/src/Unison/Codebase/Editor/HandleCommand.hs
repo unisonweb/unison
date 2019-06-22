@@ -132,6 +132,7 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     LoadTerm r -> Codebase.getTerm codebase r
     LoadType r -> Codebase.getTypeDeclaration codebase r
     LoadTypeOfTerm r -> Codebase.getTypeOfTerm codebase r
+    PutTerm r tm tp -> Codebase.putTerm codebase r tm tp
     PutWatch kind r e -> Codebase.putWatch codebase kind r e
     LoadWatches kind rs -> catMaybes <$> traverse go (toList rs) where
       go (Reference.Builtin _) = pure Nothing

@@ -124,16 +124,3 @@ makeDeleteTypeName (p, name) r = (p, Branch.deleteTypeName r name)
 makeSetBranch ::
   Path.Split -> Branch m -> (Path, Branch0 m -> Branch0 m)
 makeSetBranch (p, name) b = (p, Branch.setChildBranch name b)
-
-
--- setTerm :: Path.PathSplit' -> Set Referent -> Branch0 m -> Branch0 m
--- setType :: Path.PathSplit' -> Set Reference -> Branch0 m -> Branch0 m
--- setBranch :: Path.PathSplit' -> Branch0 m -> Branch0 m -> Branch0 m
--- setBranch somewhere new oldroot === newroot
--- deleteAt :: Target -> Branch0 m -> Branch0 m
--- move :: Path.HQPathSplit Path.Absolute
---      -> Path.PathSplit Path.Absolute
---      -> Branch0 m
---      -> Branch0 m
--- move src dest b = foldl' step b (toList (targetTypes src)) where
---   step b TargetType = set

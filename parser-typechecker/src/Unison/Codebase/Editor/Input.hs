@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.Input
   ( Input(..)
   , Event(..)
   , OutputLocation(..)
+  , PatchPath
   ) where
 
 import           Data.Set                       ( Set )

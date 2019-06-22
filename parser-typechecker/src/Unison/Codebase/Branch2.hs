@@ -18,6 +18,7 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform )
 import qualified Control.Monad                 as Monad
 --import           Control.Monad.Extra            ( whenM )
+import           Data.Bifunctor                 ( second )
 -- import           Data.GUID                (genText)
 import qualified Data.Foldable as Foldable
 import           Data.List                      ( foldl'
@@ -81,7 +82,8 @@ newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
 type Hash = Causal.RawHash Raw
 type EditHash = Hash.Hash
 
-type Star r n = Metadata.Star r n -- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
+-- Star3 r n Metadata.Type (Metadata.Type, Metadata.Value)
+type Star r n = Metadata.Star r n
 
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
@@ -433,6 +435,11 @@ stepAtM p f = modifyAtM p g where
 stepManyAtM :: (Monad m, Foldable f)
             => f (Path, Branch0 m -> m (Branch0 m)) -> Branch m -> m (Branch m)
 stepManyAtM actions = stepM (stepManyAt0M actions)
+
+-- starting at the leaves, apply `f` to every level of the branch.
+stepAll :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
+stepAll f Branch0{..} = f (branch0 _terms _types children _edits) where
+  children = fmap (second (step f)) _children
 
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
