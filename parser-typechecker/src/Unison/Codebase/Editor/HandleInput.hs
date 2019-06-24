@@ -45,6 +45,7 @@ import           Data.Foldable                  ( find
                                                 , foldl'
                                                 , traverse_
                                                 )
+import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List.Extra                (nubOrd)
 import           Data.Maybe                     ( catMaybes
@@ -748,7 +749,8 @@ loop = do
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
       PatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        changed <- updateAtM (resolveToAbsolute scopePath) (propagate patch)
+        changed <- updateAtM (resolveToAbsolute scopePath)
+                          (propagate (PPE.fromNames0 absoluteRootNames0) patch)
         if changed then do
           branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
           -- checkTodo only needs the local names
@@ -1504,9 +1506,11 @@ loadTypeDisplayThing = \case
 -- propagate only deals with Terms
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
+-- errorPPE only needs to have external names, since we're using it to report
+--   referents that are outside of the
 propagate :: forall m v. (Monad m, Var v)
-  => Patch -> Branch m -> Action' m v (Branch m)
-propagate patch b = validatePatch patch >>= \case
+  => PPE.PrettyPrintEnv -> Patch -> Branch m -> Action' m v (Branch m)
+propagate errorPPE patch b = validatePatch patch >>= \case
   Nothing -> do
     respond PatchNeedsToBeConflictFree
     pure b
@@ -1515,33 +1519,101 @@ propagate patch b = validatePatch patch >>= \case
                               (eval . GetDependents)
                               (typePreservingTermEdits patch)
                               names0
-    (termEdits, _replacements, newTerms) <-
-        collectEdits initialEdits
-                     (Map.mapMaybe TermEdit.toReference initialEdits)
-                     mempty -- newTerms
-                     mempty -- skip
-                     (getOrdered initialDirty)
+    missing :: Set Reference <-
+      missingDependents
+        initialDirty
+        (Set.fromList . mapMaybe Referent.toTermReference . toList
+                      . Branch.deepReferents . Branch.head $ b)
+    if not $ Set.null missing then do
+      respond (PatchInvolvesExternalDependents errorPPE missing)
+      pure b
+    else do
+      order <- sortDependentsGraph initialDirty
+      let getOrdered :: Set Reference -> Map Int Reference
+          getOrdered rs =
+            Map.fromList [ (i, r) | r <- toList rs, Just i <- [Map.lookup r order]]
+          collectEdits :: (Monad m, Var v)
+                       => Map Reference TermEdit
+                       -> Map Reference Reference
+                       -> Map Reference (Term v _, Type v _)
+                       -> Set Reference
+                       -> Map Int Reference
+                       -> Action' m v (Map Reference TermEdit,
+                                       Map Reference Reference,
+                                       Map Reference (Term v _, Type v _))
+          -- `replacements` contains the TermEdit.Replace elements of `edits`.
+          collectEdits edits replacements newTerms seen todo = case Map.minView todo of
+            Nothing -> pure (edits, replacements, newTerms)
+            Just (r, todo) -> case r of
+              Reference.Builtin _ -> collectEdits edits replacements newTerms seen todo
+              Reference.DerivedId _ ->
+                if Map.member r edits || Set.member r seen
+                then collectEdits edits replacements newTerms seen todo
+                else do
+                  unhashComponent r >>= \case
+                    Nothing -> collectEdits edits replacements newTerms (Set.insert r seen) todo
+                    Just componentMap -> do
+                      let componentMap' = over _2 (Term.updateDependencies replacements) <$> componentMap
+                          hashedComponents' = Term.hashComponents (view _2 <$> componentMap')
+                          joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
+                          joinedStuff = toList (Map.intersectionWith f componentMap' hashedComponents')
+                          f (oldRef, _, oldType) (newRef, newTerm) = (oldRef, newRef, newTerm, newType)
+                            where newType = oldType
+                      -- collect the hashedComponents into edits/replacements/newterms/seen
+                          edits' = edits <> (Map.fromList . fmap toEdit) joinedStuff
+                          toEdit (r, r', _, _) = (r, TermEdit.Replace r' TermEdit.Same)
+                          replacements' = replacements <> (Map.fromList . fmap toReplacement) joinedStuff
+                          toReplacement (r, r', _, _) = (r, r')
+                          newTerms' = newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
+                          toNewTerm (_, r', tm, tp) = (r', (tm, tp))
+                          seen' = seen <> Set.fromList (view _1 <$> joinedStuff)
+                      -- plan to update the dependents of this component too
+                      dependents <- fmap Set.unions . traverse (eval . GetDependents)
+                                  . toList
+                                  . Reference.members
+                                  $ Reference.componentFor r
+                      let todo' = todo <> getOrdered dependents
+                      collectEdits edits' replacements' newTerms' seen' todo'
+      (termEdits, _replacements, newTerms) <-
+          collectEdits initialEdits
+                       (Map.mapMaybe TermEdit.toReference initialEdits)
+                       mempty -- newTerms
+                       mempty -- skip
+                       (getOrdered initialDirty)
 
-    -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
-    let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference
-                        $ toList termEdits
-    -- write the new terms to the codebase
-    (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
+      -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
+      let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference
+                          $ toList termEdits
+      -- write the new terms to the codebase
+      (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
 
-    let deprecatedTerms, deprecatedTypes :: Set Reference
-        deprecatedTerms =
-          Set.fromList [r | (r, TermEdit.Deprecate) <- Map.toList termEdits]
-        deprecatedTypes =
-          Set.fromList [r | (r, TypeEdit.Deprecate) <-
-                                            R.toList (Patch._typeEdits patch)]
+      let deprecatedTerms, deprecatedTypes :: Set Reference
+          deprecatedTerms =
+            Set.fromList [r | (r, TermEdit.Deprecate) <- Map.toList termEdits]
+          deprecatedTypes =
+            Set.fromList [r | (r, TypeEdit.Deprecate) <-
+                                              R.toList (Patch._typeEdits patch)]
 
-    -- recursively update names and delete deprecated definitions
-    pure $ Branch.step
-        (Branch.stepEverywhere
-          (updateNames (Map.mapMaybe TermEdit.toReference termEdits))
-           . deleteDeprecatedTerms deprecatedTerms
-           . deleteDeprecatedTypes deprecatedTypes) b
+      -- recursively update names and delete deprecated definitions
+      pure $ Branch.step
+          (Branch.stepEverywhere
+            (updateNames (Map.mapMaybe TermEdit.toReference termEdits))
+             . deleteDeprecatedTerms deprecatedTerms
+             . deleteDeprecatedTypes deprecatedTypes) b
   where
+  missingDependents :: Set Reference -> Set Reference -> _ (Set Reference)
+  missingDependents dirty known = do
+    closure <- transitiveClosure (eval . GetDependents) dirty
+    pure $ Set.difference closure known
+  sortDependentsGraph :: Set Reference -> _ (Map Reference Int)
+  sortDependentsGraph rs = do
+    closure <- transitiveClosure (eval . GetDependents) rs
+    dependents <- traverse (\r -> (r,) <$> (eval . GetDependents) r) (toList closure)
+    let graphEdges = [(r, r, toList deps) | (r, deps) <- toList dependents]
+        (graph, getReference, _) = Graph.graphFromEdges graphEdges
+    pure $ Map.fromList (zip (view _1 . getReference <$> Graph.topSort graph) [0..])
+    -- vertex i precedes j whenever i has an edge to j and not vice versa.
+
   updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
   updateNames edits Branch0{..} = Branch.branch0 terms _types _children _edits
     where
@@ -1559,52 +1631,6 @@ propagate patch b = validatePatch patch >>= \case
   names0 = (Branch.toNames0 . Branch.head) b
   validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
   validatePatch p = pure $ R.toMap (Patch._termEdits p)
-  order :: Map Reference Int
-  order = undefined
-  getOrdered :: Set Reference -> Map Int Reference
-  getOrdered rs = Map.fromList [ (i, r) | r <- toList rs
-                                        , Just i <- [Map.lookup r order]]
-  collectEdits :: (Monad m, Var v)
-               => Map Reference TermEdit
-               -> Map Reference Reference
-               -> Map Reference (Term v _, Type v _)
-               -> Set Reference
-               -> Map Int Reference
-               -> Action' m v (Map Reference TermEdit,
-                               Map Reference Reference,
-                               Map Reference (Term v _, Type v _))
-  collectEdits edits replacements newTerms skip todo = case Map.minView todo of
-    Nothing -> pure (edits, replacements, newTerms)
-    Just (r, todo) -> case r of
-      Reference.Builtin _ -> collectEdits edits replacements newTerms skip todo
-      Reference.DerivedId _ ->
-        if Map.member r edits || Set.member r skip
-        then collectEdits edits replacements newTerms skip todo
-        else do
-          unhashComponent r >>= \case
-            Nothing -> collectEdits edits replacements newTerms (Set.insert r skip) todo
-            Just componentMap -> do
-              let componentMap' = over _2 (Term.updateDependencies replacements) <$> componentMap
-                  hashedComponents' = Term.hashComponents (view _2 <$> componentMap')
-                  joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
-                  joinedStuff = toList (Map.intersectionWith f componentMap' hashedComponents')
-                  f (oldRef, _, oldType) (newRef, newTerm) = (oldRef, newRef, newTerm, newType)
-                    where newType = oldType
-              -- collect the hashedComponents into edits/replacements/newterms/skip
-                  edits' = edits <> (Map.fromList . fmap toEdit) joinedStuff
-                  toEdit (r, r', _, _) = (r, TermEdit.Replace r' TermEdit.Same)
-                  replacements' = replacements <> (Map.fromList . fmap toReplacement) joinedStuff
-                  toReplacement (r, r', _, _) = (r, r')
-                  newTerms' = newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
-                  toNewTerm (_, r', tm, tp) = (r', (tm, tp))
-                  skip' = skip <> Set.fromList (view _1 <$> joinedStuff)
-              -- plan to update the dependents of this component too
-              dependents <- fmap Set.unions . traverse (eval . GetDependents)
-                          . toList
-                          . Reference.members
-                          $ Reference.componentFor r
-              let todo' = todo <> getOrdered dependents
-              collectEdits edits' replacements' newTerms' skip' todo'
 
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.
