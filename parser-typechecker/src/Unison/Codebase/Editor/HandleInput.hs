@@ -1504,33 +1504,54 @@ loadTypeDisplayThing = \case
 -- propagate only deals with Terms
 -- "dirty" means in need of update
 -- "frontier" means updated definitions responsible for the "dirty"
-propagate :: forall m v. Applicative m
+propagate :: forall m v. (Monad m, Var v)
   => Patch -> Branch m -> Action' m v (Branch m)
 propagate patch b = validatePatch patch >>= \case
   Nothing -> do
     respond PatchNeedsToBeConflictFree
     pure b
   Just initialEdits -> do
-    initialDirty <- toList . R.dom <$> computeFrontier
-                                          (eval . GetDependents)
-                                          (typePreservingTermEdits patch)
-                                          names0
-    (termEdits, newTerms) <- collectEdits initialEdits mempty initialDirty
+    initialDirty <- R.dom <$> computeFrontier
+                              (eval . GetDependents)
+                              (typePreservingTermEdits patch)
+                              names0
+    (termEdits, _replacements, newTerms) <-
+        collectEdits initialEdits
+                     (Map.mapMaybe TermEdit.toReference initialEdits)
+                     mempty -- newTerms
+                     mempty -- skip
+                     (getOrdered initialDirty)
 
     -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
     let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference
                         $ toList termEdits
+    -- write the new terms to the codebase
     (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)
 
+    let deprecatedTerms, deprecatedTypes :: Set Reference
+        deprecatedTerms =
+          Set.fromList [r | (r, TermEdit.Deprecate) <- Map.toList termEdits]
+        deprecatedTypes =
+          Set.fromList [r | (r, TypeEdit.Deprecate) <-
+                                            R.toList (Patch._typeEdits patch)]
+
+    -- recursively update names and delete deprecated definitions
     pure $ Branch.step
-        (Branch.stepAll
-          (updateNames (Map.mapMaybe TermEdit.toReference termEdits))) b
+        (Branch.stepEverywhere
+          (updateNames (Map.mapMaybe TermEdit.toReference termEdits))
+           . deleteDeprecatedTerms deprecatedTerms
+           . deleteDeprecatedTypes deprecatedTypes) b
   where
   updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
   updateNames edits Branch0{..} = Branch.branch0 terms _types _children _edits
     where
     terms = foldl' replace _terms (Map.toList edits)
     replace s (r,r') = Star3.replaceFact (Referent.Ref r) (Referent.Ref r') s
+  deleteDeprecatedTerms, deleteDeprecatedTypes ::
+    Set Reference -> Branch0 m -> Branch0 m
+  deleteDeprecatedTerms rs =
+    over Branch.terms (Star3.deleteFact (Set.map Referent.Ref rs))
+  deleteDeprecatedTypes rs = over Branch.types (Star3.deleteFact rs)
   typePreservingTermEdits :: Patch -> Patch
   typePreservingTermEdits Patch{..} = Patch termEdits mempty where
     termEdits = R.filterRan TermEdit.isTypePreserving _termEdits
@@ -1538,12 +1559,52 @@ propagate patch b = validatePatch patch >>= \case
   names0 = (Branch.toNames0 . Branch.head) b
   validatePatch :: Patch -> Action' m v (Maybe (Map Reference TermEdit))
   validatePatch p = pure $ R.toMap (Patch._termEdits p)
-  collectEdits :: Map Reference TermEdit
-               -> Map Reference (Term v a)
-               -> [Reference]
-               -> Action' m v (Map Reference TermEdit, Map Reference (Term v a, Type v a))
-  collectEdits edits newTerms dirty = error "todo"
-
+  order :: Map Reference Int
+  order = undefined
+  getOrdered :: Set Reference -> Map Int Reference
+  getOrdered rs = Map.fromList [ (i, r) | r <- toList rs
+                                        , Just i <- [Map.lookup r order]]
+  collectEdits :: (Monad m, Var v)
+               => Map Reference TermEdit
+               -> Map Reference Reference
+               -> Map Reference (Term v _, Type v _)
+               -> Set Reference
+               -> Map Int Reference
+               -> Action' m v (Map Reference TermEdit,
+                               Map Reference Reference,
+                               Map Reference (Term v _, Type v _))
+  collectEdits edits replacements newTerms skip todo = case Map.minView todo of
+    Nothing -> pure (edits, replacements, newTerms)
+    Just (r, todo) -> case r of
+      Reference.Builtin _ -> collectEdits edits replacements newTerms skip todo
+      Reference.DerivedId _ ->
+        if Map.member r edits || Set.member r skip
+        then collectEdits edits replacements newTerms skip todo
+        else do
+          unhashComponent r >>= \case
+            Nothing -> collectEdits edits replacements newTerms (Set.insert r skip) todo
+            Just componentMap -> do
+              let componentMap' = over _2 (Term.updateDependencies replacements) <$> componentMap
+                  hashedComponents' = Term.hashComponents (view _2 <$> componentMap')
+                  joinedStuff :: [(Reference, Reference, Term v _, Type v _)]
+                  joinedStuff = toList (Map.intersectionWith f componentMap' hashedComponents')
+                  f (oldRef, _, oldType) (newRef, newTerm) = (oldRef, newRef, newTerm, newType)
+                    where newType = oldType
+              -- collect the hashedComponents into edits/replacements/newterms/skip
+                  edits' = edits <> (Map.fromList . fmap toEdit) joinedStuff
+                  toEdit (r, r', _, _) = (r, TermEdit.Replace r' TermEdit.Same)
+                  replacements' = replacements <> (Map.fromList . fmap toReplacement) joinedStuff
+                  toReplacement (r, r', _, _) = (r, r')
+                  newTerms' = newTerms <> (Map.fromList . fmap toNewTerm) joinedStuff
+                  toNewTerm (_, r', tm, tp) = (r', (tm, tp))
+                  skip' = skip <> Set.fromList (view _1 <$> joinedStuff)
+              -- plan to update the dependents of this component too
+              dependents <- fmap Set.unions . traverse (eval . GetDependents)
+                          . toList
+                          . Reference.members
+                          $ Reference.componentFor r
+              let todo' = todo <> getOrdered dependents
+              collectEdits edits' replacements' newTerms' skip' todo'
 
   -- Turns a cycle of references into a term with free vars that we can edit
   -- and hash again.

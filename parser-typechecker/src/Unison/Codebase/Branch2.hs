@@ -437,8 +437,8 @@ stepManyAtM :: (Monad m, Foldable f)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
-stepAll :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepAll f Branch0{..} = f (branch0 _terms _types children _edits) where
+stepEverywhere :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
+stepEverywhere f Branch0{..} = f (branch0 _terms _types children _edits) where
   children = fmap (second (step f)) _children
 
 -- Creates a function to fix up the children field._1

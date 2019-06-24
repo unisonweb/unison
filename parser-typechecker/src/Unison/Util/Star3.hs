@@ -153,6 +153,14 @@ deleteD23 (f, x, y) s = Star3 (fact s) (d1 s) d2' d3' where
   d2' = R.delete f x (d2 s)
   d3' = R.delete f y (d3 s)
 
+deleteFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
+           => Set fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+deleteFact facts Star3{..} =
+  Star3 (fact `Set.difference` facts)
+        (facts R.<|| d1)
+        (facts R.<|| d2)
+        (facts R.<|| d3)
+
 replaceFact :: (Ord fact, Ord d1, Ord d2, Ord d3)
             => fact -> fact -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
 replaceFact f f' Star3{..} =
