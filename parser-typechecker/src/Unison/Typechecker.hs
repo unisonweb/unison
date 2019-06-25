@@ -288,7 +288,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Result (Notes v loc) (Maybe (Resolution v loc))
   resolveNote env (Context.SolvedBlank (B.Resolve loc n) _ it)
     = fmap (Just . Resolution (Text.pack n) it loc . dedupe . join)
-      . traverse (resolve env it)
+      . traverse (resolve it)
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
@@ -299,11 +299,10 @@ typeDirectedNameResolution oldNotes oldType env = do
     (Context.Suggestion _ _ r1, Context.Suggestion _ _ r2) -> r1 == r2
     (x, y) -> x == y
   resolve
-    :: Env v loc
-    -> Context.Type v loc
+    :: Context.Type v loc
     -> NamedReference v loc
     -> Result (Notes v loc) [Context.Suggestion v loc]
-  resolve _env inferredType (NamedReference fqn foundType replace) =
+  resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = convertResult
           $ Context.isSubtype (Type.toTypeVar foundType) inferredType
