@@ -79,6 +79,9 @@ backtickEOS s = P.group ("`" <> s <> "`.")
 tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
 tip s = P.column2 [("Tip:", P.wrap s)]
 
+aside :: P.Pretty P.ColorText -> P.Pretty P.ColorText -> P.Pretty P.ColorText
+aside a b = P.column2 [(a <> ":", b)]
+
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 warn = emojiNote "⚠️"
 
@@ -97,11 +100,18 @@ nothingTodo = emojiNote "😶"
 completion :: String -> Line.Completion
 completion s = Line.Completion s s True
 
+completion' :: String -> Line.Completion
+completion' s = Line.Completion s s False
+
 prettyCompletion :: (String, P.Pretty P.ColorText) -> Line.Completion
 -- -- discards formatting in favor of better alignment
 -- prettyCompletion (s, p) = Line.Completion s (P.toPlainUnbroken p) True
 -- preserves formatting, but Haskeline doesn't know how to align
 prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
+
+-- avoids adding a space after successful completion
+prettyCompletion' :: (String, P.Pretty P.ColorText) -> Line.Completion
+prettyCompletion' (s, p) = Line.Completion s (P.toAnsiUnbroken p) False
 
 fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =

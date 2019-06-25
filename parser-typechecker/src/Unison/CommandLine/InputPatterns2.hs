@@ -16,7 +16,7 @@ import Data.Map (Map)
 import Data.String (fromString)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine
+import Unison.CommandLine2
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map as Map
@@ -27,6 +27,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern2 as I
 import qualified Unison.HashQualified as HQ
+import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
@@ -554,7 +555,29 @@ patchPathArg = noCompletions { I.typeName = "patch" }
   -- ArgumentType "patch" $ \q ->
 
 branchPathArg :: ArgumentType
-branchPathArg = noCompletions { I.typeName = "branch" }
+branchPathArg = ArgumentType "path" $ \q0 code b currentPath -> pure $ case q0 of
+  -- query is just . show the immediate decendents under root
+  "." -> [ completion' (Text.unpack $ NameSegment.toText s)
+         | s <- Map.keys $ Branch._children (Branch.head b) ]
+  -- query is empty, show immediate decendents under current path
+  "" ->  [ completion' (Text.unpack $ NameSegment.toText s)
+         | s <- Map.keys . Branch._children $ Branch.getAt0 (Path.unabsolute currentPath) (Branch.head b) ]
+  -- query ends in . so show immediate dependents under path up to the dot
+  (last -> '.') -> case Path.parsePath' (init q0) of
+    Left err -> [prettyCompletion' ("", P.red (P.string err))]
+    Right p' -> let
+      p = Path.unabsolute $ Path.toAbsolutePath currentPath p'
+      b0 = Branch.getAt0 p (Branch.head b)
+      in [ completion' (q0 <> NameSegment.toString c) | c <- Map.keys $ Branch._children b0 ]
+  -- query is foo.ba, so complete from foo children starting with 'ba'
+  q0 -> case Path.parseSplit' Path.optionalWordyNameSegment q0 of
+    Left err -> [prettyCompletion' ("", P.red (P.string err))]
+    Right (init, last) -> let
+      p = Path.unabsolute $ Path.toAbsolutePath currentPath init
+      b0 = Branch.getAt0 p (Branch.head b)
+      matchingChildren = filter (NameSegment.isPrefixOf last) . Map.keys $ Branch._children b0
+      n = Text.length (NameSegment.toText last)
+      in [ completion' (q0 <> drop n (NameSegment.toString c)) | c <- matchingChildren ]
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions

@@ -116,6 +116,10 @@ wordyNameSegment s = case Lexer.wordyId0 s of
   Right (a, rem) ->
     Left $ "trailing characters after " <> show a <> ": " <> show rem
 
+optionalWordyNameSegment :: String -> Either String NameSegment
+optionalWordyNameSegment "" = Right (NameSegment (Text.pack ""))
+optionalWordyNameSegment s = wordyNameSegment s
+
 definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s
   where
   symbolyNameSegment s = case Lexer.symbolyId0 s of
