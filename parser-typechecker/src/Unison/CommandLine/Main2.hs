@@ -39,6 +39,7 @@ import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import Data.Text (Text)
 import qualified System.Console.Haskeline as Line
 --import qualified Unison.Codebase.Editor2 as E
 --import qualified Unison.Codebase.Editor.Actions as Actions
@@ -87,6 +88,31 @@ getUserInput patterns codebase branch currentPath numberedArgs =
           pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
+welcomeMessage :: P.Pretty P.ColorText
+welcomeMessage =
+  P.red " _____"
+    <> P.hiYellow "     _             \n"
+    <> P.red "|  |  |"
+    <> P.hiRed "___"
+    <> P.hiYellow "|_|"
+    <> P.hiGreen "___ "
+    <> P.cyan "___ "
+    <> P.purple "___ \n"
+    <> P.red "|  |  |   "
+    <> P.hiYellow "| |"
+    <> P.hiGreen "_ -"
+    <> P.cyan "| . |"
+    <> P.purple "   |\n"
+    <> P.red "|_____|"
+    <> P.hiRed "_|_"
+    <> P.hiYellow "|_|"
+    <> P.hiGreen "___"
+    <> P.cyan "|___|"
+    <> P.purple "_|_|\n"
+    <> "\n"
+    <> "Welcome to Unison!\n"
+    <> "\nType help to get help. 😎\n"
+
 main
   :: forall v
   . Var v
@@ -97,6 +123,7 @@ main
   -> Codebase IO v Ann
   -> IO ()
 main dir initialPath _initialFile startRuntime codebase = do
+  putPrettyLn welcomeMessage
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   do
