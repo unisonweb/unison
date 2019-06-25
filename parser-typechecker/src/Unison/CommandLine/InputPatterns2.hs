@@ -12,12 +12,14 @@ module Unison.CommandLine.InputPatterns2 where
 -- import Debug.Trace
 import Data.Bifunctor (first)
 import Data.List (intercalate, sortOn)
+import Data.List.Extra (nubOrd)
 import Data.Map (Map)
 import Data.String (fromString)
+import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine2
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import Unison.CommandLine2
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -550,34 +552,54 @@ exactDefinitionTermQueryArg =
     pure [] -- autoCompleteHashQualifiedTerm b q
 
 patchPathArg :: ArgumentType
-patchPathArg = noCompletions { I.typeName = "patch" }
-  -- todo - better autocomplete provider here
-  -- ArgumentType "patch" $ \q ->
+patchPathArg = ArgumentType "patch" $
+  bothCompletors (pathCompletor Branch._edits)
+                 (pathCompletor Branch._children)
 
-branchPathArg :: ArgumentType
-branchPathArg = ArgumentType "path" $ \q0 code b currentPath -> pure $ case q0 of
+bothCompletors
+  :: (Monad m, Ord a)
+  => (t1 -> t2 -> t3 -> t4 -> m [a])
+  -> (t1 -> t2 -> t3 -> t4 -> m [a])
+  -> t1 -> t2 -> t3 -> t4 -> m [a]
+bothCompletors c1 c2 q0 code b currentPath = do
+  suggestions1 <- c1 q0 code b currentPath
+  suggestions2 <- c2 q0 code b currentPath
+  pure . nubOrd $ suggestions1 ++ suggestions2
+
+pathCompletor
+  :: Applicative f
+  => (Branch.Branch0 m -> Map NameSegment.NameSegment a)
+  -> [Char]
+  -> p
+  -> Branch.Branch m
+  -> Path.Absolute
+  -> f [Completion]
+pathCompletor f q0 code b currentPath = pure $ case q0 of
   -- query is just . show the immediate decendents under root
   "." -> [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys $ Branch._children (Branch.head b) ]
+         | s <- Map.keys $ f (Branch.head b) ]
   -- query is empty, show immediate decendents under current path
   "" ->  [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys . Branch._children $ Branch.getAt0 (Path.unabsolute currentPath) (Branch.head b) ]
+         | s <- Map.keys . f $ Branch.getAt0 (Path.unabsolute currentPath) (Branch.head b) ]
   -- query ends in . so show immediate dependents under path up to the dot
   (last -> '.') -> case Path.parsePath' (init q0) of
     Left err -> [prettyCompletion' ("", P.red (P.string err))]
     Right p' -> let
       p = Path.unabsolute $ Path.toAbsolutePath currentPath p'
       b0 = Branch.getAt0 p (Branch.head b)
-      in [ completion' (q0 <> NameSegment.toString c) | c <- Map.keys $ Branch._children b0 ]
+      in [ completion' (q0 <> NameSegment.toString c) | c <- Map.keys $ f b0 ]
   -- query is foo.ba, so complete from foo children starting with 'ba'
   q0 -> case Path.parseSplit' Path.optionalWordyNameSegment q0 of
     Left err -> [prettyCompletion' ("", P.red (P.string err))]
     Right (init, last) -> let
       p = Path.unabsolute $ Path.toAbsolutePath currentPath init
       b0 = Branch.getAt0 p (Branch.head b)
-      matchingChildren = filter (NameSegment.isPrefixOf last) . Map.keys $ Branch._children b0
+      matchingChildren = filter (NameSegment.isPrefixOf last) . Map.keys $ f b0
       n = Text.length (NameSegment.toText last)
       in [ completion' (q0 <> drop n (NameSegment.toString c)) | c <- matchingChildren ]
+
+branchPathArg :: ArgumentType
+branchPathArg = ArgumentType "path" $ pathCompletor Branch._children
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
