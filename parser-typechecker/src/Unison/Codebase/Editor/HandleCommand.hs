@@ -14,7 +14,6 @@
 
 module Unison.Codebase.Editor.HandleCommand where
 
-import Data.Foldable (toList)
 import Data.Maybe (catMaybes)
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
@@ -28,7 +27,7 @@ import           Unison.Symbol                  ( Symbol )
 
 import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor                   ( void )
-import           Data.Foldable                  ( traverse_, forM_ )
+import           Data.Foldable                  ( traverse_, forM_, toList )
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text

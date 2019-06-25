@@ -19,7 +19,6 @@ import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.IORef
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
-import Data.List (stripPrefix)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
@@ -34,14 +33,13 @@ import Unison.Codebase2 (Codebase)
 import Unison.CommandLine2
 import Unison.CommandLine.InputPattern2 (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns2 (validInputs)
-import Unison.CommandLine.OutputMessages2 (notifyUser)
+import Unison.CommandLine.OutputMessages2 (notifyUser, shortenDirectory)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 import Data.Text (Text)
-import System.Directory ( getHomeDirectory )
 import qualified System.Console.Haskeline as Line
 --import qualified Unison.Codebase.Editor2 as E
 --import qualified Unison.Codebase.Editor.Actions as Actions
@@ -135,10 +133,7 @@ main
   -> Codebase IO v Ann
   -> IO ()
 main dir initialPath _initialFile startRuntime codebase = do
-  home <- getHomeDirectory
-  let dir' = case stripPrefix home dir of
-               Just d  -> "~" <> d
-               Nothing -> dir
+  dir' <- shortenDirectory dir
   putPrettyLn $ welcomeMessage dir'
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
