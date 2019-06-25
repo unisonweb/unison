@@ -258,6 +258,7 @@ executable unison2
   build-depends:
     base,
     containers,
+    directory,
     safe,
     unison-parser-typechecker
 

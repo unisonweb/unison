@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Control.Monad ( when )
+import Control.Monad ( unless )
 import Safe ( headMay )
 import System.Environment ( getArgs )
+import System.Directory ( getCurrentDirectory )
 import Unison.Codebase.Serialization.V0 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
 import qualified Unison.Codebase2 as Codebase
@@ -17,20 +18,22 @@ main :: IO ()
 main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
-  let codebasePath  = ".unison/v0"
-      initialPath = Path.absoluteEmpty
-      scratchFilePath = "."
-      theCodebase =
-        FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
-      launch = CommandLine.main
-        scratchFilePath
-        initialPath
-        (headMay args)
-        (pure Rt1.runtime)
-        theCodebase
+  dir  <- getCurrentDirectory
+  let
+    codebasePath = ".unison/v0"
+    initialPath  = Path.absoluteEmpty
+    theCodebase =
+      FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
+    launch = CommandLine.main dir
+                              initialPath
+                              (headMay args)
+                              (pure Rt1.runtime)
+                              theCodebase
   exists <- FileCodebase.exists codebasePath
-  when (not exists) $ do
-    putStrLn $ "☝️  No codebase exists here so I'm initializing one in: " <> codebasePath
+  unless exists $ do
+    putStrLn
+      $  "☝️  No codebase exists here so I'm initializing one in: "
+      <> codebasePath
     FileCodebase.initialize codebasePath
     Codebase.initializeCodebase theCodebase
   launch
