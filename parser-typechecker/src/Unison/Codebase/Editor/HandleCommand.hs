@@ -141,6 +141,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     IsType r -> Codebase.isType codebase r
     GetDependents r -> Codebase.dependents codebase r
     AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
+    GetTermsOfType ty -> Codebase.termsOfType codebase ty
+    GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

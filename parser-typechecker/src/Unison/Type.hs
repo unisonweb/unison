@@ -445,6 +445,14 @@ removeEffectVars removals t =
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
+-- Remove all effect variables from the type that are in the set
+removeAllEffectVars :: Var v => AnnotatedType v a -> AnnotatedType v a
+removeAllEffectVars t = let
+  allEffectVars = foldMap go (ABT.subterms t)
+  go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
+  go _ = mempty
+  in removeEffectVars allEffectVars t
+
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
@@ -527,6 +535,10 @@ cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
 toReference :: Var v => AnnotatedType v a -> Reference
 toReference t = Reference.Derived (ABT.hash t) 0 1
+
+toReferenceMentions :: Var v => AnnotatedType v a -> Set Reference
+toReferenceMentions ty =
+  Set.fromList $ toReference <$> filter ABT.isClosed (ABT.subterms ty)
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

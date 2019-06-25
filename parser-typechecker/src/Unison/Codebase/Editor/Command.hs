@@ -46,28 +46,8 @@ data Command m i v a where
   -- Presents some output to the user
   Notify :: Output v -> Command m i v ()
 
-  -- This will load the namespace from the provided link, and
-  -- give warnings about name conflicts and the like.
-  -- If there are no warnings, or if the `CollisionHandler` specifies to ignore
-  -- them, then this also writes the supplied definitions to `terms/`, `types/`.
-  -- It does not write any namespace stuff.  (Maybe it should?)
-  -- It may complain if you are trying to write definitions into a remote link,
-  -- and suggest that you can convert the link to a fork if you want.
-
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
-    -- want it to literally add terms, types to disk
-
-    --  AddDefsToCodebase
-    --    :: -- CollisionHandler -> (todo)
-    --       Path
-    --    -> UF.TypecheckedUnisonFile v Ann
-    --    -> Command m i v (Branch (Command m i v), SlurpResult v)
-
-  -- Arya: Do we need this?
-  -- -- Load one level of a namespace.  It may involve reading from disk,
-  -- -- or from http into a cache.
-  -- GetBranch :: RepoLink Path -> Command m i v Branch
 
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
@@ -144,6 +124,9 @@ data Command m i v a where
   -- This might include historical definitions not in any current path; these
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
+
+  GetTermsOfType :: Type v Ann -> Command m i v (Set Reference)
+  GetTermsMentioningType :: Type v Ann -> Command m i v (Set Reference)
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?

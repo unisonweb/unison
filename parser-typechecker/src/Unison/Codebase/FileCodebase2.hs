@@ -104,14 +104,23 @@ termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
 termDir root r = termsDir root </> componentId r
 declDir root r = typesDir root </> componentId r
 
-dependentsDir :: CodebasePath -> Reference -> FilePath
-dependentsDir root r = root </> "dependents" </> case r of
+referenceToDir :: Reference -> FilePath
+referenceToDir r = case r of
   Reference.Builtin name -> "_builtin" </> encodeFileName name
   Reference.DerivedId hash -> componentId hash
+
+dependentsDir :: CodebasePath -> Reference -> FilePath
+dependentsDir root r = root </> "dependents" </> referenceToDir r
 
 watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
 watchesDir root kind = root </> "watches" </> encodeFileName kind
+
+typeIndexDir :: CodebasePath -> Reference -> FilePath
+typeIndexDir root r = root </> "type-index" </> referenceToDir r
+
+typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
+typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
@@ -146,10 +155,12 @@ branchPath root h = branchesDir root </> Hash.base58s h ++ ".ub"
 editsPath :: CodebasePath -> Hash.Hash -> FilePath
 editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
 
-touchDependentFile :: Reference.Id -> FilePath -> IO ()
-touchDependentFile dependent fp = do
+touchIdFile :: Reference.Id -> FilePath -> IO ()
+touchIdFile id fp = do
   createDirectoryIfMissing True fp
-  writeFile (fp </> componentId dependent) ""
+  -- note: contents of the file are equal to the name, rather than empty, to
+  -- hopefully avoid git getting clever about treating deletions as renames
+  writeFile (fp </> componentId id) (componentId id)
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -337,11 +348,16 @@ putTerm
   -> Type.AnnotatedType v a
   -> m ()
 putTerm putV putA path h e typ = liftIO $ do
+  let typeForIndexing = Type.removeAllEffectVars typ
+      rootTypeHash = Type.toReference typeForIndexing
+      typeMentions = Type.toReferenceMentions typeForIndexing
   S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
   S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
   -- Add the term as a dependent of its dependencies
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
-  traverse_ (touchDependentFile h . dependentsDir path) deps
+  traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ (touchIdFile h . typeMentionsIndexDir path) typeMentions
+  touchIdFile h . typeIndexDir path $ rootTypeHash
 
 putDecl
   :: MonadIO m
@@ -359,7 +375,7 @@ putDecl putV putA path h decl = liftIO $ do
     )
     (declPath path h)
     decl
-  traverse_ (touchDependentFile h . dependentsDir path) deps
+  traverse_ (touchIdFile h . dependentsDir path) deps
  where
   deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
 
@@ -400,6 +416,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                      watches
                      getWatch
                      (putWatch putV putA path)
+                     getTermsOfType
+                     getTermsMentioningType
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
@@ -417,8 +435,16 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
     (declPath path h)
 
   dependents :: Reference -> m (Set Reference.Id)
-  dependents r = do
-    let d = dependentsDir path r
+  dependents r = listDirAsIds (dependentsDir path r)
+
+  getTermsOfType :: Reference -> m (Set Reference.Id)
+  getTermsOfType r = listDirAsIds (typeIndexDir path r)
+
+  getTermsMentioningType :: Reference -> m (Set Reference.Id)
+  getTermsMentioningType r = listDirAsIds (typeMentionsIndexDir path r)
+
+  listDirAsIds :: FilePath -> m (Set Reference.Id)
+  listDirAsIds d = do
     e <- doesDirectoryExist d
     if e
       then do
