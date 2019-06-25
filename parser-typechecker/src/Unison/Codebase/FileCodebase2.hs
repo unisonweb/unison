@@ -348,8 +348,9 @@ putTerm
   -> Type.AnnotatedType v a
   -> m ()
 putTerm putV putA path h e typ = liftIO $ do
-  let rootTypeHash = Type.toReference typ
-      typeMentions = Type.toReferenceMentions typ
+  let typeForIndexing = Type.removeAllEffectVars typ
+      rootTypeHash = Type.toReference typeForIndexing
+      typeMentions = Type.toReferenceMentions typeForIndexing
   S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
   S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
   -- Add the term as a dependent of its dependencies

@@ -47,7 +47,7 @@ import           Data.Foldable                  ( find
                                                 )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
-import           Data.List.Extra                (nubOrd)
+import           Data.List.Extra                (nubOrd, intercalate)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
                                                 , fromJust
@@ -569,14 +569,18 @@ loop = do
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 True
       -- ls with arguments
-      SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
+      SearchByNameI ("-l" : ws) -> do
+        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
+        typeMatches <- typeFilter e
         let results = uniqueBy SR.toReferent
-                    $ searchBranchScored currentBranch' fuzzyNameDistance qs
+                    $ searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 True
-      SearchByNameI (map HQ.fromString -> qs) -> do
-        let results = searchBranchScored currentBranch' fuzzyNameDistance qs
+      SearchByNameI ws -> do
+        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
+        typeMatches <- typeFilter e
+        let results = searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 False
@@ -914,10 +918,11 @@ searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
 
 searchBranchScored :: forall m score. (Ord score)
               => Branch m
+              -> (Reference -> Maybe Int)
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> [SearchResult]
-searchBranchScored b score queries =
+searchBranchScored b allowed score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
   where
   names0 = Branch.toNames0 . Branch.head $ b
@@ -1668,6 +1673,29 @@ propagate errorPPE patch b = validatePatch patch >>= \case
       Just . unhash . Map.fromList <$> traverse termInfo (toList component)
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
+
+typeFilter :: Maybe (Either (Output v) (Type.AnnotatedType v Ann)) -> _ (Reference -> Maybe Int)
+typeFilter e = case e of
+  Nothing -> pure $ const (Just 0)
+  Just (Left e) -> do
+    respond e
+    pure $ const (Just 0)
+  Just (Right ty) -> do
+    ty1 <- eval $ GetTermsMentioningType ty
+    ty2 <- eval $ GetTermsOfType ty
+    pure $ \r ->
+      if Set.member r ty1 then Just 1
+      else if Set.member r ty2 then Just 2
+      else Nothing
+
+parseSearch :: Var v => Input -> Names0 -> [String] -> ([String], Maybe (Either (Output v) (Type.AnnotatedType v Ann)))
+parseSearch input ns ws =
+  let (ws', rest) = span (/= ":") ws
+      ns' = OldNames.fromNames2 (Names.names0ToNames ns)
+  in if rest == [] then (ws, Nothing)
+     else case Parsers.parseType (intercalate " " (drop 1 rest)) (mempty, ns') of
+       Left err -> (ws', Just (Left $ TypeParseError input err))
+       Right typ -> (ws', Just (Right $ Type.removeAllEffectVars typ))
 
 --
 
