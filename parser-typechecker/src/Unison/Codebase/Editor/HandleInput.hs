@@ -207,9 +207,9 @@ loop = do
       (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
         where
         -- parsing should respond to local and absolute names
-        parseNames00 = currentAndExternalNames0
+        parseNames00 = currentPathNames0 <> absoluteRootNames0
         -- pretty-printing should use local names where available
-        prettyPrintNames00 = currentPathNames0 <> absoluteRootNames0
+        prettyPrintNames00 = currentAndExternalNames0
         currentPathNames0 = Branch.toNames0 currentBranch0
         -- all names, but with local names in their relative form only, rather
         -- than absolute; external names appear as absolute
