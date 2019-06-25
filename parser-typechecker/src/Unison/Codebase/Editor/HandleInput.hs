@@ -200,25 +200,27 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
-      -- summarizeNames title names = trace (title ++ ": " ++ show (R.size (Names.types names)) ++ " types, " ++ show (R.size (Names.terms names)) ++ " terms") names
-      currentPathNames0 = Branch.toNames0 currentBranch0
-      -- all names, but with local names in their relative form only, rather
-      -- than absolute; external names appear as absolute
-      currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
-        absDot = Names.prefix0 (Name.Name "")
-        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-        rootNames = Branch.toNames0 root0
-        pathPrefixed = case Path.unabsolute currentPath' of
-          Path.Path (toList -> []) -> id
-          p -> Names.prefix0 (Path.toName p)
       -- | Names used as a basis for computing slurp results.
       -- todo: include relevant external names if we support writing outside of this branch
-      toSlurpResultNames _uf = currentAndExternalNames0
-      -- parsing should respond to local and absolute names
-      parseNames0 = currentPathNames0 <> absoluteRootNames0
-      -- pretty-printing should use local names where available
-      prettyPrintNames0 = currentAndExternalNames0
+      toSlurpResultNames _uf = prettyPrintNames0
+      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
+      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
+        where
+        -- parsing should respond to local and absolute names
+        parseNames00 = currentAndExternalNames0
+        -- pretty-printing should use local names where available
+        prettyPrintNames00 = currentPathNames0 <> absoluteRootNames0
+        currentPathNames0 = Branch.toNames0 currentBranch0
+        -- all names, but with local names in their relative form only, rather
+        -- than absolute; external names appear as absolute
+        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+          absDot = Names.prefix0 (Name.Name "")
+          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
+          rootNames = Branch.toNames0 root0
+          pathPrefixed = case Path.unabsolute currentPath' of
+            Path.Path (toList -> []) -> id
+            p -> Names.prefix0 (Path.toName p)
+
       ppe0 = PPE.fromNames0 prettyPrintNames0
       withFile ambient sourceName text k = do
         let names = Names.names0ToNames parseNames0
