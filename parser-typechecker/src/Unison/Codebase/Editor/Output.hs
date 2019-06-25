@@ -120,6 +120,7 @@ data Output v
   -- todo: tell the user to run `todo` on the same patch they just used
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
+  | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   deriving (Show)
 
 data TestReportStats
