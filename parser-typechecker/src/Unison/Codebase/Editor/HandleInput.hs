@@ -560,24 +560,24 @@ loop = do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions currentPathNames0 False
+          >>= respond . ListOfDefinitions prettyPrintNames0 False
       SearchByNameI ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions currentPathNames0 True
+          >>= respond . ListOfDefinitions prettyPrintNames0 True
       -- ls with arguments
       SearchByNameI ("-l" : (fmap HQ.fromString -> qs)) -> do
         let results = uniqueBy SR.toReferent
                     $ searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions currentPathNames0 True
+          >>= respond . ListOfDefinitions prettyPrintNames0 True
       SearchByNameI (map HQ.fromString -> qs) -> do
         let results = searchBranchScored currentBranch' fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions currentPathNames0 False
+          >>= respond . ListOfDefinitions prettyPrintNames0 False
       ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
         zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
         where
