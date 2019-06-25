@@ -168,7 +168,7 @@ instance Functor f => Functor (Term f v) where
 extraMap :: Functor g => (forall k . f k -> g k) -> Term f v a -> Term g v a
 extraMap p (Term fvs a sub) = Term fvs a (go p sub) where
   go :: Functor g => (forall k . f k -> g k) -> ABT f v (Term f v a) -> ABT g v (Term g v a)
-  go p = \case 
+  go p = \case
     Var v -> Var v
     Cycle r -> Cycle (extraMap p r)
     Abs v r -> Abs v (extraMap p r)
@@ -403,6 +403,9 @@ foreachSubterm f e = case out e of
   Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
   Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
 
+subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
+subterms t = runIdentity $ foreachSubterm pure t
+
 -- | `visit f t` applies an effectful function to each subtree of
 -- `t` and sequences the results. When `f` returns `Nothing`, `visit`
 -- descends into the children of the current subtree. When `f` returns
@@ -508,7 +511,7 @@ find :: (Ord v, Foldable f, Functor f)
 find p t = case p t of
     Found x -> x : go
     Prune -> []
-    Continue -> go 
+    Continue -> go
   where go = case out t of
           Var _ -> []
           Cycle body -> Unison.ABT.find p body
@@ -519,7 +522,7 @@ find' :: (Ord v, Foldable f, Functor f)
   => (Term f v a -> Bool)
   -> Term f v a
   -> [Term f v a]
-find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)  
+find' p = Unison.ABT.find (\t -> if p t then Found t else Continue)
 
 instance (Foldable f, Functor f, Eq1 f, Var v) => Eq (Term f v a) where
   -- alpha equivalence, works by renaming any aligned Abs ctors to use a common fresh variable
