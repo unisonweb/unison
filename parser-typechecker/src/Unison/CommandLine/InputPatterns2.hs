@@ -422,7 +422,7 @@ help = InputPattern
       isHelp s = Map.lookup s helpTopics
 
 quit :: InputPattern
-quit = InputPattern "quit" ["exit"] []
+quit = InputPattern "quit" ["exit", ":q"] []
   "Exits the Unison command line interface."
   (\case
     [] -> pure Input.QuitI
@@ -433,7 +433,7 @@ viewPatch :: InputPattern
 viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
   "Lists all the edits in the given patch."
   (\case
-    patchStr : [] -> first fromString $ do
+    [patchStr] -> first fromString $ do
       patch <- Path.parseSplit' Path.wordyNameSegment patchStr
       Right $ Input.ListEditsI patch
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
@@ -453,16 +453,18 @@ link = InputPattern "link" []
    )
 
 links :: InputPattern
-links = InputPattern "links" []
+links = InputPattern
+  "links"
+  []
   [(Required, exactDefinitionQueryArg), (Optional, exactDefinitionQueryArg)]
   "`links src` shows all outgoing links from `src`. `link src <type>` shows all links for the given type."
   (\case
     src : rest -> first fromString $ do
       src <- Path.parseHQ'Split' src
-      ty <- pure $ case rest of
-        [] -> Nothing
-        _ -> Just (intercalate " " rest)
-      Right $ Input.LinksI src ty
+      let ty = case rest of
+            [] -> Nothing
+            _  -> Just $ unwords rest
+       in Right $ Input.LinksI src ty
     _ -> Left (I.help links)
   )
 
@@ -569,7 +571,7 @@ bothCompletors c1 c2 q0 code b currentPath = do
 pathCompletor
   :: Applicative f
   => (Branch.Branch0 m -> Map NameSegment.NameSegment a)
-  -> [Char]
+  -> String
   -> p
   -> Branch.Branch m
   -> Path.Absolute
