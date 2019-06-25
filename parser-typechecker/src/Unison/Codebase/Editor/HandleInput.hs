@@ -1615,6 +1615,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
         (graph, getReference, _) = Graph.graphFromEdges graphEdges
     pure $ Map.fromList (zip (view _1 . getReference <$> Graph.topSort graph) [0..])
     -- vertex i precedes j whenever i has an edge to j and not vice versa.
+    -- vertex i precedes j when j is a dependent of i.
 
   updateNames :: Map Reference Reference -> Branch0 m -> Branch0 m
   updateNames edits Branch0{..} = Branch.branch0 terms _types _children _edits
