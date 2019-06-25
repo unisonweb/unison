@@ -13,7 +13,7 @@ import           Control.Applicative            ( liftA2
                                                 -- , (<|>)
                                                 )
 import           Data.Bifunctor                 ( second )
-import           Data.Foldable                  ( foldl' )
+import           Data.Foldable                  ( foldl', toList )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
@@ -175,6 +175,18 @@ builtinEffectDecls = []
 builtinDependencies :: Rel.Relation R.Reference R.Reference
 builtinDependencies =
   Rel.fromMultimap (Type.dependencies <$> termRefTypes @Symbol)
+
+-- a relation whose domain is types and whose range is builtin terms with that type
+builtinTermsByType :: Rel.Relation R.Reference R.Reference
+builtinTermsByType =
+  Rel.fromList [ (Type.toReference ty, r) | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
+
+-- a relation whose domain is types and whose range is builtin terms that mention that type
+-- example: Nat.+ mentions the type `Nat`
+builtinTermsByTypeMention :: Rel.Relation R.Reference R.Reference
+builtinTermsByTypeMention =
+  Rel.fromList [ (m, r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
+                        , m <- toList $ Type.toReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.

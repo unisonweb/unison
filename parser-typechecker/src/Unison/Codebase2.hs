@@ -30,6 +30,7 @@ import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
 import           Unison.Parser                  ( Ann )
 import qualified Unison.UnisonFile             as UF
+import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
@@ -68,6 +69,11 @@ data Codebase m v a =
            , watches            :: UF.WatchKind -> m [Reference.Id]
            , getWatch           :: UF.WatchKind -> Reference.Id -> m (Maybe (Term v a))
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
+
+           -- list of terms of the given type
+           , termsOfTypeImpl    :: Reference -> m (Set Reference.Id)
+           -- list of terms that mention the given type anywhere in their signature
+           , termsMentioningTypeImpl :: Reference -> m (Set Reference.Id)
            }
 
 -- | Write all of the builtins types and IO types into the codebase
@@ -299,6 +305,20 @@ dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
+
+termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Reference)
+termsOfType c ty
+  = Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
+  . Set.map Reference.DerivedId <$> termsOfTypeImpl c r
+  where
+  r = Type.toReference ty
+
+termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Reference)
+termsMentioningType c ty
+  = Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
+  . Set.map Reference.DerivedId <$> termsMentioningTypeImpl c r
+  where
+  r = Type.toReference ty
 
 -- -- Creates a self-contained `UnisonFile` which bakes in
 -- -- all transitive dependencies
