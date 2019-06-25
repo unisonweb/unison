@@ -445,6 +445,14 @@ removeEffectVars removals t =
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
+-- Remove all effect variables from the type that are in the set
+removeAllEffectVars :: Var v => AnnotatedType v a -> AnnotatedType v a
+removeAllEffectVars t = let
+  allEffectVars = foldMap go (ABT.subterms t)
+  go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
+  go _ = mempty
+  in removeEffectVars allEffectVars t
+
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =

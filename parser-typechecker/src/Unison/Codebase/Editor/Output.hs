@@ -62,6 +62,7 @@ data Output v
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
   | TypeAlreadyExists Input Path.Split' (Set Reference)
+  | TypeParseError Input (Parser.Err v)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
