@@ -111,7 +111,9 @@ welcomeMessage =
     <> P.purple "_|_|\n"
     <> "\n"
     <> "Welcome to Unison!\n"
-    <> "\nType help to get help. 😎\n"
+    <> "\nType "
+    <> P.hiBlue "help"
+    <> " to get help. 😎\n"
 
 main
   :: forall v
