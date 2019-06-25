@@ -39,7 +39,7 @@ instance Monoid (AnnotatedText a) where
 instance LL.FoldableLL (AnnotatedText a) Char where
   foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at where
     f' z (str, _) = L.foldl' f z str
-  foldl f z at = LL.foldl f z at
+  foldl = LL.foldl
   foldr f z (AnnotatedText at) = Foldable.foldr f' z at where
     f' (str, _) z = L.foldr f z str
 
@@ -88,7 +88,7 @@ annotate' a (AnnotatedText at) =
   AnnotatedText $ (\(s,_) -> (s, a)) <$> at
 
 deannotate :: AnnotatedText a -> AnnotatedText b
-deannotate at = annotate' Nothing at
+deannotate = annotate' Nothing
 
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =

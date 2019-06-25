@@ -445,7 +445,7 @@ renderTypeError e env src = case e of
         sep (C.WrongName name typ   ) r = (_3 %~ ((name, typ) :)) . r
     in  mconcat
           [ "I'm not sure what "
-          , style ErrorSite (show unknownTermV)
+          , style ErrorSite (Var.nameStr unknownTermV)
           , " means at "
           , annotatedToEnglish termSite
           , "\n\n"
