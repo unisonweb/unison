@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Data.List ( stripPrefix )
 import Control.Monad ( unless )
 import Safe ( headMay )
 import System.Environment ( getArgs )
-import System.Directory ( getCurrentDirectory, getHomeDirectory )
+import System.Directory ( getCurrentDirectory )
 import Unison.Codebase.Serialization.V0 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
 import qualified Unison.Codebase2 as Codebase
@@ -20,19 +19,16 @@ main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
   dir  <- getCurrentDirectory
-  home <- getHomeDirectory
-  let codebasePath    = ".unison/v0"
-      initialPath     = Path.absoluteEmpty
-      scratchFilePath = case stripPrefix home dir of
-        Just d  -> "~" <> d
-        Nothing -> dir
-      theCodebase =
-        FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
-      launch = CommandLine.main scratchFilePath
-                                initialPath
-                                (headMay args)
-                                (pure Rt1.runtime)
-                                theCodebase
+  let
+    codebasePath = ".unison/v0"
+    initialPath  = Path.absoluteEmpty
+    theCodebase =
+      FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
+    launch = CommandLine.main dir
+                              initialPath
+                              (headMay args)
+                              (pure Rt1.runtime)
+                              theCodebase
   exists <- FileCodebase.exists codebasePath
   unless exists $ do
     putStrLn

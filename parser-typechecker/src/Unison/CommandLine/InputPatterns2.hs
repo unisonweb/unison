@@ -277,20 +277,20 @@ pull = InputPattern
   []
   [(Required, gitUrlArg), (Optional, branchPathArg)]
   (P.wrapColumn2
-    [ ( "`pull ssh://example.org/path/to/repo.git`"
-      , "pulls the contents of the given git url into the current path."
+    [ ( "`pull url`"
+      , "pulls the contents of the git url `url` into the current path."
       )
-    , ( "`pull ssh://example.org/path/to/repo.git foo.bar`"
-      , "pulls the contents of the given git url into `foo.bar` relative "
+    , ( "`pull url foo.bar`"
+      , "pulls the contents of the git url `url` into `foo.bar` relative "
         <> "to the current path."
       )
-    , ( "`pull ssh://example.org/path/to/repo.git .foo.bar`"
-      , "pulls the contents of the given git url into into the absolute path "
+    , ( "`pull url .foo.bar`"
+      , "pulls the contents of the git url `url` into into the absolute path "
         <> "`.foo.bar`."
       )
-    , ( "`pull ssh://example.org/path/to/repo.git foo bar`"
+    , ( "`pull url foo bar`"
       , "pulls the contents of the git branch or commit named `bar` from the "
-        <> " given git url into the path `bar`."
+        <> " git url `url` into the path `bar`."
       )
     ]
   )
@@ -315,20 +315,20 @@ push = InputPattern
   []
   [(Required, gitUrlArg), (Optional, branchPathArg)]
   (P.wrapColumn2
-    [ ( "`push ssh://example.org/path/to/repo.git`"
-      , "pushes the contents of the current path to the given git url."
+    [ ( "`push url`"
+      , "pushes the contents of the current path to the git url given by `url`."
       )
-    , ( "`push ssh://example.org/path/to/repo.git foo.bar`"
+    , ( "`push url foo.bar`"
       , "pushes the contents of `foo.bar` relative to the current path "
-        <> "to the given git url."
+        <> "to the git url given by `url`."
       )
-    , ( "`push ssh://example.org/path/to/repo.git .foo.bar`"
+    , ( "`push url .foo.bar`"
       , "pushes the contents of the absolute path `.foo.bar` "
-        <> "to the given gir url."
+        <> "to the git url given by `url`."
       )
-    , ( "`push ssh://example.org/path/to/repo.git foo bar`"
+    , ( "`push url foo bar`"
       , "pushes the contents of the path `foo` "
-        <> "to the git branch `bar` at the given git url."
+        <> "to the git branch `bar` at the git url `url`."
       )
     ]
   )
