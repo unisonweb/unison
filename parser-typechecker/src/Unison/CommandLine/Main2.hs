@@ -88,32 +88,40 @@ getUserInput patterns codebase branch currentPath numberedArgs =
           pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
-welcomeMessage :: P.Pretty P.ColorText
-welcomeMessage =
+welcomeMessage :: FilePath -> P.Pretty P.ColorText
+welcomeMessage dir =
   P.red " _____"
-    <> P.hiYellow "     _             \n"
+    <> P.hiYellow "     _             "
+    <> P.newline
     <> P.red "|  |  |"
     <> P.hiRed "___"
     <> P.hiYellow "|_|"
     <> P.hiGreen "___ "
     <> P.cyan "___ "
-    <> P.purple "___ \n"
+    <> P.purple "___ "
+    <> P.newline
     <> P.red "|  |  |   "
     <> P.hiYellow "| |"
     <> P.hiGreen "_ -"
     <> P.cyan "| . |"
-    <> P.purple "   |\n"
+    <> P.purple "   |"
+    <> P.newline
     <> P.red "|_____|"
     <> P.hiRed "_|_"
     <> P.hiYellow "|_|"
     <> P.hiGreen "___"
     <> P.cyan "|___|"
-    <> P.purple "_|_|\n"
-    <> "\n"
-    <> "Welcome to Unison!\n"
-    <> "\nType "
-    <> P.hiBlue "help"
-    <> " to get help. 😎\n"
+    <> P.purple "_|_|"
+    <> P.newline
+    <> P.newline
+    <> P.linesSpaced
+         [ P.wrap "Welcome to Unison!"
+         , P.wrap
+           (  "I'm currently watching for changes to .u files under "
+           <> (P.group . P.blue $ fromString dir)
+           )
+         , P.wrap ("Type " <> P.hiBlue "help" <> " to get help. 😎")
+         ]
 
 main
   :: forall v
@@ -125,7 +133,7 @@ main
   -> Codebase IO v Ann
   -> IO ()
 main dir initialPath _initialFile startRuntime codebase = do
-  putPrettyLn welcomeMessage
+  putPrettyLn $ welcomeMessage dir
   root <- Codebase.getRootBranch codebase
   eventQueue <- Q.newIO
   do
