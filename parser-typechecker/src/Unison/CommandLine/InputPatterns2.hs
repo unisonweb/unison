@@ -224,11 +224,11 @@ aliasType = InputPattern "alias.type" []
     )
 
 cd :: InputPattern
-cd = InputPattern "cd" [] [(Required, branchPathArg)]
+cd = InputPattern "path" ["cd", "j"] [(Required, branchPathArg)]
     (P.wrapColumn2
-      [ ("`cd foo.bar`",
+      [ ("`path foo.bar`",
           "descends into foo.bar from the current path.")
-      , ("`cd .cat.dog",
+      , ("`path .cat.dog",
           "sets the current path to the abolute path .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
@@ -238,8 +238,8 @@ cd = InputPattern "cd" [] [(Required, branchPathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.branch" [] [(OnePlus, branchPathArg)]
-  "`delete.branch <foo>` deletes the branch `foo`"
+deleteBranch = InputPattern "delete.path" [] [(OnePlus, branchPathArg)]
+  "`delete.path <foo>` deletes the path `foo`"
    (\case
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.wordyNameSegment p
@@ -248,10 +248,10 @@ deleteBranch = InputPattern "delete.branch" [] [(OnePlus, branchPathArg)]
       )
 
 renameBranch :: InputPattern
-renameBranch = InputPattern "rename.branch"
+renameBranch = InputPattern "rename.path"
    []
    [(Required, branchPathArg), (Required, branchPathArg)]
-   "`rename.branch foo bar` renames the branch `bar` to `foo`."
+   "`rename.path foo bar` renames the path `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parseSplit' Path.wordyNameSegment src
@@ -263,7 +263,7 @@ renameBranch = InputPattern "rename.branch"
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
                                    ,(Required, branchPathArg)]
-    "`fork foo bar` creates the branch `bar` as a fork of `foo`."
+    "`fork foo bar` creates the path `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
@@ -351,7 +351,7 @@ push = InputPattern
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
                                      ,(Optional, branchPathArg)]
- "`merge foo` merges the branch 'foo' into the current branch."
+ "`merge foo` merges the path 'foo' into the current branch."
  (\case
       [src] -> first fromString $ do
         src <- Path.parsePath' src
