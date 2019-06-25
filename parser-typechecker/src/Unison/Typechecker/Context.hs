@@ -292,7 +292,6 @@ scope p (M m) = M go
 data MEnv v loc = MEnv {
   env :: Env v loc,                    -- The typechecking state
   abilities :: [Type v loc],           -- Allowed ambient abilities
-  builtinLocation :: loc,              -- The location of builtins
   dataDecls :: DataDeclarations v loc, -- Data declarations in scope
   effectDecls :: EffectDeclarations v loc, -- Effect declarations in scope
   -- Types for which ability check should be skipped.
@@ -429,9 +428,6 @@ usedVars = allVars . info
 
 fromMEnv :: (MEnv v loc -> a) -> M v loc a
 fromMEnv f = f <$> ask
-
-getBuiltinLocation :: M v loc loc
-getBuiltinLocation = fromMEnv builtinLocation
 
 getContext :: M v loc (Context v loc)
 getContext = fromMEnv $ ctx . env
@@ -723,13 +719,12 @@ synthesizeApp _ _ = error "unpossible - Type.Effect'' pattern always succeeds"
 
 -- For arity 3, creates the type `∀ a . a -> a -> a -> Sequence a`
 -- For arity 2, creates the type `∀ a . a -> a -> Sequence a`
-vectorConstructorOfArity :: (Var v, Ord loc) => Int -> M v loc (Type v loc)
-vectorConstructorOfArity arity = do
-  bl <- getBuiltinLocation
+vectorConstructorOfArity :: (Var v, Ord loc) => loc -> Int -> M v loc (Type v loc)
+vectorConstructorOfArity loc arity = do
   let elementVar = Var.named "elem"
-      args = replicate arity (bl, Type.var bl elementVar)
-      resultType = Type.app bl (Type.vector bl) (Type.var bl elementVar)
-      vt = Type.forall bl elementVar (Type.arrows args resultType)
+      args = replicate arity (loc, Type.var loc elementVar)
+      resultType = Type.app loc (Type.vector loc) (Type.var loc elementVar)
+      vt = Type.forall loc elementVar (Type.arrows args resultType)
   pure vt
 
 noteTopLevelType
@@ -799,7 +794,7 @@ synthesize e = scope (InSynthesize e) $
     (vs, ft) <- ungeneralize' ft
     scope (InFunctionCall vs f ft args) $ synthesizeApps (apply ctx ft) args
   go (Term.Sequence' v) = do
-    ft <- vectorConstructorOfArity (Foldable.length v)
+    ft <- vectorConstructorOfArity (loc e) (Foldable.length v)
     case Foldable.toList v of
       [] -> pure ft
       v1 : _ ->
@@ -1559,19 +1554,18 @@ verifyDataDeclarations decls = forM_ (Map.toList decls) $ \(_ref, decl) -> do
 -- | public interface to the typechecker
 synthesizeClosed
   :: (Var v, Ord loc)
-  => loc
-  -> [Type v loc]
+  => [Type v loc]
   -> TL.TypeLookup v loc
   -> Term v loc
   -> Result v loc (Type v loc)
-synthesizeClosed builtinLoc abilities lookupType term0 = let
+synthesizeClosed abilities lookupType term0 = let
   datas = TL.dataDecls lookupType
   effects = TL.effectDecls lookupType
   term = annotateRefs (TL.typeOfTerm' lookupType) term0
   in case term of
     Left missingRef ->
       compilerCrashResult (UnknownTermReference missingRef)
-    Right term -> run builtinLoc [] datas effects $ do
+    Right term -> run [] datas effects $ do
       verifyDataDeclarations datas
       verifyDataDeclarations (DD.toDataDecl <$> effects)
       verifyClosedTerm term
@@ -1608,16 +1602,15 @@ annotateRefs synth = ABT.visit f where
 
 run
   :: (Var v, Ord loc)
-  => loc
-  -> [Type v loc]
+  => [Type v loc]
   -> DataDeclarations v loc
   -> EffectDeclarations v loc
   -> M v loc a
   -> Result v loc a
-run builtinLoc ambient datas effects m =
+run ambient datas effects m =
   fmap fst
     . runM m
-    $ MEnv (Env 1 mempty) ambient builtinLoc datas effects []
+    $ MEnv (Env 1 mempty) ambient datas effects []
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
@@ -1681,14 +1674,14 @@ isRedundant userType inferredType = do
 
 -- Public interface to `isSubtype`
 isSubtype
-  :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
-isSubtype builtinLoc t1 t2 =
-  run builtinLoc [] Map.empty Map.empty (isSubtype' t1 t2)
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+isSubtype t1 t2 =
+  run [] Map.empty Map.empty (isSubtype' t1 t2)
 
 isEqual
-  :: (Var v, Ord loc) => loc -> Type v loc -> Type v loc -> Result v loc Bool
-isEqual builtinLoc t1 t2 =
-  (&&) <$> isSubtype builtinLoc t1 t2 <*> isSubtype builtinLoc t2 t1
+  :: (Var v, Ord loc) => Type v loc -> Type v loc -> Result v loc Bool
+isEqual t1 t2 =
+  (&&) <$> isSubtype t1 t2 <*> isSubtype t2 t1
 
 instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of

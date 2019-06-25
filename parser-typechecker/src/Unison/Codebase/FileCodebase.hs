@@ -378,7 +378,6 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                deleteBranch
                branchUpdates
                dependents
-               builtinTypeAnnotation
                watches
                getWatch
                putWatch

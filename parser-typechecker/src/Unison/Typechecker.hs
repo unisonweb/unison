@@ -75,8 +75,7 @@ data NamedReference v loc =
 
 -- Arya: _builtinLoc refers to anything external?
 data Env v loc = Env
-  { _builtinLoc        :: loc
-  , _ambientAbilities  :: [Type v loc]
+  { _ambientAbilities  :: [Type v loc]
   , _typeLookup        :: TL.TypeLookup v loc
   , _unqualifiedTerms  :: Map Name [NamedReference v loc]
   }
@@ -157,7 +156,6 @@ synthesize
   -> ResultT (Notes v loc) f (Type v loc)
 synthesize env t = let
   (Context.Result es is ot) = Context.synthesizeClosed
-    (view builtinLoc env)
     (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
     (view typeLookup env)
     (Term.vtmap TypeVar.Universal t)
@@ -165,7 +163,7 @@ synthesize env t = let
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
 isSubtype t1 t2 =
-  case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
+  case Context.isSubtype (tvar $ void t1) (tvar $ void t2) of
     Context.Result es _ ob -> fromMaybe
       (error $ "some errors occurred during subtype checking " ++ show es)
       ob
@@ -305,10 +303,10 @@ typeDirectedNameResolution oldNotes oldType env = do
     -> Context.Type v loc
     -> NamedReference v loc
     -> Result (Notes v loc) [Context.Suggestion v loc]
-  resolve env inferredType (NamedReference fqn foundType replace) =
+  resolve _env inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = convertResult
-          $ Context.isSubtype (view builtinLoc env) (Type.toTypeVar foundType) inferredType
+          $ Context.isSubtype (Type.toTypeVar foundType) inferredType
     in  case subResult of
           -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ typeError (errors subNotes)
