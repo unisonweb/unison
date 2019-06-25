@@ -126,7 +126,7 @@ viewByPrefix
     (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
 
 find :: InputPattern
-find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
+find = InputPattern "find" ["list", "ls"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     (P.wrapColumn2
       [ ("`find`"
         , "lists all definitions in the current branch.")
@@ -141,9 +141,9 @@ find = InputPattern "find" [] [(ZeroPlus, fuzzyDefinitionQueryArg)]
     (pure . Input.SearchByNameI)
 
 findPatch :: InputPattern
-findPatch = InputPattern "find.patch" [] []
+findPatch = InputPattern "find.patch" ["list.patch", "ls.patch"] []
     (P.wrapColumn2
-      [ ("`find`"
+      [ ("`find.patch`"
         , "lists all patches in the current branch.")
       ]
     )
