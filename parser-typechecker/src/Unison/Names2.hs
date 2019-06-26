@@ -74,8 +74,15 @@ hasType r = R.memberRan r . types
 termReferents :: Names' n -> Set Referent
 termReferents Names{..} = R.ran terms
 
-termReferences :: Names' n -> Set Reference
+termReferences, typeReferences, allReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
+typeReferences Names{..} = R.ran types
+allReferences n = termReferences n <> typeReferences n
+
+restrictReferences :: Ord n => Set Reference -> Names' n -> Names' n
+restrictReferences refs Names{..} = Names terms' types' where
+  terms' = R.filterRan ((`Set.member` refs) . Referent.toReference) terms
+  types' = R.filterRan (`Set.member` refs) types
 
 -- | Guide to unionLeft*
 -- Is it ok to create new aliases for parsing?
@@ -143,9 +150,6 @@ unionLeft a b = Names terms' types' where
   go acc (n, r) =
     if R.memberDom n acc || R.memberRan r acc then acc else R.insert n r acc
 
-
-typeReferences :: Names' n -> Set Reference
-typeReferences Names{..} = R.ran types
 
 -- could move this to a read-only field in Names
 numHashChars :: Names' n -> Int
@@ -306,11 +310,17 @@ filterTypes f (Names terms types) = Names terms (R.filterDom f types)
 
 difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
-                  (R.difference (types a) (types b))
+                       (R.difference (types a) (types b))
+
+intersection :: Ord n => Names' n -> Names' n -> Names' n
+intersection a b = Names (R.intersection (terms a) (terms b))
+                         (R.intersection (types a) (types b))
 
 contains :: Names' n -> Reference -> Bool
-contains names r = R.memberRan (Referent.Ref r) (terms names)
-                || R.memberRan r (types names)
+contains names r =
+  -- this check makes `contains` O(n) instead of O(log n)
+  (Set.member r . Set.map Referent.toReference . R.ran) (terms names)
+  || R.memberRan r (types names)
 
 -- | filters out everything from the domain except what's conflicted
 conflicts :: Ord n => Names' n -> Names' n
