@@ -245,7 +245,7 @@ cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.path" [] [(OnePlus, pathArg)]
+deleteBranch = InputPattern "delete.path" [] [(Required, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
         [p] -> first fromString $ do
@@ -255,7 +255,7 @@ deleteBranch = InputPattern "delete.path" [] [(OnePlus, pathArg)]
       )
 
 deletePatch :: InputPattern
-deletePatch = InputPattern "delete.patch" [] [(OnePlus, patchArg)]
+deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
   "`delete.patch <foo>` deletes the patch `foo`"
    (\case
         [p] -> first fromString $ do
