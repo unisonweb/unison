@@ -596,27 +596,32 @@ loop = do
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, (_h, mp)) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
-      -- ls with no arguments
-      SearchByNameI [] -> do
+      SearchByNameI q | q == [] || q == ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 False
-      SearchByNameI ["-l"] -> do
-        let results = listBranch $ Branch.head currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 True
-      SearchByNameI q@(":" : ws) -> case parseSearchType input parseNames0 ws of
-        Left e -> respond e
-        Right typ0 -> do
-          let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
-          let typ = Type.bindBuiltins toSubst typ0
-          matches <- fmap toList . eval $ GetTermsOfType typ
-          let results = searchResultsFor parseNames0 (Referent.Ref <$> matches) []
-          numberedArgs .= fmap searchResultToHQString results
-          loadSearchResults results
-            >>= respond . ListOfDefinitions prettyPrintNames0 True
+          >>= respond . ListOfDefinitions prettyPrintNames0 (q == ["-l"])
+      SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
+        ->
+        let ws = drop 1 . dropWhile (/= ":") $ q in
+        case parseSearchType input parseNames0 ws of
+          Left e -> respond e
+          Right typ0 -> do
+            let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
+            let typ = Type.generalizeLowercase mempty $ Type.bindBuiltins toSubst typ0
+            if ABT.isClosed typ then do
+              matches <- fmap toList . eval $ GetTermsOfType typ
+              matches <-
+                if null matches then do
+                  respond $ NoExactTypeMatches
+                  fmap toList . eval $ GetTermsMentioningType typ
+                else pure matches
+              let results = searchResultsFor prettyPrintNames0 matches []
+              numberedArgs .= fmap searchResultToHQString results
+              loadSearchResults results
+                >>= respond . ListOfDefinitions prettyPrintNames0 False
+            else
+              respond $ TypeHasFreeVars input typ
       SearchByNameI ("-l" : ws) -> do
         let qs = map HQ.fromString ws
         let b0 = Branch.toNames0 . Branch.head $ currentBranch'

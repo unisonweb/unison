@@ -73,6 +73,7 @@ import qualified Unison.Hash                   as Hash
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
@@ -160,7 +161,16 @@ touchIdFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  writeFile (fp </> componentId id) (componentId id)
+  let n = Reference.toText $ Reference.DerivedId id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
+
+touchReferentFile :: Referent -> FilePath -> IO ()
+touchReferentFile id fp = do
+  createDirectoryIfMissing True fp
+  -- note: contents of the file are equal to the name, rather than empty, to
+  -- hopefully avoid git getting clever about treating deletions as renames
+  let n = Referent.toText id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -437,12 +447,13 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   dependents :: Reference -> m (Set Reference.Id)
   dependents r = listDirAsIds (dependentsDir path r)
 
-  getTermsOfType :: Reference -> m (Set Reference.Id)
-  getTermsOfType r = listDirAsIds (typeIndexDir path r)
+  getTermsOfType :: Reference -> m (Set Referent)
+  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
 
-  getTermsMentioningType :: Reference -> m (Set Reference.Id)
-  getTermsMentioningType r = listDirAsIds (typeMentionsIndexDir path r)
+  getTermsMentioningType :: Reference -> m (Set Referent)
+  getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
 
+  -- todo: revisit these
   listDirAsIds :: FilePath -> m (Set Reference.Id)
   listDirAsIds d = do
     e <- doesDirectoryExist d
@@ -450,6 +461,15 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
       then do
         ls <- listDirectory d
         pure . Set.fromList $ ls >>= (toList . parseHash)
+      else pure Set.empty
+
+  listDirAsReferents :: FilePath -> m (Set Referent)
+  listDirAsReferents d = do
+    e <- doesDirectoryExist d
+    if e
+      then do
+        ls <- listDirectory d
+        pure . Set.fromList $ ls >>= error "todo" -- (toList . parseHash)
       else pure Set.empty
 
   watches :: UF.WatchKind -> m [Reference.Id]

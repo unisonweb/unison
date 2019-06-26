@@ -15,6 +15,7 @@ import           Unison.Codebase.Branch2        ( Branch )
 import           Unison.Codebase.GitError
 import           Unison.Names2                  ( Names )
 import           Unison.Parser                  ( Ann )
+import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
                                                 , Result)
@@ -125,8 +126,8 @@ data Command m i v a where
   -- should be filtered by the caller of this command if that's not desired.
   GetDependents :: Reference -> Command m i v (Set Reference)
 
-  GetTermsOfType :: Type v Ann -> Command m i v (Set Reference)
-  GetTermsMentioningType :: Type v Ann -> Command m i v (Set Reference)
+  GetTermsOfType :: Type v Ann -> Command m i v (Set Referent)
+  GetTermsMentioningType :: Type v Ann -> Command m i v (Set Referent)
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?

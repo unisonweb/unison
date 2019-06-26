@@ -24,6 +24,7 @@ import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
+import Unison.Referent (Referent)
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
@@ -71,9 +72,9 @@ data Codebase m v a =
            , putWatch           :: UF.WatchKind -> Reference.Id -> Term v a -> m ()
 
            -- list of terms of the given type
-           , termsOfTypeImpl    :: Reference -> m (Set Reference.Id)
+           , termsOfTypeImpl    :: Reference -> m (Set Referent)
            -- list of terms that mention the given type anywhere in their signature
-           , termsMentioningTypeImpl :: Reference -> m (Set Reference.Id)
+           , termsMentioningTypeImpl :: Reference -> m (Set Referent)
            }
 
 -- | Write all of the builtins types and IO types into the codebase
@@ -306,17 +307,16 @@ dependents c r
     . Set.map Reference.DerivedId
   <$> dependentsImpl c r
 
-termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Reference)
-termsOfType c ty
-  = Set.union (Rel.lookupDom r Builtin.builtinTermsByType)
-  . Set.map Reference.DerivedId <$> termsOfTypeImpl c r
+termsOfType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsOfType c ty =
+  Set.union (Rel.lookupDom r Builtin.builtinTermsByType) <$> termsOfTypeImpl c r
   where
   r = Type.toReference ty
 
-termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Reference)
-termsMentioningType c ty
-  = Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
-  . Set.map Reference.DerivedId <$> termsMentioningTypeImpl c r
+termsMentioningType :: (Var v, Functor m) => Codebase m v a -> Type v a -> m (Set Referent.Referent)
+termsMentioningType c ty =
+  Set.union (Rel.lookupDom r Builtin.builtinTermsByTypeMention)
+    <$> termsMentioningTypeImpl c r
   where
   r = Type.toReference ty
 

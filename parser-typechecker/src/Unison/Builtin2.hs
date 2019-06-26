@@ -177,16 +177,17 @@ builtinDependencies =
   Rel.fromMultimap (Type.dependencies <$> termRefTypes @Symbol)
 
 -- a relation whose domain is types and whose range is builtin terms with that type
-builtinTermsByType :: Rel.Relation R.Reference R.Reference
+builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
-  Rel.fromList [ (Type.toReference ty, r) | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
+  Rel.fromList [ (Type.toReference ty, Referent.Ref r)
+               | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
 -- example: Nat.+ mentions the type `Nat`
-builtinTermsByTypeMention :: Rel.Relation R.Reference R.Reference
+builtinTermsByTypeMention :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByTypeMention =
-  Rel.fromList [ (m, r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
-                        , m <- toList $ Type.toReferenceMentions ty ]
+  Rel.fromList [ (m, Referent.Ref r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
+                                     , m <- toList $ Type.toReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.

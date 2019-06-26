@@ -40,6 +40,7 @@ import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
+import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.GitError
@@ -99,6 +100,7 @@ import           Unison.Util.Monoid             ( intercalateMap
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
+import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import           System.Directory               ( getHomeDirectory )
 
@@ -219,6 +221,13 @@ notifyUser dir o = case o of
       SlurpResult.pretty ppe s <> "\n\n" <>
       filestatusTip
 
+  NoExactTypeMatches ->
+    putPrettyLn' $ "☝️  I couldn't find exact type matches, resorting to fuzzy matching..."
+  TypeHasFreeVars input typ ->
+    putPrettyLn . P.warnCallout $ P.lines [
+      P.wrap "The type uses these names, but I'm not sure what they are:",
+      P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
+    ]
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es

@@ -14,6 +14,7 @@ module Unison.Reference
    groupByComponent,
    componentFor,
    unsafeFromText,
+   fromText,
    readSuffix,
    showShort,
    toText,
