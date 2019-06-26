@@ -126,7 +126,7 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss id)
+  fixupCompletion q (prettyCompletion' <$> Find.fuzzyFinder q ss id)
 
 exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss where

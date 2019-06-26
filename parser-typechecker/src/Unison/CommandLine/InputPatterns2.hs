@@ -12,7 +12,7 @@ module Unison.CommandLine.InputPatterns2 where
 -- import Debug.Trace
 import Data.Bifunctor (first)
 import Data.Foldable (toList)
-import Data.List (intercalate, sortOn)
+import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrd)
 import Data.Map (Map)
 import Data.Set (Set)
@@ -537,43 +537,49 @@ commandNameArg =
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
   -- todo: improve this
-  ArgumentType "fuzzy definition query" $ I.suggestions exactDefinitionQueryArg
+  ArgumentType "fuzzy definition query" $
+    bothCompletors (termCompletor fuzzyComplete)
+                   (typeCompletor fuzzyComplete)
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
-  ArgumentType "definition query" $ bothCompletors exactTypeCompletor exactTermCompletor
+  ArgumentType "definition query" $
+    bothCompletors (termCompletor exactComplete)
+                   (typeCompletor exactComplete)
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ exactTypeCompletor
+  ArgumentType "term definition query" $ typeCompletor exactComplete
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ exactTermCompletor
+  ArgumentType "term definition query" $ termCompletor exactComplete
 
-exactTypeCompletor :: Applicative m
-                   => String
-                   -> Codebase m v a
-                   -> Branch.Branch m
-                   -> Path.Absolute
-                   -> m [Completion]
-exactTypeCompletor = pathCompletor go where
+typeCompletor :: Applicative m
+              => (String -> [String] -> [Completion])
+              -> String
+              -> Codebase m v a
+              -> Branch.Branch m
+              -> Path.Absolute
+              -> m [Completion]
+typeCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
 
-exactTermCompletor :: Applicative m
-                   => String
-                   -> Codebase m v a
-                   -> Branch.Branch m
-                   -> Path.Absolute
-                   -> m [Completion]
-exactTermCompletor = pathCompletor go where
+termCompletor :: Applicative m
+              => (String -> [String] -> [Completion])
+              -> String
+              -> Codebase m v a
+              -> Branch.Branch m
+              -> Path.Absolute
+              -> m [Completion]
+termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchPathArg :: ArgumentType
 patchPathArg = ArgumentType "patch" $
-  bothCompletors (pathCompletor (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
-                 (pathCompletor (Set.map Path.toText . Branch.deepPaths))
+  bothCompletors (pathCompletor exactComplete (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
+                 (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
 bothCompletors
   :: (Monad m, Ord a)
@@ -587,23 +593,27 @@ bothCompletors c1 c2 q0 code b currentPath = do
 
 pathCompletor
   :: Applicative f
-  => (Branch.Branch0 m -> Set Text)
+  => (String -> [String] -> [Completion])
+  -> (Branch.Branch0 m -> Set Text)
   -> String
   -> codebase
   -> Branch.Branch m
   -> Path.Absolute
   -> f [Completion]
-pathCompletor getNames query _code b p = let
+pathCompletor filterQuery getNames query _code b p = let
   b0root = Branch.head b
   b0local = Branch.getAt0 (Path.unabsolute p) b0root
   -- todo: if these sets are huge, maybe trim results
-  in pure . exactComplete query . map Text.unpack $
+  in pure . filterQuery query . map Text.unpack $
        toList (getNames b0local) ++
-       map ("." <>) (toList (getNames b0root))
+       if ("." `isPrefixOf` query) then
+         map ("." <>) (toList (getNames b0root))
+       else
+         []
 
 branchPathArg :: ArgumentType
 branchPathArg = ArgumentType "path" $
-  pathCompletor (Set.map Path.toText . Branch.deepPaths)
+  pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions
