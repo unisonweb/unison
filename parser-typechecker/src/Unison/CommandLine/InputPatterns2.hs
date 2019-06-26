@@ -72,7 +72,7 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Required, patchPathArg), (Optional, branchPathArg)]
+  [(Required, patchArg), (Optional, pathArg)]
   "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
   (\case
     patchStr : ws -> first fromString $ do
@@ -92,7 +92,7 @@ add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
 update :: InputPattern
 update = InputPattern "update"
   []
-  [(Required, patchPathArg)
+  [(Required, patchArg)
   ,(ZeroPlus, noCompletions)]
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
   (\case
@@ -102,7 +102,7 @@ update = InputPattern "update"
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
 
 patch :: InputPattern
-patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPathArg)]
+patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
   "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
   (\case
     patchStr : ws -> first fromString $ do
@@ -231,7 +231,7 @@ aliasType = InputPattern "alias.type" []
     )
 
 cd :: InputPattern
-cd = InputPattern "path" ["cd", "j"] [(Required, branchPathArg)]
+cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
       [ ("`path foo.bar`",
           "descends into foo.bar from the current path.")
@@ -245,7 +245,7 @@ cd = InputPattern "path" ["cd", "j"] [(Required, branchPathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.path" [] [(OnePlus, branchPathArg)]
+deleteBranch = InputPattern "delete.path" [] [(OnePlus, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
         [p] -> first fromString $ do
@@ -254,10 +254,33 @@ deleteBranch = InputPattern "delete.path" [] [(OnePlus, branchPathArg)]
         _ -> Left (I.help deleteBranch)
       )
 
+deletePatch :: InputPattern
+deletePatch = InputPattern "delete.patch" [] [(OnePlus, patchArg)]
+  "`delete.patch <foo>` deletes the patch `foo`"
+   (\case
+        [p] -> first fromString $ do
+          p <- Path.parseSplit' Path.wordyNameSegment p
+          pure . Input.DeletePatchI $ p
+        _ -> Left (I.help deletePatch)
+      )
+
+renamePatch :: InputPattern
+renamePatch = InputPattern "rename.patch"
+   []
+   [(Required, patchArg), (Required, patchArg)]
+   "`rename.path foo bar` renames the path `bar` to `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' Path.wordyNameSegment src
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MovePatchI src dest
+      _ -> Left (I.help renamePatch)
+    )
+
 renameBranch :: InputPattern
 renameBranch = InputPattern "rename.path"
    []
-   [(Required, branchPathArg), (Required, branchPathArg)]
+   [(Required, pathArg), (Required, pathArg)]
    "`rename.path foo bar` renames the path `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
@@ -268,8 +291,8 @@ renameBranch = InputPattern "rename.path"
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
-                                   ,(Required, branchPathArg)]
+forkLocal = InputPattern "fork" [] [(Required, pathArg)
+                                   ,(Required, pathArg)]
     "`fork foo bar` creates the path `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
@@ -283,7 +306,7 @@ pull :: InputPattern
 pull = InputPattern
   "pull"
   []
-  [(Required, gitUrlArg), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`pull url`"
       , "pulls the contents of the git url `url` into the current path."
@@ -321,7 +344,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, gitUrlArg), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`push url`"
       , "pushes the contents of the current path to the git url given by `url`."
@@ -356,8 +379,8 @@ push = InputPattern
   )
 
 mergeLocal :: InputPattern
-mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
-                                     ,(Optional, branchPathArg)]
+mergeLocal = InputPattern "merge" [] [(Required, pathArg)
+                                     ,(Optional, pathArg)]
  "`merge foo` merges the path 'foo' into the current branch."
  (\case
       [src] -> first fromString $ do
@@ -435,7 +458,7 @@ quit = InputPattern "quit" ["exit", ":q"] []
   )
 
 viewPatch :: InputPattern
-viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
+viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
   "Lists all the edits in the given patch."
   (\case
     [patchStr] -> first fromString $ do
@@ -498,6 +521,8 @@ validInputs =
   , cd
   , deleteBranch
   , renameBranch
+  , deletePatch
+  , renamePatch
   , find
   , view
   , findPatch
@@ -576,8 +601,8 @@ termCompletor :: Applicative m
 termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
-patchPathArg :: ArgumentType
-patchPathArg = ArgumentType "patch" $
+patchArg :: ArgumentType
+patchArg = ArgumentType "patch" $
   bothCompletors (pathCompletor exactComplete (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
                  (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
@@ -611,8 +636,8 @@ pathCompletor filterQuery getNames query _code b p = let
        else
          []
 
-branchPathArg :: ArgumentType
-branchPathArg = ArgumentType "path" $
+pathArg :: ArgumentType
+pathArg = ArgumentType "path" $
   pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
 
 noCompletions :: ArgumentType

@@ -20,6 +20,7 @@ import qualified Unison.Util.Star3 as Star3
 import Unison.Codebase.Metadata (Metadata)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Util.List as List
+import Unison.Codebase.Patch (Patch)
 
 addFromNames0 :: Applicative m => Names0 -> Branch0 m -> Branch0 m
 addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
@@ -113,6 +114,12 @@ makeAddTermName (p, name) r md = (p, Branch.addTermName r name md)
 
 makeDeleteTermName :: Path.Split -> Referent -> (Path, Branch0 m -> Branch0 m)
 makeDeleteTermName (p, name) r = (p, Branch.deleteTermName r name)
+
+makeReplacePatch :: Applicative m => Path.Split -> Patch -> (Path, Branch0 m -> Branch0 m)
+makeReplacePatch (p, name) patch = (p, Branch.replacePatch name patch)
+
+makeDeletePatch :: Path.Split -> (Path, Branch0 m -> Branch0 m)
+makeDeletePatch (p, name) = (p, Branch.deletePatch name)
 
 makeAddTypeName :: Path.Split -> Reference -> Metadata -> (Path, Branch0 m -> Branch0 m)
 makeAddTypeName (p, name) r md = (p, Branch.addTypeName r name md)

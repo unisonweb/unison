@@ -153,6 +153,8 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
+  PatchNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -161,6 +163,8 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists input _ _ ->
     putPrettyLn . P.warnCallout $ "A type by that name already exists."
+  PatchAlreadyExists input _ ->
+    putPrettyLn . P.warnCallout $ "A patch by that name already exists."
   CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",

@@ -142,7 +142,8 @@ branch0 terms types children edits =
     Star3.mapD1 nameSegToName types <> foldMap go (Map.toList (snd <$> children))
     where
     go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
-  deepPaths' = foldMap go (Map.toList children) where
+  deepPaths' = Set.map Path.singleton (Map.keysSet edits)
+            <> foldMap go (Map.toList children) where
     go (nameSeg, (_,b)) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
   nameSegToName = Name . NameSegment.toText
 
@@ -439,14 +440,25 @@ getPatch seg b = case Map.lookup seg (_edits b) of
   Nothing -> pure Patch.empty
   Just (_, p) -> p
 
-modifyEdits :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
-modifyEdits seg f = mapMOf edits update where
+getMaybePatch :: Applicative m => NameSegment -> Branch0 m -> m (Maybe Patch)
+getMaybePatch seg b = case Map.lookup seg (_edits b) of
+  Nothing -> pure Nothing
+  Just (_, p) -> Just <$> p
+
+modifyPatches :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
+modifyPatches seg f = mapMOf edits update where
   update m = do
     p' <- case Map.lookup seg m of
       Nothing -> pure $ f Patch.empty
       Just (_, p) -> f <$> p
     let h = H.accumulate' p'
     pure $ Map.insert seg (h, pure p') m
+
+replacePatch :: Applicative m => NameSegment -> Patch -> Branch0 m -> Branch0 m
+replacePatch n p = over edits (Map.insert n (H.accumulate' p, pure p))
+
+deletePatch :: NameSegment -> Branch0 m -> Branch0 m
+deletePatch n = over edits (Map.delete n)
 
 updateChildren ::NameSegment
                -> Branch m

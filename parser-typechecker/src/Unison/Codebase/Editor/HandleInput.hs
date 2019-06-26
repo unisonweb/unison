@@ -185,6 +185,11 @@ loop = do
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
       getAtSplit' = getAtSplit . resolveSplit'
+      getPatchAtSplit' :: Path.Split' -> Action' m v (Maybe Patch)
+      getPatchAtSplit' s = do
+        let (p, seg) = Path.toAbsoluteSplit currentPath' s
+        b <- getAt p
+        eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
       getHQTypes :: Path.HQSplit' -> Set Reference
       getHQTypes p = BranchUtil.getType (resolveSplit' p) root0
       getHQTerms :: Path.HQSplit' -> Set Referent
@@ -264,6 +269,10 @@ loop = do
         ifNotConfirmed = flip ifConfirmed
         branchNotFound = respond . BranchNotFound input
         branchNotFound' = respond . BranchNotFound input . Path.unsplit'
+        patchNotFound :: Path.Split' -> _
+        patchNotFound s = respond $ PatchNotFound input s
+        patchExists :: Path.Split' -> _
+        patchExists s = respond $ PatchAlreadyExists input s
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
@@ -299,6 +308,26 @@ loop = do
             [ BranchUtil.makeSetBranch (resolveSplit' src) Branch.empty
             , BranchUtil.makeSetBranch (resolveSplit' dest) b ]
           success -- could give rando stats about new defns
+
+      MovePatchI src dest -> do
+        psrc <- getPatchAtSplit' src
+        pdest <- getPatchAtSplit' dest
+        case (psrc, pdest) of
+          (Nothing, _) -> patchNotFound src
+          (_, Just _) -> patchExists dest
+          (Just p, Nothing) -> do
+            stepManyAt [
+              BranchUtil.makeDeletePatch (resolveSplit' src),
+              BranchUtil.makeReplacePatch (resolveSplit' dest) p ]
+            success
+
+      DeletePatchI src -> do
+        psrc <- getPatchAtSplit' src
+        case psrc of
+          Nothing -> patchNotFound src
+          Just _ -> do
+            stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
+            success
 
       DeleteBranchI p ->
         maybe (branchNotFound' p) go $ getAtSplit' p
@@ -679,8 +708,8 @@ loop = do
                 where
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-              updateEdits :: Branch0 m -> m (Branch0 m)
-              updateEdits = Branch.modifyEdits seg updatePatch
+              updatePatches :: Branch0 m -> m (Branch0 m)
+              updatePatches = Branch.modifyPatches seg updatePatch
 
           when (Slurp.isNonempty result) $ do
           -- take a look at the `updates` from the SlurpResult
@@ -690,7 +719,7 @@ loop = do
                , pure . doSlurpUpdates typeEdits termEdits)
               ,( Path.unabsolute currentPath'
                , pure . doSlurpAdds (Slurp.adds result) uf)
-              ,( Path.unabsolute p, updateEdits )]
+              ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           let ppe = PPE.fromNames0 $ fileNames0 `Names.unionLeft` prettyPrintNames0
           respond $ SlurpOutput input ppe result

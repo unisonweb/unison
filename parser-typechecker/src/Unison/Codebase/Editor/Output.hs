@@ -61,6 +61,7 @@ data Output v
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
+  | PatchAlreadyExists Input Path.Split'
   | TypeAlreadyExists Input Path.Split' (Set Reference)
   | TypeParseError Input (Parser.Err v)
   | TermAlreadyExists Input Path.Split' (Set Referent)
@@ -68,6 +69,7 @@ data Output v
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
+  | PatchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
   | TermNotFound' Input Reference.Id
