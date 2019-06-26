@@ -607,19 +607,28 @@ loop = do
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 True
-      -- ls with arguments
+      SearchByNameI q@(":" : ws) -> case parseSearchType input parseNames0 ws of
+        Left e -> respond e
+        Right typ0 -> do
+          let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
+          let typ = Type.bindBuiltins toSubst typ0
+          matches <- fmap toList . eval $ GetTermsOfType typ
+          let results = searchResultsFor parseNames0 (Referent.Ref <$> matches) []
+          numberedArgs .= fmap searchResultToHQString results
+          loadSearchResults results
+            >>= respond . ListOfDefinitions prettyPrintNames0 True
       SearchByNameI ("-l" : ws) -> do
-        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
-        typeMatches <- typeFilter e
+        let qs = map HQ.fromString ws
+        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
         let results = uniqueBy SR.toReferent
-                    $ searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
+                    $ searchBranchScored b0 fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 True
       SearchByNameI ws -> do
-        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
-        typeMatches <- typeFilter e
-        let results = searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
+        let qs = map HQ.fromString ws
+        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
+        let results = searchBranchScored b0 fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 False
@@ -955,16 +964,19 @@ searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
         Branch.toNames0 . set Branch.children mempty $ Branch.head b
       names0 = rootnames <> Names.prefix0 lastName subnames
 
-searchBranchScored :: forall m score. (Ord score)
-              => Branch m
-              -> (Reference -> Maybe Int)
+searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
+searchResultsFor ns terms types =
+  [ Names.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
+  [ Names.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+
+searchBranchScored :: forall score. (Ord score)
+              => Names0
               -> (Name -> Name -> Maybe score)
               -> [HashQualified]
               -> [SearchResult]
-searchBranchScored b allowed score queries =
+searchBranchScored names0 score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
   where
-  names0 = Branch.toNames0 . Branch.head $ b
   searchTermNamespace = foldMap do1query queries
     where
     do1query :: HashQualified -> Set (Maybe score, SearchResult)
@@ -1713,28 +1725,17 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
-typeFilter :: Maybe (Either (Output v) (Type.AnnotatedType v Ann)) -> _ (Reference -> Maybe Int)
-typeFilter e = case e of
-  Nothing -> pure $ const (Just 0)
-  Just (Left e) -> do
-    respond e
-    pure $ const (Just 0)
-  Just (Right ty) -> do
-    ty1 <- eval $ GetTermsMentioningType ty
-    ty2 <- eval $ GetTermsOfType ty
-    pure $ \r ->
-      if Set.member r ty1 then Just 1
-      else if Set.member r ty2 then Just 2
-      else Nothing
-
-parseSearch :: Var v => Input -> Names0 -> [String] -> ([String], Maybe (Either (Output v) (Type.AnnotatedType v Ann)))
-parseSearch input ns ws =
-  let (ws', rest) = span (/= ":") ws
-      ns' = OldNames.fromNames2 (Names.names0ToNames ns)
-  in if rest == [] then (ws, Nothing)
-     else case Parsers.parseType (intercalate " " (drop 1 rest)) (mempty, ns') of
-       Left err -> (ws', Just (Left $ TypeParseError input err))
-       Right typ -> (ws', Just (Right $ Type.removeAllEffectVars typ))
+parseSearchType
+  :: Var v
+  => Input
+  -> Names0
+  -> [String]
+  -> Either (Output v) (Type.AnnotatedType v Ann)
+parseSearchType input ns typ =
+  let ns' = OldNames.fromNames2 (Names.names0ToNames ns)
+  in case Parsers.parseType (intercalate " " typ) (mempty, ns') of
+    Left err -> Left $ TypeParseError input err
+    Right typ -> Right $ Type.removeAllEffectVars typ
 
 --
 
