@@ -26,7 +26,7 @@ import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
 import qualified Unison.Name                as Name
 import qualified Unison.Names               as Names
-import           Unison.Parser              (Ann (Intrinsic))
+import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
 import           Unison.Reference           (Reference)
@@ -109,7 +109,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR $ term
     lookupTypes = localTypes <> preexistingTypes
-    env0 = (Typechecker.Env Intrinsic ambient lookupTypes fqnsByShortName)
+    env0 = (Typechecker.Env ambient lookupTypes fqnsByShortName)
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend

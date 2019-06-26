@@ -12,7 +12,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 
 
-module Unison.CommandLine.OutputMessages2 (notifyUser) where
+module Unison.CommandLine.OutputMessages2 where
 
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
@@ -23,8 +23,9 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
-import           Data.List                     (sortOn)
+import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn)
+import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
 import           Data.Maybe                    (fromMaybe)
 import           Data.Map                      (Map)
@@ -99,6 +100,17 @@ import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
+import           System.Directory               ( getHomeDirectory )
+
+shortenDirectory :: FilePath -> IO FilePath
+shortenDirectory dir = do
+  home <- getHomeDirectory
+  pure $ case stripPrefix home dir of
+    Just d  -> "~" <> d
+    Nothing -> dir
+
+renderFileName :: FilePath -> IO (P.Pretty CT.ColorText)
+renderFileName dir = P.group . P.blue . fromString <$> shortenDirectory dir
 
 notifyUser :: forall v . Var v => FilePath -> Output v -> IO ()
 notifyUser dir o = case o of
@@ -162,14 +174,15 @@ notifyUser dir o = case o of
     CantUndoPastMerge -> putPrettyLn . P.warnCallout $ "Sorry, I can't undo a merge (not implemented yet)."
   NoUnisonFile -> do
     dir' <- canonicalizePath dir
+    fileName <- renderFileName dir'
     putPrettyLn . P.callout "😶" $ P.lines
       [ P.wrap "There's nothing for me to add right now."
       , ""
-      , P.column2 [(P.bold "Hint:", msg dir')] ]
+      , P.column2 [(P.bold "Hint:", msg fileName)] ]
     where
     msg dir = P.wrap
       $  "I'm currently watching for definitions in .u files under the"
-      <> renderFileName dir
+      <> dir
       <> "directory. Make sure you've updated something there before using the"
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
@@ -243,18 +256,28 @@ notifyUser dir o = case o of
         traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) things
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  FileChangeEvent _sourceName _src -> pure ()
-    -- do
-    -- Console.clearScreen
-    -- Console.setCursorPosition 0 0
+  FileChangeEvent _sourceName _src -> do
+    Console.clearScreen
+    Console.setCursorPosition 0 0
   Typechecked sourceName ppe slurpResult uf -> do
     Console.setTitle "Unison ✅"
-    if UF.nonEmpty uf then putPrettyLn' . ("\n" <>) . P.okCallout . P.sep "\n\n" $ [
-      P.wrap $ "I found and" <> P.bold "typechecked" <> "these definitions in "
-            <> P.group (P.text sourceName <> ":"),
-      P.indentN 2 $ SlurpResult.pretty ppe slurpResult,
-      filestatusTip,
-      P.wrap "Now evaluating any watch expressions (lines starting with `>`)..." ]
+    let fileStatusMsg = SlurpResult.pretty ppe slurpResult
+    if UF.nonEmpty uf then do
+      fileName <- renderFileName $ Text.unpack sourceName
+      if fileStatusMsg == mempty then do
+        putPrettyLn' . P.wrap . P.okCallout $
+          fileName <> " changed."
+      else do
+        putPrettyLn' . (P.newline <>) . P.linesSpaced $
+          [P.wrap . P.okCallout $ "I found and"
+           <> P.bold "typechecked" <> "these definitions in "
+           <> P.group (fileName <> ":")
+          , P.indentN 2 $ SlurpResult.pretty ppe slurpResult
+          , filestatusTip
+          ]
+      putPrettyLn' ""
+      putPrettyLn' $ P.wrap "Now evaluating any watch expressions"
+                     <> " (lines starting with `>`)..."
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
@@ -331,7 +354,6 @@ notifyUser dir o = case o of
     putPrettyLn . P.lines . fmap prettyName $ toList patches
   x -> error $ "todo: output message for\n\n" ++ show x
   where
-  renderFileName = P.group . P.blue . fromString
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
   --   when (not . Set.null $ E.changedSuccessfully r) . putPrettyLn . P.okCallout $

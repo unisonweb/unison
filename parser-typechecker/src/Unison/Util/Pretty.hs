@@ -88,14 +88,14 @@ import qualified Data.Text                     as Text
 type Width = Int
 type ColorText = CT.ColorText
 
-data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) }
+data Pretty s = Pretty { delta :: Delta, out :: F s (Pretty s) } deriving Eq
 
 instance Functor Pretty where
   fmap f (Pretty d o) = Pretty d (mapLit f $ fmap (fmap f) o)
 
 data F s r
   = Empty | Group r | Lit s | Wrap (Seq r) | OrElse r r | Append (Seq r)
-  deriving (Show, Foldable, Traversable, Functor)
+  deriving (Eq, Show, Foldable, Traversable, Functor)
 
 mapLit :: (s -> t) -> F s r -> F t r
 mapLit f (Lit s) = Lit (f s)
@@ -197,7 +197,7 @@ spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "
 
 spacesIfBreak :: IsString s => Int -> Pretty s
-spacesIfBreak n = "" `orElse` (fromString $ replicate n ' ')
+spacesIfBreak n = "" `orElse` fromString (replicate n ' ')
 
 softbreak :: IsString s => Pretty s
 softbreak = " " `orElse` newline
@@ -363,13 +363,13 @@ hangUngrouped' from by p = if preferredHeight p > 0
 
 hangUngrouped
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-hangUngrouped from p = hangUngrouped' from "  " p
+hangUngrouped from = hangUngrouped' from "  "
 
 hang :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-hang from p = hang' from "  " p
+hang from = hang' from "  "
 
 nest :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-nest by = hang' "" by
+nest = hang' ""
 
 indent :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 indent by p = by <> indentAfterNewline by p
@@ -383,7 +383,7 @@ indentNAfterNewline by = indentAfterNewline (fromString $ replicate by ' ')
 
 indentAfterNewline
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
-indentAfterNewline by p = flatMap f p
+indentAfterNewline by = flatMap f
  where
   f s0 = case LL.break (== '\n') s0 of
     (hd, s) -> if LL.null s
@@ -453,7 +453,7 @@ callout :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s -> Pretty s
 callout header p = header <> "\n\n" <> p
 
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
-bracket p = indent ("  ") p
+bracket = indent "  "
 
 warnCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
@@ -465,7 +465,7 @@ instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)
 
 metaPretty :: Show s => Pretty s -> Pretty String
-metaPretty p = go (0::Int) p where
+metaPretty = go (0::Int) where
   go prec p = case out p of
     Lit s -> parenthesizeIf (prec > 0) $ "Lit" `hang` lit (show s)
     Empty -> "Empty"

@@ -445,7 +445,7 @@ renderTypeError e env src = case e of
         sep (C.WrongName name typ   ) r = (_3 %~ ((name, typ) :)) . r
     in  mconcat
           [ "I'm not sure what "
-          , style ErrorSite (show unknownTermV)
+          , style ErrorSite (Var.nameStr unknownTermV)
           , " means at "
           , annotatedToEnglish termSite
           , "\n\n"
@@ -892,7 +892,7 @@ prettyParseError s = \case
       <> (case unexpected of
            Just (P.Tokens (toList -> ts)) -> case ts of
              [] -> mempty
-             _ -> showSource s $ ((\t -> (rangeForToken t, ErrorSite)) <$> ts)
+             _ -> showSource s $ (\t -> (rangeForToken t, ErrorSite)) <$> ts
            _ -> mempty
          )
       <> lexerOutput
@@ -941,12 +941,14 @@ prettyParseError s = \case
        then dupDataAndAbilitiesMsg
        else if null dupDataAndAbilities then unknownTypesMsg
        else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
-  go (Parser.DidntExpectExpression _tok (Just (t@(L.payload -> L.SymbolyId "::")))) =
-    mconcat [ "I parsed an expression here but was expecting a binding."
-            , "\nDid you mean to use a single " <> style Code ":"
-            , " here for a type signature?"
-            , "\n\n"
-            , tokenAsErrorSite s t ]
+  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::")))
+    = mconcat
+      [ "I parsed an expression here but was expecting a binding."
+      , "\nDid you mean to use a single " <> style Code ":"
+      , " here for a type signature?"
+      , "\n\n"
+      , tokenAsErrorSite s t
+      ]
   go (Parser.DidntExpectExpression tok _nextTok) = mconcat
     [ "I parsed an expression starting here\n\n"
     , tokenAsErrorSite s tok
@@ -955,10 +957,14 @@ prettyParseError s = \case
     , "\n  - A binding, like " <> t <> style Code " = 42" <> " OR"
     , "\n                    " <> t <> style Code " : Nat"
     , "\n                    " <> t <> style Code " = 42"
-    , "\n  - A watch expression, like " <> style Code ("> ") <> t <> style Code " + 1"
-    , "\n  - An `ability` declaration, like " <> style Code "ability Foo where ..."
-    , "\n  - A `type` declaration, like " <> style Code "type Optional a = None | Some a"
-    , "\n  - A `namespace` declaration, like " <> style Code "namespace Seq where ..."
+    , "\n  - A watch expression, like " <> style Code "> " <> t <> style Code
+                                                                         " + 1"
+    , "\n  - An `ability` declaration, like "
+      <> style Code "ability Foo where ..."
+    , "\n  - A `type` declaration, like "
+      <> style Code "type Optional a = None | Some a"
+    , "\n  - A `namespace` declaration, like "
+      <> style Code "namespace Seq where ..."
     , "\n"
     ]
     where t = style Code (fromString (P.showTokens (pure tok)))
@@ -984,7 +990,7 @@ prettyParseError s = \case
     , "but there wasn't one.  Maybe check your indentation:\n"
     , tokenAsErrorSite s tok
     ]
-  go (Parser.EmptyWatch) =
+  go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
