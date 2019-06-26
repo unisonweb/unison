@@ -43,6 +43,7 @@ data Input
     | MoveTypeI Path.HQ'Split' Path.Split'
     | MoveBranchI Path.Split' Path.Split'
     | MovePatchI Path.Split' Path.Split'
+    | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
     -- | DeleteDefnI [Path.HQSplit']
     | DeleteTermI Path.HQ'Split'

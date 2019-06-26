@@ -264,11 +264,24 @@ deletePatch = InputPattern "delete.patch" [] [(OnePlus, patchArg)]
         _ -> Left (I.help deletePatch)
       )
 
+copyPatch :: InputPattern
+copyPatch = InputPattern "copy.patch"
+   []
+   [(Required, patchArg), (Required, patchArg)]
+   "`copy.path foo bar` copies the patch `bar` to `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' Path.wordyNameSegment src
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MovePatchI src dest
+      _ -> Left (I.help copyPatch)
+    )
+
 renamePatch :: InputPattern
 renamePatch = InputPattern "rename.patch"
    []
    [(Required, patchArg), (Required, patchArg)]
-   "`rename.path foo bar` renames the path `bar` to `foo`."
+   "`rename.path foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parseSplit' Path.wordyNameSegment src
@@ -523,6 +536,7 @@ validInputs =
   , renameBranch
   , deletePatch
   , renamePatch
+  , copyPatch
   , find
   , view
   , findPatch

@@ -321,6 +321,16 @@ loop = do
               BranchUtil.makeReplacePatch (resolveSplit' dest) p ]
             success
 
+      CopyPatchI src dest -> do
+        psrc <- getPatchAtSplit' src
+        pdest <- getPatchAtSplit' dest
+        case (psrc, pdest) of
+          (Nothing, _) -> patchNotFound src
+          (_, Just _) -> patchExists dest
+          (Just p, Nothing) -> do
+            stepAt (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
+            success
+
       DeletePatchI src -> do
         psrc <- getPatchAtSplit' src
         case psrc of
