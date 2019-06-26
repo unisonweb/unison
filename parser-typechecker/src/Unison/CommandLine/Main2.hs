@@ -62,8 +62,7 @@ getUserInput
 getUserInput patterns codebase branch currentPath numberedArgs =
   Line.runInputT settings $ do
     line <- Line.getInputLine $
-      P.toANSI 80 ((P.green . P.text . Path.toText . Path.unabsolute $
-      currentPath) <> fromString prompt)
+      P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
       Just l -> case parseInput patterns . fmap expandNumber . words $ l of
