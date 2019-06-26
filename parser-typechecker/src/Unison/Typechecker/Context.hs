@@ -1302,8 +1302,15 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     subtype i2 i1; ctx' <- getContext
     subtype (apply ctx' o1) (apply ctx' o2)
   go _ (Type.App' x1 y1) (Type.App' x2 y2) = do -- analogue of `-->`
-    subtype x1 x2; ctx' <- getContext
-    subtype (apply ctx' y1) (apply ctx' y2)
+    subtype x1 x2
+    -- We don't know the variance of the type argument, so we assume
+    -- (conservatively) that it's invariant, see
+    -- discussion https://github.com/unisonweb/unison/issues/512
+    y1 <- applyM y1; y2 <- applyM y2
+    subtype y1 y2
+    y1 <- applyM y1; y2 <- applyM y2
+    -- performing the subtype check in both directions means the types must be equal
+    subtype y2 y1
   go _ t (Type.Forall' t2) = do
     v <- ABT.freshen t2 freshenTypeVar
     markThenRetract0 v $ do
