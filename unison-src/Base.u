@@ -14,7 +14,7 @@ use Optional None Some
 
 -- Function composition
 andThen : (a -> b) -> (b -> c) -> a -> c
-andThen f g x = g (f x) 
+andThen f g x = g (f x)
 
 const : a -> b -> a
 const a _ = a
@@ -380,7 +380,7 @@ namespace Heap where
       Some a -> case b of
         None -> Some a
         Some b -> Some (union a b)
-    single kv = case kv of 
+    single kv = case kv of
       (k, v) -> Some (singleton k v)
     Sequence.foldb single op None kvs
 
@@ -412,7 +412,7 @@ namespace Optional where
     Some a -> a
 
   orElse : Optional a -> Optional a -> Optional a
-  orElse a b = case a of 
+  orElse a b = case a of
     None -> b
     Some _ -> a
 
