@@ -93,6 +93,7 @@ data Branch0 m = Branch0
   -- names and metadata for this branch and its children
   , deepTerms :: Star Referent Name
   , deepTypes :: Star Reference Name
+  , deepPaths :: Set Path
   }
 
 -- The raw Branch
@@ -131,7 +132,7 @@ branch0 :: Metadata.Star Referent NameSegment
         -> Map NameSegment (EditHash, m Patch)
         -> Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits deepTerms' deepTypes'
+  Branch0 terms types children edits deepTerms' deepTypes' deepPaths'
   where
   deepTerms' =
     Star3.mapD1 nameSegToName terms <> foldMap go (Map.toList (snd <$> children))
@@ -141,6 +142,8 @@ branch0 terms types children edits =
     Star3.mapD1 nameSegToName types <> foldMap go (Map.toList (snd <$> children))
     where
     go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
+  deepPaths' = foldMap go (Map.toList children) where
+    go (nameSeg, (_,b)) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
   nameSegToName = Name . NameSegment.toText
 
 head :: Branch m -> Branch0 m
@@ -157,13 +160,10 @@ merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
 merge0 b1 b2 = do
   c3 <- unionWithM f (_children b1) (_children b2)
   e3 <- unionWithM g (_edits b1) (_edits b2)
-  pure $
-    Branch0 (_terms b1 <> _terms b2)
-            (_types b1 <> _types b2)
-            c3
-            e3
-            (deepTerms b1 <> deepTerms b2)
-            (deepTypes b1 <> deepTypes b2)
+  pure $ branch0 (_terms b1 <> _terms b2)
+                 (_types b1 <> _types b2)
+                 c3
+                 e3
   where
   f :: (h1, Branch m) -> (h2, Branch m) -> m (Hash, Branch m)
   f (_h1, b1) (_h2, b2) = do b <- merge b1 b2; pure (headHash b, b)
@@ -366,7 +366,7 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)

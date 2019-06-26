@@ -11,11 +11,15 @@ module Unison.CommandLine.InputPatterns2 where
 
 -- import Debug.Trace
 import Data.Bifunctor (first)
+import Data.Foldable (toList)
 import Data.List (intercalate, sortOn)
 import Data.List.Extra (nubOrd)
 import Data.Map (Map)
+import Data.Set (Set)
 import Data.String (fromString)
+import Data.Text (Text)
 import System.Console.Haskeline.Completion (Completion)
+import Unison.Codebase2 (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
@@ -30,9 +34,10 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern2 as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Codebase.NameSegment as NameSegment
-import qualified Unison.Names as Names
+import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Relation as R
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -522,9 +527,6 @@ validInputs =
   , updateBuiltins
   ]
 
-allTargets :: Set.Set Names.NameTarget
-allTargets = Set.fromList [Names.TermName, Names.TypeName]
-
 commandNames :: [String]
 commandNames = I.patternName <$> validInputs
 
@@ -534,29 +536,44 @@ commandNameArg =
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
-  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- fuzzyCompleteHashQualified b q
+  -- todo: improve this
+  ArgumentType "fuzzy definition query" $ I.suggestions exactDefinitionQueryArg
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
-  ArgumentType "definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualified b q
+  ArgumentType "definition query" $ bothCompletors exactTypeCompletor exactTermCompletor
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualifiedType b q
+  ArgumentType "term definition query" $ exactTypeCompletor
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualifiedTerm b q
+  ArgumentType "term definition query" $ exactTermCompletor
+
+exactTypeCompletor :: Applicative m
+                   => String
+                   -> Codebase m v a
+                   -> Branch.Branch m
+                   -> Path.Absolute
+                   -> m [Completion]
+exactTypeCompletor = pathCompletor go where
+  go = Set.map HQ.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+
+exactTermCompletor :: Applicative m
+                   => String
+                   -> Codebase m v a
+                   -> Branch.Branch m
+                   -> Path.Absolute
+                   -> m [Completion]
+exactTermCompletor = pathCompletor go where
+  go = Set.map HQ.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchPathArg :: ArgumentType
 patchPathArg = ArgumentType "patch" $
-  bothCompletors (pathCompletor Branch._edits)
-                 (pathCompletor Branch._children)
+  bothCompletors (pathCompletor (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
+                 (pathCompletor (Set.map Path.toText . Branch.deepPaths))
 
 bothCompletors
   :: (Monad m, Ord a)
@@ -570,38 +587,23 @@ bothCompletors c1 c2 q0 code b currentPath = do
 
 pathCompletor
   :: Applicative f
-  => (Branch.Branch0 m -> Map NameSegment.NameSegment a)
+  => (Branch.Branch0 m -> Set Text)
   -> String
-  -> p
+  -> codebase
   -> Branch.Branch m
   -> Path.Absolute
   -> f [Completion]
-pathCompletor f q0 code b currentPath = pure $ case q0 of
-  -- query is just . show the immediate decendents under root
-  "." -> [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys $ f (Branch.head b) ]
-  -- query is empty, show immediate decendents under current path
-  "" ->  [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys . f $ Branch.getAt0 (Path.unabsolute currentPath) (Branch.head b) ]
-  -- query ends in . so show immediate dependents under path up to the dot
-  (last -> '.') -> case Path.parsePath' (init q0) of
-    Left err -> [prettyCompletion' ("", P.red (P.string err))]
-    Right p' -> let
-      p = Path.unabsolute $ Path.toAbsolutePath currentPath p'
-      b0 = Branch.getAt0 p (Branch.head b)
-      in [ completion' (q0 <> NameSegment.toString c) | c <- Map.keys $ f b0 ]
-  -- query is foo.ba, so complete from foo children starting with 'ba'
-  q0 -> case Path.parseSplit' Path.optionalWordyNameSegment q0 of
-    Left err -> [prettyCompletion' ("", P.red (P.string err))]
-    Right (init, last) -> let
-      p = Path.unabsolute $ Path.toAbsolutePath currentPath init
-      b0 = Branch.getAt0 p (Branch.head b)
-      matchingChildren = filter (NameSegment.isPrefixOf last) . Map.keys $ f b0
-      n = Text.length (NameSegment.toText last)
-      in [ completion' (q0 <> drop n (NameSegment.toString c)) | c <- matchingChildren ]
+pathCompletor getNames query _code b p = let
+  b0root = Branch.head b
+  b0local = Branch.getAt0 (Path.unabsolute p) b0root
+  -- todo: if these sets are huge, maybe trim results
+  in pure . exactComplete query . map Text.unpack $
+       toList (getNames b0local) ++
+       map ("." <>) (toList (getNames b0root))
 
 branchPathArg :: ArgumentType
-branchPathArg = ArgumentType "path" $ pathCompletor Branch._children
+branchPathArg = ArgumentType "path" $
+  pathCompletor (Set.map Path.toText . Branch.deepPaths)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions

@@ -131,7 +131,7 @@ fuzzyComplete q ss =
 exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss where
   go s = prettyCompletion'' (s == q)
-           (s, P.bold (P.string q) <> P.string (drop (length q) s))
+           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
 -- workaround for https://github.com/judah/haskeline/issues/100
 -- if the common prefix of all the completions is smaller than
