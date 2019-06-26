@@ -90,10 +90,7 @@ data Branch0 m = Branch0
   , _types :: Star Reference NameSegment
   , _children:: Map NameSegment (Hash, Branch m) --todo: can we get rid of this hash
   , _edits :: Map NameSegment (EditHash, m Patch)
-  , toNamesSeg :: Names.NamesSeg
-  , toNames0 :: Names.Names0
-  , deepReferents :: Set Referent
-  , deepTypeReferences :: Set Reference
+  -- names and metadata for this branch and its children
   , deepTerms :: Star Referent Name
   , deepTypes :: Star Reference Name
   }
@@ -110,6 +107,16 @@ makeLenses ''Branch
 makeLensesFor [("_edits", "edits")] ''Branch0
 makeLenses ''Raw
 
+toNames0 :: Branch0 m -> Names0
+toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
+                   (R.swap . Star3.d1 . deepTypes $ b)
+
+deepReferents :: Branch0 m -> Set Referent
+deepReferents = Star3.fact . deepTerms
+
+deepTypeReferences :: Branch0 m -> Set Reference
+deepTypeReferences = Star3.fact . deepTypes
+
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
 types :: Lens' (Branch0 m) (Star Reference NameSegment)
@@ -124,7 +131,7 @@ branch0 :: Metadata.Star Referent NameSegment
         -> Map NameSegment (EditHash, m Patch)
         -> Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits namesSeg names0 deepRefts deepTypeRefs deepTerms' deepTypes'
+  Branch0 terms types children edits deepTerms' deepTypes'
   where
   deepTerms' =
     Star3.mapD1 nameSegToName terms <> foldMap go (Map.toList (snd <$> children))
@@ -134,26 +141,6 @@ branch0 terms types children edits =
     Star3.mapD1 nameSegToName types <> foldMap go (Map.toList (snd <$> children))
     where
     go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
-  termsr = R.swap $ Star3.d1 terms
-  typesr = R.swap $ Star3.d1 types
-  namesSeg = toNamesSegImpl termsr typesr
-  names0 = foldMap toNames0Impl (Map.toList (fmap snd children))
-            <> Names (R.mapDom nameSegToName termsr)
-                     (R.mapDom nameSegToName typesr)
-  deepRefts = foldMap deepReferents childrenBranch0
-  deepTypeRefs = foldMap deepTypeReferences childrenBranch0
-  childrenBranch0 = fmap (head . snd) . Foldable.toList $ children
-
-  toNames0Impl :: (NameSegment, Branch m) -> Names0
-  toNames0Impl (nameSegToName -> n, head -> b0) = Names.prefix0 n (toNames0 b0)
-  toNamesSegImpl :: Relation NameSegment Referent
-                 -> Relation NameSegment Reference
-                 -> Names' (HQ.HashQualified' NameSegment)
-  toNamesSegImpl terms types = Names terms' types' where
-    terms' = R.map (\(n, r) -> (Names.hqTermName names n r, r)) terms
-    types' = R.map (\(n, r) -> (Names.hqTypeName names n r, r)) types
-    names :: Names' NameSegment
-    names = Names terms types
   nameSegToName = Name . NameSegment.toText
 
 head :: Branch m -> Branch0 m
@@ -175,10 +162,6 @@ merge0 b1 b2 = do
             (_types b1 <> _types b2)
             c3
             e3
-            (toNamesSeg b1 <> toNamesSeg b2)
-            (toNames0 b1 <> toNames0 b2)
-            (deepReferents b1 <> deepReferents b2)
-            (deepTypeReferences b1 <> deepTypeReferences b2)
             (deepTerms b1 <> deepTerms b2)
             (deepTypes b1 <> deepTypes b2)
   where
@@ -383,7 +366,7 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)

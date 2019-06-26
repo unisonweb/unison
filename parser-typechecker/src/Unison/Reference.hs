@@ -66,7 +66,7 @@ unsafeId (DerivedId x) = x
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h 0 _) = SH.ShortHash (H.base58 h) Nothing Nothing
+toShortHash (Derived h _ 1) = SH.ShortHash (H.base58 h) Nothing Nothing
 toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
@@ -149,9 +149,6 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 
 instance Show Id where show = show . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = show . SH.take 5 . toShortHash
--- instance Show Reference where
---   show (Builtin t)         = "##" <> Text.unpack t
---   show (DerivedId id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]
