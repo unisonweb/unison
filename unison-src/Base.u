@@ -1,6 +1,9 @@
 namespace Nat where
   maxNat = 18446744073709551615
 
+  (-) : Nat -> Nat -> Int
+  (-) = Nat.sub
+
 namespace Int where
   maxInt = +9223372036854775807
   minInt = -9223372036854775808
