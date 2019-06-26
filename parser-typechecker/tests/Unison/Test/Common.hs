@@ -39,7 +39,7 @@ typechecks :: String -> Bool
 typechecks = runIdentity . Result.isSuccess . file
 
 env :: Typechecker.Env Symbol Ann
-env = Typechecker.Env Intrinsic [] B.typeLookup mempty
+env = Typechecker.Env [] B.typeLookup mempty
 
 parseAndSynthesizeAsFile
   :: Var v
