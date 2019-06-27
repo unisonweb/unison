@@ -27,7 +27,7 @@ Trie.singleton : [k] -> v -> Trie k v
 Trie.singleton path v = 
   case path of 
     [] -> Trie (Some v) empty 
-    k +: ks -> Trie None (Map.fromSequence [(k, Trie.singleton ks v)])
+    k +: ks -> Trie None (Map.fromList [(k, Trie.singleton ks v)])
 
 use Trie tail head
 

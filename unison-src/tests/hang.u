@@ -41,11 +41,11 @@ Remote.forkAt node r = Remote.fork '(Remote.at node r)
 
 use Optional None Some
 use Monoid Monoid
-use Sequence ++
+use List ++
 
-Sequence.map : (a ->{e} b) -> [a] ->{e} [b]
-Sequence.map f as =
-  go f acc as i = case Sequence.at i as of
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
+  go f acc as i = case List.at i as of
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
