@@ -124,7 +124,7 @@ builtinTypeNames = Set.fromList (map fst builtinTypes)
 
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
+  ["Int", "Nat", "Float", "Boolean", "List", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -275,23 +275,23 @@ builtins0 = Map.fromList $
       , ("Text.>", text --> text --> boolean)
 
       , ("Bytes.empty", bytes)
-      , ("Bytes.fromSequence", sequence nat --> bytes)
+      , ("Bytes.fromList", list nat --> bytes)
       , ("Bytes.++", bytes --> bytes --> bytes)
       , ("Bytes.take", nat --> bytes --> bytes)
       , ("Bytes.drop", nat --> bytes --> bytes)
       , ("Bytes.at", nat --> bytes --> optional nat)
-      , ("Bytes.toSequence", bytes --> sequence nat)
+      , ("Bytes.toList", bytes --> list nat)
       , ("Bytes.size", bytes --> nat)
       , ("Bytes.flatten", bytes --> bytes)
 
-      , ("Sequence.empty", forall1 "a" (\a -> sequence a))
-      , ("Sequence.cons", forall1 "a" (\a -> a --> sequence a --> sequence a))
-      , ("Sequence.snoc", forall1 "a" (\a -> sequence a --> a --> sequence a))
-      , ("Sequence.take", forall1 "a" (\a -> nat --> sequence a --> sequence a))
-      , ("Sequence.drop", forall1 "a" (\a -> nat --> sequence a --> sequence a))
-      , ("Sequence.++", forall1 "a" (\a -> sequence a --> sequence a --> sequence a))
-      , ("Sequence.size", forall1 "a" (\a -> sequence a --> nat))
-      , ("Sequence.at", forall1 "a" (\a -> nat --> sequence a --> optional a))
+      , ("List.empty", forall1 "a" (\a -> list a))
+      , ("List.cons", forall1 "a" (\a -> a --> list a --> list a))
+      , ("List.snoc", forall1 "a" (\a -> list a --> a --> list a))
+      , ("List.take", forall1 "a" (\a -> nat --> list a --> list a))
+      , ("List.drop", forall1 "a" (\a -> nat --> list a --> list a))
+      , ("List.++", forall1 "a" (\a -> list a --> list a --> list a))
+      , ("List.size", forall1 "a" (\a -> list a --> nat))
+      , ("List.at", forall1 "a" (\a -> nat --> list a --> optional a))
 
       , ("Debug.watch", forall1 "a" (\a -> text --> a --> a))
       , ("Effect.pure", forall2 "a" "e" (\a e -> a --> effect e a)) -- Effect ambient e a
@@ -326,8 +326,8 @@ builtins0 = Map.fromList $
     app :: Ord v => Type' v -> Type' v -> Type' v
     app f a = Type.app () f a
 
-    sequence :: Ord v => Type' v -> Type' v
-    sequence arg = Type.vector () `app` arg
+    list :: Ord v => Type' v -> Type' v
+    list arg = Type.vector () `app` arg
 
     optional :: Ord v => Type' v -> Type' v
     optional arg = DD.optionalType () `app` arg

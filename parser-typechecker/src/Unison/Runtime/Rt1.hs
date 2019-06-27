@@ -156,7 +156,7 @@ atbs size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Seq Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  v -> fail $ "type error, expecting Sequence, got: " <> show v
+  v -> fail $ "type error, expecting List, got: " <> show v
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -271,22 +271,22 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.<"    att att (pure . B) (<)
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
 
-    , mk2 "Sequence.at" atn ats (pure . IR.maybeToOptional)
+    , mk2 "List.at" atn ats (pure . IR.maybeToOptional)
       $ Sequence.lookup
       . fromIntegral
-    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Sequence.<|)
-    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Sequence.|>)
-    , mk2 "Sequence.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
-    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
-    , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
-    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Sequence.length)
+    , mk2 "List.cons" at  ats (pure . Sequence) (Sequence.<|)
+    , mk2 "List.snoc" ats at  (pure . Sequence) (Sequence.|>)
+    , mk2 "List.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
+    , mk2 "List.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
+    , mk2 "List.++"   ats ats (pure . Sequence) (<>)
+    , mk1 "List.size"  ats (pure . N) (fromIntegral . Sequence.length)
 
-    , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
+    , mk1 "Bytes.fromList" ats (pure . Bs) (\s ->
         Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
     , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
     , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
     , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
-    , mk1 "Bytes.toSequence" atbs (pure . Sequence)
+    , mk1 "Bytes.toList" atbs (pure . Sequence)
         (\bs -> Sequence.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
     , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
     , mk2 "Bytes.at" atn atbs pure $ \i bs ->
