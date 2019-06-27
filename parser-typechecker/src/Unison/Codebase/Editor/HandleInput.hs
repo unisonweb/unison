@@ -619,10 +619,16 @@ loop = do
                   respond $ NoExactTypeMatches
                   fmap toList . eval $ GetTermsMentioningType typ
                 else pure matches
-              let results = searchResultsFor prettyPrintNames0 matches []
+              let isVerbose = (take 1 q == ["-l"])
+              let results =
+                    -- in verbose mode, aliases are shown, so we collapse all
+                    -- aliases to a single search result; in non-verbose mode,
+                    -- a separate result may be shown for each alias
+                    (if isVerbose then uniqueBy SR.toReferent else id) $
+                    searchResultsFor prettyPrintNames0 matches []
               numberedArgs .= fmap searchResultToHQString results
               loadSearchResults results
-                >>= respond . ListOfDefinitions prettyPrintNames0 False
+                >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
             else
               respond $ TypeHasFreeVars input typ
       SearchByNameI ("-l" : ws) -> do
