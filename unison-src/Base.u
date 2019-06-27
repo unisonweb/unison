@@ -84,7 +84,7 @@ namespace List where
        foldb f op z left `op` foldb f op z right
 
   reverse : [a] -> [a]
-  reverse as = foldl (acc a -> cons a acc) [] as
+  reverse as = foldl (acc a -> List.cons a acc) [] as
 
   indexed : [a] -> [(a, Nat)]
   indexed as = as `zip` range 0 (size as)
@@ -136,6 +136,21 @@ namespace List where
       Some a -> if Set.contains a seen then go (i + 1) seen acc
                 else go (i + 1) (Set.insert a seen) (acc `snoc` a)
     go 0 Set.empty []
+
+  -- Joins a list of lists in a "fair diagonal" fashion.
+  -- Adapted from the Haskell version written by Luke Palmer.
+  diagonal : [[a]] -> [a]
+  diagonal =
+    let 
+      stripe aas = case aas of
+        [] -> []
+        [] +: xxs -> stripe xxs
+        (x +: xs) +: xxs -> cons [x] (zipCons xs (stripe xxs))
+      zipCons xs ys = case (xs, ys) of
+        ([], ys) -> ys
+        (xs, []) -> map (x -> [x]) xs
+        (x +: xs, y +: ys) -> cons (cons x y) (zipCons xs ys)
+      List.join . stripe
 
 -- > List.foldb "" (t t2 -> "(" ++ t ++ " " ++ t2 ++ ")") (x -> x) ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Gerald", "Henry"]
 
