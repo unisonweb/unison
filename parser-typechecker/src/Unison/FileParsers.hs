@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax       #-}
@@ -10,6 +11,7 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
 import           Data.Bifunctor             ( first )
+import           Data.Functor               ( ($>) )
 import qualified Data.Foldable              as Foldable
 import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
@@ -24,8 +26,7 @@ import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
-import qualified Unison.Name                as Name
-import qualified Unison.Names               as Names
+import qualified Unison.Names2              as Names
 import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
 import qualified Unison.PrettyPrintEnv      as PPE
@@ -41,9 +42,16 @@ import qualified Unison.Typechecker.Context as Context
 import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import qualified Unison.Util.List           as List
+import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
--- import Debug.Trace
+import qualified Unison.Names as ON
+import qualified Unison.HashQualified as HQ
+
+fromOldNames :: ON.Names -> Names.Names
+fromOldNames ON.Names {..} = Names.Names
+  (Rel.fromMap $ Map.mapKeys HQ.fromName termNames)
+  (Rel.fromMap $ Map.mapKeys HQ.fromName typeNames)
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -58,7 +66,7 @@ convertNotes :: Ord v => Typechecker.Notes v ann -> Seq (Note v ann)
 convertNotes (Typechecker.Notes es is) =
   (TypeError <$> es) <> (TypeInfo <$> Seq.fromList is') where
   is' = snd <$> List.uniqueBy' f ([(1::Word)..] `zip` Foldable.toList is)
-  f (_, (Context.TopLevelComponent cs)) = Right [ v | (v,_,_) <- cs ]
+  f (_, Context.TopLevelComponent cs) = Right [ v | (v,_,_) <- cs ]
   f (i, _) = Left i
   -- each round of TDNR emits its own TopLevelComponent notes, so we remove
   -- duplicates (based on var name and location), preferring the later note as
@@ -82,7 +90,7 @@ parseAndSynthesizeFile ambient typeLookupf names filePath src = do
   typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) =
         synthesizeFile ambient typeLookup names parsedUnisonFile
-  tell notes' *> pure (errorEnv, r)
+  tell notes' $> (errorEnv, r)
 
 synthesizeFile
   :: forall v
@@ -100,23 +108,23 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
     localNames = UF.toNames uf
     localTypes = UF.declsToTypeLookup uf
     -- this is the preexisting terms and decls plus the local decls
-    allTheNames = localNames <> snd preexistingNames
+    allTheNames = fromOldNames $ localNames <> snd preexistingNames
     ctorType r =
       fromMaybe
         (error $ "no constructor type in synthesizeFile for " <> show r)
         (TL.constructorType (localTypes <> preexistingTypes) r)
-    term = Names.bindTerm ctorType allTheNames term0
+    term = Term.bindTerm ctorType allTheNames term0
     -- substitute Blanks for any remaining free vars in UF body
-    tdnrTerm = Term.prepareTDNR $ term
+    tdnrTerm = Term.prepareTDNR term
     lookupTypes = localTypes <> preexistingTypes
-    env0 = (Typechecker.Env ambient lookupTypes fqnsByShortName)
+    env0 = Typechecker.Env ambient lookupTypes fqnsByShortName allTheNames
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
          [ (Names.unqualified' name,
             [Typechecker.NamedReference name typ (Right r)]) |
-           (name', r) <- Map.toList $ Names.termNames allTheNames,
-           let name = Name.toText name',
+           (name', r) <- Rel.toList $ Names.terms allTheNames,
+           let name = HQ.toText name',
            typ <- Foldable.toList $ TL.typeOfReferent lookupTypes  r ]
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm

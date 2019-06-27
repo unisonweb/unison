@@ -9,9 +9,8 @@ import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Result (Result)
+import           Unison.Result (Result, Note)
 import qualified Unison.Result as Result
-import           Unison.Result (Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
 import           Unison.Type (AnnotatedType)
@@ -39,7 +38,7 @@ typechecks :: String -> Bool
 typechecks = runIdentity . Result.isSuccess . file
 
 env :: Typechecker.Env Symbol Ann
-env = Typechecker.Env [] B.typeLookup mempty
+env = Typechecker.Env [] B.typeLookup mempty mempty
 
 parseAndSynthesizeAsFile
   :: Var v
