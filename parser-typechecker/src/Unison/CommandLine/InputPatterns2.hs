@@ -455,11 +455,13 @@ help = InputPattern
       [] -> Left $ intercalateMap "\n\n" showPatternHelp
         (sortOn I.patternName validInputs)
       [isHelp -> Just msg] -> Left msg
-      [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
+      [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ I.help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
     where
+      commandsByName = Map.fromList [
+        (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
       isHelp s = Map.lookup s helpTopics
 
 quit :: InputPattern
@@ -567,7 +569,7 @@ validInputs =
   ]
 
 commandNames :: [String]
-commandNames = I.patternName <$> validInputs
+commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
