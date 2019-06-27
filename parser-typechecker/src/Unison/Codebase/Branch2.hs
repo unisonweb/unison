@@ -142,7 +142,7 @@ branch0 terms types children edits =
     Star3.mapD1 nameSegToName types <> foldMap go (Map.toList (snd <$> children))
     where
     go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
-  deepPaths' = Set.map Path.singleton (Map.keysSet edits)
+  deepPaths' = Set.map Path.singleton (Map.keysSet children)
             <> foldMap go (Map.toList children) where
     go (nameSeg, (_,b)) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
   nameSegToName = Name . NameSegment.toText
