@@ -609,9 +609,10 @@ loop = do
           Right typ0 -> do
             let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
             let typ = Type.generalizeLowercase mempty $ Type.bindBuiltins toSubst typ0
+            let locals = Branch.deepReferents (Branch.head currentBranch')
             if ABT.isClosed typ then do
               matches <- fmap toList . eval $ GetTermsOfType typ
-              matches <-
+              matches <- filter (`Set.member` locals) <$>
                 if null matches then do
                   respond $ NoExactTypeMatches
                   fmap toList . eval $ GetTermsMentioningType typ

@@ -370,16 +370,25 @@ flipApply :: Var v => Type v -> Type v
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
   where b = ABT.fresh t (ABT.v' "b")
 
--- | Bind all free variables with an outer `forall`.
-generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
-generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
+-- | Bind the given variables with an outer `forall`, if they are used in `t`.
+generalize :: Ord v => [v] -> AnnotatedType v a -> AnnotatedType v a
+generalize vs t = foldr f t $ vs
+  where
+  f v t = if Set.member v (ABT.freeVars t)
+          then forall (ABT.annotation t) v t
+          else t
 
 unforall :: AnnotatedType v a -> AnnotatedType v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t
 
+unforall' :: AnnotatedType v a -> ([v], AnnotatedType v a)
+unforall' (ForallsNamed' vs t) = (vs, t)
+unforall' t = ([], t)
+
 generalizeAndUnTypeVar :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
-generalizeAndUnTypeVar = cleanup . ABT.vmap TypeVar.underlying . generalize
+generalizeAndUnTypeVar t =
+  cleanup . ABT.vmap TypeVar.underlying . generalize (Set.toList $ ABT.freeVars t) $ t
 
 toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
@@ -455,15 +464,15 @@ removeAllEffectVars t = let
   go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
   go (Effect1' (Var' v) _) = Set.singleton v
   go _ = mempty
-  tu = unforall t
-  in generalize $ removeEffectVars allEffectVars tu
+  (vs, tu) = unforall' t
+  in generalize vs (removeEffectVars allEffectVars tu)
 
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize $ removeEffectVars (Set.filter isPure fvs) tu
+  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
   where
-    tu = unforall t
+    (vs, tu) = unforall' t
     fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
