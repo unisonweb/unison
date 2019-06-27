@@ -369,7 +369,9 @@ builtinsSrc =
 
   , B "List.empty" $ forall1 "a" list
   , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
+  , Alias "List.cons" "List.+:"
   , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
+  , Alias "List.snoc" "List.:+"
   , B "List.take" $ forall1 "a" (\a -> nat --> list a --> list a)
   , B "List.drop" $ forall1 "a" (\a -> nat --> list a --> list a)
   , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
