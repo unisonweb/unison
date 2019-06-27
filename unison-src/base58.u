@@ -3,7 +3,7 @@
 
 type Optional a = Some a | None
 
-type Words = Words (Sequence Nat)
+type Words = Words (List Nat)
 type Integer = Integer
 
 Integer.zero : Integer
@@ -15,10 +15,10 @@ shiftLeft x y = _
 (+) : Integer -> Integer -> Integer
 (+) x y = _
 
-unfoldRight : ∀ a b . (a -> Optional (a, b)) -> a -> Sequence b
+unfoldRight : ∀ a b . (a -> Optional (a, b)) -> a -> List b
 unfoldRight f z = _
 
-foldLeft : ∀ a b . a -> (a -> b -> a) -> Sequence b -> a
+foldLeft : ∀ a b . a -> (a -> b -> a) -> List b -> a
 foldLeft z f s = _
 
 toInteger : Nat -> Integer

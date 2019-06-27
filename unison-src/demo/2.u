@@ -14,7 +14,7 @@ splitAt n as = (take n as, drop n as)
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  use Sequence ++
+  use List ++
   go out a b = case (uncons a, uncons b) of
     (None,_) -> out ++ b
     (_,None) -> out ++ a
