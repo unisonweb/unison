@@ -17,6 +17,8 @@ import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Codebase.Path as Path
+
 
 test :: Test ()
 test = tests
@@ -32,6 +34,7 @@ test = tests
   , Range.test
   , ColorText.test
   , Bytes.test
+  , Path.test
  ]
 
 main :: IO ()

@@ -71,9 +71,9 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
-  | LinkI Path.HQ'Split' Path.HQSplit'
+  | LinkI Path.HQ'Split' Path.HQ'Split'
   -- unlink from to
-  | UnlinkI Path.HQ'Split' Path.HQSplit'
+  | UnlinkI Path.HQ'Split' Path.HQ'Split'
   -- links from <type>
   | LinksI Path.HQ'Split' (Maybe String)
   -- other

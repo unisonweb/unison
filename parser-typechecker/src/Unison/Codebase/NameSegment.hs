@@ -1,4 +1,6 @@
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE RecordWildCards   #-}
+
 
 module Unison.Codebase.NameSegment where
 
@@ -9,7 +11,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 
 -- Represents the parts of a name between the `.`s
-newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord, Show)
+newtype NameSegment = NameSegment { toText :: Text } deriving (Eq, Ord)
 type HQSegment = HQ.HashQualified' NameSegment
 type HQ'Segment = HQ'.HashQualified' NameSegment
 
@@ -24,3 +26,6 @@ isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
 
 toString :: NameSegment -> String
 toString = Text.unpack . toText
+
+instance Show NameSegment where
+  show = Text.unpack . toText

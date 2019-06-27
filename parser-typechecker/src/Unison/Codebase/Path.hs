@@ -90,7 +90,7 @@ parsePath' p = case parsePath'Impl p of
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
 -- foo.bar.baz    becomes `Right (foo.bar, "baz")
--- foo.bar.baz#a8fj becomes `Right (foo.bar, "baz#a8fj")`
+-- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
 parsePath'Impl :: String -> Either String (Path', String)
 parsePath'Impl p = case p of
   "." -> Right (Path' . Left $ absoluteEmpty, "")
@@ -130,7 +130,7 @@ definitionNameSegment s = wordyNameSegment s <> symbolyNameSegment s
 
 -- parseSplit' wordyNameSegment "foo.bar.baz" returns Right (foo.bar, baz)
 -- parseSplit' wordyNameSegment "foo.bar.+" returns Left err
--- parseSplit' wordyOrSymbolyNameSegment "foo.bar.+" returns Right (foo.bar, +)
+-- parseSplit' definitionNameSegment "foo.bar.+" returns Right (foo.bar, +)
 parseSplit' :: (String -> Either String NameSegment)
             -> String
             -> Either String Split'
@@ -139,43 +139,25 @@ parseSplit' lastSegment p = do
   seg <- lastSegment rem
   pure (p', seg)
 
-parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' s = do
-  (p, rem) <- parsePath'Impl s
-  case Text.splitOn "#" (Text.pack rem) of
-    [] -> error $ "encountered empty string parsing '" <> s <> "'"
-    [n] -> do
-      seg <- definitionNameSegment (Text.unpack n)
-      pure (p, HQ.NameOnly seg)
-    ["", sh] ->
-      maybeToRight (shError s) . fmap (\sh -> (p, HQ.HashOnly sh))
-      . SH.fromText $ "#" <> sh
-    [n, sh] -> do
-      seg <- definitionNameSegment (Text.unpack n)
-      maybeToRight (shError s) .
-        fmap (\sh -> (p, HQ.HashQualified seg sh)) .
-        SH.fromText $ "#" <> sh
-    _ -> Left $ s <> " has too many #."
-  where
-  shError s = "couldn't parse shorthash from " <> s
 
 parseHQ'Split' :: String -> Either String HQ'Split'
 parseHQ'Split' s = do
-  (p, rem) <- parsePath'Impl s
-  case Text.splitOn "#" (Text.pack rem) of
+  case Text.splitOn "#" $ Text.pack s of
     [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    "" : _ -> Left "HQ'Split' doesn't have a hash-only option."
     [n] -> do
-      seg <- definitionNameSegment (Text.unpack n)
-      pure (p, HQ'.NameOnly $ seg)
+      (p, rem) <- parsePath'Impl (Text.unpack n)
+      seg <- definitionNameSegment rem
+      pure (p, HQ'.NameOnly seg)
     [n, sh] -> do
-      seg <- definitionNameSegment (Text.unpack n)
+      (p, rem) <- parsePath'Impl (Text.unpack n)
+      seg <- definitionNameSegment rem
       maybeToRight (shError s) .
         fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
         SH.fromText $ "#" <> sh
     _ -> Left $ s <> " has too many #."
   where
   shError s = "couldn't parse shorthash from " <> s
-
 
 -- this might be useful in implementing the above
 -- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)

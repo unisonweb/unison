@@ -42,6 +42,9 @@ toName = \case
 toNameOnlyHQ :: HashQualified' n -> HQ.HashQualified' n
 toNameOnlyHQ = toHQ . fromName . toName
 
+toNameOnly :: HashQualified' n -> HashQualified' n
+toNameOnly = fromName . toName
+
 toHash :: HashQualified -> Maybe ShortHash
 toHash = \case
   NameOnly _         -> Nothing
