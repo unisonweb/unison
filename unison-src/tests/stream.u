@@ -57,7 +57,7 @@ namespace Stream where
 
   fromSeq : [a] -> Stream e a ()
   fromSeq a =
-    step a = case Sequence.at 0 a of
+    step a = case List.at 0 a of
       None -> None
       Some h -> Some (h, drop 1 a)
     unfold a step
