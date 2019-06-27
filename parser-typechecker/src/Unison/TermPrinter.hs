@@ -31,7 +31,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.NamePrinter             ( prettyHashQualified, prettyHashQualified' )
+import           Unison.NamePrinter             ( prettyHashQualified, prettyHashQualified0 )
 import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
@@ -146,7 +146,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     Var' v -> parenIfInfix name ic . prettyHashQualified $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.fromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . prettyHashQualified' $ name
+    Ref' r -> parenIfInfix name ic . prettyHashQualified0 $ name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)

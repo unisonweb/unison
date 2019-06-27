@@ -33,7 +33,7 @@ import           Unison.Codebase.Branch          (Branch, Branch0)
 import           Unison.Codebase.Editor          (BranchName, Event (..),
                                                   Input (..))
 import qualified Unison.Codebase.Runtime         as Runtime
-import qualified Unison.Codebase.SearchResult    as SR
+import qualified Unison.Codebase.SearchResult0   as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified            as HQ

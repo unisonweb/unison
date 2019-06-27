@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
 
--- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
@@ -28,7 +27,7 @@ import qualified Unison.Codebase.Branch2 as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern2 as I
-import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Names as Names
 import qualified Unison.Util.ColorText as CT
@@ -82,7 +81,11 @@ todo = InputPattern
 add :: InputPattern
 add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
  "`add` adds to the codebase all the definitions from the most recently typechecked file."
- (\ws -> pure $ Input.AddI (HQ.fromString <$> ws))
+ $ \ws -> case traverse HQ'.fromString ws of
+  Just ws -> pure $ Input.AddI ws
+  Nothing -> Left . warn . P.lines . fmap fromString
+            . ("I don't know what these refer to:\n" :)
+            $ (collectNothings HQ'.fromString ws)
 
 update :: InputPattern
 update = InputPattern "update"
@@ -91,9 +94,14 @@ update = InputPattern "update"
   ,(ZeroPlus, noCompletions)]
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
   (\case
-    patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
-      pure $ Input.UpdateI patch (HQ.fromString <$> ws)
+    patchStr : ws -> do
+      patch <- first fromString $ Path.parseSplit' Path.wordyNameSegment patchStr
+      case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.UpdateI patch ws
+        Nothing ->
+          Left . warn . P.lines . fmap fromString .
+                ("I don't know what these refer to:\n" :) $
+                (collectNothings HQ'.fromString ws)
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
 
 patch :: InputPattern
@@ -156,7 +164,7 @@ renameTerm = InputPattern "rename.term" []
     "`rename.term foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
-        src <- Path.parseHQ'Split' oldName
+        src <- Path.parseHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.MoveTermI src target
       _ -> Left . P.warnCallout $ P.wrap
@@ -169,7 +177,7 @@ renameType = InputPattern "rename.type" []
     "`rename.type foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
-        src <- Path.parseHQ'Split' oldName
+        src <- Path.parseHQSplit' oldName
         target <- Path.parseSplit' Path.definitionNameSegment newName
         pure $ Input.MoveTypeI src target
       _ -> Left . P.warnCallout $ P.wrap
@@ -181,7 +189,7 @@ deleteTerm = InputPattern "delete.term" []
     "`delete.term foo` removes the term name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
-        p <- Path.parseHQ'Split' query
+        p <- Path.parseHQSplit' query
         pure $ Input.DeleteTermI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete.term` takes one or more arguments, like `delete.term name`."
@@ -193,7 +201,7 @@ deleteType = InputPattern "delete.type" []
     "`delete.type foo` removes the type name `foo` from the namespace."
     (\case
       [query] -> first fromString $ do
-        p <- Path.parseHQ'Split' query
+        p <- Path.parseHQSplit' query
         pure $ Input.DeleteTypeI p
       _ -> Left . P.warnCallout $ P.wrap
         "`delete.type` takes one or more arguments, like `delete.type name`."
@@ -446,7 +454,7 @@ link = InputPattern "link" []
   "`link src dest` creates a link from `src` to `dest`. Use `links src` or `links src <type>` to view outgoing links, and `unlink src dest` to remove a link."
   (\case
     [src, dest] -> first fromString $ do
-      src <- Path.parseHQ'Split' src
+      src <- Path.parseHQSplit' src
       dest <- Path.parseHQSplit' dest
       Right $ Input.LinkI src dest
     _ -> Left (I.help link)
@@ -460,7 +468,7 @@ links = InputPattern
   "`links src` shows all outgoing links from `src`. `link src <type>` shows all links for the given type."
   (\case
     src : rest -> first fromString $ do
-      src <- Path.parseHQ'Split' src
+      src <- Path.parseHQSplit' src
       let ty = case rest of
             [] -> Nothing
             _  -> Just $ unwords rest
@@ -475,7 +483,7 @@ unlink = InputPattern "unlink" ["delete.link"]
   "`unlink src dest` removes a link from `src` to `dest`."
   (\case
     [src, dest] -> first fromString $ do
-      src <- Path.parseHQ'Split' src
+      src <- Path.parseHQSplit' src
       dest <- Path.parseHQSplit' dest
       Right $ Input.UnlinkI src dest
     _ -> Left (I.help unlink)
@@ -609,3 +617,5 @@ noCompletions = ArgumentType "word" I.noSuggestions
 gitUrlArg :: ArgumentType
 gitUrlArg = noCompletions { I.typeName = "git-url" }
 
+collectNothings :: (a -> Maybe b) -> [a] -> [a]
+collectNothings f as = [ a | (Nothing, a) <- map f as `zip` as ]

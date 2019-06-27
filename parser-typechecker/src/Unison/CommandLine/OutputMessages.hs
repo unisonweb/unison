@@ -15,11 +15,10 @@ import           Data.Bifunctor                (bimap)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sort, sortOn)
 import           Data.List.Extra               (nubOrdOn)
-import           Data.ListLike                 (ListLike)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (listToMaybe)
 import qualified Data.Set                      as Set
-import           Data.String                   (IsString, fromString)
+import           Data.String                   (fromString)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Prelude                       hiding (readFile, writeFile)
@@ -44,7 +43,6 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
-                                                prettyHashQualified',
                                                 prettyName,
                                                 styleHashQualified,
                                                 styleHashQualified')
@@ -437,13 +435,6 @@ prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
       fmap (\name -> prettyDeclTriple (name, r, dt))
            (sortOn (/= name) (toList aliases))
     where greyHash = styleHashQualified' id P.hiBlack
-
-
--- todo: maybe delete this
-prettyAliases ::
-  (Foldable t, ListLike s Char, IsString s) => t HQ.HashQualified -> P.Pretty s
-prettyAliases aliases = if length aliases < 2 then mempty else
-  (P.commented . (:[]) . P.wrap . P.commas . fmap prettyHashQualified' . toList) aliases <> P.newline
 
 prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (Decl v a))

@@ -48,8 +48,8 @@ import           Unison.Codebase.Editor         ( Command(..)
                                                 , collateReferences
                                                 )
 import qualified Unison.Codebase.Editor        as Editor
-import           Unison.Codebase.SearchResult  (SearchResult)
-import qualified Unison.Codebase.SearchResult  as SR
+import           Unison.Codebase.SearchResult0 (SearchResult)
+import qualified Unison.Codebase.SearchResult0 as SR
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import           Unison.HashQualified           ( HashQualified )

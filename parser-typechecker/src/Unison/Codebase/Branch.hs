@@ -24,8 +24,8 @@ import qualified Data.Set                 as Set
 import           Prelude                  hiding (head,subtract)
 import           Unison.Codebase.Causal   (Causal)
 import qualified Unison.Codebase.Causal   as Causal
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
+import           Unison.Codebase.SearchResult0 (SearchResult)
+import qualified Unison.Codebase.SearchResult0 as SR
 import           Unison.Codebase.TermEdit (TermEdit, Typing)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import           Unison.Codebase.TypeEdit (TypeEdit)

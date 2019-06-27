@@ -79,7 +79,6 @@ import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
-import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
@@ -185,16 +184,12 @@ loop = do
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
       getAtSplit' = getAtSplit . resolveSplit'
-      getHQTypes :: Path.HQSplit' -> Set Reference
-      getHQTypes p = BranchUtil.getType (resolveSplit' p) root0
-      getHQTerms :: Path.HQSplit' -> Set Referent
-      getHQTerms p = BranchUtil.getTerm (resolveSplit' p) root0
-      getHQ'Terms = getHQTerms . fmap HQ'.toHQ
-      getHQ'Types = getHQTypes . fmap HQ'.toHQ
+      getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
+      getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       getTypes :: Path.Split' -> Set Reference
-      getTypes = getHQTypes . fmap HQ.NameOnly
+      getTypes = getHQ'Types . fmap HQ'.NameOnly
       getTerms :: Path.Split' -> Set Referent
-      getTerms = getHQTerms . fmap HQ.NameOnly
+      getTerms = getHQ'Terms . fmap HQ'.NameOnly
       getPatchAt :: Path.Split' -> Action' m v Patch
       getPatchAt patchPath' = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
@@ -332,7 +327,7 @@ loop = do
             eval $ SyncLocalRootBranch prev
             success
 
-      AliasTermI src dest -> case (toList (getHQTerms src), toList (getTerms dest)) of
+      AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
         ([r],       []) -> do
           stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
           success
@@ -343,7 +338,7 @@ loop = do
         p = resolveSplit' src
         oldMD r = BranchUtil.getTermMetadataAt p r root0
 
-      AliasTypeI src dest -> case (toList (getHQTypes src), toList (getTypes dest)) of
+      AliasTypeI src dest -> case (toList (getHQ'Types src), toList (getTypes dest)) of
         ([r],       []) -> do
           stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
           success
@@ -358,7 +353,7 @@ loop = do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             (parent, last) = resolveSplit' src
-            mdValuel = toList (getHQTerms mdValue)
+            mdValuel = toList (getHQ'Terms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
@@ -381,7 +376,7 @@ loop = do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
             (parent, last) = resolveSplit' src
-            mdValuel = toList (getHQTerms mdValue)
+            mdValuel = toList (getHQ'Terms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
             | length srcle < 2 && length srclt < 2 -> do
@@ -430,8 +425,8 @@ loop = do
               traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
             respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
 
-      MoveTermI src'@(fmap HQ'.toHQ -> src) dest ->
-        case (toList (getHQTerms src), toList (getTerms dest)) of
+      MoveTermI src dest ->
+        case (toList (getHQ'Terms src), toList (getTerms dest)) of
           ([r], []) -> do
             stepManyAt
               [ BranchUtil.makeDeleteTermName p r
@@ -440,11 +435,11 @@ loop = do
           ([_], rs) -> termExists dest (Set.fromList rs)
           ([],   _) -> termNotFound src
           (rs,   _) -> termConflicted src (Set.fromList rs)
-        where p = resolveSplit' (HQ'.toName <$> src')
+        where p = resolveSplit' (HQ'.toName <$> src)
               mdSrc r = BranchUtil.getTermMetadataAt p r root0
 
-      MoveTypeI src'@(fmap HQ'.toHQ -> src) dest ->
-        case (toList (getHQTypes src), toList (getTypes dest)) of
+      MoveTypeI src dest ->
+        case (toList (getHQ'Types src), toList (getTypes dest)) of
           ([r], []) -> do
             stepManyAt
               [ BranchUtil.makeDeleteTypeName p r
@@ -454,15 +449,15 @@ loop = do
           ([], _)   -> typeNotFound src
           (rs, _)   -> typeConflicted src (Set.fromList rs)
         where
-        p = resolveSplit' (HQ'.toName <$> src')
+        p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq'@(fmap HQ'.toHQ -> hq) -> case toList (getHQTypes hq) of
+      DeleteTypeI hq -> case toList (getHQ'Types hq) of
         [] -> typeNotFound hq
         [r] -> goMany (Set.singleton r)
         (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
         where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq')
+        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
         makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
         goMany rs = do
           let rootNames = Branch.toNames0 root0
@@ -476,12 +471,12 @@ loop = do
             respond $ CantDelete input rootNames failed failedDependents
 
       -- like the previous
-      DeleteTermI hq'@(fmap HQ'.toHQ -> hq) -> case toList (getHQTerms hq) of
+      DeleteTermI hq -> case toList (getHQ'Terms hq) of
         [] -> termNotFound hq
         [r] -> goMany (Set.singleton r)
         (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
         where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq')
+        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
         makeDelete = BranchUtil.makeDeleteTermName resolvedPath
         goMany rs = do
           let rootNames, toDelete :: Names0
@@ -499,10 +494,8 @@ loop = do
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         let results = searchBranchExact currentBranch' hqs
             queryNames = Names terms types where
-              -- todo: wouldn't need guard if SR used a Name or a HQ'
-              toName = fromJust . HQ.toName
-              terms = R.fromList [ (toName hq, r) | SR.Tm' hq r _as <- results, HQ.hasName hq ]
-              types = R.fromList [ (toName hq, r) | SR.Tp' hq r _as <- results, HQ.hasName hq ]
+              terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
+              types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
         results' <- loadSearchResults results
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
@@ -584,20 +577,20 @@ loop = do
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 False
-      ResolveTypeNameI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getHQTypes hq) (typeNotFound hq) go (typeConflicted hq)
+      ResolveTypeNameI hq ->
+        zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
         where
-        conflicted = getHQTypes (fmap HQ'.toNameOnlyHQ hq')
+        conflicted = getHQ'Types (fmap HQ'.toNameOnly hq)
         makeDelete =
-          BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq'))
+          BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveTermNameI hq'@(fmap HQ'.toHQ -> hq) ->
-        zeroOneOrMore (getHQTerms hq) (termNotFound hq) go (termConflicted hq)
+      ResolveTermNameI hq ->
+        zeroOneOrMore (getHQ'Terms hq) (termNotFound hq) go (termConflicted hq)
         where
-        conflicted = getHQTerms (fmap HQ'.toNameOnlyHQ hq')
+        conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
         makeDelete =
-          BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq'))
+          BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
       AddI hqs -> case uf of
@@ -817,15 +810,15 @@ checkTodo patch names0 = do
   f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
       frontier = R.ran f
-      ppe = PPE.fromNames0 names0
+      names = Names.names0ToNames names0
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   -- todo: something more intelligent here?
   let scoreFn = const 1
   remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) names0 frontier
   let
-    addTermNames terms = [(PPE.termName ppe (Referent.Ref r), r, t) | (r,t) <- terms ]
-    addTypeNames types = [(PPE.typeName ppe r, r, d) | (r,d) <- types ]
+    addTermNames terms = [(Names.termName names (Referent.Ref r), r, t) | (r,t) <- terms ]
+    addTypeNames types = [(Names.typeName names r, r, d) | (r,d) <- types ]
     frontierTermsNamed = addTermNames frontierTerms
     frontierTypesNamed = addTypeNames frontierTypes
     dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s)
@@ -889,8 +882,8 @@ listBranch (Branch.toNames0 -> b) =
 -- | restores the full hash to these search results, for _numberedArgs purposes
 searchResultToHQString :: SearchResult -> String
 searchResultToHQString = \case
-  SR.Tm' n r _ -> HQ.toString $ HQ.requalify n r
-  SR.Tp' n r _ -> HQ.toString $ HQ.requalify n (Referent.Ref r)
+  SR.Tm' n r _ -> HQ'.toString $ HQ'.requalify n r
+  SR.Tp' n r _ -> HQ'.toString $ HQ'.requalify n (Referent.Ref r)
   _ -> error "unpossible match failure"
 
 -- Return a list of definitions whose names fuzzy match the given queries.
@@ -920,7 +913,7 @@ searchBranchScored :: forall m score. (Ord score)
               => Branch m
               -> (Reference -> Maybe Int)
               -> (Name -> Name -> Maybe score)
-              -> [HashQualified]
+              -> [HQ.HashQualified]
               -> [SearchResult]
 searchBranchScored b allowed score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
@@ -928,9 +921,9 @@ searchBranchScored b allowed score queries =
   names0 = Branch.toNames0 . Branch.head $ b
   searchTermNamespace = foldMap do1query queries
     where
-    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query :: HQ.HashQualified -> Set (Maybe score, SearchResult)
     do1query q = foldMap (score1hq q) (R.toList . Names.terms $ names0)
-    score1hq :: HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
+    score1hq :: HQ.HashQualified -> (Name, Referent) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
@@ -946,9 +939,9 @@ searchBranchScored b allowed score queries =
         Nothing -> mempty
   searchTypeNamespace = foldMap do1query queries
     where
-    do1query :: HashQualified -> Set (Maybe score, SearchResult)
+    do1query :: HQ.HashQualified -> Set (Maybe score, SearchResult)
     do1query q = foldMap (score1hq q) (R.toList . Names.types $ names0)
-    score1hq :: HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
+    score1hq :: HQ.HashQualified -> (Name, Reference) -> Set (Maybe score, SearchResult)
     score1hq query (name, ref) = case query of
       HQ.NameOnly qn ->
         pair qn
@@ -992,10 +985,10 @@ collateReferences (toList -> types) (toList -> terms) =
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact :: Branch m -> [HashQualified] -> [SearchResult]
+searchBranchExact :: Branch m -> [HQ.HashQualified] -> [SearchResult]
 searchBranchExact b queries = let
   names0 = Branch.toNames0 . Branch.head $ b
-  matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HashQualified -> Bool
+  matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HQ.HashQualified -> Bool
   matchesHashPrefix toShortHash (name, r) = \case
     HQ.NameOnly n -> n == name
     HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
@@ -1247,7 +1240,7 @@ getEndangeredDependents getDependents toBeDeleted root =
 -- dependencies, any unselected transitive dependencies of the selection will
 -- be added to `extraDefinitions`.
 applySelection :: forall v a. Var v =>
-  [HashQualified] -> UF.TypecheckedUnisonFile v a -> SlurpResult v -> SlurpResult v
+  [HQ'.HashQualified] -> UF.TypecheckedUnisonFile v a -> SlurpResult v -> SlurpResult v
 applySelection [] _ = id
 applySelection hqs file = \sr@SlurpResult{..} ->
   sr { adds = adds `SC.intersection` closed

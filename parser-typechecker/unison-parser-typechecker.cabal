@@ -70,6 +70,7 @@ library
     Unison.Codebase.Patch
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
+    Unison.Codebase.SearchResult0
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V0
@@ -222,6 +223,7 @@ library
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
+    ApplicativeDo,
     DoAndIfThenElse,
     FlexibleContexts,
     FlexibleInstances,

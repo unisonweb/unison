@@ -19,8 +19,8 @@ import qualified Data.Set         as Set
 -- import           Unison.ConstructorType (ConstructorType)
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
-import           Unison.HashQualified   (HashQualified)
-import qualified Unison.HashQualified as HQ
+import           Unison.HashQualified'   (HashQualified)
+import qualified Unison.HashQualified' as HQ
 -- import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
 import qualified Unison.Name      as Name
@@ -50,7 +50,6 @@ type Names = Names' HashQualified
 type Names0 = Names' Name
 type NamesSeg = Names' (HQ.HashQualified' NameSegment)
 
--- todo: could be HQ'; as these are all expected to have names
 names0ToNames :: Names0 -> Names
 names0ToNames names0 = Names terms' types' where
   terms' = R.map doTerm (terms names0)

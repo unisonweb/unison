@@ -2,9 +2,12 @@
 
 module Unison.HashQualified' where
 
-import           Data.Maybe                     ( fromMaybe )
+import           Data.Maybe                     ( fromMaybe, fromJust )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
+import           Data.String                    ( IsString
+                                                , fromString
+                                                )
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
@@ -39,8 +42,11 @@ toName = \case
   NameOnly name        ->  name
   HashQualified name _ ->  name
 
-toNameOnlyHQ :: HashQualified' n -> HQ.HashQualified' n
-toNameOnlyHQ = toHQ . fromName . toName
+take :: Int -> HashQualified' n -> HashQualified' n
+take i = \case
+  n@(NameOnly _)    -> n
+  HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
+
 
 toNameOnly :: HashQualified' n -> HashQualified' n
 toNameOnly = fromName . toName
@@ -52,6 +58,20 @@ toHash = \case
 
 toString :: Show n => HashQualified' n -> String
 toString = Text.unpack . toText
+
+-- Parses possibly-hash-qualified into structured type.
+fromText :: Text -> Maybe HashQualified
+fromText t = case Text.breakOn "#" t of
+  (name, ""  ) ->
+    Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
+  (name, hash) ->
+    Just $ HashQualified (Name.unsafeFromText name) (SH.unsafeFromText hash)
+
+unsafeFromText :: Text -> HashQualified
+unsafeFromText = fromJust . fromText
+
+fromString :: String -> Maybe HashQualified
+fromString = fromText . Text.pack
 
 toText :: Show n => HashQualified' n -> Text
 toText = \case
@@ -69,11 +89,26 @@ fromNamedReference n r = HashQualified n (Reference.toShortHash r)
 fromName :: n -> HashQualified' n
 fromName = NameOnly
 
+matchesNamedReferent :: Name -> Referent -> HashQualified -> Bool
+matchesNamedReferent n r = \case
+  NameOnly n' -> n' == n
+  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Referent.toShortHash r
+
+matchesNamedReference :: Name -> Reference -> HashQualified -> Bool
+matchesNamedReference n r = \case
+  NameOnly n' -> n' == n
+  HashQualified n' sh -> n' == n && sh `SH.isPrefixOf` Reference.toShortHash r
+
 -- Use `requalify hq . Referent.Ref` if you want to pass in a `Reference`.
 requalify :: HashQualified -> Referent -> HashQualified
 requalify hq r = case hq of
   NameOnly n        -> fromNamedReferent n r
   HashQualified n _ -> fromNamedReferent n r
+
+
+instance IsString HashQualified where
+  fromString = unsafeFromText . Text.pack
+
 
 instance Show n => Show (HashQualified' n) where
   show = Text.unpack . toText

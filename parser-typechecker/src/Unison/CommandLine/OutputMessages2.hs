@@ -20,6 +20,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
 --import Debug.Trace
+import Control.Lens (over, _1)
 import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
@@ -67,6 +68,7 @@ import qualified Unison.CommandLine.InputPatterns as IP
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
@@ -492,7 +494,7 @@ displayTestResults showTip ppe oks fails = let
 unsafePrettyTermResultSig' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSig' ppe = \case
-  E.TermResult' name (Just typ) _r _aliases ->
+  E.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
@@ -502,7 +504,8 @@ unsafePrettyTermResultSig' ppe = \case
 unsafePrettyTermResultSigFull' :: Var v =>
   PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' hq (Just typ) r aliases -> P.lines
+  E.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
+   P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
       <> TypePrinter.pretty ppe mempty (-1) typ
@@ -512,7 +515,7 @@ unsafePrettyTermResultSigFull' ppe = \case
   where greyHash = styleHashQualified' id P.hiBlack
 
 prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
+prettyTypeResultHeader' (E.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 -- produces:
@@ -520,7 +523,7 @@ prettyTypeResultHeader' (E.TypeResult' name dt r _aliases) =
 -- type Optional
 -- type Maybe
 prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeaderFull' (E.TypeResult' name dt r aliases) =
+prettyTypeResultHeaderFull' (E.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
   P.lines stuff <> P.newline
   where
   stuff =
@@ -608,9 +611,9 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
   noEdits = E.todoScore todo == 0
   (frontierTerms, frontierTypes) = E.todoFrontier todo
   (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
-  corruptTerms = [ (name, r) | (name, r, Nothing) <- frontierTerms ]
-  corruptTypes = [ (name, r) | (name, r, MissingThing _) <- frontierTypes ]
-  goodTerms ts = [ (name, typ) | (name, _, Just typ) <- ts ]
+  corruptTerms = [ (HQ'.toHQ name, r) | (name, r, Nothing) <- frontierTerms ]
+  corruptTypes = [ (HQ'.toHQ name, r) | (name, r, MissingThing _) <- frontierTypes ]
+  goodTerms ts = [ (HQ'.toHQ name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppe (E.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
@@ -652,13 +655,13 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
-          (prettyDeclTriple <$> toList frontierTypes) ++
+          (prettyDeclTriple . over _1 HQ'.toHQ <$> toList frontierTypes) ++
           TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.indentN 2 . P.lines $
           let unscore (_score,a,b,c) = (a,b,c)
-          in (prettyDeclTriple . unscore <$> toList dirtyTypes) ++
+          in (prettyDeclTriple . over _1 HQ'.toHQ . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
                 ppe
                 (goodTerms $ unscore <$> dirtyTerms)
@@ -704,15 +707,15 @@ listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
-    [ (name, r)
+    [ (HQ'.toHQ name, r)
     | E.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
   missingTypes = nubOrdOn snd $
-    [ (name, Reference.DerivedId r)
+    [ (HQ'.toHQ name, Reference.DerivedId r)
     | E.Tp name (MissingThing r) _ _ <- results ] <>
-    [ (name, r)
+    [ (HQ'.toHQ name, r)
     | E.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
   missingBuiltins = results >>= \case
-    E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(name,r)]
+    E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
     _ -> []
 
 watchPrinter

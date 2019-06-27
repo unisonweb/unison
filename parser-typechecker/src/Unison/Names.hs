@@ -26,7 +26,7 @@ import qualified Unison.Type      as Type
 import           Unison.Var       (Var)
 import qualified Unison.Names2    as Names2
 import qualified Unison.Util.Relation as R
-import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ
 
 unqualified :: Name -> Name
 unqualified = Name.unsafeFromText . unqualified' . Name.toText

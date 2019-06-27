@@ -25,7 +25,7 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
-import Unison.HashQualified ( HashQualified )
+import Unison.HashQualified' ( HashQualified )
 import Unison.Name ( Name )
 import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )

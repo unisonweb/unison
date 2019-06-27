@@ -34,7 +34,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
-import qualified Unison.Codebase.SearchResult  as SR
+import qualified Unison.Codebase.SearchResult0 as SR
 import qualified Unison.DataDeclaration        as DD
 import           Unison.DataDeclaration         ( Decl )
 import           Unison.FileParsers             ( parseAndSynthesizeFile )

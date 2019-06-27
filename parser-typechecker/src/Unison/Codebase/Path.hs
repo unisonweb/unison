@@ -19,9 +19,6 @@ import Control.Lens hiding (unsnoc, cons)
 import qualified Control.Lens as Lens
 import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
--- import           Data.String                    ( IsString
---                                                 , fromString
---                                                 )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
@@ -30,11 +27,10 @@ import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import Unison.Util.Monoid (intercalateMap)
 import qualified Unison.Lexer                  as Lexer
-import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.ShortHash as SH
 
-import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment, HQ'Segment)
+import Unison.Codebase.NameSegment (NameSegment(NameSegment), HQSegment)
 import qualified Unison.Codebase.NameSegment as NameSegment
 
 -- `Foo.Bar.baz` becomes ["Foo", "Bar", "baz"]
@@ -63,14 +59,11 @@ unsplit (Path p, a) = Path (p :|> a)
 
 type Split = (Path, NameSegment)
 type HQSplit = (Path, HQSegment)
-type HQ'Split = (Path, HQ'Segment)
 
 type Split' = (Path', NameSegment)
 type HQSplit' = (Path', HQSegment)
-type HQ'Split' = (Path', HQ'Segment)
 
 type SplitAbsolute = (Absolute, NameSegment)
-type HQSplitAbsolute = (Absolute, HQSegment)
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -139,12 +132,33 @@ parseSplit' lastSegment p = do
   seg <- lastSegment rem
   pure (p', seg)
 
-
-parseHQ'Split' :: String -> Either String HQ'Split'
-parseHQ'Split' s = do
+parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
+parseShortHashOrHQSplit' s = do
   case Text.splitOn "#" $ Text.pack s of
     [] -> error $ "encountered empty string parsing '" <> s <> "'"
-    "" : _ -> Left "HQ'Split' doesn't have a hash-only option."
+    [n] -> do
+      (p, rem) <- parsePath'Impl (Text.unpack n)
+      seg <- definitionNameSegment rem
+      pure $ Right (p, HQ'.NameOnly seg)
+    ["", sh] -> do
+      sh <- maybeToRight (shError s) . SH.fromText $ "#" <> sh
+      pure $ Left sh
+    [n, sh] -> do
+      (p, rem) <- parsePath'Impl (Text.unpack n)
+      seg <- definitionNameSegment rem
+      hq <- maybeToRight (shError s) .
+        fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
+        SH.fromText $ "#" <> sh
+      pure $ Right hq
+    _ -> Left $ s <> " has too many #."
+  where
+  shError s = "couldn't parse shorthash from " <> s
+
+parseHQSplit' :: String -> Either String HQSplit'
+parseHQSplit' s = do
+  case Text.splitOn "#" $ Text.pack s of
+    [] -> error $ "encountered empty string parsing '" <> s <> "'"
+    "" : _ -> Left "HQSplit' doesn't have a hash-only option."
     [n] -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
@@ -158,17 +172,6 @@ parseHQ'Split' s = do
     _ -> Left $ s <> " has too many #."
   where
   shError s = "couldn't parse shorthash from " <> s
-
--- this might be useful in implementing the above
--- hqToPathSeg :: HashQualified -> (Path.Path', HQSegment)
--- hqToPathSeg = \case
---   HQ.NameOnly n -> (p', HQ.NameOnly n') where (p', n') = splitName n
---   HQ.HashOnly h -> (Path.Path' (Left Path.absoluteEmpty), HQ.HashOnly h)
---   HQ.HashQualified n h -> (p',HQ.HashQualified n' h) where (p',n') = splitName n
---   where
---   splitName n = (Path.toPath' p, n') where
---     (p, n') = fromMaybe (error "hq name can't be empty")
---                         (Path.unsnoc (Path.fromName n))
 
 toAbsoluteSplit :: Absolute -> (Path', a) -> (Absolute, a)
 toAbsoluteSplit a (p, s) = (toAbsolutePath a p, s)

@@ -27,7 +27,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Unison.Hash (Hash)
-import Unison.NamePrinter (prettyHashQualified')
+import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
@@ -318,11 +318,11 @@ prettyIR ppe prettyE prettyCont ir = pir ir
       P.surroundCommas "[" "]" (pz <$> vs)
     Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
     Construct r cid args -> P.parenthesize $
-      ("Construct " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Construct " <> prettyHashQualified0 (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Request r cid args -> P.parenthesize $
-      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified0 (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Handle h body -> P.parenthesize $
@@ -358,14 +358,14 @@ prettyValue ppe prettyE prettyCont v = pv v
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
     Data r cid vs -> P.parenthesize $
-      ("Data " <> prettyHashQualified' (PPE.patternName ppe r cid)) `P.hang`
+      ("Data " <> prettyHashQualified0 (PPE.patternName ppe r cid)) `P.hang`
         P.surroundCommas "[" "]" (pv <$> vs)
     Sequence vs -> P.surroundCommas "[" "]" (pv <$> vs)
     Ref id name _ -> P.parenthesize $
       P.sep " " ["Ref", P.shown id, P.shown name]
     Pure v -> P.surroundCommas "{" "}" [pv v]
     Requested (Req r cid vs cont) -> P.parenthesize $
-      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified0 (PPE.patternName ppe r cid))
         `P.hang`
         P.spaced [
           P.surroundCommas "[" "]" (pv <$> vs),

@@ -8,7 +8,7 @@ module Unison.Codebase.Editor.Input
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import qualified Unison.Codebase.Branch2       as Branch
-import           Unison.HashQualified           ( HashQualified )
+import           Unison.HashQualified'          ( HashQualified )
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
@@ -38,20 +38,20 @@ data Input
     | SwitchBranchI Path'
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
-    -- Move = Rename; It's an HQ'Split' not an HQSplit', meaning the arg has to have a name.
-    | MoveTermI Path.HQ'Split' Path.Split'
-    | MoveTypeI Path.HQ'Split' Path.Split'
+    -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
+    | MoveTermI Path.HQSplit' Path.Split'
+    | MoveTypeI Path.HQSplit' Path.Split'
     | MoveBranchI Path.Split' Path.Split'
     -- delete = unname
     -- | DeleteDefnI [Path.HQSplit']
-    | DeleteTermI Path.HQ'Split'
-    | DeleteTypeI Path.HQ'Split'
+    | DeleteTermI Path.HQSplit'
+    | DeleteTypeI Path.HQSplit'
     | DeleteBranchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.
-    | ResolveTermNameI Path.HQ'Split'
-    | ResolveTypeNameI Path.HQ'Split'
+    | ResolveTermNameI Path.HQSplit'
+    | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
     | AddI [HashQualified]
     | UpdateI PatchPath [HashQualified]
@@ -59,8 +59,8 @@ data Input
     | PatchI PatchPath Path'
     | ListEditsI PatchPath
     -- -- create and remove update directives
-    | DeprecateTermI PatchPath Path.HQ'Split'
-    | DeprecateTypeI PatchPath Path.HQ'Split'
+    | DeprecateTermI PatchPath Path.HQSplit'
+    | DeprecateTypeI PatchPath Path.HQSplit'
     | AddTermReplacementI PatchPath Reference Reference
     | AddTypeReplacementI PatchPath Reference Reference
     | RemoveTermReplacementI PatchPath Reference Reference
@@ -71,11 +71,11 @@ data Input
   | TestI Bool Bool -- TestI showSuccesses showFailures
   -- metadata
   -- link from to
-  | LinkI Path.HQ'Split' Path.HQ'Split'
+  | LinkI Path.HQSplit' Path.HQSplit'
   -- unlink from to
-  | UnlinkI Path.HQ'Split' Path.HQ'Split'
+  | UnlinkI Path.HQSplit' Path.HQSplit'
   -- links from <type>
-  | LinksI Path.HQ'Split' (Maybe String)
+  | LinksI Path.HQSplit' (Maybe String)
   -- other
   | UndoRootI
   | SearchByNameI [String]

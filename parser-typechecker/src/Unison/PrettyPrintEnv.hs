@@ -15,6 +15,7 @@ import           Unison.Referent                ( Referent )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import qualified Unison.Names                  as Names
 import qualified Unison.Names2                 as Names2
@@ -43,8 +44,8 @@ fromNames2 = fromNames . Names.fromNames2
 fromNames0 :: Names2.Names0 -> PrettyPrintEnv
 fromNames0 names0 = let
   names = Names2.names0ToNames names0
-  terms r = Set.lookupMin $ Names2.namesForReferent names r
-  types r = Set.lookupMin $ Names2.namesForReference names r
+  terms r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReferent names r
+  types r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReference names r
   in PrettyPrintEnv terms types
 
 -- Left-biased union of environments

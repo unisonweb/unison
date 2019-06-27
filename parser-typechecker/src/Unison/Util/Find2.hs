@@ -9,7 +9,7 @@ module Unison.Util.Find2 (
 -- import           Debug.Trace
 import           Data.Foldable                (toList)
 import qualified Data.List                    as List
-import           Data.Maybe                   (catMaybes, fromJust)
+import           Data.Maybe                   (catMaybes)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.String                  (fromString)
@@ -19,12 +19,12 @@ import           Data.String                  (fromString)
 import qualified Text.Regex.TDFA              as RE
 import           Unison.Codebase.SearchResult (SearchResult)
 import qualified Unison.Codebase.SearchResult as SR
-import           Unison.HashQualified         (HashQualified)
-import qualified Unison.HashQualified         as HQ
+import           Unison.HashQualified'        (HashQualified)
+import qualified Unison.HashQualified'        as HQ
 import qualified Unison.Name                  as Name
 import qualified Unison.Names2                as Names
 import           Unison.Names2                ( Names0 )
-import           Unison.NamePrinter           (prettyHashQualified)
+import           Unison.NamePrinter           (prettyHashQualified')
 import qualified Unison.Reference             as Reference
 import qualified Unison.Referent              as Referent
 import qualified Unison.ShortHash             as SH
@@ -83,14 +83,12 @@ prefixFindInBranch ::
 prefixFindInBranch b hq = fmap getName $
   case HQ.toName hq of
     -- query string includes a name component, so do a prefix find on that
-    Just (Name.toString -> n) ->
+    (Name.toString -> n) ->
       filter (filterName n) (candidates b hq)
-    -- no name component, so just filter by hash
-    Nothing -> candidates b hq
   where
   filterName n sr =
     -- fromJust is safe here because entries from the namespace will have names.
-    fromString n `Name.isPrefixOf` (fromJust . HQ.toName . SR.name) sr
+    fromString n `Name.isPrefixOf` (HQ.toName . SR.name) sr
 
 -- only search before the # before the # and after the # after the #
 fuzzyFindInBranch :: Names0
@@ -98,13 +96,12 @@ fuzzyFindInBranch :: Names0
                   -> [(SearchResult, P.Pretty P.ColorText)]
 fuzzyFindInBranch b hq =
   case HQ.toName hq of
-    Just (Name.toString -> n) ->
+    (Name.toString -> n) ->
       fuzzyFinder n (candidates b hq)
-        (fromJust . fmap Name.toString . HQ.toName . SR.name)
-    Nothing -> fmap getName (candidates b hq)
+        (Name.toString . HQ.toName . SR.name)
 
 getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)
-getName sr = (sr, prettyHashQualified (SR.name sr))
+getName sr = (sr, prettyHashQualified' (SR.name sr))
 
 candidates :: Names.Names' Name.Name -> HashQualified -> [SearchResult]
 candidates b hq = typeCandidates <> termCandidates

@@ -31,7 +31,7 @@ import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
 import           Unison.CommandLine.InputPattern2 (InputPattern (parse))
-import qualified Unison.HashQualified            as HQ
+import qualified Unison.HashQualified'           as HQ
 import           Unison.Names2 (Names0)
 import qualified Unison.Util.ColorText           as CT
 import qualified Unison.Util.Find2               as Find
@@ -114,7 +114,9 @@ prettyCompletion' :: (String, P.Pretty P.ColorText) -> Line.Completion
 prettyCompletion' (s, p) = Line.Completion s (P.toAnsiUnbroken p) False
 
 fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
-fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) =
+fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
+  Nothing -> []
+  Just query ->
     fixupCompletion q0 $
       makeCompletion <$> Find.fuzzyFindInBranch b query
   where
@@ -141,22 +143,29 @@ fixupCompletion q cs@(h:t) = let
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 
-autoCompleteHashQualified :: Names0 -> String -> [Line.Completion]
-autoCompleteHashQualified b (HQ.fromString -> query) =
-  makeCompletion <$> Find.prefixFindInBranch b query
+-- todo: delete these?
+_autoCompleteHashQualified :: Names0 -> String -> [Line.Completion]
+_autoCompleteHashQualified b = \case
+  (HQ.fromString -> Just query) ->
+    makeCompletion <$> Find.prefixFindInBranch b query
+  _ -> []
   where
   makeCompletion (sr, p) =
     prettyCompletion (HQ.toString . SR.name $ sr, p)
 
-autoCompleteHashQualifiedTerm :: Names0 -> String -> [Line.Completion]
-autoCompleteHashQualifiedTerm b (HQ.fromString -> query) =
-  [ prettyCompletion (HQ.toString . SR.name $ sr, p)
-  | (sr@(SR.Tm _), p) <- Find.prefixFindInBranch b query ]
+_autoCompleteHashQualifiedTerm :: Names0 -> String -> [Line.Completion]
+_autoCompleteHashQualifiedTerm b = \case
+  (HQ.fromString -> Just query) ->
+    [ prettyCompletion (HQ.toString . SR.name $ sr, p)
+    | (sr@(SR.Tm _), p) <- Find.prefixFindInBranch b query ]
+  _ -> []
 
-autoCompleteHashQualifiedType :: Names0 -> String -> [Line.Completion]
-autoCompleteHashQualifiedType b (HQ.fromString -> query) =
-  [ prettyCompletion (HQ.toString . SR.name $ sr, p)
-  | (sr@(SR.Tp _), p) <- Find.prefixFindInBranch b query ]
+_autoCompleteHashQualifiedType :: Names0 -> String -> [Line.Completion]
+_autoCompleteHashQualifiedType b = \case
+  (HQ.fromString -> Just query) ->
+    [ prettyCompletion (HQ.toString . SR.name $ sr, p)
+    | (sr@(SR.Tp _), p) <- Find.prefixFindInBranch b query ]
+  _ -> []
 
 parseInput
   :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input

@@ -1,11 +1,11 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Codebase.SearchResult where
+module Unison.Codebase.SearchResult0 where
 
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
-import           Unison.HashQualified' (HashQualified)
-import qualified Unison.HashQualified' as HQ
+import           Unison.HashQualified (HashQualified)
+import qualified Unison.HashQualified as HQ
 import           Unison.Reference     (Reference)
 import           Unison.Referent      (Referent)
 import qualified Unison.Referent      as Referent

@@ -10,7 +10,8 @@ import qualified Data.Map              as Map
 import           Data.Maybe            (isJust)
 import           Data.String           (IsString, fromString)
 import           Unison.HashQualified  (HashQualified)
-import           Unison.NamePrinter    (prettyHashQualified, prettyHashQualified')
+import           Unison.NamePrinter    ( prettyHashQualified
+                                       , prettyHashQualified0)
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
@@ -72,7 +73,7 @@ pretty0 n im p tp = go n im p tp
   go :: PrettyPrintEnv -> Imports -> Int -> AnnotatedType v a -> Pretty s
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> PP.text (Var.name v)
-    Ref' r     -> prettyHashQualified' $ elideFQN im (PrettyPrintEnv.typeName n r)
+    Ref' r     -> prettyHashQualified0 $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"

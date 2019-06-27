@@ -17,8 +17,8 @@ import           Data.String                  (fromString)
 import qualified Text.Regex.TDFA              as RE
 import           Unison.Codebase.Branch       (Branch0)
 import qualified Unison.Codebase.Branch       as Branch
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
+import           Unison.Codebase.SearchResult0 (SearchResult)
+import qualified Unison.Codebase.SearchResult0 as SR
 import           Unison.HashQualified         (HashQualified)
 import qualified Unison.HashQualified         as HQ
 import qualified Unison.Name                  as Name

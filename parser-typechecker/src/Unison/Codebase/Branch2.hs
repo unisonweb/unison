@@ -54,7 +54,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ
 import qualified Unison.ShortHash as SH
 
 
