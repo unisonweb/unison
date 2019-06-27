@@ -14,6 +14,7 @@ module Unison.Reference
    groupByComponent,
    componentFor,
    unsafeFromText,
+   idFromText,
    fromText,
    readSuffix,
    showShort,
@@ -115,6 +116,12 @@ derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
+
+idFromText :: Text -> Maybe Id
+idFromText s = case fromText s of
+  Left _ -> Nothing
+  Right (Builtin _) -> Nothing
+  Right (DerivedId id) -> pure id
 
 -- examples:
 -- `##Text.take` — builtins don’t have cycles

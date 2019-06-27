@@ -29,7 +29,7 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
-                                                -- , decodeUtf8
+                                                , decodeUtf8
                                                 )
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
@@ -122,6 +122,28 @@ typeIndexDir root r = root </> "type-index" </> referenceToDir r
 
 typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
+
+decodeFileName :: FilePath -> Text
+decodeFileName p = Text.pack $ go p where
+  go ('$':tl) = case span (/= '$') tl of
+    ("forward-slash", _:tl) -> '/' : go tl
+    ("back-slash", _:tl) ->  '\\' : go tl
+    ("colon", _:tl) -> ':' : go tl
+    ("star", _:tl) -> '*' : go tl
+    ("question-mark", _:tl) -> '?' : go tl
+    ("double-quote", _:tl) -> '\"' : go tl
+    ("less-than", _:tl) -> '<' : go tl
+    ("greater-than", _:tl) -> '>' : go tl
+    ("pipe", _:tl) -> '|' : go tl
+    ('b':'5':'8':b58, _:tl) -> unB58 b58 ++ go tl
+    ("",_:tl) -> '$' : go tl
+    (s,_:tl) -> s ++ go tl
+    (s,[]) -> s
+  go (hd:tl) = hd : tl
+  go [] = []
+  unB58 s = case Hash.fromBase58 (Text.pack s) of
+    Nothing -> s
+    Just h -> Text.unpack . decodeUtf8 . Hash.toBytes $ h
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
@@ -364,10 +386,11 @@ putTerm putV putA path h e typ = liftIO $ do
   S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
   S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
   -- Add the term as a dependent of its dependencies
+  let r = Referent.Ref (Reference.DerivedId h)
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
   traverse_ (touchIdFile h . dependentsDir path) deps
-  traverse_ (touchIdFile h . typeMentionsIndexDir path) typeMentions
-  touchIdFile h . typeIndexDir path $ rootTypeHash
+  traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  touchReferentFile r . typeIndexDir path $ rootTypeHash
 
 putDecl
   :: MonadIO m
@@ -386,8 +409,18 @@ putDecl putV putA path h decl = liftIO $ do
     (declPath path h)
     decl
   traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ addCtorToTypeIndex ctors
  where
   deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
+  r = Reference.DerivedId h
+  decl' = either DD.toDataDecl id decl
+  addCtorToTypeIndex (r, typ) = do
+    let rootHash     = Type.toReference typ
+        typeMentions = Type.toReferenceMentions typ
+    touchReferentFile r (typeIndexDir path rootHash)
+    traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  ctors =
+    [ (Referent.Con r i, Type.removeAllEffectVars t) | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
 
 putWatch
   :: MonadIO m
@@ -459,8 +492,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
     e <- doesDirectoryExist d
     if e
       then do
-        ls <- listDirectory d
-        pure . Set.fromList $ ls >>= (toList . parseHash)
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Reference.idFromText)
       else pure Set.empty
 
   listDirAsReferents :: FilePath -> m (Set Referent)
@@ -468,8 +501,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
     e <- doesDirectoryExist d
     if e
       then do
-        ls <- listDirectory d
-        pure . Set.fromList $ ls >>= error "todo" -- (toList . parseHash)
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Referent.fromText)
       else pure Set.empty
 
   watches :: UF.WatchKind -> m [Reference.Id]

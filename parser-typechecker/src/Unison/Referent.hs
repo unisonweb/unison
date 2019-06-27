@@ -61,10 +61,13 @@ toTypeReference = \case
   _ -> Nothing
 
 unsafeFromText :: Text -> Referent
-unsafeFromText = either error id . fromText
+unsafeFromText = maybe (error "invalid referent") id . fromText
 
-fromText :: Text -> Either String Referent
-fromText t =
+fromText :: Text -> Maybe Referent
+fromText = either (const Nothing) Just . fromText'
+
+fromText' :: Text -> Either String Referent
+fromText' t =
   if refPart == t then
     Ref <$> R.fromText t
   else if Text.all Char.isDigit cidPart then
