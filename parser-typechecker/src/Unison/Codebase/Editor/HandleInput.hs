@@ -42,6 +42,7 @@ import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
+                                                , fold
                                                 , foldl'
                                                 , traverse_
                                                 )
@@ -344,8 +345,9 @@ loop = do
         where
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
-              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-                where p' = resolveSplit' p
+              toDelete = Names.prefix0
+                (Path.toName . Path.unsplit . resolveSplit' $ p)
+                (Branch.toNames0 b)
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
@@ -1256,48 +1258,32 @@ zeroOrMore f zero more = case toList f of
   a : _ -> more f
   _ -> zero
 
--- Returns
---   ( the set of names that couldn't be deleted
---   , the set of dependents of the names that couldn't be deleted)
+-- Goal: If `remaining = root - toBeDeleted` contains definitions X which
+-- depend on definitions Y not in `remaining` (which should also be in
+-- `toBeDeleted`), then complain by returning (Y, X).
 getEndangeredDependents :: forall m. Monad m
                         => (Reference -> m (Set Reference))
                         -> Names0
                         -> Names0
                         -> m (Names0, Names0)
-getEndangeredDependents getDependents toBeDeleted root =
-  -- for each r <- toBeDeleted,
-    -- for each d <- dependents r
-      -- if d `notElem` remaining
-      -- then add r to failed, add d to failedDependents
-      -- otherwise continue
-  do
-    acc <- foldM doTerms (mempty, mempty) (R.toList $ Names.terms toBeDeleted)
-    foldM doTypes acc (R.toList $ Names.types toBeDeleted)
-  where
-  doTerms :: (Names0, Names0) -> (Name, Referent) -> m (Names0, Names0)
-  doTerms acc (name, r) =
-    List.foldl' f acc <$> getDependents (Referent.toReference r)
-    where
-    f (failed, failedDeps) d =
-      if d `Set.member` namedRefsRemaining
-      then (Names.addTerm name r failed, addDependent d failedDeps)
-      else (failed, failedDeps)
-  addDependent :: Reference -> Names0 -> Names0
-  addDependent r =
-    (<> Names (Names.terms root R.|> Set.singleton (Referent.Ref r))
-              (Names.types root R.|> Set.singleton r))
-  doTypes :: (Names0, Names0) -> (Name, Reference) -> m (Names0, Names0)
-  doTypes acc (name, r) =
-    List.foldl' f acc <$> getDependents r
-    where
-    f (failed, failedDeps) d =
-      if d `Set.member` namedRefsRemaining
-      then (Names.addType name r failed, addDependent d failedDeps)
-      else (failed, failedDeps)
-  namedRefsRemaining :: Set Reference
-  namedRefsRemaining = Set.map Referent.toReference (Names.termReferents remaining)
-                <> Names.typeReferences remaining
-    where remaining = root `Names.difference` toBeDeleted
+getEndangeredDependents getDependents toDelete root = do
+  let remaining  = root `Names.difference` toDelete
+      root', toDelete', remaining', extinct :: Set Reference
+      root'      = Names.allReferences root
+      toDelete'  = Names.allReferences toDelete
+      remaining' = Names.allReferences remaining          -- left over after delete
+      extinct    = toDelete'  `Set.difference` remaining' -- deleting and not left over
+      accumulateDependents m r = getDependents r <&> \ds -> Map.insert r ds m
+  dependentsOfExtinct :: Map Reference (Set Reference) <-
+    foldM accumulateDependents mempty extinct
+  let orphaned, endangered, failed :: Set Reference
+      orphaned   = fold dependentsOfExtinct
+      endangered = orphaned `Set.intersection` remaining'
+      failed = Set.filter hasEndangeredDependent extinct
+      hasEndangeredDependent r = any (`Set.member` endangered)
+                                     (dependentsOfExtinct Map.! r)
+  pure ( Names.restrictReferences failed toDelete
+       , Names.restrictReferences endangered root )
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive

@@ -440,9 +440,11 @@ renderTypeError e env src = case e of
   UnknownTerm {..} ->
     let (correct, wrongTypes, wrongNames) =
           foldr sep id suggestions ([], [], [])
-        sep (C.Suggestion name typ _) r = (_1 %~ ((name, typ) :)) . r
-        sep (C.WrongType name typ   ) r = (_2 %~ ((name, typ) :)) . r
-        sep (C.WrongName name typ   ) r = (_3 %~ ((name, typ) :)) . r
+        sep (C.Suggestion name typ _ match) r =
+          case match of
+            C.Exact -> (_1 %~ ((name, typ) :)) . r
+            C.WrongType -> (_2 %~ ((name, typ) :)) . r
+            C.WrongName -> (_3 %~ ((name, typ) :)) . r
     in  mconcat
           [ "I'm not sure what "
           , style ErrorSite (Var.nameStr unknownTermV)

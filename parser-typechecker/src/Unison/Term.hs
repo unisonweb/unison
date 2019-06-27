@@ -14,7 +14,7 @@ module Unison.Term where
 
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
-import Data.Functor (void)
+import           Data.Functor (void, ($>))
 import           Data.Foldable (traverse_, toList)
 import           Data.Int (Int64)
 import           Data.List (foldl')
@@ -35,6 +35,9 @@ import qualified Unison.Blank as B
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
+import qualified Unison.HashQualified as HQ
+import           Unison.Names2 ( Names )
+import qualified Unison.Names2 as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
@@ -45,6 +48,7 @@ import qualified Unison.Referent as Referent
 import           Unison.Type (AnnotatedType, Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
+import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap)
 import Unison.TypeVar (TypeVar)
@@ -114,18 +118,19 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins :: forall v a b b2. Var v
-             => [(v, AnnotatedTerm2 v b a v b2)]
-             -> [(v, Reference)]
-             -> AnnotatedTerm2 v b a v a
-             -> AnnotatedTerm2 v b a v a
-bindBuiltins termBuiltins typeBuiltins t =
-   f . g $ t
-   where
-   f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
-   f = typeMap (Type.bindBuiltins typeBuiltins)
-   g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
-   g = ABT.substsInheritAnnotation termBuiltins
+bindBuiltins
+  :: forall v a b b2
+   . Var v
+  => [(v, AnnotatedTerm2 v b a v b2)]
+  -> [(v, Reference)]
+  -> AnnotatedTerm2 v b a v a
+  -> AnnotatedTerm2 v b a v a
+bindBuiltins termBuiltins typeBuiltins = f . g
+ where
+  f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+  f = typeMap (Type.bindBuiltins typeBuiltins)
+  g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+  g = ABT.substsInheritAnnotation termBuiltins
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -139,7 +144,7 @@ amap :: Ord v => (a -> a2) -> AnnotatedTerm v a -> AnnotatedTerm v a2
 amap f = fmap f . patternMap (fmap f) . typeMap (fmap f)
 
 patternMap :: (Pattern ap -> Pattern ap2) -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap2 v a
-patternMap f e = go e where
+patternMap f = go where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
     ABT.Abs v t -> ABT.Abs v (go t)
     ABT.Var v -> ABT.Var v
@@ -155,33 +160,37 @@ vmap f = ABT.vmap f . typeMap (ABT.vmap f)
 vtmap :: Ord vt2 => (vt -> vt2) -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt2 v a
 vtmap f = typeMap (ABT.vmap f)
 
-typeMap :: Ord vt2 => (Type.AnnotatedType vt at -> Type.AnnotatedType vt2 at2)
-                   -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt2 at2 ap v a
-typeMap f t = go t where
+typeMap
+  :: Ord vt2
+  => (Type.AnnotatedType vt at -> Type.AnnotatedType vt2 at2)
+  -> AnnotatedTerm2 vt at ap v a
+  -> AnnotatedTerm2 vt2 at2 ap v a
+typeMap f = go
+ where
   go (ABT.Term fvs a t) = ABT.Term fvs a $ case t of
-    ABT.Abs v t -> ABT.Abs v (go t)
-    ABT.Var v -> ABT.Var v
-    ABT.Cycle t -> ABT.Cycle (go t)
-    ABT.Tm (Ann e t) -> ABT.Tm (Ann (go e) (f t))
+    ABT.Abs v t         -> ABT.Abs v (go t)
+    ABT.Var   v         -> ABT.Var v
+    ABT.Cycle t         -> ABT.Cycle (go t)
+    ABT.Tm    (Ann e t) -> ABT.Tm (Ann (go e) (f t))
     -- Safe since `Ann` is only ctor that has embedded `Type v` arg
     -- otherwise we'd have to manually match on every non-`Ann` ctor
-    ABT.Tm ts -> unsafeCoerce $ ABT.Tm (fmap go ts)
+    ABT.Tm    ts        -> unsafeCoerce $ ABT.Tm (fmap go ts)
 
-extraMap' 
+extraMap'
   :: (Ord vt, Ord vt')
-  => (vt -> vt') 
-  -> (at -> at') 
-  -> (ap -> ap') 
-  -> AnnotatedTerm2 vt at ap v a 
+  => (vt -> vt')
+  -> (at -> at')
+  -> (ap -> ap')
+  -> AnnotatedTerm2 vt at ap v a
   -> AnnotatedTerm2 vt' at' ap' v a
 extraMap' vtf atf apf = ABT.extraMap (extraMap vtf atf apf)
 
-extraMap 
-  :: (Ord vt, Ord vt') 
-  => (vt -> vt') 
-  -> (at -> at') 
-  -> (ap -> ap') 
-  -> F vt at ap a 
+extraMap
+  :: (Ord vt, Ord vt')
+  => (vt -> vt')
+  -> (at -> at')
+  -> (ap -> ap')
+  -> F vt at ap a
   -> F vt' at' ap' a
 extraMap vtf atf apf = \case
   Int x -> Int x
@@ -211,19 +220,20 @@ matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
 unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
 unTypeVar = typeMap (ABT.vmap TypeVar.underlying)
 
-unannotate :: ∀ vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
-unannotate t = go t where
+unannotate
+  :: forall vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
+unannotate = go
+ where
   go :: AnnotatedTerm2 vt at ap v a -> Term' vt v
   go (ABT.out -> ABT.Abs v body) = ABT.abs v (go body)
   go (ABT.out -> ABT.Cycle body) = ABT.cycle (go body)
-  go (ABT.Var' v) = ABT.var v
-  go (ABT.Tm' f) =
-    case go <$> f of
-      Ann e t -> ABT.tm (Ann e (void t))
-      Match scrutinee branches ->
-        let unann (MatchCase pat guard body) = MatchCase (void pat) guard body
-        in ABT.tm (Match scrutinee (unann <$> branches))
-      f' -> ABT.tm (unsafeCoerce f')
+  go (ABT.Var' v               ) = ABT.var v
+  go (ABT.Tm'  f               ) = case go <$> f of
+    Ann e t -> ABT.tm (Ann e (void t))
+    Match scrutinee branches ->
+      let unann (MatchCase pat guard body) = MatchCase (void pat) guard body
+      in  ABT.tm (Match scrutinee (unann <$> branches))
+    f' -> ABT.tm (unsafeCoerce f')
   go _ = error "unpossible"
 
 wrapV :: Ord v => AnnotatedTerm v a -> AnnotatedTerm (ABT.V v) a
@@ -250,8 +260,13 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
 -- Capture-avoiding substitution of a type variable inside a term. This
 -- will replace that type variable wherever it appears in type signatures of
 -- the term, avoiding capture by renaming ∀-binders.
-substTypeVar :: (Ord v, Var vt) => vt -> AnnotatedType vt b -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-substTypeVar vt ty tm = go Set.empty tm where
+substTypeVar
+  :: (Ord v, Var vt)
+  => vt
+  -> AnnotatedType vt b
+  -> AnnotatedTerm' vt v a
+  -> AnnotatedTerm' vt v a
+substTypeVar vt ty = go Set.empty where
   go bound tm | Set.member vt bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
@@ -277,7 +292,7 @@ substTypeVar vt ty tm = go Set.empty tm where
     _ -> error "unpossible"
 
 renameTypeVar :: (Ord v, Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-renameTypeVar old new tm = go Set.empty tm where
+renameTypeVar old new = go Set.empty where
   go bound tm | Set.member old bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
@@ -315,7 +330,7 @@ renameTypeVar old new tm = go Set.empty tm where
 -- with explicit `introOuter` binders. The resulting term may have uppercase
 -- free variables that are still unbound.
 generalizeTypeSignatures :: (Var vt, Var v) => AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
-generalizeTypeSignatures tm = go Set.empty tm where
+generalizeTypeSignatures = go Set.empty where
   go bound tm = let loc = ABT.annotation tm in case tm of
     Var' _ -> tm
     Ann' e (Type.generalizeLowercase bound -> t) -> let
@@ -457,12 +472,19 @@ seq a es = seq' a (Sequence.fromList es)
 seq' :: Ord v => a -> Seq (AnnotatedTerm2 vt at ap v a) -> AnnotatedTerm2 vt at ap v a
 seq' a es = ABT.tm' a (Sequence es)
 
-apps :: Ord v => AnnotatedTerm2 vt at ap v a -> [(a, AnnotatedTerm2 vt at ap v a)] -> AnnotatedTerm2 vt at ap v a
-apps f = foldl' (\f (a,t) -> app a f t) f
+apps
+  :: Ord v
+  => AnnotatedTerm2 vt at ap v a
+  -> [(a, AnnotatedTerm2 vt at ap v a)]
+  -> AnnotatedTerm2 vt at ap v a
+apps = foldl' (\f (a, t) -> app a f t)
 
-apps' :: (Ord v, Semigroup a)
-      => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a] -> AnnotatedTerm2 vt at ap v a
-apps' f = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t) f
+apps'
+  :: (Ord v, Semigroup a)
+  => AnnotatedTerm2 vt at ap v a
+  -> [AnnotatedTerm2 vt at ap v a]
+  -> AnnotatedTerm2 vt at ap v a
+apps' = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t)
 
 iff :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 iff a cond t f = ABT.tm' a (If cond t f)
@@ -525,7 +547,7 @@ letRec
 letRec _ _ []       e     = e
 letRec isTop a bindings e = ABT.cycle'
   a
-  (foldr (uncurry ABT.abs') z (map fst bindings))
+  (foldr (uncurry ABT.abs' . fst) z bindings)
   where z = ABT.tm' a (LetRec isTop (map snd bindings) e)
 
 
@@ -534,7 +556,7 @@ letRec isTop a bindings e = ABT.cycle'
 -- and the output expression may also reference any binding in the block.
 letRec_ :: Ord v => IsTop -> [(v, Term' vt v)] -> Term' vt v -> Term' vt v
 letRec_ _ [] e = e
-letRec_ isTop bindings e = ABT.cycle (foldr ABT.abs z (map fst bindings))
+letRec_ isTop bindings e = ABT.cycle (foldr (ABT.abs . fst) z bindings)
   where
     z = ABT.tm (LetRec isTop (map snd bindings) e)
 
@@ -614,18 +636,19 @@ unLetRec
             , AnnotatedTerm2 vt at ap v a
             )
        )
-unLetRec (unLetRecNamed -> Just (isTop, bs, e)) =
-  Just
-    $ ( isTop
-      , \freshen -> do
-        vs <- sequence [ freshen v | (v, _) <- bs ]
-        let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
-        pure (vs `zip` [ sub b | (_, b) <- bs ], sub e)
-      )
+unLetRec (unLetRecNamed -> Just (isTop, bs, e)) = Just
+  ( isTop
+  , \freshen -> do
+    vs <- sequence [ freshen v | (v, _) <- bs ]
+    let sub = ABT.substsInheritAnnotation (map fst bs `zip` map ABT.var vs)
+    pure (vs `zip` [ sub b | (_, b) <- bs ], sub e)
+  )
 unLetRec _ = Nothing
 
-unApps :: AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
-unApps t = unAppsPred (t, \_ -> True)
+unApps
+  :: AnnotatedTerm2 vt at ap v a
+  -> Maybe (AnnotatedTerm2 vt at ap v a, [AnnotatedTerm2 vt at ap v a])
+unApps t = unAppsPred (t, const True)
 
 -- Same as unApps but taking a predicate controlling whether we match on a given function argument.
 unAppsPred :: (AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a -> Bool) ->
@@ -645,11 +668,13 @@ unBinaryApp t = case unApps t of
   _                      -> Nothing
 
 -- "((a1 `f1` a2) `f2` a3)" becomes "Just ([(a2, f2), (a1, f1)], a3)"
-unBinaryApps :: AnnotatedTerm2 vt at ap v a
-             -> Maybe ([(AnnotatedTerm2 vt at ap v a,
-                        AnnotatedTerm2 vt at ap v a)],
-                        AnnotatedTerm2 vt at ap v a)
-unBinaryApps t = unBinaryAppsPred (t, \_ -> True)
+unBinaryApps
+  :: AnnotatedTerm2 vt at ap v a
+  -> Maybe
+       ( [(AnnotatedTerm2 vt at ap v a, AnnotatedTerm2 vt at ap v a)]
+       , AnnotatedTerm2 vt at ap v a
+       )
+unBinaryApps t = unBinaryAppsPred (t, const True)
 
 -- Same as unBinaryApps but taking a predicate controlling whether we match on a given binary function.
 unBinaryAppsPred :: (AnnotatedTerm2 vt at ap v a
@@ -663,9 +688,9 @@ unBinaryAppsPred (t, pred) = case unBinaryApp t of
                                Nothing          -> Just ([(x, f)], y)
   _                       -> Nothing
 
-unLams' :: AnnotatedTerm2 vt at ap v a
-        -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
-unLams' t = unLamsPred' (t, (\_ -> True))
+unLams'
+  :: AnnotatedTerm2 vt at ap v a -> Maybe ([v], AnnotatedTerm2 vt at ap v a)
+unLams' t = unLamsPred' (t, const True)
 
 -- Same as unLams', but always matches.  Returns an empty [v] if the term doesn't start with a
 -- lambda extraction.
@@ -677,7 +702,7 @@ unLamsOpt' t = case unLams' t of
 -- Same as unLams' but taking a predicate controlling whether we match on a given binary function.
 unLamsPred' :: (AnnotatedTerm2 vt at ap v a, v -> Bool) ->
                  Maybe ([v], AnnotatedTerm2 vt at ap v a)
-unLamsPred' ((LamNamed' v body), pred) | pred v = case unLamsPred' (body, pred) of
+unLamsPred' (LamNamed' v body, pred) | pred v = case unLamsPred' (body, pred) of
   Nothing -> Just ([v], body)
   Just (vs, body) -> Just (v:vs, body)
 unLamsPred' _ = Nothing
@@ -694,7 +719,7 @@ unAskInfo tm = case tm of
 
 isVarKindInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Bool
 isVarKindInfo t = case t of
-  Var' v | (Var.typeOf v) == Var.AskInfo -> True
+  Var' v | Var.typeOf v == Var.AskInfo -> True
   _ -> False
 
 -- Dependencies including referenced data and effect decls
@@ -708,14 +733,14 @@ dependencies t =
   dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
   dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
    where
-    f t@(Ref r    ) = Writer.tell [r] *> pure t
-    f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) *> pure t
-    f t@(Nat _)     = Writer.tell [Type.natRef] *> pure t
-    f t@(Int _)     = Writer.tell [Type.intRef] *> pure t
-    f t@(Float _)   = Writer.tell [Type.floatRef] *> pure t
-    f t@(Boolean _) = Writer.tell [Type.booleanRef] *> pure t
-    f t@(Text _)    = Writer.tell [Type.textRef] *> pure t
-    f t@(Sequence _) = Writer.tell [Type.vectorRef] *> pure t
+    f t@(Ref r    ) = Writer.tell [r] $> t
+    f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) $> t
+    f t@(Nat _)     = Writer.tell [Type.natRef] $> t
+    f t@(Int _)     = Writer.tell [Type.intRef] $> t
+    f t@(Float _)   = Writer.tell [Type.floatRef] $> t
+    f t@(Boolean _) = Writer.tell [Type.booleanRef] $> t
+    f t@(Text _)    = Writer.tell [Type.textRef] $> t
+    f t@(Sequence _) = Writer.tell [Type.vectorRef] $> t
     f t             = pure t
 
 referencedDataDeclarations
@@ -724,8 +749,8 @@ referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
   f
   t
  where
-  f t@(Constructor r _    ) = Writer.tell [r] *> pure t
-  f t@(Match       _ cases) = traverse_ g cases *> pure t
+  f t@(Constructor r _    ) = Writer.tell [r] $> t
+  f t@(Match       _ cases) = traverse_ g cases $> t
    where
     g (MatchCase pat _ _) =
       Writer.tell (Set.toList (referencedDataDeclarationsP pat))
@@ -746,8 +771,8 @@ referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
   f
   t
  where
-  f t@(Request r _    ) = Writer.tell [r] *> pure t
-  f t@(Match   _ cases) = traverse_ g cases *> pure t
+  f t@(Request r _    ) = Writer.tell [r] $> t
+  f t@(Match   _ cases) = traverse_ g cases $> t
    where
     g (MatchCase pat _ _) =
       Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
@@ -766,7 +791,7 @@ referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p
 
 updateDependencies
   :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a
-updateDependencies u tm = ABT.rebuildUp go tm
+updateDependencies u = ABT.rebuildUp go
  where
   -- todo: this function might need tweaking if we ever allow type replacements
   -- would need to look inside pattern matching and constructor calls
@@ -795,7 +820,7 @@ unhashComponent :: Var v
                 -> Map v (Reference, AnnotatedTerm v a)
 unhashComponent m = let
   refToVar = Map.fromList [ (r, v) | (v, (r,_)) <- Map.toList m ]
-  unhash1 e = ABT.rebuildUp' go e where
+  unhash1 = ABT.rebuildUp' go where
     go e@(Ref' r) = case Map.lookup r refToVar of
       Nothing -> e
       Just v -> var (ABT.annotation e) v
@@ -804,7 +829,7 @@ unhashComponent m = let
 
 hashComponents
   :: Var v => Map v (AnnotatedTerm v a) -> Map v (Reference, AnnotatedTerm v a)
-hashComponents m = ReferenceUtil.hashComponents (\r -> ref () r) m
+hashComponents = ReferenceUtil.hashComponents $ ref ()
 
 -- The hash for a constructor
 hashConstructor'
@@ -872,7 +897,7 @@ instance Var v => Hashable1 (F v a p) where
                     B.Recorded (B.Resolve _ s) ->
                       [tag 2, Hashable.Text (Text.pack s)]
                   Ref (Reference.Builtin name) -> [tag 2, accumulateToken name]
-                  Ref (Reference.Derived _ _ _) ->
+                  Ref Reference.Derived {} ->
                     error "handled above, but GHC can't figure this out"
                   App a a2  -> [tag 3, hashed (hash a), hashed (hash a2)]
                   Ann a t   -> [tag 4, hashed (hash a), hashed (ABT.hash t)]
@@ -902,7 +927,7 @@ instance Var v => Hashable1 (F v a p) where
                   And    x y -> [tag 16, hashed $ hash x, hashed $ hash y]
                   Or     x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   _ ->
-                    error $ "unhandled case in show: " <> show (const () <$> e)
+                    error $ "unhandled case in show: " <> show (void e)
 
 -- mostly boring serialization code below ...
 
@@ -935,48 +960,65 @@ instance (Var vt, Eq at, Eq a) => Eq (F vt at p a) where
 
 
 instance (Var v, Show a) => Show (F v a0 p a) where
-  showsPrec p fa = go p fa
+  showsPrec = go
    where
-    showConstructor r n = showsPrec 0 r <> s "#" <> showsPrec 0 n
-    go _ (Int     n    ) = (if n >= 0 then s "+" else s "") <> showsPrec 0 n
-    go _ (Nat     n    ) = showsPrec 0 n
-    go _ (Float   n    ) = showsPrec 0 n
+    showConstructor r n = shows r <> s "#" <> shows n
+    go _ (Int     n    ) = (if n >= 0 then s "+" else s "") <> shows n
+    go _ (Nat     n    ) = shows n
+    go _ (Float   n    ) = shows n
     go _ (Boolean True ) = s "true"
     go _ (Boolean False) = s "false"
-    go p (Ann t k) = showParen (p > 1) $ showsPrec 0 t <> s ":" <> showsPrec 0 k
+    go p (Ann t k) = showParen (p > 1) $ shows t <> s ":" <> shows k
     go p (App f x) = showParen (p > 9) $ showsPrec 9 f <> s " " <> showsPrec 10 x
-    go _ (Lam    body  ) = showParen True (s "λ " <> showsPrec 0 body)
-    go _ (Sequence vs    ) = showListWith (showsPrec 0) (toList vs)
+    go _ (Lam    body  ) = showParen True (s "λ " <> shows body)
+    go _ (Sequence vs    ) = showListWith shows (toList vs)
     go _ (Blank  b     ) = case b of
       B.Blank                        -> s "_"
       B.Recorded (B.Placeholder _ r) -> s ("_" ++ r)
       B.Recorded (B.Resolve     _ r) -> s r
-    go _ (Ref r) = s "Ref(" <> showsPrec 0 r <> s ")"
+    go _ (Ref r) = s "Ref(" <> shows r <> s ")"
     go _ (Let _ b body) =
-      showParen True (s "let " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
+      showParen True (s "let " <> shows b <> s " in " <> shows body)
     go _ (LetRec _ bs body) = showParen
       True
-      (s "let rec" <> showsPrec 0 bs <> s " in " <> showsPrec 0 body)
+      (s "let rec" <> shows bs <> s " in " <> shows body)
     go _ (Handle b body) = showParen
       True
-      (s "handle " <> showsPrec 0 b <> s " in " <> showsPrec 0 body)
+      (s "handle " <> shows b <> s " in " <> shows body)
     go _ (Constructor r         n    ) = showConstructor r n
     go _ (Match       scrutinee cases) = showParen
       True
-      (s "case " <> showsPrec 0 scrutinee <> s " of " <> showsPrec 0 cases)
-    go _ (Text s     ) = showsPrec 0 s
+      (s "case " <> shows scrutinee <> s " of " <> shows cases)
+    go _ (Text s     ) = shows s
     go _ (Request r n) = showConstructor r n
     go p (If c t f) =
       showParen (p > 0)
         $  s "if "
-        <> showsPrec 0 c
+        <> shows c
         <> s " then "
-        <> showsPrec 0 t
+        <> shows t
         <> s " else "
-        <> showsPrec 0 f
+        <> shows f
     go p (And x y) =
-      showParen (p > 0) $ s "and " <> showsPrec 0 x <> s " " <> showsPrec 0 y
+      showParen (p > 0) $ s "and " <> shows x <> s " " <> shows y
     go p (Or x y) =
-      showParen (p > 0) $ s "or " <> showsPrec 0 x <> s " " <> showsPrec 0 y
+      showParen (p > 0) $ s "or " <> shows x <> s " " <> shows y
     (<>) = (.)
     s    = showString
+
+bindTerm
+  :: forall v a
+   . Var v
+  => (Reference -> CT.ConstructorType)
+  -> Names
+  -> AnnotatedTerm v a
+  -> AnnotatedTerm v a
+bindTerm ctorType ns = bindBuiltins termBuiltins typeBuiltins
+ where
+  termBuiltins =
+    [ (HQ.toVar v, fromReferent ctorType () e)
+    | (v, e) <- Rel.toList $ Names.terms ns
+    ]
+  typeBuiltins :: [(v, Reference)]
+  typeBuiltins = [ (HQ.toVar v, t) | (v, t) <- Rel.toList $ Names.types ns ]
+

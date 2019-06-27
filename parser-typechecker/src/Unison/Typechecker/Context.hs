@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DoAndIfThenElse #-}
@@ -35,6 +36,7 @@ module Unison.Typechecker.Context
   , isSubtype
   , isRedundant
   , Suggestion(..)
+  , SuggestionMatch(..)
   , isExact
   )
 where
@@ -215,22 +217,19 @@ type ExpectedArgCount = Int
 type ActualArgCount = Int
 type ConstructorId = Int
 
+data SuggestionMatch = Exact | WrongType | WrongName
+  deriving (Ord, Eq, Show)
+
 data Suggestion v loc =
   Suggestion { suggestionName :: Text
              , suggestionType :: Type v loc
              , suggestionReplacement :: Either v Referent
-             } |
-  WrongType { suggestionName :: Text
-            , suggestionType :: Type v loc
-            } |
-  WrongName { suggestionName :: Text
-            , suggestionType :: Type v loc
-            }
+             , suggestionMatch :: SuggestionMatch
+             }
   deriving (Eq, Show)
 
 isExact :: Suggestion v loc -> Bool
-isExact (Suggestion _ _ _) = True
-isExact _ = False
+isExact Suggestion {..} = suggestionMatch == Exact
 
 data ErrorNote v loc = ErrorNote {
   cause :: Cause v loc,
