@@ -222,7 +222,7 @@ notifyUser dir o = case o of
       filestatusTip
 
   NoExactTypeMatches ->
-    putPrettyLn' $ "☝️  I couldn't find exact type matches, resorting to fuzzy matching..."
+    putPrettyLn $ "☝️  I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeHasFreeVars input typ ->
     putPrettyLn . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",

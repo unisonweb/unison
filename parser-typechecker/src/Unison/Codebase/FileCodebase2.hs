@@ -5,6 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
+import Debug.Trace
 import           Control.Monad                  ( forever, foldM, unless, when )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
@@ -290,9 +291,7 @@ updateCausalHead headDir c = do
 --   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
 
 componentId :: Reference.Id -> String
-componentId (Reference.Id h 0 1) = Hash.base58s h
-componentId (Reference.Id h i n) =
-  Hash.base58s h <> "-" <> show i <> "-" <> show n
+componentId = Text.unpack . Reference.toText . Reference.DerivedId
 
 -- todo: this is base58-i-n ?
 parseHash :: String -> Maybe Reference.Id
@@ -390,7 +389,7 @@ putTerm putV putA path h e typ = liftIO $ do
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
   traverse_ (touchIdFile h . dependentsDir path) deps
   traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
-  touchReferentFile r . typeIndexDir path $ rootTypeHash
+  touchReferentFile r (typeIndexDir path rootTypeHash)
 
 putDecl
   :: MonadIO m
@@ -481,7 +480,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   dependents r = listDirAsIds (dependentsDir path r)
 
   getTermsOfType :: Reference -> m (Set Referent)
-  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
+  getTermsOfType r = fmap traceShowId $
+    listDirAsReferents (traceShowId $ typeIndexDir path r)
 
   getTermsMentioningType :: Reference -> m (Set Referent)
   getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)

@@ -64,11 +64,9 @@ unsafeFromText :: Text -> Referent
 unsafeFromText = maybe (error "invalid referent") id . fromText
 
 fromText :: Text -> Maybe Referent
-fromText = either (const Nothing) Just . fromText'
-
-fromText' :: Text -> Either String Referent
-fromText' t =
-  if refPart == t then
+fromText t = either (const Nothing) Just $
+  -- if the string has just one hash at the start, it's just a reference
+  if Text.length refPart == 1 then
     Ref <$> R.fromText t
   else if Text.all Char.isDigit cidPart then
     (\r -> Con r (read (Text.unpack cidPart))) <$>

@@ -534,6 +534,9 @@ cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
 toReference :: Var v => AnnotatedType v a -> Reference
+toReference (Ref' r) = r
+-- a bit of normalization - any unused type parameters aren't part of the hash
+toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
 toReference t = Reference.Derived (ABT.hash t) 0 1
 
 toReferenceMentions :: Var v => AnnotatedType v a -> Set Reference
