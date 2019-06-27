@@ -222,7 +222,7 @@ notifyUser dir o = case o of
       filestatusTip
 
   NoExactTypeMatches ->
-    putPrettyLn $ "☝️  I couldn't find exact type matches, resorting to fuzzy matching..."
+    putPrettyLn . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
   TypeParseError input src e ->
     putPrettyLn . P.fatalCallout $ P.lines [
       P.wrap "I couldn't parse the type you supplied:",
@@ -451,6 +451,8 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
+displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
+  putPrettyLn $ noResults
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
@@ -689,13 +691,19 @@ listOfDefinitions ::
 listOfDefinitions names detailed results =
   putPrettyLn $ listOfDefinitions' names detailed results
 
+noResults :: P.Pretty P.ColorText
+noResults = P.callout "😶" $
+    P.wrap $ "No results. Check your spelling, or try using tab completion "
+          <> "to supply command arguments."
+
 listOfDefinitions' :: Var v
                    => Names0 -- for printing types of terms :-\
                    -> E.ListDetailed
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
 listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
-  P.lines . P.nonEmpty $ prettyNumberedResults :
+  if null results then noResults
+  else P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
