@@ -278,6 +278,8 @@ builtinsSrc =
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
+  , B "Nat.toInt" $ nat --> int
+  , B "Nat.toText" $ nat --> text
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
