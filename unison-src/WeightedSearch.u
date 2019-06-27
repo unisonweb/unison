@@ -63,4 +63,10 @@ namespace Weighted where
   lists : Weighted a -> Weighted [a]
   lists w = yield [] <|> weight 1 '(mergeWith cons w (lists w))
 
-> sample 10 (lists nats)
+  fromList : [a] -> Weighted a
+  fromList = let
+      go n as = case as of
+        [] -> Weighted.Fail
+        a +: as -> yield a <|> weight n '(go (n + 1) as)
+      go 1
+
