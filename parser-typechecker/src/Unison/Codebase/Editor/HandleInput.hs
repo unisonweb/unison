@@ -1738,8 +1738,9 @@ parseSearchType
   -> Either (Output v) (Type.AnnotatedType v Ann)
 parseSearchType input ns typ =
   let ns' = OldNames.fromNames2 (Names.names0ToNames ns)
-  in case Parsers.parseType (intercalate " " typ) (mempty, ns') of
-    Left err -> Left $ TypeParseError input err
+      src = intercalate " " typ
+  in case Parsers.parseType src (mempty, ns') of
+    Left err -> Left $ TypeParseError input src err
     Right typ -> Right $ Type.removeAllEffectVars typ
 
 --

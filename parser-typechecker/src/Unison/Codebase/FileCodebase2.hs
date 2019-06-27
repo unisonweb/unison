@@ -5,7 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
-import Debug.Trace
+-- import Debug.Trace
 import           Control.Monad                  ( forever, foldM, unless, when )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
@@ -480,8 +480,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   dependents r = listDirAsIds (dependentsDir path r)
 
   getTermsOfType :: Reference -> m (Set Referent)
-  getTermsOfType r = fmap traceShowId $
-    listDirAsReferents (traceShowId $ typeIndexDir path r)
+  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
 
   getTermsMentioningType :: Reference -> m (Set Referent)
   getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)

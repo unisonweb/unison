@@ -445,13 +445,18 @@ removeEffectVars removals t =
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
--- Remove all effect variables from the type that are in the set
+-- Remove all effect variables from the type.
+-- Used for type-based search, we apply this transformation to both the
+-- indexed type and the query type, so the user can supply `a -> b` that will
+-- match `a ->{e} b` (but not `a ->{IO} b`).
 removeAllEffectVars :: Var v => AnnotatedType v a -> AnnotatedType v a
 removeAllEffectVars t = let
   allEffectVars = foldMap go (ABT.subterms t)
   go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
+  go (Effect1' (Var' v) _) = Set.singleton v
   go _ = mempty
-  in removeEffectVars allEffectVars t
+  tu = unforall t
+  in generalize $ removeEffectVars allEffectVars tu
 
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t

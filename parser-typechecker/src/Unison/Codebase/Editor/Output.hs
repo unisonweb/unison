@@ -64,7 +64,7 @@ data Output v
   | PatchAlreadyExists Input Path.Split'
   | NoExactTypeMatches
   | TypeAlreadyExists Input Path.Split' (Set Reference)
-  | TypeParseError Input (Parser.Err v)
+  | TypeParseError Input String (Parser.Err v)
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)

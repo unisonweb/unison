@@ -223,6 +223,12 @@ notifyUser dir o = case o of
 
   NoExactTypeMatches ->
     putPrettyLn $ "☝️  I couldn't find exact type matches, resorting to fuzzy matching..."
+  TypeParseError input src e ->
+    putPrettyLn . P.fatalCallout $ P.lines [
+      P.wrap "I couldn't parse the type you supplied:",
+      "",
+      P.lit $ prettyParseError src e
+    ]
   TypeHasFreeVars input typ ->
     putPrettyLn . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",
