@@ -370,6 +370,10 @@ flipApply :: Var v => Type v -> Type v
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
   where b = ABT.fresh t (ABT.v' "b")
 
+generalize' :: Var v => Var.Type -> AnnotatedType v a -> AnnotatedType v a
+generalize' k t = generalize vsk t where
+  vsk = [ v | v <- Set.toList (freeVars t), Var.typeOf v == k ]
+
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
 generalize :: Ord v => [v] -> AnnotatedType v a -> AnnotatedType v a
 generalize vs t = foldr f t $ vs
