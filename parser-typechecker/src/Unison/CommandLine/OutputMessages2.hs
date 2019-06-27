@@ -525,7 +525,8 @@ unsafePrettyTermResultSigFull' :: Var v =>
 unsafePrettyTermResultSigFull' ppe = \case
   E.TermResult' hq (Just typ) r aliases -> P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
-    , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+    , P.group $
+      P.commas (fmap greyHash $ hq : toList aliases) <> " : "
       <> TypePrinter.pretty ppe mempty (-1) typ
     , mempty
     ]
