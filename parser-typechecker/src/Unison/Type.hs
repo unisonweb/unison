@@ -555,7 +555,8 @@ toReference t = Reference.Derived (ABT.hash t) 0 1
 
 toReferenceMentions :: Var v => AnnotatedType v a -> Set Reference
 toReferenceMentions ty =
-  Set.fromList $ toReference <$> filter ABT.isClosed (ABT.subterms ty)
+  let (vs, _) = unforall' ty
+  in Set.fromList $ toReference . generalize vs <$> ABT.subterms ty
 
 instance Hashable1 F where
   hash1 hashCycle hash e =
