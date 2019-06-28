@@ -279,3 +279,34 @@ pretty' ppe sr
             ]
     in
       (P.sepNonEmpty "\n\n" [typeMsgs, termMsgs], statuses)
+
+-- stack repl
+--
+-- λ> import Unison.Util.Pretty
+-- λ> import Unison.Codebase.Editor.SlurpResult
+-- λ> putStrLn $ toANSI 80 ex
+ex :: P.Pretty P.ColorText
+ex = P.indentN 2 $ P.lines ["",
+  P.green "▣ I've added these definitions: ", "",
+  P.indentN 2 . P.column2 $ [("a", ": Nat"), ("map", ": (a -> b) -> [a] -> [b]")],
+  "",
+  P.green "▣ I've updated these definitions: ", "",
+  P.indentN 2 . P.column2 $ [("c", ": Nat"), ("flatMap", ": (a -> [b]) -> [a] -> [b]")],
+  "",
+  P.wrap $ P.red "x" <> P.bold "These definitions couldn't be added:", "",
+  P.indentN 2 $
+    P.lines [
+      P.column2 [(P.hiBlack
+                  "Reason for failure  | Symbol", ""),
+                 ("ctor/term collision | foo",        ": Nat"),
+                 ("needs alias         | frobnicate", ": Nat -> [a]"),
+                 ("failed dependency   | zoot",       ": [a] -> [a] -> [a]"),
+                 ("term/ctor collision | unique type Foo", "  f x")],
+      "", "Tip: use `help filestatus` to learn more."
+    ],
+  "",
+  "⊡ Ignoring previously added definitions: " <>
+     P.indentNAfterNewline 2 (
+     P.hiBlack (P.wrap $ P.sep " " ["zonk", "anotherOne", "List.wrangle", "oatbag", "blarg", "mcgee", P.group "ability Woot"])),
+  ""
+  ]
