@@ -1,10 +1,8 @@
--- needs Base.u
+use Trie tail head Trie
 
-use Trie tail head
+type Trie k v = { head : Optional v, tail : [(k, Trie k v)] }
 
-type Trie k v = { head : Optional v, tail : Map k (Trie k v) }
-
-Trie.empty = Trie None Map.empty
+Trie.empty = Trie None [] 
 
 Trie.toList : Trie k v -> [([k], v)]
 Trie.toList t =
@@ -13,8 +11,7 @@ Trie.toList t =
     here = case Trie.head t of
       Optional.None -> []
       Optional.Some v -> [(path, v)]
-    tail t |> Map.toList
-           |> List.map (p -> go (path `snoc` at1 p) (at2 p))
+    tail t |> List.map (p -> go (path `snoc` at1 p) (at2 p))
            |> List.join
            |> (List.++) here
   go [] t
