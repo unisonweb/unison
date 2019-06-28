@@ -155,6 +155,7 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
+  EvaluationFailure err -> putPrettyLn err
   PatchNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->

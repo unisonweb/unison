@@ -137,10 +137,12 @@ makePassingTest rt how filepath = scope shortName $ do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
       let term        = Parsers.parseTerm values $ (mempty, UF.toNames untypedFile)
-      (bindings, watches) <- io $ evaluateWatches Builtin.codeLookup
-                                      (const $ pure Nothing)
-                                      rt
-                                      untypedFile
+      (bindings, watches) <- io $ either undefined id <$>
+        evaluateWatches Builtin.codeLookup
+                        mempty
+                        (const $ pure Nothing)
+                        rt
+                        untypedFile
       case term of
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur

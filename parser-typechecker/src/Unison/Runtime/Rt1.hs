@@ -432,7 +432,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@(RMatchFail _ _ _) -> error $ show e
+        e@(RMatchFail _ _ _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
