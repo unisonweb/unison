@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
 
 {-# LANGUAGE OverloadedStrings   #-}
@@ -14,8 +15,8 @@ import           Data.Set (Set)
 -- import qualified Data.Map         as Map
 import qualified Data.Set         as Set
 -- import           Data.String      (fromString)
--- import           Data.Text        (Text)
--- import qualified Data.Text        as Text
+import           Data.Text        (Text)
+import qualified Data.Text        as Text
 -- import           Unison.ConstructorType (ConstructorType)
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
@@ -30,12 +31,6 @@ import           Unison.Reference        (Reference)
 import           Unison.Util.Relation   ( Relation )
 import qualified Unison.Util.Relation as R
 import Unison.Codebase.NameSegment (NameSegment)
-
--- import           Unison.Term      (AnnotatedTerm)
--- import qualified Unison.Term      as Term
--- import           Unison.Type      (AnnotatedType)
--- import qualified Unison.Type      as Type
--- import           Unison.Var       (Var)
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -73,8 +68,15 @@ hasType r = R.memberRan r . types
 termReferents :: Names' n -> Set Referent
 termReferents Names{..} = R.ran terms
 
-termReferences :: Names' n -> Set Reference
+termReferences, typeReferences, allReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
+typeReferences Names{..} = R.ran types
+allReferences n = termReferences n <> typeReferences n
+
+restrictReferences :: Ord n => Set Reference -> Names' n -> Names' n
+restrictReferences refs Names{..} = Names terms' types' where
+  terms' = R.filterRan ((`Set.member` refs) . Referent.toReference) terms
+  types' = R.filterRan (`Set.member` refs) types
 
 -- | Guide to unionLeft*
 -- Is it ok to create new aliases for parsing?
@@ -113,38 +115,35 @@ termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 -- Btw, it's ok to create name conflicts for parsing environments, if you don't
 -- mind disambiguating.
 unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
-unionLeftName a b = Names terms' types' where
-  terms' = foldl' go (terms a) (R.toList $ terms b)
-  types' = foldl' go (types a) (R.toList $ types b)
-  go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-  go acc (n, r) = if R.memberDom n acc then acc else R.insert n r acc
+unionLeftName = unionLeft' $ const . R.memberDom
 
 -- unionLeft two Names, excluding new aliases.
 -- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
 --                   [foo -> #b, baz -> #c]
 --                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
 unionLeftRef :: Ord n => Names' n -> Names' n -> Names' n
-unionLeftRef a b = Names terms' types' where
-  terms' = foldl' go (terms a) (R.toList $ terms b)
-  types' = foldl' go (types a) (R.toList $ types b)
-  go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-  go acc (n, r) = if R.memberRan r acc then acc else R.insert n r acc
+unionLeftRef = unionLeft' $ const R.memberRan
 
 -- unionLeft two Names, but don't create new aliases or new name conflicts.
 -- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
 --                [foo -> #b, baz -> #c]
 --              = [foo -> #a, bar -> #a, cat -> #c]
 unionLeft :: Ord n => Names' n -> Names' n -> Names' n
-unionLeft a b = Names terms' types' where
+unionLeft = unionLeft' go
+  where go n r acc = R.memberDom n acc || R.memberRan r acc
+
+unionLeft'
+  :: Ord n
+  => (forall a b . (Ord a, Ord b) => a -> b -> Relation a b -> Bool)
+  -> Names' n
+  -> Names' n
+  -> Names' n
+unionLeft' p a b = Names terms' types'
+ where
   terms' = foldl' go (terms a) (R.toList $ terms b)
   types' = foldl' go (types a) (R.toList $ types b)
   go :: (Ord a, Ord b) => Relation a b -> (a, b) -> Relation a b
-  go acc (n, r) =
-    if R.memberDom n acc || R.memberRan r acc then acc else R.insert n r acc
-
-
-typeReferences :: Names' n -> Set Reference
-typeReferences Names{..} = R.ran types
+  go acc (n, r) = if p n r acc then acc else R.insert n r acc
 
 -- could move this to a read-only field in Names
 numHashChars :: Names' n -> Int
@@ -305,15 +304,27 @@ filterTypes f (Names terms types) = Names terms (R.filterDom f types)
 
 difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
-                  (R.difference (types a) (types b))
+                       (R.difference (types a) (types b))
+
+intersection :: Ord n => Names' n -> Names' n -> Names' n
+intersection a b = Names (R.intersection (terms a) (terms b))
+                         (R.intersection (types a) (types b))
 
 contains :: Names' n -> Reference -> Bool
-contains names r = R.memberRan (Referent.Ref r) (terms names)
-                || R.memberRan r (types names)
+contains names r =
+  -- this check makes `contains` O(n) instead of O(log n)
+  (Set.member r . Set.map Referent.toReference . R.ran) (terms names)
+  || R.memberRan r (types names)
 
 -- | filters out everything from the domain except what's conflicted
 conflicts :: Ord n => Names' n -> Names' n
 conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
+
+unqualified :: Name -> Name
+unqualified = Name.unsafeFromText . unqualified' . Name.toText
+
+unqualified' :: Text -> Text
+unqualified' = last . Text.splitOn "."
 
 -- filterTypes :: (Name -> Bool) -> Names -> Names
 -- filterTypes f (Names {..}) = Names termNames m2
@@ -332,19 +343,7 @@ conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
 -- bindType ns t = Type.bindBuiltins typeNames' t
 --   where
 --   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
---
--- bindTerm :: forall v a . Var v
---          => (Reference -> ConstructorType)
---          -> Names
---          -> AnnotatedTerm v a
---          -> AnnotatedTerm v a
--- bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
---  where
---   termBuiltins =
---     [ (Name.toVar v, Term.fromReferent ctorType () e) | (v, e) <- Map.toList (termNames ns) ]
---   typeBuiltins :: [(v, Reference)]
---   typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
---
+
 -- -- Given a mapping from name to qualified name, update a `PEnv`,
 -- -- so for instance if the input has [(Some, Optional.Some)],
 -- -- and `Optional.Some` is a constructor in the input `PEnv`,
@@ -373,3 +372,4 @@ instance Show n => Show (Names' n) where
     foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList terms) ++ "\n" ++
     "Types:\n" ++
     foldMap (\(n, r) -> "  " ++ show n ++ " -> " ++ show r ++ "\n") (R.toList types) ++ "\n"
+

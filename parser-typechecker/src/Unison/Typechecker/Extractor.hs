@@ -27,6 +27,8 @@ import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context    as C
 import           Unison.Util.Monoid             ( whenM )
 import qualified Unison.Blank                  as B
+import Unison.Var                              (Var)
+import qualified Unison.Var                    as Var
 
 type RedundantTypeAnnotation = Bool
 
@@ -247,10 +249,12 @@ unknownSymbol = cause >>= \case
   C.UnknownSymbol loc v -> pure (loc, v)
   _                     -> mzero
 
-unknownTerm :: ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
+unknownTerm :: Var v => ErrorExtractor v loc (loc, v, [C.Suggestion v loc], C.Type v loc)
 unknownTerm = cause >>= \case
-  C.UnknownTerm loc v suggestions expectedType ->
-    pure (loc, v, suggestions, expectedType)
+  C.UnknownTerm loc v suggestions expectedType -> do
+    let k = Var.Inference Var.Ability
+        cleanup = Type.cleanup . Type.removePureEffects . Type.generalize' k
+    pure (loc, v, suggestions, cleanup expectedType)
   _ -> mzero
 
 abilityCheckFailure

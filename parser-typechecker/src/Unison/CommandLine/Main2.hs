@@ -62,8 +62,7 @@ getUserInput
 getUserInput patterns codebase branch currentPath numberedArgs =
   Line.runInputT settings $ do
     line <- Line.getInputLine $
-      P.toANSI 80 ((P.green . P.text . Path.toText . Path.unabsolute $
-      currentPath) <> fromString prompt)
+      P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
       Just l -> case parseInput patterns . fmap expandNumber . words $ l of
@@ -79,7 +78,7 @@ getUserInput patterns codebase branch currentPath numberedArgs =
   tabComplete = Line.completeWordWithPrev Nothing " " $ \prev word ->
     -- User hasn't finished a command name, complete from command names
     if null prev
-      then pure . fuzzyComplete word $ Map.keys patterns
+      then pure . exactComplete word $ Map.keys patterns
     -- User has finished a command name; use completions for that command
       else case words $ reverse prev of
         h : t -> fromMaybe (pure []) $ do

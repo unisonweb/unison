@@ -113,6 +113,9 @@ prettyCompletion (s, p) = Line.Completion s (P.toAnsiUnbroken p) True
 prettyCompletion' :: (String, P.Pretty P.ColorText) -> Line.Completion
 prettyCompletion' (s, p) = Line.Completion s (P.toAnsiUnbroken p) False
 
+prettyCompletion'' :: Bool -> (String, P.Pretty P.ColorText) -> Line.Completion
+prettyCompletion'' spaceAtEnd (s, p) = Line.Completion s (P.toAnsiUnbroken p) spaceAtEnd
+
 fuzzyCompleteHashQualified :: Names0 -> String -> [Line.Completion]
 fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
   Nothing -> []
@@ -125,7 +128,12 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion <$> Find.fuzzyFinder q ss id)
+  fixupCompletion q (prettyCompletion' <$> Find.fuzzyFinder q ss id)
+
+exactComplete :: String -> [String] -> [Line.Completion]
+exactComplete q ss = go <$> filter (isPrefixOf q) ss where
+  go s = prettyCompletion'' (s == q)
+           (s, P.hiBlack (P.string q) <> P.string (drop (length q) s))
 
 -- workaround for https://github.com/judah/haskeline/issues/100
 -- if the common prefix of all the completions is smaller than

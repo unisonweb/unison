@@ -12,7 +12,7 @@ sort lte a =
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  use Sequence ++
+  use List ++
   use Optional None Some
   go acc a b = case at 0 a of
     None -> acc ++ b

@@ -10,11 +10,15 @@ module Unison.CommandLine.InputPatterns2 where
 
 -- import Debug.Trace
 import Data.Bifunctor (first)
-import Data.List (intercalate, sortOn)
+import Data.Foldable (toList)
+import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrd)
 import Data.Map (Map)
+import Data.Set (Set)
 import Data.String (fromString)
+import Data.Text (Text)
 import System.Console.Haskeline.Completion (Completion)
+import Unison.Codebase2 (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
@@ -29,9 +33,10 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern2 as I
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Codebase.NameSegment as NameSegment
-import qualified Unison.Names as Names
+import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
+import qualified Unison.Util.Relation as R
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -66,7 +71,7 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Required, patchPathArg), (Optional, branchPathArg)]
+  [(Required, patchArg), (Optional, pathArg)]
   "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
   (\case
     patchStr : ws -> first fromString $ do
@@ -90,7 +95,7 @@ add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
 update :: InputPattern
 update = InputPattern "update"
   []
-  [(Required, patchPathArg)
+  [(Required, patchArg)
   ,(ZeroPlus, noCompletions)]
   "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
   (\case
@@ -105,7 +110,7 @@ update = InputPattern "update"
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
 
 patch :: InputPattern
-patch = InputPattern "patch" [] [(Required, patchPathArg), (Optional, branchPathArg)]
+patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
   "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
   (\case
     patchStr : ws -> first fromString $ do
@@ -234,7 +239,7 @@ aliasType = InputPattern "alias.type" []
     )
 
 cd :: InputPattern
-cd = InputPattern "path" ["cd", "j"] [(Required, branchPathArg)]
+cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
       [ ("`path foo.bar`",
           "descends into foo.bar from the current path.")
@@ -248,7 +253,7 @@ cd = InputPattern "path" ["cd", "j"] [(Required, branchPathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.path" [] [(OnePlus, branchPathArg)]
+deleteBranch = InputPattern "delete.path" [] [(Required, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
         [p] -> first fromString $ do
@@ -257,10 +262,46 @@ deleteBranch = InputPattern "delete.path" [] [(OnePlus, branchPathArg)]
         _ -> Left (I.help deleteBranch)
       )
 
+deletePatch :: InputPattern
+deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
+  "`delete.patch <foo>` deletes the patch `foo`"
+   (\case
+        [p] -> first fromString $ do
+          p <- Path.parseSplit' Path.wordyNameSegment p
+          pure . Input.DeletePatchI $ p
+        _ -> Left (I.help deletePatch)
+      )
+
+copyPatch :: InputPattern
+copyPatch = InputPattern "copy.patch"
+   []
+   [(Required, patchArg), (Required, patchArg)]
+   "`copy.path foo bar` copies the patch `bar` to `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' Path.wordyNameSegment src
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MovePatchI src dest
+      _ -> Left (I.help copyPatch)
+    )
+
+renamePatch :: InputPattern
+renamePatch = InputPattern "rename.patch"
+   []
+   [(Required, patchArg), (Required, patchArg)]
+   "`rename.path foo bar` renames the patch `bar` to `foo`."
+    (\case
+      [src, dest] -> first fromString $ do
+        src <- Path.parseSplit' Path.wordyNameSegment src
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MovePatchI src dest
+      _ -> Left (I.help renamePatch)
+    )
+
 renameBranch :: InputPattern
 renameBranch = InputPattern "rename.path"
    []
-   [(Required, branchPathArg), (Required, branchPathArg)]
+   [(Required, pathArg), (Required, pathArg)]
    "`rename.path foo bar` renames the path `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
@@ -271,8 +312,8 @@ renameBranch = InputPattern "rename.path"
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" [] [(Required, branchPathArg)
-                                   ,(Required, branchPathArg)]
+forkLocal = InputPattern "fork" [] [(Required, pathArg)
+                                   ,(Required, pathArg)]
     "`fork foo bar` creates the path `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
@@ -286,7 +327,7 @@ pull :: InputPattern
 pull = InputPattern
   "pull"
   []
-  [(Required, gitUrlArg), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`pull url`"
       , "pulls the contents of the git url `url` into the current path."
@@ -324,7 +365,7 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, gitUrlArg), (Optional, branchPathArg)]
+  [(Required, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`push url`"
       , "pushes the contents of the current path to the git url given by `url`."
@@ -359,8 +400,8 @@ push = InputPattern
   )
 
 mergeLocal :: InputPattern
-mergeLocal = InputPattern "merge" [] [(Required, branchPathArg)
-                                     ,(Optional, branchPathArg)]
+mergeLocal = InputPattern "merge" [] [(Required, pathArg)
+                                     ,(Optional, pathArg)]
  "`merge foo` merges the path 'foo' into the current branch."
  (\case
       [src] -> first fromString $ do
@@ -422,11 +463,13 @@ help = InputPattern
       [] -> Left $ intercalateMap "\n\n" showPatternHelp
         (sortOn I.patternName validInputs)
       [isHelp -> Just msg] -> Left msg
-      [cmd] -> case lookup cmd (commandNames `zip` validInputs) of
+      [cmd] -> case Map.lookup cmd commandsByName of
         Nothing  -> Left . warn $ "I don't know of that command. Try `help`."
         Just pat -> Left $ I.help pat
       _ -> Left $ warn "Use `help <cmd>` or `help`.")
     where
+      commandsByName = Map.fromList [
+        (n, i) | i <- validInputs, n <- I.patternName i : I.aliases i ]
       isHelp s = Map.lookup s helpTopics
 
 quit :: InputPattern
@@ -438,7 +481,7 @@ quit = InputPattern "quit" ["exit", ":q"] []
   )
 
 viewPatch :: InputPattern
-viewPatch = InputPattern "view.patch" [] [(Required, patchPathArg)]
+viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
   "Lists all the edits in the given patch."
   (\case
     [patchStr] -> first fromString $ do
@@ -501,6 +544,9 @@ validInputs =
   , cd
   , deleteBranch
   , renameBranch
+  , deletePatch
+  , renamePatch
+  , copyPatch
   , find
   , view
   , findPatch
@@ -530,41 +576,59 @@ validInputs =
   , updateBuiltins
   ]
 
-allTargets :: Set.Set Names.NameTarget
-allTargets = Set.fromList [Names.TermName, Names.TypeName]
-
 commandNames :: [String]
-commandNames = I.patternName <$> validInputs
+commandNames = validInputs >>= \i -> I.patternName i : I.aliases i
 
 commandNameArg :: ArgumentType
 commandNameArg =
-  ArgumentType "command" $ \q _ _ _ -> pure (fuzzyComplete q (commandNames <> Map.keys helpTopics))
+  ArgumentType "command" $ \q _ _ _ -> pure (exactComplete q (commandNames <> Map.keys helpTopics))
 
 fuzzyDefinitionQueryArg :: ArgumentType
 fuzzyDefinitionQueryArg =
-  ArgumentType "fuzzy definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- fuzzyCompleteHashQualified b q
+  -- todo: improve this
+  ArgumentType "fuzzy definition query" $
+    bothCompletors (termCompletor fuzzyComplete)
+                   (typeCompletor fuzzyComplete)
 
 -- todo: support absolute paths?
 exactDefinitionQueryArg :: ArgumentType
 exactDefinitionQueryArg =
-  ArgumentType "definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualified b q
+  ArgumentType "definition query" $
+    bothCompletors (termCompletor exactComplete)
+                   (typeCompletor exactComplete)
 
 exactDefinitionTypeQueryArg :: ArgumentType
 exactDefinitionTypeQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualifiedType b q
+  ArgumentType "term definition query" $ typeCompletor exactComplete
 
 exactDefinitionTermQueryArg :: ArgumentType
 exactDefinitionTermQueryArg =
-  ArgumentType "term definition query" $ \q _ (Branch.head -> b) _ ->
-    pure [] -- autoCompleteHashQualifiedTerm b q
+  ArgumentType "term definition query" $ termCompletor exactComplete
 
-patchPathArg :: ArgumentType
-patchPathArg = ArgumentType "patch" $
-  bothCompletors (pathCompletor Branch._edits)
-                 (pathCompletor Branch._children)
+typeCompletor :: Applicative m
+              => (String -> [String] -> [Completion])
+              -> String
+              -> Codebase m v a
+              -> Branch.Branch m
+              -> Path.Absolute
+              -> m [Completion]
+typeCompletor filterQuery = pathCompletor filterQuery go where
+  go = Set.map HQ'.toText . R.dom . Names.types . Names.names0ToNames . Branch.toNames0
+
+termCompletor :: Applicative m
+              => (String -> [String] -> [Completion])
+              -> String
+              -> Codebase m v a
+              -> Branch.Branch m
+              -> Path.Absolute
+              -> m [Completion]
+termCompletor filterQuery = pathCompletor filterQuery go where
+  go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
+
+patchArg :: ArgumentType
+patchArg = ArgumentType "patch" $
+  bothCompletors (pathCompletor exactComplete (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
+                 (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
 
 bothCompletors
   :: (Monad m, Ord a)
@@ -578,38 +642,27 @@ bothCompletors c1 c2 q0 code b currentPath = do
 
 pathCompletor
   :: Applicative f
-  => (Branch.Branch0 m -> Map NameSegment.NameSegment a)
+  => (String -> [String] -> [Completion])
+  -> (Branch.Branch0 m -> Set Text)
   -> String
-  -> p
+  -> codebase
   -> Branch.Branch m
   -> Path.Absolute
   -> f [Completion]
-pathCompletor f q0 code b currentPath = pure $ case q0 of
-  -- query is just . show the immediate decendents under root
-  "." -> [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys $ f (Branch.head b) ]
-  -- query is empty, show immediate decendents under current path
-  "" ->  [ completion' (Text.unpack $ NameSegment.toText s)
-         | s <- Map.keys . f $ Branch.getAt0 (Path.unabsolute currentPath) (Branch.head b) ]
-  -- query ends in . so show immediate dependents under path up to the dot
-  (last -> '.') -> case Path.parsePath' (init q0) of
-    Left err -> [prettyCompletion' ("", P.red (P.string err))]
-    Right p' -> let
-      p = Path.unabsolute $ Path.toAbsolutePath currentPath p'
-      b0 = Branch.getAt0 p (Branch.head b)
-      in [ completion' (q0 <> NameSegment.toString c) | c <- Map.keys $ f b0 ]
-  -- query is foo.ba, so complete from foo children starting with 'ba'
-  q0 -> case Path.parseSplit' Path.optionalWordyNameSegment q0 of
-    Left err -> [prettyCompletion' ("", P.red (P.string err))]
-    Right (init, last) -> let
-      p = Path.unabsolute $ Path.toAbsolutePath currentPath init
-      b0 = Branch.getAt0 p (Branch.head b)
-      matchingChildren = filter (NameSegment.isPrefixOf last) . Map.keys $ f b0
-      n = Text.length (NameSegment.toText last)
-      in [ completion' (q0 <> drop n (NameSegment.toString c)) | c <- matchingChildren ]
+pathCompletor filterQuery getNames query _code b p = let
+  b0root = Branch.head b
+  b0local = Branch.getAt0 (Path.unabsolute p) b0root
+  -- todo: if these sets are huge, maybe trim results
+  in pure . filterQuery query . map Text.unpack $
+       toList (getNames b0local) ++
+       if ("." `isPrefixOf` query) then
+         map ("." <>) (toList (getNames b0root))
+       else
+         []
 
-branchPathArg :: ArgumentType
-branchPathArg = ArgumentType "path" $ pathCompletor Branch._children
+pathArg :: ArgumentType
+pathArg = ArgumentType "path" $
+  pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
 
 noCompletions :: ArgumentType
 noCompletions = ArgumentType "word" I.noSuggestions

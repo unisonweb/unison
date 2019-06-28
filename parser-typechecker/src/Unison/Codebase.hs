@@ -4,8 +4,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE PatternSynonyms     #-}
 
 module Unison.Codebase where
@@ -93,7 +91,6 @@ data Codebase m v a =
            , branchUpdates      :: m (m (), m (Set BranchName))
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
-           , builtinLoc         :: a
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
@@ -113,10 +110,11 @@ getTypeOfConstructor codebase (Reference.DerivedId r) cid = do
 getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
-typecheckingEnvironment' :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
+typecheckingEnvironment'
+  :: (Monad m, Ord v) => Codebase m v a -> Term v a -> m (Typechecker.Env v a)
 typecheckingEnvironment' code term = do
   tl <- typecheckingEnvironment code term
-  pure $ Typechecker.Env (builtinLoc code) [] tl mempty
+  pure $ Typechecker.Env [] tl mempty mempty
 
 -- Scan the term for all its dependencies and pull out the `ReadRefs` that
 -- gives info for all its dependencies, using the provided codebase.

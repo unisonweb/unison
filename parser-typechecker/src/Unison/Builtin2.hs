@@ -148,7 +148,7 @@ typeLookup =
 --
 -- builtinTypes :: [(Name, R.Reference)]
 -- builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
---   ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
+--   ["Int", "Nat", "Float", "Boolean", List"", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -177,16 +177,17 @@ builtinDependencies =
   Rel.fromMultimap (Type.dependencies <$> termRefTypes @Symbol)
 
 -- a relation whose domain is types and whose range is builtin terms with that type
-builtinTermsByType :: Rel.Relation R.Reference R.Reference
+builtinTermsByType :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByType =
-  Rel.fromList [ (Type.toReference ty, r) | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
+  Rel.fromList [ (Type.toReference ty, Referent.Ref r)
+               | (r, ty) <- Map.toList (termRefTypes @Symbol) ]
 
 -- a relation whose domain is types and whose range is builtin terms that mention that type
 -- example: Nat.+ mentions the type `Nat`
-builtinTermsByTypeMention :: Rel.Relation R.Reference R.Reference
+builtinTermsByTypeMention :: Rel.Relation R.Reference Referent.Referent
 builtinTermsByTypeMention =
-  Rel.fromList [ (m, r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
-                        , m <- toList $ Type.toReferenceMentions ty ]
+  Rel.fromList [ (m, Referent.Ref r) | (r, ty) <- Map.toList (termRefTypes @Symbol)
+                                     , m <- toList $ Type.toReferenceMentions ty ]
 
 -- The dependents of a builtin type is the set of builtin terms which
 -- mention that type.
@@ -200,7 +201,7 @@ builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 -- if we decide to change their names.
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "Sequence", "Text", "Effect", "Bytes"]
+  ["Int", "Nat", "Float", "Boolean", "List", "Text", "Effect", "Bytes"]
 
 data BuiltinDSL v
   -- simple builtin: name=ref, type
@@ -277,6 +278,8 @@ builtinsSrc =
   , B "Nat.increment" $ nat --> nat
   , B "Nat.isEven" $ nat --> boolean
   , B "Nat.isOdd" $ nat --> boolean
+  , B "Nat.toInt" $ nat --> int
+  , B "Nat.toText" $ nat --> text
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
@@ -344,7 +347,7 @@ builtinsSrc =
 
   , B "Boolean.not" $ boolean --> boolean
 
-  , B "Text.empty" $ text
+  , B "Text.empty" text
   , B "Text.++" $ text --> text --> text
   , B "Text.take" $ nat --> text --> text
   , B "Text.drop" $ nat --> text --> text
@@ -356,24 +359,26 @@ builtinsSrc =
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
 
-  , B "Bytes.empty" $ bytes
-  , B "Bytes.fromSequence" $ sequence nat --> bytes
+  , B "Bytes.empty" bytes
+  , B "Bytes.fromList" $ list nat --> bytes
   , B "Bytes.++" $ bytes --> bytes --> bytes
   , B "Bytes.take" $ nat --> bytes --> bytes
   , B "Bytes.drop" $ nat --> bytes --> bytes
   , B "Bytes.at" $ nat --> bytes --> optional nat
-  , B "Bytes.toSequence" $ bytes --> sequence nat
+  , B "Bytes.toList" $ bytes --> list nat
   , B "Bytes.size" $ bytes --> nat
   , B "Bytes.flatten" $ bytes --> bytes
 
-  , B "Sequence.empty" $ forall1 "a" (\a -> sequence a)
-  , B "Sequence.cons" $ forall1 "a" (\a -> a --> sequence a --> sequence a)
-  , B "Sequence.snoc" $ forall1 "a" (\a -> sequence a --> a --> sequence a)
-  , B "Sequence.take" $ forall1 "a" (\a -> nat --> sequence a --> sequence a)
-  , B "Sequence.drop" $ forall1 "a" (\a -> nat --> sequence a --> sequence a)
-  , B "Sequence.++" $ forall1 "a" (\a -> sequence a --> sequence a --> sequence a)
-  , B "Sequence.size" $ forall1 "a" (\a -> sequence a --> nat)
-  , B "Sequence.at" $ forall1 "a" (\a -> nat --> sequence a --> optional a)
+  , B "List.empty" $ forall1 "a" list
+  , B "List.cons" $ forall1 "a" (\a -> a --> list a --> list a)
+  , Alias "List.cons" "List.+:"
+  , B "List.snoc" $ forall1 "a" (\a -> list a --> a --> list a)
+  , Alias "List.snoc" "List.:+"
+  , B "List.take" $ forall1 "a" (\a -> nat --> list a --> list a)
+  , B "List.drop" $ forall1 "a" (\a -> nat --> list a --> list a)
+  , B "List.++" $ forall1 "a" (\a -> list a --> list a --> list a)
+  , B "List.size" $ forall1 "a" (\a -> list a --> nat)
+  , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
   , B "Effect.pure" $ forall2 "e" "a" (\e a -> a --> effect e a) -- Effect ambient e a
@@ -399,16 +404,16 @@ builtinsSrc =
       in Type.forall () a (body $ Type.var () a)
 
     forall2 :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
-    forall2 name1 name2 body = forall1 name1 (\tv1 -> forall1 name2 (\tv2 -> body tv1 tv2))
+    forall2 name1 name2 body = forall1 name1 (forall1 name2 . body)
 
     forall4 :: Var v => Text -> Text -> Text -> Text -> (Type v -> Type v -> Type v -> Type v -> Type v) -> Type v
-    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (\tv3 tv4 -> body tv1 tv2 tv3 tv4))
+    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (body tv1 tv2))
 
     app :: Ord v => Type v -> Type v -> Type v
-    app f a = Type.app () f a
+    app = Type.app ()
 
-    sequence :: Ord v => Type v -> Type v
-    sequence arg = Type.vector () `app` arg
+    list :: Ord v => Type v -> Type v
+    list arg = Type.vector () `app` arg
 
     optional :: Ord v => Type v -> Type v
     optional arg = DD.optionalType () `app` arg
@@ -417,7 +422,7 @@ builtinsSrc =
     effect e a = Type.effectType () `app` e `app` a
 
     effectful :: Ord v => Type v -> Type v -> Type v
-    effectful e a = Type.effect1 () e a
+    effectful = Type.effect1 ()
 
     delayed :: Ord v => Type v -> Type v
     delayed a = DD.unitType () --> a

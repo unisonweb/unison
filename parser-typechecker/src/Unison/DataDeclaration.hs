@@ -342,6 +342,11 @@ okConstructorId, failConstructorId :: Int
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
 Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
 
+failResult :: (Ord v, Monoid a) => a -> Text -> AnnotatedTerm v a
+failResult ann msg =
+  Term.app ann (Term.request ann testResultRef failConstructorId)
+               (Term.text ann msg)
+
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
 builtinDataDecls = hashDecls $ Map.fromList
   [ (v "()"             , unit)

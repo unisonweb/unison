@@ -728,7 +728,8 @@ commandLine awaitInput rt notifyUser codebase = Free.fold go
                       m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
-    rs@(_, map) <- Runtime.evaluateWatches codeLookup
+    rs@(_, map) <- either undefined id <$> Runtime.evaluateWatches codeLookup
+                                           ppe
                                            watchCache
                                            rt
                                            selfContained

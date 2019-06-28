@@ -5,6 +5,7 @@
 
 module Unison.Codebase.FileCodebase2 where
 
+-- import Debug.Trace
 import           Control.Monad                  ( forever, foldM, unless, when )
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
@@ -29,7 +30,7 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
-                                                -- , decodeUtf8
+                                                , decodeUtf8
                                                 )
 import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , doesFileExist
@@ -73,6 +74,7 @@ import qualified Unison.Hash                   as Hash
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
@@ -122,6 +124,28 @@ typeIndexDir root r = root </> "type-index" </> referenceToDir r
 typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
 
+decodeFileName :: FilePath -> Text
+decodeFileName p = Text.pack $ go p where
+  go ('$':tl) = case span (/= '$') tl of
+    ("forward-slash", _:tl) -> '/' : go tl
+    ("back-slash", _:tl) ->  '\\' : go tl
+    ("colon", _:tl) -> ':' : go tl
+    ("star", _:tl) -> '*' : go tl
+    ("question-mark", _:tl) -> '?' : go tl
+    ("double-quote", _:tl) -> '\"' : go tl
+    ("less-than", _:tl) -> '<' : go tl
+    ("greater-than", _:tl) -> '>' : go tl
+    ("pipe", _:tl) -> '|' : go tl
+    ('b':'5':'8':b58, _:tl) -> unB58 b58 ++ go tl
+    ("",_:tl) -> '$' : go tl
+    (s,_:tl) -> s ++ go tl
+    (s,[]) -> s
+  go (hd:tl) = hd : tl
+  go [] = []
+  unB58 s = case Hash.fromBase58 (Text.pack s) of
+    Nothing -> s
+    Just h -> Text.unpack . decodeUtf8 . Hash.toBytes $ h
+
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
 encodeFileName t = let
@@ -160,7 +184,16 @@ touchIdFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  writeFile (fp </> componentId id) (componentId id)
+  let n = Reference.toText $ Reference.DerivedId id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
+
+touchReferentFile :: Referent -> FilePath -> IO ()
+touchReferentFile id fp = do
+  createDirectoryIfMissing True fp
+  -- note: contents of the file are equal to the name, rather than empty, to
+  -- hopefully avoid git getting clever about treating deletions as renames
+  let n = Referent.toText id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -258,9 +291,7 @@ updateCausalHead headDir c = do
 --   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
 
 componentId :: Reference.Id -> String
-componentId (Reference.Id h 0 1) = Hash.base58s h
-componentId (Reference.Id h i n) =
-  Hash.base58s h <> "-" <> show i <> "-" <> show n
+componentId = Text.unpack . Reference.toText . Reference.DerivedId
 
 -- todo: this is base58-i-n ?
 parseHash :: String -> Maybe Reference.Id
@@ -354,10 +385,11 @@ putTerm putV putA path h e typ = liftIO $ do
   S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
   S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
   -- Add the term as a dependent of its dependencies
+  let r = Referent.Ref (Reference.DerivedId h)
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
   traverse_ (touchIdFile h . dependentsDir path) deps
-  traverse_ (touchIdFile h . typeMentionsIndexDir path) typeMentions
-  touchIdFile h . typeIndexDir path $ rootTypeHash
+  traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  touchReferentFile r (typeIndexDir path rootTypeHash)
 
 putDecl
   :: MonadIO m
@@ -376,8 +408,18 @@ putDecl putV putA path h decl = liftIO $ do
     (declPath path h)
     decl
   traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ addCtorToTypeIndex ctors
  where
   deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
+  r = Reference.DerivedId h
+  decl' = either DD.toDataDecl id decl
+  addCtorToTypeIndex (r, typ) = do
+    let rootHash     = Type.toReference typ
+        typeMentions = Type.toReferenceMentions typ
+    touchReferentFile r (typeIndexDir path rootHash)
+    traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  ctors =
+    [ (Referent.Con r i, Type.removeAllEffectVars t) | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
 
 putWatch
   :: MonadIO m
@@ -437,19 +479,29 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
   dependents :: Reference -> m (Set Reference.Id)
   dependents r = listDirAsIds (dependentsDir path r)
 
-  getTermsOfType :: Reference -> m (Set Reference.Id)
-  getTermsOfType r = listDirAsIds (typeIndexDir path r)
+  getTermsOfType :: Reference -> m (Set Referent)
+  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
 
-  getTermsMentioningType :: Reference -> m (Set Reference.Id)
-  getTermsMentioningType r = listDirAsIds (typeMentionsIndexDir path r)
+  getTermsMentioningType :: Reference -> m (Set Referent)
+  getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
 
+  -- todo: revisit these
   listDirAsIds :: FilePath -> m (Set Reference.Id)
   listDirAsIds d = do
     e <- doesDirectoryExist d
     if e
       then do
-        ls <- listDirectory d
-        pure . Set.fromList $ ls >>= (toList . parseHash)
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Reference.idFromText)
+      else pure Set.empty
+
+  listDirAsReferents :: FilePath -> m (Set Referent)
+  listDirAsReferents d = do
+    e <- doesDirectoryExist d
+    if e
+      then do
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Referent.fromText)
       else pure Set.empty
 
   watches :: UF.WatchKind -> m [Reference.Id]

@@ -42,11 +42,14 @@ data Input
     | MoveTermI Path.HQSplit' Path.Split'
     | MoveTypeI Path.HQSplit' Path.Split'
     | MoveBranchI Path.Split' Path.Split'
+    | MovePatchI Path.Split' Path.Split'
+    | CopyPatchI Path.Split' Path.Split'
     -- delete = unname
     -- | DeleteDefnI [Path.HQSplit']
     | DeleteTermI Path.HQSplit'
     | DeleteTypeI Path.HQSplit'
     | DeleteBranchI Path.Split'
+    | DeletePatchI Path.Split'
     -- resolving naming conflicts within `branchpath`
       -- Add the specified name after deleting all others for a given reference
       -- within a given branch.

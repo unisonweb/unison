@@ -26,7 +26,7 @@ import           Unison.Symbol                  ( Symbol )
 -- import Debug.Trace
 
 import           Control.Monad.Except           ( runExceptT )
-import           Data.Functor                   ( void )
+import           Data.Functor
 import           Data.Foldable                  ( traverse_, forM_, toList )
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
@@ -63,6 +63,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
+import qualified Unison.PrettyPrintEnv         as PPE
 
 typecheck
   :: (Monad m, Var v)
@@ -115,8 +116,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
                 (namegen, OldNames.fromNames2 names)
                 sourceName
                 source
-    Evaluate unisonFile        -> evalUnisonFile unisonFile
-    Evaluate1 term             -> eval1 term
+    Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
+    Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
     SyncLocalRootBranch branch -> do
       setBranchRef branch
@@ -148,20 +149,21 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
 --    Propagate b -> do
 --      b0 <- Codebase.propagate codebase (Branch.head b)
 --      pure $ Branch.append b0 b
-    Execute uf -> void $ evalUnisonFile uf
+    Execute ppe uf -> void $ evalUnisonFile ppe uf
 
-  eval1 :: Term.AnnotatedTerm v Ann -> IO (Term.AnnotatedTerm v Ann)
-  eval1 tm = do
+  eval1 :: PPE.PrettyPrintEnv -> Term.AnnotatedTerm v Ann -> _
+  eval1 ppe tm = do
     let codeLookup = Codebase.toCodeLookup codebase
     let uf = UF.UnisonFile mempty mempty mempty
                (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
     selfContained <- Codebase.makeSelfContained' codeLookup uf
-    (_, map) <- Runtime.evaluateWatches codeLookup Runtime.noCache rt selfContained
-    let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
-    pure (Term.amap (const Parser.External) value)
+    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt selfContained
+    pure $ r <&> \(_,map) ->
+      let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
+      in Term.amap (const Parser.External) value
 
-  evalUnisonFile :: UF.TypecheckedUnisonFile v Ann -> _
-  evalUnisonFile (UF.discardTypes -> unisonFile) = do
+  evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
+  evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
     selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
     let watchCache (Reference.DerivedId h) = do
@@ -169,16 +171,18 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
           m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
-    rs@(_, map) <- Runtime.evaluateWatches codeLookup watchCache rt selfContained
-    forM_ (Map.elems map) $
-      \(_loc, kind, hash, _src, value, isHit) ->
-      if isHit then pure ()
-      else case hash of
-        Reference.DerivedId h -> do
-          let value' = Term.amap (const Parser.External) value
-          Codebase.putWatch codebase kind h value'
-        _ -> pure ()
-    pure rs
+    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt selfContained
+    case r of
+      Left e -> pure (Left e)
+      Right rs@(_,map) -> do
+        forM_ (Map.elems map) $ \(_loc, kind, hash, _src, value, isHit) ->
+          if isHit then pure ()
+          else case hash of
+            Reference.DerivedId h -> do
+              let value' = Term.amap (const Parser.External) value
+              Codebase.putWatch codebase kind h value'
+            _ -> pure ()
+        pure $ Right rs
 
 -- doTodo :: Monad m => Codebase m v a -> Branch0 -> m (TodoOutput v a)
 -- doTodo code b = do

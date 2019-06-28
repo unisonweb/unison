@@ -5,7 +5,7 @@ use Test.Report Report
 use Test.Test Test
 use Test passed proved failed expected unexpected pending finished label
 use Test.Scope Scope
-use Sequence flatMap
+use List flatMap
 
 type Test.Success = Passed Nat | Proved
 
@@ -15,7 +15,7 @@ type Test.Status = Failed
                  | Pending
 
 -- Current scope together with accumulated test report.
-type Test.Report = Report (Trie Text [Test.Status])
+type Test.Report = Report (Trie Text Test.Status)
 
 type Test.Test = Test (Test.Scope -> Test.Report)
 
@@ -33,19 +33,19 @@ foldStatus failed expected unexpected pending status = case status of
   Unexpected s -> unexpected s
   Pending -> pending
     
-foldReport : (Trie Text [Test.Status] -> r) -> Report -> r
+foldReport : (Trie Text Test.Status -> r) -> Report -> r
 foldReport k r = case r of Report t -> k t
 
 foldScope : ([Text] -> r) -> Scope -> r
 foldScope k s = case s of Scope ss -> k ss
 
 Scope.cons : Text -> Scope -> Scope
-Scope.cons n = foldScope (Scope . Sequence.cons n)
+Scope.cons n = foldScope (Scope . List.cons n)
 
 -- Basic building blocks of tests
 Test.finished : Status -> Test
 Test.finished st = 
-  Test (Report . foldScope (sc -> Trie.singleton sc [st]))
+  Test (Report . foldScope (sc -> Trie.singleton sc st))
 
 Test.failed : Test
 Test.failed = finished Failed
@@ -66,7 +66,7 @@ Test.provedUnexpectedly = finished <| Unexpected Proved
 
 Test.modifyStatus : (Status -> Status) -> Test -> Test
 Test.modifyStatus f t =
-  case t of Test k -> Test (foldReport (Report . map (map f)) . k)
+  case t of Test k -> Test (foldReport (Report . map f) . k)
 
 Test.label : Text -> Test -> Test
 Test.label n t = case t of
@@ -97,7 +97,7 @@ Test.failedWith m = Test.label m Test.failed
 Test.Report.combine : Report -> Report -> Report
 Test.Report.combine r1 r2 = case (r1, r2) of
   (Test.Report.Report t1, Test.Report.Report t2) ->
-    Report <| Trie.unionWith (Sequence.++) t1 t1
+    Report <| Trie.unionWith Status.combine t1 t2
 
 Test.Report.empty : Report
 Test.Report.empty = Report empty
@@ -113,12 +113,12 @@ Test.Report.toCLIResult r =
       Test.Result.Ok (scope ++ " : Passed " ++ Nat.toText n ++ " tests.")
     Test.Status.Expected (Test.Success.Proved) ->
       Test.Result.Ok (scope ++ " : Proved.")
-  go : Text -> Trie Text [Test.Status] -> [Test.Result]
+  go : Text -> Trie Text Test.Status -> [Test.Result]
   go scope t = 
-    rest = flatMap (descend scope) (Map.toSequence (tail t))
+    rest = flatMap (descend scope) (Map.toList (tail t))
     case head t of
-      Optional.Some statuses -> 
-        map (convert scope) statuses ++ rest
+      Optional.Some status -> 
+        cons (convert scope status) rest
       Optional.None -> rest
   case r of Test.Report.Report t -> go "" t
 
@@ -141,7 +141,11 @@ Status.combine s1 s2 = case (s1, s2) of
   (Pending, _) -> Pending
   (Failed, _) -> Failed
   (_, Failed) -> Failed
+  (Unexpected a, Unexpected b) -> Unexpected (Success.combine a b)
+  (Unexpected a, _) -> Unexpected a
+  (_, Unexpected b) -> Unexpected b
   (Expected a, Expected b) -> Expected (Success.combine a b)
+
 
 Status.pending : Test.Status -> Test.Status
 Status.pending s = case s of
@@ -168,55 +172,89 @@ Success.combine s1 s2 = case (s1, s2) of
 -- A domain is either small, in which case we can exhaustively list all the
 -- values in the domain, or it's large, in which case we can ask for a value
 -- of a particular size.
-type Domain a = Small [a] | Large (Nat -> a)
+type Domain a = Small [a] | Large (Weighted a)
 
 -- The domain of natural numbers is large.
 Domain.nats : Domain Nat
-Domain.nats = Large (n -> maxNat + n)
+Domain.nats = Large Weighted.nats
 
 Domain.ints : Domain Int
-Domain.ints = 
-  Large (n -> case n of
-                0 -> +0
-                1 -> +1
-                2 -> -1
-                3 -> maxInt
-                4 -> minInt
-                x ->
-                  y = toInt (x `drop` 1 / 2)
-                  if x `mod` 2 == 0 then y else negate y)
+Domain.ints = let
+  go n = yield n <|> weight 1 '(go (if n > +0 then negate n else increment n))
+  Large (fromList [+0, +1, -1, maxInt, minInt] <|> go +2)
 
-use Universal == <
+use Universal == < >
 
--- The Boolean domain is small
-Domain.boolean : Domain Boolean
-Domain.boolean = Small [false, true]
+namespace Domain where
 
--- The domain of lists of arbitrary data is large
-Domain.listsOf : Domain a -> Domain [a]
-Domain.listsOf d =
-  Large (n -> Domain.sample n d)
+  -- The threshold of "small" domains.
+  smallSize = 10000
 
-Domain.lists : Domain [[()]]
-Domain.lists = Domain.listsOf (Domain.listsOf (Large (const ())))
+  -- The Boolean domain is small
+  boolean : Domain Boolean
+  boolean = Small [false, true]
 
-Domain.sample : Nat -> Domain a -> [a]
-Domain.sample n d =
-  case d of 
-    Domain.Large f -> map f (range 0 n)
-    Domain.Small xs -> take n xs
+  -- The domain of lists of arbitrary data is large
+  listsOf : Domain a -> Domain [a]
+  listsOf d = 
+    Large (Weighted.lists case d of
+      Domain.Small as -> Weighted.fromList as
+      Domain.Large w -> w)
+
+  lists : Domain [()]
+  lists = Domain.listsOf (Small [()])
+
+  sample : Nat -> Domain a -> [a]
+  sample n d =
+    case d of 
+      Domain.Large w -> Weighted.sample n w
+      Domain.Small xs -> take n xs
+
+  map : (a -> b) -> Domain a -> Domain b
+  map f d = case d of
+    Domain.Large w -> Domain.Large (Weighted.map f w)
+    Domain.Small as -> Domain.Small (List.map f as)
+
+  pairs : Domain a -> Domain (a,a)
+  pairs d = lift2 (a b -> (a,b)) d d
+
+  tuples : Domain a -> Domain b -> Domain (Pair a b)
+  tuples = lift2 (a b -> Pair a b)
+
+  lift2 : (a -> b -> c) -> Domain a -> Domain b -> Domain c
+  lift2 f da db = let
+    wa = weighted da
+    wb = weighted db
+    wc = mergeWith (a1 a2 -> f a1 a2) wa wb
+    case (da, db) of
+      (Domain.Small as, Domain.Small bs) | size as + size bs < smallSize ->
+        Small (Weighted.sample smallSize wc)
+      _ -> Large wc
+
+  weighted : Domain a -> Weighted a
+  weighted d = case d of 
+    Domain.Small as -> Weighted.fromList as
+    Domain.Large w -> w
 
 -- Test a property for a given domain up to a maximum size
-Test.forAll : Domain a -> (a -> Boolean) -> Nat -> Test
-Test.forAll domain property maxSize =
+Test.forAll' : Domain a -> (a -> Boolean) -> Nat -> Test
+Test.forAll' domain property maxSize =
   check xs s = 
-    Sequence.map (
-      a -> case a of (i, c) ->
+    List.map (
+      a -> case a of (c, i) ->
              if property c then finished (Expected s)
-             else label ("test case " + toText i) (finished Failed)
+             else label ("test case " ++ Nat.toText i) (finished Failed)
                  ) (indexed xs)
-  Sequence.foldb id (Test.&&) proved <| 
+  List.foldb id (Test.&&) proved <| 
     case domain of 
       Domain.Small xs -> check (take maxSize xs) Proved
       Domain.Large _ -> check (sample maxSize domain) (Passed 1)
 
+Test.check' : Boolean -> Test
+Test.check' b = if b then Test.proved else Test.failed
+
+Test.forAll : Domain a -> (a -> Boolean) -> Nat -> [Test.Result]
+Test.forAll d p n = Test.run (Test.forAll' d p n)
+
+Test.check : Boolean -> [Test.Result]
+Test.check = Test.run . Test.check'

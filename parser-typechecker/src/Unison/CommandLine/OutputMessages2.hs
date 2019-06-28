@@ -41,6 +41,7 @@ import           Data.Tuple.Extra              (dupe)
 import           Prelude                       hiding (readFile, writeFile)
 import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
+import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.GitError
@@ -101,6 +102,7 @@ import           Unison.Util.Monoid             ( intercalateMap
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.Relation          as R
 import           Unison.Var                    (Var)
+import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import           System.Directory               ( getHomeDirectory )
 
@@ -155,6 +157,9 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
+  EvaluationFailure err -> putPrettyLn err
+  PatchNotFound input _ ->
+    putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that term."
   TypeNotFound input _ ->
@@ -163,6 +168,8 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "A term by that name already exists."
   TypeAlreadyExists input _ _ ->
     putPrettyLn . P.warnCallout $ "A type by that name already exists."
+  PatchAlreadyExists input _ ->
+    putPrettyLn . P.warnCallout $ "A patch by that name already exists."
   CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
@@ -217,6 +224,19 @@ notifyUser dir o = case o of
       SlurpResult.pretty ppe s <> "\n\n" <>
       filestatusTip
 
+  NoExactTypeMatches ->
+    putPrettyLn . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
+  TypeParseError input src e ->
+    putPrettyLn . P.fatalCallout $ P.lines [
+      P.wrap "I couldn't parse the type you supplied:",
+      "",
+      P.lit $ prettyParseError src e
+    ]
+  TypeHasFreeVars input typ ->
+    putPrettyLn . P.warnCallout $ P.lines [
+      P.wrap "The type uses these names, but I'm not sure what they are:",
+      P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
+    ]
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
     traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
@@ -278,8 +298,8 @@ notifyUser dir o = case o of
           , filestatusTip
           ]
       putPrettyLn' ""
-      putPrettyLn' $ P.wrap "Now evaluating any watch expressions"
-                     <> " (lines starting with `>`)..."
+      putPrettyLn' . P.wrap $ "Now evaluating any watch expressions"
+                           <> "(lines starting with `>`)..."
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
@@ -434,6 +454,8 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
+displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
+  putPrettyLn $ noResults
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
@@ -507,7 +529,8 @@ unsafePrettyTermResultSigFull' ppe = \case
   E.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
-    , P.commas (fmap greyHash $ hq : toList aliases) <> " : "
+    , P.group $
+      P.commas (fmap greyHash $ hq : toList aliases) <> " : "
       <> TypePrinter.pretty ppe mempty (-1) typ
     , mempty
     ]
@@ -673,13 +696,19 @@ listOfDefinitions ::
 listOfDefinitions names detailed results =
   putPrettyLn $ listOfDefinitions' names detailed results
 
+noResults :: P.Pretty P.ColorText
+noResults = P.callout "😶" $
+    P.wrap $ "No results. Check your spelling, or try using tab completion "
+          <> "to supply command arguments."
+
 listOfDefinitions' :: Var v
                    => Names0 -- for printing types of terms :-\
                    -> E.ListDetailed
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
 listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
-  P.lines . P.nonEmpty $ prettyNumberedResults :
+  if null results then noResults
+  else P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`

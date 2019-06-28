@@ -14,6 +14,8 @@ module Unison.Reference
    groupByComponent,
    componentFor,
    unsafeFromText,
+   idFromText,
+   fromText,
    readSuffix,
    showShort,
    toText,
@@ -66,7 +68,7 @@ unsafeId (DerivedId x) = x
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h 0 _) = SH.ShortHash (H.base58 h) Nothing Nothing
+toShortHash (Derived h _ 1) = SH.ShortHash (H.base58 h) Nothing Nothing
 toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
@@ -115,6 +117,12 @@ derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
 
+idFromText :: Text -> Maybe Id
+idFromText s = case fromText s of
+  Left _ -> Nothing
+  Right (Builtin _) -> Nothing
+  Right (DerivedId id) -> pure id
+
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
 -- `#2tWjVAuc7` — derived, no cycle
@@ -149,9 +157,6 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 
 instance Show Id where show = show . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = show . SH.take 5 . toShortHash
--- instance Show Reference where
---   show (Builtin t)         = "##" <> Text.unpack t
---   show (DerivedId id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]

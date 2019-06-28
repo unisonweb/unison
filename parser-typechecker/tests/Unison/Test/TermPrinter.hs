@@ -107,7 +107,7 @@ test = scope "termprinter" . tests $
   , tc "()"
   , tc "Pair"
   , tc "foo"
-  , tc "Sequence.empty"
+  , tc "List.empty"
   , tc "None"
   , tc "Optional.None"
   , tc "handle foo in bar"
@@ -325,7 +325,7 @@ test = scope "termprinter" . tests $
   , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
   , tc_breaks 32 "let\n\
                  \  go acc a b =\n\
-                 \    case Sequence.at 0 a of\n\
+                 \    case List.at 0 a of\n\
                  \      Optional.None -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"

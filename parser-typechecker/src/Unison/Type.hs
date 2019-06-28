@@ -370,16 +370,29 @@ flipApply :: Var v => Type v -> Type v
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
   where b = ABT.fresh t (ABT.v' "b")
 
--- | Bind all free variables with an outer `forall`.
-generalize :: Ord v => AnnotatedType v a -> AnnotatedType v a
-generalize t = foldr (forall (ABT.annotation t)) t $ Set.toList (ABT.freeVars t)
+generalize' :: Var v => Var.Type -> AnnotatedType v a -> AnnotatedType v a
+generalize' k t = generalize vsk t where
+  vsk = [ v | v <- Set.toList (freeVars t), Var.typeOf v == k ]
+
+-- | Bind the given variables with an outer `forall`, if they are used in `t`.
+generalize :: Ord v => [v] -> AnnotatedType v a -> AnnotatedType v a
+generalize vs t = foldr f t $ vs
+  where
+  f v t = if Set.member v (ABT.freeVars t)
+          then forall (ABT.annotation t) v t
+          else t
 
 unforall :: AnnotatedType v a -> AnnotatedType v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t
 
+unforall' :: AnnotatedType v a -> ([v], AnnotatedType v a)
+unforall' (ForallsNamed' vs t) = (vs, t)
+unforall' t = ([], t)
+
 generalizeAndUnTypeVar :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
-generalizeAndUnTypeVar = cleanup . ABT.vmap TypeVar.underlying . generalize
+generalizeAndUnTypeVar t =
+  cleanup . ABT.vmap TypeVar.underlying . generalize (Set.toList $ ABT.freeVars t) $ t
 
 toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
@@ -445,20 +458,25 @@ removeEffectVars removals t =
       removeEmpty _ = Nothing
   in ABT.visitPure removeEmpty t'
 
--- Remove all effect variables from the type that are in the set
+-- Remove all effect variables from the type.
+-- Used for type-based search, we apply this transformation to both the
+-- indexed type and the query type, so the user can supply `a -> b` that will
+-- match `a ->{e} b` (but not `a ->{IO} b`).
 removeAllEffectVars :: Var v => AnnotatedType v a -> AnnotatedType v a
 removeAllEffectVars t = let
   allEffectVars = foldMap go (ABT.subterms t)
   go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
+  go (Effect1' (Var' v) _) = Set.singleton v
   go _ = mempty
-  in removeEffectVars allEffectVars t
+  (vs, tu) = unforall' t
+  in generalize vs (removeEffectVars allEffectVars tu)
 
 removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
-  generalize $ removeEffectVars (Set.filter isPure fvs) tu
+  generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
   where
-    tu = unforall t
+    (vs, tu) = unforall' t
     fvs = freeEffectVars tu `Set.difference` ABT.freeVars t
     -- If an effect variable is mentioned only once, it is on
     -- an arrow `a ->{e} b`. Generalizing this to
@@ -534,11 +552,15 @@ cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
 toReference :: Var v => AnnotatedType v a -> Reference
+toReference (Ref' r) = r
+-- a bit of normalization - any unused type parameters aren't part of the hash
+toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
 toReference t = Reference.Derived (ABT.hash t) 0 1
 
 toReferenceMentions :: Var v => AnnotatedType v a -> Set Reference
 toReferenceMentions ty =
-  Set.fromList $ toReference <$> filter ABT.isClosed (ABT.subterms ty)
+  let (vs, _) = unforall' ty
+  in Set.fromList $ toReference . generalize vs <$> ABT.subterms ty
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

@@ -68,6 +68,12 @@ data Continuation
   | One NeededStack Size Stack IR
   | Chain Symbol Continuation Continuation
 
+-- just returns its input
+idContinuation :: IO Continuation
+idContinuation = do
+  m0 <- MV.new 1
+  pure $ One 0 1 m0 (IR.Leaf (IR.Slot 0))
+
 instance Show Continuation where
   show _c = "<continuation>"
 
@@ -156,7 +162,7 @@ atbs size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Seq Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  v -> fail $ "type error, expecting Sequence, got: " <> show v
+  v -> fail $ "type error, expecting List, got: " <> show v
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -271,22 +277,22 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.<"    att att (pure . B) (<)
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
 
-    , mk2 "Sequence.at" atn ats (pure . IR.maybeToOptional)
+    , mk2 "List.at" atn ats (pure . IR.maybeToOptional)
       $ Sequence.lookup
       . fromIntegral
-    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Sequence.<|)
-    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Sequence.|>)
-    , mk2 "Sequence.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
-    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
-    , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
-    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Sequence.length)
+    , mk2 "List.cons" at  ats (pure . Sequence) (Sequence.<|)
+    , mk2 "List.snoc" ats at  (pure . Sequence) (Sequence.|>)
+    , mk2 "List.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
+    , mk2 "List.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
+    , mk2 "List.++"   ats ats (pure . Sequence) (<>)
+    , mk1 "List.size"  ats (pure . N) (fromIntegral . Sequence.length)
 
-    , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
+    , mk1 "Bytes.fromList" ats (pure . Bs) (\s ->
         Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
     , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
     , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
     , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
-    , mk1 "Bytes.toSequence" atbs (pure . Sequence)
+    , mk1 "Bytes.toList" atbs (pure . Sequence)
         (\bs -> Sequence.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
     , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
     , mk2 "Bytes.at" atn atbs pure $ \i bs ->
@@ -380,7 +386,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       mkC $ f a b
     )
 
-run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
+run :: (R.Reference -> ConstructorId -> [Value] -> IO Result)
     -> CompilationEnv
     -> IR
     -> IO Result
@@ -432,7 +438,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@(RMatchFail _ _ _) -> error $ show e
+        e@(RMatchFail _ _ _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -740,8 +746,11 @@ run ioHandler env ir = do
       pure (size2, m)
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
-      x <- callContinuation 0 m0 k ioResult
-      loop x
+      case ioResult of
+        RDone ioResult -> do
+          x <- callContinuation 0 m0 k ioResult
+          loop x
+        r -> pure r
     loop a = pure a
 
   r <- go 0 m0 ir

@@ -42,6 +42,7 @@ import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( find
                                                 , toList
+                                                , fold
                                                 , foldl'
                                                 , traverse_
                                                 )
@@ -114,6 +115,7 @@ import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
+import qualified Unison.Util.Pretty            as P
 
 import Debug.Trace
 
@@ -184,6 +186,11 @@ loop = do
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
       getAtSplit' = getAtSplit . resolveSplit'
+      getPatchAtSplit' :: Path.Split' -> Action' m v (Maybe Patch)
+      getPatchAtSplit' s = do
+        let (p, seg) = Path.toAbsoluteSplit currentPath' s
+        b <- getAt p
+        eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       getTypes :: Path.Split' -> Set Reference
@@ -243,22 +250,27 @@ loop = do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
             let sr = toSlurpResult unisonFile (toSlurpResultNames unisonFile)
+            let ppe = PPE.unionLeft errorEnv ppe0
             eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
-            (bindings, e) <- eval . Evaluate $ unisonFile
-            let e' = Map.map go e
-                go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-            eval . Notify $ Evaluated text
-              (PPE.unionLeft errorEnv $ PPE.fromNames0 prettyPrintNames0)
-              bindings
-              e'
-            latestFile .= Just (Text.unpack sourceName, False)
-            latestTypecheckedFile .= Just unisonFile
+            r <- eval . Evaluate ppe $ unisonFile
+            case r of
+              Left e -> respond $ EvaluationFailure e
+              Right (bindings, e) -> do
+                let e' = Map.map go e
+                    go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+                eval . Notify $ Evaluated text ppe bindings e'
+                latestFile .= Just (Text.unpack sourceName, False)
+                latestTypecheckedFile .= Just unisonFile
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
         ifNotConfirmed = flip ifConfirmed
         branchNotFound = respond . BranchNotFound input
         branchNotFound' = respond . BranchNotFound input . Path.unsplit'
+        patchNotFound :: Path.Split' -> _
+        patchNotFound s = respond $ PatchNotFound input s
+        patchExists :: Path.Split' -> _
+        patchExists s = respond $ PatchAlreadyExists input s
         typeNotFound = respond . TypeNotFound input
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
@@ -295,13 +307,44 @@ loop = do
             , BranchUtil.makeSetBranch (resolveSplit' dest) b ]
           success -- could give rando stats about new defns
 
+      MovePatchI src dest -> do
+        psrc <- getPatchAtSplit' src
+        pdest <- getPatchAtSplit' dest
+        case (psrc, pdest) of
+          (Nothing, _) -> patchNotFound src
+          (_, Just _) -> patchExists dest
+          (Just p, Nothing) -> do
+            stepManyAt [
+              BranchUtil.makeDeletePatch (resolveSplit' src),
+              BranchUtil.makeReplacePatch (resolveSplit' dest) p ]
+            success
+
+      CopyPatchI src dest -> do
+        psrc <- getPatchAtSplit' src
+        pdest <- getPatchAtSplit' dest
+        case (psrc, pdest) of
+          (Nothing, _) -> patchNotFound src
+          (_, Just _) -> patchExists dest
+          (Just p, Nothing) -> do
+            stepAt (BranchUtil.makeReplacePatch (resolveSplit' dest) p)
+            success
+
+      DeletePatchI src -> do
+        psrc <- getPatchAtSplit' src
+        case psrc of
+          Nothing -> patchNotFound src
+          Just _ -> do
+            stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
+            success
+
       DeleteBranchI p ->
         maybe (branchNotFound' p) go $ getAtSplit' p
         where
         go (Branch.head -> b) = do
           let rootNames = Branch.toNames0 root0
-              toDelete = Names.prefix0 (Path.toName . Path.unsplit $ p') (Branch.toNames0 b)
-                where p' = resolveSplit' p
+              toDelete = Names.prefix0
+                (Path.toName . Path.unsplit . resolveSplit' $ p)
+                (Branch.toNames0 b)
           (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
           if failed == mempty then
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
@@ -550,30 +593,51 @@ loop = do
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, (_h, mp)) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
-      -- ls with no arguments
-      SearchByNameI [] -> do
+      SearchByNameI q | q == [] || q == ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 False
-      SearchByNameI ["-l"] -> do
-        let results = listBranch $ Branch.head currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 True
-      -- ls with arguments
+          >>= respond . ListOfDefinitions prettyPrintNames0 (q == ["-l"])
+      SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
+        ->
+        let ws = drop 1 . dropWhile (/= ":") $ q in
+        case parseSearchType input parseNames0 ws of
+          Left e -> respond e
+          Right typ0 -> do
+            let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
+            let typ = Type.generalizeLowercase mempty $ Type.bindBuiltins toSubst typ0
+            let locals = Branch.deepReferents (Branch.head currentBranch')
+            if ABT.isClosed typ then do
+              matches <- fmap toList . eval $ GetTermsOfType typ
+              matches <- filter (`Set.member` locals) <$>
+                if null matches then do
+                  respond $ NoExactTypeMatches
+                  fmap toList . eval $ GetTermsMentioningType typ
+                else pure matches
+              let isVerbose = (take 1 q == ["-l"])
+              let results =
+                    -- in verbose mode, aliases are shown, so we collapse all
+                    -- aliases to a single search result; in non-verbose mode,
+                    -- a separate result may be shown for each alias
+                    (if isVerbose then uniqueBy SR.toReferent else id) $
+                    searchResultsFor prettyPrintNames0 matches []
+              numberedArgs .= fmap searchResultToHQString results
+              loadSearchResults results
+                >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
+            else
+              respond $ TypeHasFreeVars input typ
       SearchByNameI ("-l" : ws) -> do
-        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
-        typeMatches <- typeFilter e
+        let qs = map HQ.fromString ws
+        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
         let results = uniqueBy SR.toReferent
-                    $ searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
+                    $ searchBranchScored b0 fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 True
       SearchByNameI ws -> do
-        let (map HQ.fromString -> qs, e) = parseSearch input prettyPrintNames0 ws
-        typeMatches <- typeFilter e
-        let results = searchBranchScored currentBranch' typeMatches fuzzyNameDistance qs
+        let qs = map HQ.fromString ws
+        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
+        let results = searchBranchScored b0 fuzzyNameDistance qs
         numberedArgs .= fmap searchResultToHQString results
         loadSearchResults results
           >>= respond . ListOfDefinitions prettyPrintNames0 False
@@ -672,8 +736,8 @@ loop = do
                 where
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-              updateEdits :: Branch0 m -> m (Branch0 m)
-              updateEdits = Branch.modifyEdits seg updatePatch
+              updatePatches :: Branch0 m -> m (Branch0 m)
+              updatePatches = Branch.modifyPatches seg updatePatch
 
           when (Slurp.isNonempty result) $ do
           -- take a look at the `updates` from the SlurpResult
@@ -683,7 +747,7 @@ loop = do
                , pure . doSlurpUpdates typeEdits termEdits)
               ,( Path.unabsolute currentPath'
                , pure . doSlurpAdds (Slurp.adds result) uf)
-              ,( Path.unabsolute p, updateEdits )]
+              ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           let ppe = PPE.fromNames0 $ fileNames0 `Names.unionLeft` prettyPrintNames0
           respond $ SlurpOutput input ppe result
@@ -725,7 +789,10 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' input rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe0 (n,total) r tm
-                    tm' <- eval $ Evaluate1 tm
+                    tm' <- eval (Evaluate1 ppe0 tm) <&> \case
+                      Left e -> Term.seq External
+                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
+                      Right tm' -> tm'
                     eval $ PutWatch UF.TestWatch rid tm'
                     respond $ TestIncrementalOutputEnd ppe0 (n,total) r tm'
                     pure [(r, tm')]
@@ -909,16 +976,19 @@ searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
         Branch.toNames0 . set Branch.children mempty $ Branch.head b
       names0 = rootnames <> Names.prefix0 lastName subnames
 
-searchBranchScored :: forall m score. (Ord score)
-              => Branch m
-              -> (Reference -> Maybe Int)
+searchResultsFor :: Names0 -> [Referent] -> [Reference] -> [SearchResult]
+searchResultsFor ns terms types =
+  [ Names.termSearchResult ns (Names.termName ns ref) ref | ref <- terms ] <>
+  [ Names.typeSearchResult ns (Names.typeName ns ref) ref | ref <- types ]
+
+searchBranchScored :: forall score. (Ord score)
+              => Names0
               -> (Name -> Name -> Maybe score)
               -> [HQ.HashQualified]
               -> [SearchResult]
-searchBranchScored b allowed score queries =
+searchBranchScored names0 score queries =
   nubOrd . fmap snd . toList $ searchTermNamespace <> searchTypeNamespace
   where
-  names0 = Branch.toNames0 . Branch.head $ b
   searchTermNamespace = foldMap do1query queries
     where
     do1query :: HQ.HashQualified -> Set (Maybe score, SearchResult)
@@ -1192,48 +1262,32 @@ zeroOrMore f zero more = case toList f of
   a : _ -> more f
   _ -> zero
 
--- Returns
---   ( the set of names that couldn't be deleted
---   , the set of dependents of the names that couldn't be deleted)
+-- Goal: If `remaining = root - toBeDeleted` contains definitions X which
+-- depend on definitions Y not in `remaining` (which should also be in
+-- `toBeDeleted`), then complain by returning (Y, X).
 getEndangeredDependents :: forall m. Monad m
                         => (Reference -> m (Set Reference))
                         -> Names0
                         -> Names0
                         -> m (Names0, Names0)
-getEndangeredDependents getDependents toBeDeleted root =
-  -- for each r <- toBeDeleted,
-    -- for each d <- dependents r
-      -- if d `notElem` remaining
-      -- then add r to failed, add d to failedDependents
-      -- otherwise continue
-  do
-    acc <- foldM doTerms (mempty, mempty) (R.toList $ Names.terms toBeDeleted)
-    foldM doTypes acc (R.toList $ Names.types toBeDeleted)
-  where
-  doTerms :: (Names0, Names0) -> (Name, Referent) -> m (Names0, Names0)
-  doTerms acc (name, r) =
-    List.foldl' f acc <$> getDependents (Referent.toReference r)
-    where
-    f (failed, failedDeps) d =
-      if d `Set.member` namedRefsRemaining
-      then (Names.addTerm name r failed, addDependent d failedDeps)
-      else (failed, failedDeps)
-  addDependent :: Reference -> Names0 -> Names0
-  addDependent r =
-    (<> Names (Names.terms root R.|> Set.singleton (Referent.Ref r))
-              (Names.types root R.|> Set.singleton r))
-  doTypes :: (Names0, Names0) -> (Name, Reference) -> m (Names0, Names0)
-  doTypes acc (name, r) =
-    List.foldl' f acc <$> getDependents r
-    where
-    f (failed, failedDeps) d =
-      if d `Set.member` namedRefsRemaining
-      then (Names.addType name r failed, addDependent d failedDeps)
-      else (failed, failedDeps)
-  namedRefsRemaining :: Set Reference
-  namedRefsRemaining = Set.map Referent.toReference (Names.termReferents remaining)
-                <> Names.typeReferences remaining
-    where remaining = root `Names.difference` toBeDeleted
+getEndangeredDependents getDependents toDelete root = do
+  let remaining  = root `Names.difference` toDelete
+      root', toDelete', remaining', extinct :: Set Reference
+      root'      = Names.allReferences root
+      toDelete'  = Names.allReferences toDelete
+      remaining' = Names.allReferences remaining          -- left over after delete
+      extinct    = toDelete'  `Set.difference` remaining' -- deleting and not left over
+      accumulateDependents m r = getDependents r <&> \ds -> Map.insert r ds m
+  dependentsOfExtinct :: Map Reference (Set Reference) <-
+    foldM accumulateDependents mempty extinct
+  let orphaned, endangered, failed :: Set Reference
+      orphaned   = fold dependentsOfExtinct
+      endangered = orphaned `Set.intersection` remaining'
+      failed = Set.filter hasEndangeredDependent extinct
+      hasEndangeredDependent r = any (`Set.member` endangered)
+                                     (dependentsOfExtinct Map.! r)
+  pure ( Names.restrictReferences failed toDelete
+       , Names.restrictReferences endangered root )
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive
@@ -1667,28 +1721,18 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
-typeFilter :: Maybe (Either (Output v) (Type.AnnotatedType v Ann)) -> _ (Reference -> Maybe Int)
-typeFilter e = case e of
-  Nothing -> pure $ const (Just 0)
-  Just (Left e) -> do
-    respond e
-    pure $ const (Just 0)
-  Just (Right ty) -> do
-    ty1 <- eval $ GetTermsMentioningType ty
-    ty2 <- eval $ GetTermsOfType ty
-    pure $ \r ->
-      if Set.member r ty1 then Just 1
-      else if Set.member r ty2 then Just 2
-      else Nothing
-
-parseSearch :: Var v => Input -> Names0 -> [String] -> ([String], Maybe (Either (Output v) (Type.AnnotatedType v Ann)))
-parseSearch input ns ws =
-  let (ws', rest) = span (/= ":") ws
-      ns' = OldNames.fromNames2 (Names.names0ToNames ns)
-  in if rest == [] then (ws, Nothing)
-     else case Parsers.parseType (intercalate " " (drop 1 rest)) (mempty, ns') of
-       Left err -> (ws', Just (Left $ TypeParseError input err))
-       Right typ -> (ws', Just (Right $ Type.removeAllEffectVars typ))
+parseSearchType
+  :: Var v
+  => Input
+  -> Names0
+  -> [String]
+  -> Either (Output v) (Type.AnnotatedType v Ann)
+parseSearchType input ns typ =
+  let ns' = OldNames.fromNames2 (Names.names0ToNames ns)
+      src = intercalate " " typ
+  in case Parsers.parseType src (mempty, ns') of
+    Left err -> Left $ TypeParseError input src err
+    Right typ -> Right $ Type.removeAllEffectVars typ
 
 --
 

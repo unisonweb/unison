@@ -61,13 +61,17 @@ data Output v
   | NoUnisonFile
   | CreatedNewBranch Path.Absolute
   | BranchAlreadyExists Input Path'
+  | PatchAlreadyExists Input Path.Split'
+  | NoExactTypeMatches
   | TypeAlreadyExists Input Path.Split' (Set Reference)
-  | TypeParseError Input (Parser.Err v)
+  | TypeParseError Input String (Parser.Err v)
+  | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
+  | PatchNotFound Input Path.Split'
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
   | TermNotFound' Input Reference.Id
@@ -88,6 +92,7 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
+  | EvaluationFailure Runtime.Error
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]
