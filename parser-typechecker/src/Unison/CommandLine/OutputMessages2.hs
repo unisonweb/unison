@@ -298,7 +298,7 @@ notifyUser dir o = case o of
       putPrettyLn' ""
       putPrettyLn' . P.wrap $ "Now evaluating any watch expressions"
                            <> "(lines starting with `>`)... "
-                           <> P.group "Ctrl+C cancels."
+                           <> P.group (P.hiBlack "Ctrl+C cancels.")
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
