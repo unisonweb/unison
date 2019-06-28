@@ -16,12 +16,14 @@ data Element = NumericLiteral
              | TypeAscriptionColon
              -- forall|∀|->
              | TypeOperator
-             | UseStatement
-             -- , ` [ ] { } @ | =
+             -- `use Foo bar` is keyword, prefix, suffix
+             | UseKeyword
+             | UsePrefix
+             | UseSuffix
+             -- ? ! , ` [ ] { } @ | =
              | DelimiterChar
              | Parenthesis
 
--- TODO this is currently just inspired by the sublime haskell colors - what would people rather?
 defaultColors :: Element -> ColorText -> ColorText
 defaultColors = \case 
   NumericLiteral      -> purple
@@ -35,6 +37,8 @@ defaultColors = \case
   ControlKeyword      -> red
   TypeAscriptionColon -> red
   TypeOperator        -> red
-  UseStatement        -> white
+  UseKeyword          -> white
+  UsePrefix           -> white
+  UseSuffix           -> white
   DelimiterChar       -> white
   Parenthesis         -> white

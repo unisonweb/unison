@@ -144,18 +144,18 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> fmt S.Var $ parenIfInfix name ic . prettyHashQualified $ name -- TODO and similarly throughout
+    Var' v -> parenIfInfix name ic . fmt S.Var . prettyHashQualified $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.fromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . prettyHashQualified0 $ name
+    Ref' r -> parenIfInfix name ic . fmt S.Reference . prettyHashQualified0 $ name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty n (ac 10 Normal im) tm
-        <> PP.hang " :" (TypePrinter.pretty n im 0 t)
-    Int'     i  -> (if i >= 0 then l "+" else mempty) <> (l $ show i)
-    Nat'     u  -> l $ show u
-    Float'   f  -> l $ show f
+        <> PP.hang (fmt S.TypeAscriptionColon " :" ) (TypePrinter.pretty n im 0 t)
+    Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i)
+    Nat'     u  -> fmt S.NumericLiteral $ l $ show u
+    Float'   f  -> fmt S.NumericLiteral $ l $ show f
     -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
     --      them.  Haskell doesn't have literals for them either.  Is this
     --      function only required to operate on terms produced by the parser?
@@ -163,24 +163,24 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     --      on values produced by execution (or, one day, on terms produced by
     --      metaprograms), then it needs to be able to print them (and then the
     --      parser ought to be able to parse them, to maintain symmetry.)
-    Boolean' b  -> if b then l "true" else l "false"
-    Text'    s  -> l $ show s
-    Blank'   id -> l "_" <> (l $ fromMaybe "" (Blank.nameb id))
-    Constructor' ref i ->
-      prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
-    Request' ref i ->
-      prettyHashQualified $ elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+    Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
+    Text'    s  -> fmt S.TextLiteral $ l $ show s
+    Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
+    Constructor' ref i -> fmt S.Constructor $ prettyHashQualified $ 
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+    Request' ref i -> fmt S.Request $ prettyHashQualified $ 
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
-        $ ("handle" `PP.hang` pretty n (ac 2 Normal im) h)
+        $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ("in" `PP.hang` (uses $ [pretty n (ac 2 Block im') body]))
+        <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty n (ac 2 Block im') body]))
     App' x (Constructor' DD.UnitRef 0) ->
-      paren (p >= 11) $ l "!" <> pretty n (ac 11 Normal im) x
-    AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> l "?"
+      paren (p >= 11) $ (fmt S.DelimiterChar $ l "!") <> pretty n (ac 11 Normal im) x
+    AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
-      paren (p >= 11) $ l "'" <> pretty n (ac 11 Normal im) x
-    Sequence' xs -> PP.group $
+      paren (p >= 11) $ (fmt S.DelimiterChar $ l "'") <> pretty n (ac 11 Normal im) x
+    Sequence' xs -> PP.group $  -- TODO continue colors from here
       "[" <> optSpace
           <> intercalateMap ("," <> PP.softbreak <> optSpace <> optSpace)
                             (pretty n (ac 0 Normal im))
@@ -455,12 +455,12 @@ prettyBinding'
   :: Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
 prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 
-paren :: IsString s => Bool -> Pretty s -> Pretty s
-paren True  s = PP.group $ "(" <> s <> ")"
+paren :: Bool -> Pretty ColorText -> Pretty ColorText
+paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
 paren False s = PP.group s
 
 parenIfInfix
-  :: IsString s => HQ.HashQualified -> InfixContext -> (Pretty s -> Pretty s)
+  :: HQ.HashQualified -> InfixContext -> (Pretty ColorText -> Pretty ColorText)
 parenIfInfix name ic =
   if isSymbolic name && ic == NonInfix then paren True else id
 
@@ -485,7 +485,7 @@ ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
 
 fmt :: S.Element -> Pretty ColorText -> Pretty ColorText
-fmt _ = id -- TODO - use S.defaultColors
+fmt e = fmap $ S.defaultColors e
 
 {- # FQN elision
 
