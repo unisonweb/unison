@@ -36,6 +36,7 @@ import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
 import qualified Unison.Referent               as Referent
+import qualified Unison.SyntaxHighlights       as S
 import           Unison.Term
 import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( AnnotatedType )
@@ -143,7 +144,7 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . prettyHashQualified $ name
+    Var' v -> fmt S.Var $ parenIfInfix name ic . prettyHashQualified $ name -- TODO and similarly throughout
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.fromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic . prettyHashQualified0 $ name
@@ -482,6 +483,9 @@ isBlank _ = False
 
 ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
+
+fmt :: S.Element -> Pretty ColorText -> Pretty ColorText
+fmt _ = id -- TODO - use S.defaultColors
 
 {- # FQN elision
 
