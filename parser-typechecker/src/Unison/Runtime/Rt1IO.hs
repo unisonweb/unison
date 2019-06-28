@@ -210,14 +210,16 @@ handleIO'
   -> R.Reference
   -> IR.ConstructorId
   -> [RT.Value]
-  -> IO RT.Value
+  -> IO RT.Result
 handleIO' cenv s rid cid vs = case rid of
   R.DerivedId x | x == IOSrc.ioHash -> flip runReaderT s $ do
     ev <- runExceptT $ handleIO cenv cid vs
     case ev of
-      Left  e -> pure . constructLeft $ constructIoError e
-      Right v -> pure $ constructRight v
-  _ -> fail $ "This ability is not an I/O ability: " <> show rid
+      Left  e -> pure . RT.RDone . constructLeft $ constructIoError e
+      Right v -> pure . RT.RDone $ constructRight v
+  _ -> do
+    k <- RT.idContinuation
+    pure $ RT.RRequest (IR.Req rid cid vs k)
 
 reraiseIO :: IO a -> UIO a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a

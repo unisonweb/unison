@@ -255,17 +255,15 @@ loop = do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
             let sr = toSlurpResult unisonFile (toSlurpResultNames unisonFile)
+            let ppe = PPE.unionLeft errorEnv ppe0
             eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
-            r <- eval . Evaluate ppe0 $ unisonFile
+            r <- eval . Evaluate ppe $ unisonFile
             case r of
               Left e -> respond $ EvaluationFailure e
               Right (bindings, e) -> do
                 let e' = Map.map go e
                     go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-                eval . Notify $ Evaluated text
-                  (PPE.unionLeft errorEnv $ PPE.fromNames0 prettyPrintNames0)
-                  bindings
-                  e'
+                eval . Notify $ Evaluated text ppe bindings e'
                 latestFile .= Just (Text.unpack sourceName, False)
                 latestTypecheckedFile .= Just unisonFile
     Right input ->

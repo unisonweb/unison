@@ -68,6 +68,12 @@ data Continuation
   | One NeededStack Size Stack IR
   | Chain Symbol Continuation Continuation
 
+-- just returns its input
+idContinuation :: IO Continuation
+idContinuation = do
+  m0 <- MV.new 1
+  pure $ One 0 1 m0 (IR.Leaf (IR.Slot 0))
+
 instance Show Continuation where
   show _c = "<continuation>"
 
@@ -380,7 +386,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       mkC $ f a b
     )
 
-run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
+run :: (R.Reference -> ConstructorId -> [Value] -> IO Result)
     -> CompilationEnv
     -> IR
     -> IO Result
@@ -740,8 +746,11 @@ run ioHandler env ir = do
       pure (size2, m)
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
-      x <- callContinuation 0 m0 k ioResult
-      loop x
+      case ioResult of
+        RDone ioResult -> do
+          x <- callContinuation 0 m0 k ioResult
+          loop x
+        r -> pure r
     loop a = pure a
 
   r <- go 0 m0 ir
