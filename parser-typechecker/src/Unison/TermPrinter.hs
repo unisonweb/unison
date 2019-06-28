@@ -271,7 +271,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     where
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
-       <> (fmt S.ControlKeyword " ->")
+       <> (fmt S.ControlKeyword "->")
     printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
