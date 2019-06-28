@@ -178,10 +178,14 @@ type Domain a = Small [a] | Large (Weighted a)
 Domain.nats : Domain Nat
 Domain.nats = Large Weighted.nats
 
+-- The domain of all integers
 Domain.ints : Domain Int
 Domain.ints = let
-  go n = yield n <|> weight 1 '(go (if n > +0 then negate n else increment n))
-  Large (fromList [+0, +1, -1, maxInt, minInt] <|> go +2)
+  go n = yield n <|> weight 1 
+          '(go (if n > +0 then negate n else increment (negate n)))
+  Large (List.foldl (a n -> a <|> yield n)
+                    Weighted.Fail 
+                    [+0, +1, -1, maxInt, minInt] <|> go +2)
 
 use Universal == < >
 
@@ -237,8 +241,8 @@ namespace Domain where
     Domain.Large w -> w
 
 -- Test a property for a given domain up to a maximum size
-Test.forAll' : Domain a -> (a -> Boolean) -> Nat -> Test
-Test.forAll' domain property maxSize =
+Test.forAll' : Nat -> Domain a -> (a -> Boolean) -> Test
+Test.forAll' maxSize domain property =
   check xs s = 
     List.map (
       a -> case a of (c, i) ->
@@ -253,8 +257,8 @@ Test.forAll' domain property maxSize =
 Test.check' : Boolean -> Test
 Test.check' b = if b then Test.proved else Test.failed
 
-Test.forAll : Domain a -> (a -> Boolean) -> Nat -> [Test.Result]
-Test.forAll d p n = Test.run (Test.forAll' d p n)
+Test.forAll : Nat -> Domain a -> (a -> Boolean) -> [Test.Result]
+Test.forAll n d p = Test.run (Test.forAll' n d p)
 
 Test.check : Boolean -> [Test.Result]
 Test.check = Test.run . Test.check'

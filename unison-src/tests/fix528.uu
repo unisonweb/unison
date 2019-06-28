@@ -1,0 +1,32 @@
+use Trie tail head Trie
+
+type Trie k v = { head : Optional v, tail : [(k, Trie k v)] }
+
+Trie.empty = Trie None [] 
+
+Trie.toList : Trie k v -> [([k], v)]
+Trie.toList t =
+  go : [k] -> Trie k v -> [([k], v)]
+  go path t = 
+    [] ++ join (map (p -> go [] Trie.empty) (tail t))
+    -- this phrasing crashes - 
+    -- tail t |> List.map (p -> go [] Trie.empty)
+    --        |> List.join
+    --        |> (List.++) []
+  go [] t
+
+> toList Trie.empty
+
+---
+
+bombs with:
+
+  💔💥
+
+  I stopped evaluation after encountering an error:
+
+    user error (type error, expecting List, got: (Lam 1 FormClosure 5MQKGmyVUfJMTmaGyk8TBmLJMoZbUKGDE4fgKBhAMzMkmwpweM7gsPPUivFuY4PeMM1Qrt7e2RnAs2sw4QJzsqjJ Ref(##List.++) [[]] (Leaf External:ExternalFunction)))
+
+  I'm sorry this message doesn't have more detail
+  about the location of the failure. My makers plan to
+  fix this in a future release. 😢

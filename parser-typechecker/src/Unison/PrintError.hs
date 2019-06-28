@@ -1081,6 +1081,6 @@ prettyTypeInfo n e =
 intLiteralSyntaxTip :: C.Term v loc -> C.Type v loc -> AnnotatedText Color
 intLiteralSyntaxTip term expectedType = case (term, expectedType) of
   (Term.Nat' n, Type.Ref' r) | r == Type.intRef ->
-    "\nTip: Use the syntax " <> style Type1 ("+"<>show n) <> " to produce an "
-                             <> style Type1 "Int" <> "."
+    "\nTip: Use the syntax " <> style Type2 ("+"<>show n) <> " to produce an "
+                             <> style Type2 "Int" <> "."
   _ -> ""
