@@ -155,6 +155,7 @@ notifyUser dir o = case o of
     else putPretty' "  🚫  "
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
+  EvaluationFailure err -> putPrettyLn err
   PatchNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
@@ -295,8 +296,8 @@ notifyUser dir o = case o of
           , filestatusTip
           ]
       putPrettyLn' ""
-      putPrettyLn' $ P.wrap "Now evaluating any watch expressions"
-                     <> " (lines starting with `>`)..."
+      putPrettyLn' . P.wrap $ "Now evaluating any watch expressions"
+                           <> "(lines starting with `>`)..."
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo

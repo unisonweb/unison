@@ -9,7 +9,7 @@ module Unison.Runtime.Rt1IO where
 
 import           Control.Exception              ( try
                                                 , throwIO
-                                                , Exception
+                                                , Exception, SomeException
                                                 , finally
                                                 , bracket
                                                 )
@@ -68,7 +68,6 @@ import           System.IO                      ( Handle
                                                 )
 import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
-import qualified Unison.Codebase.CodeLookup    as CL
 import           Unison.DataDeclaration        as DD
 import           Unison.Symbol
 import qualified Unison.Reference              as R
@@ -82,6 +81,8 @@ import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
 import qualified Unison.Var                    as Var
+import qualified Unison.Util.Pretty as P
+import qualified Unison.TermPrinter as TermPrinter
 
 -- TODO: Make this exception more structured?
 data UnisonRuntimeException = UnisonRuntimeException Text
@@ -209,14 +210,16 @@ handleIO'
   -> R.Reference
   -> IR.ConstructorId
   -> [RT.Value]
-  -> IO RT.Value
+  -> IO RT.Result
 handleIO' cenv s rid cid vs = case rid of
   R.DerivedId x | x == IOSrc.ioHash -> flip runReaderT s $ do
     ev <- runExceptT $ handleIO cenv cid vs
     case ev of
-      Left  e -> pure . constructLeft $ constructIoError e
-      Right v -> pure $ constructRight v
-  _ -> fail $ "This ability is not an I/O ability: " <> show rid
+      Left  e -> pure . RT.RDone . constructLeft $ constructIoError e
+      Right v -> pure . RT.RDone $ constructRight v
+  _ -> do
+    k <- RT.idContinuation
+    pure $ RT.RRequest (IR.Req rid cid vs k)
 
 reraiseIO :: IO a -> UIO a
 reraiseIO a = ExceptT . lift $ try @IOError $ liftIO a
@@ -359,9 +362,7 @@ runtime = Runtime terminate eval
  where
   terminate :: IO ()
   terminate = pure ()
-  eval
-    :: CL.CodeLookup Symbol IO () -> Term.Term Symbol -> IO (Term.Term Symbol)
-  eval cl' term = do
+  eval cl' ppe term = do
     let cl = void (hoist (pure . runIdentity) IOSrc.codeLookup) <> cl'
     -- traceM $ Pretty.render 80 (prettyTop mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
@@ -369,9 +370,38 @@ runtime = Runtime terminate eval
       (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
       Map.empty
       Map.empty
-    r <- RT.run (handleIO' cenv $ S mmap)
-                cenv
-                (IR.compile cenv $ Term.amap (const ()) term)
+    r <- try $ RT.run (handleIO' cenv $ S mmap)
+                 cenv
+                 (IR.compile cenv $ Term.amap (const ()) term)
     case r of
-      RT.RDone result -> IR.decompile result
-      e               -> fail $ show e
+      Right (RT.RDone result) -> Right <$> IR.decompile result
+      Right (RT.RMatchFail _ _ scrute) -> do
+        scrute <- IR.decompile scrute
+        pure . Left . P.callout icon . P.lines $ [
+          P.wrap ("I've encountered a" <> P.red "pattern match failure"
+                  <> "while scrutinizing:"), "",
+          P.indentN 2 $ TermPrinter.prettyTop ppe scrute,
+          "",
+          P.wrap "This happens when calling a function that doesn't handle all possible inputs.",
+          "", sorryMsg
+          ]
+      Right (RT.RRequest (IR.Req r cid vs _)) -> do
+        vs <- traverse IR.decompile vs
+        let tm = Term.apps' (Term.request() r cid) vs
+        pure . Left . P.callout icon . P.lines $ [
+          P.wrap ("I stopped evaluation after encountering an " <> P.red "unhandled request:"), "",
+          P.indentN 2 $ TermPrinter.prettyTop ppe tm,
+          "",
+          P.wrap "This happens when using a handler that doesn't handle all possible requests.",
+          "", sorryMsg
+          ]
+      Left e -> pure . Left . P.callout icon . P.lines $ [
+        P.wrap ("I stopped evaluation after encountering " <> P.red "an error:"), "",
+        P.indentN 2 $ P.string (show (e :: SomeException)),
+        "", sorryMsg
+        ]
+      where
+        icon = "💔💥"
+        sorryMsg = P.wrap $ "I'm sorry this message doesn't have more detail about"
+                         <> "the location of the failure."
+                         <> "My makers plan to fix this in a future release. 😢"

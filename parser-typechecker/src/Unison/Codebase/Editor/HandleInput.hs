@@ -116,6 +116,7 @@ import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
+import qualified Unison.Util.Pretty            as P
 
 import Debug.Trace
 
@@ -254,16 +255,17 @@ loop = do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName text $ \errorEnv unisonFile -> do
             let sr = toSlurpResult unisonFile (toSlurpResultNames unisonFile)
+            let ppe = PPE.unionLeft errorEnv ppe0
             eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
-            (bindings, e) <- eval . Evaluate $ unisonFile
-            let e' = Map.map go e
-                go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
-            eval . Notify $ Evaluated text
-              (PPE.unionLeft errorEnv $ PPE.fromNames0 prettyPrintNames0)
-              bindings
-              e'
-            latestFile .= Just (Text.unpack sourceName, False)
-            latestTypecheckedFile .= Just unisonFile
+            r <- eval . Evaluate ppe $ unisonFile
+            case r of
+              Left e -> respond $ EvaluationFailure e
+              Right (bindings, e) -> do
+                let e' = Map.map go e
+                    go (ann, kind, _hash, _uneval, eval, isHit) = (ann, kind, eval, isHit)
+                eval . Notify $ Evaluated text ppe bindings e'
+                latestFile .= Just (Text.unpack sourceName, False)
+                latestTypecheckedFile .= Just unisonFile
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
@@ -794,7 +796,10 @@ loop = do
                   Nothing -> [] <$ respond (TermNotFound' input rid)
                   Just tm -> do
                     respond $ TestIncrementalOutputStart ppe0 (n,total) r tm
-                    tm' <- eval $ Evaluate1 tm
+                    tm' <- eval (Evaluate1 ppe0 tm) <&> \case
+                      Left e -> Term.seq External
+                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
+                      Right tm' -> tm'
                     eval $ PutWatch UF.TestWatch rid tm'
                     respond $ TestIncrementalOutputEnd ppe0 (n,total) r tm'
                     pure [(r, tm')]

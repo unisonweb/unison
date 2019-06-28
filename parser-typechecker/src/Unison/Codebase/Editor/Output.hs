@@ -92,6 +92,7 @@ data Output v
   | ParseErrors Text [Parser.Err v]
   | TypeErrors Text PPE.PrettyPrintEnv [Context.ErrorNote v Ann]
   | DisplayConflicts (Relation Name Referent) (Relation Name Reference)
+  | EvaluationFailure Runtime.Error
   | Evaluated SourceFileContents
               PPE.PrettyPrintEnv
               [(v, Term v ())]

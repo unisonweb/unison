@@ -76,12 +76,14 @@ data Command m i v a where
   -- `(hash, evaluatedTerm)` mapping to a cache to make future evaluations
   -- of the same watches instantaneous.
 
-  Evaluate :: UF.TypecheckedUnisonFile v Ann
-           -> Command m i v ([(v, Term v ())], Map v
-                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit))
+  Evaluate :: PPE.PrettyPrintEnv
+           -> UF.TypecheckedUnisonFile v Ann
+           -> Command m i v (Either Runtime.Error
+                ([(v, Term v ())], Map v
+                (Ann, UF.WatchKind, Reference, Term v (), Term v (), Runtime.IsCacheHit)))
 
   -- Evaluate a single closed definition
-  Evaluate1 :: Term v Ann -> Command m i v (Term v Ann)
+  Evaluate1 :: PPE.PrettyPrintEnv -> Term v Ann -> Command m i v (Either Runtime.Error (Term v Ann))
 
   -- Add a cached watch to the codebase
   PutWatch :: UF.WatchKind -> Reference.Id -> Term v Ann -> Command m i v ()
@@ -131,4 +133,4 @@ data Command m i v a where
 
   -- Execute a UnisonFile for its IO effects
   -- todo: Execute should do some evaluation?
-  Execute :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
+  Execute :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> Command m i v ()
