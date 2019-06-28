@@ -193,6 +193,7 @@ renderTypeError e env src = case e of
     , fromOverHere' src
                     [expectedTypeS, mismatchedTypeS]
                     [mismatchSiteS, expectedLocS]
+    , intLiteralSyntaxTip mismatchSite expectedType
     , debugNoteLoc $ mconcat
       [ "\nloc debug:"
       , "\n  mismatchSite: "
@@ -259,8 +260,8 @@ renderTypeError e env src = case e of
              [ (, Type1) <$> rangeForAnnotated expectedType
              , (, Type2) <$> rangeForAnnotated foundType
              , (, Type2) <$> rangeForAnnotated arg
-             , (, ErrorSite) <$> rangeForAnnotated f
-             ]
+             , (, ErrorSite) <$> rangeForAnnotated f ]
+           , intLiteralSyntaxTip arg expectedType
          -- todo: factor this out and use in ExistentialMismatch and any other
          --       "recursive subtypes" situations
            , case leafs of
@@ -340,6 +341,7 @@ renderTypeError e env src = case e of
     , fromOverHere' src
                     [styleAnnotated Type1 foundLeaf]
                     [styleAnnotated Type1 mismatchSite]
+    , intLiteralSyntaxTip mismatchSite expectedType
     , debugNoteLoc
     . mconcat
     $ [ "\nloc debug:"
@@ -1075,3 +1077,10 @@ prettyTypeInfo
   -> AnnotatedText Color
 prettyTypeInfo n e =
   maybe "" (`renderTypeInfo` e) (typeInfoFromNote n)
+
+intLiteralSyntaxTip :: C.Term v loc -> C.Type v loc -> AnnotatedText Color
+intLiteralSyntaxTip term expectedType = case (term, expectedType) of
+  (Term.Nat' n, Type.Ref' r) | r == Type.intRef ->
+    "\nTip: Use the syntax " <> style Type1 ("+"<>show n) <> " to produce an "
+                             <> style Type1 "Int" <> "."
+  _ -> ""
