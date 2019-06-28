@@ -37,6 +37,7 @@ import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
 import qualified Unison.Referent               as Referent
 import qualified Unison.SyntaxHighlights       as S
+import           Unison.SyntaxHighlights        ( fmt )
 import           Unison.Term
 import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( AnnotatedType )
@@ -180,21 +181,21 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
       paren (p >= 11) $ (fmt S.DelimiterChar $ l "'") <> pretty n (ac 11 Normal im) x
-    Sequence' xs -> PP.group $  -- TODO continue colors from here
-      "[" <> optSpace
-          <> intercalateMap ("," <> PP.softbreak <> optSpace <> optSpace)
+    Sequence' xs -> PP.group $
+      (fmt S.DelimiterChar $ l "[") <> optSpace
+          <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
                             (pretty n (ac 0 Normal im))
                             xs
-          <> optSpace <> "]"
+          <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
     If' cond t f -> paren (p >= 2) $
       if height > 0 then PP.lines [
-        "if " <> pcond <> (" then") `PP.hang` pt,
-        "else" `PP.hang` pf
+        (fmt S.ControlKeyword "if ") <> pcond <> (fmt S.ControlKeyword " then") `PP.hang` pt,
+        (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
       else PP.spaced [
-        "if" `PP.hang` pcond <> (" then" `PP.hang` pt),
-        "else" `PP.hang` pf
+        (fmt S.ControlKeyword "if") `PP.hang` pcond <> ((fmt S.ControlKeyword " then") `PP.hang` pt),
+        (fmt S.ControlKeyword "else") `PP.hang` pf
        ]
      where
        height = PP.preferredHeight pt `max` PP.preferredHeight pf
@@ -205,25 +206,27 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
                    in uses $ [pretty n (ac 2 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
-        "and", pretty n (ac 10 Normal im) x,
-               pretty n (ac 10 Normal im) y
+        fmt S.ControlKeyword "and", 
+        pretty n (ac 10 Normal im) x,
+        pretty n (ac 10 Normal im) y
       ]
     Or' x y ->
       paren (p >= 10) $ PP.spaced [
-        "or", pretty n (ac 10 Normal im) x,
-              pretty n (ac 10 Normal im) y
+        fmt S.ControlKeyword "or", 
+        pretty n (ac 10 Normal im) x,
+        pretty n (ac 10 Normal im) y
       ]
     LetRecNamed' bs e -> printLet bc bs e im' uses
     Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      ("case " <> pretty n (ac 2 Normal im) scrutinee <> " of") `PP.hang` bs
+      ((fmt S.ControlKeyword "case ") <> pretty n (ac 2 Normal im) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
       where bs = PP.lines (map printCase branches)
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
     (TupleTerm' [x], _) ->
-      paren (p >= 10) $ "Pair" `PP.hang`
-        PP.spaced [pretty n (ac 10 Normal im) x, "()" ]
+      paren (p >= 10) $ (fmt S.Constructor "Pair") `PP.hang`
+        PP.spaced [pretty n (ac 10 Normal im) x, (fmt S.Constructor "()") ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty n (ac 3 Normal im) lastArg)
@@ -234,13 +237,13 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            PP.group (varList vs <> " ->") `PP.hang` pretty n (ac 2 Block im) body
+            PP.group (varList vs <> (fmt S.ControlKeyword " ->")) `PP.hang` pretty n (ac 2 Block im) body
         _ -> go term
 
   sepList sep xs = sepList' (pretty n (ac 0 Normal im)) sep xs
   sepList' f sep xs = fold $ intersperse sep (map f xs)
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
-  commaList = sepList ("," <> PP.softbreak)
+  commaList = sepList ((fmt S.DelimiterChar $ l ",") <> PP.softbreak)
 
   printLet :: Var v 
            => BlockContext 
@@ -260,7 +263,7 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       else prettyBinding2 n (ac (-1) Normal im') (HQ.fromVar v) binding
     letIntro = case sc of
       Block  -> id
-      Normal -> \x -> "let" `PP.hang` x
+      Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
     
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
@@ -268,8 +271,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     where
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
-       <> "->"
-    printGuard (Just g) = PP.group $ PP.spaced ["|", pretty n (ac 2 Normal im) g, ""]
+       <> (fmt S.ControlKeyword " ->")
+    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   printCase _ = l "error"
@@ -333,22 +336,22 @@ prettyPattern
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
 prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
-  PatternP.Unbound _   -> (l "_", vs)
-  PatternP.Var     _   -> let (v : tail_vs) = vs in (l $ Var.nameStr v, tail_vs)
-  PatternP.Boolean _ b -> (if b then l "true" else l "false", vs)
-  PatternP.Int     _ i -> ((if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
-  PatternP.Nat     _ u -> (l $ show u, vs)
-  PatternP.Float   _ f -> (l $ show f, vs)
-  PatternP.Text    _ t -> (l $ show t, vs)
+  PatternP.Unbound _   -> (fmt S.DelimiterChar $ l "_", vs)
+  PatternP.Var     _   -> let (v : tail_vs) = vs in (fmt S.Var $ l $ Var.nameStr v, tail_vs)
+  PatternP.Boolean _ b -> (fmt S.BooleanLiteral $ if b then l "true" else l "false", vs)
+  PatternP.Int     _ i -> (fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i), vs)
+  PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
+  PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
+  PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
   TuplePattern [pp] ->
     let (printed, tail_vs) = prettyPattern n c 10 vs pp
-    in  ( paren (p >= 10) $ PP.sep " " ["Pair", printed, "()"]
+    in  ( paren (p >= 10) $ PP.sep " " [fmt S.Constructor "Pair", printed, fmt S.Constructor "()"]
         , tail_vs )
   TuplePattern pats ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   PatternP.Constructor _ ref i [] ->
-    (prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
+    (fmt S.Constructor $ prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
   PatternP.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
@@ -358,28 +361,28 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   PatternP.As _ pat ->
     let (v : tail_vs)            = vs
         (printed, eventual_tail) = prettyPattern n c 11 tail_vs pat
-    in  (paren (p >= 11) $ ((l $ Var.nameStr v) <> l "@" <> printed), eventual_tail)
+    in  (paren (p >= 11) $ ((fmt S.Var $ l $ Var.nameStr v) <> (fmt S.DelimiterChar $ l "@") <> printed), eventual_tail)
   PatternP.EffectPure _ pat ->
     let (printed, eventual_tail) = prettyPattern n c (-1) vs pat
-    in  (PP.sep " " ["{", printed, "}"], eventual_tail)
+    in  (PP.sep " " [fmt S.DelimiterChar "{", printed, fmt S.DelimiterChar "}"], eventual_tail)
   PatternP.EffectBind _ ref i pats k_pat ->
     let (pats_printed , tail_vs      ) = patternsSep PP.softbreak vs pats
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
-    in  ("{" <>
+    in  ((fmt S.DelimiterChar "{" ) <>
           (PP.sep " " . PP.nonEmpty $ [
             prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i),
             pats_printed,
-            "->",
+            fmt S.ControlKeyword "->",
             k_pat_printed]) <>
-         "}"
+         (fmt S.DelimiterChar "}")
         , eventual_tail)
   PatternP.SequenceLiteral _ pats ->
-    let (pats_printed, tail_vs) = patternsSep ", " vs pats
-    in  ("[" <> pats_printed <> "]", tail_vs)
+    let (pats_printed, tail_vs) = patternsSep (fmt S.DelimiterChar ", ") vs pats
+    in  ((fmt S.DelimiterChar "[") <> pats_printed <> (fmt S.DelimiterChar "]"), tail_vs)
   PatternP.SequenceOp _ l op r ->
     let (pl, lvs) = prettyPattern n c p vs l
         (pr, rvs) = prettyPattern n c (p + 1) lvs r
-        f i s = (paren (p >= i) (pl <> " " <> s <> " " <> pr), rvs)
+        f i s = (paren (p >= i) (pl <> " " <> (fmt S.Reference s) <> " " <> pr), rvs)
     in case op of
       Pattern.Cons -> f 9 "+:"
       Pattern.Snoc -> f 9 ":+"
@@ -419,7 +422,7 @@ prettyBinding2 ::
 prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
-      PP.group (renderName v <> PP.hang " :" (TypePrinter.pretty env im (-1) tp)),
+      PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") (TypePrinter.pretty env im (-1) tp)),
       PP.group (prettyBinding2 env a v tm) ]
     LamsNamedOpt' vs body -> 
       let 
@@ -428,22 +431,22 @@ prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
         -- printAnnotate is unfortunately repeating work we've already done.
         body' = printAnnotate env body 
       in PP.group $
-        PP.group (defnLhs v vs <> " =") `PP.hang`
+        PP.group (defnLhs v vs <> (fmt S.BindingEquals " =")) `PP.hang`
         (uses [pretty env (ac (-1) Block im') body'])
     t -> l "error: " <> l (show t)
    where
     defnLhs v vs = if infix'
       then case vs of
         x : y : _ ->
-          PP.sep " " [PP.text (Var.name x),
-                      prettyHashQualified $ elideFQN im v,
-                      PP.text (Var.name y)]
+          PP.sep " " [fmt S.Var $ PP.text (Var.name x),
+                      fmt S.Reference $ prettyHashQualified $ elideFQN im v,
+                      fmt S.Var $ PP.text (Var.name y)]
         _ -> l "error"
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
-    args vs = PP.spacedMap (PP.text . Var.name) vs
+    args vs = PP.spacedMap ((fmt S.Var) . PP.text . Var.name) vs
     renderName n = let n' = elideFQN im n 
-                   in parenIfInfix n' NonInfix $ prettyHashQualified n'
+                   in parenIfInfix n' NonInfix $ fmt S.Reference $ prettyHashQualified n'
                    
   symbolic = isSymbolic v
   isBinary = \case
@@ -483,9 +486,6 @@ isBlank _ = False
 
 ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
-
-fmt :: S.Element -> Pretty ColorText -> Pretty ColorText
-fmt e = fmap $ S.defaultColors e
 
 {- # FQN elision
 
@@ -769,9 +769,9 @@ calcImports im tm = (im', render $ getUses result)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
     render :: Map Prefix (Set Suffix) -> [Pretty ColorText] -> Pretty ColorText
-    render m rest = let uses = Map.mapWithKey (\p ss -> l"use " <> 
-                                   intercalateMap (l".") (l . unpack) p <> l" " <>
-                                   intercalateMap (l" ") (l . unpack) (Set.toList ss)) m
+    render m rest = let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <> 
+                                   (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
+                                   (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m
                                  |> Map.toList
                                  |> map snd
                     in PP.lines (uses ++ rest)

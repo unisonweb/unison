@@ -1,6 +1,7 @@
 module Unison.SyntaxHighlights where
 
 import Unison.Util.ColorText
+import Unison.Util.Pretty             ( Pretty )
 
 -- The elements of the Unison grammar, for syntax highlighting purposes
 data Element = NumericLiteral
@@ -13,6 +14,7 @@ data Element = NumericLiteral
              | Request
              -- let|alias|handle|in|namespace|type|ability|where|case|of|->|if|then|else|and|or
              | ControlKeyword 
+             | BindingEquals
              | TypeAscriptionColon
              -- forall|∀|->
              | TypeOperator
@@ -20,7 +22,7 @@ data Element = NumericLiteral
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             -- ? ! , ` [ ] { } @ | =
+             -- ? ! , ` [ ] { } @ | = _
              | DelimiterChar
              | Parenthesis
 
@@ -35,10 +37,14 @@ defaultColors = \case
   Constructor         -> green
   Request             -> green
   ControlKeyword      -> red
+  BindingEquals       -> red
   TypeAscriptionColon -> red
   TypeOperator        -> red
-  UseKeyword          -> white
-  UsePrefix           -> white
-  UseSuffix           -> white
+  UseKeyword          -> hiBlack
+  UsePrefix           -> hiBlack
+  UseSuffix           -> hiBlack
   DelimiterChar       -> white
   Parenthesis         -> white
+
+fmt :: Element -> Pretty ColorText -> Pretty ColorText
+fmt e = fmap $ defaultColors e
