@@ -1270,11 +1270,12 @@ filterBySlurpResult :: Ord v
            -> UF.TypecheckedUnisonFile v Ann
            -> UF.TypecheckedUnisonFile v Ann
 filterBySlurpResult SlurpResult{..} UF.TypecheckedUnisonFile{..} =
-  UF.TypecheckedUnisonFile datas effects tlcs watches
+  UF.TypecheckedUnisonFile datas effects tlcs watches hashTerms'
   where
   keep = updates <> adds
   keepTerms = SC.terms keep
   keepTypes = SC.types keep
+  hashTerms' = Map.restrictKeys hashTerms keepTerms
   datas = Map.restrictKeys dataDeclarations' keepTypes
   effects = Map.restrictKeys effectDeclarations' keepTypes
   tlcs = filter (not.null) $ fmap (List.filter filterTLC) topLevelComponents'

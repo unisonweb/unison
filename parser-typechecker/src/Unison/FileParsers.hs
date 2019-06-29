@@ -166,7 +166,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
           in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                Nothing -> error "wat"
                Just kind -> (kind, tlc)
-    pure $ UF.TypecheckedUnisonFile dds0 eds0 terms' (map tlcKind watches')
+    pure $ UF.typecheckedUnisonFile dds0 eds0 terms' (map tlcKind watches')
  where
   applyTdnrDecisions
     :: [Context.InfoNote v Ann]

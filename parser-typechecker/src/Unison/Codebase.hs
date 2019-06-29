@@ -76,7 +76,7 @@ data Codebase m v a =
 initializeCodebase :: forall m. Monad m => Codebase m Symbol Ann -> m ()
 initializeCodebase c = do
   addDefsToCodebase c
-    (UF.TypecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
+    (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
                               (Map.fromList Builtin.builtinEffectDecls)
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile

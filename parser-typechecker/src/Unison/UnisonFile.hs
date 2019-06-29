@@ -85,8 +85,29 @@ data TypecheckedUnisonFile v a =
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
     topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
+    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])],
+    hashTerms           :: Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
   } deriving Show
+
+typecheckedUnisonFile :: Var v
+                      => Map v (Reference, DataDeclaration' v a)
+                      -> Map v (Reference, EffectDeclaration' v a)
+                      -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+                      -> [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
+                      -> TypecheckedUnisonFile v a
+typecheckedUnisonFile datas effects tlcs watches =
+  file0 { hashTerms = hashImpl file0 }
+  where
+  file0 = TypecheckedUnisonFile datas effects tlcs watches mempty
+  hashImpl file = let
+    -- test watches are added to the codebase also
+    -- todo: maybe other kinds of watches too
+    components = topLevelComponents file
+    types = Map.fromList [(v,t) | (v,_,t) <- join components ]
+    terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
+    hcs = Term.hashComponents terms0
+    in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
+                                       Just t <- [Map.lookup v types] ]
 
 lookupDecl :: Ord v => v -> TypecheckedUnisonFile v a
            -> Maybe (Reference, Either (EffectDeclaration' v a) (DataDeclaration' v a))
@@ -156,7 +177,7 @@ dependencies uf ns = directReferences <>
       ]
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
-discardTypes (TypecheckedUnisonFile datas effects terms watches) = let
+discardTypes (TypecheckedUnisonFile datas effects terms watches _) = let
   watches' = g . mconcat <$> List.multimap watches
   g tup3s = [(v,e) | (v,e,_t) <- tup3s ]
   in UnisonFile datas effects [ (a,b) | (a,b,_) <- join terms ] watches'
@@ -184,8 +205,8 @@ typecheckedToNames0 uf = Names2.Names (terms <> ctors) types where
                           <> fmap fst (effectDeclarations' uf) ]
   ctors = Relation.fromMap . Map.mapKeys Name.fromVar . hashConstructors $ uf
 
-typecheckedUnisonFile0 :: TypecheckedUnisonFile v a
-typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty
+typecheckedUnisonFile0 :: Ord v => TypecheckedUnisonFile v a
+typecheckedUnisonFile0 = TypecheckedUnisonFile Map.empty Map.empty mempty mempty mempty
 
 -- Returns true if the file has any definitions or watches
 nonEmpty :: TypecheckedUnisonFile v a -> Bool
@@ -203,20 +224,6 @@ hashConstructors file =
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
         [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
-
-hashTerms ::
-     Var v
-  => TypecheckedUnisonFile v a
-  -> Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
-hashTerms file = let
-  -- test watches are added to the codebase also
-  -- todo: maybe other kinds of watches too
-  components = topLevelComponents file
-  types = Map.fromList [(v,t) | (v,_,t) <- join components ]
-  terms0 = Map.fromList [(v,e) | (v,e,_) <- join components ]
-  hcs = Term.hashComponents terms0
-  in Map.fromList [ (v, (r, e, t)) | (v, (r, e)) <- Map.toList hcs,
-                                     Just t <- [Map.lookup v types] ]
 
 type CtorLookup = Map String (Reference, Int)
 
