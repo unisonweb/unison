@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.Util.Find2 (
+module Unison.Util.Find (
   fuzzyFinder, fuzzyFindInBranch, fuzzyFindMatchArray, prefixFindInBranch
   ) where
 

@@ -1,12 +1,10 @@
-{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
-
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Unison.CommandLine.InputPatterns2 where
+module Unison.CommandLine.InputPatterns where
 
 -- import Debug.Trace
 import Data.Bifunctor (first)
@@ -18,19 +16,19 @@ import Data.Set (Set)
 import Data.String (fromString)
 import Data.Text (Text)
 import System.Console.Haskeline.Completion (Completion)
-import Unison.Codebase2 (Codebase)
+import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine.InputPattern2 (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
-import Unison.CommandLine2
+import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Unison.Codebase.Branch2 as Branch
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.CommandLine.InputPattern2 as I
+import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Names2 as Names

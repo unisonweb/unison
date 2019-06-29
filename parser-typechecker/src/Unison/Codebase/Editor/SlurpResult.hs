@@ -170,7 +170,6 @@ pretty ppe sr = case pretty' ppe sr of
   +  ability Woot
 -}
 
-
 pretty'
   :: forall v
    . Var v

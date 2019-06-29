@@ -17,7 +17,7 @@ import Unison.Codebase.CodeLookup (CodeLookup(..))
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
 import qualified Data.Map as Map
-import qualified Unison.Builtin2 as Builtin
+import qualified Unison.Builtin as Builtin
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import qualified Unison.Typechecker.TypeLookup as TL

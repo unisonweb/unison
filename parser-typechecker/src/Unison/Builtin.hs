@@ -1,14 +1,23 @@
-{-# OPTIONS_GHC -Wwarn #-}
-
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Unison.Builtin2 where
+module Unison.Builtin
+  (codeLookup
+  ,names
+  ,names0
+  ,builtinDataDecls
+  ,builtinEffectDecls
+  ,builtinTypeDependents
+  ,builtinTermsByType
+  ,builtinTermsByTypeMention
+  ,isBuiltinType
+  ,typeLookup
+  ,termRefTypes
+  ) where
 
--- import           Control.Arrow                  ( first )
 import           Control.Applicative            ( liftA2
                                                  , (<|>)
                                                 )
@@ -17,30 +26,19 @@ import           Data.Foldable                  ( foldl', toList )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
--- import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
--- import qualified Text.Megaparsec.Error         as MPE
--- import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
--- import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.DataDeclaration        as DD
--- import qualified Unison.FileParser             as FileParser
--- import qualified Unison.Lexer                  as L
 import           Unison.Parser                  ( Ann(..) )
--- import qualified Unison.Parser                 as Parser
--- import           Unison.PrintError              ( prettyParseError )
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
-import qualified Unison.Term                   as Term
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
--- import qualified Unison.TypeParser             as TypeParser
--- import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
@@ -49,52 +47,8 @@ import Unison.Names2 (Names'(Names), Names, Names0, names0ToNames)
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
-type Term v = Term.AnnotatedTerm v Ann
--- type Type v = Type.AnnotatedType v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
-
--- showParseError :: Var v
---                => String
---                -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
---                -> String
--- showParseError s = Color.toANSI . prettyParseError s
-
-parseType :: Var v => String -> Type v
-parseType = error "todo" -- is `Names` something we want to keep using?
--- parseType s = ABT.amap (const Intrinsic) .
---           Names.bindType names . either (error . showParseError s) tweak $
---           Parser.run (Parser.root TypeParser.valueType) s mempty
---   where tweak = Type.generalizeLowercase
---
--- -- parse a term, hard-coding the builtins defined in this file
--- tm :: Var v => String -> Term v
--- tm s = Names.bindTerm constructorType names
---        . either (error . showParseError s) id
---        $ Parser.run (Parser.root TermParser.term) s (mempty, names)
---
--- constructorType :: R.Reference -> CT.ConstructorType
--- constructorType r =
---   if any f (builtinDataDecls @Symbol) then CT.Data
---   else if any f (builtinEffectDecls @Symbol) then CT.Effect
---   else error "a builtin term referenced a constructor for a non-builtin type"
---   where f = (==r) . fst . snd
---
--- -- todo: does this need to be refactored if we have mutually recursive decls
--- parseDataDeclAsBuiltin :: Var v => String -> (v, (R.Reference, DataDeclaration v))
--- parseDataDeclAsBuiltin s =
---   let (v, dd) = either (error . showParseError s) id $
---         Parser.run (Parser.root FileParser.dataDeclaration) s mempty
---       [(_, r, dd')] = DD.hashDecls $ Map.singleton v (DD.bindBuiltins names0 dd)
---   in (v, (r, const Intrinsic <$> dd'))
---
--- -- Todo: These definitions and groupings of builtins are getting a little
--- -- confusing.  Sort out these labrinthine definitions!
--- -- We have primitive types and primitive terms, but the types of the
--- -- primitive terms sometimes reference decls, and not just primitive types.
--- -- Primitive types and primitive terms can be deprecated in future iterations
--- -- of the typechecker and runtime, but the builtin decls don't become
--- -- deprecated in the same sense.  So (to do a deprecation check on these)
 
 names :: Names
 names = names0ToNames names0
@@ -110,18 +64,10 @@ names0 = Names terms types where
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]
 
--- names :: Names
--- names = Names.fromBuiltins (Map.keys $ builtins0 @Symbol) <> allTypeNames
---
--- allTypeNames :: Names
--- allTypeNames =
---   Names.fromTypes builtinTypes
---     <> foldMap (DD.dataDeclToNames' @Symbol)   builtinDataDecls
---     <> foldMap (DD.effectDeclToNames' @Symbol) builtinEffectDecls
-
 -- Is this a term (as opposed to a type)
-isBuiltinTerm :: R.Reference -> Bool
-isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
+-- todo: why isn't this being used? if it doesn't actually make sense, we can delete it
+_isBuiltinTerm :: R.Reference -> Bool
+_isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
 
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType r = elem r . fmap snd $ builtinTypes
@@ -132,25 +78,6 @@ typeLookup =
     (fmap (const Intrinsic) <$> termRefTypes)
     (Map.fromList $ map snd builtinDataDecls)
     (Map.fromList $ map snd builtinEffectDecls)
-
---
--- builtinTypedTerms :: Var v => [(v, (Term v, Type v))]
--- builtinTypedTerms = [(v, (e, t)) | (v, (Term.Ann' e t)) <- builtinTerms ]
---
--- builtinTerms :: Var v => [(v, Term v)]
--- builtinTerms =
---   [ (toSymbol r, Term.ann Intrinsic (Term.ref Intrinsic r) typ) |
---     (r, typ) <- Map.toList builtins0 ]
---
--- builtinTypesV :: Var v => [(v, R.Reference)]
--- builtinTypesV = first (Name.toVar) <$> builtinTypes
---
--- builtinTypeNames :: Set Name
--- builtinTypeNames = Set.fromList (map fst builtinTypes)
---
--- builtinTypes :: [(Name, R.Reference)]
--- builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
---   ["Int", "Nat", "Float", "Boolean", List"", "Text", "Effect", "Bytes"]
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein
@@ -166,10 +93,6 @@ codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
   pure
     $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
   <|> lookup r [ (r, Left x)  | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
-
--- toSymbol :: Var v => R.Reference -> v
--- toSymbol (R.Builtin txt) = Var.named txt
--- toSymbol _ = error "unpossible"
 
 -- Relation predicate: Domain depends on range.
 builtinDependencies :: Rel.Relation R.Reference R.Reference
@@ -193,9 +116,6 @@ builtinTermsByTypeMention =
 -- mention that type.
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r = Rel.lookupRan r builtinDependencies
-
--- allReferencedTypes :: Set R.Reference
--- allReferencedTypes = Rel.ran builtinDependencies
 
 -- As with the terms, we should try to avoid changing these references, even
 -- if we decide to change their names.

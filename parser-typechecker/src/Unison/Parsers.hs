@@ -4,7 +4,7 @@ import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )
 import qualified Unison.Names as Names
-import qualified Unison.Builtin2               as Builtin
+import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser

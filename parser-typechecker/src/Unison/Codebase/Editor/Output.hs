@@ -181,10 +181,3 @@ data TodoOutput v a = TodoOutput_
   , nameConflicts :: Names0
   , editConflicts :: Patch
   } deriving (Show)
-
--- -- todo: do we want something here for nonexistent old name?
--- data NameChangeResult = NameChangeResult
---   { _oldNameConflicted :: Set DefnTarget
---   , _newNameAlreadyExists :: Set DefnTarget
---   , _changedSuccessfully :: Set DefnTarget
---   } deriving (Eq, Ord, Show)

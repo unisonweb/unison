@@ -34,13 +34,13 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
 import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch2        ( Branch0(..) )
-import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Raw(..)
+import           Unison.Codebase.Branch         ( Branch0(..) )
+import qualified Unison.Codebase.Branch         as Branch
+import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
                                                 , unRawHash
                                                 )
-import qualified Unison.Codebase.Causal2        as Causal
+import qualified Unison.Codebase.Causal         as Causal
 import qualified Unison.Codebase.Metadata       as Metadata
 import           Unison.Codebase.NameSegment    ( NameSegment )
 import           Unison.Codebase.NameSegment    as NameSegment

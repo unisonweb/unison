@@ -6,7 +6,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 
-module Unison.CommandLine2 where
+module Unison.CommandLine where
 
 -- import Debug.Trace
 import           Control.Concurrent              (forkIO, killThread)
@@ -24,17 +24,17 @@ import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
 import qualified System.Console.Terminal.Size    as Terminal
 import           System.FilePath                 ( takeFileName )
-import           Unison.Codebase2                 (Codebase)
-import qualified Unison.Codebase2                 as Codebase
-import qualified Unison.Codebase.Branch2         as Branch
+import           Unison.Codebase                 (Codebase)
+import qualified Unison.Codebase                 as Codebase
+import qualified Unison.Codebase.Branch          as Branch
 import           Unison.Codebase.Editor.Input    (Event(..), Input(..))
 import qualified Unison.Codebase.SearchResult    as SR
 import qualified Unison.Codebase.Watch           as Watch
-import           Unison.CommandLine.InputPattern2 (InputPattern (parse))
+import           Unison.CommandLine.InputPattern (InputPattern (parse))
 import qualified Unison.HashQualified'           as HQ
 import           Unison.Names2 (Names0)
 import qualified Unison.Util.ColorText           as CT
-import qualified Unison.Util.Find2               as Find
+import qualified Unison.Util.Find                as Find
 import qualified Unison.Util.Pretty              as P
 import           Unison.Util.TQueue              (TQueue)
 import qualified Unison.Util.TQueue              as Q

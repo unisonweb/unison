@@ -1,6 +1,3 @@
--- {-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
@@ -11,41 +8,29 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 
-module Unison.Codebase.Branch2 where
+module Unison.Codebase.Branch where
 
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
 import qualified Control.Monad                 as Monad
---import           Control.Monad.Extra            ( whenM )
 import           Data.Bifunctor                 ( second )
--- import           Data.GUID                (genText)
-import qualified Data.Foldable as Foldable
-import           Data.List                      ( foldl'
-    -- , intercalate
-    )
+import           Data.List                      ( foldl' )
 import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
 import           Data.Map                       ( Map )
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
-import           Data.Tuple                     (swap)
---import qualified Data.Text                     as Text
 import           Data.Foldable                  ( for_, toList )
 import           Data.Traversable               ( for )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch          ( Patch )
-import qualified Unison.Codebase.Causal2       as Causal
-import           Unison.Codebase.Causal2        ( Causal
+import qualified Unison.Codebase.Causal        as Causal
+import           Unison.Codebase.Causal         ( Causal
                                                 , pattern RawOne
                                                 , pattern RawCons
                                                 , pattern RawMerge
                                                 )
-import           Unison.Codebase.SearchResult (SearchResult)
-import qualified Unison.Codebase.SearchResult as SR
-import           Unison.Codebase.TermEdit       ( TermEdit )
-import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Codebase.Path           ( Path(..) )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.NameSegment    ( NameSegment )
@@ -54,27 +39,17 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import qualified Unison.HashQualified'         as HQ
-import qualified Unison.ShortHash as SH
-
-
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Name                   as Name
-import           Unison.Names2                  ( Names'(Names), Names, Names0 )
-import qualified Unison.Names2                 as Names
+import           Unison.Names2                  ( Names'(Names), Names0 )
 import           Unison.Reference               ( Reference )
-import           Unison.Referent                ( Referent(Con,Ref) )
+import           Unison.Referent                ( Referent )
 import qualified Unison.Referent              as Referent
-import qualified Unison.Reference             as Reference
 
 import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
-import           Unison.Util.Star3              ( Star3 )
 import qualified Unison.Util.List              as List
-
-
--- type EditGuid = Text
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)

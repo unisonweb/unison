@@ -6,11 +6,11 @@
 {-# LANGUAGE DoAndIfThenElse     #-}
 
 
-module Unison.CommandLine.InputPattern2 where
+module Unison.CommandLine.InputPattern where
 
 import qualified System.Console.Haskeline       as Line
-import           Unison.Codebase2               (Codebase)
-import           Unison.Codebase.Branch2        (Branch)
+import           Unison.Codebase                (Codebase)
+import           Unison.Codebase.Branch         (Branch)
 import           Unison.Codebase.Editor.Input   (Input (..))
 import qualified Unison.Util.ColorText          as CT
 import qualified Unison.Util.Pretty             as P

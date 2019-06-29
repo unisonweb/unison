@@ -36,12 +36,12 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Blank
-    Unison.Builtin2
+    Unison.Builtin
     Unison.Codecs
-    Unison.Codebase2
-    Unison.Codebase.Branch2
+    Unison.Codebase
+    Unison.Codebase.Branch
     Unison.Codebase.BranchUtil
-    Unison.Codebase.Causal2
+    Unison.Codebase.Causal
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor.Command
@@ -53,7 +53,7 @@ library
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SlurpResult
     Unison.Codebase.Editor.SlurpComponent
-    Unison.Codebase.FileCodebase2
+    Unison.Codebase.FileCodebase
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
@@ -68,11 +68,11 @@ library
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
-    Unison.CommandLine2
-    Unison.CommandLine.InputPattern2
-    Unison.CommandLine.InputPatterns2
-    Unison.CommandLine.Main2
-    Unison.CommandLine.OutputMessages2
+    Unison.CommandLine
+    Unison.CommandLine.InputPattern
+    Unison.CommandLine.InputPatterns
+    Unison.CommandLine.Main
+    Unison.CommandLine.OutputMessages
     Unison.ConstructorType
     Unison.DataDeclaration
     Unison.DeclPrinter
@@ -129,10 +129,9 @@ library
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
-    Unison.Util.Find2
+    Unison.Util.Find
     Unison.Util.Logger
     Unison.Util.List
-    Unison.Util.Histogram
     Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.Pretty

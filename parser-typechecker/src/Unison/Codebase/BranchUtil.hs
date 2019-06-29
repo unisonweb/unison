@@ -1,11 +1,12 @@
 module Unison.Codebase.BranchUtil where
+
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Unison.Codebase.Path (Path)
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Branch2 as Branch
-import Unison.Codebase.Branch2 (Branch, Branch0)
+import qualified Unison.Codebase.Branch as Branch
+import Unison.Codebase.Branch (Branch, Branch0)
 import qualified Unison.Names2 as Names
 import Unison.Names2 (Names0)
 import qualified Unison.Referent as Referent
@@ -35,22 +36,6 @@ addFromNames0 names0 = Branch.stepManyAt0 (typeActions <> termActions)
              Nothing -> errorEmptyName
              Just split -> makeAddTypeName split r mempty -- no metadata
   errorEmptyName = error "encountered an empty name"
-
--- getNamedTerm :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Referent)
--- getNamedTerm (p, hq') b = case hq' of
---   HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n terms)
---   HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n terms
---   where
---   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Referent.toShortHash r)
---   terms = Branch._terms (Branch.getAt0 p b)
---
--- getNamedType :: Path.HQ'Split -> Branch0 m -> Set (Path.NameSegment, Reference)
--- getNamedType (p, hq') b = case hq' of
---   HQ'.NameOnly n -> Set.map (n,) (R.lookupDom n types)
---   HQ'.HashQualified n sh -> Set.map (n,) . filter sh $ R.lookupDom n types
---   where
---   filter sh = Set.filter (\r -> sh `SH.isPrefixOf` Reference.toShortHash r)
---   types = Branch._types (Branch.getAt0 p b)
 
 getTerm :: Path.HQSplit -> Branch0 m -> Set Referent
 getTerm (p, hq) b = case hq of

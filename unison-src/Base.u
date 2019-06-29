@@ -141,7 +141,7 @@ namespace List where
   -- Adapted from the Haskell version written by Luke Palmer.
   diagonal : [[a]] -> [a]
   diagonal =
-    let 
+    let
       stripe aas = case aas of
         [] -> []
         [] +: xxs -> stripe xxs
@@ -441,4 +441,3 @@ namespace Optional where
 
   map2 : (a -> b -> c) -> Optional a -> Optional b -> Optional c
   map2 f oa ob = flatMap (a -> map (f a) ob) oa
-

@@ -1,14 +1,10 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: remove me later
-{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: remove me later
-
--- {-# LANGUAGE DoAndIfThenElse     #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 
-module Unison.CommandLine.Main2 where
+module Unison.CommandLine.Main where
 
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
@@ -22,32 +18,26 @@ import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import Safe
-import Unison.Codebase.Branch2 (Branch, Branch0)
-import qualified Unison.Codebase.Branch2 as Branch
+import Unison.Codebase.Branch (Branch)
+import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..))
 import qualified Unison.Codebase.Editor.HandleInput as HandleInput
 import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Runtime (Runtime)
-import Unison.Codebase.Path (Path)
-import Unison.Codebase2 (Codebase)
-import Unison.CommandLine2
-import Unison.CommandLine.InputPattern2 (ArgumentType (suggestions), InputPattern (aliases, patternName))
-import Unison.CommandLine.InputPatterns2 (validInputs)
-import Unison.CommandLine.OutputMessages2 (notifyUser, shortenDirectory)
+import Unison.Codebase (Codebase)
+import Unison.CommandLine
+import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
+import Unison.CommandLine.InputPatterns (validInputs)
+import Unison.CommandLine.OutputMessages (notifyUser, shortenDirectory)
 import Unison.Parser (Ann)
 import Unison.Var (Var)
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Map as Map
-import qualified Data.Text as Text
-import Data.Text (Text)
 import qualified System.Console.Haskeline as Line
---import qualified Unison.Codebase.Editor2 as E
---import qualified Unison.Codebase.Editor.Actions as Actions
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
-import qualified Unison.Codebase2 as Codebase
-import qualified Unison.CommandLine.InputPattern2 as IP
-import qualified Unison.Util.Free as Free
+import qualified Unison.Codebase as Codebase
+import qualified Unison.CommandLine.InputPattern as IP
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 

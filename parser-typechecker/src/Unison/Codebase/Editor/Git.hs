@@ -24,14 +24,14 @@ import           System.Directory               ( getCurrentDirectory
                                                 , removePathForcibly
                                                 )
 import           Unison.Codebase.GitError
-import qualified Unison.Codebase2              as Codebase
-import           Unison.Codebase2               ( Codebase
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase                ( Codebase
                                                 , syncToDirectory
                                                 )
-import           Unison.Codebase.FileCodebase2  ( getRootBranch
+import           Unison.Codebase.FileCodebase   ( getRootBranch
                                                 , branchHeadDir
                                                 )
-import           Unison.Codebase.Branch2        ( Branch
+import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
 

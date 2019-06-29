@@ -73,8 +73,7 @@ collectUntilPause queue minPauseµsec = do
         after <- atomically $ TQueue.enqueueCount queue
         -- if nothing new is on the queue, then return the contents
         if before == after
-          then do
-            atomically $ TQueue.flush queue
+          then atomically $ TQueue.flush queue
           else go
   go
 
@@ -92,7 +91,7 @@ watchDirectory dir allow = do
         handle :: IOException -> m (FilePath, Text)
         handle e = do
           liftIO $ putStrLn $ "‼  Got an exception while reading: " <> file
-          liftIO $ putStrLn $ show (e :: IOException)
+          liftIO $ print (e :: IOException)
           await
         go :: MonadUnliftIO m => m (FilePath, Text)
         go = withRunInIO $ \inIO -> do

@@ -2,17 +2,7 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Codebase.Path
-  -- ( Name(..)
-  -- , unsafeFromText
-  -- , toString
-  -- , fromString
-  -- , toVar
-  -- , unsafeFromVar
-  -- , isPrefixOf
-  -- , stripPrefix
-  -- )
-where
+module Unison.Codebase.Path where
 
 --import Debug.Trace
 import Control.Lens hiding (unsnoc, cons)

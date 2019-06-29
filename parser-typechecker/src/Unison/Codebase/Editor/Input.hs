@@ -7,7 +7,7 @@ module Unison.Codebase.Editor.Input
 
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
-import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.Branch        as Branch
 import           Unison.HashQualified'          ( HashQualified )
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path

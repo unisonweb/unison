@@ -1,15 +1,9 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
--- {-# OPTIONS_GHC -Wno-unused-matches #-}
 
--- {-# LANGUAGE DeriveAnyClass,StandaloneDeriving #-}
--- {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
--- {-# LANGUAGE ScopedTypeVariables #-}
--- {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Unison.Codebase.Editor.HandleCommand where
@@ -19,15 +13,13 @@ import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
 
-import qualified Unison.Codebase.Branch2       as Branch
-import qualified Unison.Builtin2               as B
-import           Unison.Symbol                  ( Symbol )
+import qualified Unison.Builtin                as B
 
 -- import Debug.Trace
 
 import           Control.Monad.Except           ( runExceptT )
 import           Data.Functor
-import           Data.Foldable                  ( traverse_, forM_, toList )
+import           Data.Foldable                  ( forM_, toList )
 import qualified Data.Map                      as Map
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -36,22 +28,15 @@ import           System.Directory               ( getXdgDirectory
                                                 )
 import           System.FilePath                ( (</>) )
 
-import           Unison.Codebase2               ( Codebase, Decl )
-import qualified Unison.Codebase2              as Codebase
-import           Unison.Codebase.Branch2        ( Branch
-                                                , Branch0
-                                                )
-import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import           Unison.Codebase                ( Codebase )
+import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Editor.Git    as Git
-import qualified Unison.Codebase.Path          as Path
-import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.Names                  as OldNames
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
 import qualified Unison.Reference              as Reference
-import qualified Unison.Referent               as Referent
-import qualified Unison.Runtime.IOSource       as IOSource
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term

@@ -8,7 +8,7 @@ module Unison.Test.Common
 
 import           Data.Sequence (Seq)
 import qualified Data.Text as Text
-import qualified Unison.Builtin2 as B
+import qualified Unison.Builtin as B
 import qualified Unison.Names as Names
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))

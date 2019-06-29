@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
-module Unison.Codebase.Causal2 where
+module Unison.Codebase.Causal where
 
 import           Prelude                 hiding ( head
                                                 , read

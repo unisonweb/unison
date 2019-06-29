@@ -11,7 +11,7 @@ import Data.Text (Text)
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Editor.RemoteRepo
 
-import           Unison.Codebase.Branch2        ( Branch )
+import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.GitError
 import           Unison.Names2                  ( Names )
 import           Unison.Parser                  ( Ann )

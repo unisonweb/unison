@@ -48,7 +48,6 @@ import qualified Unison.Var                 as Var
 import qualified Unison.Names as ON
 import qualified Unison.HashQualified' as HQ
 
--- todo: this is suspect
 fromOldNames :: ON.Names -> Names.Names
 fromOldNames ON.Names {..} = Names.Names
   (Rel.fromMap $ Map.mapKeys HQ.fromName termNames)

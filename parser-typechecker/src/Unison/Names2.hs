@@ -1,6 +1,4 @@
 {-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wwarn #-} -- todo: remove me later
-
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}

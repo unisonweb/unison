@@ -1,7 +1,6 @@
 {-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-
 module Unison.Codebase.NameSegment where
 
 import           Data.Text                      ( Text )

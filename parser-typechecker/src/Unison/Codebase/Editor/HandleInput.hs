@@ -1,8 +1,4 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -33,15 +29,14 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad                  ( filterM, foldM, forM,
-                                                  join, liftM2, when, void)
+                                                  join, when, void)
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
-import           Data.Foldable                  ( find
-                                                , toList
+import           Data.Foldable                  ( toList
                                                 , fold
                                                 , foldl'
                                                 , traverse_
@@ -52,30 +47,25 @@ import           Data.List.Extra                (nubOrd, intercalate)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
                                                 , fromJust
-                                                , isJust
                                                 , mapMaybe
                                                 )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
-import           Data.Tuple.Extra               ((&&&))
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
 import qualified Unison.ABT                    as ABT
-import           Unison.Codebase.Branch2        ( Branch
+import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0(..)
                                                 )
-import qualified Unison.Codebase.Branch2       as Branch
+import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
 import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path' )
-import           Unison.Codebase.NameSegment    ( HQSegment
-                                                , NameSegment
-                                                )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
@@ -84,7 +74,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name )
-import           Unison.Names2                  ( Names'(..), Names, Names0, NamesSeg )
+import           Unison.Names2                  ( Names'(..), Names0 )
 import qualified Unison.Names2                  as Names
 import qualified Unison.Names                  as OldNames
 import qualified Unison.Parsers                as Parsers
@@ -99,7 +89,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Find2             as Find
+import qualified Unison.Util.Find              as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )
@@ -107,7 +97,6 @@ import qualified Unison.Util.Relation          as R
 import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
-import Unison.Codebase.TypeEdit (TypeEdit)
 import qualified Unison.Codebase.TypeEdit as TypeEdit
 import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
@@ -117,7 +106,7 @@ import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 
-import Debug.Trace
+--import Debug.Trace
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -126,8 +115,8 @@ type Type v a = Type.AnnotatedType v a
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
 
-liftToAction :: m a -> Action m i v a
-liftToAction = lift . lift . Free.eval . Eval
+_liftToAction :: m a -> Action m i v a
+_liftToAction = lift . lift . Free.eval . Eval
 
 data LoopState m v
   = LoopState
@@ -176,12 +165,8 @@ loop = do
       currentBranch0 = Branch.head currentBranch'
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
-      resolvePath' :: Path' -> Path
-      resolvePath' = Path.unabsolute . resolveToAbsolute
       resolveToAbsolute :: Path' -> Path.Absolute
       resolveToAbsolute = Path.toAbsolutePath currentPath'
-      path'ToSplit :: Path' -> Maybe Path.Split
-      path'ToSplit = Path.unsnoc . resolvePath'
       getAtSplit :: Path.Split -> Maybe (Branch m)
       getAtSplit p = BranchUtil.getBranch p root0
       getAtSplit' :: Path.Split' -> Maybe (Branch m)
@@ -264,7 +249,6 @@ loop = do
     Right input ->
       let
         ifConfirmed = ifM (confirmedCommand input)
-        ifNotConfirmed = flip ifConfirmed
         branchNotFound = respond . BranchNotFound input
         branchNotFound' = respond . BranchNotFound input . Path.unsplit'
         patchNotFound :: Path.Split' -> _
@@ -374,7 +358,7 @@ loop = do
         ([r],       []) -> do
           stepAt (BranchUtil.makeAddTermName (resolveSplit' dest) r (oldMD r))
           success
-        ([r], rs@(_:_)) -> termExists dest (Set.fromList rs)
+        ([_], rs@(_:_)) -> termExists dest (Set.fromList rs)
         ([],         _) -> termNotFound src
         (rs,         _) -> termConflicted src (Set.fromList rs)
         where
@@ -385,7 +369,7 @@ loop = do
         ([r],       []) -> do
           stepAt (BranchUtil.makeAddTypeName (resolveSplit' dest) r (oldMD r))
           success
-        ([r], rs@(_:_)) -> typeExists dest (Set.fromList rs)
+        ([_], rs@(_:_)) -> typeExists dest (Set.fromList rs)
         ([],         _) -> typeNotFound src
         (rs,         _) -> typeConflicted src (Set.fromList rs)
         where
@@ -395,7 +379,7 @@ loop = do
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            (parent, last) = resolveSplit' src
+            (parent, _last) = resolveSplit' src
             mdValuel = toList (getHQ'Terms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
@@ -418,7 +402,7 @@ loop = do
       UnlinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            (parent, last) = resolveSplit' src
+            (parent, _last) = resolveSplit' src
             mdValuel = toList (getHQ'Terms mdValue)
         case (srcle, srclt, mdValuel) of
           (srcle, srclt, [Referent.Ref mdValue])
@@ -441,7 +425,7 @@ loop = do
       LinksI src mdTypeStr -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
-            p@(parent, last) = resolveSplit' src
+            p = resolveSplit' src
             mdTerms = foldl' Metadata.merge mempty [
               BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
             mdTypes = foldl' Metadata.merge mempty [
@@ -591,7 +575,7 @@ loop = do
         let patches = Set.fromList
               [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
-              , (seg, (_h, mp)) <- Map.toList (Branch._edits b) ]
+              , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
       SearchByNameI q | q == [] || q == ["-l"] -> do
         let results = listBranch $ Branch.head currentBranch'
@@ -961,8 +945,8 @@ fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
     (m, _) : _ -> Just m
 
 -- return `name` and `name.<everything>...`
-searchBranchPrefix :: Branch m -> Name -> [SearchResult]
-searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
+_searchBranchPrefix :: Branch m -> Name -> [SearchResult]
+_searchBranchPrefix b n = case Path.unsnoc (Path.fromName n) of
   Nothing -> []
   Just (init, last) -> case Branch.getAt init b of
     Nothing -> []
@@ -1080,123 +1064,11 @@ searchBranchExact b queries = let
     , any (matchesHashPrefix Referent.toShortHash (name, r)) queries
     ]
   deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-  doTerm (n, r) =
-    if Set.size (R.lookupDom n (Names.terms names0)) > 1
-    then (HQ.take length $ HQ.fromNamedReferent n r, r)
-    else (HQ.NameOnly n, r)
-  doType (n, r) =
-    if Set.size (R.lookupDom n (Names.types names0)) > 1
-    then (HQ.take length $ HQ.fromNamedReference n r, r)
-    else (HQ.NameOnly n, r)
-  length = Names.numHashChars names0
   in List.sort deduped
 
 
--- withBranch :: BranchName -> (Branch -> Action m i v ()) -> Action m i v ()
--- withBranch b f = loadBranch b >>= maybe (respond $ UnknownBranch b) f
---
--- withBranches :: [BranchName] -> ([(BranchName, Branch)] -> Action m i v ()) -> Action m i v ()
--- withBranches branchNames f = do
---   branches :: [Maybe Branch] <- traverse (eval . LoadBranch) branchNames
---   if any null branches
---   then traverse_ (respond . UnknownBranch)
---           [name | (name, Nothing) <- branchNames `zip` branches]
---   else f (branchNames `zip` fmap fromJust branches)
-
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
-
--- -- Collects the definitions that are not named in any branch outside the inputs.
--- -- It collects all the references within the branches that *aren't* specified,
--- -- and then reports if the branches that *are* specified contain any references
--- -- that don't exist anywhere else.
--- prettyUniqueDefinitions :: forall i v.
---   [(BranchName, Branch)] -> Action m i v [(BranchName, (PPE.PrettyPrintEnv, [Editor.SearchResult' v Ann]))]
--- prettyUniqueDefinitions queryBNBs = do
---     let (branchNames, _) = unzip queryBNBs
---     otherBranchNames <- filter (`notElem` branchNames) <$> eval ListBranches
---     otherKnownReferences :: Set Reference <-
---       mconcat
---         . fmap (Branch.allNamedReferences . Branch.head)
---         . ((Editor.builtinBranch):) -- we dont care about saving these
---         . catMaybes
---         <$> traverse loadBranch otherBranchNames
---     raw <- (traverse . traverse) -- traverse over `[]` and `(BranchName,)`
---       (sequence -- traverse over (PPE,)
---         . go otherKnownReferences
---         . Branch.head)
---       queryBNBs
---     -- remove empty entries like this one: ("test4",(PrettyPrintEnv,[]))
---     pure . filter (not . null . snd . snd) $ raw
---   where
---   go :: Set Reference
---      -> Branch0
---      -> (PPE.PrettyPrintEnv, Action m i v [Editor.SearchResult' v Ann])
---   go known =
---     Branch.prettyPrintEnv &&& loadSearchResults . pickResults known
---   pickResults :: Set Reference -> Branch0 -> [SearchResult]
---   pickResults known = filter (keep known) . Branch.asSearchResults
---   keep :: Set Reference -> SearchResult -> Bool
---   keep known = \case
---     SR.Tp' _ r@(Reference.DerivedId _) _ -> Set.notMember r known
---     SR.Tm' _ (Referent.Ref r@(Reference.DerivedId _)) _ -> Set.notMember r known
---     _ -> False
---
--- updateBuiltins :: Branch0 -> Branch0
--- updateBuiltins b
---   -- This branch should include:
---   --   names for all refs missing from existing branch
---   --   ~~deprecations for the missing references~~
---   --   no, can't just be deprecations for the missing references,
---   --      they would never be able to come back. :-\
---   --   ok, we'll fix the story for neverending edits later;
---   --   todo: reevaluate this after that.
---   -- todo: remove deprecations for newly added terms?
---             -- what if user intentionally removed
---   = over (Branch.namespaceL . Branch.terms) (Relation.||> oldRefts)
---   . over (Branch.namespaceL . Branch.types) (Relation.||> oldRefs)
---   . over (Branch.namespaceL . Branch.terms) (<> newTerms)
---   . over (Branch.namespaceL . Branch.types) (<> newTypes)
---   . over (Branch.editedTermsL) (<> deprecatedTerms)
---   . over (Branch.editedTypesL) (<> deprecatedTypes)
---   $ b
---   where
---   newTerms =
---     (Branch.termNamespace . Branch.head) Editor.builtinBranch
---       Relation.|> (Set.map Referent.Ref newRefs)
---   newTypes =
---     (Branch.typeNamespace . Branch.head) Editor.builtinBranch
---       Relation.|> newRefs
---   deprecatedTerms =
---     Relation.fromList [ (r, TermEdit.Deprecate) | r <- toList oldRefs ]
---   deprecatedTypes =
---     Relation.fromList [ (r, TypeEdit.Deprecate) | r <- toList oldRefs ]
---
---   -- Builtin references in the "empty" branch, but not in the current branch
---   newRefs = refs Editor.builtinBranch0 `Set.difference` refs b
---   -- Builtin references in the current branch, but not in the empty branch
---   -- Todo: filter away the structural types from this list; they don't need
---   -- to be deleted.  For nominal / unique types, let's think about it?
---   oldRefts = Set.map (Referent.Ref) oldRefs
---   oldRefs = Set.fromList [r | r@(Reference.Builtin _) <- toList $ oldRefs']
---   oldRefs' = refs b `Set.difference` refs Editor.builtinBranch0
---   refs = Branch.allNamedReferences
---
---
--- checkForBuiltinsMismatch :: Action m i v ()
--- checkForBuiltinsMismatch = do
---   b <- use currentBranch
---   when (not $ all null [new b, old b]) $
---     respond $ BustedBuiltins (new b) (old b)
---   where
---   -- Builtin references in the "empty" branch, but not in the current branch
---   new b = refs Editor.builtinBranch `Set.difference` refs b
---   -- Builtin references in the current branch, but not in the empty branch
---   -- Todo: filter away the structural types from this list; they don't need
---   -- to be deleted.  For nominal / unique types, let's think about it.
---   old b = Set.fromList [r | r@(Reference.Builtin _) <- toList $ old' b]
---   old' b = refs b `Set.difference` refs Editor.builtinBranch
---   refs = Branch.allNamedReferences . Branch.head
 
 loadRemoteBranchAt
   :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
@@ -1226,10 +1098,10 @@ stepAt :: forall m i v. Applicative m
        -> Action m i v ()
 stepAt = stepManyAt @m @[] . pure
 
-stepAtM :: forall m i v. Monad m
+_stepAtM :: forall m i v. Monad m
         => (Path, Branch0 m -> m (Branch0 m))
         -> Action m i v ()
-stepAtM = stepManyAtM @m @[] . pure
+_stepAtM = stepManyAtM @m @[] . pure
 
 stepManyAt :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
@@ -1257,11 +1129,6 @@ zeroOneOrMore f zero one more = case toList f of
   a : _ -> one a
   _ -> zero
 
-zeroOrMore :: Foldable f => f a -> b -> (f a -> b) -> b
-zeroOrMore f zero more = case toList f of
-  a : _ -> more f
-  _ -> zero
-
 -- Goal: If `remaining = root - toBeDeleted` contains definitions X which
 -- depend on definitions Y not in `remaining` (which should also be in
 -- `toBeDeleted`), then complain by returning (Y, X).
@@ -1272,8 +1139,7 @@ getEndangeredDependents :: forall m. Monad m
                         -> m (Names0, Names0)
 getEndangeredDependents getDependents toDelete root = do
   let remaining  = root `Names.difference` toDelete
-      root', toDelete', remaining', extinct :: Set Reference
-      root'      = Names.allReferences root
+      toDelete', remaining', extinct :: Set Reference
       toDelete'  = Names.allReferences toDelete
       remaining' = Names.allReferences remaining          -- left over after delete
       extinct    = toDelete'  `Set.difference` remaining' -- deleting and not left over
@@ -1341,8 +1207,8 @@ toSlurpResult uf existingNames =
   -- termCtorCollision (n,r) if (n, r' /= r) exists in existingNames and r is Ref and r' is Con
   termCtorCollisions :: Set v
   termCtorCollisions = Set.fromList
-    [ var n | (n, r@Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-            , [r'@Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
+    [ var n | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
+            , [Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
             ]
 
   -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref

@@ -16,7 +16,7 @@ import           EasyTest
 import           System.FilePath        (joinPath, splitPath, replaceExtension)
 import           System.FilePath.Find   (always, extension, find, (==?))
 import           System.Directory       ( doesFileExist )
-import qualified Unison.Builtin2        as Builtin
+import qualified Unison.Builtin         as Builtin
 import           Unison.Codebase.Runtime  ( Runtime, evaluateWatches )
 import           Unison.Parser          as Parser
 import qualified Unison.Parsers         as Parsers

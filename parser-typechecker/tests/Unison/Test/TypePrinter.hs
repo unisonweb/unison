@@ -3,7 +3,7 @@ module Unison.Test.TypePrinter where
 import EasyTest
 import qualified Data.Map as Map
 import Unison.TypePrinter
-import qualified Unison.Builtin2 as Unison.Builtin
+import qualified Unison.Builtin
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 import Unison.Test.Common

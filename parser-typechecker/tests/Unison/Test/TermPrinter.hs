@@ -10,7 +10,7 @@ import Unison.Term
 import Unison.TermPrinter
 import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
-import qualified Unison.Builtin2 as Unison.Builtin
+import qualified Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE

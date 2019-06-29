@@ -7,10 +7,10 @@ import System.Environment ( getArgs )
 import System.Directory ( getCurrentDirectory )
 import Unison.Codebase.Serialization.V1 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
-import qualified Unison.Codebase2 as Codebase
-import qualified Unison.Codebase.FileCodebase2 as FileCodebase
+import qualified Unison.Codebase as Codebase
+import qualified Unison.Codebase.FileCodebase as FileCodebase
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.CommandLine.Main2 as CommandLine
+import qualified Unison.CommandLine.Main as CommandLine
 import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Codebase.Path as Path
 
