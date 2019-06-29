@@ -41,7 +41,6 @@ library
     Unison.Codebase2
     Unison.Codebase.Branch2
     Unison.Codebase.BranchUtil
-    Unison.Codebase.OldBranch
     Unison.Codebase.Causal2
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
