@@ -43,15 +43,13 @@ import qualified System.Console.ANSI           as Console
 import           System.Directory              (canonicalizePath, doesFileExist)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Codebase               as Codebase
+import qualified Unison.Codebase2              as Codebase
 import           Unison.Codebase.GitError
-import           Unison.Codebase.Branch        (Branch0)
-import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.CommandLine            (
+import           Unison.CommandLine2           (
                                                 -- backtick, backtickEOS,
                                                 bigproblem,
                                                 clearCurrentLine,
@@ -64,8 +62,8 @@ import           Unison.CommandLine            (
                                                 -- watchPrinter,
                                                 -- plural
                                                 )
-import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
-import qualified Unison.CommandLine.InputPatterns as IP
+import           Unison.CommandLine.InputPatterns2 (makeExample, makeExample')
+import qualified Unison.CommandLine.InputPatterns2 as IP
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.DeclPrinter            as DeclPrinter
 import qualified Unison.HashQualified          as HQ
@@ -581,7 +579,8 @@ renderNameConflicts conflictedTypeNames conflictedTermNames =
     tip $ "This occurs when merging branches that both independently introduce the same name. Use "
         <> makeExample IP.view (prettyName <$> take 3 allNames)
         <> "to see the conflicting defintions, then use "
-        <> makeExample' IP.rename <> "and/or " <> makeExample' IP.replace
+        <> makeExample' (if (not . null) conflictedTypeNames
+                         then IP.renameType else IP.renameTerm)
         <> "to resolve the conflicts."
   ]
   where
@@ -598,8 +597,8 @@ renderEditConflicts ppe Patch{..} =
     P.wrap $ "These" <> P.bold "definitions were edited differently"
           <> "in branches that have been merged into this branch."
           <> "You'll have to tell me what to use as the new definition:",
-    P.indentN 2 (P.lines (formatConflict <$> editConflicts)),
-    tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
+    P.indentN 2 (P.lines (formatConflict <$> editConflicts))
+--    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
     ]
   where
     -- todo: could possibly simplify all of this, but today is a copy/paste day.

@@ -5,7 +5,7 @@ import Control.Monad ( unless )
 import Safe ( headMay )
 import System.Environment ( getArgs )
 import System.Directory ( getCurrentDirectory )
-import Unison.Codebase.Serialization.V0 ( formatSymbol )
+import Unison.Codebase.Serialization.V1 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
 import qualified Unison.Codebase2 as Codebase
 import qualified Unison.Codebase.FileCodebase2 as FileCodebase
@@ -20,7 +20,7 @@ main = do
   -- hSetBuffering stdout NoBuffering -- cool
   dir  <- getCurrentDirectory
   let
-    codebasePath = ".unison/v0"
+    codebasePath = ".unison/v1"
     initialPath  = Path.absoluteEmpty
     theCodebase =
       FileCodebase.codebase1 External formatSymbol formatAnn codebasePath

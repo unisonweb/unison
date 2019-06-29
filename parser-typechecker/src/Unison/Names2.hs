@@ -12,9 +12,10 @@ module Unison.Names2 where
 import Data.Foldable (toList)
 import           Data.List        (foldl')
 import           Data.Set (Set)
--- import qualified Data.Map         as Map
+--import qualified Data.Map         as Map
+import           Data.Maybe (mapMaybe)
 import qualified Data.Set         as Set
--- import           Data.String      (fromString)
+import           Data.String      (fromString)
 import           Data.Text        (Text)
 import qualified Data.Text        as Text
 -- import           Unison.ConstructorType (ConstructorType)
@@ -330,15 +331,15 @@ unqualified' = last . Text.splitOn "."
 -- filterTypes f (Names {..}) = Names termNames m2
 --   where
 --   m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
---
--- patternNameds :: Names -> String -> Maybe (Reference, Int)
--- patternNameds ns s = patternNamed ns (fromString s)
---
--- patternNamed :: Names -> Name -> Maybe (Reference, Int)
--- patternNamed ns n = Map.lookup n (termNames ns) >>= \case
---   Referent.Con r cid -> Just (r, cid)
---   _ -> Nothing
---
+
+patternNameds :: Names0 -> String -> [(Reference, Int)]
+patternNameds ns s = patternNamed ns (fromString s)
+
+patternNamed :: Names0 -> Name -> [(Reference, Int)]
+patternNamed ns n = flip mapMaybe (toList . R.lookupDom n $ terms ns) $ \case
+  Referent.Con r cid -> Just (r, cid)
+  _ -> Nothing
+
 -- bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
 -- bindType ns t = Type.bindBuiltins typeNames' t
 --   where

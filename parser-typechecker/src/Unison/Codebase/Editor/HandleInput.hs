@@ -99,7 +99,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.Result                 as Result
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.Util.Find              as Find
+import qualified Unison.Util.Find2             as Find
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
 import           Unison.Util.List               ( uniqueBy )

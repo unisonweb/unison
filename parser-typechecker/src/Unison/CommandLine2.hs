@@ -79,6 +79,9 @@ backtickEOS s = P.group ("`" <> s <> "`.")
 tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
 tip s = P.column2 [("Tip:", P.wrap s)]
 
+note :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
+note s = P.column2 [("Note:", P.wrap s)]
+
 aside :: P.Pretty P.ColorText -> P.Pretty P.ColorText -> P.Pretty P.ColorText
 aside a b = P.column2 [(a <> ":", b)]
 
@@ -151,30 +154,6 @@ fixupCompletion q cs@(h:t) = let
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 
--- todo: delete these?
-_autoCompleteHashQualified :: Names0 -> String -> [Line.Completion]
-_autoCompleteHashQualified b = \case
-  (HQ.fromString -> Just query) ->
-    makeCompletion <$> Find.prefixFindInBranch b query
-  _ -> []
-  where
-  makeCompletion (sr, p) =
-    prettyCompletion (HQ.toString . SR.name $ sr, p)
-
-_autoCompleteHashQualifiedTerm :: Names0 -> String -> [Line.Completion]
-_autoCompleteHashQualifiedTerm b = \case
-  (HQ.fromString -> Just query) ->
-    [ prettyCompletion (HQ.toString . SR.name $ sr, p)
-    | (sr@(SR.Tm _), p) <- Find.prefixFindInBranch b query ]
-  _ -> []
-
-_autoCompleteHashQualifiedType :: Names0 -> String -> [Line.Completion]
-_autoCompleteHashQualifiedType b = \case
-  (HQ.fromString -> Just query) ->
-    [ prettyCompletion (HQ.toString . SR.name $ sr, p)
-    | (sr@(SR.Tp _), p) <- Find.prefixFindInBranch b query ]
-  _ -> []
-
 parseInput
   :: Map String InputPattern -> [String] -> Either (P.Pretty CT.ColorText) Input
 parseInput patterns ss = case ss of
@@ -214,6 +193,18 @@ putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p = do
   width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.indentN 2 p
+
+clearCurrentLine :: IO ()
+clearCurrentLine = do
+  width <- getAvailableWidth
+  putStr "\r"
+  putStr . replicate width $ ' '
+  putStr "\r"
+
+putPretty' :: P.Pretty CT.ColorText -> IO ()
+putPretty' p = do
+  width <- getAvailableWidth
+  putStr . P.toANSI width $ p
 
 getAvailableWidth :: IO Int
 getAvailableWidth =

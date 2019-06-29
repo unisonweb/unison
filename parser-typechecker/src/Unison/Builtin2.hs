@@ -10,7 +10,7 @@ module Unison.Builtin2 where
 
 -- import           Control.Arrow                  ( first )
 import           Control.Applicative            ( liftA2
-                                                -- , (<|>)
+                                                 , (<|>)
                                                 )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( foldl', toList )
@@ -22,7 +22,7 @@ import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 -- import qualified Text.Megaparsec.Error         as MPE
 -- import qualified Unison.ABT                    as ABT
--- import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
+import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 -- import qualified Unison.ConstructorType        as CT
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -37,7 +37,6 @@ import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Term                   as Term
--- import qualified Unison.TermParser             as TermParser
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 -- import qualified Unison.TypeParser             as TypeParser
@@ -46,7 +45,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import Unison.Names2 (Names'(Names), Names0)
+import Unison.Names2 (Names'(Names), Names, Names0, names0ToNames)
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
@@ -96,6 +95,9 @@ parseType = error "todo" -- is `Names` something we want to keep using?
 -- -- Primitive types and primitive terms can be deprecated in future iterations
 -- -- of the typechecker and runtime, but the builtin decls don't become
 -- -- deprecated in the same sense.  So (to do a deprecation check on these)
+
+names :: Names
+names = names0ToNames names0
 
 names0 :: Names0
 names0 = Names terms types where
@@ -159,14 +161,12 @@ builtinDataDecls =
 builtinEffectDecls :: Var v => [(v, (R.Reference, EffectDeclaration v))]
 builtinEffectDecls = []
 
--- codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
--- codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
---   pure
---     $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
---     <|> lookup
---           r
---           [ (r, Left x) | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
---
+codeLookup :: (Applicative m, Var v) => CodeLookup v m Ann
+codeLookup = CodeLookup (const $ pure Nothing) $ \r ->
+  pure
+    $ lookup r [ (r, Right x) | (R.DerivedId r, x) <- snd <$> builtinDataDecls ]
+  <|> lookup r [ (r, Left x)  | (R.DerivedId r, x) <- snd <$> builtinEffectDecls ]
+
 -- toSymbol :: Var v => R.Reference -> v
 -- toSymbol (R.Builtin txt) = Var.named txt
 -- toSymbol _ = error "unpossible"

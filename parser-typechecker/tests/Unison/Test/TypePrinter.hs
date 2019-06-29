@@ -2,13 +2,11 @@ module Unison.Test.TypePrinter where
 
 import EasyTest
 import qualified Data.Map as Map
-import Unison.Type
 import Unison.TypePrinter
-import Unison.Symbol (Symbol)
-import Unison.Builtin
-import Unison.Parser (Ann(..))
+import qualified Unison.Builtin2 as Unison.Builtin
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
+import Unison.Test.Common
 
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
@@ -18,13 +16,13 @@ import qualified Unison.PrettyPrintEnv as PPE
 -- Note that this does not verify the position of the PrettyPrint Break elements.
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
-   let input_type = Unison.Builtin.t s :: Unison.Type.AnnotatedType Symbol Ann
-       get_names = PPE.fromNames Unison.Builtin.names
+   let input_type = Unison.Test.Common.t s
+       get_names = PPE.fromNames0 Unison.Builtin.names0
        prettied = pretty0 get_names Map.empty (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width $ prettied
-       actual_reparsed = Unison.Builtin.t actual
+       actual_reparsed = Unison.Test.Common.t actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected

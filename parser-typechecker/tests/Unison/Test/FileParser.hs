@@ -8,7 +8,7 @@ module Unison.Test.FileParser where
   import qualified Text.Megaparsec.Error as MPE
   import Unison.FileParser (file)
   import qualified Unison.Parser as P
-  import Unison.Parsers (unsafeGetRightFrom, unsafeReadAndParseFile')
+  import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
   import qualified Unison.Reference as R
   import qualified Unison.Referent as Referent
   import Unison.Symbol (Symbol)
@@ -51,7 +51,7 @@ module Unison.Test.FileParser where
 
   test2 :: Test ()
   test2 = scope "test2" $
-    (io $ unsafeReadAndParseFile' "unison-src/test1.u") *> ok
+    (io $ unsafeParseFileBuiltinsOnly "unison-src/test1.u") *> ok
 
   test :: Test ()
   test = scope "fileparser" . tests $

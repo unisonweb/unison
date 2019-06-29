@@ -36,21 +36,15 @@ library
   exposed-modules:
     Unison.ABT
     Unison.Blank
-    Unison.Builtin
     Unison.Builtin2
     Unison.Codecs
-    Unison.Codebase
     Unison.Codebase2
-    Unison.Codebase.Branch
     Unison.Codebase.Branch2
     Unison.Codebase.BranchUtil
     Unison.Codebase.OldBranch
-    Unison.Codebase.Causal
     Unison.Codebase.Causal2
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
-    Unison.Codebase.Editor
-    Unison.Codebase.Editor.Actions
     Unison.Codebase.Editor.Command
     Unison.Codebase.Editor.Git
     Unison.Codebase.Editor.HandleInput
@@ -60,7 +54,6 @@ library
     Unison.Codebase.Editor.RemoteRepo
     Unison.Codebase.Editor.SlurpResult
     Unison.Codebase.Editor.SlurpComponent
-    Unison.Codebase.FileCodebase
     Unison.Codebase.FileCodebase2
     Unison.Codebase.GitError
     Unison.Codebase.Metadata
@@ -70,23 +63,16 @@ library
     Unison.Codebase.Patch
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
-    Unison.Codebase.SearchResult0
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
-    Unison.Codebase.Serialization.V0
     Unison.Codebase.Serialization.V1
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
-    Unison.CommandLine
     Unison.CommandLine2
-    Unison.CommandLine.InputPattern
     Unison.CommandLine.InputPattern2
-    Unison.CommandLine.InputPatterns
     Unison.CommandLine.InputPatterns2
-    Unison.CommandLine.Main
     Unison.CommandLine.Main2
-    Unison.CommandLine.OutputMessages
     Unison.CommandLine.OutputMessages2
     Unison.ConstructorType
     Unison.DataDeclaration
@@ -144,7 +130,6 @@ library
     Unison.Util.ColorText
     Unison.Util.Components
     Unison.Util.Free
-    Unison.Util.Find
     Unison.Util.Find2
     Unison.Util.Logger
     Unison.Util.List
@@ -242,17 +227,6 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable unison
-  main-is: Main.hs
-  hs-source-dirs: unison
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  build-depends:
-    base,
-    containers,
-    safe,
-    text,
-    unison-parser-typechecker
-
 executable unison2
   main-is: Main.hs
   hs-source-dirs: unison2
@@ -286,7 +260,6 @@ executable tests
     Unison.Test.FileParser
     Unison.Test.Lexer
     Unison.Test.Range
-    Unison.Test.RemainingWork
     Unison.Test.TermParser
     Unison.Test.TermPrinter
     Unison.Test.Type

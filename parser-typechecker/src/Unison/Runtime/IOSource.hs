@@ -17,18 +17,19 @@ import Unison.Codebase.CodeLookup (CodeLookup(..))
 import qualified Unison.Codebase.CodeLookup as CL
 import qualified Unison.DataDeclaration as DD
 import qualified Data.Map as Map
-import qualified Unison.Builtin as Builtin
+import qualified Unison.Builtin2 as Builtin
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
+import qualified Unison.Names as ON
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ TL.builtinTypeLookup)
-  r = parseAndSynthesizeFile [] tl (mempty, Builtin.names) "<IO.u builtin>" source
+  r = parseAndSynthesizeFile [] tl (mempty, ON.fromNames2 Builtin.names) "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes
