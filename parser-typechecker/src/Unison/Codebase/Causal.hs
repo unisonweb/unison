@@ -4,8 +4,8 @@
 module Unison.Codebase.Causal where
 
 import           Prelude                 hiding ( head
+                                                , tail
                                                 , read
-                                                , sequence
                                                 )
 import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
@@ -22,6 +22,7 @@ import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
 import           Data.Foldable                  ( for_, toList )
 import           Util                           ( bind2 )
 
@@ -232,11 +233,16 @@ transform nt c = case c of
 -- (rather than following one back all the way to its root before working
 -- through others).  Returns Left if the condition was never satisfied,
 -- otherwise Right.
-foldHistoryUntil :: forall m h e a. (Applicative m, Ord h) =>
+foldHistoryUntil :: forall m h e a. (Monad m, Ord h) =>
   (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (Either a a)
 foldHistoryUntil f a c = step a mempty (pure c) where
-  step :: a -> Set h -> Seq (Causal m h e) -> m (Either a a)
-  step a seen Seq.Empty = pure @m . Left $ a
-  step a seen (One{..} Seq.:<| rest) = error "todo"
-  step a seen (Cons{..} Seq.:<| rest) = error "todo"
-  step a seen (Merge{..} Seq.:<| rest) = error "todo"
+  step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (Either a a)
+  step a _seen Seq.Empty = pure (Left a)
+  step a seen (c Seq.:<| rest) = case f a (head c) of
+    (a, True) -> pure (Right a)
+    (a, False) -> do
+      tails <- case c of
+        One{} -> pure mempty
+        Cons{} -> Seq.singleton <$> snd (tail c)
+        Merge{} -> Seq.fromList <$> (sequence . toList . tails) c
+      step a (Set.insert (currentHash c) seen) (rest <> tails)
