@@ -39,6 +39,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
+import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Name                   as Name
 import           Unison.Names2                  ( Names'(Names), Names0 )
@@ -86,6 +87,9 @@ makeLenses ''Raw
 toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
                    (R.swap . Star3.d1 . deepTypes $ b)
+
+findHistoricalNames0 :: Set HQ.HashQualified -> Branch m -> m Names0
+findHistoricalNames0 = error "todo"
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = Star3.fact . deepTerms
