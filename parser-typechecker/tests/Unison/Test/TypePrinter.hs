@@ -3,9 +3,7 @@ module Unison.Test.TypePrinter where
 import EasyTest
 import qualified Data.Map as Map
 import Unison.TypePrinter
-import Unison.Symbol (Symbol)
 import qualified Unison.Builtin
-import Unison.Parser (Ann(..))
 import Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
