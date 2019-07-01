@@ -1,7 +1,7 @@
 -- Hits all the syntactic elements listed in SyntaxHighlights.hs.  
 -- Use the 'view' command to see this in colour.  
 
-rainbow : Int ->{IO} Int
+rainbow : Int ->{Ask Int} Int
 rainbow x =
   use Int isEven
   number = 3
@@ -18,7 +18,12 @@ rainbow x =
   a = if isEven x then Either.Left 0 else Either.Right 0
   b = if isEven x then 1 else 0
   c = case x of _ -> 3
-  IO.printLine text
+  d = (Ask.ask : Int)
   +42
+
+ability Ask a where
+  ask : {Ask a} a
+
+type Either a b = Left a | Right b  
 
 > ()
