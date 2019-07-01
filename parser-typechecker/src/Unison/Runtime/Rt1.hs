@@ -563,9 +563,15 @@ run ioHandler env ir = do
     -- call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
-      if nargs == arity then do
-        (size, m) <- pushManyZ size args m
-        go size m body
+      if nargs == arity then case underapply of
+        -- when calling a closure, we supply all the closure arguments, before
+        -- `args`. See fix528.u for an example.
+        FormClosure _hash _tm pushedArgs -> do
+          (size, m) <- pushManyZ size (fmap Val (reverse pushedArgs) ++ args) m
+          go size m body
+        _ -> do
+          (size, m) <- pushManyZ size args m
+          go size m body
       -- overapplied call, e.g. `id id 42`
       else if nargs > arity then do
         let (usedArgs, extraArgs) = splitAt arity args
@@ -602,14 +608,9 @@ run ioHandler env ir = do
               body
             in done $ Lam (arity - nargs) (Specialize hash lam pushedArgs') compiled
           Specialize _ e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
-          FormClosure hash tm pushedArgs -> let
-            pushedArgs' = reverse argvs ++ pushedArgs
-            arity' = arity - nargs
-            allArgs = replicate arity' Nothing ++ map Just pushedArgs'
-            bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
-            in done $ Lam (arity - nargs)
-                       (FormClosure hash tm pushedArgs')
-                       (specializeIR bound body)
+          FormClosure hash tm pushedArgs ->
+            let pushedArgs' = reverse argvs ++ pushedArgs
+            in done $ Lam (arity - nargs) (FormClosure hash tm pushedArgs') body
     call size m (Cont k) [arg] = do
       v <- at size arg m
       callContinuation size m k v
