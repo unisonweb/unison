@@ -53,6 +53,13 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
+--TODO #287:
+--  - rebase onto branchless
+--  - (fix Pair/Unit tuple FQN elision)
+--  - hash qualification
+--  - PP.commas etc
+--  - DeclPrinter
+
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
 data AmbientContext = AmbientContext

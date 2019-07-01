@@ -22,7 +22,7 @@ data Element = NumericLiteral
              | UseKeyword
              | UsePrefix
              | UseSuffix
-             -- ? ! , ` [ ] { } @ | = _
+             -- ? ! , ' ` [ ] { } @ | = _
              | DelimiterChar
              | Parenthesis
 
