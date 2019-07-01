@@ -13,6 +13,7 @@ import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
+import           Unison.ShortHash               ( ShortHash )
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -36,6 +37,12 @@ data Input
     --          Does it make sense to fork from not-the-root of a Github repo?
     -- change directory
     | SwitchBranchI Path'
+    -- > names foo
+    -- > names foo.bar
+    -- > names .foo.bar
+    -- > names .foo.bar#asdflkjsdf
+    -- > names #sdflkjsdfhsdf
+    | NamesI (Either ShortHash Path.HQSplit')
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.

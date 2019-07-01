@@ -67,7 +67,7 @@ import qualified Unison.HashQualified'         as HQ'
 import           Unison.Name                   (Name)
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
-                                                prettyName,
+                                                prettyName, prettyShortHash,
                                                 styleHashQualified,
                                                 styleHashQualified')
 import           Unison.Names2                 (Names'(..), Names, Names0)
@@ -212,6 +212,38 @@ notifyUser dir o = case o of
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
   ListOfDefinitions names detailed results ->
      listOfDefinitions names detailed results
+  ListNames [] [] -> putPrettyLn . P.callout "😶" $
+    P.wrap "I couldn't find anything by that name."
+  ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
+    formatTerms terms, formatTypes types ]
+    where
+    formatTerms tms = P.lines (go <$> tms) where
+      go (ref, ns) = P.lines
+        [ "Hash:  " <> prettyHashQualified (HQ.fromReferent ref)
+        , "Names: " <> P.indentNAfterNewline
+          2
+          (  ("" `P.orElse` "\n")
+          <> P.group (P.spaced (P.bold . prettyName <$> toList ns))
+          )
+        ]
+    formatTypes types = P.lines (go <$> types) where
+      go (ref, ns) = P.lines
+        [ "Hash:  " <> prettyHashQualified (HQ.fromReference ref)
+        , "Names: " <> P.indentNAfterNewline
+          2
+          (  ("" `P.orElse` "\n")
+          <> P.group (P.spaced (P.bold . prettyName <$> toList ns))
+          )
+        ]
+  -- > names foo
+  --   Terms:
+  --     Hash: #asdflkjasdflkjasdf
+  --     Names: .util.frobnicate foo blarg.mcgee
+  --
+  --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
+  --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
+
+
   SlurpOutput _input ppe s ->
     putPrettyLn $
       SlurpResult.pretty ppe s <> "\n\n" <>

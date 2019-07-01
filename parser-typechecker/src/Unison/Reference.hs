@@ -15,6 +15,7 @@ module Unison.Reference
    componentFor,
    unsafeFromText,
    idFromText,
+   isPrefixOf,
    fromText,
    readSuffix,
    showShort,
@@ -24,7 +25,7 @@ module Unison.Reference
 
 import           Control.Monad   (join)
 import           Data.Foldable   (toList)
-import           Data.List
+import           Data.List hiding (isPrefixOf)
 import qualified Data.Map        as Map
 import           Data.Maybe      (fromJust, maybe)
 import           Data.Set        (Set)
@@ -79,6 +80,9 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
       put = putLength i >> putLength n
       putLength = serialize . VarInt
 toShortHash (DerivedId _) = error "this should be covered above"
+
+isPrefixOf :: ShortHash -> Reference -> Bool
+isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 
 toText :: Reference -> Text
 toText = SH.toText . toShortHash

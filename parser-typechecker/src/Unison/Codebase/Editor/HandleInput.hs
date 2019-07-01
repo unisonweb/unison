@@ -376,6 +376,39 @@ loop = do
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
+      NamesI thing -> case thing of
+        Left shorthash -> let
+          allTerms = toList . filterSh $ Names.termReferences ns
+          allTypes = toList . filterSh $ Names.typeReferences ns
+          filterSh =
+            Set.takeWhileAntitone (Reference.isPrefixOf shorthash) .
+            Set.dropWhileAntitone (not . Reference.isPrefixOf shorthash)
+          ns = prettyPrintNames0
+          in
+          respond $ ListNames
+            [ (Referent.Ref r, Names.namesForReferent ns (Referent.Ref r))
+              | r <- allTerms ]
+            [ (r, Names.namesForReference ns r) | r <- allTypes ]
+        Right p0 -> do
+          let (p, hq) = resolveSplit' p0
+          case hq of
+            HQ'.NameOnly n ->
+              respond $ uncurry ListNames (results p n)
+            HQ'.HashQualified n sh -> let
+              (terms, types) = results p n
+              -- filter terms and types based on `sh : ShortHash`
+              terms' = filter (Reference.isPrefixOf sh . Referent.toReference . fst) terms
+              types' = filter (Reference.isPrefixOf sh . fst) types
+              in respond $ ListNames terms' types'
+          where
+            results p n = let
+              name = Path.toName (Path.snoc p n)
+              ns = prettyPrintNames0
+              terms = [ (r, Names.namesForReferent ns r)
+                      | r <- toList $ Names.termsNamed ns name ]
+              types = [ (r, Names.namesForReference ns r)
+                      | r <- toList $ Names.typesNamed ns name ]
+              in (terms, types)
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)

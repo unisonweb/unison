@@ -27,7 +27,7 @@ isConstructor = \case
 -- `#y9ycWkiC1.y9` — term ref, part of cycle
 -- `#cWkiC1x89#1` — constructor
 -- `#DCxrnCAPS.WD#0` — constructor of a type in a cycle
--- Anything to the left of the first # is ignored.
+-- Anything to the left of the first # is
 --   e.g. foo#abc is parsed as #abc
 -- Anything including and following a third # is ignored.
 --   e.g. foo#abc#2#hello is parsed as #abc#2

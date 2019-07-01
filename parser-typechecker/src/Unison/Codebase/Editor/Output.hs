@@ -83,6 +83,8 @@ data Output v
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete Input Names0 [SearchResult' v Ann] [SearchResult' v Ann]
+  | ListNames [(Referent, Set Name)] -- term match, term names
+              [(Reference, Set Name)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)
