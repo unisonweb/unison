@@ -233,13 +233,14 @@ transform nt c = case c of
 -- (rather than following one back all the way to its root before working
 -- through others).  Returns Left if the condition was never satisfied,
 -- otherwise Right.
+data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
 foldHistoryUntil :: forall m h e a. (Monad m, Ord h) =>
-  (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (Either a a)
+  (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c) where
-  step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (Either a a)
-  step a _seen Seq.Empty = pure (Left a)
+  step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
+  step a _seen Seq.Empty = pure (Unsatisfied a)
   step a seen (c Seq.:<| rest) = case f a (head c) of
-    (a, True) -> pure (Right a)
+    (a, True) -> pure (Satisfied a)
     (a, False) -> do
       tails <- case c of
         One{} -> pure mempty
