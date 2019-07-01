@@ -106,7 +106,7 @@ import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 
---import Debug.Trace
+-- import Debug.Trace
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -380,9 +380,7 @@ loop = do
         Left shorthash -> let
           allTerms = toList . filterSh $ Names.termReferences ns
           allTypes = toList . filterSh $ Names.typeReferences ns
-          filterSh =
-            Set.takeWhileAntitone (Reference.isPrefixOf shorthash) .
-            Set.dropWhileAntitone (not . Reference.isPrefixOf shorthash)
+          filterSh = Set.filter (Reference.isPrefixOf shorthash)
           ns = prettyPrintNames0
           in
           respond $ ListNames
@@ -390,19 +388,21 @@ loop = do
               | r <- allTerms ]
             [ (r, Names.namesForReference ns r) | r <- allTypes ]
         Right p0 -> do
-          let (p, hq) = resolveSplit' p0
+          let (p, hq) = p0
+              namePortion = HQ'.toName hq
           case hq of
-            HQ'.NameOnly n ->
-              respond $ uncurry ListNames (results p n)
-            HQ'.HashQualified n sh -> let
-              (terms, types) = results p n
+            HQ'.NameOnly _ ->
+              respond $ uncurry ListNames (results p namePortion)
+            HQ'.HashQualified _ sh -> let
+              (terms, types) = results p namePortion
               -- filter terms and types based on `sh : ShortHash`
               terms' = filter (Reference.isPrefixOf sh . Referent.toReference . fst) terms
               types' = filter (Reference.isPrefixOf sh . fst) types
               in respond $ ListNames terms' types'
           where
-            results p n = let
-              name = Path.toName (Path.snoc p n)
+            results p namePortion = let
+              name = Path.toName . Path.unprefix currentPath' . Path.snoc' p
+                   $ namePortion
               ns = prettyPrintNames0
               terms = [ (r, Names.namesForReferent ns r)
                       | r <- toList $ Names.termsNamed ns name ]

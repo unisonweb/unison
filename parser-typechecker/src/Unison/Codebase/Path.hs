@@ -5,7 +5,8 @@
 module Unison.Codebase.Path where
 
 --import Debug.Trace
-import Control.Lens hiding (unsnoc, cons)
+import           Data.List.Extra                ( dropPrefix )
+import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
 import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
@@ -54,6 +55,15 @@ type Split' = (Path', NameSegment)
 type HQSplit' = (Path', HQSegment)
 
 type SplitAbsolute = (Absolute, NameSegment)
+
+-- examples:
+--   unprefix .foo.bar .blah == .blah (absolute paths left alone)
+--   unprefix .foo.bar id    == id    (relative paths starting w/ nonmatching prefix left alone)
+--   unprefix .foo.bar foo.bar.baz == baz (relative paths w/ common prefix get stripped)
+unprefix :: Absolute -> Path' -> Path
+unprefix (Absolute prefix) (Path' p) = case p of
+  Left abs -> unabsolute abs
+  Right (unrelative -> rel) -> fromList $ dropPrefix (toList prefix) (toList rel)
 
 -- .libs.blah.poo is Absolute
 -- libs.blah.poo is Relative
@@ -203,6 +213,11 @@ singleton n = fromList [n]
 
 snoc :: Path -> NameSegment -> Path
 snoc (Path p) ns = Path (p <> pure ns)
+
+snoc' :: Path' -> NameSegment -> Path'
+snoc' (Path' e) n = case e of
+  Left abs -> Path' (Left . Absolute $ snoc (unabsolute abs) n)
+  Right rel -> Path' (Right . Relative $ snoc (unrelative rel) n)
 
 unsnoc :: Path -> Maybe (Path, NameSegment)
 unsnoc p = case p of
