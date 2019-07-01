@@ -39,7 +39,6 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
-import qualified Unison.HashQualified          as HQ
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Name                   as Name
 import           Unison.Names2                  ( Names'(Names), Names0 )
@@ -51,6 +50,7 @@ import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.List              as List
+import Unison.ShortHash (ShortHash)
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
@@ -88,8 +88,20 @@ toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
                    (R.swap . Star3.d1 . deepTypes $ b)
 
-findHistoricalNames0 :: Set HQ.HashQualified -> Branch m -> m Names0
-findHistoricalNames0 = error "todo"
+-- the search stops searching for a given ShortHash once it encounters
+-- any Branch0 that satisfies that ShortHash.
+findHistoricalNames0 ::
+  Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
+findHistoricalNames0 shortHashes b =
+  (Causal.foldHistoryUntil f (shortHashes, mempty) . _history) b <&> \case
+    -- could do something more sophisticated here later
+    Causal.Satisfied   (_, names)       -> (mempty, names)
+    Causal.Unsatisfied (missing, names) -> (missing, names)
+  where
+  f (_shortHashes, _namesAcc) _b0 = ((shortHashes', namesAcc'), null shortHashes')
+    where
+    shortHashes' = undefined :: Set ShortHash
+    namesAcc' = undefined :: Names0
 
 deepReferents :: Branch0 m -> Set Referent
 deepReferents = Star3.fact . deepTerms

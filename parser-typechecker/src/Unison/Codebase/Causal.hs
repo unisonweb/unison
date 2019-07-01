@@ -237,10 +237,10 @@ transform nt c = case c of
 -- foldHistoryUntil some condition on the accumulator is met,
 -- attempting to work backwards fairly through merge nodes
 -- (rather than following one back all the way to its root before working
--- through others).  Returns Left if the condition was never satisfied,
--- otherwise Right.
+-- through others).  Returns Unsatisfied if the condition was never satisfied,
+-- otherwise Satisfied.
 data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
-foldHistoryUntil :: forall m h e a. (Monad m, Ord h) => --(Show a, Show e) =>
+foldHistoryUntil :: forall m h e a. (Monad m) => --(Show a, Show e) =>
   (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c) where
   step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
@@ -252,5 +252,5 @@ foldHistoryUntil f a c = step a mempty (pure c) where
       tails <- case c of
         One{} -> pure mempty
         Cons{} -> Seq.singleton <$> snd (tail c)
-        Merge{} -> Seq.fromList <$> (sequence . toList . tails) c
+        Merge{} -> Seq.fromList <$> (sequenceA . toList . tails) c
       step a (Set.insert (currentHash c) seen) (rest <> tails)
