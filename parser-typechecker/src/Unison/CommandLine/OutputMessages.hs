@@ -217,23 +217,17 @@ notifyUser dir o = case o of
   ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
     formatTerms terms, formatTypes types ]
     where
-    formatTerms tms = P.lines (go <$> tms) where
-      go (ref, ns) = P.lines
-        [ "Hash:  " <> prettyHashQualified (HQ.fromReferent ref)
-        , "Names: " <> P.indentNAfterNewline
-          2
-          (  ("" `P.orElse` "\n")
-          <> P.group (P.spaced (P.bold . prettyName <$> toList ns))
-          )
+    formatTerms tms =
+      P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
+      go (ref, ns) = P.column2
+        [ ("Hash:", prettyHashQualified (HQ.fromReferent ref))
+        , ("Names: ", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
         ]
-    formatTypes types = P.lines (go <$> types) where
-      go (ref, ns) = P.lines
-        [ "Hash:  " <> prettyHashQualified (HQ.fromReference ref)
-        , "Names: " <> P.indentNAfterNewline
-          2
-          (  ("" `P.orElse` "\n")
-          <> P.group (P.spaced (P.bold . prettyName <$> toList ns))
-          )
+    formatTypes types =
+      P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
+      go (ref, ns) = P.column2
+        [ ("Hash:", prettyHashQualified (HQ.fromReference ref))
+        , ("Names:", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
         ]
   -- > names foo
   --   Terms:

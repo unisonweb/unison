@@ -18,6 +18,7 @@ module Unison.Util.Pretty (
    commas,
    commented,
    oxfordCommas,
+   plural,
    dashed,
    flatMap,
    group,
@@ -445,6 +446,16 @@ hiPurple = map CT.hiPurple
 hiCyan = map CT.hiCyan
 hiWhite = map CT.hiWhite
 bold = map CT.bold
+
+plural :: Foldable f
+       => f a -> Pretty ColorText -> Pretty ColorText
+plural f p = case length f of
+  0 -> mempty
+  1 -> p
+  -- todo: consider use of plural package
+  _ -> p <> case reverse (toPlainUnbroken p) of
+    's' : _ -> "es"
+    _ -> "s"
 
 border :: (LL.ListLike s Char, IsString s) => Int -> Pretty s -> Pretty s
 border n p = "\n" <> indentN n p <> "\n"
