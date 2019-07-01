@@ -61,9 +61,12 @@ toText (ShortHash p i cid) = "#" <> p <> i' <> c' where
 toString :: ShortHash -> String
 toString = Text.unpack . toText
 
+fromString :: String -> Maybe ShortHash
+fromString = fromText . Text.pack
+
 take :: Int -> ShortHash -> ShortHash
 take _ b@(Builtin _) = b
-take i s@(ShortHash{..}) = s { prefix = (Text.take i prefix) }
+take i s@ShortHash{..} = s { prefix = Text.take i prefix }
 
 -- x `isPrefixOf` y is True iff x might be a shorter version of y
 isPrefixOf :: ShortHash -> ShortHash -> Bool
