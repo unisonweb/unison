@@ -47,8 +47,8 @@ import qualified Unison.DataDeclaration as DD
 -}
 
 prettyTop
-  :: forall s v a . (IsString s, LL.ListLike s Char, Var v)
-  => PrettyPrintEnv -> AnnotatedType v a -> Pretty s
+  :: forall v a . (Var v)
+  => PrettyPrintEnv -> AnnotatedType v a -> Pretty ColorText
 prettyTop ppe ty = pretty ppe mempty (-1) ty
 
 pretty
