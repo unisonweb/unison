@@ -504,18 +504,27 @@ splitOn c = unfoldr step where
   step [] = Nothing
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
--- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
-symbolyId s = case wordyId0 s of
+symbolyId r@('.':ch:_) | isSpace ch = symbolyId0 r -- lone dot treated as an operator
+symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
+symbolyId s = symbolyId' s
+
+-- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
+symbolyId' :: String -> Either Err (String, String)
+symbolyId' s = case wordyId0 s of
   Left _ -> symbolyId0 s
   Right (wid, '.':rem) -> case symbolyId rem of
     Left e -> Left e
     Right (rest, rem) -> Right (wid <> "." <> rest, rem)
   Right (w,_) -> Left (InvalidSymbolyId w)
 
--- Is a '.' delimited list of wordyId
 wordyId :: String -> Either Err (String, String)
-wordyId s = case wordyId0 s of
+wordyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> wordyId' s
+wordyId s = wordyId' s
+
+-- Is a '.' delimited list of wordyId
+wordyId' :: String -> Either Err (String, String)
+wordyId' s = case wordyId0 s of
   Left e -> Left e
   Right (wid, '.':rem@(ch:_)) | wordyIdStartChar ch -> case wordyId rem of
     Left e -> Left e

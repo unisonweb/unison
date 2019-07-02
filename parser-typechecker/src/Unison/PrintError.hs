@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -57,6 +56,7 @@ import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Util.Pretty as Pr
 
 type Env = PPE.PrettyPrintEnv
 
@@ -67,6 +67,9 @@ pattern ErrorSite = Color.HiRed
 pattern TypeKeyword = Color.Yellow
 pattern AbilityKeyword = Color.Green
 pattern Identifier = Color.Bold
+
+defaultWidth :: Int
+defaultWidth = 60
 
 fromOverHere'
   :: Ord a
@@ -923,6 +926,16 @@ prettyParseError s = \case
   go' (P.ErrorCustom e) = go e
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.DisallowedAbsoluteName t) = Pr.render defaultWidth msg where
+   msg :: Pr.Pretty Pr.ColorText
+   msg = Pr.indentN 2 $ Pr.fatalCallout $ Pr.lines [
+     Pr.wrap $ "I don't currently support creating definitions that start with"
+           <> Pr.group (Pr.blue "'.'" <> ":"),
+     "",
+     Pr.lit (tokenAsErrorSite s t),
+     Pr.wrap $ "Use " <> Pr.blue "help messages.disallowedAbsolute" <> "to learn more.",
+     ""
+     ]
   go (Parser.DuplicateTypeNames ts) = intercalateMap "\n\n" showDup ts where
     showDup (v, locs) =
       "I found multiple types with the name " <> errorVar v <> ":\n\n" <>

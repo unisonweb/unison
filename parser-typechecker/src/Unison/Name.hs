@@ -5,10 +5,12 @@ module Unison.Name
   , fromString
   , isPrefixOf
   , joinDot
-  , stripPrefix
+  , stripNamePrefix
   , stripPrefixes
   , toString
   , toVar
+  , unqualified
+  , unqualified'
   , unsafeFromText
   , fromVar
   )
@@ -41,15 +43,34 @@ toString = Text.unpack . toText
 isPrefixOf :: Name -> Name -> Bool
 a `isPrefixOf` b = toText a `Text.isPrefixOf` toText b
 
-stripPrefix :: Name -> Name -> Maybe Name
-stripPrefix prefix name =
-  Name <$> Text.stripPrefix (toText prefix) (toText name)
+-- stripTextPrefix a.b. a.b.c = Just c
+-- stripTextPrefix a.b  a.b.c = Just .c;  you probably don't want to do this
+-- stripTextPrefix x.y. a.b.c = Nothing
+-- stripTextPrefix "" a.b.c = undefined
+_stripTextPrefix :: Text -> Name -> Maybe Name
+_stripTextPrefix prefix name =
+  Name <$> Text.stripPrefix prefix (toText name)
 
+-- stripNamePrefix a.b  a.b.c = Just c
+-- stripNamePrefix a.b. a.b.c = undefined, "a.b." isn't a valid name IMO
+-- stripNamePrefix x.y  a.b.c = Nothing, x.y isn't a prefix of a.b.c
+-- stripNamePrefix "" a.b.c = undefined, "" isn't a valid name IMO
+stripNamePrefix :: Name -> Name -> Maybe Name
+stripNamePrefix prefix name =
+  Name <$> Text.stripPrefix (toText prefix <> ".") (toText name)
+
+-- a.b.c.d -> d
 stripPrefixes :: Name -> Name
 stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
 
 joinDot :: Name -> Name -> Name
 joinDot n1 n2 = Name $ toText n1 <> "." <> toText n2
+
+unqualified :: Name -> Name
+unqualified = unsafeFromText . unqualified' . toText
+
+unqualified' :: Text -> Text
+unqualified' = last . Text.splitOn "."
 
 instance Show Name where
   show = toString

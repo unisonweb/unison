@@ -2,7 +2,7 @@
 
 module Unison.HashQualified' where
 
-import           Data.Maybe                     ( fromMaybe, fromJust )
+import           Data.Maybe                     ( fromJust )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.String                    ( IsString
@@ -23,14 +23,6 @@ data HashQualified' n = NameOnly n | HashQualified n ShortHash
   deriving (Eq, Ord)
 
 type HashQualified = HashQualified' Name
-
-stripNamespace :: Text -> HashQualified -> HashQualified
-stripNamespace namespace hq = case hq of
-  NameOnly name         -> NameOnly $ strip name
-  HashQualified name sh -> HashQualified (strip name) sh
- where
-  strip name =
-    fromMaybe name $ Name.stripPrefix (Name.Name $ namespace <> ".") name
 
 toHQ :: HashQualified' n -> HQ.HashQualified' n
 toHQ = \case

@@ -743,6 +743,12 @@ dependencies t =
     f t@(Sequence _) = Writer.tell [Type.vectorRef] $> t
     f t             = pure t
 
+constructorDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Referent
+constructorDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
+  where
+  f t@(Constructor r cid) = Writer.tell [Referent.Con r cid] $> t
+  f t                     = pure t
+
 referencedDataDeclarations
   :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
 referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
