@@ -13,6 +13,7 @@
 module Unison.Term where
 
 import Prelude hiding (and,or)
+import           Control.Monad.Extra (partitionM)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Functor (void, ($>))
 import           Data.Foldable (traverse_, toList)
@@ -742,6 +743,15 @@ dependencies t =
     f t@(Text _)    = Writer.tell [Type.textRef] $> t
     f t@(Sequence _) = Writer.tell [Type.vectorRef] $> t
     f t             = pure t
+
+labeledDependencies :: (Monad m, Ord v, Ord vt)
+                       => (Reference -> m Bool)
+                       -> AnnotatedTerm2 vt at ap v a
+                       -> m (Set (Either Reference Referent))
+labeledDependencies isType t = do
+  (typeDeps, termRefDeps) <- partitionM isType . toList $ dependencies t
+  pure $ Set.map Right (constructorDependencies t) <>
+   Set.fromList (fmap Left typeDeps <> fmap (Right . Referent.Ref) termRefDeps)
 
 constructorDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Referent
 constructorDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t

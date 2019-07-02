@@ -107,6 +107,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
+import           Unison.Util.Monoid (foldMapM)
 
 -- import Debug.Trace
 
@@ -559,6 +560,10 @@ loop = do
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
               types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
         results' <- loadSearchResults results
+        -- todo: this could be simplified by loading the terms and types into a
+        --  map first, and building the DisplayThings afterwards.  Then you
+        --  wouldn't have to pull the definitions out of the DisplayThings below
+        --  to pull out their dependencies.
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
@@ -566,6 +571,14 @@ loop = do
             (collatedTypes, collatedTerms) = collateReferences
               (mapMaybe Output.tpReference results')
               (mapMaybe Output.tmReferent results')
+        _loadedDerivedTerms <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
+            r@(Reference.DerivedId i) -> Just . (r,) <$> eval (LoadTerm i)
+            _ -> pure Nothing
+        _loadedDerivedTypes <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
+            r@(Reference.DerivedId i) -> Just . (r,) <$> eval (LoadType i)
+            _ -> pure Nothing
         loadedTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
           r@(Reference.DerivedId i) -> do
             tm <- eval (LoadTerm i)
@@ -585,35 +598,21 @@ loop = do
           -- actually get the ABT out so we can look for references
           let loadedTerms' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTerms
               loadedTypes' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTypes
-          -- Term.dependencies mixes together terms and types, we've gotta
-          -- separate them later.
-              dependenciesOfTerms = foldMap Term.dependencies loadedTerms'
-          termDependenciesOfTerms <- filterM (eval . IsTerm) $ toList dependenciesOfTerms
-          typeDependenciesOfTerms <- filterM (eval . IsType) $ toList dependenciesOfTerms
-          let ctorDependenciesOfTerms = foldMap Term.constructorDependencies loadedTerms'
-          -- combine the different sources of Referents
-              termReferentDependencies = ctorDependenciesOfTerms <>
-                Set.fromList (fmap Referent.Ref termDependenciesOfTerms)
-          -- combine the different sources of type References
               dependenciesOfTypes = foldMap DD.declDependencies loadedTypes'
-              typeReferenceDependencies = dependenciesOfTypes <>
-                Set.fromList typeDependenciesOfTerms
+          labeledTermDependencies <-
+            foldMapM (Term.labeledDependencies $ eval . IsType) loadedTerms'
           -- seed the historical find algorithm with the terms and types that
           -- aren't present in root0
           (_missing, historicalNames) <- do
             let filteredReferences :: Set Reference
-                filteredReferences =
-                  Set.difference
-                    typeReferenceDependencies
-                    (Branch.deepTypeReferences root0)
-                filteredReferents :: Set Referent
-                filteredReferents =
-                  Set.difference
-                    termReferentDependencies
-                    (Branch.deepReferents root0)
+                filteredReferences = Set.difference
+                    dependenciesOfTypes (Branch.deepTypeReferences root0)
+                filteredReferents :: Set (Either Reference Referent)
+                filteredReferents = Set.difference
+                    labeledTermDependencies
+                    (Set.map Right $ Branch.deepReferents root0)
             eval . Eval $ Branch.findHistoricalRefs
-              (Set.map Left filteredReferences <>
-                Set.map Right filteredReferents)
+              (Set.map Left filteredReferences <> filteredReferents)
               root'
           -- okay, so the names in `historicalNames` are relative to the roots
           -- of their respective historical branches, but the names we want to
@@ -1686,7 +1685,6 @@ parseSearchType input ns typ =
     Right typ -> Right $ Type.removeAllEffectVars typ
 
 --
-
 --  typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
 --                 => Codebase m v a
 --                 -> [(v, Term v a)]
