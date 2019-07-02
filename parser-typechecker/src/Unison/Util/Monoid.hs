@@ -2,6 +2,7 @@ module Unison.Util.Monoid where
 
 import Data.List (intersperse)
 import Data.Foldable (toList)
+import Control.Monad (foldM)
 
 -- List.intercalate extended to any monoid
 -- "The type that intercalate should have had to begin with."
@@ -21,3 +22,6 @@ unlessM = whenM . not
 isEmpty, nonEmpty :: (Eq a, Monoid a) => a -> Bool
 isEmpty a = a == mempty
 nonEmpty = not . isEmpty
+
+foldMapM :: (Monad m, Foldable f, Monoid b) => (a -> m b) -> f a -> m b
+foldMapM f as = foldM (\b a -> fmap (b <>) (f a)) mempty as
