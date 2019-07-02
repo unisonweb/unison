@@ -434,7 +434,8 @@ helpTopics = Map.fromList [
   ("testcache", testCacheMsg),
   ("filestatus", fileStatusMsg),
   ("topics", topics),
-  ("messages.disallowedAbsolute", disallowedAbsoluteMsg)
+  ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
+  ("pathnames", pathnamesMsg)
   ]
   where
   topics = P.callout "🌻" $ P.lines [
@@ -454,28 +455,41 @@ helpTopics = Map.fromList [
     P.wrap $ "A test is rerun only if it has changed, or if one"
           <> "of the definitions it depends on has changed."
     ]
-  disallowedAbsoluteMsg = P.callout "\129302" . P.lines $ [
-    P.wrap $
-      "There are" <> P.bold "relative" <> "names " <>
-        P.blue "(foo.bar or util.List.map)" <>
-      "and " <> P.bold "absolute" <> "names" <>
-        P.green "(.foo.bar or .base.List.++)." <>
-      "Relative names are converted to absolute names by prepending the current path. For example, if your Unison prompt reads:", "",
+  pathnamesMsg = P.callout "\129488" . P.lines $ [
+    P.wrap $ "There are two kinds of path names," <> P.group (P.blue "absolute" <> ",")
+          <> "such as" <> P.group ("(" <> P.blue ".foo.bar")
+          <> "or" <> P.group (P.blue ".base.math.+" <> ")")
+          <> "and" <> P.group (P.green "relative" <> ",")
+          <> "such as" <> P.group ("(" <> P.green "math.sqrt")
+          <> "or" <> P.group (P.green "util.List.++" <> ")."),
+    "",
+    P.wrap $ "Relative names are converted to absolute names by prepending the current path."
+          <> "For example, if your Unison prompt reads:", "",
       P.indentN 2 $ P.blue ".foo.bar>", "",
     "and your .u file looks like:", "",
-      P.indentN 2 $ P.blue "x = 42", "",
+      P.indentN 2 $ P.green "x" <> " = 41", "",
     P.wrap $
       "then doing an" <> P.blue "add" <>
       "will create the definition with the absolute name" <>
-      P.blue ".foo.bar.x = 42",
+      P.group (P.blue ".foo.bar.x" <> " = 41"),
     "",
     P.wrap $
-      "Elsewhere in your code, you can refer to it by that absolute name." <>
-      "Currently, .u files don't support giving definitions with absolute names;" <>
-      "all definitions in the file will live under the current path. However" <>
-      "you can refer to existing definitions by their absolute or relative names, and" <>
-      "you can use the" <> P.blue "rename.*" <> "and/or" <> P.blue "merge" <>
-      "commands to easily move definitions to any other path in the tree."
+      "and you can refer to" <> P.green "x" <> "by its absolute name " <>
+      P.blue ".foo.bar.x" <> "elsewhere" <> "in your code. For instance:", "",
+    P.indentN 2 $
+      "answerToLifeTheUniverseAndEverything = " <> P.blue ".foo.bar.x" <> " + 1"
+    ]
+
+  disallowedAbsoluteMsg = P.callout "\129302" . P.lines $ [
+    P.wrap $
+      "Although I can understand absolute (ex: .foo.bar) or" <>
+      "relative (ex: util.math.sqrt) references to existing definitions" <>
+      P.group ("(" <> P.blue "help pathnames") <> "to learn more)," <>
+      "I can't yet handle giving new definitions with absolute names in a .u file.",
+    "",
+    P.wrap $ "As a workaround, you can give definitions with a relative name"
+          <> "temporarily (like `exports.blah.foo`) and then use `rename.*` "
+          <> "or `merge` commands to move stuff around afterwards."
     ]
 
 help :: InputPattern
