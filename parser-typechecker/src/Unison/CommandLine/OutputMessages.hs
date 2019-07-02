@@ -298,9 +298,7 @@ notifyUser dir o = case o of
         traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) things
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  FileChangeEvent _sourceName _src -> do
-    Console.clearScreen
-    Console.setCursorPosition 0 0
+  FileChangeEvent _sourceName _src -> putStrLn ""
   Typechecked sourceName ppe slurpResult uf -> do
     Console.setTitle "Unison ✅"
     let fileStatusMsg = SlurpResult.pretty ppe slurpResult
