@@ -280,39 +280,46 @@ typedecl =
 verifyRelativeName :: Var v => P v (L.Token v) -> P v (L.Token v)
 verifyRelativeName name = do
   name <- name
+  verifyRelativeName' name
+  pure name
+
+verifyRelativeName' :: Var v => L.Token v -> P v ()
+verifyRelativeName' name = do
   let txt = Var.name . L.payload $ name
   when (Text.isPrefixOf "." txt && txt /= ".") $ do
     _ <- P.optional anyToken -- commits to the failure
     P.customFailure (DisallowedAbsoluteName name)
-  pure name
+  pure ()
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
   let infixLhs = do
-        (arg1, op) <- P.try ((,) <$> prefixVar <*> verifyRelativeName infixVar)
+        (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
         arg2 <- prefixVar
-        pure (ann arg1, L.payload op, [arg1, arg2])
+        pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
-        v  <- verifyRelativeName prefixVar
+        v  <- prefixVar
         vs <- many prefixVar
-        pure (ann v, L.payload v, vs)
+        pure (ann v, v, vs)
   let
-    lhs :: P v (Ann, v, [L.Token v])
+    lhs :: P v (Ann, L.Token v, [L.Token v])
     lhs = infixLhs <|> prefixLhs
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
-      pure $ mkBinding loc name args body
+      verifyRelativeName' name
+      pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
-      when (name /= L.payload nameT) $
+      verifyRelativeName' name
+      when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
       pure $ fmap (\e -> Term.ann (ann nameT <> ann e) e typ)
-                  (mkBinding (ann nameT) name args body)
+                  (mkBinding (ann nameT) (L.payload name) args body)
   where
   mkBinding loc f [] body = ((loc, f), body)
   mkBinding loc f args body =
