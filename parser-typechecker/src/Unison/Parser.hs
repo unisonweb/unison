@@ -79,6 +79,7 @@ uniqueName lenInBase58 = do
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
+  | DisallowedAbsoluteName (L.Token v)
   | EmptyBlock (L.Token String)
   | UnknownAbilityConstructor (L.Token String)
   | UnknownDataConstructor (L.Token String)
@@ -369,7 +370,7 @@ attempt :: Var v => P v a -> P v a
 attempt = P.try
 
 -- If `p` would succeed, this fails uncommitted.
--- Otherwise, `failIfOk` is used to produce
+-- Otherwise, `failIfOk` used to produce the output
 failureIf :: Var v => P v (P v b) -> P v a -> P v b
 failureIf failIfOk p = do
   dontwant <- P.try . P.lookAhead $ failIfOk

@@ -8,6 +8,7 @@
 module Unison.TermParser where
 
 import qualified Data.Text as Text
+import Data.Functor
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (asks, local)
@@ -276,15 +277,24 @@ typedecl =
       <*> TypeParser.valueType
       <* semi
 
+verifyRelativeName :: Var v => P v (L.Token v) -> P v (L.Token v)
+verifyRelativeName name = do
+  name <- name
+  let txt = Var.name . L.payload $ name
+  when (Text.isPrefixOf "." txt && txt /= ".") $ do
+    _ <- P.optional anyToken -- commits to the failure
+    P.customFailure (DisallowedAbsoluteName name)
+  pure name
+
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
   let infixLhs = do
-        (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
+        (arg1, op) <- P.try ((,) <$> prefixVar <*> verifyRelativeName infixVar)
         arg2 <- prefixVar
         pure (ann arg1, L.payload op, [arg1, arg2])
   let prefixLhs = do
-        v  <- prefixVar
+        v  <- verifyRelativeName prefixVar
         vs <- many prefixVar
         pure (ann v, L.payload v, vs)
   let
@@ -350,12 +360,12 @@ data BlockElement v
 namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
-  name <- wordyId
+  name <- verifyRelativeName prefixVar
   let statement = (Binding <$> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
-  pure $ Namespace (L.payload name) elems
+  pure $ Namespace (Var.nameStr $ L.payload name) elems
 
 toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
 toBindings b = let

@@ -189,7 +189,7 @@ dataDeclaration :: forall v . Var v
   -> P v (v, DataDeclaration' v Ann, Accessors v)
 dataDeclaration mod = do
   _ <- fmap void (reserved "type") <|> openBlockWith "type"
-  (name, typeArgs) <- (,) <$> prefixVar <*> many prefixVar
+  (name, typeArgs) <- (,) <$> (TermParser.verifyRelativeName prefixVar) <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
   let
@@ -208,8 +208,9 @@ dataDeclaration mod = do
                   (if null ctorArgs then mempty else ann (last ctorArgs))
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
-      dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
-      wordyIdVar = fmap Var.nameds <$> wordyId
+      dataConstructor = go <$> TermParser.verifyRelativeName prefixVar
+                           <*> many TypeParser.valueTypeLeaf
+      wordyIdVar = TermParser.verifyRelativeName prefixVar
       record = do
         _ <- openBlockWith "{"
         fields <- sepBy1 (reserved ",") $
@@ -230,7 +231,7 @@ dataDeclaration mod = do
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
   _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
-  name <- prefixVar
+  name <- TermParser.verifyRelativeName prefixVar
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
@@ -241,5 +242,7 @@ effectDeclaration mod = do
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
     constructor name = explodeToken <$>
-      prefixVar <* reserved ":" <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
+      TermParser.verifyRelativeName prefixVar
+        <* reserved ":"
+        <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
       where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)

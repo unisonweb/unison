@@ -433,7 +433,8 @@ helpTopics :: Map String (P.Pretty P.ColorText)
 helpTopics = Map.fromList [
   ("testcache", testCacheMsg),
   ("filestatus", fileStatusMsg),
-  ("topics", topics)
+  ("topics", topics),
+  ("messages.disallowedAbsolute", disallowedAbsoluteMsg)
   ]
   where
   topics = P.callout "🌻" $ P.lines [
@@ -452,6 +453,27 @@ helpTopics = Map.fromList [
     "",
     P.wrap $ "A test is rerun only if it has changed, or if one"
           <> "of the definitions it depends on has changed."
+    ]
+  disallowedAbsoluteMsg = P.callout "\129302" . P.lines $ [
+    P.wrap $
+      "There are" <> P.bold "relative" <> "names " <>
+        P.blue "(foo.bar or util.List.map)" <>
+      "and " <> P.bold "absolute" <> "names" <>
+        P.green "(.foo.bar or .base.List.++)." <>
+      "Relative names are converted to absolute names by prepending the current path. For example, if your Unison prompt reads:", "",
+      P.indentN 2 $ P.blue ".foo.bar>", "",
+    "and your .u file looks like:", "",
+      P.indentN 2 $ P.blue "x = 42", "",
+    P.wrap $
+      "then doing an" <> P.blue "add" <>
+      "will create the definition with the absolute name" <>
+      P.blue ".foo.bar.x = 42",
+    "",
+    P.wrap $
+      "Currently, I don't support defining things with absolute names, however" <>
+      "you can always refer to definitions using absolute or relative names, and" <>
+      "you can use the" <> P.blue "rename.*" <> "or" <> P.blue "merge" <>
+      "commands to easily move definitions from a local path to any other path in the tree."
     ]
 
 help :: InputPattern
