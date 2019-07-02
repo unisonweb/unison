@@ -29,7 +29,6 @@ import qualified Unison.Hash          as Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import qualified Unison.ShortHash     as SH
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -278,29 +277,28 @@ closeBlock = void <$> matchToken L.Close
 wordyId :: Var v => P v (L.Token String)
 wordyId = queryToken getWordy
  where
-  getWordy (L.WordyId s h) = (<>) <$> Just s <*> (SH.toString <$> h)
-  getWordy _               = Nothing
+  getWordy (L.WordyId s Nothing) = Just s
+  getWordy _                     = Nothing
 
 -- Parse a specific wordy id
 exactWordyId :: Var v => String -> P v (L.Token String)
 exactWordyId target = queryToken getWordy
  where
-  getWordy (L.WordyId s h) | s == target =
-    (<>) <$> Just s <*> (SH.toString <$> h)
+  getWordy (L.WordyId s Nothing) | s == target = Just s
   getWordy _ = Nothing
 
 -- Parse a symboly ID like >>= or &&
 symbolyId :: Var v => P v (L.Token String)
 symbolyId = queryToken getSymboly
  where
-  getSymboly (L.SymbolyId s h) = (<>) <$> Just s <*> (SH.toString <$> h)
-  getSymboly _                 = Nothing
+  getSymboly (L.SymbolyId s Nothing) = Just s
+  getSymboly _                       = Nothing
 
 backticks :: Var v => P v (L.Token String)
 backticks = queryToken getBackticks
  where
-  getBackticks (L.Backticks s h) = (<>) <$> Just s <*> (SH.toString <$> h)
-  getBackticks _                 = Nothing
+  getBackticks (L.Backticks s Nothing) = Just s
+  getBackticks _                       = Nothing
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)

@@ -4,6 +4,7 @@ module Unison.Referent where
 
 -- import           Data.Maybe             (fromMaybe)
 import qualified Data.Char              as Char
+import           Data.Maybe             ( fromMaybe )
 import           Data.Text              (Text)
 import qualified Data.Text              as Text
 import           Data.Word              (Word64)
@@ -61,7 +62,7 @@ toTypeReference = \case
   _ -> Nothing
 
 unsafeFromText :: Text -> Referent
-unsafeFromText = maybe (error "invalid referent") id . fromText
+unsafeFromText = fromMaybe (error "invalid referent") . fromText
 
 fromText :: Text -> Maybe Referent
 fromText t = either (const Nothing) Just $
