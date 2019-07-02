@@ -9,7 +9,7 @@ import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
 import           Control.Applicative
-import           Control.Monad        (join, when)
+import           Control.Monad        (join, when, void)
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
@@ -29,6 +29,7 @@ import qualified Unison.Hash          as Hash
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
+import qualified Unison.ShortHash     as SH
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -139,7 +140,7 @@ instance P.Stream Input where
   positionAt1 _ sp t = setPos sp (L.start t)
 
   positionAtN pxy sp =
-    fromMaybe sp . fmap (setPos sp . L.start) . listToMaybe . P.chunkToTokens pxy
+    maybe sp (setPos sp . L.start) . listToMaybe . P.chunkToTokens pxy
 
   advance1 _ _ cp = setPos cp . L.end
 
@@ -186,7 +187,9 @@ label = P.label
 traceRemainingTokens :: Var v => String -> P v ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
-  let _ = trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
+  let
+    _ =
+      trace ("REMAINDER " ++ label ++ ":\n" ++ L.debugLex'' remainingTokens) ()
   pure ()
 
 mkAnn :: (Annotated a, Annotated b) => a -> b -> Ann
@@ -235,7 +238,7 @@ run p s = run' p s ""
 -- Virtual pattern match on a lexeme.
 queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
-  where go t@((f . L.payload) -> Just s) = Right $ fmap (const s) t
+  where go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
 currentLine :: Var v => P v (Int, String)
@@ -254,45 +257,50 @@ openBlock = queryToken getOpen
     getOpen _          = Nothing
 
 openBlockWith :: Var v => String -> P v (L.Token ())
-openBlockWith s = fmap (const ()) <$> P.satisfy ((L.Open s ==) . L.payload)
+openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
 
 -- Match a particular lexeme exactly, and consume it.
 matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
 dot :: Var v => P v (L.Token L.Lexeme)
-dot = matchToken (L.SymbolyId ".")
+dot = matchToken (L.SymbolyId "." Nothing)
 
 -- Consume a virtual semicolon
 semi :: Var v => P v (L.Token ())
-semi = fmap (const ()) <$> matchToken L.Semi
+semi = void <$> matchToken L.Semi
 
 -- Consume the end of a block
 closeBlock :: Var v => P v (L.Token ())
-closeBlock = fmap (const ()) <$> matchToken L.Close
+closeBlock = void <$> matchToken L.Close
 
 -- Parse an alphanumeric identifier
 wordyId :: Var v => P v (L.Token String)
 wordyId = queryToken getWordy
-  where getWordy (L.WordyId s) = Just s
-        getWordy _             = Nothing
+ where
+  getWordy (L.WordyId s h) = (<>) <$> Just s <*> (SH.toString <$> h)
+  getWordy _               = Nothing
 
 -- Parse a specific wordy id
 exactWordyId :: Var v => String -> P v (L.Token String)
 exactWordyId target = queryToken getWordy
-  where getWordy (L.WordyId s) | s == target = Just s
-        getWordy _                           = Nothing
+ where
+  getWordy (L.WordyId s h) | s == target =
+    (<>) <$> Just s <*> (SH.toString <$> h)
+  getWordy _ = Nothing
 
 -- Parse a symboly ID like >>= or &&
 symbolyId :: Var v => P v (L.Token String)
 symbolyId = queryToken getSymboly
-  where getSymboly (L.SymbolyId s) = Just s
-        getSymboly _               = Nothing
+ where
+  getSymboly (L.SymbolyId s h) = (<>) <$> Just s <*> (SH.toString <$> h)
+  getSymboly _                 = Nothing
 
 backticks :: Var v => P v (L.Token String)
 backticks = queryToken getBackticks
-  where getBackticks (L.Backticks s) = Just s
-        getBackticks _               = Nothing
+ where
+  getBackticks (L.Backticks s h) = (<>) <$> Just s <*> (SH.toString <$> h)
+  getBackticks _                 = Nothing
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
@@ -322,8 +330,10 @@ sepBy1 sep pb = P.sepBy1 pb sep
 
 prefixVar :: Var v => P v (L.Token v)
 prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
-  where
-    prefixOp = blank <|> wordyId <|> label "prefix-operator" (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
+ where
+  prefixOp = blank <|> wordyId <|> label
+    "prefix-operator"
+    (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =
@@ -360,7 +370,7 @@ seq f p = f' <$> reserved "[" <*> elements <*> trailing
 chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where
   go1 = p >>= go2
-  go2 hd = do { op <- op; tl <- go1; pure $ op hd tl } <|> pure hd
+  go2 hd = do { op <- op; op hd <$> go1 } <|> pure hd
 
 -- Parse `p` 1+ times, combining with `op`
 chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a

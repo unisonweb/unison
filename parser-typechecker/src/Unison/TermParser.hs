@@ -254,9 +254,9 @@ var t = Term.var (ann t) (L.payload t)
 
 seqOp :: Var v => P v Pattern.SeqOp
 seqOp =
-  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+"))
-  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:"))
-  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++"))
+  (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
+  <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
+  <|> (Pattern.Concat <$ matchToken (L.SymbolyId "++" Nothing))
 
 term4 :: Var v => TermP v
 term4 = f <$> some termLeaf
@@ -265,11 +265,9 @@ term4 = f <$> some termLeaf
     f [] = error "'some' shouldn't produce an empty list"
 
 -- e.g. term4 + term4 - term4
-infixApp = label "infixApp" $
-  chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
-    where
-      f op = \lhs rhs ->
-        Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
+infixApp = label "infixApp"
+  $ chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
+  where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
 typedecl =
@@ -380,13 +378,13 @@ toBindings b = let
                   -> [((Ann, Maybe v), AnnotatedTerm v Ann)]
   scope name bs = let
     vs :: [Maybe v]
-    vs = (snd . fst) <$> bs
+    vs = snd . fst <$> bs
     prefix :: v -> v
     prefix v = Var.named (Text.pack name `mappend` "." `mappend` Var.name v)
     vs' :: [Maybe v]
     vs' = fmap prefix <$> vs
     substs = [ (v, Term.var () v') | (Just v, Just v') <- vs `zip` vs' ]
-    sub e = ABT.substsInheritAnnotation substs e
+    sub = ABT.substsInheritAnnotation substs
     in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
   in finishBindings (expand =<< b)
 

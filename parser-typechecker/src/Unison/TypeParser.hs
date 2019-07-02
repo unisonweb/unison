@@ -99,7 +99,7 @@ forall :: Var v => TypeP v -> TypeP v
 forall rec = do
     kw <- reserved "forall" <|> reserved "∀"
     vars <- fmap (fmap L.payload) . some $ varName
-    _ <- matchToken $ L.SymbolyId "."
+    _ <- matchToken $ L.SymbolyId "." Nothing
     t <- rec
     pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
 

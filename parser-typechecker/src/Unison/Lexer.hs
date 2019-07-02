@@ -59,6 +59,12 @@ data Lexeme
 
 makePrisms ''Lexeme
 
+simpleWordyId :: String -> Lexeme
+simpleWordyId = flip WordyId Nothing
+
+simpleSymbolyId :: String -> Lexeme
+simpleSymbolyId = flip SymbolyId Nothing
+
 data Token a = Token {
   payload :: a,
   start :: Pos,
@@ -383,10 +389,26 @@ lexer0 scope rem =
         Right (Just (num, rem)) ->
           let end = incBy num pos
           in Token (Numeric num) pos end : goWhitespace l end rem
-        _ -> let end = incBy id pos
-             in Token (SymbolyId id) pos end : goWhitespace l end rem'
+        _ -> if ['#'] `isPrefixOf` rem then
+               case shortHash rem' of
+                 Left e -> Token (Err e) pos pos : recover l pos rem'
+                 Right (h, rem) ->
+                   let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+                    in Token (SymbolyId id (Just h)) pos end
+                       : goWhitespace l end rem
+             else
+              let end = incBy id pos
+               in Token (SymbolyId id Nothing) pos end : goWhitespace l end rem'
       (wordyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
+        if ['#'] `isPrefixOf` rem then
+          case shortHash rem of
+            Left e -> Token (Err e) pos pos : recover l pos rem
+            Right (h, rem) ->
+              let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+               in Token (SymbolyId id (Just h)) pos end
+                  : goWhitespace l end rem
+        else let end = incBy id pos
+              in Token (WordyId id Nothing) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
@@ -420,7 +442,7 @@ matchKeyword :: String -> Maybe (String,String)
 matchKeyword = matchKeyword' keywords
 
 matchKeyword' :: Set String -> String -> Maybe (String,String)
-matchKeyword' keywords s = case span (not . isSep) s of
+matchKeyword' keywords s = case break isSep s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
@@ -457,7 +479,7 @@ parseEscapeChar _    = Nothing
 
 
 numericLit :: String -> Either Err (Maybe (String,String))
-numericLit s = go s
+numericLit = go
   where
   go ('+':s) = go2 "+" s
   go ('-':s) = go2 "-" s
@@ -536,7 +558,7 @@ shortHash :: String -> Either Err (ShortHash, String)
 shortHash s = case SH.fromString potentialHash of
   Nothing -> Left (InvalidShortHash potentialHash)
   Just x  -> Right (x, rem)
-    where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
+  where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
 
 -- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
 splitWordy :: String -> (String, String)

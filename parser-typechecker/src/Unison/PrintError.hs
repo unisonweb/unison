@@ -958,7 +958,7 @@ prettyParseError s = \case
        then dupDataAndAbilitiesMsg
        else if null dupDataAndAbilities then unknownTypesMsg
        else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
-  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::")))
+  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing)))
     = mconcat
       [ "I parsed an expression here but was expecting a binding."
       , "\nDid you mean to use a single " <> style Code ":"
