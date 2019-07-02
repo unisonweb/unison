@@ -470,10 +470,12 @@ helpTopics = Map.fromList [
       P.blue ".foo.bar.x = 42",
     "",
     P.wrap $
-      "Currently, I don't support defining things with absolute names, however" <>
-      "you can always refer to definitions using absolute or relative names, and" <>
-      "you can use the" <> P.blue "rename.*" <> "or" <> P.blue "merge" <>
-      "commands to easily move definitions from a local path to any other path in the tree."
+      "Elsewhere in your code, you can refer to it by that absolute name." <>
+      "Currently, .u files don't support giving definitions with absolute names;" <>
+      "all definitions in the file will live under the current path. However" <>
+      "you can refer to existing definitions by their absolute or relative names, and" <>
+      "you can use the" <> P.blue "rename.*" <> "and/or" <> P.blue "merge" <>
+      "commands to easily move definitions to any other path in the tree."
     ]
 
 help :: InputPattern
