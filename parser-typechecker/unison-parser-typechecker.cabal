@@ -45,6 +45,7 @@ library
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor.Command
+    Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
     Unison.Codebase.Editor.HandleInput
     Unison.Codebase.Editor.HandleCommand

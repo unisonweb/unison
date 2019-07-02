@@ -109,6 +109,12 @@ findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)
 
+findHistoricalRefs :: Monad m => Set (Either Reference Referent) -> Branch m
+                   -> m (Set (Either Reference Referent), Names0)
+findHistoricalRefs = findInHistory
+  (\query r _n -> either (const False) (==r) query)
+  (\query r _n -> either (==r) (const False) query)
+
 findInHistory :: forall m q. (Monad m, Ord q)
   => (q -> Referent -> Name -> Bool)
   -> (q -> Reference -> Name -> Bool)

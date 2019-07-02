@@ -18,6 +18,8 @@ module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) wher
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
+import qualified Unison.Codebase.Editor.DisplayThing as DisplayThing
+import Unison.Codebase.Editor.DisplayThing
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
@@ -73,7 +75,7 @@ import qualified Unison.DataDeclaration        as DD
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name(Name) )
 import           Unison.Names2                  ( Names'(..), Names0 )
 import qualified Unison.Names2                  as Names
 import qualified Unison.Names                  as OldNames
@@ -546,6 +548,55 @@ loop = do
           r@(Reference.DerivedId i) ->
             (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
           r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+        historicalNames <- do
+          -- actually get the ABT out so we can look for references
+          let loadedTerms' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTerms
+              loadedTypes' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTypes
+          -- Term.dependencies mixes together terms and types, we've gotta
+          -- separate them later.
+              dependenciesOfTerms = foldMap Term.dependencies loadedTerms'
+          termDependenciesOfTerms <- filterM (eval . IsTerm) $ toList dependenciesOfTerms
+          typeDependenciesOfTerms <- filterM (eval . IsType) $ toList dependenciesOfTerms
+          let ctorDependenciesOfTerms = foldMap Term.constructorDependencies loadedTerms'
+          -- combine the different sources of Referents
+              termReferentDependencies = ctorDependenciesOfTerms <>
+                Set.fromList (fmap Referent.Ref termDependenciesOfTerms)
+          -- combine the different sources of type References
+              dependenciesOfTypes = foldMap DD.declDependencies loadedTypes'
+              typeReferenceDependencies = dependenciesOfTypes <>
+                Set.fromList typeDependenciesOfTerms
+          -- seed the historical find algorithm with the terms and types that
+          -- aren't present in root0
+          (_missing, historicalNames) <- do
+            let filteredReferences :: Set Reference
+                filteredReferences =
+                  Set.difference
+                    typeReferenceDependencies
+                    (Branch.deepTypeReferences root0)
+                filteredReferents :: Set Referent
+                filteredReferents =
+                  Set.difference
+                    termReferentDependencies
+                    (Branch.deepReferents root0)
+            eval . Eval $ Branch.findHistoricalRefs
+              (Set.map Left filteredReferences <>
+                Set.map Right filteredReferents)
+              root'
+          -- okay, so the names in `historicalNames` are relative to the roots
+          -- of their respective historical branches, but the names we want to
+          -- display should be relative to the user's current branch, or
+          -- .absolute from the root.  So, `fixup` is going to either strip
+          -- a prefix or add a `.` to the start.
+          let fixup (Names terms types) = Names terms' types' where
+                fixName n = if currentPath' == Path.absoluteEmpty then n else
+                  case Name.stripNamePrefix
+                        (Path.toName (Path.unabsolute currentPath')) n of
+                    Just n -> n
+                    Nothing -> Name ("." <> Name.toText n)
+                terms' = R.mapDom fixName terms
+                types' = R.mapDom fixName types
+
+          pure (fixup historicalNames)
 
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
@@ -560,7 +611,7 @@ loop = do
           ppe = PPE.fromNames0 $ queryNames
                                    `Names.unionLeft` currentBranchNames
                                    `Names.unionLeft` rootNames
-
+                                   `Names.unionLeftRef` historicalNames
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
