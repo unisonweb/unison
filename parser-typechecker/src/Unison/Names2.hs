@@ -6,22 +6,16 @@
 
 module Unison.Names2 where
 
--- import           Data.Bifunctor   (first)
-import Data.Foldable (toList)
+import           Data.Foldable (toList)
 import           Data.List        (foldl')
 import           Data.Set (Set)
---import qualified Data.Map         as Map
 import           Data.Maybe (mapMaybe)
 import qualified Data.Set         as Set
 import           Data.String      (fromString)
-import           Data.Text        (Text)
-import qualified Data.Text        as Text
--- import           Unison.ConstructorType (ConstructorType)
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import           Unison.HashQualified'   (HashQualified)
 import qualified Unison.HashQualified' as HQ
--- import qualified Unison.Name      as Name
 import           Unison.Name      (Name)
 import qualified Unison.Name      as Name
 import qualified Unison.Referent  as Referent
@@ -29,7 +23,7 @@ import           Unison.Referent        (Referent(..))
 import           Unison.Reference        (Reference)
 import           Unison.Util.Relation   ( Relation )
 import qualified Unison.Util.Relation as R
-import Unison.Codebase.NameSegment (NameSegment)
+import           Unison.Codebase.NameSegment (NameSegment)
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -319,17 +313,6 @@ contains names r =
 conflicts :: Ord n => Names' n -> Names' n
 conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
 
-unqualified :: Name -> Name
-unqualified = Name.unsafeFromText . unqualified' . Name.toText
-
-unqualified' :: Text -> Text
-unqualified' = last . Text.splitOn "."
-
--- filterTypes :: (Name -> Bool) -> Names -> Names
--- filterTypes f (Names {..}) = Names termNames m2
---   where
---   m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
-
 patternNameds :: Names0 -> String -> [(Reference, Int)]
 patternNameds ns s = patternNamed ns (fromString s)
 
@@ -338,27 +321,6 @@ patternNamed ns n = flip mapMaybe (toList . R.lookupDom n $ terms ns) $ \case
   Referent.Con r cid -> Just (r, cid)
   _ -> Nothing
 
--- bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
--- bindType ns t = Type.bindBuiltins typeNames' t
---   where
---   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
-
--- -- Given a mapping from name to qualified name, update a `PEnv`,
--- -- so for instance if the input has [(Some, Optional.Some)],
--- -- and `Optional.Some` is a constructor in the input `PEnv`,
--- -- the alias `Some` will map to that same constructor
--- importing :: Var v => [(v,v)] -> Names -> Names
--- importing shortToLongName0 (Names {..}) = let
---   go :: Ord k => Map k v -> (k, k) -> Map k v
---   go m (shortname, qname) = case Map.lookup qname m of
---     Nothing -> m
---     Just v  -> Map.insert shortname v m
---   shortToLongName = [
---     (Name.fromVar v, Name.fromVar v2) | (v,v2) <- shortToLongName0 ]
---   terms' = foldl' go termNames shortToLongName
---   types' = foldl' go typeNames shortToLongName
---   in Names terms' types'
---
 instance Ord n => Semigroup (Names' n) where (<>) = mappend
 
 instance Ord n => Monoid (Names' n) where

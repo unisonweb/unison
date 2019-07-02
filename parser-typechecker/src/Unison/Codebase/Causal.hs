@@ -1,10 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 module Unison.Codebase.Causal where
 
 import           Prelude                 hiding ( head
+                                                , tail
                                                 , read
-                                                , sequence
                                                 )
 import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
@@ -12,6 +13,8 @@ import           Control.Monad                  ( unless )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
+import           Data.Sequence                  ( Seq )
+import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 -- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
@@ -19,6 +22,7 @@ import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
+import qualified Data.Set                      as Set
 import           Data.Foldable                  ( for_, toList )
 import           Util                           ( bind2 )
 
@@ -47,6 +51,12 @@ newtype RawHash a = RawHash { unRawHash :: Hash }
 
 instance Show (RawHash a) where
   show = show . unRawHash
+
+instance Show e => Show (Causal m h e) where
+  show = \case
+    One h e      -> "One " ++ (take 3 . show) h ++ " " ++ show e
+    Cons h e t   -> "Cons " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (take 3 . show) (fst t)
+    Merge h e ts -> "Merge " ++ (take 3 . show) h ++ " " ++ show e ++ " " ++ (show . fmap (take 3 . show) . toList) (Map.keysSet ts)
 
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
@@ -224,8 +234,23 @@ transform nt c = case c of
   Cons h e (ht, tl) -> Cons h e (ht, nt (transform nt <$> tl))
   Merge h e tls -> Merge h e $ Map.map (\mc -> nt (transform nt <$> mc)) tls
 
-unsafeMapHashPreserving :: Functor m => (e -> e2) -> Causal m h e -> Causal m h e2
-unsafeMapHashPreserving f c = case c of
-  One h e -> One h (f e)
-  Cons h e (ht, tl) -> Cons h (f e) (ht, unsafeMapHashPreserving f <$> tl)
-  Merge h e tls -> Merge h (f e) $ Map.map (fmap $ unsafeMapHashPreserving f) tls
+-- foldHistoryUntil some condition on the accumulator is met,
+-- attempting to work backwards fairly through merge nodes
+-- (rather than following one back all the way to its root before working
+-- through others).  Returns Unsatisfied if the condition was never satisfied,
+-- otherwise Satisfied.
+data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
+foldHistoryUntil :: forall m h e a. (Monad m) => --(Show a, Show e) =>
+  (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (FoldHistoryResult a)
+foldHistoryUntil f a c = step a mempty (pure c) where
+  step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
+  --step a seen rest | trace ("step a=" ++ show a ++ " seen=" ++ (show . fmap (take 3 . show) . toList) seen ++ " rest=" ++ show rest) False = undefined
+  step a _seen Seq.Empty = pure (Unsatisfied a)
+  step a seen (c Seq.:<| rest) = case f a (head c) of
+    (a, True) -> pure (Satisfied a)
+    (a, False) -> do
+      tails <- case c of
+        One{} -> pure mempty
+        Cons{} -> Seq.singleton <$> snd (tail c)
+        Merge{} -> Seq.fromList <$> (sequenceA . toList . tails) c
+      step a (Set.insert (currentHash c) seen) (rest <> tails)

@@ -98,6 +98,7 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import           System.Directory               ( getHomeDirectory )
+import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do

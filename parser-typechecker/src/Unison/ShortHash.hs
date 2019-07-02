@@ -66,15 +66,17 @@ take _ b@(Builtin _) = b
 take i s@(ShortHash{..}) = s { prefix = (Text.take i prefix) }
 
 -- x `isPrefixOf` y is True iff x might be a shorter version of y
+-- if a constructor id is provided on the right-hand side, the left-hand side
+-- needs to match exactly (as of this commit).
 isPrefixOf :: ShortHash -> ShortHash -> Bool
 isPrefixOf (Builtin t) (Builtin t2) = t `Text.isPrefixOf` t2
 isPrefixOf (ShortHash h n cid) (ShortHash h2 n2 cid2) =
   (Text.isPrefixOf h h2) && (maybePrefixOf n n2) && (maybePrefixOf cid cid2)
   where
   Nothing `maybePrefixOf` Nothing = True
-  Nothing `maybePrefixOf` Just _ = True
+  Nothing `maybePrefixOf` Just _ = False
   Just _ `maybePrefixOf` Nothing = False
-  Just a `maybePrefixOf` Just b = a `Text.isPrefixOf` b
+  Just a `maybePrefixOf` Just b = a == b
 isPrefixOf _ _ = False
 
 instance Show ShortHash where

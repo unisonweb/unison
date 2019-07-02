@@ -2,7 +2,6 @@
 
 module Unison.Codebase.Editor.Output
   ( Output(..)
-  , DisplayThing(..)
   , ListDetailed
   , SearchResult'(..)
   , TermResult'(..)
@@ -43,14 +42,12 @@ import qualified Unison.Term as Term
 import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
+import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 type ListDetailed = Bool
 type SourceName = Text
-
--- data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
---   deriving (Eq, Ord, Show)
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -141,9 +138,6 @@ type ShowSuccesses = Bool -- whether to list results or just summarize
 type ShowFailures = Bool  -- whether to list results or just summarize
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
-
-data DisplayThing a = BuiltinThing | MissingThing Reference.Id | RegularThing a
-  deriving (Eq, Ord, Show)
 
 data SearchResult' v a
   = Tm' (TermResult' v a)
