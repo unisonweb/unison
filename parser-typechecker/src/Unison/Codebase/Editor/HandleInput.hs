@@ -596,40 +596,18 @@ loop = do
                        $ Map.lookup i loadedDerivedTypes
                 r@(Reference.Builtin _) -> (r, BuiltinThing)
         historicalNames <- do
-          -- actually get the ABT out so we can look for references
-          let dependenciesOfTypes =
+          -- traverse the ABTs looking for dependencies
+          labeledTypeDependencies <- pure . Set.map Left $
                 foldMap DD.declDependencies (toList loadedDerivedTypes)
           labeledTermDependencies <-
             foldMapM (Term.labeledDependencies $ eval . IsType)
                      (toList loadedDerivedTerms)
           -- seed the historical find algorithm with the terms and types that
           -- aren't present in root0
-          (_missing, historicalNames) <- do
-            let filteredReferences :: Set Reference
-                filteredReferences = Set.difference
-                    dependenciesOfTypes (Branch.deepTypeReferences root0)
-                filteredReferents :: Set (Either Reference Referent)
-                filteredReferents = Set.difference
-                    labeledTermDependencies
-                    (Set.map Right $ Branch.deepReferents root0)
-            eval . Eval $ Branch.findHistoricalRefs
-              (Set.map Left filteredReferences <> filteredReferents)
-              root'
-          -- okay, so the names in `historicalNames` are relative to the roots
-          -- of their respective historical branches, but the names we want to
-          -- display should be relative to the user's current branch, or
-          -- .absolute from the root.  So, `fixup` is going to either strip
-          -- a prefix or add a `.` to the start.
-          let fixup (Names terms types) = Names terms' types' where
-                fixName n = if currentPath' == Path.absoluteEmpty then n else
-                  case Name.stripNamePrefix
-                        (Path.toName (Path.unabsolute currentPath')) n of
-                    Just n -> n
-                    Nothing -> Name ("." <> Name.toText n)
-                terms' = R.mapDom fixName terms
-                types' = R.mapDom fixName types
-
-          pure (fixup historicalNames)
+          historicalNamesMinusRoot'
+            (labeledTypeDependencies <> labeledTermDependencies)
+            root'
+            currentPath'
 
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
@@ -1685,18 +1663,49 @@ parseSearchType input ns typ =
     Left err -> Left $ TypeParseError input src err
     Right typ -> Right $ Type.removeAllEffectVars typ
 
---
---  typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
---                 => Codebase m v a
---                 -> [(v, Term v a)]
---                 -> m (Map v (Type v a))
---  typecheckTerms code bindings = do
---    let tm = Term.letRec' True bindings $ DD.unitTerm mempty
---    env <- typecheckingEnvironment' code tm
---    (o, notes) <- Result.runResultT $ Typechecker.synthesize env tm
---    -- todo: assert that the output map has a type for all variables in the input
---    case o of
---      Nothing -> fail $ "A typechecking error occurred - this indicates a bug in Unison"
---      Just _ -> pure $
---        Map.fromList [ (v, typ) | Context.TopLevelComponent c <- toList (Typechecker.infos notes)
---                                , (v, typ, _) <- c ]
+
+historicalNamesMinusRoot :: Monad m
+  => Set Reference
+  -> Set Referent
+  -> Branch m
+  -> Path.Absolute
+  -> Action' m v (Names0)
+historicalNamesMinusRoot types terms root' currentPath' = do
+  (_missing, historicalNames) <-
+    eval . Eval $ Branch.findHistoricalRefs
+      (Set.map Left filteredReferences <> Set.map Right filteredReferents)
+      root'
+  pure (fixupHistoricalNames currentPath' historicalNames)
+  where
+  root0 = Branch.head root'
+  filteredReferences :: Set Reference
+  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
+  filteredReferents :: Set Referent
+  filteredReferents = Set.difference terms (Branch.deepReferents root0)
+  -- okay, so the names in `historicalNames` are relative to the roots
+  -- of their respective historical branches, but the names we want to
+  -- display should be relative to the user's current branch, or
+  -- .absolute from the root.  So, `fixup` is going to either strip
+  -- a prefix or add a `.` to the start.
+  -- e.g. if currentPath = .foo.bar
+  --      then name foo.bar.baz becomes baz
+  --           name cat.dog     becomes .cat.dog
+  fixupHistoricalNames :: Path.Absolute -> Names0 -> Names0
+  fixupHistoricalNames currentPath' (Names terms types) = Names terms' types' where
+    fixName n = if currentPath' == Path.absoluteEmpty then n else
+      case Name.stripNamePrefix
+            (Path.toName (Path.unabsolute currentPath')) n of
+        Just n -> n
+        Nothing -> Name ("." <> Name.toText n)
+    terms' = R.mapDom fixName terms
+    types' = R.mapDom fixName types
+
+historicalNamesMinusRoot' :: Monad m
+  => Set (Either Reference Referent)
+  -> Branch m
+  -> Path.Absolute
+  -> Action' m v (Names0)
+historicalNamesMinusRoot' =
+  uncurry historicalNamesMinusRoot . foldl' f (mempty, mempty) where
+    f (types, terms) (Left r) = (Set.insert r types, terms)
+    f (types, terms) (Right r) = (types, Set.insert r terms)

@@ -284,6 +284,7 @@ prefix0 n (Names terms types) = Names terms' types' where
 filter :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filter f (Names terms types) = Names (R.filterDom f terms) (R.filterDom f types)
 
+-- currently used for filtering before a conditional `add`
 filterByHQs :: Set HashQualified -> Names0 -> Names0
 filterByHQs hqs Names{..} = Names terms' types' where
   terms' = R.filter f terms
