@@ -24,7 +24,6 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
-import Unison.HashQualified' ( HashQualified )
 import Unison.Name ( Name )
 import Unison.Names2 ( Names, Names0 )
 import Unison.Parser ( Ann )
@@ -35,6 +34,8 @@ import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
@@ -72,6 +73,7 @@ data Output v
   | TypeNotFound Input Path.HQSplit'
   | TermNotFound Input Path.HQSplit'
   | TermNotFound' Input Reference.Id
+  | SearchTermsNotFound [HQ.HashQualified]
   -- ask confirmation before deleting the last branch that contains some defns
   -- `Path` is one of the paths the user has requested to delete, and is paired
   -- with whatever named definitions would not have any remaining names if
@@ -144,10 +146,10 @@ data SearchResult' v a
   | Tp' (TypeResult' v a)
   deriving (Eq, Show)
 data TermResult' v a =
-  TermResult' HashQualified (Maybe (Type v a)) Referent (Set HashQualified)
+  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
   deriving (Eq, Show)
 data TypeResult' v a =
-  TypeResult' HashQualified (DisplayThing (Decl v a)) Reference (Set HashQualified)
+  TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
   deriving (Eq, Show)
 pattern Tm n t r as = Tm' (TermResult' n t r as)
 pattern Tp n t r as = Tp' (TypeResult' n t r as)
@@ -169,11 +171,11 @@ type Score = Int
 data TodoOutput v a = TodoOutput_
   { todoScore :: Int
   , todoFrontier ::
-        ( [(HashQualified, Reference, Maybe (Type v a))]
-        , [(HashQualified, Reference, DisplayThing (Decl v a))])
+        ( [(HQ'.HashQualified, Reference, Maybe (Type v a))]
+        , [(HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
   , todoFrontierDependents ::
-        ( [(Score, HashQualified, Reference, Maybe (Type v a))]
-        , [(Score, HashQualified, Reference, DisplayThing (Decl v a))])
+        ( [(Score, HQ'.HashQualified, Reference, Maybe (Type v a))]
+        , [(Score, HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
   , nameConflicts :: Names0
   , editConflicts :: Patch
   } deriving (Show)
