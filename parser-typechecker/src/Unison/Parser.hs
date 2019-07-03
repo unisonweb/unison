@@ -263,6 +263,11 @@ matchToken x = P.satisfy ((==) x . L.payload)
 dot :: Var v => P v (L.Token L.Lexeme)
 dot = matchToken (L.SymbolyId ".")
 
+dotId :: Var v => P v (L.Token String)
+dotId = queryToken go where
+  go (L.SymbolyId ".") = Just "."
+  go _ = Nothing
+
 -- Consume a virtual semicolon
 semi :: Var v => P v (L.Token ())
 semi = fmap (const ()) <$> matchToken L.Semi

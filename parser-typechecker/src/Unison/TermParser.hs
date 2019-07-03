@@ -334,24 +334,14 @@ block s = block' False s (openBlockWith s) closeBlock
 
 importp :: Var v => P v [(v, v)]
 importp = do
-  let name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
-      namesp = many name
   _ <- reserved "use"
-  e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
-  case e of
-    Left w -> do
-      more <- (False <$ P.try (lookAhead semi)) <|> pure True
-      case more of
-        True -> do
-          i <- (Var.nameds . L.payload $ w) <$ optional dot
-          names <- namesp <|> (pure <$> name)
-          pure [ (n, Var.joinDot i n) | n <- names ]
-        False ->
-          let (_, n) = L.splitWordy (L.payload w)
-          in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
-    Right o ->
-      let (_, op) = L.splitSymboly (L.payload o)
-      in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
+  prefix <- wordyId <|> dotId
+  suffixes <- some (wordyId <|> symbolyId) P.<?> "one or more identifiers"
+  pure $ do
+    let v = Var.nameds (L.payload prefix)
+    s <- suffixes
+    let suffix = Var.nameds . L.payload $ s
+    pure (suffix, Var.joinDot v suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
