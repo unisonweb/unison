@@ -7,35 +7,39 @@
 
 module Unison.TermParser where
 
-import qualified Data.Text as Text
-import Data.Functor
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (asks, local)
+import           Data.Bifunctor (first)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
+import           Data.Functor
 import           Data.Int (Int64)
 import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
+import           Unison.Names (Names)
+import           Unison.Parser hiding (seq)
+import           Unison.PatternP (Pattern)
+import           Unison.Term (AnnotatedTerm, IsTop)
+import           Unison.Type (AnnotatedType)
+import           Unison.Var (Var)
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
-import           Unison.Parser hiding (seq)
+import qualified Unison.Name as Name
+import qualified Unison.Names as Names
 import qualified Unison.Parser as Parser (seq)
-import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
-import           Unison.Term (AnnotatedTerm, IsTop)
 import qualified Unison.Term as Term
-import           Unison.Type (AnnotatedType)
 import qualified Unison.TypeParser as TypeParser
-import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.Names as Names
-import qualified Unison.DataDeclaration as DD
-import Unison.Names (Names)
 
 import Debug.Trace
 
@@ -160,7 +164,7 @@ parsePattern =
     start <- openBlockWith "{"
     (inner, vs) <- effectBind <|> effectPure
     end <- closeBlock
-    pure $ (Pattern.setLoc inner (ann start <> ann end), vs)
+    pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
     t <- ctorName
@@ -220,16 +224,50 @@ placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 seq :: Var v => TermP v -> TermP v
 seq = Parser.seq Term.seq
 
-termLeaf :: forall v. Var v => TermP v
+hashQualifiedPrefixTerm :: Var v => TermP v
+hashQualifiedPrefixTerm = do
+  t <- hqPrefixVar
+  flip tok t $ \ann (name, mayHash) -> case mayHash of
+    Nothing   -> pure $ Term.var ann name
+    Just hash -> do
+      -- This is a hash-qualified name
+      env <- asks $ Map.toList . Names.termNames . snd
+      let hqName = HQ.HashQualified (Name.fromString name) hash
+          mayMatch = find
+            (\(n, r) -> HQ.matchesNamedReferent n r hqName
+            )
+            env
+      case mayMatch of
+        Nothing ->
+          customFailure $ UnknownHashQualified hqName
+        Just (n, r) -> pure $ Term.ref r
+
+        first (Text.splitOn "." . Name.toText) <$> env
+        pure $ Term.ref ann (R.DerivedId (R.Id hash 0 1))
+
+termLeaf :: forall v . Var v => TermP v
 termLeaf = do
-  e <- asum [hashLit, prefixTerm, text, number, boolean,
-             tupleOrParenthesizedTerm, keywordBlock, placeholder, seq term,
-             delayQuote, bang]
+  e <- asum
+    [ hashLit
+    , prefixTerm
+    , hashQualifiedPrefixTerm
+    , text
+    , number
+    , boolean
+    , tupleOrParenthesizedTerm
+    , keywordBlock
+    , placeholder
+    , seq term
+    , delayQuote
+    , bang
+    ]
   q <- optional (reserved "?")
   case q of
     Nothing -> pure e
-    Just q  -> pure $
-      Term.app (ann q <> ann e) (Term.var (ann e) (positionalVar q Var.askInfo)) e
+    Just q  -> pure $ Term.app
+      (ann q <> ann e)
+      (Term.var (ann e) (positionalVar q Var.askInfo))
+      e
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do
@@ -325,24 +363,24 @@ block s = block' False s (openBlockWith s) closeBlock
 
 importp :: Var v => P v [(v, v)]
 importp = do
-  let name = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
+  let name   = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
       namesp = many name
   _ <- reserved "use"
   e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
   case e of
     Left w -> do
       more <- (False <$ P.try (lookAhead semi)) <|> pure True
-      case more of
-        True -> do
-          i <- (Var.nameds . L.payload $ w) <$ optional dot
+      if more
+        then do
+          i     <- (Var.nameds . L.payload $ w) <$ optional dot
           names <- namesp <|> (pure <$> name)
           pure [ (n, Var.joinDot i n) | n <- names ]
-        False ->
+        else
           let (_, n) = L.splitWordy (L.payload w)
-          in pure [ (Var.nameds n, Var.nameds $ L.payload w) ]
+          in  pure [(Var.nameds n, Var.nameds $ L.payload w)]
     Right o ->
       let (_, op) = L.splitSymboly (L.payload o)
-      in pure [ (Var.nameds op, Var.nameds $ L.payload o) ]
+      in  pure [(Var.nameds op, Var.nameds $ L.payload o)]
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
@@ -396,12 +434,10 @@ imports :: Var v => P v (Names, AnnotatedTerm v Ann -> AnnotatedTerm v Ann)
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  env <- Names.importing imported <$> asks snd
-  let
-    importTerms = [ (n, Term.var() qn) | (n,qn) <- imported ]
-    substImports tm =
-      ABT.substsInheritAnnotation importTerms .
-      Term.typeMap (Names.bindType env) $ tm
+  env      <- Names.importing imported <$> asks snd
+  let importTerms  = [ (n, Term.var () qn) | (n, qn) <- imported ]
+      substImports = ABT.substsInheritAnnotation importTerms
+        . Term.typeMap (Names.bindType env)
   pure (env, substImports)
 
 block'
@@ -459,12 +495,11 @@ number'
   -> (L.Token Double -> a)
   -> P v a
 number' i u f = fmap go numeric
-  where
-    go num@(L.payload -> p)
-      | elem '.' p = f (read <$> num)
-      | take 1 p == "+" = i (read . drop 1 <$> num)
-      | take 1 p == "-" = i (read <$> num)
-      | otherwise = u (read <$> num)
+ where
+  go num@(L.payload -> p) | '.' `elem` p    = f (read <$> num)
+                          | take 1 p == "+" = i (read . drop 1 <$> num)
+                          | take 1 p == "-" = i (read <$> num)
+                          | otherwise       = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair

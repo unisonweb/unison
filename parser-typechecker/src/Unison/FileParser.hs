@@ -3,7 +3,6 @@
 {-# Language ScopedTypeVariables #-}
 {-# Language TupleSections #-}
 {-# Language OverloadedStrings #-}
-{-# Language ViewPatterns #-}
 
 module Unison.FileParser where
 
@@ -149,7 +148,7 @@ declarations = do
   let (dataDecls0, effectDecls) = partitionEithers declarations
       dataDecls = [(a,b) | (a,b,_) <- dataDecls0 ]
       multimap :: Ord k => [(k,v)] -> Map k [v]
-      multimap kvs = foldl' mi Map.empty kvs
+      multimap = foldl' mi Map.empty
       mi m (k,v) = Map.insertWith (++) k [v] m
       mds = multimap dataDecls
       mes = multimap effectDecls
@@ -184,12 +183,15 @@ declaration = do
   mod <- modifier
   fmap Right (effectDeclaration mod) <|> fmap Left (dataDeclaration mod)
 
-dataDeclaration :: forall v . Var v
+dataDeclaration
+  :: forall v
+   . Var v
   => L.Token DD.Modifier
   -> P v (v, DataDeclaration' v Ann, Accessors v)
 dataDeclaration mod = do
-  _ <- fmap void (reserved "type") <|> openBlockWith "type"
-  (name, typeArgs) <- (,) <$> (TermParser.verifyRelativeName prefixVar) <*> many prefixVar
+  _                <- fmap void (reserved "type") <|> openBlockWith "type"
+  (name, typeArgs) <-
+    (,) <$> TermParser.verifyRelativeName prefixVar <*> many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
   let
@@ -216,7 +218,7 @@ dataDeclaration mod = do
         fields <- sepBy1 (reserved ",") $
           liftA2 (,) (wordyIdVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
-        pure $ ([go name (snd <$> fields)], [(name, fields)])
+        pure ([go name (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-
     msum [record, (,[]) <$> sepBy (reserved "|") dataConstructor]
   _ <- closeBlock

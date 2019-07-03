@@ -26,9 +26,11 @@ import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
 import           Unison.Hash
 import qualified Unison.Hash          as Hash
+import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
+import           Unison.ShortHash     (ShortHash)
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
@@ -88,6 +90,7 @@ data Error v
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
   | DuplicateTypeNames [(v, [Ann])]
+  | UnknownHashQualifiedName HQ.HashQualified
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -275,10 +278,14 @@ closeBlock = void <$> matchToken L.Close
 
 -- Parse an alphanumeric identifier
 wordyId :: Var v => P v (L.Token String)
-wordyId = queryToken getWordy
+wordyId = fmap fst <$> hqWordyId
+
+-- Parse a hash-qualified alphanumeric identifier
+hqWordyId :: Var v => P v (L.Token (String, Maybe ShortHash))
+hqWordyId = queryToken getWordy
  where
-  getWordy (L.WordyId s Nothing) = Just s
-  getWordy _                     = Nothing
+  getWordy (L.WordyId s h) = Just (s, h)
+  getWordy _               = Nothing
 
 -- Parse a specific wordy id
 exactWordyId :: Var v => String -> P v (L.Token String)
@@ -289,10 +296,14 @@ exactWordyId target = queryToken getWordy
 
 -- Parse a symboly ID like >>= or &&
 symbolyId :: Var v => P v (L.Token String)
-symbolyId = queryToken getSymboly
+symbolyId = fmap fst <$> hqSymbolyId
+
+-- Parse a hash-qualified symboly ID like >>=#foo or &&
+hqSymbolyId :: Var v => P v (L.Token (String, Maybe ShortHash))
+hqSymbolyId = queryToken getSymboly
  where
-  getSymboly (L.SymbolyId s Nothing) = Just s
-  getSymboly _                       = Nothing
+  getSymboly (L.SymbolyId s h) = Just (s, h)
+  getSymboly _                 = Nothing
 
 backticks :: Var v => P v (L.Token String)
 backticks = queryToken getBackticks
@@ -332,6 +343,13 @@ prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
   prefixOp = blank <|> wordyId <|> label
     "prefix-operator"
     (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
+
+hqPrefixVar :: Var v => P v (L.Token (String, Maybe ShortHash))
+hqPrefixVar = label "symbol" prefixOp
+ where
+  prefixOp = hqWordyId <|> label
+    "prefix-operator"
+    (P.try (openBlockWith "(" *> hqSymbolyId) <* closeBlock)
 
 infixVar :: Var v => P v (L.Token v)
 infixVar =
