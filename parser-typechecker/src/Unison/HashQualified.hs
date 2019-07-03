@@ -43,8 +43,9 @@ toName = \case
   HashQualified name _ -> Just name
   HashOnly _           -> Nothing
 
-hasName :: HashQualified -> Bool
+hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName
+hasHash = isJust . toHash
 
 toHash :: HashQualified -> Maybe ShortHash
 toHash = \case

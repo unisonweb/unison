@@ -560,7 +560,10 @@ loop = do
             Branch.findHistoricalHQs
               currentPath'
               root'
-              (Set.fromList . (fmap . fmap) (resolveHQName currentPath') $ hqs)
+              (Set.fromList
+                . (fmap . fmap) (resolveHQName currentPath')
+                . filter HQ.hasHash
+                $ hqs)
         let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
             queryNames = Names terms types where
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
@@ -1115,12 +1118,6 @@ collateReferences (toList -> types) (toList -> terms) =
 
 searchBranchExact :: Names0 -> [HQ.HashQualified] -> [SearchResult]
 searchBranchExact names0 queries = let
-  matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HQ.HashQualified -> Bool
-  matchesHashPrefix toShortHash (name, r) = \case
-    HQ.NameOnly n -> n == name
-    HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
-    HQ.HashQualified n q ->
-      n == name && q `SH.isPrefixOf` toShortHash r
   filteredTypes, filteredTerms, deduped :: [SearchResult]
   filteredTypes =
     -- construct a search result with appropriately hash-qualified version of the query
@@ -1128,13 +1125,13 @@ searchBranchExact names0 queries = let
     [ SR.typeResult (Names.hqTypeName names0 name r) r
                     (Names.hqTypeAliases names0 name r)
     | (name, r) <- R.toList $ Names.types names0
-    , any (matchesHashPrefix Reference.toShortHash (name, r)) queries
+    , any (uncurry HQ.matchesNamedReference (name, r)) queries
     ]
   filteredTerms =
     [ SR.termResult (Names.hqTermName names0 name r) r
                     (Names.hqTermAliases names0 name r)
     | (name, r) <- R.toList $ Names.terms names0
-    , any (matchesHashPrefix Referent.toShortHash (name, r)) queries
+    , any (uncurry HQ.matchesNamedReferent (name, r)) queries
     ]
   deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
   in List.sort deduped

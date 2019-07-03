@@ -292,6 +292,15 @@ filterByHQs hqs Names{..} = Names terms' types' where
   f (n, r) = any (HQ.matchesNamedReferent n r) hqs
   g (n, r) = any (HQ.matchesNamedReference n r) hqs
 
+_toSearchResults :: Names0 -> [SearchResult]
+_toSearchResults n0@(Names terms types) = typeResults <> termResults where
+  typeResults =
+    [ SR.typeResult (hqTypeName n0 name r) r (hqTypeAliases n0 name r)
+    | (name, r) <- R.toList types ]
+  termResults =
+    [ SR.termResult (hqTermName n0 name r) r (hqTermAliases n0 name r)
+    | (name, r) <- R.toList terms]
+
 filterTerms, filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filterTerms f (Names terms types) = Names (R.filterDom f terms) types
 filterTypes f (Names terms types) = Names terms (R.filterDom f types)
