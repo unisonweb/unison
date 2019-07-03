@@ -24,7 +24,7 @@ import qualified Unison.Var                    as Var
 
 data HashQualified' n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Functor)
 
 type HashQualified = HashQualified' Name
 

@@ -12,6 +12,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) where
 
@@ -108,7 +109,7 @@ import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
 
--- import Debug.Trace
+--import Debug.Trace
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
@@ -556,7 +557,10 @@ loop = do
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
         historicalNamesForQueries <-
           makeFixupHistorical
-            Branch.findHistoricalHQs currentPath' root' (Set.fromList hqs)
+            Branch.findHistoricalHQs
+              currentPath'
+              root'
+              (Set.fromList . (fmap . fmap) (resolveHQName currentPath') $ hqs)
         let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
             queryNames = Names terms types where
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
@@ -626,11 +630,16 @@ loop = do
                                    `Names.unionLeft` currentBranchNames
                                    `Names.unionLeft` rootNames
                                    `Names.unionLeftRef` historicalNames
+                                   `Names.unionLeftRef` historicalNamesForQueries
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
             LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
+--          traceM "historicalNamesForQueries"
+--          traceShowM historicalNamesForQueries
+--          traceM "historicalNames"
+--          traceShowM historicalNames
           eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
@@ -1717,3 +1726,11 @@ fixupHistoricalRefs' types terms root' currentPath' =
   root0 = Branch.head root'
   filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
   filteredReferents = Set.difference terms (Branch.deepReferents root0)
+
+-- todo: likely broken when dealing with definitions with `.` in the name;
+-- we don't have a spec for it yet.
+resolveHQName :: Path.Absolute -> Name -> Name
+resolveHQName (Path.unabsolute -> p) n =
+  if p == Path.empty then n else case Name.toString n of
+    '.' : _ : _ -> n
+    _ -> Name.joinDot (Path.toName p) n
