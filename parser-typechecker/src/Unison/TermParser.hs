@@ -10,12 +10,11 @@ module Unison.TermParser where
 import           Control.Applicative
 import           Control.Monad (guard, join, when)
 import           Control.Monad.Reader (asks, local)
-import           Data.Bifunctor (first)
 import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Functor
 import           Data.Int (Int64)
-import           Data.List (elem)
+import           Data.List (elem, find)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
@@ -29,6 +28,7 @@ import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
+import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
@@ -228,22 +228,18 @@ hashQualifiedPrefixTerm :: Var v => TermP v
 hashQualifiedPrefixTerm = do
   t <- hqPrefixVar
   flip tok t $ \ann (name, mayHash) -> case mayHash of
-    Nothing   -> pure $ Term.var ann name
+    Nothing   -> pure . Term.var ann $ Var.nameds name
     Just hash -> do
       -- This is a hash-qualified name
       env <- asks $ Map.toList . Names.termNames . snd
-      let hqName = HQ.HashQualified (Name.fromString name) hash
-          mayMatch = find
-            (\(n, r) -> HQ.matchesNamedReferent n r hqName
-            )
-            env
+      let hqName   = HQ.HashQualified (Name.fromString name) hash
+          mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
       case mayMatch of
-        Nothing ->
-          customFailure $ UnknownHashQualified hqName
-        Just (n, r) -> pure $ Term.ref r
-
-        first (Text.splitOn "." . Name.toText) <$> env
-        pure $ Term.ref ann (R.DerivedId (R.Id hash 0 1))
+        Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
+          hqName
+          (L.start t)
+          (L.end t)
+        Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
 
 termLeaf :: forall v . Var v => TermP v
 termLeaf = do
@@ -316,39 +312,45 @@ typedecl =
 verifyRelativeName :: Var v => P v (L.Token v) -> P v (L.Token v)
 verifyRelativeName name = do
   name <- name
+  verifyRelativeName' name
+  pure name
+
+verifyRelativeName' :: Var v => L.Token v -> P v ()
+verifyRelativeName' name = do
   let txt = Var.name . L.payload $ name
   when (Text.isPrefixOf "." txt && txt /= ".") $ do
     _ <- P.optional anyToken -- commits to the failure
     P.customFailure (DisallowedAbsoluteName name)
-  pure name
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
   let infixLhs = do
-        (arg1, op) <- P.try ((,) <$> prefixVar <*> verifyRelativeName infixVar)
+        (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
         arg2 <- prefixVar
-        pure (ann arg1, L.payload op, [arg1, arg2])
+        pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
-        v  <- verifyRelativeName prefixVar
+        v  <- prefixVar
         vs <- many prefixVar
-        pure (ann v, L.payload v, vs)
+        pure (ann v, v, vs)
   let
-    lhs :: P v (Ann, v, [L.Token v])
+    lhs :: P v (Ann, L.Token v, [L.Token v])
     lhs = infixLhs <|> prefixLhs
   case typ of
     Nothing -> do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
-      pure $ mkBinding loc name args body
+      verifyRelativeName' name
+      pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
-      when (name /= L.payload nameT) $
+      verifyRelativeName' name
+      when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
       pure $ fmap (\e -> Term.ann (ann nameT <> ann e) e typ)
-                  (mkBinding (ann nameT) name args body)
+                  (mkBinding (ann nameT) (L.payload name) args body)
   where
   mkBinding loc f [] body = ((loc, f), body)
   mkBinding loc f args body =
@@ -363,24 +365,14 @@ block s = block' False s (openBlockWith s) closeBlock
 
 importp :: Var v => P v [(v, v)]
 importp = do
-  let name   = Var.nameds . L.payload <$> (wordyId <|> symbolyId)
-      namesp = many name
-  _ <- reserved "use"
-  e <- (Left <$> wordyId) <|> (Right <$> symbolyId)
-  case e of
-    Left w -> do
-      more <- (False <$ P.try (lookAhead semi)) <|> pure True
-      if more
-        then do
-          i     <- (Var.nameds . L.payload $ w) <$ optional dot
-          names <- namesp <|> (pure <$> name)
-          pure [ (n, Var.joinDot i n) | n <- names ]
-        else
-          let (_, n) = L.splitWordy (L.payload w)
-          in  pure [(Var.nameds n, Var.nameds $ L.payload w)]
-    Right o ->
-      let (_, op) = L.splitSymboly (L.payload o)
-      in  pure [(Var.nameds op, Var.nameds $ L.payload o)]
+  _        <- reserved "use"
+  prefix   <- wordyId <|> dotId
+  suffixes <- some (wordyId <|> symbolyId) P.<?> "one or more identifiers"
+  pure $ do
+    let v = Var.nameds (L.payload prefix)
+    s <- suffixes
+    let suffix = Var.nameds . L.payload $ s
+    pure (suffix, Var.joinDot v suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and

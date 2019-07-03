@@ -90,7 +90,7 @@ data Error v
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
   | DuplicateTypeNames [(v, [Ann])]
-  | UnknownHashQualifiedName HQ.HashQualified
+  | UnknownHashQualifiedName (L.Token HQ.HashQualified)
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -267,6 +267,11 @@ matchToken x = P.satisfy ((==) x . L.payload)
 
 dot :: Var v => P v (L.Token L.Lexeme)
 dot = matchToken (L.SymbolyId "." Nothing)
+
+dotId :: Var v => P v (L.Token String)
+dotId = queryToken go where
+  go (L.SymbolyId "." Nothing) = Just "."
+  go _ = Nothing
 
 -- Consume a virtual semicolon
 semi :: Var v => P v (L.Token ())

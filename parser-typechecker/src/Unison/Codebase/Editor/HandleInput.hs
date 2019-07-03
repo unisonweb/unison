@@ -18,7 +18,6 @@ module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) wher
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
-import qualified Unison.Codebase.Editor.DisplayThing as DisplayThing
 import Unison.Codebase.Editor.DisplayThing
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
@@ -107,6 +106,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
+import           Unison.Util.Monoid (foldMapM)
 
 -- import Debug.Trace
 
@@ -566,9 +566,20 @@ loop = do
             (collatedTypes, collatedTerms) = collateReferences
               (mapMaybe Output.tpReference results')
               (mapMaybe Output.tmReferent results')
-        loadedTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
+        loadedDerivedTerms <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
+            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
+            _ -> pure Nothing
+        loadedDerivedTypes <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
+            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
+            _ -> pure Nothing
+        -- Populate DisplayThings for the search results, in anticipation of
+        -- displaying the definitions.
+        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
           r@(Reference.DerivedId i) -> do
-            tm <- eval (LoadTerm i)
+            let tm = Map.lookup i loadedDerivedTerms
             -- We add a type annotation to the term using if it doesn't
             -- already have one that the user provided
             pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
@@ -577,43 +588,32 @@ loop = do
                 Term.Ann' _ _ -> RegularThing tm
                 _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
           r@(Reference.Builtin _) -> pure (r, BuiltinThing)
-        loadedTypes <- fmap Map.fromList . for (toList collatedTypes) $ \case
-          r@(Reference.DerivedId i) ->
-            (r, ) . maybe (MissingThing i) RegularThing <$> eval (LoadType i)
-          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
+            loadedDisplayTypes =
+              Map.fromList . (`fmap` toList collatedTypes) $ \case
+                r@(Reference.DerivedId i) ->
+                  (r,) . maybe (MissingThing i) RegularThing
+                       $ Map.lookup i loadedDerivedTypes
+                r@(Reference.Builtin _) -> (r, BuiltinThing)
         historicalNames <- do
           -- actually get the ABT out so we can look for references
-          let loadedTerms' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTerms
-              loadedTypes' = catMaybes . fmap DisplayThing.toMaybe $ toList loadedTypes
-          -- Term.dependencies mixes together terms and types, we've gotta
-          -- separate them later.
-              dependenciesOfTerms = foldMap Term.dependencies loadedTerms'
-          termDependenciesOfTerms <- filterM (eval . IsTerm) $ toList dependenciesOfTerms
-          typeDependenciesOfTerms <- filterM (eval . IsType) $ toList dependenciesOfTerms
-          let ctorDependenciesOfTerms = foldMap Term.constructorDependencies loadedTerms'
-          -- combine the different sources of Referents
-              termReferentDependencies = ctorDependenciesOfTerms <>
-                Set.fromList (fmap Referent.Ref termDependenciesOfTerms)
-          -- combine the different sources of type References
-              dependenciesOfTypes = foldMap DD.declDependencies loadedTypes'
-              typeReferenceDependencies = dependenciesOfTypes <>
-                Set.fromList typeDependenciesOfTerms
+          let dependenciesOfTypes =
+                foldMap DD.declDependencies (toList loadedDerivedTypes)
+          labeledTermDependencies <-
+            foldMapM (Term.labeledDependencies $ eval . IsType)
+                     (toList loadedDerivedTerms)
           -- seed the historical find algorithm with the terms and types that
           -- aren't present in root0
           (_missing, historicalNames) <- do
             let filteredReferences :: Set Reference
-                filteredReferences =
-                  Set.difference
-                    typeReferenceDependencies
-                    (Branch.deepTypeReferences root0)
-                filteredReferents :: Set Referent
-                filteredReferents =
-                  Set.difference
-                    termReferentDependencies
-                    (Branch.deepReferents root0)
+                filteredReferences = Set.difference
+                    dependenciesOfTypes (Branch.deepTypeReferences root0)
+                filteredReferents :: Set (Either Reference Referent)
+                filteredReferents = Set.difference
+                    labeledTermDependencies
+                    (Set.map Right $ Branch.deepReferents root0)
             eval . Eval $ Branch.findHistoricalRefs
-              (Set.map Left filteredReferences <>
-                Set.map Right filteredReferents)
+              (Set.map Left filteredReferences <> filteredReferents)
               root'
           -- okay, so the names in `historicalNames` are relative to the roots
           -- of their respective historical branches, but the names we want to
@@ -650,7 +650,7 @@ loop = do
             FileLocation path  -> Just path
             LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify $ DisplayDefinitions loc ppe loadedTypes loadedTerms
+          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -1686,7 +1686,6 @@ parseSearchType input ns typ =
     Right typ -> Right $ Type.removeAllEffectVars typ
 
 --
-
 --  typecheckTerms :: (Monad m, Var v, Ord a, Monoid a)
 --                 => Codebase m v a
 --                 -> [(v, Term v a)]
