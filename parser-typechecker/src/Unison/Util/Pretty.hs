@@ -32,6 +32,7 @@ module Unison.Util.Pretty (
    indentNAfterNewline,
    leftPad,
    lines,
+   linesNonEmpty,
    linesSpaced,
    lit,
    map,
@@ -266,6 +267,9 @@ parenthesizeIf True s = parenthesize s
 
 lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 lines = intercalateMap newline id
+
+linesNonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
+linesNonEmpty = lines . nonEmpty
 
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)

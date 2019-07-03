@@ -1,9 +1,9 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.Editor.SlurpResult where
 
-import Control.Monad (join)
 import Data.Foldable (toList)
 import Data.Map (Map)
 import Data.Set (Set)
@@ -123,161 +123,159 @@ isFailure s = case s of
 
 prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
-  Add -> P.green "+"
-  Update -> P.green "Δ"
-  Duplicate -> P.hiBlack "d"
-  Collision -> P.red "x"
-  Conflicted -> P.red "c"
-  TermExistingConstructorCollision -> P.red "y"
-  ConstructorExistingTermCollision -> P.red "z"
-  BlockedDependency -> P.hiRed "b"
-  ExtraDefinition -> P.purple "e"
-  Alias -> P.blue "a"
+  Add ->                              "added              "
+  Update ->                           "updated            "
+  Collision ->                        "requires update    "
+  Conflicted ->                       "conflicted         "
+  Duplicate ->                        "duplicate          "
+  TermExistingConstructorCollision -> "term/ctor collision"
+  ConstructorExistingTermCollision -> "ctor/term collision"
+  BlockedDependency ->                "blocked            "
+  ExtraDefinition ->                  "extra dependency   "
+  Alias ->                            "requires alias     "
 
-statusLegend :: Set Status -> P.Pretty P.ColorText
-statusLegend s =
-  P.indentN 3 "Legend:" <> "\n" <> P.sep "\n" (map go (toList s))
-  where
-  go s = P.group (prettyStatus s <> " " <> desc s)
-  desc s = " " <> case s of
-    Add -> "a new definition with a new name"
-    Update -> "a new definition using an existing name (ok to `update`)"
-    Duplicate -> "already in the codebase with the same name"
-    Collision -> "couldn't be added due to name collision (use `update`)"
-    Conflicted -> "can't be updated because the name is conflicted"
-    TermExistingConstructorCollision -> "a term with the same name as a constructor"
-    ConstructorExistingTermCollision -> "a constructor with the same name as a term"
-    BlockedDependency -> "blocked because of one of its dependencies"
-    ExtraDefinition -> "added because an extra definition"
-    Alias -> "a new name for an existing definition"
+-- statusLegend :: Set Status -> P.Pretty P.ColorText
+-- statusLegend s =
+--   P.indentN 3 "Legend:" <> "\n" <> P.sep "\n" (map go (toList s))
+--   where
+--   go s = P.group (prettyStatus s <> " " <> desc s)
+--   desc s = " " <> case s of
+--     Add -> "a new definition with a new name"
+--     Update -> "a new definition using an existing name (ok to `update`)"
+--     Duplicate -> "already in the codebase with the same name"
+--     Collision -> "couldn't be added due to name collision (use `update`)"
+--     Conflicted -> "can't be updated because the name is conflicted"
+--     TermExistingConstructorCollision -> "a term with the same name as a constructor"
+--     ConstructorExistingTermCollision -> "a constructor with the same name as a term"
+--     BlockedDependency -> "blocked because of one of its dependencies"
+--     ExtraDefinition -> "added because an extra definition"
+--     Alias -> "a new name for an existing definition"
+
+type IsPastTense = Bool
+
+prettyVar :: Var v => v -> P.Pretty P.ColorText
+prettyVar = P.text . Var.name
 
 pretty
-  :: Var v => PPE.PrettyPrintEnv -> SlurpResult v -> P.Pretty P.ColorText
-pretty ppe sr = case pretty' ppe sr of
-  (pp, s) | Set.null s -> mempty
-          | otherwise  -> P.lines [statusLegend s, "", "", pp]
-
-{-
-  + = added, Δ = updated, a = alias, d = duplicate (use `help messages.add` to learn more)
-
-  +  Stream.unfold : s -> (s -> Optional (a, s)) -> Stream s
-  Δ  Stream.range  : Nat -> Nat -> Stream s Nat
-  Δ  Stream.map    : (a -> b) -> Stream a -> Stream b
-  a  blah, curName : Foo
-  a  blah2, olName : Bar
-  d  dup1          : Nat
-  d  dup2          : Nat
-  +  ability Woot
--}
-
-pretty'
   :: forall v
    . Var v
-  => PPE.PrettyPrintEnv
+  => IsPastTense
+  -> PPE.PrettyPrintEnv
   -> SlurpResult v
-  -> (P.Pretty P.ColorText, Set Status)
-pretty' ppe sr
-  = let
-      termAlias', typeAlias' :: [v]
-      termAlias' = filter (`Set.notMember` (terms $ duplicates sr))
-                          (Map.keys (termAlias sr))
-      typeAlias' = filter (`Set.notMember` (types $ duplicates sr))
-                          (Map.keys (typeAlias sr))
-      tms = UF.hashTerms (originalFile sr)
-      termLineFor status v = case Map.lookup v tms of
-        Just (_, _, ty) ->
-          [ ( prettyStatus status <> "  " <> lhs
-            , ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty)
-            )
-          ]
-         where
-          lhs = case Map.lookup v (termAlias sr) of
-            Nothing -> P.bold (P.text $ Var.name v)
-            Just ns -> P.sep
-              ", "
-              (P.bold (P.text $ Var.name v) : (P.shown <$> toList ns))
-        Nothing ->
-          [(prettyStatus status <> "  " <> P.text (Var.name v), "")
-          | isFailure status]
-      typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
-        Just (_, dd) ->
-          ( prettyStatus status
-            <> "  "
-            <> DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd
-          , aliases
-          )
-        Nothing ->
-          ( prettyStatus status <> "  " <> P.bold (P.text (Var.name v)) <> P.red
-            (P.wrap "(Unison bug, unknown type)")
-          , aliases
-          )
-       where
+  -> P.Pretty P.ColorText
+pretty isPast ppe sr = let
+  tms = UF.hashTerms (originalFile sr)
+  termAlias', typeAlias' :: [v]
+  termAlias' = filter (`Set.notMember` (terms $ duplicates sr))
+                      (Map.keys (termAlias sr))
+  typeAlias' = filter (`Set.notMember` (types $ duplicates sr))
+                      (Map.keys (typeAlias sr))
+  goodIcon = P.green "⍟ "
+  badIcon = P.red "X "
+  plus = P.green "  "
+  okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
+    Just (_, dd) ->
+      DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd <> aliases where
         aliases = case Map.lookup v (typeAlias sr) of
           Nothing -> ""
           Just ns ->
-            "  (existing "
-            <> n
-            <> ": "
-            <> P.sep ", " (P.shown <$> toList ns)
+            P.hiBlack "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
             <> ")"
-            where n = if Set.size ns == 1 then "name" else "names"
-      termMsgs =
-        P.column2
-          .  join
-          $  (termLineFor Add <$> toList (terms (adds sr)))
-          ++ (   termLineFor ExtraDefinition
-             <$> toList (terms (extraDefinitions sr))
-             )
-          ++ (termLineFor Update <$> toList (terms (updates sr)))
-          ++ (termLineFor Alias <$> termAlias')
-          ++ (termLineFor Duplicate <$> toList (terms (duplicates sr)))
-          ++ (termLineFor Conflicted <$> toList (terms (conflicts sr)))
-          ++ (termLineFor Collision <$> toList (terms (collisions sr)))
-          ++ (   termLineFor TermExistingConstructorCollision
-             <$> toList (termExistingConstructorCollisions sr)
-             )
-          ++ (   termLineFor ConstructorExistingTermCollision
-             <$> toList (constructorExistingTermCollisions sr)
-             )
-          ++ (   termLineFor BlockedDependency
-             <$> toList (terms (defsWithBlockedDependencies sr))
-             )
-      typeMsgs =
-        P.column2
-          $  (typeLineFor Add <$> toList (types (adds sr)))
-          ++ (   typeLineFor ExtraDefinition
-             <$> toList (types (extraDefinitions sr))
-             )
-          ++ (typeLineFor Update <$> toList (types (updates sr)))
-          ++ (typeLineFor Alias <$> typeAlias')
-          ++ (typeLineFor Duplicate <$> toList (types (duplicates sr)))
-          ++ (typeLineFor Conflicted <$> toList (types (conflicts sr)))
-          ++ (typeLineFor Collision <$> toList (types (collisions sr)))
-          ++ (   typeLineFor BlockedDependency
-             <$> toList (types (defsWithBlockedDependencies sr))
-             )
-      statuses =
-        Set.fromList
-          . join
-          $ [ if SC.isEmpty (adds sr) then [] else [Add]
-            , if SC.isEmpty (extraDefinitions sr) then [] else [ExtraDefinition]
-            , if SC.isEmpty (updates sr) then [] else [Update]
-            , if null termAlias' && null typeAlias' then [] else [Alias]
-            , if SC.isEmpty (duplicates sr) then [] else [Duplicate]
-            , if SC.isEmpty (conflicts sr) then [] else [Conflicted]
-            , if SC.isEmpty (collisions sr) then [] else [Collision]
-            , if Set.null (termExistingConstructorCollisions sr)
-              then []
-              else [TermExistingConstructorCollision]
-            , if Set.null (constructorExistingTermCollisions sr)
-              then []
-              else [ConstructorExistingTermCollision]
-            , if SC.isEmpty (defsWithBlockedDependencies sr)
-              then []
-              else [BlockedDependency]
-            ]
-    in
-      (P.sepNonEmpty "\n\n" [typeMsgs, termMsgs], statuses)
+    Nothing -> P.bold (prettyVar v) <> P.red (P.wrap " (Unison bug, unknown type)")
+  okTerm v = case Map.lookup v tms of
+    Nothing -> (P.bold (prettyVar v), P.hiBlack "Constructor")
+    Just (_, _, ty) ->
+      (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty)) where
+      lhs = case Map.lookup v (termAlias sr) of
+        Nothing -> P.bold (prettyVar v)
+        Just ns -> P.sep ", " $
+          (P.bold (prettyVar v) : (P.shown <$> toList ns))
+  oks _past _present sc | SC.isEmpty sc = mempty
+  oks past present sc = let
+    header = goodIcon <> P.wrap (if isPast then past else present)
+    addedTypes = P.lines $ okType <$> toList (SC.types sc)
+    addedTerms = P.column2 . fmap okTerm . Set.toList $ SC.terms sc
+    in header <> "\n\n" <> P.linesNonEmpty [ addedTypes, addedTerms ]
+  notOks _past _present sr | isOk sr = mempty
+  notOks past present sr = let
+    header = badIcon <> P.wrap (if isPast then past else present)
+    typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
+      Just (_, dd) ->
+        (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd <> aliases)
+      Nothing ->
+        (prettyStatus status <> "   " <> prettyVar v <> P.red
+          (P.wrap " (Unison bug, unknown type)")
+        , aliases
+        )
+      where
+       aliases = case Map.lookup v (typeAlias sr) of
+         Nothing -> ""
+         Just ns -> "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
+           <> ")"
+    typeMsgs = P.column2 $
+      (typeLineFor Alias <$> typeAlias') ++
+      (typeLineFor Duplicate <$> toList (types (duplicates sr))) ++
+      (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
+      (typeLineFor Collision <$> toList (types (collisions sr))) ++
+      (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr))) ++
+      (typeLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
+      (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
+    termLineFor status v = case Map.lookup v tms of
+      Just (_, _, ty) -> (prettyStatus status <> "   " <> lhs,
+         ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty))
+       where
+       lhs = case Map.lookup v (termAlias sr) of
+          Nothing -> P.bold (P.text $ Var.name v)
+          Just ns -> P.sep ", " (P.bold (prettyVar v) : (P.shown <$> toList ns))
+      Nothing ->
+        (prettyStatus status <> "   " <> P.text (Var.name v), "")
+    termMsgs = P.column2
+       $ (termLineFor Alias <$> termAlias')
+      ++ (termLineFor Duplicate <$> toList (terms (duplicates sr)))
+      ++ (termLineFor Conflicted <$> toList (terms (conflicts sr)))
+      ++ (termLineFor Collision <$> toList (terms (collisions sr)))
+      ++ (termLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
+      ++ (termLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr))
+      ++ (termLineFor BlockedDependency <$> toList (terms (defsWithBlockedDependencies sr)))
+    in header <> "\n\n" <> P.hiBlack "  Reason" <> "\n"
+              <> P.indentN 2 (P.linesNonEmpty [typeMsgs, termMsgs]) <> "\n\n"
+              <> P.indentN 2 (P.column2 [("Tip:", "Use `help filestatus` to learn more.")])
+  dups = Set.toList (SC.terms (duplicates sr) <> SC.types (duplicates sr))
+  in
+    P.sepNonEmpty "\n\n" [
+      if SC.isEmpty (duplicates sr) then mempty
+      else "⊡ Ignoring previously added definitions: " <>
+            (P.indentNAfterNewline 2 $
+             P.hiBlack (P.wrap $ P.sep " " (prettyVar <$> dups))),
+      oks (P.green "I've " <> P.bold "added " <> P.green "these definitions:")
+          (P.green "These are" <> P.bold "new definitions" <> P.green "(ok to `add`)")
+          (adds sr),
+      oks (P.green "I've " <> P.bold "updated " <> P.green "these definitions:")
+          (P.green "These definitions are" <> P.bold "ok to `update`:")
+          (updates sr),
+      notOks (P.red "These definitions couldn't be added")
+             (P.red "These definitions" <> P.bold "would fail on `add` or `update`:")
+             sr
+    ]
+
+isOk :: Ord v => SlurpResult v -> Bool
+isOk (SlurpResult {..}) =
+  SC.isEmpty collisions &&
+  SC.isEmpty conflicts &&
+  Set.null termExistingConstructorCollisions &&
+  Set.null constructorExistingTermCollisions &&
+  SC.isEmpty defsWithBlockedDependencies
+
+isAllDuplicates :: Ord v => SlurpResult v -> Bool
+isAllDuplicates (SlurpResult {..}) =
+  SC.isEmpty adds &&
+  SC.isEmpty updates &&
+  SC.isEmpty extraDefinitions &&
+  SC.isEmpty collisions &&
+  SC.isEmpty conflicts &&
+  Set.null termExistingConstructorCollisions &&
+  Set.null constructorExistingTermCollisions &&
+  SC.isEmpty defsWithBlockedDependencies
 
 -- stack repl
 --
@@ -287,20 +285,20 @@ pretty' ppe sr
 ex :: P.Pretty P.ColorText
 ex = P.indentN 2 $ P.lines ["",
   P.green "▣ I've added these definitions: ", "",
-  P.indentN 2 . P.column2 $ [("a", ": Nat"), ("map", ": (a -> b) -> [a] -> [b]")],
+  P.indentN 2 . P.column2 $ [("a", "Nat"), ("map", "(a -> b) -> [a] -> [b]")],
   "",
   P.green "▣ I've updated these definitions: ", "",
-  P.indentN 2 . P.column2 $ [("c", ": Nat"), ("flatMap", ": (a -> [b]) -> [a] -> [b]")],
+  P.indentN 2 . P.column2 $ [("c", "Nat"), ("flatMap", "(a -> [b]) -> [a] -> [b]")],
   "",
   P.wrap $ P.red "x" <> P.bold "These definitions couldn't be added:", "",
   P.indentN 2 $
     P.lines [
       P.column2 [(P.hiBlack
-                  "Reason for failure  | Symbol", ""),
-                 ("ctor/term collision | foo",        ": Nat"),
-                 ("needs alias         | frobnicate", ": Nat -> [a]"),
-                 ("failed dependency   | zoot",       ": [a] -> [a] -> [a]"),
-                 ("term/ctor collision | unique type Foo", "  f x")],
+                  "Reason for failure    Symbol ",     P.hiBlack "Type"),
+                 ("ctor/term collision   foo ",        "Nat"),
+                 ("needs alias           frobnicate ", "Nat -> [a]"),
+                 ("failed dependency     zoot ",       "[a] -> [a] -> [a]"),
+                 ("term/ctor collision   unique type Foo ", "f x")],
       "", "Tip: use `help filestatus` to learn more."
     ],
   "",
