@@ -17,7 +17,6 @@ import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
 import Data.Map (Map)
 import Data.Maybe
-import Data.Ord (comparing)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable
@@ -61,7 +60,7 @@ instance Var v => Var (V v) where
   freshIn s v = Var.freshIn (Set.map unvar s) <$> v
   freshenId id v = Var.freshenId id <$> v
 
-data Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
+newtype Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
 
 here :: Monoid m => Path s t s t m
 here = Path $ \s -> Just (s, Just, mempty)
@@ -81,7 +80,7 @@ compose (Path p1) (Path p2) = Path p3 where
   p3 s = do
     (get1,set1,m1) <- p1 s
     (get2,set2,m2) <- p2 get1
-    pure (get2, \i -> set2 i >>= set1, m1 `mappend` m2)
+    pure (get2, set2 >=> set1, m1 `mappend` m2)
 
 at :: Path s t a b m -> s -> Maybe a
 at p s = (\(a,_,_) -> a) <$> focus p s
@@ -112,7 +111,7 @@ annotateBound' t = snd <$> annotateBound'' t
 
 -- Annotate the tree with the set of bound variables at each node.
 annotateBound :: (Ord v, Foldable f, Functor f) => Term f v a -> Term f v (a, Set v)
-annotateBound t = go Set.empty t where
+annotateBound = go Set.empty where
   go bound t = let a = (annotation t, bound) in case out t of
     Var v -> annotatedVar a v
     Cycle body -> cycle' a (go bound body)
@@ -120,7 +119,7 @@ annotateBound t = go Set.empty t where
     Tm body -> tm' a (go bound <$> body)
 
 annotateBound'' :: (Ord v, Functor f, Foldable f) => Term f v a -> Term f v (a, [v])
-annotateBound'' t = go [] t where
+annotateBound'' = go [] where
   go env t = let a = (annotation t, env) in case out t of
     Abs v body -> abs' a v (go (v : env) body)
     Cycle body -> cycle' a (go env body)
@@ -151,8 +150,7 @@ vmap f (Term _ a out) = case out of
   Abs v body -> abs' a (f v) (vmap f body)
 
 amap :: (Functor f, Foldable f, Ord v) => (a -> a2) -> Term f v a -> Term f v a2
-amap f tm = amap' g tm where
-  g _ a = f a
+amap = amap' . const
 
 amap' :: (Functor f, Foldable f, Ord v) => (Term f v a -> a -> a2) -> Term f v a -> Term f v a2
 amap' f t@(Term _ a out) = case out of
@@ -285,7 +283,7 @@ fresh :: Var v => Term f v a -> v -> v
 fresh t = fresh' (freeVars t)
 
 freshEverywhere :: (Foldable f, Var v) => Term f v a -> v -> v
-freshEverywhere t v = fresh' (Set.fromList $ allVars t) v
+freshEverywhere t = fresh' . Set.fromList $ allVars t
 
 allVars :: Foldable f => Term f v a -> [v]
 allVars t = case out t of
@@ -295,21 +293,26 @@ allVars t = case out t of
   Tm v -> Foldable.toList v >>= allVars
 
 fresh' :: Var v => Set v -> v -> v
-fresh' used = Var.freshIn used
+fresh' = Var.freshIn
 
 freshes :: Var v => Term f v a -> [v] -> [v]
-freshes t = Var.freshes (freeVars t)
+freshes = Var.freshes . freeVars
 
 freshes' :: Var v => Set v -> [v] -> [v]
 freshes' = Var.freshes
 
 freshNamed' :: Var v => Set v -> Text -> v
-freshNamed' used n = fresh' used (v' n)
+freshNamed' used = fresh' used . v'
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
-subst :: (Foldable f, Functor f, Var v) => v -> Term f v a -> Term f v a -> Term f v a
-subst v r t2 = subst' (const r) v (freeVars r) t2
+subst
+  :: (Foldable f, Functor f, Var v)
+  => v
+  -> Term f v a
+  -> Term f v a
+  -> Term f v a
+subst v r = subst' (const r) v (freeVars r)
 
 -- Slightly generalized version of `subst`, the replacement action is handled
 -- by the function `replace`, which is given the annotation `a` at the point
@@ -334,22 +337,25 @@ subst' replace v r t2@(Term fvs ann body)
 -- the previous annotation at each replacement point.
 substInheritAnnotation :: (Foldable f, Functor f, Var v)
                        => v -> Term f v b -> Term f v a -> Term f v a
-substInheritAnnotation v r t =
-  subst' (\ann -> const ann <$> r) v (freeVars r) t
+substInheritAnnotation v r =
+  subst' (\ann -> const ann <$> r) v (freeVars r)
 
 substsInheritAnnotation
   :: (Foldable f, Functor f, Var v)
-  => [(v, Term f v b)] -> Term f v a -> Term f v a
-substsInheritAnnotation replacements body = foldr f body (reverse replacements)
-  where
-  f (v, t) body = substInheritAnnotation v t body
+  => [(v, Term f v b)]
+  -> Term f v a
+  -> Term f v a
+substsInheritAnnotation replacements body =
+  foldr (uncurry substInheritAnnotation) body (reverse replacements)
 
 -- | `substs [(t1,v1), (t2,v2), ...] body` performs multiple simultaneous
 -- substitutions, avoiding capture
-substs :: (Foldable f, Functor f, Var v)
-       => [(v, Term f v a)] -> Term f v a -> Term f v a
-substs replacements body = foldr f body (reverse replacements) where
-  f (v, t) body = subst v t body
+substs
+  :: (Foldable f, Functor f, Var v)
+  => [(v, Term f v a)]
+  -> Term f v a
+  -> Term f v a
+substs replacements body = foldr (uncurry subst) body (reverse replacements)
 
 -- Count the number times the given variable appears free in the term
 occurrences :: (Foldable f, Var v) => v -> Term f v a -> Int
@@ -398,10 +404,13 @@ foreachSubterm
   -> Term f v a
   -> g [b]
 foreachSubterm f e = case out e of
-  Var _ -> pure <$> f e
-  Cycle body -> liftA2 (:) (f e) (foreachSubterm f body)
-  Abs _ body -> liftA2 (:) (f e) (foreachSubterm f body)
-  Tm body -> liftA2 (:) (f e) (join . Foldable.toList <$> (sequenceA $ foreachSubterm f <$> body))
+  Var   _    -> pure <$> f e
+  Cycle body -> (:) <$> f e <*> foreachSubterm f body
+  Abs _ body -> (:) <$> f e <*> foreachSubterm f body
+  Tm body ->
+    (:)
+      <$> f e
+      <*> (join . Foldable.toList <$> traverse (foreachSubterm f) body)
 
 subterms :: (Ord v, Traversable f) => Term f v a -> [Term f v a]
 subterms t = runIdentity $ foreachSubterm pure t
@@ -412,17 +421,16 @@ subterms t = runIdentity $ foreachSubterm pure t
 -- `Just t2`, `visit` replaces the current subtree with `t2`. Thus:
 -- `visit (const Nothing) t == pure t` and
 -- `visit (const (Just (pure t2))) t == pure t2`
-visit :: (Traversable f, Applicative g, Ord v)
-      => (Term f v a -> Maybe (g (Term f v a)))
-      -> Term f v a
-      -> g (Term f v a)
-visit f t = case f t of
-  Just gt -> gt
-  Nothing -> case out t of
-    Var _ -> pure t
-    Cycle body -> cycle' (annotation t) <$> visit f body
-    Abs x e -> abs' (annotation t) x <$> visit f e
-    Tm body -> tm' (annotation t) <$> traverse (visit f) body
+visit
+  :: (Traversable f, Applicative g, Ord v)
+  => (Term f v a -> Maybe (g (Term f v a)))
+  -> Term f v a
+  -> g (Term f v a)
+visit f t = flip fromMaybe (f t) $ case out t of
+  Var   _    -> pure t
+  Cycle body -> cycle' (annotation t) <$> visit f body
+  Abs x e    -> abs' (annotation t) x <$> visit f e
+  Tm body    -> tm' (annotation t) <$> traverse (visit f) body
 
 -- | Apply an effectful function to an ABT tree top down, sequencing the results.
 visit' :: (Traversable f, Applicative g, Monad g, Ord v)
@@ -473,7 +481,7 @@ reabs vs t = foldr abs t vs
 
 transform :: (Ord v, Foldable g, Functor f)
           => (forall a. f a -> g a) -> Term f v a -> Term g v a
-transform f tm = case (out tm) of
+transform f tm = case out tm of
   Var v -> annotatedVar (annotation tm) v
   Abs v body -> abs' (annotation tm) v (transform f body)
   Tm subterms ->
@@ -565,7 +573,7 @@ hashComponent byName = let
   vs = fst <$> ts
   tms = [ (v, absCycle vs (tm $ Component (snd <$> embeds) (var v))) | v <- vs ]
   hashed  = [ ((v,t), hash t) | (v,t) <- tms ]
-  sortedHashed = sortBy (comparing snd) hashed
+  sortedHashed = sortOn snd hashed
   overallHash = Hashable.accumulate (Hashable.Hashed . snd <$> sortedHashed)
   in (overallHash, [ (v, t) | ((v, _),_) <- sortedHashed, Just t <- [Map.lookup v byName] ])
 
@@ -612,11 +620,11 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
 -- meaning of the term.
 hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
      => Term f v a -> h
-hash t = hash' [] t where
+hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
   hash' env (Term _ _ t) = case t of
     Var v -> maybe die hashInt ind
-      where lookup (Left cycle) = elem v cycle
+      where lookup (Left cycle) = v `elem` cycle
             lookup (Right v') = v == v'
             ind = findIndex lookup env
             hashInt :: Int -> h
@@ -626,14 +634,14 @@ hash t = hash' [] t where
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
     Abs v t -> hash' (Right v : env) t
-    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) $ t
+    Tm t -> Hashable.hash1 (hashCycle env) (hash' env) t
 
   hashCycle :: [Either [v] v] -> [Term f v a] -> ([h], Term f v a -> h)
   hashCycle env@(Left cycle : envTl) ts | length cycle == length ts =
     let
       permute p xs = case Vector.fromList xs of xs -> map (xs !) p
       hashed = map (\(i,t) -> ((i,t), hash' env t)) (zip [0..] ts)
-      pt = map fst (sortBy (comparing snd) hashed)
+      pt = fst <$> sortOn snd hashed
       (p,ts') = unzip pt
     in case map Right (permute p cycle) ++ envTl of
       env -> (map (hash' env) ts', hash' env)
@@ -643,7 +651,7 @@ hash t = hash' [] t where
 distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a]
-distinct _ ts = map fst (sortBy (comparing snd) m)
+distinct _ ts = fst <$> sortOn snd m
   where m = Map.elems (Map.fromList (hashes `zip` (ts `zip` [0 :: Int .. 1])))
         hashes = map hash ts :: [h]
 
@@ -658,7 +666,7 @@ subtract _ t1s t2s =
 instance (Show1 f, Var v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
-    Var v -> (\x -> "Var " ++ show v ++ x)
+    Var v -> \x -> "Var " ++ show v ++ x
     Cycle body -> ("Cycle " ++) . showsPrec p body
     Abs v body -> showParen True $ (Text.unpack (Var.name v) ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f
