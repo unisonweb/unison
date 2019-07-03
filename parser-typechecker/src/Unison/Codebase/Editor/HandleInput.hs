@@ -554,7 +554,10 @@ loop = do
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        let results = searchBranchExact currentBranch' hqs
+        historicalNamesForQueries <-
+          makeFixupHistorical
+            Branch.findHistoricalHQs currentPath' root' (Set.fromList hqs)
+        let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
             queryNames = Names terms types where
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
               types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
@@ -604,7 +607,7 @@ loop = do
                      (toList loadedDerivedTerms)
           -- seed the historical find algorithm with the terms and types that
           -- aren't present in root0
-          historicalNamesMinusRoot'
+          fixupHistoricalRefs
             (labeledTypeDependencies <> labeledTermDependencies)
             root'
             currentPath'
@@ -616,9 +619,9 @@ loop = do
           -- The definitions will generally reference names outside the current
           -- path.  For now we'll assume the pretty-printer will factor out
           -- excess name prefixes.
-          rootNames, currentBranchNames :: Names0
-          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
+          currentBranchNames, rootNames :: Names0
           currentBranchNames = Branch.toNames0 currentBranch0
+          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
           ppe = PPE.fromNames0 $ queryNames
                                    `Names.unionLeft` currentBranchNames
                                    `Names.unionLeft` rootNames
@@ -1101,9 +1104,8 @@ collateReferences (toList -> types) (toList -> terms) =
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact :: Branch m -> [HQ.HashQualified] -> [SearchResult]
-searchBranchExact b queries = let
-  names0 = Branch.toNames0 . Branch.head $ b
+searchBranchExact :: Names0 -> [HQ.HashQualified] -> [SearchResult]
+searchBranchExact names0 queries = let
   matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HQ.HashQualified -> Bool
   matchesHashPrefix toShortHash (name, r) = \case
     HQ.NameOnly n -> n == name
@@ -1663,25 +1665,26 @@ parseSearchType input ns typ =
     Left err -> Left $ TypeParseError input src err
     Right typ -> Right $ Type.removeAllEffectVars typ
 
-
-historicalNamesMinusRoot :: Monad m
-  => Set Reference
-  -> Set Referent
+fixupHistoricalRefs :: Monad m
+  => Set (Either Reference Referent)
   -> Branch m
   -> Path.Absolute
   -> Action' m v (Names0)
-historicalNamesMinusRoot types terms root' currentPath' = do
-  (_missing, historicalNames) <-
-    eval . Eval $ Branch.findHistoricalRefs
-      (Set.map Left filteredReferences <> Set.map Right filteredReferents)
-      root'
-  pure (fixupHistoricalNames currentPath' historicalNames)
+fixupHistoricalRefs =
+  uncurry fixupHistoricalRefs' . foldl' f (mempty, mempty) where
+    f (types, terms) (Left r) = (Set.insert r types, terms)
+    f (types, terms) (Right r) = (types, Set.insert r terms)
+
+makeFixupHistorical :: Monad m
+  => (a -> Branch m -> m (a, Names0))
+  -> Path.Absolute
+  -> Branch m
+  -> a
+  -> Action' m v Names0
+makeFixupHistorical find currentPath' root' query = do
+  (_missing, historicalNames) <- eval . Eval $ find query root'
+  pure (fixup currentPath' historicalNames)
   where
-  root0 = Branch.head root'
-  filteredReferences :: Set Reference
-  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
-  filteredReferents :: Set Referent
-  filteredReferents = Set.difference terms (Branch.deepReferents root0)
   -- okay, so the names in `historicalNames` are relative to the roots
   -- of their respective historical branches, but the names we want to
   -- display should be relative to the user's current branch, or
@@ -1690,8 +1693,8 @@ historicalNamesMinusRoot types terms root' currentPath' = do
   -- e.g. if currentPath = .foo.bar
   --      then name foo.bar.baz becomes baz
   --           name cat.dog     becomes .cat.dog
-  fixupHistoricalNames :: Path.Absolute -> Names0 -> Names0
-  fixupHistoricalNames currentPath' (Names terms types) = Names terms' types' where
+  fixup :: Path.Absolute -> Names0 -> Names0
+  fixup currentPath' (Names terms types) = Names terms' types' where
     fixName n = if currentPath' == Path.absoluteEmpty then n else
       case Name.stripNamePrefix
             (Path.toName (Path.unabsolute currentPath')) n of
@@ -1700,12 +1703,17 @@ historicalNamesMinusRoot types terms root' currentPath' = do
     terms' = R.mapDom fixName terms
     types' = R.mapDom fixName types
 
-historicalNamesMinusRoot' :: Monad m
-  => Set (Either Reference Referent)
+
+fixupHistoricalRefs' :: Monad m
+  => Set Reference
+  -> Set Referent
   -> Branch m
   -> Path.Absolute
   -> Action' m v (Names0)
-historicalNamesMinusRoot' =
-  uncurry historicalNamesMinusRoot . foldl' f (mempty, mempty) where
-    f (types, terms) (Left r) = (Set.insert r types, terms)
-    f (types, terms) (Right r) = (types, Set.insert r terms)
+fixupHistoricalRefs' types terms root' currentPath' =
+  makeFixupHistorical Branch.findHistoricalRefs currentPath' root' $
+    (Set.map Left filteredReferences <> Set.map Right filteredReferents)
+  where
+  root0 = Branch.head root'
+  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
+  filteredReferents = Set.difference terms (Branch.deepReferents root0)

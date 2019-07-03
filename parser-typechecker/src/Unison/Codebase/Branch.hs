@@ -104,7 +104,10 @@ findHistoricalSHs = findInHistory
 
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
-findHistoricalHQs :: Monad m => Set HashQualified -> Branch m -> m (Set HashQualified, Names0)
+findHistoricalHQs :: Monad m
+                  => Set HashQualified
+                  -> Branch m
+                  -> m (Set HashQualified, Names0)
 findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)
