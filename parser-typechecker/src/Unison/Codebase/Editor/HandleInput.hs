@@ -1345,10 +1345,13 @@ toSlurpResult uf existingNames =
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
   adds = sc terms types where
-    terms = add (Names.terms existingNames) (Names.terms fileNames0)
-    types = add (Names.types existingNames) (Names.types fileNames0)
-    add :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
-    add existingNames = R.filter go where
+    terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
+    types = addTypes (Names.types existingNames) (Names.types fileNames0)
+    addTerms existingNames = R.filter go where
+      go (n, r@Referent.Ref{}) = (not . R.memberDom n) existingNames
+                              && (not . R.memberRan r) existingNames
+      go _ = False
+    addTypes existingNames = R.filter go where
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
 
