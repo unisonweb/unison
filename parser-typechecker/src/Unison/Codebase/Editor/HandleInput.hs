@@ -556,17 +556,17 @@ loop = do
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
---        historicalNamesForQueries <-
---          makeFixupHistorical
---            Branch.findHistoricalHQs
---              currentPath'
---              root'
---              (Set.fromList
---                . (fmap . fmap) (resolveHQName currentPath')
---                . filter HQ.hasHash
---                $ hqs)
+        historicalNamesForQueries <-
+          makeFixupHistorical
+            Branch.findHistoricalHQs
+              currentPath'
+              root'
+              (Set.fromList
+                . (fmap . fmap) (resolveHQName currentPath')
+                . filter HQ.hasHash
+                $ hqs)
 --        let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
-        let resultss = searchBranchExact parseNames0 hqs
+        let resultss = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
             results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
             queryNames = Names terms types where
@@ -633,11 +633,12 @@ loop = do
           currentBranchNames, rootNames :: Names0
           currentBranchNames = Branch.toNames0 currentBranch0
           rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
-          ppe = PPE.fromNames0 $ queryNames
-                                   `Names.unionLeft` currentBranchNames
-                                   `Names.unionLeft` rootNames
-                                   `Names.unionLeftRef` historicalNames
---                                   `Names.unionLeftRef` historicalNamesForQueries
+          ppe = PPE.fromTipAndHistoricalNames0
+                  (queryNames
+                     `Names.unionLeft` currentBranchNames
+                     `Names.unionLeft` rootNames)
+                  (historicalNames
+                    `Names.unionLeftRef` historicalNamesForQueries)
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
@@ -1732,8 +1733,8 @@ fixupHistoricalRefs' types terms root' currentPath' =
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.
-_resolveHQName :: Path.Absolute -> Name -> Name
-_resolveHQName (Path.unabsolute -> p) n =
+resolveHQName :: Path.Absolute -> Name -> Name
+resolveHQName (Path.unabsolute -> p) n =
   if p == Path.empty then n else case Name.toString n of
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
