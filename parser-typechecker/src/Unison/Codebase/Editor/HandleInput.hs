@@ -1382,7 +1382,7 @@ doSlurpAdds :: forall m v. (Applicative m, Var v)
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
-  termActions = map doTerm . toList $ SC.terms slurp
+  termActions = map doTerm . toList $ SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
