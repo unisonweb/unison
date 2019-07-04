@@ -87,6 +87,8 @@ data Output v
   -- list of all the definitions within this branch
   | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)
+  | TermHistory Path.Split' [Referent]
+  | TypeHistory Path.Split' [Reference]
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
   -- Original source, followed by the errors:
