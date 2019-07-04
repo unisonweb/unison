@@ -327,7 +327,7 @@ notifyUser dir o = case o of
              <> P.bold "typechecked" <> "these definitions in "
              <> P.group (fileName <> ".")
              <> "If you do an `add` or `update`, here's how your codebase would"
-             <> "be change:"
+             <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
       putPrettyLn' ""
