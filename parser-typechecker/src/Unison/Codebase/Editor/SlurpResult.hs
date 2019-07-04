@@ -204,7 +204,7 @@ pretty isPast ppe sr = let
       (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
     termLineFor status v = case Map.lookup v tms of
       Just (_, _, ty) -> (prettyStatus status, lhs,
-         ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty))
+         ": " <> P.indentNAfterNewline 6 (TP.prettyTop ppe ty))
        where
        lhs = case Map.lookup v (termAlias sr) of
           Nothing -> P.bold (P.text $ Var.name v)
