@@ -1648,35 +1648,33 @@ isSubtype' type1 type2 = do
   succeeds $ subtype type1 type2
 
 -- `isRedundant userType inferredType` returns `True` if the `userType`
--- matches inferred and `Right` if the annotation actually constrains the
--- inferred type. If `Left` is returned, we use the type variable names
--- chosen by `userType`, but augment it with any ability type variables
--- added by the inferred type.
+-- is equal "up to inferred abilities" to `inferredType`.
 --
 -- Example: `userType` is `Nat -> Nat`, `inferredType` is `∀ a . a ->{IO} a`.
 --           In this case, the signature isn't redundant, and we return
---           `Left (Nat ->{IO} Nat)`.
+--           `False`.
 -- Example: `userType` is (`∀ a . a -> a`) and inferred is `∀ z e . z ->{e} z`.
---           In this case, the signature IS redundant, and we return
---           `Right (∀ a e . a ->{e} a)`, using the type variable names provided
---           by the user, except for the effect variables which the user asked
---           to be inferred by using an unadorned `->`.
+--           In this case, the signature IS redundant, and we return `True`.
 isRedundant
   :: (Var v, Ord loc)
   => Type v loc
   -> Type v loc
   -> M v loc Bool
-isRedundant userType inferredType = do
+isRedundant userType0 inferredType0 = do
   ctx0 <- getContext
-  userType' <- existentializeArrows userType
-  ctx1 <- getContext
-  b1 <- isSubtype' userType' inferredType
-  if b1 then do
-    setContext ctx1
-    b2 <- isSubtype' inferredType userType'
-    setContext ctx0
-    pure b2
-  else False <$ setContext ctx0
+  -- the inferred type may have some unsolved existentials, which we generalize over
+  -- before doing the comparison, otherwise it will just test equal to any
+  -- concrete instantiation of those existentials. For instance, the
+  -- inferred type `a -> a` for a existential `a` should get generalized
+  -- to `∀ a . a -> a` before comparison to `Nat -> Nat`, otherwise the
+  -- typechecker will solve `a = Nat` and call the types equal!
+  userType <- existentializeArrows userType0
+  inferredType <- Type.generalizeExistentials <$> applyM inferredType0
+  -- We already know `inferred <: userType`, otherwise the user's given
+  -- type would have caused the program not to typecheck! Ex: if user writes
+  -- `: Nat -> Nat` when it has an inferred type of `a -> a`. So we only
+  -- need to check the other direction to determine redundancy.
+  isSubtype' userType inferredType <* setContext ctx0
 
 -- Public interface to `isSubtype`
 isSubtype

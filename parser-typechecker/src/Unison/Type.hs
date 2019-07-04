@@ -382,6 +382,14 @@ generalize vs t = foldr f t $ vs
           then forall (ABT.annotation t) v t
           else t
 
+generalizeExistentials
+  :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType (TypeVar b v) a
+generalizeExistentials t =
+  generalize (filter isExistential . Set.toList $ freeVars t) t
+  where
+  isExistential (TypeVar.Existential _ _) = True
+  isExistential _ = False
+
 unforall :: AnnotatedType v a -> AnnotatedType v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t

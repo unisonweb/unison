@@ -45,6 +45,7 @@ import           Data.Foldable                  ( toList
                                                 )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
+import           Data.List                      ( partition )
 import           Data.List.Extra                (nubOrd, intercalate)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
@@ -555,16 +556,19 @@ loop = do
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        historicalNamesForQueries <-
-          makeFixupHistorical
-            Branch.findHistoricalHQs
-              currentPath'
-              root'
-              (Set.fromList
-                . (fmap . fmap) (resolveHQName currentPath')
-                . filter HQ.hasHash
-                $ hqs)
-        let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
+--        historicalNamesForQueries <-
+--          makeFixupHistorical
+--            Branch.findHistoricalHQs
+--              currentPath'
+--              root'
+--              (Set.fromList
+--                . (fmap . fmap) (resolveHQName currentPath')
+--                . filter HQ.hasHash
+--                $ hqs)
+--        let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
+        let resultss = searchBranchExact parseNames0 hqs
+            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
+            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
             queryNames = Names terms types where
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
               types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
@@ -633,7 +637,7 @@ loop = do
                                    `Names.unionLeft` currentBranchNames
                                    `Names.unionLeft` rootNames
                                    `Names.unionLeftRef` historicalNames
-                                   `Names.unionLeftRef` historicalNamesForQueries
+--                                   `Names.unionLeftRef` historicalNamesForQueries
           loc = case outputLoc of
             ConsoleLocation    -> Nothing
             FileLocation path  -> Just path
@@ -644,6 +648,7 @@ loop = do
 --          traceM "historicalNames"
 --          traceShowM historicalNames
           eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -1116,25 +1121,26 @@ collateReferences (toList -> types) (toList -> terms) =
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact :: Names0 -> [HQ.HashQualified] -> [SearchResult]
+-- | The output list (of lists) corresponds to the query list.
+searchBranchExact :: Names0 -> [HQ.HashQualified] -> [[SearchResult]]
 searchBranchExact names0 queries = let
-  filteredTypes, filteredTerms, deduped :: [SearchResult]
-  filteredTypes =
+  searchTypes :: HQ.HashQualified -> [SearchResult]
+  searchTypes query =
     -- construct a search result with appropriately hash-qualified version of the query
     -- for each (n,r) see if it matches a query.  If so, get appropriately hash-qualified version.
     [ SR.typeResult (Names.hqTypeName names0 name r) r
                     (Names.hqTypeAliases names0 name r)
     | (name, r) <- R.toList $ Names.types names0
-    , any (uncurry HQ.matchesNamedReference (name, r)) queries
+    , uncurry HQ.matchesNamedReference (name, r) query
     ]
-  filteredTerms =
+  searchTerms :: HQ.HashQualified -> [SearchResult]
+  searchTerms query =
     [ SR.termResult (Names.hqTermName names0 name r) r
                     (Names.hqTermAliases names0 name r)
     | (name, r) <- R.toList $ Names.terms names0
-    , any (uncurry HQ.matchesNamedReferent (name, r)) queries
+    , uncurry HQ.matchesNamedReferent (name, r) query
     ]
-  deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-  in List.sort deduped
+  in [ searchTypes q <> searchTerms q | q <- queries ]
 
 
 respond :: Output v -> Action m i v ()
@@ -1726,8 +1732,8 @@ fixupHistoricalRefs' types terms root' currentPath' =
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.
-resolveHQName :: Path.Absolute -> Name -> Name
-resolveHQName (Path.unabsolute -> p) n =
+_resolveHQName :: Path.Absolute -> Name -> Name
+_resolveHQName (Path.unabsolute -> p) n =
   if p == Path.empty then n else case Name.toString n of
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n

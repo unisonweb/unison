@@ -68,8 +68,8 @@ renderNameTarget = \case
 instance Show Names where
   -- really barebones, just to see what names are present
   show (Names es ts) =
-    "terms: " ++ show (es) ++ "\n" ++
-    "types: " ++ show (ts)
+    "terms: " ++ show es ++ "\n" ++
+    "types: " ++ show ts
 
 lookupType :: Names -> Name -> Maybe Reference
 lookupType ns n = Map.lookup n (typeNames ns)
@@ -84,15 +84,15 @@ fromTerms ts = mempty { termNames = Map.fromList ts }
 
 fromTypesV :: Var v => [(v, Reference)] -> Names
 fromTypesV env =
-  Names mempty . Map.fromList $ fmap (first $ Name.fromVar) env
+  Names mempty . Map.fromList $ fmap (first Name.fromVar) env
 
 fromTypes :: [(Name, Reference)] -> Names
 fromTypes env = Names mempty $ Map.fromList env
 
 filterTypes :: (Name -> Bool) -> Names -> Names
-filterTypes f (Names {..}) = Names termNames m2
+filterTypes f Names {..} = Names termNames m2
   where
-  m2 = Map.fromList $ [(k,v) | (k,v) <- Map.toList typeNames, f k]
+  m2 = Map.fromList [(k,v) | (k,v) <- Map.toList typeNames, f k]
 
 patternNameds :: Names -> String -> Maybe (Reference, Int)
 patternNameds ns s = patternNamed ns (fromString s)
@@ -103,19 +103,23 @@ patternNamed ns n = Map.lookup n (termNames ns) >>= \case
   _ -> Nothing
 
 bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
-bindType ns t = Type.bindBuiltins typeNames' t
+bindType ns = Type.bindBuiltins typeNames'
   where
   typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm :: forall v a . Var v
-         => (Reference -> ConstructorType)
-         -> Names
-         -> AnnotatedTerm v a
-         -> AnnotatedTerm v a
-bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
+bindTerm
+  :: forall v a
+   . Var v
+  => (Reference -> ConstructorType)
+  -> Names
+  -> AnnotatedTerm v a
+  -> AnnotatedTerm v a
+bindTerm ctorType ns = Term.bindBuiltins termBuiltins typeBuiltins
  where
   termBuiltins =
-    [ (Name.toVar v, Term.fromReferent ctorType () e) | (v, e) <- Map.toList (termNames ns) ]
+    [ (Name.toVar v, Term.fromReferent ctorType () e)
+    | (v, e) <- Map.toList (termNames ns)
+    ]
   typeBuiltins :: [(v, Reference)]
   typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
 
@@ -124,7 +128,7 @@ bindTerm ctorType ns e = Term.bindBuiltins termBuiltins typeBuiltins e
 -- and `Optional.Some` is a constructor in the input `PEnv`,
 -- the alias `Some` will map to that same constructor
 importing :: Var v => [(v,v)] -> Names -> Names
-importing shortToLongName0 (Names {..}) = let
+importing shortToLongName0 Names {..} = let
   go :: Ord k => Map k v -> (k, k) -> Map k v
   go m (shortname, qname) = case Map.lookup qname m of
     Nothing -> m

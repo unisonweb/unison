@@ -23,16 +23,27 @@ unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
   either (error . Color.toANSI . prettyParseError src) id
 
-parse :: Var v => Parser.P v a -> String -> Parser.ParsingEnv -> Either (Parser.Err v) a
-parse p s env = Parser.run (Parser.root p) s env
+parse
+  :: Var v
+  => Parser.P v a
+  -> String
+  -> Parser.ParsingEnv
+  -> Either (Parser.Err v) a
+parse p = Parser.run (Parser.root p)
 
 parseTerm
-  :: Var v => String -> Parser.ParsingEnv -> Either (Parser.Err v) (AnnotatedTerm v Ann)
-parseTerm s env = parse TermParser.term s env
+  :: Var v
+  => String
+  -> Parser.ParsingEnv
+  -> Either (Parser.Err v) (AnnotatedTerm v Ann)
+parseTerm = parse TermParser.term
 
 parseType
-  :: Var v => String -> Parser.ParsingEnv -> Either (Parser.Err v) (AnnotatedType v Ann)
-parseType s = Parser.run (Parser.root TypeParser.valueType) s
+  :: Var v
+  => String
+  -> Parser.ParsingEnv
+  -> Either (Parser.Err v) (AnnotatedType v Ann)
+parseType = Parser.run (Parser.root TypeParser.valueType)
 
 parseFile
   :: Var v

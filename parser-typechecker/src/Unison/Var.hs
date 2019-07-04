@@ -135,7 +135,9 @@ nameds :: Var v => String -> v
 nameds s = named (Text.pack s)
 
 joinDot :: Var v => v -> v -> v
-joinDot v v2 = named (name v `mappend` "." `mappend` name v2)
+joinDot prefix v2 =
+  if name prefix == "." then named (name prefix `mappend` name v2)
+  else named (name prefix `mappend` "." `mappend` name v2)
 
 freshes :: Var v => Set v -> [v] -> [v]
 freshes _ [] = []
