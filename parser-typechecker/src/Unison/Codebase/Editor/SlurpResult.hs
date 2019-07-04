@@ -125,31 +125,14 @@ prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
   Add ->                              "added              "
   Update ->                           "updated            "
-  Collision ->                        "requires update    "
+  Collision ->                        "needs update       "
   Conflicted ->                       "conflicted         "
   Duplicate ->                        "duplicate          "
   TermExistingConstructorCollision -> "term/ctor collision"
   ConstructorExistingTermCollision -> "ctor/term collision"
   BlockedDependency ->                "blocked            "
   ExtraDefinition ->                  "extra dependency   "
-  Alias ->                            "requires alias     "
-
--- statusLegend :: Set Status -> P.Pretty P.ColorText
--- statusLegend s =
---   P.indentN 3 "Legend:" <> "\n" <> P.sep "\n" (map go (toList s))
---   where
---   go s = P.group (prettyStatus s <> " " <> desc s)
---   desc s = " " <> case s of
---     Add -> "a new definition with a new name"
---     Update -> "a new definition using an existing name (ok to `update`)"
---     Duplicate -> "already in the codebase with the same name"
---     Collision -> "couldn't be added due to name collision (use `update`)"
---     Conflicted -> "can't be updated because the name is conflicted"
---     TermExistingConstructorCollision -> "a term with the same name as a constructor"
---     ConstructorExistingTermCollision -> "a constructor with the same name as a term"
---     BlockedDependency -> "blocked because of one of its dependencies"
---     ExtraDefinition -> "added because an extra definition"
---     Alias -> "a new name for an existing definition"
+  Alias ->                            "needs alias        "
 
 type IsPastTense = Bool
 
@@ -171,7 +154,7 @@ pretty isPast ppe sr = let
   typeAlias' = filter (`Set.notMember` (types $ duplicates sr))
                       (Map.keys (typeAlias sr))
   goodIcon = P.green "⍟ "
-  badIcon = P.red "X "
+  badIcon = P.red "x "
   plus = P.green "  "
   okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
     Just (_, dd) ->
@@ -181,9 +164,9 @@ pretty isPast ppe sr = let
           Just ns ->
             P.hiBlack "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
             <> ")"
-    Nothing -> P.bold (prettyVar v) <> P.red (P.wrap " (Unison bug, unknown type)")
+    Nothing -> P.bold (prettyVar v) <> P.red " (Unison bug, unknown type)"
   okTerm v = case Map.lookup v tms of
-    Nothing -> (P.bold (prettyVar v), P.hiBlack "Constructor")
+    Nothing -> (P.bold (prettyVar v), P.red "(Unison bug, unknown term)")
     Just (_, _, ty) ->
       (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty)) where
       lhs = case Map.lookup v (termAlias sr) of
@@ -192,7 +175,7 @@ pretty isPast ppe sr = let
           (P.bold (prettyVar v) : (P.shown <$> toList ns))
   oks _past _present sc | SC.isEmpty sc = mempty
   oks past present sc = let
-    header = goodIcon <> P.wrap (if isPast then past else present)
+    header = goodIcon <> P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
     addedTypes = P.lines $ okType <$> toList (SC.types sc)
     addedTerms = P.column2 . fmap okTerm . Set.toList $ SC.terms sc
     in header <> "\n\n" <> P.linesNonEmpty [ addedTypes, addedTerms ]
@@ -214,14 +197,13 @@ pretty isPast ppe sr = let
            <> ")"
     typeMsgs = P.column2 $
       (typeLineFor Alias <$> typeAlias') ++
-      (typeLineFor Duplicate <$> toList (types (duplicates sr))) ++
       (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
       (typeLineFor Collision <$> toList (types (collisions sr))) ++
       (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr))) ++
       (typeLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
       (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
     termLineFor status v = case Map.lookup v tms of
-      Just (_, _, ty) -> (prettyStatus status <> "   " <> lhs,
+      Just (_, _, ty) -> (prettyStatus status <> " " <> lhs,
          ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty))
        where
        lhs = case Map.lookup v (termAlias sr) of
@@ -231,7 +213,6 @@ pretty isPast ppe sr = let
         (prettyStatus status <> "   " <> P.text (Var.name v), "")
     termMsgs = P.column2
        $ (termLineFor Alias <$> termAlias')
-      ++ (termLineFor Duplicate <$> toList (terms (duplicates sr)))
       ++ (termLineFor Conflicted <$> toList (terms (conflicts sr)))
       ++ (termLineFor Collision <$> toList (terms (collisions sr)))
       ++ (termLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
@@ -247,14 +228,15 @@ pretty isPast ppe sr = let
       else "⊡ Ignoring previously added definitions: " <>
             (P.indentNAfterNewline 2 $
              P.hiBlack (P.wrap $ P.sep " " (prettyVar <$> dups))),
-      oks (P.green "I've " <> P.bold "added " <> P.green "these definitions:")
-          (P.green "These are" <> P.bold "new definitions" <> P.green "(ok to `add`)")
+      oks ("I've " <> P.green "added " <> "these definitions:")
+          ("These new definitions are" <> P.green "ok to `add`:")
           (adds sr),
-      oks (P.green "I've " <> P.bold "updated " <> P.green "these definitions:")
-          (P.green "These definitions are" <> P.bold "ok to `update`:")
+      oks ("I've " <> P.green "updated to" <> "these definitions:")
+          ("These new definitions will replace existing ones of the same name and are" <>
+            P.green "ok to `update`:")
           (updates sr),
-      notOks (P.red "These definitions couldn't be added")
-             (P.red "These definitions" <> P.bold "would fail on `add` or `update`:")
+      notOks ("These definitions " <> P.red "failed:")
+             ("These definitions" <> P.red "would fail on `add` or `update`:")
              sr
     ]
 
@@ -262,6 +244,7 @@ isOk :: Ord v => SlurpResult v -> Bool
 isOk (SlurpResult {..}) =
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
+  Map.null termAlias && Map.null typeAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
   SC.isEmpty defsWithBlockedDependencies

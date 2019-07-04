@@ -1330,7 +1330,7 @@ toSlurpResult uf existingNames =
   termAliases :: Map v (Set Name)
   termAliases = Map.fromList
     [ (var n, aliases)
-    | (n, r) <- R.toList $ Names.terms fileNames0
+    | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
     , not (null aliases)
     ]
