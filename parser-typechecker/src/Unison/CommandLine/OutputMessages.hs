@@ -153,6 +153,12 @@ notifyUser dir o = case o of
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   EvaluationFailure err -> putPrettyLn err
+  SearchTermsNotFound hqs | null hqs -> return ()
+  SearchTermsNotFound hqs ->
+    putPrettyLn
+      $  P.warnCallout "The following names were not found in the codebase. Check your spelling."
+      <> P.newline
+      <> P.indent "  " (P.lines (prettyHashQualified <$> hqs))
   PatchNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
@@ -483,7 +489,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
 displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
-  putPrettyLn $ noResults
+  return ()
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where
