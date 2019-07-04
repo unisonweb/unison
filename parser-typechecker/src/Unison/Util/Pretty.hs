@@ -15,6 +15,8 @@ module Unison.Util.Pretty (
    callout,
    warnCallout, fatalCallout, okCallout,
    column2,
+   column3,
+   column3sep,
    commas,
    commented,
    oxfordCommas,
@@ -309,6 +311,17 @@ rightPad n p =
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
+
+column3
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+column3 = column3sep ""
+
+column3sep
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+column3sep sep rows = let
+  bc = align [(b,sep <> c) | (_,b,c) <- rows ]
+  abc = group <$> align [(a,sep <> bc) | ((a,_,_),bc) <- rows `zip` bc ]
+  in lines abc
 
 wrapColumn2 ::
   (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s

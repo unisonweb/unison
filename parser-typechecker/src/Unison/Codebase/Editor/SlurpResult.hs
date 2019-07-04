@@ -123,16 +123,16 @@ isFailure s = case s of
 
 prettyStatus :: Status -> P.Pretty P.ColorText
 prettyStatus s = case s of
-  Add ->                              "added              "
-  Update ->                           "updated            "
-  Collision ->                        "needs update       "
-  Conflicted ->                       "conflicted         "
-  Duplicate ->                        "duplicate          "
+  Add                              -> "added"
+  Update                           -> "updated"
+  Collision                        -> "needs update"
+  Conflicted                       -> "conflicted"
+  Duplicate                        -> "duplicate"
   TermExistingConstructorCollision -> "term/ctor collision"
   ConstructorExistingTermCollision -> "ctor/term collision"
-  BlockedDependency ->                "blocked            "
-  ExtraDefinition ->                  "extra dependency   "
-  Alias ->                            "needs alias        "
+  BlockedDependency                -> "blocked"
+  ExtraDefinition                  -> "extra dependency"
+  Alias                            -> "needs alias"
 
 type IsPastTense = Bool
 
@@ -184,18 +184,18 @@ pretty isPast ppe sr = let
     header = badIcon <> P.wrap (if isPast then past else present)
     typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
-        (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd <> aliases)
+        (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd, aliases)
       Nothing ->
-        (prettyStatus status <> "   " <> prettyVar v <> P.red
-          (P.wrap " (Unison bug, unknown type)")
-        , aliases
+        (prettyStatus status,
+         prettyVar v <> P.red (P.wrap " (Unison bug, unknown type)"),
+         aliases
         )
       where
        aliases = case Map.lookup v (typeAlias sr) of
          Nothing -> ""
-         Just ns -> "  (existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
+         Just ns -> "(existing " <> P.plural ns "name" <> ": " <> P.sep ", " (P.shown <$> toList ns)
            <> ")"
-    typeMsgs = P.column2 $
+    typeMsgs = P.column3sep "  " $
       (typeLineFor Alias <$> typeAlias') ++
       (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
       (typeLineFor Collision <$> toList (types (collisions sr))) ++
@@ -203,15 +203,15 @@ pretty isPast ppe sr = let
       (typeLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
       (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
     termLineFor status v = case Map.lookup v tms of
-      Just (_, _, ty) -> (prettyStatus status <> " " <> lhs,
+      Just (_, _, ty) -> (prettyStatus status, lhs,
          ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty))
        where
        lhs = case Map.lookup v (termAlias sr) of
           Nothing -> P.bold (P.text $ Var.name v)
           Just ns -> P.sep ", " (P.bold (prettyVar v) : (P.shown <$> toList ns))
       Nothing ->
-        (prettyStatus status <> "   " <> P.text (Var.name v), "")
-    termMsgs = P.column2
+        (prettyStatus status, P.text (Var.name v), "")
+    termMsgs = P.column3sep "  "
        $ (termLineFor Alias <$> termAlias')
       ++ (termLineFor Conflicted <$> toList (terms (conflicts sr)))
       ++ (termLineFor Collision <$> toList (terms (collisions sr)))
