@@ -222,12 +222,17 @@ pretty isPast ppe sr = let
               <> P.indentN 2 (P.linesNonEmpty [typeMsgs, termMsgs]) <> "\n\n"
               <> P.indentN 2 (P.column2 [("Tip:", "Use `help filestatus` to learn more.")])
   dups = Set.toList (SC.terms (duplicates sr) <> SC.types (duplicates sr))
+  more i = "... " <> P.bold (P.shown i) <> " more."
+        <> P.purple "Tip:"
+        <> P.hiBlack "you can skip parsing and typechecking"
+        <> P.hiBlack "by moving these below a `---` \"fold\" in your .u file."
   in
     P.sepNonEmpty "\n\n" [
       if SC.isEmpty (duplicates sr) then mempty
-      else "⊡ Ignoring previously added definitions: " <>
+      else (if isPast then "⊡ Ignored previously added definitions: "
+            else "⊡ Previously added definitions will be ignored: ") <>
             (P.indentNAfterNewline 2 $
-             P.hiBlack (P.wrap $ P.sep " " (prettyVar <$> dups))),
+             (P.wrap $ P.excerptSep' 10 more " " (P.hiBlack . prettyVar <$> dups))),
       oks ("I've " <> P.green "added " <> "these definitions:")
           ("These new definitions are" <> P.green "ok to `add`:")
           (adds sr),

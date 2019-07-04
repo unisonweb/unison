@@ -13,6 +13,8 @@ module Unison.Util.Pretty (
    bracket,
    -- breakable
    callout,
+   excerptSep,
+   excerptSep',
    warnCallout, fatalCallout, okCallout,
    column2,
    column3,
@@ -253,6 +255,16 @@ sep between = intercalateMap between id
 
 sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepNonEmpty between ps = sep between (nonEmpty ps)
+
+-- if list is too long, adds `... 22 more` to the end
+excerptSep :: IsString s => Int -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep maxCount = excerptSep' maxCount (\i -> "... " <> shown i <> " more")
+
+excerptSep' :: IsString s => Int -> (Int -> Pretty s) -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep' maxCount summarize s ps =
+  if length ps > maxCount then
+    sep s (take maxCount ps) <> summarize (length ps - maxCount)
+  else sep s ps
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
 nonEmpty (toList -> l) = case l of
