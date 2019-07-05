@@ -316,6 +316,12 @@ backticks = queryToken getBackticks
   getBackticks (L.Backticks s Nothing) = Just s
   getBackticks _                       = Nothing
 
+hqBackticks :: Var v => P v (L.Token (String, Maybe ShortHash))
+hqBackticks = queryToken getBackticks
+ where
+  getBackticks (L.Backticks s h) = Just (s, h)
+  getBackticks _                 = Nothing
+
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
 reserved w = label w $ queryToken getReserved
@@ -359,6 +365,9 @@ hqPrefixVar = label "symbol" prefixOp
 infixVar :: Var v => P v (L.Token v)
 infixVar =
   fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
+
+hqInfixVar :: Var v => P v (L.Token (String, Maybe ShortHash))
+hqInfixVar = hqSymbolyId <|> hqBackticks
 
 hashLiteral :: Var v => P v (L.Token Hash)
 hashLiteral = queryToken getHash

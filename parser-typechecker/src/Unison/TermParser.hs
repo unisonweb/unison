@@ -21,6 +21,7 @@ import           Prelude hiding (and, or, seq)
 import           Unison.Names (Names)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
+import           Unison.ShortHash (ShortHash)
 import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
@@ -224,22 +225,27 @@ placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
 seq :: Var v => TermP v -> TermP v
 seq = Parser.seq Term.seq
 
+hqInfixTerm :: Var v => TermP v
+hqInfixTerm = hqInfixVar >>= hashQualifiedToken
+
+hashQualifiedToken :: Var v => L.Token (String, Maybe ShortHash) -> TermP v
+hashQualifiedToken t = flip tok t $ \ann (name, mayHash) -> case mayHash of
+  Nothing   -> pure . Term.var ann $ Var.nameds name
+  Just hash -> do
+    -- This is a hash-qualified name
+    env <- asks $ Map.toList . Names.termNames . snd
+    let hqName   = HQ.HashQualified (Name.fromString name) hash
+        mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
+    case mayMatch of
+      Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
+        hqName
+        (L.start t)
+        (L.end t)
+      Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
+
 hashQualifiedPrefixTerm :: Var v => TermP v
-hashQualifiedPrefixTerm = do
-  t <- hqPrefixVar
-  flip tok t $ \ann (name, mayHash) -> case mayHash of
-    Nothing   -> pure . Term.var ann $ Var.nameds name
-    Just hash -> do
-      -- This is a hash-qualified name
-      env <- asks $ Map.toList . Names.termNames . snd
-      let hqName   = HQ.HashQualified (Name.fromString name) hash
-          mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
-      case mayMatch of
-        Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
-          hqName
-          (L.start t)
-          (L.end t)
-        Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
+hashQualifiedPrefixTerm =
+  hqPrefixVar >>= hashQualifiedToken
 
 termLeaf :: forall v . Var v => TermP v
 termLeaf = do
@@ -300,7 +306,7 @@ term4 = f <$> some termLeaf
 
 -- e.g. term4 + term4 - term4
 infixApp = label "infixApp"
-  $ chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
+  $ chainl1 term4 (f <$> ((fmap var infixVar <|> hqInfixTerm) <* optional semi))
   where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
 typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
