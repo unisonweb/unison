@@ -56,6 +56,7 @@ library
     Unison.Codebase.Editor.SlurpComponent
     Unison.Codebase.FileCodebase
     Unison.Codebase.GitError
+    Unison.Codebase.MemoryCodebase
     Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
     Unison.Codebase.NameSegment
