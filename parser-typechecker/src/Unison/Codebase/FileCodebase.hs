@@ -24,7 +24,6 @@ import           Data.Foldable                  ( traverse_
 import           Data.List                      ( isSuffixOf )
 import           Data.List.Split                ( splitOn )
 import           Data.Maybe                     ( fromMaybe )
-import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
@@ -54,9 +53,10 @@ import           System.Path                    ( replaceRoot
                                                 , dirPath
                                                 )
 import           Text.Read                      ( readMaybe )
-import qualified Unison.Builtin                as Builtin
 import qualified Unison.Codebase               as Codebase
-import           Unison.Codebase                ( Codebase(Codebase) )
+import           Unison.Codebase                ( Codebase(Codebase)
+                                                , BuiltinAnnotation
+                                                )
 import           Unison.Codebase.Causal         ( Causal
                                                 , RawHash(..)
                                                 )
@@ -326,6 +326,7 @@ writeAllTermsAndTypes
   :: forall m v a
    . MonadIO m
   => Var v
+  => Codebase.BuiltinAnnotation a
   => S.Put v
   -> S.Put a
   -> Codebase m v a
@@ -440,8 +441,10 @@ putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
 codebase1
   :: forall m v a
    . MonadUnliftIO m
-  => Var v => a -> S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
-codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
+  => Var v
+  => BuiltinAnnotation a
+  => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
+codebase1 (S.Format getV putV) (S.Format getA putA) path
   = let c = Codebase getTerm
                      getTypeOfTerm
                      getDecl
@@ -463,13 +466,7 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
-  getTypeOfTerm r = liftIO $ case r of
-    Reference.Builtin _ ->
-      pure
-        $   fmap (const builtinTypeAnnotation)
-        <$> Map.lookup r Builtin.termRefTypes
-    Reference.DerivedId h ->
-      S.getFromFile (V1.getType getV getA) (typePath path h)
+  getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
   getDecl h = liftIO $ S.getFromFile
     (V1.getEither (V1.getEffectDeclaration getV getA)
                   (V1.getDataDeclaration getV getA)

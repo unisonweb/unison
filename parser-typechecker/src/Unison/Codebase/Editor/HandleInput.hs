@@ -44,6 +44,7 @@ import           Data.Foldable                  ( toList
                                                 )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
+import           Data.List                      ( partition )
 import           Data.List.Extra                (nubOrd, intercalate)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
@@ -554,7 +555,9 @@ loop = do
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
       ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        let results = searchBranchExact currentBranch' hqs
+        let resultss = searchBranchExact currentBranch' hqs
+            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
+            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
             queryNames = Names terms types where
               terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
               types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
@@ -651,6 +654,7 @@ loop = do
             LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
           eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
           -- next update for that file (which will happen immediately)
@@ -1123,7 +1127,8 @@ collateReferences (toList -> types) (toList -> terms) =
 -- #567 :: Int
 -- #567 = +3
 
-searchBranchExact :: Branch m -> [HQ.HashQualified] -> [SearchResult]
+-- | The result list corresponds to the query list.
+searchBranchExact :: Branch m -> [HQ.HashQualified] -> [[SearchResult]]
 searchBranchExact b queries = let
   names0 = Branch.toNames0 . Branch.head $ b
   matchesHashPrefix :: (r -> SH.ShortHash) -> (Name, r) -> HQ.HashQualified -> Bool
@@ -1132,23 +1137,23 @@ searchBranchExact b queries = let
     HQ.HashOnly q -> q `SH.isPrefixOf` toShortHash r
     HQ.HashQualified n q ->
       n == name && q `SH.isPrefixOf` toShortHash r
-  filteredTypes, filteredTerms, deduped :: [SearchResult]
-  filteredTypes =
+  searchTypes :: HQ.HashQualified -> [SearchResult]
+  searchTypes query =
     -- construct a search result with appropriately hash-qualified version of the query
     -- for each (n,r) see if it matches a query.  If so, get appropriately hash-qualified version.
     [ SR.typeResult (Names.hqTypeName names0 name r) r
                     (Names.hqTypeAliases names0 name r)
     | (name, r) <- R.toList $ Names.types names0
-    , any (matchesHashPrefix Reference.toShortHash (name, r)) queries
+    , matchesHashPrefix Reference.toShortHash (name, r) query
     ]
-  filteredTerms =
+  searchTerms :: HQ.HashQualified -> [SearchResult]
+  searchTerms query =
     [ SR.termResult (Names.hqTermName names0 name r) r
                     (Names.hqTermAliases names0 name r)
     | (name, r) <- R.toList $ Names.terms names0
-    , any (matchesHashPrefix Referent.toShortHash (name, r)) queries
+    , matchesHashPrefix Referent.toShortHash (name, r) query
     ]
-  deduped = uniqueBy SR.toReferent (filteredTypes <> filteredTerms)
-  in List.sort deduped
+  in [ searchTypes q <> searchTerms q | q <- queries ]
 
 
 respond :: Output v -> Action m i v ()
@@ -1325,7 +1330,7 @@ toSlurpResult uf existingNames =
   termAliases :: Map v (Set Name)
   termAliases = Map.fromList
     [ (var n, aliases)
-    | (n, r) <- R.toList $ Names.terms fileNames0
+    | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
     , not (null aliases)
     ]
@@ -1340,10 +1345,13 @@ toSlurpResult uf existingNames =
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
   adds = sc terms types where
-    terms = add (Names.terms existingNames) (Names.terms fileNames0)
-    types = add (Names.types existingNames) (Names.types fileNames0)
-    add :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
-    add existingNames = R.filter go where
+    terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
+    types = addTypes (Names.types existingNames) (Names.types fileNames0)
+    addTerms existingNames = R.filter go where
+      go (n, r@Referent.Ref{}) = (not . R.memberDom n) existingNames
+                              && (not . R.memberRan r) existingNames
+      go _ = False
+    addTypes existingNames = R.filter go where
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
 
@@ -1374,7 +1382,7 @@ doSlurpAdds :: forall m v. (Applicative m, Var v)
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
-  termActions = map doTerm . toList $ SC.terms slurp
+  termActions = map doTerm . toList $ SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
