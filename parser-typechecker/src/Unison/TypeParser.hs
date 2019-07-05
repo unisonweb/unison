@@ -3,10 +3,7 @@
 module Unison.TypeParser where
 
 import           Control.Applicative
-import           Control.Monad
-import           Data.Char (isUpper, isLower)
 import           Data.List
-import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser
@@ -14,6 +11,11 @@ import           Unison.Type (AnnotatedType)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import qualified Unison.DataDeclaration as DD
+import qualified Unison.HashQualified as HQ
+import qualified Unison.Name as Name
+import qualified Unison.Names3 as Names
+import qualified Data.Set as Set
+import Control.Monad.Reader (asks)
 
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
@@ -35,7 +37,14 @@ valueTypeLeaf =
   tupleOrParenthesizedType valueType <|> typeVar <|> sequenceTyp
 
 typeVar :: Var v => TypeP v
-typeVar = posMap (\pos -> Type.av' pos . Text.pack) wordyId
+typeVar = hqWordyId >>= \tok -> case L.payload tok of
+  HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
+  hq -> do
+    names <- asks snd
+    let matches = Names.lookupHQType hq names
+    if Set.size matches /= 1
+    then P.customFailure (UnknownType tok matches)
+    else pure $ Type.ref (ann tok) (Set.findMin matches)
 
 type1 :: Var v => TypeP v
 type1 = arrow type2a
@@ -98,33 +107,8 @@ arrow rec =
 forall :: Var v => TypeP v -> TypeP v
 forall rec = do
     kw <- reserved "forall" <|> reserved "∀"
-    vars <- fmap (fmap L.payload) . some $ varName
+    vars <- fmap (fmap L.payload) . some $ wordyDefinitionName
     _ <- matchToken $ L.SymbolyId "." Nothing
     t <- rec
-    pure $ Type.forall' (ann kw <> ann t) (fmap Text.pack vars) t
+    pure $ Type.foralls (ann kw <> ann t) vars t
 
-varName :: Var v => P v (L.Token String)
-varName = do
-  name <- wordyId
-  guard (isLower . head $ L.payload name)
-  pure name
-
-typeName :: Var v => P v (L.Token String)
-typeName = do
-  name <- wordyId
-  guard (isUpper . head $ L.payload name)
-  pure name
-
--- qualifiedTypeName :: P v (L.Token String
--- qualifiedTypeName = f <$> typeName <*> optional more
---   where
---     f :: String -> (Maybe String) -> String
---     f first more = maybe first (first++) more
---     more = (:) <$> char '.' <*> qualifiedTypeName
-
-posMap :: (Ann -> a -> b) -> P v (L.Token a) -> P v b
-posMap f = fmap $ \case L.Token a start end -> f (Ann start end) a
-
-literal :: Var v => TypeP v
-literal =
-  P.label "literal" . posMap (\pos -> Type.av' pos . Text.pack) $ typeName

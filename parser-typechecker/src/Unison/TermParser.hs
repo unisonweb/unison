@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.TermParser where
 
@@ -18,7 +19,7 @@ import           Data.List (elem, find)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
-import           Unison.Names (Names)
+import           Unison.Names3 (Names)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
@@ -33,7 +34,7 @@ import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
-import qualified Unison.Names as Names
+import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Reference as R
@@ -42,6 +43,7 @@ import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
 import Debug.Trace
+import Unison.Reference (Reference)
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -133,28 +135,31 @@ parsePattern =
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctorName = P.try $ do
-    s <- wordyId
-    guard . isUpper . head . L.payload $ s
-    pure s
+  ctor :: _ -> P v (L.Token (Reference, Int))
+  ctor err = P.try $ do
+    tok <- hqWordyId
+    guard . isUpper . head . fst . L.payload $ tok
+    names <- asks snd
+    Names.lookupHQPattern
+    error "todo"
+    -- case Names.patternNameds env (L.payload name) of
+           --      Just (ref, cid) -> pure (ref, cid)
+           --      Nothing -> customFailure $ UnknownAbilityConstructor name
 
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
   effectBind0 = do
-    name <- ctorName
+    tok <- ctor UnknownAbilityConstructor
     leaves <- many leaf
     _ <- reserved "->"
-    pure (name, leaves)
+    pure (tok, leaves)
 
   effectBind = do
-    (name, leaves) <- P.try effectBind0
+    (tok, leaves) <- P.try effectBind0
+    let (ref,cid) = L.payload tok
     (cont, vsp) <- parsePattern
-    env <- asks snd
-    (ref,cid) <- case Names.patternNameds env (L.payload name) of
-      Just (ref, cid) -> pure (ref, cid)
-      Nothing -> customFailure $ UnknownAbilityConstructor name
     pure $
-      let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
+      let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) ref cid patterns cont, vs ++ vsp)
       in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
@@ -167,17 +172,19 @@ parsePattern =
     pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
-    t <- ctorName
-    let name = L.payload t
-    env <- asks snd
-    case Names.patternNameds env name of
-      Just (ref, cid) -> go <$> many leaf
-        where
-          go = unzipPatterns f
-          f patterns vs =
-            let loc = foldl (<>) (ann t) $ map ann patterns
-            in (Pattern.Constructor loc ref cid patterns, vs)
-      Nothing -> customFailure $ UnknownDataConstructor t
+    t <- ctor UnknownDataConstructor
+    ---
+    error "todo"
+--    let name = L.payload t
+--    env <- asks snd
+--    case Names.patternNameds env name of
+--      Just (ref, cid) -> go <$> many leaf
+--        where
+--          go = unzipPatterns f
+--          f patterns vs =
+--            let loc = foldl (<>) (ann t) $ map ann patterns
+--            in (Pattern.Constructor loc ref cid patterns, vs)
+--      Nothing -> customFailure $ UnknownDataConstructor t
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
@@ -225,27 +232,27 @@ seq :: Var v => TermP v -> TermP v
 seq = Parser.seq Term.seq
 
 hashQualifiedPrefixTerm :: Var v => TermP v
-hashQualifiedPrefixTerm = do
-  t <- hqPrefixVar
-  flip tok t $ \ann (name, mayHash) -> case mayHash of
-    Nothing   -> pure . Term.var ann $ Var.nameds name
-    Just hash -> do
-      -- This is a hash-qualified name
-      env <- asks $ Map.toList . Names.termNames . snd
-      let hqName   = HQ.HashQualified (Name.fromString name) hash
-          mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
-      case mayMatch of
-        Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
-          hqName
-          (L.start t)
-          (L.end t)
-        Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
+hashQualifiedPrefixTerm = error "todo"
+--  do
+--  t <- hqPrefixVar
+--  flip tok t $ \ann (name, mayHash) -> case mayHash of
+--    Nothing   -> pure . Term.var ann $ Var.nameds name
+--    Just hash -> do
+--      -- This is a hash-qualified name
+--      env <- asks $ Map.toList . Names.termNames . snd
+--      let hqName   = HQ.HashQualified (Name.fromString name) hash
+--          mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
+--      case mayMatch of
+--        Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
+--          hqName
+--          (L.start t)
+--          (L.end t)
+--        Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
 
 termLeaf :: forall v . Var v => TermP v
 termLeaf = do
   e <- asum
-    [ hashLit
-    , prefixTerm
+    [ prefixTerm
     , hashQualifiedPrefixTerm
     , text
     , number

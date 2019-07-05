@@ -24,26 +24,28 @@ import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
-import           Unison.Hash
 import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import           Unison.ShortHash     (ShortHash)
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
-import Unison.Names (Names)
+import Unison.Name as Name
+import Unison.Names3 (Names)
 import Control.Monad.Reader.Class (ask)
 import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
+import Data.Set (Set)
+import Unison.Referent (Referent)
+import Unison.Reference (Reference)
 
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) (UniqueName, Names))
+type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
 
@@ -83,14 +85,15 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token v)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token String)
-  | UnknownDataConstructor (L.Token String)
+  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set Referent)
+  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set Referent)
+  | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
+  | UnknownType (L.Token HQ.HashQualified) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
   | DuplicateTypeNames [(v, [Ann])]
-  | UnknownHashQualifiedName (L.Token HQ.HashQualified)
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -281,40 +284,52 @@ semi = void <$> matchToken L.Semi
 closeBlock :: Var v => P v (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
--- Parse an alphanumeric identifier
-wordyId :: Var v => P v (L.Token String)
-wordyId = fmap fst <$> hqWordyId
+-- Parse an alphanumeric identifier, discarding any hash
+wordyDefinitionName :: Var v => P v (L.Token v)
+wordyDefinitionName = queryToken $ \case
+  L.WordyId s _ -> Just $ Var.nameds s
+  _             -> Nothing
+
+-- Parse a symboly ID like >>= or &&, discarding any hash
+symbolyDefinitionName :: Var v => P v (L.Token v)
+symbolyDefinitionName = queryToken $ \case
+  L.SymbolyId s _ -> Just $ Var.nameds s
+  _               -> Nothing
+
+backtickedDefinitionName :: Var v => P v (L.Token v)
+backtickedDefinitionName = queryToken $ \case
+  L.Backticks s _ -> Just $ Var.nameds s
+  _               -> Nothing
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqWordyId = queryToken getWordy
- where
-  getWordy (L.WordyId s h) = Just (s, h)
-  getWordy _               = Nothing
-
--- Parse a specific wordy id
-exactWordyId :: Var v => String -> P v (L.Token String)
-exactWordyId target = queryToken getWordy
- where
-  getWordy (L.WordyId s Nothing) | s == target = Just s
-  getWordy _ = Nothing
-
--- Parse a symboly ID like >>= or &&
-symbolyId :: Var v => P v (L.Token String)
-symbolyId = fmap fst <$> hqSymbolyId
+hqWordyId :: Var v => P v (L.Token HQ.HashQualified)
+hqWordyId = queryToken $ \case
+  L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
+  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqSymbolyId = queryToken getSymboly
- where
-  getSymboly (L.SymbolyId s h) = Just (s, h)
-  getSymboly _                 = Nothing
+hqSymbolyId :: Var v => P v (L.Token HQ.HashQualified)
+hqSymbolyId = queryToken $ \case
+  L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
+  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  _ -> Nothing
 
-backticks :: Var v => P v (L.Token String)
-backticks = queryToken getBackticks
- where
-  getBackticks (L.Backticks s Nothing) = Just s
-  getBackticks _                       = Nothing
+hqBacktickedId :: Var v => P v (L.Token HQ.HashQualified)
+hqBacktickedId = queryToken $ \case
+  L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
+  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  _ -> Nothing
+
+-- Parse a specific wordy id
+--exactWordyId :: Var v => String -> P v (L.Token String)
+--exactWordyId target = queryToken getWordy
+-- where
+--  getWordy (L.WordyId s Nothing) | s == target = Just s
+--  getWordy _ = Nothing
 
 -- Parse a reserved word
 reserved :: Var v => String -> P v (L.Token String)
@@ -342,28 +357,28 @@ sepBy sep pb = P.sepBy pb sep
 sepBy1 :: Var v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
-prefixVar :: Var v => P v (L.Token v)
-prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
- where
-  prefixOp = blank <|> wordyId <|> label
-    "prefix-operator"
-    (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
-
-hqPrefixVar :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqPrefixVar = label "symbol" prefixOp
- where
-  prefixOp = hqWordyId <|> label
-    "prefix-operator"
-    (P.try (openBlockWith "(" *> hqSymbolyId) <* closeBlock)
-
-infixVar :: Var v => P v (L.Token v)
-infixVar =
-  fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
-
-hashLiteral :: Var v => P v (L.Token Hash)
-hashLiteral = queryToken getHash
-  where getHash (L.Hash s) = Just s
-        getHash _          = Nothing
+--prefixVar :: Var v => P v (L.Token v)
+--prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
+-- where
+--  prefixOp = blank <|> wordyId <|> label
+--    "prefix-operator"
+--    (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
+--
+--hqPrefixVar :: Var v => P v (L.Token (String, Maybe ShortHash))
+--hqPrefixVar = label "symbol" prefixOp
+-- where
+--  prefixOp = hqWordyId <|> label
+--    "prefix-operator"
+--    (P.try (openBlockWith "(" *> hqSymbolyId) <* closeBlock)
+--
+--infixVar :: Var v => P v (L.Token v)
+--infixVar =
+--  fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
+--
+--hashLiteral :: Var v => P v (L.Token Hash)
+--hashLiteral = queryToken getHash
+--  where getHash (L.Hash s) = Just s
+--        getHash _          = Nothing
 
 string :: Var v => P v (L.Token Text)
 string = queryToken getString

@@ -57,6 +57,7 @@ import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
+import Unison.HashQualified (HashQualified)
 
 type Env = PPE.PrettyPrintEnv
 
@@ -1009,15 +1010,20 @@ prettyParseError s = \case
     ]
   go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""
-  go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
-  go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
-  go (Parser.UnknownHashQualifiedName tok) = mconcat
-    [ "I couldn't find the referent of the hash-qualified name "
+  go (Parser.UnknownAbilityConstructor tok referents) = unknownConstructor "ability" tok
+  go (Parser.UnknownDataConstructor    tok referents) = unknownConstructor "data" tok
+  go (Parser.UnknownTerm               tok referents) = mconcat
+    [ "I couldn't find a term for "
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , ". Make sure it's spelled correctly and that you have the right hash."
+    ]
+  go (Parser.UnknownType               tok referents) = mconcat
+    [ "I couldn't find a type for "
     , tokenAsErrorSite s $ HQ.toString <$> tok
     , ". Make sure it's spelled correctly and that you have the right hash."
     ]
   unknownConstructor
-    :: String -> L.Token String -> AnnotatedText Color
+    :: String -> L.Token HashQualified -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
     [ "I don't know about any "
     , fromString ctorType
