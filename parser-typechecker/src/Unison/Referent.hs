@@ -61,6 +61,9 @@ toTypeReference = \case
   Con r _i -> Just r
   _ -> Nothing
 
+isPrefixOf :: ShortHash -> Referent -> Bool
+isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
+
 unsafeFromText :: Text -> Referent
 unsafeFromText = fromMaybe (error "invalid referent") . fromText
 

@@ -460,6 +460,8 @@ codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
                      (putWatch putV putA path)
                      getTermsOfType
                      getTermsMentioningType
+   -- todo: maintain a trie of references to come up with this number
+                     (pure 10)
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)

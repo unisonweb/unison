@@ -70,6 +70,9 @@ data Codebase m v a =
            , termsOfTypeImpl    :: Reference -> m (Set Referent)
            -- list of terms that mention the given type anywhere in their signature
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
+           -- number of base58 characters needed to distinguish any two references in the codebase
+           , hashLength         :: m Int
+           -- , refsByPrefix :: Text -> m (Set Reference)
            }
 
 -- | Write all of the builtins types and IO types into the codebase

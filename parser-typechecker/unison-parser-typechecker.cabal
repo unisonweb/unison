@@ -88,6 +88,7 @@ library
     Unison.Name
     Unison.Names
     Unison.Names2
+    Unison.Names3
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
