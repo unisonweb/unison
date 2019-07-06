@@ -293,7 +293,7 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
 
-seqOp :: Var v => P v Pattern.SeqOp
+seqOp :: Ord v => P v Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
   <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
@@ -316,15 +316,15 @@ typedecl =
       <*> TypeParser.valueType
       <* semi
 
-verifyRelativeName :: Var v => P v (L.Token v) -> P v (L.Token v)
+verifyRelativeName :: Ord v => P v (L.Token Name) -> P v (L.Token Name)
 verifyRelativeName name = do
   name <- name
   verifyRelativeName' name
   pure name
 
-verifyRelativeName' :: Var v => L.Token v -> P v ()
+verifyRelativeName' :: Ord v => L.Token Name -> P v ()
 verifyRelativeName' name = do
-  let txt = Var.name . L.payload $ name
+  let txt = Name.toText . L.payload $ name
   when (Text.isPrefixOf "." txt && txt /= ".") $ do
     failCommitted (DisallowedAbsoluteName name)
 
@@ -350,11 +350,11 @@ binding = label "binding" $ do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
-      verifyRelativeName' name
+      verifyRelativeName' (fmap Name.fromVar name)
       pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
-      verifyRelativeName' name
+      verifyRelativeName' (fmap Name.fromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
@@ -374,7 +374,7 @@ block s = block' False s (openBlockWith s) closeBlock
 
 -- example: use Foo.bar.Baz + ++ x
 -- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
-importp :: Var v => P v [(Name, Name)]
+importp :: Ord v => P v [(Name, Name)]
 importp = do
   _        <- reserved "use"
   prefix   <- fmap L.payload $ importWordyId <|> importDotId -- use . Nat
@@ -443,11 +443,11 @@ substTermImports ns t = error "todo"
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
-imports :: Var v => P v Names
+imports :: Ord v => P v Names
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  Names.importing imported <$> asks snd
+  Names.importing imported <$> asks names
 
 block'
   :: forall v b
@@ -459,12 +459,11 @@ block'
   -> TermP v
 block' isTop s openBlock closeBlock = do
     open <- openBlock
-    (env, substImports) <- imports
-    uniqueNames <- asks fst
+    names <- imports
     _ <- optional semi
-    statements <- local (const (uniqueNames, env)) $ sepBy semi statement
+    statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    substImports <$> go open statements
+    substTermImports names <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]
@@ -498,7 +497,7 @@ number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
 
 number'
-  :: Var v
+  :: Ord v
   => (L.Token Int64 -> a)
   -> (L.Token Word64 -> a)
   -> (L.Token Double -> a)

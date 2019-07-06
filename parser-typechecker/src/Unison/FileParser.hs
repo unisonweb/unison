@@ -41,7 +41,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
 file = do
   _ <- openBlock
-  names <- asks snd
+  names <- asks names
   (dataDecls, effectDecls, parsedAccessors) <- declarations
   env <- case environmentFor names dataDecls effectDecls of
     Right env -> pure env

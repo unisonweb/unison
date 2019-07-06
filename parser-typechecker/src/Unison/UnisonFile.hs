@@ -23,10 +23,11 @@ import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name            as Name
-import           Unison.Names           (Names)
-import           Unison.Names2          (Names0)
-import qualified Unison.Names           as Names
-import qualified Unison.Names2          as Names2
+--import           Unison.Names           (Names)
+--import           Unison.Names2          (Names0)
+--import qualified Unison.Names           as Names
+--import qualified Unison.Names2          as Names2
+import qualified Unison.Names3          as Names
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
 import qualified Unison.Referent        as Referent
@@ -40,6 +41,7 @@ import qualified Unison.Util.Relation   as Relation
 import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
+import Unison.Names3 (Names, Names0)
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
@@ -155,26 +157,26 @@ dependencies' file = let
                                          ]
   in allDeps
 
--- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
-dependencies :: (Monoid a, Var v) => UnisonFile v a -> Names -> Set Reference
-dependencies uf ns = directReferences <>
-                      Set.fromList freeTypeVarRefs <>
-                      Set.fromList freeTermVarRefs
-  where
-    tm = typecheckingTerm uf
-    directReferences = Term.dependencies tm
-    freeTypeVarRefs = -- we aren't doing any special resolution for types
-      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.fromVar <$>
-                  Set.toList (Term.freeTypeVars tm))
-    -- foreach name in Names.termNames,
-        -- if the name or unqualified name is in Term.freeVars,
-        -- include the reference
-    freeTermVarRefs =
-      [ Referent.toReference referent
-      | (name, referent) <- Map.toList $ Names.termNames ns
-      , Name.toVar name `Set.member` Term.freeVars tm
-        || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
-      ]
+---- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
+--dependencies :: (Monoid a, Var v) => UnisonFile v a -> Names -> Set Reference
+--dependencies uf ns = directReferences <>
+--                      Set.fromList freeTypeVarRefs <>
+--                      Set.fromList freeTermVarRefs
+--  where
+--    tm = typecheckingTerm uf
+--    directReferences = Term.dependencies tm
+--    freeTypeVarRefs = -- we aren't doing any special resolution for types
+--      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.fromVar <$>
+--                  Set.toList (Term.freeTypeVars tm))
+--    -- foreach name in Names.termNames,
+--        -- if the name or unqualified name is in Term.freeVars,
+--        -- include the reference
+--    freeTermVarRefs =
+--      [ Referent.toReference referent
+--      | (name, referent) <- Map.toList $ Names.termNames ns
+--      , Name.toVar name `Set.member` Term.freeVars tm
+--        || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
+--      ]
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFile datas effects terms watches _) = let
@@ -188,14 +190,14 @@ declsToTypeLookup uf = TL.TypeLookup mempty
                           (wrangle (effectDeclarations uf))
   where wrangle = Map.fromList . Map.elems
 
-toNames :: Var v => UnisonFile v a -> Names
+toNames :: Var v => UnisonFile v a -> Names0
 toNames (UnisonFile {..}) = datas <> effects
   where
     datas = foldMap DD.dataDeclToNames' (Map.toList dataDeclarations)
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDeclarations)
 
 typecheckedToNames0 :: Var v => TypecheckedUnisonFile v a -> Names0
-typecheckedToNames0 uf = Names2.Names (terms <> ctors) types where
+typecheckedToNames0 uf = Names.names0 (terms <> ctors) types where
   terms = Relation.fromList
     [ (Name.fromVar v, Referent.Ref r)
     | (v, (r, _, _)) <- Map.toList $ hashTerms uf ]
@@ -227,20 +229,29 @@ hashConstructors file =
 
 type CtorLookup = Map String (Reference, Int)
 
-bindBuiltins :: Var v
-             => Names
-             -> UnisonFile v a
-             -> UnisonFile v a
-bindBuiltins names uf@(UnisonFile d e ts ws) = let
-  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
-  names' = Names.subtractTerms vs names
-  ct = errMsg . constructorType uf
-  errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
-  in UnisonFile
-      (second (DD.bindBuiltins names) <$> d)
-      (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
-      (second (Names.bindTerm ct names') <$> ts)
-      (fmap (second (Names.bindTerm ct names')) <$> ws)
+---- todo: consider having some kind of binding structure for terms & watches
+----    so that you don't weirdly have free vars to tiptoe around.
+----    The free vars should just be the things that need to be bound externally.
+--bindExternalNames :: Var v
+--                  => Names0
+--                  -> UnisonFile v a
+--                  -> UnisonFile v a
+--bindExternalNames externalNames uf@(UnisonFile d e ts ws) = let
+--  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
+--  names' = subtractTerms vs names
+--  ct = errMsg . constructorType uf
+--  errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
+--  in UnisonFile
+--      (second (DD.bindBuiltins names) <$> d)
+--      (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
+--      (second (Names.bindTerm ct names') <$> ts)
+--      (fmap (second (Names.bindTerm ct names')) <$> ws)
+--  where
+--  subtractTerms :: Var v => [v] -> Names0 -> Names0
+--  subtractTerms vs n = let
+--    taken = Set.fromList (Name.fromVar <$> vs)
+--    in n { terms = Map.withoutKeys (termNames n) taken }
+
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
@@ -269,7 +280,7 @@ data Error v a
 -- If there are duplicate declarations, the duplicated names are returned on the
 -- left.
 environmentFor
-  :: forall v a . Var v => Names -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
+  :: forall v a . Var v => Names0 -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
   -> Either [Error v a] (Env v a)
 environmentFor names0 dataDecls0 effectDecls0 =
   let

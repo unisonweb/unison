@@ -9,7 +9,7 @@ import Safe (headMay)
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified as HQ
 import Unison.Name (Name)
-import Unison.Names2 (Names0)
+import qualified Unison.Names2
 import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
@@ -21,6 +21,14 @@ import qualified Unison.Names2 as Names
 import qualified Unison.Util.Relation as R
 
 data Names = Names { currentNames :: Names0, oldNames :: Names0 }
+
+type Names0 = Unison.Names2.Names0
+
+filterTypes :: (Name -> Bool) -> Names0 -> Names0
+filterTypes = Unison.Names2.filterTypes
+
+names0 :: Relation Name Referent -> Relation Name Reference -> Names0
+names0 terms types = Unison.Names2.Names terms types
 
 toPrettyPrintEnv :: Int -> Names -> PrettyPrintEnv
 toPrettyPrintEnv length names = PrettyPrintEnv terms' types' where
