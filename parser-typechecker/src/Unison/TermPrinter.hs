@@ -53,9 +53,6 @@ import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
---TODO #287:
---  - (fix Pair/Unit tuple FQN elision)
-
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
 data AmbientContext = AmbientContext
@@ -722,6 +719,7 @@ calcImports im tm = (im', render $ getUses result)
              |> longestPrefix
              |> avoidRepeatsAndClashes
              |> narrowestPossible
+             |> exclusions
     usages' :: Map Suffix (Map Prefix Int)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
@@ -764,6 +762,11 @@ calcImports im tm = (im', render $ getUses result)
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
+    -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair 
+    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly, 
+    -- then they'll miss out on FQN elision for that.  
+    exclusions :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
+    exclusions m = m |> Map.filterWithKey (\n _ -> notElem (Name.toString n) ["().()", "Pair.Pair"])
     -- `union` is left-biased, so this can replace existing imports.                      
     im' = getImportMapAdditions result `Map.union` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix

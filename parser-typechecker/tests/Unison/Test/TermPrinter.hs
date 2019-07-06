@@ -358,6 +358,11 @@ test = scope "termprinter" . tests $
                       "let\n\
                       \  delay () = isEven\n\
                       \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tc_breaks 80 "let\n\
+                 \  a = ()\n\
+                 \  b = ()\n\
+                 \  c = (1, 2)\n\
+                 \  ()"
 
 -- FQN elision tests
   , tc_breaks 12 "if foo then\n\
