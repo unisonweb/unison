@@ -12,18 +12,29 @@ data Element = NumericLiteral
              | Reference
              | Constructor
              | Request
-             -- let|alias|handle|in|namespace|type|ability|where|case|of|->|if|then|else|and|or
+             | AbilityBraces
+             -- let|alias|handle|in|namespace|where|case|of|->|if|then|else|and|or
              | ControlKeyword 
              | BindingEquals
-             | TypeAscriptionColon
              -- forall|∀|->
              | TypeOperator
+             | TypeAscriptionColon
+             -- type|ability
+             | DataTypeKeyword
+             | DataTypeParams
+             | DataType
+             -- unique
+             | DataTypeModifier
              -- `use Foo bar` is keyword, prefix, suffix
              | UseKeyword
              | UsePrefix
              | UseSuffix
              -- ? ! , ' ` [ ] { } @ | = _
+             -- Currently not all commas in the pretty-print output are marked up as DelimiterChar - we miss
+             -- out characters emitted by Pretty.hs helpers like Pretty.commas.
+             | DelayForceChar
              | DelimiterChar
+             -- ! '
              | Parenthesis
 
 defaultColors :: Element -> ColorText -> ColorText
@@ -35,14 +46,20 @@ defaultColors = \case
   Var                 -> white
   Reference           -> green
   Constructor         -> green
-  Request             -> green
+  Request             -> hiGreen
+  AbilityBraces       -> hiGreen
   ControlKeyword      -> red
   BindingEquals       -> red
-  TypeAscriptionColon -> red
   TypeOperator        -> red
+  TypeAscriptionColon -> hiBlack
+  DataTypeKeyword     -> hiBlue
+  DataType            -> blue
+  DataTypeParams      -> white
+  DataTypeModifier    -> hiBlack
   UseKeyword          -> hiBlack
   UsePrefix           -> hiBlack
   UseSuffix           -> hiBlack
+  DelayForceChar      -> yellow
   DelimiterChar       -> white
   Parenthesis         -> white
 

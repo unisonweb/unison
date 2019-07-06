@@ -75,14 +75,15 @@ pretty0 n im p tp = go n im p tp
   go :: PrettyPrintEnv -> Imports -> Int -> AnnotatedType v a -> Pretty ColorText
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
-    Ref' r     -> fmt S.Reference $ prettyHashQualified0 $ elideFQN im (PrettyPrintEnv.typeName n r)
+    -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
+    Ref' r     -> fmt S.DataType $ prettyHashQualified0 $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
     App' (Ref' (Builtin "Sequence")) x ->
       PP.group $ (fmt S.DelimiterChar "[") <> go n im 0 x <> (fmt S.DelimiterChar "]")
-    DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ (fmt S.Reference "Pair") `PP.hang` PP.spaced
-      [go n im 10 x, (fmt S.Reference "()")]
+    DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ (fmt S.DataType "Pair") `PP.hang` PP.spaced
+      [go n im 10 x, (fmt S.DataType "()")]
     DD.TupleType' xs  -> PP.parenthesizeCommas $ map (go n im 0) xs
     Apps' f xs -> PP.parenthesizeIf (p >= 10) $ go n im 9 f `PP.hang` PP.spaced
       (go n im 10 <$> xs)
@@ -102,14 +103,14 @@ pretty0 n im p tp = go n im p tp
       _ -> "error"
     _ -> "error"
   effects Nothing   = mempty
-  effects (Just es) = PP.group $ (fmt S.DelimiterChar "{") <> PP.commas (go n im 0 <$> es) <> (fmt S.DelimiterChar "}")
+  effects (Just es) = PP.group $ (fmt S.AbilityBraces "{") <> PP.commas (go n im 0 <$> es) <> (fmt S.AbilityBraces "}")
   arrow delay first mes =
     (if first then mempty else PP.softbreak <> (fmt S.TypeOperator "->"))
-      <> (if delay then (if first then (fmt S.DelimiterChar "'") else (fmt S.DelimiterChar " '")) else mempty)
+      <> (if delay then (if first then (fmt S.DelayForceChar "'") else (fmt S.DelayForceChar " '")) else mempty)
       <> effects mes
       <> if (isJust mes) || (not delay) && (not first) then " " else mempty
 
-  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.Reference "()")
+  arrows delay first [(mes, Ref' DD.UnitRef)] = arrow delay first mes <> (fmt S.DataType "()")
   arrows delay first ((mes, Ref' DD.UnitRef) : rest) =
     arrow delay first mes <> (parenNoGroup delay $ arrows True True rest)
   arrows delay first ((mes, arg) : rest) =

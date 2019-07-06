@@ -26,4 +26,7 @@ ability Ask a where
 
 type Either a b = Left a | Right b  
 
+unique ability Zang where
+  zang : {Zang} Nat
+
 > ()

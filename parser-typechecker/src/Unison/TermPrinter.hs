@@ -54,11 +54,8 @@ import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
 --TODO #287:
---  - rebase onto branchless
 --  - (fix Pair/Unit tuple FQN elision)
 --  - hash qualification
---  - PP.commas etc
---  - DeclPrinter
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -184,10 +181,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
         <> PP.softbreak
         <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty n (ac 2 Block im') body]))
     App' x (Constructor' DD.UnitRef 0) ->
-      paren (p >= 11) $ (fmt S.DelimiterChar $ l "!") <> pretty n (ac 11 Normal im) x
+      paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty n (ac 11 Normal im) x
     AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
-      paren (p >= 11) $ (fmt S.DelimiterChar $ l "'") <> pretty n (ac 11 Normal im) x
+      paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty n (ac 11 Normal im) x
     Sequence' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
