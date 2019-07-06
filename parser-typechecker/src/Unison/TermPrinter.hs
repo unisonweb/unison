@@ -31,7 +31,7 @@ import qualified Unison.HashQualified          as HQ
 import           Unison.Lexer                   ( symbolyId )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import           Unison.NamePrinter             ( prettyHashQualified, prettyHashQualified0 )
+import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
@@ -55,7 +55,6 @@ import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
 
 --TODO #287:
 --  - (fix Pair/Unit tuple FQN elision)
---  - hash qualification
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -149,10 +148,10 @@ pretty
   -> Pretty ColorText
 pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . fmt S.Var . prettyHashQualified $ name
+    Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.fromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . fmt S.Reference . prettyHashQualified0 $ name
+    Ref' r -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Reference) $ name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
@@ -171,9 +170,9 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
     Text'    s  -> fmt S.TextLiteral $ l $ show s
     Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
-    Constructor' ref i -> fmt S.Constructor $ prettyHashQualified $ 
+    Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $ 
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
-    Request' ref i -> fmt S.Request $ prettyHashQualified $ 
+    Request' ref i -> styleHashQualified'' (fmt S.Request) $ 
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
@@ -355,11 +354,11 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   PatternP.Constructor _ ref i [] ->
-    (fmt S.Constructor $ prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
+    (styleHashQualified'' (fmt S.Constructor) $ elideFQN im (PrettyPrintEnv.patternName n ref i), vs)
   PatternP.Constructor _ ref i pats ->
     let (pats_printed, tail_vs) = patternsSep PP.softbreak vs pats
     in  ( paren (p >= 10)
-          $ prettyHashQualified (elideFQN im (PrettyPrintEnv.patternName n ref i))
+          $ styleHashQualified'' (fmt S.Constructor) (elideFQN im (PrettyPrintEnv.patternName n ref i))
             `PP.hang` pats_printed
         , tail_vs)
   PatternP.As _ pat ->
@@ -374,7 +373,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
         (k_pat_printed, eventual_tail) = prettyPattern n c 0 tail_vs k_pat
     in  ((fmt S.DelimiterChar "{" ) <>
           (PP.sep " " . PP.nonEmpty $ [
-            prettyHashQualified $ elideFQN im (PrettyPrintEnv.patternName n ref i),
+            styleHashQualified'' (fmt S.Request) $ elideFQN im (PrettyPrintEnv.patternName n ref i),
             pats_printed,
             fmt S.ControlKeyword "->",
             k_pat_printed]) <>
@@ -443,14 +442,14 @@ prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
       then case vs of
         x : y : _ ->
           PP.sep " " [fmt S.Var $ PP.text (Var.name x),
-                      fmt S.Reference $ prettyHashQualified $ elideFQN im v,
+                      styleHashQualified'' (fmt S.Reference) $ elideFQN im v,
                       fmt S.Var $ PP.text (Var.name y)]
         _ -> l "error"
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap ((fmt S.Var) . PP.text . Var.name) vs
     renderName n = let n' = elideFQN im n 
-                   in parenIfInfix n' NonInfix $ fmt S.Reference $ prettyHashQualified n'
+                   in parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
                    
   symbolic = isSymbolic v
   isBinary = \case

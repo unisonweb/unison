@@ -9,13 +9,12 @@ import qualified Data.Map              as Map
 import           Data.Maybe            (isJust)
 import           Data.String           (fromString)
 import           Unison.HashQualified  (HashQualified)
-import           Unison.NamePrinter    ( prettyHashQualified
-                                       , prettyHashQualified0)
+import           Unison.NamePrinter    (styleHashQualified'')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
 import qualified Unison.SyntaxHighlights as S
-import           Unison.SyntaxHighlights ( fmt )
+import           Unison.SyntaxHighlights (fmt)
 import           Unison.Type
 import           Unison.Util.Pretty    (ColorText, Pretty)
 import           Unison.Util.ColorText (toPlain)
@@ -76,7 +75,7 @@ pretty0 n im p tp = go n im p tp
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
-    Ref' r     -> fmt S.DataType $ prettyHashQualified0 $ elideFQN im (PrettyPrintEnv.typeName n r)
+    Ref' r     -> styleHashQualified'' (fmt S.DataType) $ elideFQN im (PrettyPrintEnv.typeName n r)
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
@@ -140,7 +139,7 @@ prettySignatures'
   -> [(HashQualified, AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
-  [ (prettyHashQualified name, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
+  [ (styleHashQualified'' (fmt S.DataType) name, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
                    ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty env Map.empty (-1) typ)))
   | (name, typ) <- ts
   ]
@@ -151,7 +150,7 @@ prettySignaturesAlt'
   -> [([HashQualified], AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = PP.align
-  [ (PP.commas . fmap prettyHashQualified $ names, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
+  [ (PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
      ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty env Map.empty (-1) typ)))
   | (names, typ) <- ts
   ]
