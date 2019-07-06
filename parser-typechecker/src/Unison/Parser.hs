@@ -35,12 +35,13 @@ import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
 import Unison.Name as Name
 import Unison.Names3 (Names)
-import Control.Monad.Reader.Class (ask)
+import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
 import Data.Set (Set)
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
+import Unison.ConstructorType (ConstructorType)
 
 debug :: Bool
 debug = False
@@ -48,6 +49,11 @@ debug = False
 type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
+
+data ParsingEnv =
+  ParsingEnv { uniqueNames :: UniqueName
+             , names :: Names
+             , constructorType :: Reference -> ConstructorType }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
@@ -76,7 +82,7 @@ uniqueBase58Namegen = do
 
 uniqueName :: Var v => Int -> P v Text
 uniqueName lenInBase58 = do
-  (UniqueName mkName, _) <- ask
+  UniqueName mkName <- asks uniqueNames
   pos <- L.start <$> P.lookAhead anyToken
   let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
   pure . fromMaybe none $ mkName pos lenInBase58
@@ -85,8 +91,8 @@ data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
   | DisallowedAbsoluteName (L.Token v)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set Referent)
-  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set Referent)
+  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
+  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
   | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
   | UnknownType (L.Token HQ.HashQualified) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
@@ -217,6 +223,11 @@ lookAhead = P.lookAhead
 anyToken :: Var v => P v (L.Token L.Lexeme)
 anyToken = P.anyChar
 
+failCommitted :: Var v => Error v -> P v x
+failCommitted e = do
+  void anyToken <|> void P.eof
+  P.customFailure e
+
 proxy :: Proxy Input
 proxy = Proxy
 
@@ -226,8 +237,6 @@ root p = (openBlock *> p) <* closeBlock <* P.eof
 -- |
 rootFile :: Var v => P v a -> P v a
 rootFile p = p <* P.eof
-
-type ParsingEnv = (UniqueName, Names)
 
 run' :: Var v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
 run' p s name =
@@ -241,7 +250,7 @@ run :: Var v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
-queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
+queryToken :: Ord v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
   where go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
@@ -271,9 +280,10 @@ matchToken x = P.satisfy ((==) x . L.payload)
 dot :: Var v => P v (L.Token L.Lexeme)
 dot = matchToken (L.SymbolyId "." Nothing)
 
-dotId :: Var v => P v (L.Token String)
-dotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just "."
+-- The package name that refers to the root, literally just `.`
+importDotId :: Var v => P v (L.Token Name)
+importDotId = queryToken go where
+  go (L.SymbolyId "." Nothing) = Just (Name.fromString ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
@@ -284,11 +294,38 @@ semi = void <$> matchToken L.Semi
 closeBlock :: Var v => P v (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
+wordyPatternName :: Var v => P v (L.Token v)
+wordyPatternName = queryToken $ \case
+  L.WordyId s Nothing -> Just $ Var.nameds s
+  _                   -> Nothing
+
 -- Parse an alphanumeric identifier, discarding any hash
-wordyDefinitionName :: Var v => P v (L.Token v)
-wordyDefinitionName = queryToken $ \case
-  L.WordyId s _ -> Just $ Var.nameds s
+
+prefixDefinitionName :: Var v => P v (L.Token v)
+prefixDefinitionName =
+  fmap (fmap Name.toVar) wordyId_ <|> parenthesize symbolyDefinitionName
+  where
+  wordyId_ = queryToken $ \case
+    L.WordyId s _ -> Just (Name.fromString s)
+    _             -> Nothing
+
+importWordyId :: Var v => P v (L.Token Name)
+importWordyId = queryToken $ \case
+  L.WordyId s Nothing -> Just (Name.fromString s)
   _             -> Nothing
+
+-- The `+` in: use Foo.bar +
+importSymbolyId :: Var v => P v (L.Token Name)
+importSymbolyId = queryToken $ \case
+  L.SymbolyId s Nothing -> Just (Name.fromString s)
+  _             -> Nothing
+
+infixDefinitionName :: Var v => P v (L.Token v)
+infixDefinitionName = symbolyDefinitionName <|> backticked where
+  backticked :: Var v => P v (L.Token v)
+  backticked = queryToken $ \case
+    L.Backticks s _ -> Just $ Var.nameds s
+    _               -> Nothing
 
 -- Parse a symboly ID like >>= or &&, discarding any hash
 symbolyDefinitionName :: Var v => P v (L.Token v)
@@ -296,29 +333,31 @@ symbolyDefinitionName = queryToken $ \case
   L.SymbolyId s _ -> Just $ Var.nameds s
   _               -> Nothing
 
-backtickedDefinitionName :: Var v => P v (L.Token v)
-backtickedDefinitionName = queryToken $ \case
-  L.Backticks s _ -> Just $ Var.nameds s
-  _               -> Nothing
+parenthesize :: Var v => P v a -> P v a
+parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
+
+hqPrefixId, hqInfixId :: Var v => P v (L.Token HQ.HashQualified)
+hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
+hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId :: Var v => P v (L.Token HQ.HashQualified)
-hqWordyId = queryToken $ \case
+hqWordyId_ :: Var v => P v (L.Token HQ.HashQualified)
+hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
   L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId :: Var v => P v (L.Token HQ.HashQualified)
-hqSymbolyId = queryToken $ \case
+hqSymbolyId_ :: Var v => P v (L.Token HQ.HashQualified)
+hqSymbolyId_ = queryToken $ \case
   L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
   L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
   _ -> Nothing
 
-hqBacktickedId :: Var v => P v (L.Token HQ.HashQualified)
-hqBacktickedId = queryToken $ \case
+hqBacktickedId_ :: Var v => P v (L.Token HQ.HashQualified)
+hqBacktickedId_ = queryToken $ \case
   L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
   L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)

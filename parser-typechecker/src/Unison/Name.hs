@@ -64,7 +64,9 @@ stripPrefixes :: Name -> Name
 stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
 
 joinDot :: Name -> Name -> Name
-joinDot n1 n2 = Name $ toText n1 <> "." <> toText n2
+joinDot prefix suffix =
+  if toText prefix == "." then Name (toText prefix <> toText suffix)
+  else Name (toText prefix <> "." <> toText suffix)
 
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText

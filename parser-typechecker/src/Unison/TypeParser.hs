@@ -34,13 +34,14 @@ computationType = effect <|> valueType
 
 valueTypeLeaf :: Var v => TypeP v
 valueTypeLeaf =
-  tupleOrParenthesizedType valueType <|> typeVar <|> sequenceTyp
+  tupleOrParenthesizedType valueType <|> typeAtom <|> sequenceTyp
 
-typeVar :: Var v => TypeP v
-typeVar = hqWordyId >>= \tok -> case L.payload tok of
+-- Examples: Optional, Optional#abc, woot, #abc
+typeAtom :: Var v => TypeP v
+typeAtom = hqPrefixId >>= \tok -> case L.payload tok of
   HQ.NameOnly n -> pure $ Type.var (ann tok) (Name.toVar n)
   hq -> do
-    names <- asks snd
+    names <- asks names
     let matches = Names.lookupHQType hq names
     if Set.size matches /= 1
     then P.customFailure (UnknownType tok matches)
@@ -107,7 +108,7 @@ arrow rec =
 forall :: Var v => TypeP v -> TypeP v
 forall rec = do
     kw <- reserved "forall" <|> reserved "∀"
-    vars <- fmap (fmap L.payload) . some $ wordyDefinitionName
+    vars <- fmap (fmap L.payload) . some $ prefixDefinitionName
     _ <- matchToken $ L.SymbolyId "." Nothing
     t <- rec
     pure $ Type.foralls (ann kw <> ann t) vars t

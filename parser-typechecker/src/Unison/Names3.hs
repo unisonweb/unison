@@ -2,22 +2,23 @@
 
 module Unison.Names3 where
 
-import Unison.Names2 (Names0)
+import Data.Foldable (toList)
+import Data.List (foldl')
+import Data.Set (Set)
+import Safe (headMay)
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified as HQ
+import Unison.Name (Name)
+import Unison.Names2 (Names0)
+import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
-import Unison.Referent as Referent
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Unison.Referent (Referent)
-import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
-import qualified Unison.Util.Relation as R
-import qualified Unison.Names2 as Names
-import Safe (headMay)
-import Data.Foldable (toList)
+import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
-import Unison.Name (Name)
+import qualified Data.Set as Set
+import qualified Unison.Names2 as Names
+import qualified Unison.Util.Relation as R
 
 data Names = Names { currentNames :: Names0, oldNames :: Names0 }
 
@@ -88,16 +89,21 @@ lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList
   [ (r, cid) | Referent.Con r cid <- toList $ lookupHQTerm hq names ]
 
--- Given a mapping from name to qualified name, update a `PEnv`,
+-- Given a mapping from name to qualified name, update a `Names`,
 -- so for instance if the input has [(Some, Optional.Some)],
--- and `Optional.Some` is a constructor in the input `PEnv`,
--- the alias `Some` will map to that same constructor
+-- and `Optional.Some` is a constructor in the input `Names`,
+-- the alias `Some` will map to that same constructor and shadow
+-- anything else that is currently called `Some`.
+--
+-- Only affects `currentNames`.
 importing :: [(Name, Name)] -> Names -> Names
-importing shortToLongName Names{..} = let
-  go :: (Ord a, Ord b) => Relation a b -> (k, k) -> Relation a b
+importing shortToLongName ns =
+  ns { currentNames = Names.Names
+         (foldl' go (Names.terms $ currentNames ns) shortToLongName)
+         (foldl' go (Names.types $ currentNames ns) shortToLongName)
+     }
+  where
+  go :: (Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
   go m (shortname, qname) = case R.lookupDom qname m of
-    Nothing -> m
-    Just v  -> R.insert shortname v (R.deleteDom shortname m)
-  terms' = foldl' go termNames shortToLongName
-  types' = foldl' go typeNames shortToLongName
-  in Names terms' types'
+    s | Set.null s -> m
+      | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
