@@ -98,6 +98,8 @@ import           Unison.Var                    (Var)
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import           System.Directory               ( getHomeDirectory )
+import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
+import qualified Unison.Codebase.Editor.Input as Input
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -151,6 +153,12 @@ notifyUser dir o = case o of
 
   LinkFailure input -> putPrettyLn . P.warnCallout . P.shown $ input
   EvaluationFailure err -> putPrettyLn err
+  SearchTermsNotFound hqs | null hqs -> return ()
+  SearchTermsNotFound hqs ->
+    putPrettyLn
+      $  P.warnCallout "The following names were not found in the codebase. Check your spelling."
+      <> P.newline
+      <> P.indent "  " (P.lines (prettyHashQualified <$> hqs))
   PatchNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
@@ -238,10 +246,11 @@ notifyUser dir o = case o of
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
 
 
-  SlurpOutput _input ppe s ->
-    putPrettyLn $
-      SlurpResult.pretty ppe s <> "\n\n" <>
-      filestatusTip
+  SlurpOutput input ppe s -> let
+    isPast = case input of Input.AddI{} -> True
+                           Input.UpdateI{} -> True
+                           _ -> False
+    in putPrettyLn $ SlurpResult.pretty isPast ppe s
 
   NoExactTypeMatches ->
     putPrettyLn . P.callout "☝️" $ P.wrap "I couldn't find exact type matches, resorting to fuzzy matching..."
@@ -297,25 +306,30 @@ notifyUser dir o = case o of
         traverse_ (\x -> putStrLn ("  " ++ Name.toString x)) things
     -- TODO: Present conflicting TermEdits and TypeEdits
     -- if we ever allow users to edit hashes directly.
-  FileChangeEvent _sourceName _src -> do
-    Console.clearScreen
-    Console.setCursorPosition 0 0
+  FileChangeEvent _sourceName _src -> putStrLn ""
   Typechecked sourceName ppe slurpResult uf -> do
     Console.setTitle "Unison ✅"
-    let fileStatusMsg = SlurpResult.pretty ppe slurpResult
+    let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
       if fileStatusMsg == mempty then do
         putPrettyLn' . P.wrap . P.okCallout $
           fileName <> " changed."
-      else do
-        putPrettyLn' . (P.newline <>) . P.linesSpaced $
-          [P.wrap . P.okCallout $ "I found and"
-           <> P.bold "typechecked" <> "these definitions in "
-           <> P.group (fileName <> ":")
-          , P.indentN 2 $ SlurpResult.pretty ppe slurpResult
-          , filestatusTip
-          ]
+      else
+        if SlurpResult.isAllDuplicates slurpResult then
+          putPrettyLn' . (P.newline <>) . P.okCallout . P.wrap $ "I found and"
+           <> P.bold "typechecked" <> "the definitions in "
+           <> P.group (fileName <> ".")
+           <> "This file " <> P.bold "has been previously added" <> "to the codebase."
+        else do
+          putPrettyLn' . (P.newline <>) . P.linesSpaced $ [
+            P.okCallout . P.wrap $ "I found and"
+             <> P.bold "typechecked" <> "these definitions in "
+             <> P.group (fileName <> ".")
+             <> "If you do an `add` or `update`, here's how your codebase would"
+             <> "change:"
+            , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
+            ]
       putPrettyLn' ""
       putPrettyLn' . P.wrap $ "Now evaluating any watch expressions"
                            <> "(lines starting with `>`)... "
@@ -475,7 +489,7 @@ displayDefinitions :: Var v => Ord a1 =>
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> IO ()
 displayDefinitions outputLoc ppe types terms | Map.null types && Map.null terms =
-  putPrettyLn $ noResults
+  return ()
 displayDefinitions outputLoc ppe types terms =
   maybe displayOnly scratchAndDisplay outputLoc
   where

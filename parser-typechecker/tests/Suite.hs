@@ -18,6 +18,7 @@ import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.ColorText as ColorText
 import qualified Unison.Test.Util.Bytes as Bytes
 import qualified Unison.Test.Codebase.Path as Path
+import qualified Unison.Test.Codebase.Causal as Causal
 
 
 test :: Test ()
@@ -35,6 +36,7 @@ test = tests
   , ColorText.test
   , Bytes.test
   , Path.test
+  , Causal.test
  ]
 
 main :: IO ()

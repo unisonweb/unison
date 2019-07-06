@@ -13,8 +13,12 @@ module Unison.Util.Pretty (
    bracket,
    -- breakable
    callout,
+   excerptSep,
+   excerptSep',
    warnCallout, fatalCallout, okCallout,
    column2,
+   column3,
+   column3sep,
    commas,
    commented,
    oxfordCommas,
@@ -32,6 +36,7 @@ module Unison.Util.Pretty (
    indentNAfterNewline,
    leftPad,
    lines,
+   linesNonEmpty,
    linesSpaced,
    lit,
    map,
@@ -251,6 +256,16 @@ sep between = intercalateMap between id
 sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepNonEmpty between ps = sep between (nonEmpty ps)
 
+-- if list is too long, adds `... 22 more` to the end
+excerptSep :: IsString s => Int -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep maxCount = excerptSep' maxCount (\i -> "... " <> shown i <> " more")
+
+excerptSep' :: IsString s => Int -> (Int -> Pretty s) -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep' maxCount summarize s ps =
+  if length ps > maxCount then
+    sep s (take maxCount ps) <> summarize (length ps - maxCount)
+  else sep s ps
+
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
 nonEmpty (toList -> l) = case l of
   (out -> Empty) : t -> nonEmpty t
@@ -266,6 +281,9 @@ parenthesizeIf True s = parenthesize s
 
 lines :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 lines = intercalateMap newline id
+
+linesNonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
+linesNonEmpty = lines . nonEmpty
 
 linesSpaced :: (Foldable f, IsString s) => f (Pretty s) -> Pretty s
 linesSpaced ps = lines (intersperse "" $ toList ps)
@@ -305,6 +323,17 @@ rightPad n p =
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 column2 rows = lines (group <$> align rows)
+
+column3
+  :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+column3 = column3sep ""
+
+column3sep
+  :: (LL.ListLike s Char, IsString s) => Pretty s -> [(Pretty s, Pretty s, Pretty s)] -> Pretty s
+column3sep sep rows = let
+  bc = align [(b,sep <> c) | (_,b,c) <- rows ]
+  abc = group <$> align [(a,sep <> bc) | ((a,_,_),bc) <- rows `zip` bc ]
+  in lines abc
 
 wrapColumn2 ::
   (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s

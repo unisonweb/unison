@@ -101,7 +101,7 @@ sort lte a =
 
 Node.increment : Node -> Node
 Node.increment n =
-  use Node.Node -- the constructor
+  use Node Node -- the constructor
   case n of Node n -> Node (n + 1)
 
 > Remote.runLocal '(dsort (<) [3,2,1,1,2,3,9182,1,2,34,1,23])

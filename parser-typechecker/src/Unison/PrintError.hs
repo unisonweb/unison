@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -57,6 +56,7 @@ import           Unison.Var                   (Var)
 import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
+import qualified Unison.Util.Pretty as Pr
 
 type Env = PPE.PrettyPrintEnv
 
@@ -67,6 +67,9 @@ pattern ErrorSite = Color.HiRed
 pattern TypeKeyword = Color.Yellow
 pattern AbilityKeyword = Color.Green
 pattern Identifier = Color.Bold
+
+defaultWidth :: Int
+defaultWidth = 60
 
 fromOverHere'
   :: Ord a
@@ -923,6 +926,16 @@ prettyParseError s = \case
   go' (P.ErrorCustom e) = go e
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  go (Parser.DisallowedAbsoluteName t) = Pr.render defaultWidth msg where
+   msg :: Pr.Pretty Pr.ColorText
+   msg = Pr.indentN 2 $ Pr.fatalCallout $ Pr.lines [
+     Pr.wrap $ "I don't currently support creating definitions that start with"
+           <> Pr.group (Pr.blue "'.'" <> ":"),
+     "",
+     Pr.lit (tokenAsErrorSite s t),
+     Pr.wrap $ "Use " <> Pr.blue "help messages.disallowedAbsolute" <> "to learn more.",
+     ""
+     ]
   go (Parser.DuplicateTypeNames ts) = intercalateMap "\n\n" showDup ts where
     showDup (v, locs) =
       "I found multiple types with the name " <> errorVar v <> ":\n\n" <>
@@ -945,16 +958,16 @@ prettyParseError s = \case
        then dupDataAndAbilitiesMsg
        else if null dupDataAndAbilities then unknownTypesMsg
        else unknownTypesMsg <> "\n\n" <> dupDataAndAbilitiesMsg
-  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::")))
+  go (Parser.DidntExpectExpression _tok (Just t@(L.payload -> L.SymbolyId "::" Nothing)))
     = mconcat
-      [ "I parsed an expression here but was expecting a binding."
+      [ "This looks like the start of an expression here but I was expecting a binding."
       , "\nDid you mean to use a single " <> style Code ":"
       , " here for a type signature?"
       , "\n\n"
       , tokenAsErrorSite s t
       ]
   go (Parser.DidntExpectExpression tok _nextTok) = mconcat
-    [ "I parsed an expression starting here\n\n"
+    [ "This looks like the start of an expression here \n\n"
     , tokenAsErrorSite s tok
     , "\nbut at the file top-level, I expect one of the following:"
     , "\n"
@@ -998,6 +1011,11 @@ prettyParseError s = \case
     "I expected a non-empty watch expression and not just \">\""
   go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
   go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
+  go (Parser.UnknownHashQualifiedName tok) = mconcat
+    [ "I couldn't find the referent of the hash-qualified name "
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , ". Make sure it's spelled correctly and that you have the right hash."
+    ]
   unknownConstructor
     :: String -> L.Token String -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat

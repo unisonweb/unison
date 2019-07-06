@@ -50,6 +50,9 @@ type ConstructorId = Int
 type DataDeclaration v = DataDeclaration' v ()
 type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
+declDependencies :: Ord v => Decl v a -> Set Reference
+declDependencies = either (dependencies . toDataDecl) dependencies
+
 data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
 

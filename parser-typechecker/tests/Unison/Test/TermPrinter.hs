@@ -218,7 +218,6 @@ test = scope "termprinter" . tests $
               \    else c"
   , tc_diff_rtt True "if foo\n\
             \then\n\
-            \  use bar\n\
             \  and true true\n\
             \  12\n\
             \else\n\

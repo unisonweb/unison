@@ -26,6 +26,7 @@ import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import           Unison.DataDeclaration     (DataDeclaration',
                                              EffectDeclaration')
+import qualified Unison.Name                as Name
 import qualified Unison.Names2              as Names
 import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
@@ -121,7 +122,7 @@ synthesizeFile ambient preexistingTypes preexistingNames unisonFile = do
      where
       fqnsByShortName :: Map Name [Typechecker.NamedReference v Ann]
       fqnsByShortName = Map.fromListWith mappend
-         [ (Names.unqualified' name,
+         [ (Name.unqualified' name,
             [Typechecker.NamedReference name typ (Right r)]) |
            (name', r) <- Rel.toList $ Names.terms allTheNames,
            let name = HQ.toText name',

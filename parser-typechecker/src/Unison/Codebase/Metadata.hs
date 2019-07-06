@@ -9,6 +9,7 @@ import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Unison.Util.Star3 as Star3
+import Unison.Util.Relation (Relation)
 
 type Type = Reference
 type Value = Reference
@@ -45,3 +46,6 @@ empty = mempty
 
 singleton :: Type -> Value -> Metadata
 singleton ty v = Map.singleton ty (Set.singleton v)
+
+toRelation :: Star a n -> Relation a n
+toRelation = Star3.d1

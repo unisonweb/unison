@@ -11,7 +11,7 @@ import           Data.String                    ( IsString
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Prelude                 hiding ( take )
-import           Unison.Name                    ( Name )
+import           Unison.Name                    ( Name(Name) )
 import qualified Unison.Name                   as Name
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
@@ -35,7 +35,7 @@ stripNamespace namespace hq = case hq of
   ho                    -> ho
  where
   strip name =
-    fromMaybe name $ Name.stripPrefix (Name.Name $ namespace <> ".") name
+    fromMaybe name $ Name.stripNamePrefix (Name namespace) name
 
 toName :: HashQualified' n -> Maybe n
 toName = \case

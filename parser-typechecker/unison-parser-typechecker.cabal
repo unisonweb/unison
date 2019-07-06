@@ -45,6 +45,7 @@ library
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
     Unison.Codebase.Editor.Command
+    Unison.Codebase.Editor.DisplayThing
     Unison.Codebase.Editor.Git
     Unison.Codebase.Editor.HandleInput
     Unison.Codebase.Editor.HandleCommand
@@ -252,6 +253,7 @@ executable tests
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
+    Unison.Test.Codebase.Causal
     Unison.Test.Codebase.Path
     Unison.Test.ColorText
     Unison.Test.Common
@@ -275,6 +277,7 @@ executable tests
     directory,
     easytest,
     errors,
+    extra,
     filepath,
     filemanip,
     lens,
