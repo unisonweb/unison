@@ -316,6 +316,12 @@ typedecl =
       <*> TypeParser.valueType
       <* semi
 
+verifyRelativeVarName :: Var v => P v (L.Token v) -> P v (L.Token v)
+verifyRelativeVarName p = do
+  v <- p
+  verifyRelativeName' (Name.fromVar <$> v)
+  pure v
+
 verifyRelativeName :: Ord v => P v (L.Token Name) -> P v (L.Token Name)
 verifyRelativeName name = do
   name <- name

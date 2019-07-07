@@ -229,29 +229,39 @@ hashConstructors file =
 
 type CtorLookup = Map String (Reference, Int)
 
----- todo: consider having some kind of binding structure for terms & watches
-----    so that you don't weirdly have free vars to tiptoe around.
-----    The free vars should just be the things that need to be bound externally.
---bindExternalNames :: Var v
---                  => Names0
---                  -> UnisonFile v a
---                  -> UnisonFile v a
---bindExternalNames externalNames uf@(UnisonFile d e ts ws) = let
---  vs = (fst <$> ts) ++ (Map.elems ws >>= map fst)
---  names' = subtractTerms vs names
---  ct = errMsg . constructorType uf
---  errMsg = fromMaybe (error "unknown constructor type in UF.bindBuiltins")
---  in UnisonFile
---      (second (DD.bindBuiltins names) <$> d)
---      (second (withEffectDecl (DD.bindBuiltins names)) <$> e)
---      (second (Names.bindTerm ct names') <$> ts)
---      (fmap (second (Names.bindTerm ct names')) <$> ws)
---  where
---  subtractTerms :: Var v => [v] -> Names0 -> Names0
---  subtractTerms vs n = let
---    taken = Set.fromList (Name.fromVar <$> vs)
---    in n { terms = Map.withoutKeys (termNames n) taken }
-
+-- Substitutes free type and term variables occurring in the terms of this
+-- `UnisonFile` using `externalNames`.
+--
+-- Hash-qualified names are substituted during parsing, but non-HQ names are
+-- substituted at the end of parsing, since they can be locally bound. Example, in
+-- `x -> x + math.sqrt 2`, we don't know if `math.sqrt` is locally bound until
+-- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
+-- as it can't refer to a local definition.
+bindNames :: Var v
+          => (Reference -> CT.ConstructorType)
+          -> Names0
+          -> UnisonFile v a
+          -> Names.ResolutionResult v a (UnisonFile v a)
+bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
+  -- todo: consider having some kind of binding structure for terms & watches
+  --    so that you don't weirdly have free vars to tiptoe around.
+  --    The free vars should just be the things that need to be bound externally.
+  let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
+      names' = subtractTerms termVars externalNames
+      ct = let
+        fromFile = constructorType uf
+        in \r -> case fromFile r of
+             Nothing -> ctorType r
+             Just ct -> ct
+  UnisonFile d e
+    -- todo: gotta make this code monadic
+    (second (Term.bindNames ct names') <$> ts)
+    (fmap (second (Term.bindNames ct names')) <$> ws)
+  where
+  subtractTerms :: Var v => [v] -> Names0 -> Names0
+  subtractTerms vs n = let
+    taken = Set.fromList (Name.fromVar <$> vs)
+    in n { terms = Map.withoutKeys (termNames n) taken }
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
@@ -263,7 +273,7 @@ data Env v a = Env
   -- Effect declaration name to hash and its fully resolved form
   , effects :: Map v (Reference, EffectDeclaration' v a)
   -- Naming environment
-  , names   :: Names
+  , names   :: Names0 -- seems like this should be Names0
 }
 
 data Error v a
@@ -285,40 +295,39 @@ environmentFor
   -> Map v (DataDeclaration' v a)
   -> Map v (EffectDeclaration' v a)
   -> Names.ResolutionResult v a (Either [Error v a] (Env v a))
-environmentFor = undefined
---environmentFor names0 dataDecls0 effectDecls0 = do
---  let
---    -- ignore builtin types that will be shadowed by user-defined data/effects
---    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
---                && Map.notMember (Name.toVar n) effectDecls0
---    names = Names.filterTypes unshadowed names0
---    -- data decls and hash decls may reference each other, and thus must be hashed together
---  dataDecls :: Map v (DataDeclaration' v a) <-
---    traverse (DD.bindNames names) dataDecls0
---  effectDecls :: Map v (EffectDeclaration' v a) <-
---    traverse (DD.withEffectDeclM (DD.bindNames names)) effectDecls0
---  let allDecls0 :: Map v (DataDeclaration' v a)
---      allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
---  hashDecls' :: [(v, Reference, DataDeclaration' v a)] <-
---      hashDecls allDecls0
---    -- then we have to pick out the dataDecls from the effectDecls
---  let
---    allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
---    dataDecls' = Map.difference allDecls effectDecls
---    effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
---    -- ctor and effect terms
---    ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
---    effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
---    names' = ctors <> effects <> names
---    overlaps = let
---      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
---      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
---    okVars = Map.keysSet allDecls0
---    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
---      let cts = DD.constructorTypes dd
---      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
---                                          , not (Set.member v okVars) ]
---  pure $
---    if null overlaps && null unknownTypeRefs
---    then pure $ Env dataDecls' effectDecls' names'
---    else Left (unknownTypeRefs ++ overlaps)
+environmentFor names0 dataDecls0 effectDecls0 = do
+  let
+    -- ignore builtin types that will be shadowed by user-defined data/effects
+    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
+                && Map.notMember (Name.toVar n) effectDecls0
+    names = Names.filterTypes unshadowed names0
+    -- data decls and hash decls may reference each other, and thus must be hashed together
+  dataDecls :: Map v (DataDeclaration' v a) <-
+    traverse (DD.bindNames names) dataDecls0
+  effectDecls :: Map v (EffectDeclaration' v a) <-
+    traverse (DD.withEffectDeclM (DD.bindNames names)) effectDecls0
+  let allDecls0 :: Map v (DataDeclaration' v a)
+      allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
+  hashDecls' :: [(v, Reference, DataDeclaration' v a)] <-
+      hashDecls allDecls0
+    -- then we have to pick out the dataDecls from the effectDecls
+  let
+    allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
+    dataDecls' = Map.difference allDecls effectDecls
+    effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
+    -- ctor and effect terms
+    ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
+    effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
+    names' = ctors <> effects <> names
+    overlaps = let
+      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
+      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
+    okVars = Map.keysSet allDecls0
+    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
+      let cts = DD.constructorTypes dd
+      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
+                                          , not (Set.member v okVars) ]
+  pure $
+    if null overlaps && null unknownTypeRefs
+    then pure $ Env dataDecls' effectDecls' names'
+    else Left (unknownTypeRefs ++ overlaps)

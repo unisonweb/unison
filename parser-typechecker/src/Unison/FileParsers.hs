@@ -87,6 +87,8 @@ parseAndSynthesizeFile
 parseAndSynthesizeFile ambient typeLookupf names filePath src = do
   (errorEnv, parsedUnisonFile) <- Result.fromParsing
     $ Parsers.parseFile filePath (unpack src) names
+  -- we collect up all the references in the file, since we need type info
+  -- for all these references in order to do typechecking
   let refs = UF.dependencies parsedUnisonFile (snd names)
   typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) =

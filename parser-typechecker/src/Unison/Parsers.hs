@@ -1,9 +1,10 @@
 module Unison.Parsers where
 
+import           Data.Maybe                     (fromJust)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )
-import qualified Unison.Names as Names
+import qualified Unison.Names3                 as Names
 import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
 import           Unison.Parser                  ( Ann )
@@ -76,7 +77,10 @@ unsafeReadAndParseFile penv fileName = do
 unsafeParseFileBuiltinsOnly
   :: FilePath -> IO (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
 unsafeParseFileBuiltinsOnly =
-  unsafeReadAndParseFile (mempty, Names.fromNames2 Builtin.names)
+  unsafeReadAndParseFile $ Parser.ParsingEnv
+    mempty
+    (Names.Names Builtin.names0 mempty)
+    (\r -> fromJust $ Builtin.constructorType r)
 
 unsafeParseFile
   :: String -> Parser.ParsingEnv -> (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)

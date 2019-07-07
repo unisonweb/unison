@@ -25,10 +25,6 @@ data TypeLookup v a =
 asDataDecl :: DD.Decl v a -> DataDeclaration v a
 asDataDecl = either DD.toDataDecl id
 
-builtinTypeLookup :: Var v => TypeLookup v ()
-builtinTypeLookup = TypeLookup mempty decls mempty where
-  decls = Map.fromList [ (r, dd) | (_, r, dd) <- DD.builtinDataDecls ]
-
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r

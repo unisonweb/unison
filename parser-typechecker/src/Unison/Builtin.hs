@@ -6,6 +6,7 @@
 
 module Unison.Builtin
   (codeLookup
+  ,constructorType
   ,names
   ,names0
   ,builtinDataDecls
@@ -28,6 +29,7 @@ import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
+import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -78,6 +80,9 @@ typeLookup =
     (fmap (const Intrinsic) <$> termRefTypes)
     (Map.fromList $ map snd builtinDataDecls)
     (Map.fromList $ map snd builtinEffectDecls)
+
+constructorType :: R.Reference -> Maybe CT.ConstructorType
+constructorType = TL.constructorType (typeLookup @Symbol)
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein

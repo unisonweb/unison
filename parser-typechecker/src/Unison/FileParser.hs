@@ -38,40 +38,41 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
 
---file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
---file = do
---  _ <- openBlock
---  names <- asks names
---  (dataDecls, effectDecls, parsedAccessors) <- declarations
---  env <- case environmentFor names dataDecls effectDecls of
---    Right env -> pure env
---    Left es -> P.customFailure $ TypeDeclarationErrors es
---  -- push names onto the stack ahead of existing names
---  local (fmap (UF.names env `mappend`)) $ do
---    names <- asks snd
---    -- The file may optionally contain top-level imports,
---    -- which are parsed and applied to each stanza
---    (names', substImports) <- TermParser.imports <* optional semi
---    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
---    let stanzas = fmap substImports <$> stanzas0
---    _ <- closeBlock
---    let (termsr, watchesr) = foldl' go ([], []) stanzas
---        go (terms, watches) s = case s of
---          WatchBinding kind _ ((_, v), at) ->
---            (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
---          WatchExpression kind guid _ at ->
---            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
---          Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
---          Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
---    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
---        toPair (tok, _) = (L.payload tok, ann tok)
---        accessors =
---          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
---          | (typ, fields) <- parsedAccessors
---          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
---          ]
---        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
---    pure (PPE.fromNames names, uf)
+file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
+file = undefined
+-- do
+--   _ <- openBlock
+--   names <- asks names
+--   (dataDecls, effectDecls, parsedAccessors) <- declarations
+--   env <- case environmentFor names dataDecls effectDecls of
+--     Right env -> pure env
+--     Left es -> P.customFailure $ TypeDeclarationErrors es
+--   -- push names onto the stack ahead of existing names
+--   local (fmap (UF.names env `mappend`)) $ do
+--     names <- asks snd
+--     -- The file may optionally contain top-level imports,
+--     -- which are parsed and applied to each stanza
+--     (names', substImports) <- TermParser.imports <* optional semi
+--     stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
+--     let stanzas = fmap substImports <$> stanzas0
+--     _ <- closeBlock
+--     let (termsr, watchesr) = foldl' go ([], []) stanzas
+--         go (terms, watches) s = case s of
+--           WatchBinding kind _ ((_, v), at) ->
+--             (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
+--           WatchExpression kind guid _ at ->
+--             (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+--           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
+--           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
+--     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
+--         toPair (tok, _) = (L.payload tok, ann tok)
+--         accessors =
+--           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+--           | (typ, fields) <- parsedAccessors
+--           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
+--           ]
+--         uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
+--     pure (PPE.fromNames names, uf)
 
 -- A stanza is either a watch expression like:
 --   > 1 + x
@@ -191,7 +192,8 @@ dataDeclaration
 dataDeclaration mod = do
   _                <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
-    (,) <$> TermParser.verifyRelativeName prefixVar <*> many prefixVar
+    (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
+        <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
   let
@@ -210,13 +212,12 @@ dataDeclaration mod = do
                   (if null ctorArgs then mempty else ann (last ctorArgs))
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
-      dataConstructor = go <$> TermParser.verifyRelativeName prefixVar
-                           <*> many TypeParser.valueTypeLeaf
-      wordyIdVar = TermParser.verifyRelativeName prefixVar
+      prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
+      dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
       record = do
         _ <- openBlockWith "{"
         fields <- sepBy1 (reserved ",") $
-          liftA2 (,) (wordyIdVar <* reserved ":") TypeParser.valueType
+          liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
         pure ([go name (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-
@@ -233,8 +234,8 @@ dataDeclaration mod = do
 effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
   _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
-  name <- TermParser.verifyRelativeName prefixVar
-  typeArgs <- many prefixVar
+  name <- TermParser.verifyRelativeVarName prefixDefinitionName
+  typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
   blockStart <- openBlockWith "where"
   constructors <- sepBy semi (constructor name)
@@ -243,8 +244,10 @@ effectDeclaration mod = do
   pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
   where
     constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
-    constructor name = explodeToken <$>
-      TermParser.verifyRelativeName prefixVar
+    constructor typename = explodeToken <$>
+      TermParser.verifyRelativeVarName prefixDefinitionName
         <* reserved ":"
         <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
-      where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
+      where
+      explodeToken v t =
+        (ann v, Var.namespaced [L.payload typename, L.payload v], t)
