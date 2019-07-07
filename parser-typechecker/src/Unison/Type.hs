@@ -14,6 +14,7 @@ module Unison.Type where
 
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
+import Data.Functor
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
@@ -40,8 +41,9 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Settings as Settings
 import qualified Unison.Util.Relation as R
-import qualified Unison.Names2 as Names
+import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
+import qualified Unison.Util.List as List
 
 -- | Base functor for types in the Unison language
 data F a
@@ -73,12 +75,20 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: AnnotatedType v a -> Set v
 freeVars = ABT.freeVars
 
-bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
-bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
+bindExternal :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
+bindExternal bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
-bindBuiltins' :: Var v => Names.Names0 -> AnnotatedType v a -> AnnotatedType v a
-bindBuiltins' ns =
-  bindBuiltins [ (Var.named (Name.toText n), r) | (n, r) <- R.toList $ Names.types ns ]
+bindNames
+  :: Var v
+  => Names.Names0
+  -> AnnotatedType v a
+  -> Names.ResolutionResult v a (AnnotatedType v a)
+bindNames ns t = let
+  fvs = ABT.freeVarOccurrences (freeVars t) t
+  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
+  ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
+                  else Left (pure (Names.TypeResolutionFailure v a rs))
+  in List.validate ok rs <&> \es -> bindExternal es t
 
 data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 

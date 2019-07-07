@@ -6,22 +6,22 @@ module Unison.PrettyPrintEnv where
 import           Control.Applicative            ( (<|>) )
 import           Data.Map                       ( Map )
 import           Data.Maybe                     ( fromMaybe )
+import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import           Debug.Trace                    ( trace )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
-import           Unison.Names                   ( Names )
+import           Unison.Names3                  ( Names )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
+import           Unison.Util.List               (safeHead)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
-import qualified Unison.Names                  as Names
-import qualified Unison.Names2                 as Names2
+import qualified Unison.Names3                 as Names
 import qualified Unison.Referent               as Referent
-import Data.Set (Set)
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -32,37 +32,10 @@ data PrettyPrintEnv = PrettyPrintEnv {
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
-fromNames :: Names -> PrettyPrintEnv
-fromNames ns =
-  let terms =
-        Map.fromList [ (r, HQ.fromName n) | (n, r) <- Map.toList (Names.termNames ns) ]
-      types =
-        Map.fromList [ (r, HQ.fromName n) | (n, r) <- Map.toList (Names.typeNames ns) ]
-  in PrettyPrintEnv (`Map.lookup` terms) (`Map.lookup` types)
-
-fromNames2 :: Names2.Names -> PrettyPrintEnv
-fromNames2 = fromNames . Names.fromNames2
-
-fromNames0 :: Names2.Names0 -> PrettyPrintEnv
-fromNames0 names0 = let
-  names = Names2.names0ToNames names0
-  terms r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReferent names r
-  types r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReference names r
-  in PrettyPrintEnv terms types
-
--- hash-qualifies names from `tip` as dictated by their conflictity
--- and forces hash-qualification of names from `historical`, to the length
--- necessary to distinguish from `tip`.  Eventually this length comes from the
--- codebase and simplifies everything.
-fromTipAndHistoricalNames0 :: Names2.Names0 -> Names2.Names0 -> PrettyPrintEnv
-fromTipAndHistoricalNames0 tip historical =
-  fromNames0 tip <> PrettyPrintEnv hterms htypes
-  where
-  fixup :: Referent -> Set Name -> Maybe HQ.HashQualified
-  fixup r = fmap (HQ.take hashLength . (`HQ.fromNamedReferent` r)) . Set.lookupMin
-  hterms r = fixup r $ Names2.namesForReferent historical r
-  htypes r = fixup (Referent.Ref r) $ Names2.namesForReference historical r
-  hashLength = Names2.numHashChars (tip <> historical)
+fromNames :: Int -> Names -> PrettyPrintEnv
+fromNames length names = PrettyPrintEnv terms' types' where
+  terms' r = safeHead (Names.termName length r names)
+  types' r = safeHead (Names.typeName length r names)
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv

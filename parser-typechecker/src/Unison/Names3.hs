@@ -4,19 +4,18 @@ module Unison.Names3 where
 
 import Data.Foldable (toList)
 import Data.List (foldl')
+import Data.Sequence (Seq)
 import Data.Set (Set)
-import Safe (headMay)
 import Unison.HashQualified (HashQualified)
 import Unison.HashQualified as HQ
 import Unison.Name (Name)
-import qualified Unison.Names2
-import Unison.PrettyPrintEnv (PrettyPrintEnv(..))
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
 import Unison.Referent (Referent)
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
+import qualified Unison.Names2
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.Relation as R
 
@@ -24,16 +23,24 @@ data Names = Names { currentNames :: Names0, oldNames :: Names0 }
 
 type Names0 = Unison.Names2.Names0
 
+data ResolutionFailure v a
+  = TermResolutionFailure v a (Set Referent)
+  | TypeResolutionFailure v a (Set Reference)
+  deriving Show
+
+type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
+
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
 
 names0 :: Relation Name Referent -> Relation Name Reference -> Names0
 names0 terms types = Unison.Names2.Names terms types
 
-toPrettyPrintEnv :: Int -> Names -> PrettyPrintEnv
-toPrettyPrintEnv length names = PrettyPrintEnv terms' types' where
-  terms' r = safeHead (termName length r names)
-  types' r = safeHead (typeName length r names)
+types0 :: Names0 -> Relation Name Reference
+types0 = Names.types
+
+terms0 :: Names0 -> Relation Name Referent
+terms0 = Names.terms
 
 -- do a prefix match on currentNames and, if no match, then check oldNames.
 lookupHQType :: HashQualified -> Names -> Set Reference
@@ -89,9 +96,6 @@ termName length r Names{..} =
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
-
-safeHead :: Foldable f => f a -> Maybe a
-safeHead = headMay . toList
 
 lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList

@@ -9,6 +9,9 @@
 
 module Unison.DataDeclaration where
 
+import Data.Bifunctor (first)
+import Data.Traversable (for)
+import qualified Unison.Util.Relation as Rel
 import           Safe                           ( atMay )
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
@@ -40,8 +43,8 @@ import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import           Data.Text                      ( Text )
 import qualified Unison.Var                    as Var
-import           Unison.Names                   ( Names )
-import           Unison.Names                  as Names
+import           Unison.Names3                 (Names0)
+import qualified Unison.Names3                 as Names
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
 
@@ -169,9 +172,12 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
-bindBuiltins :: Var v => Names -> DataDeclaration' v a -> DataDeclaration' v a
-bindBuiltins names (DataDeclaration m a bound constructors) =
-  DataDeclaration m a bound (third (Names.bindType names) <$> constructors)
+bindNames :: Var v => Names0 -> DataDeclaration' v a ->
+  Names.ResolutionResult v a (DataDeclaration' v a)
+bindNames names (DataDeclaration m a bound constructors) = do
+  constructors <- for constructors $ \(a, v, ty) ->
+    (a,v,) <$> Type.bindNames names ty
+  pure $ DataDeclaration m a bound constructors
 
 dependencies :: Ord v => DataDeclaration' v a -> Set Reference
 dependencies dd =
@@ -181,30 +187,26 @@ third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames0
-  :: Var v
-  => v
-  -> Reference
-  -> (Reference -> ConstructorId -> Referent)
-  -> DataDeclaration' v a
-  -> Names
-toNames0 typeSymbol r f dd =
-  let names (ctor, i) =
-        let name = Name.fromVar ctor in Names.fromTerms [(name, f r i)]
-  in  foldMap names (constructorVars dd `zip` [0 ..])
-        <> Names.fromTypesV [(typeSymbol, r)]
+toNames0 :: Var v => v -> Reference -> DataDeclaration' v a -> Names0
+toNames0 typeSymbol r dd =
+  -- constructor names
+  foldMap names (constructorVars dd `zip` [0 ..])
+  -- name of the type itself
+  <> Names.names0 mempty (Rel.singleton (Name.fromVar typeSymbol) r)
+  where
+  names (ctor, i) =
+    Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i)) mempty
 
-dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
-dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
+dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names0
+dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r dd
 
-effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
-effectDeclToNames typeSymbol r ed =
-  toNames0 typeSymbol r Referent.Con $ toDataDecl ed
+effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names0
+effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r $ toDataDecl ed
 
-dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names
+dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names0
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d
 
-effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names
+effectDeclToNames' :: Var v => (v, (Reference, EffectDeclaration' v a)) -> Names0
 effectDeclToNames' (v, (r, d)) = effectDeclToNames v r d
 
 type EffectDeclaration v = EffectDeclaration' v ()
@@ -320,11 +322,17 @@ hashDecls0 decls =
 hashDecls
   :: (Eq v, Var v)
   => Map v (DataDeclaration' v a)
-  -> [(v, Reference, DataDeclaration' v a)]
-hashDecls decls =
+  -> Names.ResolutionResult v a [(v, Reference, DataDeclaration' v a)]
+hashDecls decls = do
   let varToRef = hashDecls0 (void <$> decls)
-      decls'   = bindDecls decls (Names.fromTypesV varToRef)
-  in  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
+      typeNames0 = Names.names0 mempty
+                 $ Rel.fromList (first Name.fromVar <$> varToRef)
+      -- normalize the order of the constructors based on a hash of their types
+      sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
+      hash3 (_, _, typ) = ABT.hash typ :: Hash
+  decls' <- fmap sortCtors <$> traverse (bindNames typeNames0) decls
+  pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
+
 
 unitRef, pairRef, optionalRef, testResultRef :: Reference
 (unitRef, pairRef, optionalRef, testResultRef) =
@@ -351,12 +359,12 @@ failResult ann msg =
                (Term.text ann msg)
 
 builtinDataDecls :: Var v => [(v, Reference, DataDeclaration' v ())]
-builtinDataDecls = hashDecls $ Map.fromList
+builtinDataDecls = case hashDecls $ Map.fromList
   [ (v "()"             , unit)
   , (v "Pair"           , pair)
   , (v "Optional"       , opt)
   , (v "Test.Result"    , tr)
-  ]
+  ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
  where
   v name = Var.named name
   var name = Type.var () (v name)
@@ -458,13 +466,3 @@ unUnitRef = (== unitRef)
 unPairRef = (== pairRef)
 unOptionalRef = (== optionalRef)
 
-bindDecls
-  :: Var v
-  => Map v (DataDeclaration' v a)
-  -> Names
-  -> Map v (DataDeclaration' v a)
-bindDecls decls refs = sortCtors . bindBuiltins refs <$> decls
- where
-  -- normalize the order of the constructors based on a hash of their types
-  sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
-  hash3 (_, _, typ) = ABT.hash typ :: Hash

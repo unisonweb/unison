@@ -37,8 +37,8 @@ import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
 import qualified Unison.HashQualified' as HQ
-import           Unison.Names2 ( Names )
-import qualified Unison.Names2 as Names
+import           Unison.Names3 ( Names0 )
+import qualified Unison.Names3 as Names
 import           Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
 import           Unison.Reference (Reference, pattern Builtin)
@@ -51,12 +51,13 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
-import Unison.Util.List (multimap)
+import Unison.Util.List (multimap, validate)
 import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
+import qualified Unison.Name as Name
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -119,19 +120,39 @@ type Term v = AnnotatedTerm v ()
 -- | Terms with type variables in `vt`, and term variables in `v`
 type Term' vt v = AnnotatedTerm' vt v ()
 
-bindBuiltins
-  :: forall v a b b2
-   . Var v
-  => [(v, AnnotatedTerm2 v b a v b2)]
-  -> [(v, Reference)]
-  -> AnnotatedTerm2 v b a v a
-  -> AnnotatedTerm2 v b a v a
-bindBuiltins termBuiltins typeBuiltins = f . g
- where
-  f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
-  f = typeMap (Type.bindBuiltins typeBuiltins)
-  g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
-  g = ABT.substsInheritAnnotation termBuiltins
+-- bindExternals
+--   :: forall v a b b2
+--    . Var v
+--   => [(v, AnnotatedTerm2 v b a v b2)]
+--   -> [(v, Reference)]
+--   -> AnnotatedTerm2 v b a v a
+--   -> AnnotatedTerm2 v b a v a
+-- bindBuiltins termBuiltins typeBuiltins = f . g
+--  where
+--   f :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+--   f = typeMap (Type.bindBuiltins typeBuiltins)
+--   g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
+--   g = ABT.substsInheritAnnotation termBuiltins
+bindNames
+  :: forall v a . Var v => (Reference -> CT.ConstructorType)
+  -> Names0
+  -> AnnotatedTerm v a
+  -> Names.ResolutionResult v a (AnnotatedTerm v a)
+bindNames ctorType ns e = do
+  let freeTmVars = ABT.freeVarOccurrences (ABT.freeVars e) e
+      freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
+                            , a <- as ]
+      okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)
+      okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
+        rs | Set.size rs == 1 ->
+               pure (v, fromReferent ctorType a $ Set.findMin rs)
+           | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
+      okTy (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.types0 ns) of
+        rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
+           | otherwise -> Left (pure (Names.TypeResolutionFailure v a rs))
+  termSubsts <- validate okTm freeTmVars
+  typeSubsts <- validate okTy freeTyVars
+  pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
@@ -257,6 +278,13 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
     (ABT.out -> ABT.Abs _ body) -> go bound body
     (ABT.out -> ABT.Cycle body) -> go bound body
     _ -> error "unpossible"
+
+substTypeVars :: (Ord v, Var vt)
+  => [(vt, AnnotatedType vt b)]
+  -> AnnotatedTerm' vt v a
+  -> AnnotatedTerm' vt v a
+substTypeVars subs e = foldl' go e subs where
+  go e (vt, t) = substTypeVar vt t e
 
 -- Capture-avoiding substitution of a type variable inside a term. This
 -- will replace that type variable wherever it appears in type signatures of
@@ -1021,21 +1049,4 @@ instance (Var v, Show a) => Show (F v a0 p a) where
       showParen (p > 0) $ s "or " <> shows x <> s " " <> shows y
     (<>) = (.)
     s    = showString
-
-bindTerm
-  :: forall v a
-   . Var v
-  => (Reference -> CT.ConstructorType)
-  -> Names
-  -> AnnotatedTerm v a
-  -> AnnotatedTerm v a
-bindTerm ctorType ns = bindBuiltins termBuiltins typeBuiltins
- where
-  termBuiltins =
-    [ (Var.named (HQ.toText v), fromReferent ctorType () e)
-    | (v, e) <- Rel.toList $ Names.terms ns
-    ]
-  typeBuiltins :: [(v, Reference)]
-  typeBuiltins = [ (Var.named (HQ.toText v), t)
-                 | (v, t) <- Rel.toList $ Names.types ns ]
 
