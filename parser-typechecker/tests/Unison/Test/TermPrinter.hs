@@ -353,6 +353,16 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
+  , tc_diff_rtt False "let\n\
+                      \  delay = 'isEven" 
+                      "let\n\
+                      \  delay () = isEven\n\
+                      \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tc_breaks 80 "let\n\
+                 \  a = ()\n\
+                 \  b = ()\n\
+                 \  c = (1, 2)\n\
+                 \  ()"
 
 -- FQN elision tests
   , tc_breaks 12 "if foo then\n\
