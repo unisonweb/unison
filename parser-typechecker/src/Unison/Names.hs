@@ -102,26 +102,26 @@ patternNamed ns n = Map.lookup n (termNames ns) >>= \case
   Referent.Con r cid -> Just (r, cid)
   _ -> Nothing
 
-bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
-bindType ns = Type.bindBuiltins typeNames'
-  where
-  typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
+--bindType :: Var v => Names -> AnnotatedType v a -> AnnotatedType v a
+--bindType ns = Type.bindBuiltins typeNames'
+--  where
+--  typeNames' = [ (Name.toVar v, r) | (v, r) <- Map.toList $ typeNames ns ]
 
-bindTerm
-  :: forall v a
-   . Var v
-  => (Reference -> ConstructorType)
-  -> Names
-  -> AnnotatedTerm v a
-  -> AnnotatedTerm v a
-bindTerm ctorType ns = Term.bindBuiltins termBuiltins typeBuiltins
- where
-  termBuiltins =
-    [ (Name.toVar v, Term.fromReferent ctorType () e)
-    | (v, e) <- Map.toList (termNames ns)
-    ]
-  typeBuiltins :: [(v, Reference)]
-  typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
+--bindTerm
+--  :: forall v a
+--   . Var v
+--  => (Reference -> ConstructorType)
+--  -> Names
+--  -> AnnotatedTerm v a
+--  -> AnnotatedTerm v a
+--bindTerm ctorType ns = Term.bindBuiltins termBuiltins typeBuiltins
+-- where
+--  termBuiltins =
+--    [ (Name.toVar v, Term.fromReferent ctorType () e)
+--    | (v, e) <- Map.toList (termNames ns)
+--    ]
+--  typeBuiltins :: [(v, Reference)]
+--  typeBuiltins = [ (Name.toVar v, t) | (v, t) <- Map.toList (typeNames ns) ]
 
 -- Given a mapping from name to qualified name, update a `PEnv`,
 -- so for instance if the input has [(Some, Optional.Some)],

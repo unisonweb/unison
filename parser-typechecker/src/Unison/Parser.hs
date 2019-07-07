@@ -299,27 +299,38 @@ wordyPatternName = queryToken $ \case
   L.WordyId s Nothing -> Just $ Var.nameds s
   _                   -> Nothing
 
--- Parse an alphanumeric identifier, discarding any hash
-
+-- Parse an prefix identifier e.g. Foo or (+), discarding any hash
 prefixDefinitionName :: Var v => P v (L.Token v)
 prefixDefinitionName =
-  fmap (fmap Name.toVar) wordyId_ <|> parenthesize symbolyDefinitionName
+  wordyDefinitionName <|> parenthesize symbolyDefinitionName
   where
-  wordyId_ = queryToken $ \case
-    L.WordyId s _ -> Just (Name.fromString s)
+  -- Parse a wordy identifier e.g. Foo, discarding any hash
+  wordyDefinitionName :: Var v => P v (L.Token v)
+  wordyDefinitionName = queryToken $ \case
+    L.WordyId s _ -> Just $ Var.nameds s
     _             -> Nothing
 
+-- Parse a wordyId as a String, rejecting any hash
+wordyIdString :: Ord v => P v (L.Token String)
+wordyIdString = queryToken $ \case
+  L.WordyId s Nothing -> Just s
+  _                   -> Nothing
+
+-- Parse a wordyId as a Name, rejecting any hash
 importWordyId :: Ord v => P v (L.Token Name)
-importWordyId = queryToken $ \case
-  L.WordyId s Nothing -> Just (Name.fromString s)
-  _             -> Nothing
+importWordyId = (fmap . fmap) Name.fromString wordyIdString
 
--- The `+` in: use Foo.bar +
+-- The `+` in: use Foo.bar + as a Name
 importSymbolyId :: Ord v => P v (L.Token Name)
-importSymbolyId = queryToken $ \case
-  L.SymbolyId s Nothing -> Just (Name.fromString s)
-  _             -> Nothing
+importSymbolyId = (fmap . fmap) Name.fromString symbolyIdString
 
+-- Parse a symbolyId as a String, rejecting any hash
+symbolyIdString :: Ord v => P v (L.Token String)
+symbolyIdString = queryToken $ \case
+  L.SymbolyId s Nothing -> Just s
+  _                     -> Nothing
+
+-- Parse an infix id e.g. + or `cons`, discarding any hash
 infixDefinitionName :: Var v => P v (L.Token v)
 infixDefinitionName = symbolyDefinitionName <|> backticked where
   backticked :: Var v => P v (L.Token v)

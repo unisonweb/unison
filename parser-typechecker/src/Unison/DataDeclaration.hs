@@ -172,8 +172,10 @@ constructorVars dd = fst <$> constructors dd
 constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
-bindNames :: Var v => Names0 -> DataDeclaration' v a ->
-  Names.ResolutionResult v a (DataDeclaration' v a)
+bindNames :: Var v
+          => Names0
+          -> DataDeclaration' v a
+          -> Names.ResolutionResult v a (DataDeclaration' v a)
 bindNames names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
     (a,v,) <$> Type.bindNames names ty
@@ -217,6 +219,12 @@ newtype EffectDeclaration' v a = EffectDeclaration {
 
 withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
+
+withEffectDeclM :: Functor f
+                => (DataDeclaration' v a -> f (DataDeclaration' v' a'))
+                -> EffectDeclaration' v a
+                -> f (EffectDeclaration' v' a')
+withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 
 mkEffectDecl'
   :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a

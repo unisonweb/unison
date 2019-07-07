@@ -38,40 +38,40 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
 
-file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
-file = do
-  _ <- openBlock
-  names <- asks names
-  (dataDecls, effectDecls, parsedAccessors) <- declarations
-  env <- case environmentFor names dataDecls effectDecls of
-    Right env -> pure env
-    Left es -> P.customFailure $ TypeDeclarationErrors es
-  -- push names onto the stack ahead of existing names
-  local (fmap (UF.names env `mappend`)) $ do
-    names <- asks snd
-    -- The file may optionally contain top-level imports,
-    -- which are parsed and applied to each stanza
-    (names', substImports) <- TermParser.imports <* optional semi
-    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
-    let stanzas = fmap substImports <$> stanzas0
-    _ <- closeBlock
-    let (termsr, watchesr) = foldl' go ([], []) stanzas
-        go (terms, watches) s = case s of
-          WatchBinding kind _ ((_, v), at) ->
-            (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
-          WatchExpression kind guid _ at ->
-            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
-          Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
-          Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
-    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
-        toPair (tok, _) = (L.payload tok, ann tok)
-        accessors =
-          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
-          | (typ, fields) <- parsedAccessors
-          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
-          ]
-        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
-    pure (PPE.fromNames names, uf)
+--file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
+--file = do
+--  _ <- openBlock
+--  names <- asks names
+--  (dataDecls, effectDecls, parsedAccessors) <- declarations
+--  env <- case environmentFor names dataDecls effectDecls of
+--    Right env -> pure env
+--    Left es -> P.customFailure $ TypeDeclarationErrors es
+--  -- push names onto the stack ahead of existing names
+--  local (fmap (UF.names env `mappend`)) $ do
+--    names <- asks snd
+--    -- The file may optionally contain top-level imports,
+--    -- which are parsed and applied to each stanza
+--    (names', substImports) <- TermParser.imports <* optional semi
+--    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
+--    let stanzas = fmap substImports <$> stanzas0
+--    _ <- closeBlock
+--    let (termsr, watchesr) = foldl' go ([], []) stanzas
+--        go (terms, watches) s = case s of
+--          WatchBinding kind _ ((_, v), at) ->
+--            (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
+--          WatchExpression kind guid _ at ->
+--            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+--          Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
+--          Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
+--    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
+--        toPair (tok, _) = (L.payload tok, ann tok)
+--        accessors =
+--          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+--          | (typ, fields) <- parsedAccessors
+--          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
+--          ]
+--        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
+--    pure (PPE.fromNames names, uf)
 
 -- A stanza is either a watch expression like:
 --   > 1 + x
@@ -111,9 +111,9 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
-  kind <- optional wordyId
+  kind <- optional wordyIdString
   guid <- uniqueName 10
-  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  op <- optional (L.payload <$> P.lookAhead symbolyIdString)
   guard (op == Just ">")
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
@@ -170,7 +170,7 @@ modifier = do
     Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
     Just tok -> do
       uid <- do
-        o <- optional (reserved "[" *> wordyId <* reserved "]")
+        o <- optional (reserved "[" *> wordyIdString <* reserved "]")
         case o of
           Nothing -> uniqueName 32
           Just uid -> pure (fromString . L.payload $ uid)

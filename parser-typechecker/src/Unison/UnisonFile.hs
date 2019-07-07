@@ -280,39 +280,45 @@ data Error v a
 -- If there are duplicate declarations, the duplicated names are returned on the
 -- left.
 environmentFor
-  :: forall v a . Var v => Names0 -> Map v (DataDeclaration' v a) -> Map v (EffectDeclaration' v a)
-  -> Either [Error v a] (Env v a)
-environmentFor names0 dataDecls0 effectDecls0 =
-  let
-    -- ignore builtin types that will be shadowed by user-defined data/effects
-    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
-                && Map.notMember (Name.toVar n) effectDecls0
-    names = Names.filterTypes unshadowed names0
-    -- data decls and hash decls may reference each other, and thus must be hashed together
-    dataDecls :: Map v (DataDeclaration' v a)
-    dataDecls = DD.bindBuiltins names <$> dataDecls0
-    effectDecls :: Map v (EffectDeclaration' v a)
-    effectDecls = withEffectDecl (DD.bindBuiltins names) <$> effectDecls0
-    allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
-    hashDecls' :: [(v, Reference, DataDeclaration' v a)]
-    hashDecls' = hashDecls allDecls0
-    -- then we have to pick out the dataDecls from the effectDecls
-    allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
-    dataDecls' = Map.difference allDecls effectDecls
-    effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
-    -- ctor and effect terms
-    ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
-    effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
-    names' = ctors <> effects <> names
-    overlaps = let
-      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
-      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
-    okVars = Map.keysSet allDecls0
-    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
-      let cts = DD.constructorTypes dd
-      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
-                                          , not (Set.member v okVars) ]
-  in
-    if null overlaps && null unknownTypeRefs
-    then pure $ Env dataDecls' effectDecls' names'
-    else Left (unknownTypeRefs ++ overlaps)
+  :: forall v a . Var v
+  => Names0
+  -> Map v (DataDeclaration' v a)
+  -> Map v (EffectDeclaration' v a)
+  -> Names.ResolutionResult v a (Either [Error v a] (Env v a))
+environmentFor = undefined
+--environmentFor names0 dataDecls0 effectDecls0 = do
+--  let
+--    -- ignore builtin types that will be shadowed by user-defined data/effects
+--    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
+--                && Map.notMember (Name.toVar n) effectDecls0
+--    names = Names.filterTypes unshadowed names0
+--    -- data decls and hash decls may reference each other, and thus must be hashed together
+--  dataDecls :: Map v (DataDeclaration' v a) <-
+--    traverse (DD.bindNames names) dataDecls0
+--  effectDecls :: Map v (EffectDeclaration' v a) <-
+--    traverse (DD.withEffectDeclM (DD.bindNames names)) effectDecls0
+--  let allDecls0 :: Map v (DataDeclaration' v a)
+--      allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
+--  hashDecls' :: [(v, Reference, DataDeclaration' v a)] <-
+--      hashDecls allDecls0
+--    -- then we have to pick out the dataDecls from the effectDecls
+--  let
+--    allDecls   = Map.fromList [ (v, (r, de)) | (v, r, de) <- hashDecls' ]
+--    dataDecls' = Map.difference allDecls effectDecls
+--    effectDecls' = second EffectDeclaration <$> Map.difference allDecls dataDecls
+--    -- ctor and effect terms
+--    ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
+--    effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
+--    names' = ctors <> effects <> names
+--    overlaps = let
+--      w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
+--      in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
+--    okVars = Map.keysSet allDecls0
+--    unknownTypeRefs = Map.elems allDecls0 >>= \dd ->
+--      let cts = DD.constructorTypes dd
+--      in cts >>= \ct -> [ UnknownType v a | (v,a) <- ABT.freeVarOccurrences mempty ct
+--                                          , not (Set.member v okVars) ]
+--  pure $
+--    if null overlaps && null unknownTypeRefs
+--    then pure $ Env dataDecls' effectDecls' names'
+--    else Left (unknownTypeRefs ++ overlaps)
