@@ -77,19 +77,18 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
+       (Maybe (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf names filePath src = do
-  (errorEnv, parsedUnisonFile) <- Result.fromParsing
-    $ Parsers.parseFile filePath (unpack src) names
+  parsedFile <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) names
   -- we collect up all the references in the file, since we need type info
   -- for all these references in order to do typechecking
-  let refs = UF.dependencies parsedUnisonFile
+  let refs = UF.dependencies parsedFile
   typeLookup <- lift . lift $ typeLookupf refs
   let (Result notes' r) = synthesizeFile ambient typeLookup
         -- historical names not used after parsing
         (Names.currentNames $ Parser.names names)
-        parsedUnisonFile
-  tell notes' $> (errorEnv, r)
+        parsedFile
+  tell notes' $> r
 
 synthesizeFile
   :: forall v

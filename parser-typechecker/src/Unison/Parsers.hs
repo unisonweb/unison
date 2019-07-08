@@ -51,14 +51,14 @@ parseFile
   => FilePath
   -> String
   -> Parser.ParsingEnv
-  -> Either (Parser.Err v) (PPE.PrettyPrintEnv, UnisonFile v Ann)
+  -> Either (Parser.Err v) (UnisonFile v Ann)
 parseFile filename s = Parser.run' (Parser.rootFile FileParser.file) s filename
 
 readAndParseFile
   :: Var v
   => Parser.ParsingEnv
   -> FilePath
-  -> IO (Either (Parser.Err v) (PPE.PrettyPrintEnv, UnisonFile v Ann))
+  -> IO (Either (Parser.Err v) (UnisonFile v Ann))
 readAndParseFile penv fileName = do
   txt <- readFile fileName
   let src = Text.unpack txt
@@ -68,14 +68,14 @@ unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> AnnotatedTerm v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
 unsafeReadAndParseFile
-  :: Parser.ParsingEnv -> FilePath -> IO (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
   txt <- readFile fileName
   let str = Text.unpack txt
   pure . unsafeGetRightFrom str $ parseFile fileName str penv
 
 unsafeParseFileBuiltinsOnly
-  :: FilePath -> IO (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: FilePath -> IO (UnisonFile Symbol Ann)
 unsafeParseFileBuiltinsOnly =
   unsafeReadAndParseFile $ Parser.ParsingEnv
     mempty
@@ -83,6 +83,6 @@ unsafeParseFileBuiltinsOnly =
     (\r -> fromJust $ Builtin.constructorType r)
 
 unsafeParseFile
-  :: String -> Parser.ParsingEnv -> (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: String -> Parser.ParsingEnv -> UnisonFile Symbol Ann
 unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
 

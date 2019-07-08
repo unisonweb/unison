@@ -1,5 +1,6 @@
 {-# Language DoAndIfThenElse #-}
 {-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language TupleSections #-}
 {-# Language OverloadedStrings #-}
@@ -8,6 +9,7 @@ module Unison.FileParser where
 
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
+import Data.Foldable (toList)
 import Data.String (fromString)
 import Control.Lens
 import           Control.Applicative
@@ -37,42 +39,54 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Names3 as Names
 
-file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
-file = undefined
--- do
---   _ <- openBlock
---   names <- asks names
---   (dataDecls, effectDecls, parsedAccessors) <- declarations
---   env <- case environmentFor names dataDecls effectDecls of
---     Right env -> pure env
---     Left es -> P.customFailure $ TypeDeclarationErrors es
---   -- push names onto the stack ahead of existing names
---   local (fmap (UF.names env `mappend`)) $ do
---     names <- asks snd
---     -- The file may optionally contain top-level imports,
---     -- which are parsed and applied to each stanza
---     (names', substImports) <- TermParser.imports <* optional semi
---     stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
---     let stanzas = fmap substImports <$> stanzas0
---     _ <- closeBlock
---     let (termsr, watchesr) = foldl' go ([], []) stanzas
---         go (terms, watches) s = case s of
---           WatchBinding kind _ ((_, v), at) ->
---             (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
---           WatchExpression kind guid _ at ->
---             (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
---           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
---           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
---     let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
---         toPair (tok, _) = (L.payload tok, ann tok)
---         accessors =
---           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
---           | (typ, fields) <- parsedAccessors
---           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
---           ]
---         uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
---     pure (PPE.fromNames names, uf)
+-- push names onto the stack ahead of existing names
+pushNames0 :: Names.Names0 -> P v a -> P v a
+pushNames0 ns = local push where
+  push e = e { names =
+    let ns0 = names e
+    in ns0 { Names.currentNames = Names.unionLeft0 ns (Names.currentNames ns0) }}
+
+resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
+resolutionFailures es = P.customFailure (ResolutionFailures es)
+
+file :: forall v . Var v => P v (UnisonFile v Ann)
+file = do
+  _ <- openBlock
+  namesStart <- asks names
+  (dataDecls, effectDecls, parsedAccessors) <- declarations
+  env <- case environmentFor (Names.currentNames namesStart) dataDecls effectDecls of
+    Right (Right env) -> pure env
+    Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
+    Left es -> resolutionFailures (toList es)
+  pushNames0 (UF.names env) $ do
+    -- The file may optionally contain top-level imports,
+    -- which are parsed and applied to each stanza
+    names <- TermParser.imports <* optional semi
+    ctorType <- asks constructorType
+    stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    stanzas <- case List.validate (traverse $ Term.bindNames ctorType (Names.currentNames names)) stanzas0 of
+      Left es -> resolutionFailures (toList es)
+      Right s -> pure s
+    _ <- closeBlock
+    let (termsr, watchesr) = foldl' go ([], []) stanzas
+        go (terms, watches) s = case s of
+          WatchBinding kind _ ((_, v), at) ->
+            (terms, (kind,(v,Term.generalizeTypeSignatures at)) : watches)
+          WatchExpression kind guid _ at ->
+            (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
+          Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
+          Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
+    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
+        toPair (tok, _) = (L.payload tok, ann tok)
+        accessors =
+          [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
+          | (typ, fields) <- parsedAccessors
+          , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
+          ]
+        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
+    pure uf
 
 -- A stanza is either a watch expression like:
 --   > 1 + x
@@ -90,7 +104,7 @@ data Stanza v term
   = WatchBinding UF.WatchKind Ann ((Ann, v), term)
   | WatchExpression UF.WatchKind Text Ann term
   | Binding ((Ann, v), term)
-  | Bindings [((Ann, v), term)] deriving Functor
+  | Bindings [((Ann, v), term)] deriving (Foldable, Traversable, Functor)
 
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace

@@ -141,6 +141,6 @@ module Unison.Test.FileParser where
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol P.Ann
-      !p = snd . unsafeGetRightFrom s $
+      !p = unsafeGetRightFrom s $
              P.run (P.rootFile file) s (P.ParsingEnv mempty builtins builtinCtorType)
     pure p >> ok

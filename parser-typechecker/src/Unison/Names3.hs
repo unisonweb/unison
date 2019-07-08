@@ -26,7 +26,7 @@ type Names0 = Unison.Names2.Names0
 data ResolutionFailure v a
   = TermResolutionFailure v a (Set Referent)
   | TypeResolutionFailure v a (Set Reference)
-  deriving Show
+  deriving (Eq,Ord,Show)
 
 type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 

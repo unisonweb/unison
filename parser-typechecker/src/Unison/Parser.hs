@@ -35,6 +35,7 @@ import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
 import Unison.Name as Name
 import Unison.Names3 (Names)
+import qualified Unison.Names3 as Names
 import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
@@ -99,6 +100,7 @@ data Error v
   | EmptyWatch
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
+  | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
   deriving (Show, Eq, Ord)
 
