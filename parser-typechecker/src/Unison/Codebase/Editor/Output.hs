@@ -81,11 +81,11 @@ data Output v
   | DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-  | CantDelete Input Names0 [SearchResult' v Ann] [SearchResult' v Ann]
+  | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
   | ListNames [(Referent, Set Name)] -- term match, term names
               [(Reference, Set Name)] -- type match, type names
   -- list of all the definitions within this branch
-  | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
+  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
@@ -105,14 +105,14 @@ data Output v
                        PPE.PrettyPrintEnv
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput Names0 (TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
       PPE.PrettyPrintEnv ShowSuccesses ShowFailures
                 [(Reference, Text)] [(Reference, Text)]
   | CantUndo UndoFailureReason
-  | ListEdits Patch Names0
+  | ListEdits Patch PPE.PrettyPrintEnv
 
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]

@@ -170,13 +170,13 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists input _ ->
     putPrettyLn . P.warnCallout $ "A patch by that name already exists."
-  CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
+  CantDelete input ppe failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
-      "", P.indentN 2 $ listOfDefinitions' names False failed,
+      "", P.indentN 2 $ listOfDefinitions' ppe False failed,
       "",
       "because it's still being used by these definitions:",
-      "", P.indentN 2 $ listOfDefinitions' names False failedDependents
+      "", P.indentN 2 $ listOfDefinitions' ppe False failedDependents
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
@@ -217,8 +217,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions names detailed results ->
-     listOfDefinitions names detailed results
+  ListOfDefinitions ppe detailed results ->
+     listOfDefinitions ppe detailed results
   ListNames [] [] -> putPrettyLn . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
@@ -343,9 +343,8 @@ notifyUser dir o = case o of
                     putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
                     <> P.text t <> ". Make sure there's a branch or commit "
                     <> "with that name."
-  ListEdits patch names0 -> do
+  ListEdits patch ppe -> do
     let
-      ppe = PPE.fromNames0 names0
       types = Patch._typeEdits patch
       terms = Patch._termEdits patch
 
@@ -649,8 +648,8 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => Names0 -> E.TodoOutput v a -> IO ()
-todoOutput (PPE.fromNames0 -> ppe) todo =
+todoOutput :: Var v => PPE.PrettyPrintEnv -> E.TodoOutput v a -> IO ()
+todoOutput ppe todo =
   if noConflicts && noEdits
   then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
   else putPrettyLn (todoConflicts <> todoEdits)
@@ -718,9 +717,9 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
       ]
 
 listOfDefinitions ::
-  Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
-listOfDefinitions names detailed results =
-  putPrettyLn $ listOfDefinitions' names detailed results
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
+listOfDefinitions ppe detailed results =
+  putPrettyLn $ listOfDefinitions' ppe detailed results
 
 noResults :: P.Pretty P.ColorText
 noResults = P.callout "😶" $
@@ -728,11 +727,11 @@ noResults = P.callout "😶" $
           <> "to supply command arguments."
 
 listOfDefinitions' :: Var v
-                   => Names0 -- for printing types of terms :-\
+                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
                    -> [E.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
+listOfDefinitions' ppe detailed results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
