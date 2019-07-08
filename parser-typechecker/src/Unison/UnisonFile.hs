@@ -42,6 +42,7 @@ import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 import Unison.Names3 (Names, Names0)
+import Data.Bitraversable (bitraverse)
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
@@ -253,15 +254,18 @@ bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
         in \r -> case fromFile r of
              Nothing -> ctorType r
              Just ct -> ct
-  UnisonFile d e
-    -- todo: gotta make this code monadic
-    (second (Term.bindNames ct names') <$> ts)
-    (fmap (second (Term.bindNames ct names')) <$> ws)
+  -- todo: can we clean up this lambda using something like `second`
+  ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t) ts
+  ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t)) ws
+  pure $ UnisonFile d e ts' ws'
   where
   subtractTerms :: Var v => [v] -> Names0 -> Names0
   subtractTerms vs n = let
     taken = Set.fromList (Name.fromVar <$> vs)
-    in n { terms = Map.withoutKeys (termNames n) taken }
+    -- dunno how to make record update syntax work here wthout importing Names0(..)
+    in Names.names0
+        (Relation.filterDom (not . (`Set.member` taken)) (Names.terms0 n))
+        (Names.types0 n)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType

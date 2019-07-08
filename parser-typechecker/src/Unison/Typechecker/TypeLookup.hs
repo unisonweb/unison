@@ -5,7 +5,6 @@ import Data.Map (Map)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Type (AnnotatedType)
-import Unison.Var (Var)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
