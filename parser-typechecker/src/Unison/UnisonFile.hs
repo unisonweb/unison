@@ -158,26 +158,10 @@ dependencies' file = let
                                          ]
   in allDeps
 
----- Returns the (termRefs, typeRefs) that the input `UnisonFile` depends on.
---dependencies :: (Monoid a, Var v) => UnisonFile v a -> Names -> Set Reference
---dependencies uf ns = directReferences <>
---                      Set.fromList freeTypeVarRefs <>
---                      Set.fromList freeTermVarRefs
---  where
---    tm = typecheckingTerm uf
---    directReferences = Term.dependencies tm
---    freeTypeVarRefs = -- we aren't doing any special resolution for types
---      catMaybes (flip Map.lookup (Names.typeNames ns) . Name.fromVar <$>
---                  Set.toList (Term.freeTypeVars tm))
---    -- foreach name in Names.termNames,
---        -- if the name or unqualified name is in Term.freeVars,
---        -- include the reference
---    freeTermVarRefs =
---      [ Referent.toReference referent
---      | (name, referent) <- Map.toList $ Names.termNames ns
---      , Name.toVar name `Set.member` Term.freeVars tm
---        || Var.unqualified (Name.toVar name) `Set.member` Term.freeVars tm
---      ]
+-- Returns the dependencies of the `UnisonFile` input. Needed so we can
+-- load information about these dependencies before starting typechecking.
+dependencies :: (Monoid a, Var v) => UnisonFile v a -> Set Reference
+dependencies uf = Term.dependencies (typecheckingTerm uf)
 
 discardTypes :: TypecheckedUnisonFile v a -> UnisonFile v a
 discardTypes (TypecheckedUnisonFile datas effects terms watches _) = let
@@ -259,7 +243,6 @@ bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
   subtractTerms :: Var v => [v] -> Names0 -> Names0
   subtractTerms vs n = let
     taken = Set.fromList (Name.fromVar <$> vs)
-    -- dunno how to make record update syntax work here wthout importing Names0(..)
     in Names.names0 (Relation.subtractDom taken (Names.terms0 n)) (Names.types0 n)
 
 constructorType ::
