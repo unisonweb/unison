@@ -483,7 +483,7 @@ compile0 env bound t =
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
-              <> (CT.toPlain . P.render 80 . TP.prettyTop mempty $ void t)
+              <> (CT.toPlain . P.render 80 . TP.pretty mempty $ void t)
     where
       compileVar _ v [] = unknown v
       compileVar i v ((v',o):tl)
