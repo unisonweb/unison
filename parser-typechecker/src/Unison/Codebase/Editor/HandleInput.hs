@@ -1330,7 +1330,7 @@ toSlurpResult uf existingNames =
   termAliases :: Map v (Set Name)
   termAliases = Map.fromList
     [ (var n, aliases)
-    | (n, r) <- R.toList $ Names.terms fileNames0
+    | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
     , not (null aliases)
     ]
@@ -1345,10 +1345,13 @@ toSlurpResult uf existingNames =
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
   adds = sc terms types where
-    terms = add (Names.terms existingNames) (Names.terms fileNames0)
-    types = add (Names.types existingNames) (Names.types fileNames0)
-    add :: Ord r => R.Relation Name r -> R.Relation Name r -> R.Relation Name r
-    add existingNames = R.filter go where
+    terms = addTerms (Names.terms existingNames) (Names.terms fileNames0)
+    types = addTypes (Names.types existingNames) (Names.types fileNames0)
+    addTerms existingNames = R.filter go where
+      go (n, r@Referent.Ref{}) = (not . R.memberDom n) existingNames
+                              && (not . R.memberRan r) existingNames
+      go _ = False
+    addTypes existingNames = R.filter go where
       go (n, r) = (not . R.memberDom n) existingNames
                && (not . R.memberRan r) existingNames
 
@@ -1379,7 +1382,7 @@ doSlurpAdds :: forall m v. (Applicative m, Var v)
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
-  termActions = map doTerm . toList $ SC.terms slurp
+  termActions = map doTerm . toList $ SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest

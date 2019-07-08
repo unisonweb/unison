@@ -12,8 +12,8 @@ use Universal == < > >=
 use Optional None Some
 
 -- Function composition
-(.) : (b -> c) -> (a -> b) -> a -> c
-(.) f g x = f (g x)
+dot : (b -> c) -> (a -> b) -> a -> c
+dot f g x = f (g x)
 
 -- Function composition
 andThen : (a -> b) -> (b -> c) -> a -> c
@@ -142,6 +142,7 @@ namespace List where
   diagonal : [[a]] -> [a]
   diagonal =
     let
+      x = 23
       stripe aas = case aas of
         [] -> []
         [] +: xxs -> stripe xxs
@@ -150,7 +151,7 @@ namespace List where
         ([], ys) -> ys
         (xs, []) -> map (x -> [x]) xs
         (x +: xs, y +: ys) -> cons (cons x y) (zipCons xs ys)
-      List.join . stripe
+      List.join `dot` stripe
 
 -- > List.foldb "" (t t2 -> "(" ++ t ++ " " ++ t2 ++ ")") (x -> x) ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Gerald", "Henry"]
 
