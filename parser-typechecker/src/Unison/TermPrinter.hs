@@ -36,8 +36,8 @@ import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
 import qualified Unison.Referent               as Referent
-import qualified Unison.SyntaxHighlights       as S
-import           Unison.SyntaxHighlights        ( fmt )
+import qualified Unison.Util.SyntaxText        as S
+import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
 import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( AnnotatedType )
@@ -52,6 +52,13 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+
+pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
+pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty) (printAnnotate env tm)
+
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
+pretty' (Just width) n t = PP.render width $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
+pretty' Nothing      n t = PP.renderUnbroken $ PP.syntaxToColor $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -134,19 +141,12 @@ data InfixContext
 
 -}
 
-pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
-pretty env tm = pretty0 env (ac (-1) Normal Map.empty) (printAnnotate env tm)
-
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
-pretty' (Just width) n t = PP.render width $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
-pretty' Nothing      n t = PP.renderUnbroken $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
-
 pretty0
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
   -> AnnotatedTerm3 v PrintAnnotation
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
@@ -254,8 +254,8 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
            -> [(v, AnnotatedTerm3 v PrintAnnotation)] 
            -> AnnotatedTerm3 v PrintAnnotation 
            -> Imports 
-           -> ([Pretty ColorText] -> Pretty ColorText)
-           -> Pretty ColorText
+           -> ([Pretty SyntaxText] -> Pretty SyntaxText)
+           -> Pretty SyntaxText
   printLet sc bs e im' uses =
     paren ((sc /= Block) && p >= 12)
       $  letIntro
@@ -269,7 +269,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
     
-  printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
+  printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` (uses [pretty0 n (ac 0 Block im') body])
     where
@@ -306,8 +306,8 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
   -- starting at `f2`.
   binaryApps
     :: Var v => [(AnnotatedTerm3 v PrintAnnotation, AnnotatedTerm3 v PrintAnnotation)]
-             -> Pretty ColorText
-             -> Pretty ColorText
+             -> Pretty SyntaxText
+             -> Pretty SyntaxText
   binaryApps xs last = unbroken `PP.orElse` broken
    -- todo: use `PP.column2` in the case where we need to break
    where
@@ -330,7 +330,7 @@ prettyPattern
   -> Int
   -> [v]
   -> Pattern loc
-  -> (Pretty ColorText, [v])
+  -> (Pretty SyntaxText, [v])
 -- vs is the list of pattern variables used by the pattern, plus possibly a
 -- tail of variables it doesn't use.  This tail is the second component of
 -- the return value.
@@ -413,15 +413,15 @@ a + b = ...
 
 -}
 prettyBinding ::
-  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
-prettyBinding n = prettyBinding0 n (ac (-1) Block Map.empty)
+  Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty SyntaxText
+prettyBinding n hq t = prettyBinding0 n (ac (-1) Block Map.empty) hq t
 
 prettyBinding' ::
   Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
-prettyBinding' width n v t = PP.render width $ prettyBinding n v t
+prettyBinding' width n v t = PP.render width $ PP.syntaxToColor $ prettyBinding n v t
 
 prettyBinding0 ::
-  Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
+  Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty SyntaxText
 prettyBinding0 env a@(AmbientContext { imports = im }) v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
@@ -457,12 +457,12 @@ prettyBinding0 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
     LamsNamedOpt' vs _ -> length vs == 2
     _                  -> False -- unhittable
 
-paren :: Bool -> Pretty ColorText -> Pretty ColorText
+paren :: Bool -> Pretty SyntaxText -> Pretty SyntaxText
 paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
 paren False s = PP.group s
 
 parenIfInfix
-  :: HQ.HashQualified -> InfixContext -> (Pretty ColorText -> Pretty ColorText)
+  :: HQ.HashQualified -> InfixContext -> (Pretty SyntaxText -> Pretty SyntaxText)
 parenIfInfix name ic =
   if isSymbolic name && ic == NonInfix then paren True else id
 
@@ -485,6 +485,9 @@ isBlank _ = False
 
 ac :: Int -> BlockContext -> Imports -> AmbientContext
 ac prec bc im = AmbientContext prec bc NonInfix im
+
+fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt = PP.withSyntax
 
 {- # FQN elision
 
@@ -697,13 +700,13 @@ x |> f = f x
 -- determines some pretty-printed lines that looks like
 --    use A x
 --    use B y
--- providing a `[Pretty ColorText] -> Pretty ColorText` that prepends those
+-- providing a `[Pretty SyntaxText] -> Pretty SyntaxText` that prepends those
 -- lines to the list of lines provided, and then concatenates them.
 calcImports 
   :: (Var v, Ord v)
   => Imports 
   -> AnnotatedTerm3 v PrintAnnotation 
-  -> (Imports, [Pretty ColorText] -> Pretty ColorText)
+  -> (Imports, [Pretty SyntaxText] -> Pretty SyntaxText)
 calcImports im tm = (im', render $ getUses result)
   where 
     -- The guts of this function is a pipeline of transformations and filters, starting from the
@@ -773,7 +776,7 @@ calcImports im tm = (im', render $ getUses result)
     getUses :: Map Name (Prefix, Suffix, Int) -> Map Prefix (Set Suffix)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
-    render :: Map Prefix (Set Suffix) -> [Pretty ColorText] -> Pretty ColorText
+    render :: Map Prefix (Set Suffix) -> [Pretty SyntaxText] -> Pretty SyntaxText
     render m rest = let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <> 
                                    (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
                                    (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m

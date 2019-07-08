@@ -7,18 +7,18 @@ import           Unison.Name          (Name)
 import qualified Unison.Name          as Name
 import           Unison.ShortHash     (ShortHash)
 import qualified Unison.ShortHash     as SH
-import qualified Unison.SyntaxHighlights as S
-import           Unison.SyntaxHighlights ( fmt )
-import           Unison.Util.Pretty   (Pretty, ColorText)
+import           Unison.Util.SyntaxText (SyntaxText)
+import qualified Unison.Util.SyntaxText as S
+import           Unison.Util.Pretty   (Pretty)
 import qualified Unison.Util.Pretty   as PP
 
 prettyName :: IsString s => Name -> Pretty s
 prettyName = PP.text . Name.toText
 
-prettyHashQualified :: HQ.HashQualified -> Pretty ColorText
+prettyHashQualified :: HQ.HashQualified -> Pretty SyntaxText
 prettyHashQualified = styleHashQualified' id (fmt S.HashQualifier)
 
-prettyHashQualified' :: HQ'.HashQualified -> Pretty ColorText
+prettyHashQualified' :: HQ'.HashQualified -> Pretty SyntaxText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
 
 prettyHashQualified0 :: IsString s => HQ.HashQualified -> Pretty s
@@ -42,7 +42,10 @@ styleHashQualified' nameStyle hashStyle = \case
   HQ.HashQualified n h ->
     PP.group $ nameStyle (prettyName n) <> hashStyle (prettyShortHash h)
 
-styleHashQualified'' :: (Pretty ColorText -> Pretty ColorText)
+styleHashQualified'' :: (Pretty SyntaxText -> Pretty SyntaxText)
                      -> HQ.HashQualified
-                     -> Pretty ColorText
+                     -> Pretty SyntaxText
 styleHashQualified'' nameStyle = styleHashQualified' nameStyle (fmt S.HashQualifier)
+
+fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt = PP.withSyntax

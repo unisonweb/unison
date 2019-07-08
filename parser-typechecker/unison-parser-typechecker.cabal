@@ -111,7 +111,6 @@ library
     Unison.Settings
     Unison.ShortHash
     Unison.Symbol
-    Unison.SyntaxHighlights
     Unison.Term
     Unison.TermParser
     Unison.TermPrinter
@@ -140,6 +139,7 @@ library
     Unison.Util.Range
     Unison.Util.Relation
     Unison.Util.Star3
+    Unison.Util.SyntaxText
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable

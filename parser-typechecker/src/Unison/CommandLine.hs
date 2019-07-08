@@ -76,13 +76,13 @@ backtick s = P.group ("`" <> s <> "`")
 backtickEOS :: IsString s => P.Pretty s -> P.Pretty s
 backtickEOS s = P.group ("`" <> s <> "`.")
 
-tip :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
+tip :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 tip s = P.column2 [("Tip:", P.wrap s)]
 
-note :: P.Pretty CT.ColorText -> P.Pretty CT.ColorText
+note :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s
 note s = P.column2 [("Note:", P.wrap s)]
 
-aside :: P.Pretty P.ColorText -> P.Pretty P.ColorText -> P.Pretty P.ColorText
+aside :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s -> P.Pretty s
 aside a b = P.column2 [(a <> ":", b)]
 
 warn :: (ListLike s Char, IsString s) => P.Pretty s -> P.Pretty s

@@ -144,7 +144,7 @@ notifyUser dir o = case o of
 
   TestIncrementalOutputStart ppe (n,total) r _src -> do
     putPretty' $ P.shown (total - n) <> " tests left to run, current test: "
-              <> prettyHashQualified (PPE.termName ppe $ Referent.Ref r)
+              <> (P.syntaxToColor $ prettyHashQualified (PPE.termName ppe $ Referent.Ref r))
 
   TestIncrementalOutputEnd _ppe (n,total) _r result -> do
     clearCurrentLine
@@ -158,7 +158,7 @@ notifyUser dir o = case o of
     putPrettyLn
       $  P.warnCallout "The following names were not found in the codebase. Check your spelling."
       <> P.newline
-      <> P.indent "  " (P.lines (prettyHashQualified <$> hqs))
+      <> (P.syntaxToColor $ P.indent "  " (P.lines (prettyHashQualified <$> hqs)))
   PatchNotFound input _ ->
     putPrettyLn . P.warnCallout $ "I don't know about that patch."
   TermNotFound input _ ->
@@ -228,13 +228,13 @@ notifyUser dir o = case o of
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
       go (ref, ns) = P.column2
-        [ ("Hash:", prettyHashQualified (HQ.fromReferent ref))
+        [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReferent ref))
         , ("Names: ", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
       go (ref, ns) = P.column2
-        [ ("Hash:", prettyHashQualified (HQ.fromReference ref))
+        [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReference ref))
         , ("Names:", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
         ]
   -- > names foo
@@ -283,7 +283,7 @@ notifyUser dir o = case o of
       --       the decompiled output.
       let prettyBindings = P.bracket . P.lines $
             P.wrap "The watch expression(s) reference these definitions:" : "" :
-            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            [(P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromVar v) b)
             | (v, b) <- bindings]
           prettyWatches = P.sep "\n\n" [
             watchPrinter fileContents ppe ann kind evald isCacheHit |
@@ -359,17 +359,17 @@ notifyUser dir o = case o of
       terms = Patch._termEdits patch
 
       prettyTermEdit (r, TermEdit.Deprecate) =
-        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
         , "-> (deprecated)")
       prettyTermEdit (r, TermEdit.Replace r' _typing) =
-        (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
-        , "-> " <> (prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
+        (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r
+        , "-> " <> (P.syntaxToColor . prettyHashQualified . PPE.termName ppe . Referent.Ref $ r'))
       prettyTypeEdit (r, TypeEdit.Deprecate) =
-        (prettyHashQualified $ PPE.typeName ppe r
+        (P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r
         , "-> (deprecated)")
       prettyTypeEdit (r, TypeEdit.Replace r') =
-        (prettyHashQualified $ PPE.typeName ppe r
-        , "-> " <> (prettyHashQualified . PPE.typeName ppe $ r'))
+        (P.syntaxToColor . prettyHashQualified $ PPE.typeName ppe r
+        , "-> " <> (P.syntaxToColor . prettyHashQualified . PPE.typeName ppe $ r'))
     unless (R.null types) $
        putPrettyLn $ "Edited Types:" `P.hang`
         P.column2 (prettyTypeEdit <$> R.toList types)
@@ -444,18 +444,18 @@ formatMissingStuff terms types =
   (unlessM (null terms) . P.fatalCallout $
     P.wrap "The following terms have a missing or corrupted type signature:"
     <> "\n\n"
-    <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- terms ]) <>
+    <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- terms ]) <>
   (unlessM (null types) . P.fatalCallout $
     P.wrap "The following types weren't found in the codebase:"
     <> "\n\n"
-    <> P.column2 [ (prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
+    <> P.column2 [ (P.syntaxToColor $ prettyHashQualified name, fromString (show ref)) | (name, ref) <- types ])
 
 displayDefinitions' :: Var v => Ord a1
   => PPE.PrettyPrintEnv
   -> Map Reference.Reference (DisplayThing (DD.Decl v a1))
   -> Map Reference.Reference (DisplayThing (Unison.Term.AnnotatedTerm v a1))
   -> P.Pretty P.ColorText
-displayDefinitions' ppe types terms = P.sep "\n\n" (prettyTypes <> prettyTerms)
+displayDefinitions' ppe types terms = P.syntaxToColor $ P.sep "\n\n" (prettyTypes <> prettyTerms)
   where
   prettyTerms = map go . Map.toList
              -- sort by name
@@ -565,7 +565,7 @@ unsafePrettyTermResultSigFull' ppe = \case
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
       P.commas (fmap greyHash $ hq : toList aliases) <> " : "
-      <> TypePrinter.pretty0 ppe mempty (-1) typ
+      <> (P.syntaxToColor $ TypePrinter.pretty0 ppe mempty (-1) typ)
     , mempty
     ]
   _ -> error "Don't pass Nothing"
@@ -600,11 +600,11 @@ prettyDeclTriple :: Var v =>
   (HQ.HashQualified, Reference.Reference, DisplayThing (DD.Decl v a))
   -> P.Pretty P.ColorText
 prettyDeclTriple (name, _, displayDecl) = case displayDecl of
-   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (prettyHashQualified name)
+   BuiltinThing -> P.hiBlack "builtin " <> P.hiBlue "type " <> P.blue (P.syntaxToColor $ prettyHashQualified name)
    MissingThing _ -> mempty -- these need to be handled elsewhere
    RegularThing decl -> case decl of
-     Left ed -> DeclPrinter.prettyEffectHeader name ed
-     Right dd   -> DeclPrinter.prettyDataHeader name dd
+     Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
+     Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
@@ -749,7 +749,7 @@ listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
                   -- : ("-", "-")
-                  : fmap (bimap prettyHashQualified
+                  : fmap (bimap (P.syntaxToColor . prettyHashQualified)
                                 (P.text . Referent.toText)) missingBuiltins)
     ]
   where
