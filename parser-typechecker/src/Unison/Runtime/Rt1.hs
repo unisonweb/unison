@@ -234,8 +234,7 @@ compilationEnv :: Monad m
   -> Term.AnnotatedTerm Symbol a
   -> m CompilationEnv
 compilationEnv env t = do
-  let typeDeps = Term.referencedDataDeclarations t
-              <> Term.referencedEffectDeclarations t
+  let typeDeps = Term.typeDependencies t
   arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
     r@(R.DerivedId id) -> do
       decl <- CL.getTypeDeclaration env id

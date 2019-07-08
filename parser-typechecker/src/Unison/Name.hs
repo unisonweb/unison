@@ -5,6 +5,7 @@ module Unison.Name
   , fromString
   , isPrefixOf
   , joinDot
+  , makeAbsolute
   , stripNamePrefix
   , stripPrefixes
   , toString

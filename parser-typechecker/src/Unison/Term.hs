@@ -58,6 +58,7 @@ import qualified Unison.Var as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
+import Data.Maybe (mapMaybe)
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -754,6 +755,10 @@ isVarKindInfo t = case t of
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 dependencies t = Set.map (either id Referent.toReference) (labeledDependencies t)
+
+typeDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
+typeDependencies =
+  Set.fromList . mapMaybe (either Just (const Nothing)) . toList . labeledDependencies
 
 labeledDependencies :: (Ord v, Ord vt)
                     => AnnotatedTerm2 vt at ap v a
