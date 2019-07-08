@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language TemplateHaskell #-}
+{-# Language TypeApplications #-}
 {-# Language QuasiQuotes #-}
 
 module Unison.Runtime.IOSource where
@@ -7,29 +8,33 @@ module Unison.Runtime.IOSource where
 import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
 import Data.List (elemIndex, genericIndex)
+import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Text (Text)
 import Text.RawString.QQ (r)
+import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.FileParsers (parseAndSynthesizeFile)
 import Unison.Parser (Ann(..))
 import Unison.Symbol (Symbol)
-import Unison.Codebase.CodeLookup (CodeLookup(..))
-import qualified Unison.Codebase.CodeLookup as CL
-import qualified Unison.DataDeclaration as DD
 import qualified Data.Map as Map
 import qualified Unison.Builtin as Builtin
+import qualified Unison.Codebase.CodeLookup as CL
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Parser as Parser
 import qualified Unison.Reference as R
 import qualified Unison.Result as Result
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Var as Var
-import qualified Unison.Names as ON
+import qualified Unison.Names3 as Names
 
 typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
-  tl = const $ pure (External <$ TL.builtinTypeLookup)
-  r = parseAndSynthesizeFile [] tl (mempty, ON.fromNames2 Builtin.names) "<IO.u builtin>" source
+  tl = const $ pure (External <$ Builtin.typeLookup)
+  ctorType = TL.unsafeConstructorType (Builtin.typeLookup @Symbol)
+  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty) ctorType
+  r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
     (Just (_ppe, Nothing), notes) -> error $ "typechecking failed" <> show notes

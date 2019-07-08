@@ -36,8 +36,8 @@ import qualified Unison.ConstructorType     as CT
 -- import qualified Unison.Name                as Name
 import qualified Unison.HashQualified'      as HQ
 import qualified Unison.Name                as N
-import           Unison.Names2              (Names)
-import qualified Unison.Names2              as Names
+import           Unison.Names3              (Names0)
+import qualified Unison.Names3              as Names
 import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
@@ -83,7 +83,7 @@ data Env v loc = Env
   { _ambientAbilities  :: [Type v loc]
   , _typeLookup        :: TL.TypeLookup v loc
   , _unqualifiedTerms  :: Map Name [NamedReference v loc]
-  , _qualifiedNames :: Names
+  , _qualifiedNames    :: Names0
   }
 
 makeLenses ''Env
@@ -305,9 +305,7 @@ typeDirectedNameResolution oldNotes oldType env = do
   dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
   dedupe = nubBy $ \x y -> case (x, y) of
     (Context.Suggestion name1 _ r1 _, Context.Suggestion name2 _ r2 _) ->
-      let refFor n =
-            lookupDom (HQ.fromName $ N.Name n)
-            . Names.terms $ view qualifiedNames env
+      let refFor n = lookupDom (N.Name n) . Names.terms0 $ view qualifiedNames env
        in r1 == r2 || refFor name1 == refFor name2
   resolve
     :: Context.Type v loc

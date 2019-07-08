@@ -2,6 +2,7 @@ module Unison.Typechecker.TypeLookup where
 
 import Control.Applicative ((<|>))
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Type (AnnotatedType)
@@ -29,6 +30,12 @@ typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r
   Referent.Con r cid -> typeOfDataConstructor tl r cid <|>
                         typeOfEffectConstructor tl r cid
+
+-- bombs if not found
+unsafeConstructorType :: TypeLookup v a -> Reference -> CT.ConstructorType
+unsafeConstructorType tl r = fromMaybe
+  (error $ "no constructor type for " <> show r)
+  (constructorType tl r)
 
 constructorType :: TypeLookup v a -> Reference -> Maybe CT.ConstructorType
 constructorType tl r =

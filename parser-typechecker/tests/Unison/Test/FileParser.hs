@@ -5,6 +5,7 @@ module Unison.Test.FileParser where
   import EasyTest
   import Data.List (uncons)
   import Data.Set (elems)
+  import Data.Maybe (fromMaybe)
   import qualified Text.Megaparsec.Error as MPE
   import Unison.FileParser (file)
   import qualified Unison.Parser as P
@@ -13,9 +14,10 @@ module Unison.Test.FileParser where
   import qualified Unison.Referent as Referent
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
-  import qualified Unison.Names as Names
-  import Unison.Names (Names)
+  import qualified Unison.Names3 as Names
+  import Unison.Names3 (Names0)
   import Unison.Var (Var)
+  import qualified Unison.Builtin as Builtin
 
   test1 :: Test ()
   test1 = scope "test1" . tests . map parses $
@@ -66,7 +68,7 @@ module Unison.Test.FileParser where
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
-    let result = P.run (P.rootFile file) s (mempty, builtins)
+    let result = P.run (P.rootFile file) s (P.ParsingEnv mempty builtins builtinCtorType)
     case result of
       Right _ -> crash "Parser succeeded"
       Left (MPE.FancyError _ sets) ->
@@ -118,7 +120,7 @@ module Unison.Test.FileParser where
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
-          P.UnknownDataConstructor _ -> ok
+          P.UnknownDataConstructor _ _ -> ok
           _ -> crash "Error wasn't UnknownDataConstructor"
 
   unknownAbilityConstructorTest :: Test ()
@@ -127,19 +129,18 @@ module Unison.Test.FileParser where
       where
         expectation :: Var e => P.Error e -> Test ()
         expectation e = case e of
-          P.UnknownAbilityConstructor _ -> ok
+          P.UnknownAbilityConstructor _ _ -> ok
           _ -> crash "Error wasn't UnknownAbilityConstructor"
 
-  builtins :: Names
-  builtins = Names.fromTerms
-    [ ("Pair"     , Referent.Con (R.Builtin "Pair") 0)
-    , ("State.set", Referent.Con (R.Builtin "State") 0)
-    ]
+  builtins = Names.Names Builtin.names0 mempty
+
+  builtinCtorType r =
+    fromMaybe (error $ "unknown: " <> show r) (Builtin.constructorType r)
 
   parses :: String -> Test ()
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol P.Ann
       !p = snd . unsafeGetRightFrom s $
-             P.run (P.rootFile file) s (mempty, builtins)
+             P.run (P.rootFile file) s (P.ParsingEnv mempty builtins builtinCtorType)
     pure p >> ok
