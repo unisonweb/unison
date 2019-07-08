@@ -249,11 +249,8 @@ bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
   --    The free vars should just be the things that need to be bound externally.
   let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
       names' = subtractTerms termVars externalNames
-      ct = let
-        fromFile = constructorType uf
-        in \r -> case fromFile r of
-             Nothing -> ctorType r
-             Just ct -> ct
+      ctFile = constructorType uf
+      ct r = fromMaybe (ctorType r) (ctFile r)
   -- todo: can we clean up this lambda using something like `second`
   ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t) ts
   ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t)) ws
@@ -263,9 +260,7 @@ bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
   subtractTerms vs n = let
     taken = Set.fromList (Name.fromVar <$> vs)
     -- dunno how to make record update syntax work here wthout importing Names0(..)
-    in Names.names0
-        (Relation.filterDom (not . (`Set.member` taken)) (Names.terms0 n))
-        (Names.types0 n)
+    in Names.names0 (Relation.subtractDom taken (Names.terms0 n)) (Names.types0 n)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
