@@ -24,7 +24,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.TypeLookup  (TypeLookup(TypeLookup))
 import qualified Unison.Typechecker.TypeLookup as TL
-import           Unison.Parser                  ( Ann )
+import qualified Unison.Parser                 as Parser
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Rel
 import qualified Unison.Var                    as Var
@@ -45,7 +45,7 @@ type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 data Codebase m v a =
   Codebase { getTerm            :: Reference.Id -> m (Maybe (Term v a))
-           , getTypeOfTerm      :: Reference -> m (Maybe (Type v a))
+           , getTypeOfTermImpl  :: Reference.Id -> m (Maybe (Type v a))
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
 
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
@@ -76,7 +76,7 @@ data Codebase m v a =
            }
 
 -- | Write all of the builtins types and IO types into the codebase
-initializeCodebase :: forall m. Monad m => Codebase m Symbol Ann -> m ()
+initializeCodebase :: forall m. Monad m => Codebase m Symbol Parser.Ann -> m ()
 initializeCodebase c = do
   addDefsToCodebase c
     (UF.typecheckedUnisonFile (Map.fromList Builtin.builtinDataDecls)
@@ -115,7 +115,8 @@ getTypeOfConstructor _ r cid =
   error $ "Don't know how to getTypeOfConstructor " ++ show r ++ " " ++ show cid
 
 typeLookupForDependencies
-  :: Monad m => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
+  :: (Monad m, Var v, BuiltinAnnotation a)
+  => Codebase m v a -> Set Reference -> m (TL.TypeLookup v a)
 typeLookupForDependencies codebase refs = foldM go mempty refs
  where
 --  go ::
@@ -210,6 +211,15 @@ makeSelfContained' code uf = do
       (unrefb <$> UF.watches uf)
   pure $ uf'
 
+getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
+  Codebase m v a -> Reference -> m (Maybe (Type v a))
+getTypeOfTerm c = \case
+  Reference.DerivedId h -> getTypeOfTermImpl c h
+  r@Reference.Builtin{} ->
+    pure $   fmap (const builtinAnnotation)
+        <$> Map.lookup r Builtin.termRefTypes
+
+
 dependents :: Functor m => Codebase m v a -> Reference -> m (Set Reference)
 dependents c r
     = Set.union (Builtin.builtinTypeDependents r)
@@ -230,10 +240,17 @@ termsMentioningType c ty =
   r = Type.toReference ty
 
 -- todo: could have a way to look this up just by checking for a file rather than loading it
-isTerm :: Functor m => Codebase m v a -> Reference -> m Bool
+isTerm :: (Applicative m, Var v, BuiltinAnnotation a)
+       => Codebase m v a -> Reference -> m Bool
 isTerm code = fmap isJust . getTypeOfTerm code
 
 isType :: Applicative m => Codebase m v a -> Reference -> m Bool
 isType c r = case r of
   Reference.Builtin{} -> pure $ Builtin.isBuiltinType r
   Reference.DerivedId r -> isJust <$> getTypeDeclaration c r
+
+class BuiltinAnnotation a where
+  builtinAnnotation :: a
+
+instance BuiltinAnnotation Parser.Ann where
+  builtinAnnotation = Parser.Intrinsic

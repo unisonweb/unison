@@ -28,7 +28,7 @@ get_names = PPE.fromNames0 Unison.Builtin.names0
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_term = tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = fmap (CT.toPlain) $ prettyTop get_names input_term
+       prettied = fmap (CT.toPlain) $ pretty get_names input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -353,6 +353,16 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
+  , tc_diff_rtt False "let\n\
+                      \  delay = 'isEven" 
+                      "let\n\
+                      \  delay () = isEven\n\
+                      \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tc_breaks 80 "let\n\
+                 \  a = ()\n\
+                 \  b = ()\n\
+                 \  c = (1, 2)\n\
+                 \  ()"
 
 -- FQN elision tests
   , tc_breaks 12 "if foo then\n\

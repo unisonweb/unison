@@ -182,7 +182,7 @@ pretty isPast ppe sr = let
   okTerm v = case Map.lookup v tms of
     Nothing -> (P.bold (prettyVar v), P.red "(Unison bug, unknown term)")
     Just (_, _, ty) ->
-      (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.prettyTop ppe ty)) where
+      (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)) where
       lhs = case Map.lookup v (termAlias sr) of
         Nothing -> P.bold (prettyVar v)
         Just ns -> P.sep ", " $
@@ -218,7 +218,7 @@ pretty isPast ppe sr = let
       (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
     termLineFor status v = case Map.lookup v tms of
       Just (_, _, ty) -> (prettyStatus status, lhs,
-         ": " <> P.indentNAfterNewline 6 (TP.prettyTop ppe ty))
+         ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty))
        where
        lhs = case Map.lookup v (termAlias sr) of
           Nothing -> P.bold (P.text $ Var.name v)

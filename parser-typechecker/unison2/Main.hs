@@ -22,8 +22,7 @@ main = do
   let
     codebasePath = ".unison/v1"
     initialPath  = Path.absoluteEmpty
-    theCodebase =
-      FileCodebase.codebase1 External formatSymbol formatAnn codebasePath
+    theCodebase = FileCodebase.codebase1 formatSymbol formatAnn codebasePath
     launch = CommandLine.main dir
                               initialPath
                               (headMay args)

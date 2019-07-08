@@ -7,6 +7,8 @@ import           Unison.Name          (Name)
 import qualified Unison.Name          as Name
 import           Unison.ShortHash     (ShortHash)
 import qualified Unison.ShortHash     as SH
+import qualified Unison.SyntaxHighlights as S
+import           Unison.SyntaxHighlights ( fmt )
 import           Unison.Util.Pretty   (Pretty, ColorText)
 import qualified Unison.Util.Pretty   as PP
 
@@ -14,7 +16,7 @@ prettyName :: IsString s => Name -> Pretty s
 prettyName = PP.text . Name.toText
 
 prettyHashQualified :: HQ.HashQualified -> Pretty ColorText
-prettyHashQualified = styleHashQualified' id PP.hiBlack
+prettyHashQualified = styleHashQualified' id (fmt S.HashQualifier)
 
 prettyHashQualified' :: HQ'.HashQualified -> Pretty ColorText
 prettyHashQualified' = prettyHashQualified . HQ'.toHQ
@@ -39,3 +41,8 @@ styleHashQualified' nameStyle hashStyle = \case
   HQ.HashOnly h -> hashStyle (prettyShortHash h)
   HQ.HashQualified n h ->
     PP.group $ nameStyle (prettyName n) <> hashStyle (prettyShortHash h)
+
+styleHashQualified'' :: (Pretty ColorText -> Pretty ColorText)
+                     -> HQ.HashQualified
+                     -> Pretty ColorText
+styleHashQualified'' nameStyle = styleHashQualified' nameStyle (fmt S.HashQualifier)

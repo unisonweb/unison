@@ -78,7 +78,7 @@ import qualified Unison.Runtime.IR             as IR
 import qualified Unison.Term                   as Term
 -- import Debug.Trace
 -- import qualified Unison.Util.Pretty            as Pretty
--- import           Unison.TermPrinter             ( prettyTop )
+-- import           Unison.TermPrinter             ( pretty )
 import           Unison.Codebase.Runtime        ( Runtime(Runtime) )
 import qualified Unison.Runtime.IOSource       as IOSrc
 import qualified Unison.Util.Bytes             as Bytes
@@ -367,7 +367,7 @@ runtime = Runtime terminate eval
   terminate = pure ()
   eval cl' ppe term = do
     let cl = void (hoist (pure . runIdentity) IOSrc.codeLookup) <> cl'
-    -- traceM $ Pretty.render 80 (prettyTop mempty term)
+    -- traceM $ Pretty.render 80 (pretty mempty term)
     cenv <- RT.compilationEnv cl term -- in `m`
     mmap <- newMVar $ IOState
       (Map.fromList [("stdin", stdin), ("stdout", stdout), ("stderr", stderr)])
@@ -387,7 +387,7 @@ toTermOrError ppe r = case r of
     pure . Left . P.callout icon . P.lines $ [
       P.wrap ("I've encountered a" <> P.red "pattern match failure"
               <> "while scrutinizing:"), "",
-      P.indentN 2 $ TermPrinter.prettyTop ppe scrute,
+      P.indentN 2 $ TermPrinter.pretty ppe scrute,
       "",
       P.wrap "This happens when calling a function that doesn't handle all possible inputs.",
       "", sorryMsg
@@ -397,7 +397,7 @@ toTermOrError ppe r = case r of
     let tm = Term.apps' (Term.request() r cid) vs
     pure . Left . P.callout icon . P.lines $ [
       P.wrap ("I stopped evaluation after encountering an " <> P.red "unhandled request:"), "",
-      P.indentN 2 $ TermPrinter.prettyTop ppe tm,
+      P.indentN 2 $ TermPrinter.pretty ppe tm,
       "",
       P.wrap "This happens when using a handler that doesn't handle all possible requests.",
       "", sorryMsg

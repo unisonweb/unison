@@ -564,7 +564,7 @@ unsafePrettyTermResultSigFull' ppe = \case
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
       P.commas (fmap greyHash $ hq : toList aliases) <> " : "
-      <> TypePrinter.pretty ppe mempty (-1) typ
+      <> TypePrinter.pretty0 ppe mempty (-1) typ
     , mempty
     ]
   _ -> error "Don't pass Nothing"
@@ -806,7 +806,7 @@ watchPrinter src ppe ann kind term isHit =
             else if id == DD.failConstructorId
               then addCache
                 (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
-              else P.red "❓ " <> TermPrinter.prettyTop ppe term
+              else P.red "❓ " <> TermPrinter.pretty ppe term
         renderTest x =
           fromString $ "\n Unison bug: " <> show x <> " is not a test."
       in
@@ -820,7 +820,7 @@ watchPrinter src ppe ann kind term isHit =
               <> (if isHit then id else P.purple) "⧩"
               , P.indentN (lineNumWidth + length extra)
               . (if isHit then id else P.bold)
-              $ TermPrinter.prettyTop ppe term
+              $ TermPrinter.pretty ppe term
               ]
           ]
 

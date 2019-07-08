@@ -392,7 +392,7 @@ run :: (R.Reference -> ConstructorId -> [Value] -> IO Result)
 run ioHandler env ir = do
   let -- pir = prettyIR mempty pexternal pcont
       -- pvalue = prettyValue mempty pexternal pcont
-      -- pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
+      -- pcont _k = "<continuation>" -- TP.pretty mempty <$> decompileExternal k
       -- if we had a PrettyPrintEnv, we could use that here
       -- pexternal (ExternalFunction r _) = P.shown r
   -- traceM $ "Running this program"

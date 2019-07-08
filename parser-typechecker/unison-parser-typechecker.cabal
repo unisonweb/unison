@@ -112,6 +112,7 @@ library
     Unison.Settings
     Unison.ShortHash
     Unison.Symbol
+    Unison.SyntaxHighlights
     Unison.Term
     Unison.TermParser
     Unison.TermPrinter
