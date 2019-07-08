@@ -735,12 +735,13 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
           let fileNames0 = UF.typecheckedToNames0 uf
-          ppe <- prettyPrintEnv $
-                      -- unionLeft does shadowing
-                      Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
-                            (prettyPrintNames0 <> historicalNames0)
+          ppe <- do
+            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
+            -- unionLeft shadows names
+            prettyPrintEnv $
+              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
+                    (prettyPrintNames0 <> historicalNames0)
           respond $ SlurpOutput input ppe result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
@@ -821,7 +822,13 @@ loop = do
                , pure . doSlurpAdds (Slurp.adds result) uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          let ppe = PPE.fromNames0 $ fileNames0 `Names.unionLeft` prettyPrintNames0
+          let fileNames0 = UF.typecheckedToNames0 uf
+          ppe <- do
+            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
+            -- unionLeft shadows names
+            prettyPrintEnv $
+              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
+                    (prettyPrintNames0 <> historicalNames0)
           respond $ SlurpOutput input ppe result
 
       TodoI editPath' branchPath' -> do
