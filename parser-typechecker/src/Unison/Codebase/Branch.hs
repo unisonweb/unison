@@ -93,8 +93,6 @@ toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
                    (R.swap . Star3.d1 . deepTypes $ b)
 
-
-
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
 findHistoricalSHs :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)

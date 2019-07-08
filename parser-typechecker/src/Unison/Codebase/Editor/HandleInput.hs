@@ -77,7 +77,7 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name(Name) )
-import           Unison.Names3                  ( Names, Names0 )
+import           Unison.Names3                  ( Names(..), Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
 import qualified Unison.Names                  as OldNames
@@ -735,8 +735,12 @@ loop = do
             stepAt ( Path.unabsolute currentPath'
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+          historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
           let fileNames0 = UF.typecheckedToNames0 uf
-          let ppe =  PPE.fromNames0 $ Names.unionLeft fileNames0 prettyPrintNames0
+          ppe <- prettyPrintEnv $
+                      -- unionLeft does shadowing
+                      Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
+                            (prettyPrintNames0 <> historicalNames0)
           respond $ SlurpOutput input ppe result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
@@ -1722,7 +1726,7 @@ lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = undefined
   -- should lex the file, then using the current path, and branch, produce a names
 
-prettyPrintEnv :: Names -> Action' m v PrettyPrintEnv
+prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: Var v
