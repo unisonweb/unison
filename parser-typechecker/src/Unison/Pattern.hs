@@ -10,6 +10,9 @@ import Data.Foldable as Foldable
 import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
+import qualified Unison.Type as Type
+import qualified Unison.Referent as Referent
+import qualified Data.Set as Set
 
 type Pattern = PatternP ()
 
@@ -152,3 +155,19 @@ foldMap' f p = case p of
 -- newtype PatternP loc = PatternP (PatternP0 loc)
 -- instance Eq (PatternP loc) where
 --   (PatternP p) == (PatternP p2) = void p == void p2
+
+labeledDependencies = Set.fromList . foldMap' (\case
+  UnboundP _              -> mempty
+  VarP _                  -> mempty
+  AsP _ _                 -> mempty
+  ConstructorP _ r cid _  -> [Right (Referent.Con r cid)]
+  EffectPureP _ _         -> [Left Type.effectRef]
+  EffectBindP _ r cid _ _ -> [Left Type.effectRef, Right (Referent.Con r cid)]
+  SequenceLiteralP _ _    -> [Left Type.vectorRef]
+  SequenceOpP _ _ _ _     -> [Left Type.vectorRef]
+  BooleanP _ _            -> [Left Type.booleanRef]
+  IntP _ _                -> [Left Type.intRef]
+  NatP _ _                -> [Left Type.natRef]
+  FloatP _ _              -> [Left Type.floatRef]
+  TextP _ _               -> [Left Type.textRef]
+ )

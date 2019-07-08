@@ -753,85 +753,25 @@ isVarKindInfo t = case t of
 
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
-dependencies t =
-  dependencies' t
-    <> referencedDataDeclarations t
-    <> referencedEffectDeclarations t
-  where
-  -- Term and type dependencies, not including references to user-defined types
-  dependencies' :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
-  dependencies' t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-   where
-    f t@(Ref r    ) = Writer.tell [r] $> t
-    f t@(Ann _ typ) = Writer.tell (Set.toList (Type.dependencies typ)) $> t
-    f t@(Nat _)     = Writer.tell [Type.natRef] $> t
-    f t@(Int _)     = Writer.tell [Type.intRef] $> t
-    f t@(Float _)   = Writer.tell [Type.floatRef] $> t
-    f t@(Boolean _) = Writer.tell [Type.booleanRef] $> t
-    f t@(Text _)    = Writer.tell [Type.textRef] $> t
-    f t@(Sequence _) = Writer.tell [Type.vectorRef] $> t
-    f t             = pure t
+dependencies t = Set.map (either id Referent.toReference) (labeledDependencies t)
 
-labeledDependencies :: (Monad m, Ord v, Ord vt)
-                       => (Reference -> m Bool)
-                       -> AnnotatedTerm2 vt at ap v a
-                       -> m (Set (Either Reference Referent))
-labeledDependencies isType t = do
-  (typeDeps, termRefDeps) <- partitionM isType . toList $ dependencies t
-  pure $ Set.map Right (constructorDependencies t) <>
-   Set.fromList (fmap Left typeDeps <> fmap (Right . Referent.Ref) termRefDeps)
-
-constructorDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Referent
-constructorDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where
-  f t@(Constructor r cid) = Writer.tell [Referent.Con r cid] $> t
+labeledDependencies :: (Ord v, Ord vt)
+                    => AnnotatedTerm2 vt at ap v a
+                    -> Set (Either Reference Referent)
+labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
+  f t@(Ref r    ) = Writer.tell [Right $ Referent.Ref r] $> t
+  f t@(Ann _ typ) = Writer.tell (map Left . toList $ Type.dependencies typ) $> t
+  f t@(Nat _)     = Writer.tell [Left Type.natRef] $> t
+  f t@(Int _)     = Writer.tell [Left Type.intRef] $> t
+  f t@(Float _)   = Writer.tell [Left Type.floatRef] $> t
+  f t@(Boolean _) = Writer.tell [Left Type.booleanRef] $> t
+  f t@(Text _)    = Writer.tell [Left Type.textRef] $> t
+  f t@(Sequence _) = Writer.tell [Left Type.vectorRef] $> t
+  f t@(Constructor r cid) = Writer.tell [Right $ Referent.Con r cid] $> t
+  f t@(Request r cid)     = Writer.tell [Right $ Referent.Con r cid] $> t
+  f t@(Match _ cases)     = traverse_ goPat cases $> t
   f t                     = pure t
-
-referencedDataDeclarations
-  :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
-referencedDataDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
-  f
-  t
- where
-  f t@(Constructor r _    ) = Writer.tell [r] $> t
-  f t@(Match       _ cases) = traverse_ g cases $> t
-   where
-    g (MatchCase pat _ _) =
-      Writer.tell (Set.toList (referencedDataDeclarationsP pat))
-  f t = pure t
-
-referencedDataDeclarationsP :: Pattern loc -> Set Reference
-referencedDataDeclarationsP p = Set.fromList . Writer.execWriter $ go p
- where
-  go (Pattern.As _ p) = go p
-  go (Pattern.Constructor _ id _ args) = Writer.tell [id] *> traverse_ go args
-  go (Pattern.EffectPure _ p) = go p
-  go (Pattern.EffectBind _ _ _ args k) = traverse_ go args *> go k
-  go _ = pure ()
-
-referencedEffectDeclarations
-  :: Ord v => AnnotatedTerm2 vt at ap v a -> Set Reference
-referencedEffectDeclarations t = Set.fromList . Writer.execWriter $ ABT.visit'
-  f
-  t
- where
-  f t@(Request r _    ) = Writer.tell [r] $> t
-  f t@(Match   _ cases) = traverse_ g cases $> t
-   where
-    g (MatchCase pat _ _) =
-      Writer.tell (Set.toList (referencedEffectDeclarationsP pat))
-    -- todo: does this traverse the guard and body of MatchCase?
-  f t = pure t
-
-referencedEffectDeclarationsP :: Pattern loc -> Set Reference
-referencedEffectDeclarationsP p = Set.fromList . Writer.execWriter $ go p
- where
-  go (Pattern.As _ p                ) = go p
-  go (Pattern.Constructor _ _ _ args) = traverse_ go args
-  go (Pattern.EffectPure _ p        ) = go p
-  go (Pattern.EffectBind _ id _ args k) =
-    Writer.tell [id] *> traverse_ go args *> go k
-  go _ = pure ()
+  goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
 
 updateDependencies
   :: Ord v => Map Reference Reference -> AnnotatedTerm v a -> AnnotatedTerm v a

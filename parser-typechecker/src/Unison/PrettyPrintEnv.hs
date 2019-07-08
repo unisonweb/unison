@@ -6,7 +6,6 @@ module Unison.PrettyPrintEnv where
 import           Control.Applicative            ( (<|>) )
 import           Data.Map                       ( Map )
 import           Data.Maybe                     ( fromMaybe )
-import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import           Debug.Trace                    ( trace )
 import           Unison.HashQualified           ( HashQualified )
@@ -16,9 +15,7 @@ import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import           Unison.Util.List               (safeHead)
 import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
 import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import qualified Unison.Names3                 as Names
 import qualified Unison.Referent               as Referent

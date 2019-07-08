@@ -32,9 +32,6 @@ import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
 import qualified Unison.ConstructorType     as CT
--- import           Unison.Name                (Name)
--- import qualified Unison.Name                as Name
-import qualified Unison.HashQualified'      as HQ
 import qualified Unison.Name                as N
 import           Unison.Names3              (Names0)
 import qualified Unison.Names3              as Names

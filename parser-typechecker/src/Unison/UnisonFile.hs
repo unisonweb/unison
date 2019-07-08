@@ -23,10 +23,6 @@ import           Unison.DataDeclaration (EffectDeclaration' (..))
 import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name            as Name
---import           Unison.Names           (Names)
---import           Unison.Names2          (Names0)
---import qualified Unison.Names           as Names
---import qualified Unison.Names2          as Names2
 import qualified Unison.Names3          as Names
 import           Unison.Reference       (Reference)
 import           Unison.Referent        (Referent)
@@ -131,6 +127,22 @@ getDecl' :: Ord v => TypecheckedUnisonFile v a -> v -> Maybe (DD.Decl v a)
 getDecl' uf v =
   (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
   (Left . snd <$> Map.lookup v (effectDeclarations' uf))
+
+-- todo: consider dealing with two sets instead of set of Eithers
+labeledDependencies :: Var v
+                    => TypecheckedUnisonFile v a
+                    -> Set (Either Reference Referent)
+labeledDependencies TypecheckedUnisonFile{..} =
+  Set.map Left typeDeps <> termDeps
+  where
+  typeDeps :: Set Reference
+  typeDeps = foldMap DD.dependencies
+              (fmap snd (toList dataDeclarations')
+                <> fmap (DD.toDataDecl . snd) (toList effectDeclarations'))
+             <> foldMap (\(_, _e, t) -> Type.dependencies t) (toList hashTerms)
+  termDeps :: Set (Either Reference Referent)
+  termDeps = foldMap Term.labeledDependencies
+              (fmap (\(_, e, _r) -> e) (toList hashTerms))
 
 -- Returns a relation for the dependencies of this file. The domain is
 -- the dependent, and the range is its dependencies, thus:

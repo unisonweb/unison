@@ -9,13 +9,12 @@
 module Unison.TermParser where
 
 import           Control.Applicative
-import           Control.Monad (guard, join, when)
+import           Control.Monad (join, when)
 import           Control.Monad.Reader (asks, local)
-import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Functor
 import           Data.Int (Int64)
-import           Data.List (elem, find)
+import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
@@ -27,11 +26,9 @@ import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (AnnotatedType)
 import           Unison.Var (Var)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
@@ -39,7 +36,6 @@ import qualified Unison.Name as Name
 import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
-import qualified Unison.Reference as R
 import qualified Unison.Term as Term
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var

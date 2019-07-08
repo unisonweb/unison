@@ -30,3 +30,5 @@ loc = P.loc
 
 setLoc :: P.PatternP loc -> loc -> P.PatternP loc
 setLoc = P.setLoc
+
+labeledDependencies = P.labeledDependencies

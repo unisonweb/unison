@@ -78,7 +78,8 @@ import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name(Name) )
 import           Unison.Names3                  ( Names, Names0 )
-import qualified Unison.Names3                 as Names
+import qualified Unison.Names2                 as Names
+import qualified Unison.Names3                 as Names3
 import qualified Unison.Names                  as OldNames
 import qualified Unison.Parsers                as Parsers
 import           Unison.Parser                  ( Ann(..) )
@@ -109,6 +110,7 @@ import           Unison.Runtime.IOSource       ( isTest )
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
+import Unison.UnisonFile (TypecheckedUnisonFile)
 
 --import Debug.Trace
 
@@ -638,10 +640,10 @@ loop = do
           rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
           names = Names.Names
                     (queryNames
-                       `Names.unionLeft0` currentBranchNames
-                       `Names.unionLeft0` rootNames)
+                       `Names.unionLeft` currentBranchNames
+                       `Names.unionLeft` rootNames)
                     (historicalNames
-                      `Names.unionLeftRef0` historicalNamesForQueries)
+                      `Names.unionLeftRef` historicalNamesForQueries)
         ppe <- prettyPrintEnv names
         let loc = case outputLoc of
               ConsoleLocation    -> Nothing
@@ -672,31 +674,26 @@ loop = do
       SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
         ->
         let ws = drop 1 . dropWhile (/= ":") $ q in
-        case parseSearchType input parseNames0 ws of
+        parseSearchType input ws >>= \case
           Left e -> respond e
-          Right typ0 -> do
-            let toSubst = (over _1 (Var.named . Name.toText)) <$> R.toList (Names.types parseNames0)
-            let typ = Type.generalizeLowercase mempty $ Type.bindBuiltins toSubst typ0
+          Right typ -> do
             let locals = Branch.deepReferents (Branch.head currentBranch')
-            if ABT.isClosed typ then do
-              matches <- fmap toList . eval $ GetTermsOfType typ
-              matches <- filter (`Set.member` locals) <$>
-                if null matches then do
-                  respond $ NoExactTypeMatches
-                  fmap toList . eval $ GetTermsMentioningType typ
-                else pure matches
-              let isVerbose = (take 1 q == ["-l"])
-              let results =
-                    -- in verbose mode, aliases are shown, so we collapse all
-                    -- aliases to a single search result; in non-verbose mode,
-                    -- a separate result may be shown for each alias
-                    (if isVerbose then uniqueBy SR.toReferent else id) $
-                    searchResultsFor prettyPrintNames0 matches []
-              numberedArgs .= fmap searchResultToHQString results
-              loadSearchResults results
-                >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
-            else
-              respond $ TypeHasFreeVars input typ
+            matches <- fmap toList . eval $ GetTermsOfType typ
+            matches <- filter (`Set.member` locals) <$>
+              if null matches then do
+                respond $ NoExactTypeMatches
+                fmap toList . eval $ GetTermsMentioningType typ
+              else pure matches
+            let isVerbose = (take 1 q == ["-l"])
+            let results =
+                  -- in verbose mode, aliases are shown, so we collapse all
+                  -- aliases to a single search result; in non-verbose mode,
+                  -- a separate result may be shown for each alias
+                  (if isVerbose then uniqueBy SR.toReferent else id) $
+                  searchResultsFor prettyPrintNames0 matches []
+            numberedArgs .= fmap searchResultToHQString results
+            loadSearchResults results
+              >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
       SearchByNameI ("-l" : ws) -> do
         let qs = map HQ.fromString ws
         let b0 = Branch.toNames0 . Branch.head $ currentBranch'
@@ -739,7 +736,7 @@ loop = do
                    , doSlurpAdds (Slurp.adds result) uf)
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           let fileNames0 = UF.typecheckedToNames0 uf
-          let ppe = PPE.fromNames0 $ Names.unionLeft fileNames0 prettyPrintNames0
+          let ppe =  PPE.fromNames0 $ Names.unionLeft fileNames0 prettyPrintNames0
           respond $ SlurpOutput input ppe result
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
@@ -1707,7 +1704,6 @@ prettyPrintFixup currentPath' (Names terms types) = Names terms' types' where
   terms' = R.mapDom fixName terms
   types' = R.mapDom fixName types
 
-
 fixupHistoricalRefs' :: Monad m
   => Set Reference
   -> Set Referent
@@ -1750,3 +1746,6 @@ resolveHQName (Path.unabsolute -> p) n =
   if p == Path.empty then n else case Name.toString n of
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
+
+namesForTypecheckedUnisonFile :: TypecheckedUnisonFile v a -> Action' m v Names
+namesForTypecheckedUnisonFile uf = R.ran (UF.dependencies' uf)
