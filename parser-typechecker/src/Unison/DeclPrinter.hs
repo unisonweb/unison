@@ -56,7 +56,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   constructor (n, (_, _, t)) =
     prettyPattern env r name n
       <>       (fmt S.TypeAscriptionColon " :")
-      `P.hang` TypePrinter.pretty env Map.empty (-1) t
+      `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
   header = prettyEffectHeader name (DD.EffectDeclaration dd) <> (fmt S.ControlKeyword " where")
 
 prettyPattern
@@ -84,13 +84,13 @@ prettyDataDecl env r name dd =
     Nothing -> prettyPattern env r name n
     Just ts -> case fieldNames env r name dd of
       Nothing -> P.group . P.hang' (prettyPattern env r name n) "      "
-               $ P.spaced (TypePrinter.pretty0 env Map.empty 10 <$> init ts)
+               $ P.spaced (TypePrinter.prettyRaw env Map.empty 10 <$> init ts)
       Just fs -> P.group $ (fmt S.DelimiterChar "{ ")
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> (fmt S.DelimiterChar " }")
   field (fname, typ) = P.group $ styleHashQualified'' (fmt S.Constructor) fname <> 
-    (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.pretty0 env Map.empty (-1) typ
+    (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw env Map.empty (-1) typ
   header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 
 -- Comes up with field names for a data declaration which has the form of a

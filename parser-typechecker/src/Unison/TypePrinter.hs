@@ -45,21 +45,25 @@ import qualified Unison.DataDeclaration as DD
 
 -}
 
-prettyTop
+pretty
   :: forall v a . (Var v)
   => PrettyPrintEnv -> AnnotatedType v a -> Pretty ColorText
-prettyTop ppe ty = pretty ppe mempty (-1) ty
+pretty ppe ty = pretty0 ppe mempty (-1) ty
 
-pretty
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
+pretty' (Just width) n t = toPlain $ PP.render width $ pretty0 n Map.empty (-1) t
+pretty' Nothing      n t = toPlain $ PP.render maxBound $ pretty0 n Map.empty (-1) t
+
+pretty0
   :: forall v a . (Var v)
   => PrettyPrintEnv
   -> Imports
   -> Int
   -> AnnotatedType v a
   -> Pretty ColorText
-pretty n im p tp = pretty0 n im p (cleanup (removePureEffects tp))
+pretty0 n im p tp = prettyRaw n im p (cleanup (removePureEffects tp))
 
-pretty0
+prettyRaw
   :: forall v a . (Var v)
   => PrettyPrintEnv
   -> Imports
@@ -69,7 +73,7 @@ pretty0
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
-pretty0 n im p tp = go n im p tp
+prettyRaw n im p tp = go n im p tp
   where
   go :: PrettyPrintEnv -> Imports -> Int -> AnnotatedType v a -> Pretty ColorText
   go n im p tp = case stripIntroOuters tp of
@@ -128,19 +132,14 @@ pretty0 n im p tp = go n im p tp
   parenNoGroup True  s = ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
   parenNoGroup False s = s
 
-
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
-pretty' (Just width) n t = toPlain $ PP.render width $ pretty n Map.empty (-1) t
-pretty' Nothing      n t = toPlain $ PP.render maxBound $ pretty n Map.empty (-1) t
-
 -- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
   -> [(HashQualified, AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
-  [ (styleHashQualified'' (fmt S.DataType) name, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
-                   ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty env Map.empty (-1) typ)))
+  [ (styleHashQualified'' (fmt S.DataType) name, ((fmt S.TypeAscriptionColon ": ") <> (pretty0 env Map.empty (-1) typ)) `PP.orElse`
+                   ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)))
   | (name, typ) <- ts
   ]
 
@@ -150,8 +149,8 @@ prettySignaturesAlt'
   -> [([HashQualified], AnnotatedType v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = PP.align
-  [ (PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names, ((fmt S.TypeAscriptionColon ": ") <> (pretty env Map.empty (-1) typ)) `PP.orElse`
-     ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty env Map.empty (-1) typ)))
+  [ (PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names, ((fmt S.TypeAscriptionColon ": ") <> (pretty0 env Map.empty (-1) typ)) `PP.orElse`
+     ((fmt S.TypeAscriptionColon ": ") <> PP.indentNAfterNewline 2 (pretty0 env Map.empty (-1) typ)))
   | (names, typ) <- ts
   ]
 

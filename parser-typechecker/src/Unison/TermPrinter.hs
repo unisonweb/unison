@@ -134,16 +134,20 @@ data InfixContext
 
 -}
 
-prettyTop :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
-prettyTop env tm = pretty env (ac (-1) Normal Map.empty) (printAnnotate env tm)
+pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
+pretty env tm = pretty0 env (ac (-1) Normal Map.empty) (printAnnotate env tm)
 
-pretty
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
+pretty' (Just width) n t = PP.render width $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
+pretty' Nothing      n t = PP.renderUnbroken $ pretty0 n (ac (-1) Normal Map.empty) (printAnnotate n t)
+
+pretty0
   :: Var v
   => PrettyPrintEnv
   -> AmbientContext
   -> AnnotatedTerm3 v PrintAnnotation
   -> Pretty ColorText
-pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
+pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
@@ -152,8 +156,8 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
-        $  pretty n (ac 10 Normal im) tm
-        <> PP.hang (fmt S.TypeAscriptionColon " :" ) (TypePrinter.pretty n im 0 t)
+        $  pretty0 n (ac 10 Normal im) tm
+        <> PP.hang (fmt S.TypeAscriptionColon " :" ) (TypePrinter.pretty0 n im 0 t)
     Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i)
     Nat'     u  -> fmt S.NumericLiteral $ l $ show u
     Float'   f  -> fmt S.NumericLiteral $ l $ show f
@@ -173,18 +177,18 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
-        $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty n (ac 2 Normal im) h)
+        $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty0 n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty n (ac 2 Block im') body]))
+        <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty0 n (ac 2 Block im') body]))
     App' x (Constructor' DD.UnitRef 0) ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty n (ac 11 Normal im) x
-    AskInfo' x -> paren (p >= 11) $ pretty n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
+      paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
+    AskInfo' x -> paren (p >= 11) $ pretty0 n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
     LamNamed' v x | (Var.name v) == "()" ->
-      paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty n (ac 11 Normal im) x
+      paren (p >= 11) $ (fmt S.DelayForceChar $ l "'") <> pretty0 n (ac 11 Normal im) x
     Sequence' xs -> PP.group $
       (fmt S.DelimiterChar $ l "[") <> optSpace
           <> intercalateMap ((fmt S.DelimiterChar $ l ",") <> PP.softbreak <> optSpace <> optSpace)
-                            (pretty n (ac 0 Normal im))
+                            (pretty0 n (ac 0 Normal im))
                             xs
           <> optSpace <> (fmt S.DelimiterChar $ l "]")
       where optSpace = PP.orElse "" " "
@@ -203,44 +207,44 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
-                   in uses $ [pretty n (ac 2 Block im') tm]
+                   in uses $ [pretty0 n (ac 2 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         fmt S.ControlKeyword "and", 
-        pretty n (ac 10 Normal im) x,
-        pretty n (ac 10 Normal im) y
+        pretty0 n (ac 10 Normal im) x,
+        pretty0 n (ac 10 Normal im) y
       ]
     Or' x y ->
       paren (p >= 10) $ PP.spaced [
         fmt S.ControlKeyword "or", 
-        pretty n (ac 10 Normal im) x,
-        pretty n (ac 10 Normal im) y
+        pretty0 n (ac 10 Normal im) x,
+        pretty0 n (ac 10 Normal im) y
       ]
     LetRecNamed' bs e -> printLet bc bs e im' uses
     Lets' bs e -> printLet bc (map (\(_, v, binding) -> (v, binding)) bs) e im' uses
     Match' scrutinee branches -> paren (p >= 2) $
-      ((fmt S.ControlKeyword "case ") <> pretty n (ac 2 Normal im) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
+      ((fmt S.ControlKeyword "case ") <> pretty0 n (ac 2 Normal im) scrutinee <> (fmt S.ControlKeyword " of")) `PP.hang` bs
       where bs = PP.lines (map printCase branches)
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
     (TupleTerm' [x], _) ->
       paren (p >= 10) $ (fmt S.Constructor "Pair") `PP.hang`
-        PP.spaced [pretty n (ac 10 Normal im) x, (fmt S.Constructor "()") ]
+        PP.spaced [pretty0 n (ac 10 Normal im) x, (fmt S.Constructor "()") ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
-      binaryApps apps (pretty n (ac 3 Normal im) lastArg)
+      binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
     _ -> case (term, nonForcePred) of
       AppsPred' f args | not $ isVarKindInfo f ->
-        paren (p >= 10) $ pretty n (ac 10 Normal im) f `PP.hang`
-          PP.spacedMap (pretty n (ac 10 Normal im)) args
+        paren (p >= 10) $ pretty0 n (ac 10 Normal im) f `PP.hang`
+          PP.spacedMap (pretty0 n (ac 10 Normal im)) args
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            PP.group (varList vs <> (fmt S.ControlKeyword " ->")) `PP.hang` pretty n (ac 2 Block im) body
+            PP.group (varList vs <> (fmt S.ControlKeyword " ->")) `PP.hang` pretty0 n (ac 2 Block im) body
         _ -> go term
 
-  sepList sep xs = sepList' (pretty n (ac 0 Normal im)) sep xs
+  sepList sep xs = sepList' (pretty0 n (ac 0 Normal im)) sep xs
   sepList' f sep xs = fold $ intersperse sep (map f xs)
   varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
   commaList = sepList ((fmt S.DelimiterChar $ l ",") <> PP.softbreak)
@@ -256,23 +260,23 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
     paren ((sc /= Block) && p >= 12)
       $  letIntro
       $  (uses [(PP.lines (map printBinding bs ++
-                            [PP.group $ pretty n (ac 0 Normal im') e]))])
+                            [PP.group $ pretty0 n (ac 0 Normal im') e]))])
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
-      then pretty n (ac (-1) Normal im') binding
-      else prettyBinding2 n (ac (-1) Normal im') (HQ.fromVar v) binding
+      then pretty0 n (ac (-1) Normal im') binding
+      else prettyBinding0 n (ac (-1) Normal im') (HQ.fromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
     
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty ColorText
   printCase (MatchCase pat guard (AbsN' vs body)) =
-    PP.group $ lhs `PP.hang` (uses [pretty n (ac 0 Block im') body])
+    PP.group $ lhs `PP.hang` (uses [pretty0 n (ac 0 Block im') body])
     where
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> (fmt S.ControlKeyword "->")
-    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty n (ac 2 Normal im) g, ""]
+    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   printCase _ = l "error"
@@ -314,15 +318,10 @@ pretty n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, 
       [] -> []
       _ -> error "??"
     ps = join $ [r a f | (a, f) <- reverse xs ]
-    r a f = [pretty n (ac 3 Normal im) a,
-             pretty n (AmbientContext 10 Normal Infix im) f]
+    r a f = [pretty0 n (ac 3 Normal im) a,
+             pretty0 n (AmbientContext 10 Normal Infix im) f]
 
   (im', uses) = calcImports im term
-
-pretty' ::
-  Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedTerm v a -> ColorText
-pretty' (Just width) n t = PP.render width $ pretty n (ac (-1) Normal Map.empty) (printAnnotate n t)
-pretty' Nothing      n t = PP.renderUnbroken $ pretty n (ac (-1) Normal Map.empty) (printAnnotate n t)
 
 prettyPattern
   :: forall v loc . Var v
@@ -415,24 +414,28 @@ a + b = ...
 -}
 prettyBinding ::
   Var v => PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
-prettyBinding n = prettyBinding2 n (ac (-1) Block Map.empty)
+prettyBinding n = prettyBinding0 n (ac (-1) Block Map.empty)
 
-prettyBinding2 ::
+prettyBinding' ::
+  Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
+prettyBinding' width n v t = PP.render width $ prettyBinding n v t
+
+prettyBinding0 ::
   Var v => PrettyPrintEnv -> AmbientContext -> HQ.HashQualified -> AnnotatedTerm2 v at ap v a -> Pretty ColorText
-prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && isBinary term) term where
+prettyBinding0 env a@(AmbientContext { imports = im }) v term = go (symbolic && isBinary term) term where
   go infix' = \case
     Ann' tm tp -> PP.lines [
-      PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") (TypePrinter.pretty env im (-1) tp)),
-      PP.group (prettyBinding2 env a v tm) ]
+      PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") (TypePrinter.pretty0 env im (-1) tp)),
+      PP.group (prettyBinding0 env a v tm) ]
     LamsNamedOpt' vs body -> 
       let 
         (im', uses) = calcImports im body'
-        -- In the case where we're being called from inside `pretty`, this call to 
+        -- In the case where we're being called from inside `pretty0`, this call to 
         -- printAnnotate is unfortunately repeating work we've already done.
         body' = printAnnotate env body 
       in PP.group $
         PP.group (defnLhs v vs <> (fmt S.BindingEquals " =")) `PP.hang`
-        (uses [pretty env (ac (-1) Block im') body'])
+        (uses [pretty0 env (ac (-1) Block im') body'])
     t -> l "error: " <> l (show t)
    where
     defnLhs v vs = if infix'
@@ -453,10 +456,6 @@ prettyBinding2 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
     Ann'          tm _ -> isBinary tm
     LamsNamedOpt' vs _ -> length vs == 2
     _                  -> False -- unhittable
-
-prettyBinding'
-  :: Var v => Int -> PrettyPrintEnv -> HQ.HashQualified -> AnnotatedTerm v a -> ColorText
-prettyBinding' width n v t = PP.render width $ prettyBinding n v t
 
 paren :: Bool -> Pretty ColorText -> Pretty ColorText
 paren True  s = PP.group $ ( fmt S.Parenthesis "(" ) <> s <> ( fmt S.Parenthesis ")" )
@@ -818,7 +817,7 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
   hit t = (getUsages t) == i
 
 -- Return any blockterms at or immediately under this term.  Has to match the places in the
--- syntax that get a call to `calcImports` in `pretty`.
+-- syntax that get a call to `calcImports` in `pretty0`.
 immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]

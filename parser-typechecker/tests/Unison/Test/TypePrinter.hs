@@ -19,7 +19,7 @@ tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
    let input_type = Unison.Test.Common.t s
        get_names = PPE.fromNames0 Unison.Builtin.names0
-       prettied = fmap toPlain $ pretty0 get_names Map.empty (-1) input_type
+       prettied = fmap toPlain $ prettyRaw get_names Map.empty (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width $ prettied
