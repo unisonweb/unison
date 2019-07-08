@@ -13,25 +13,28 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.GitError
-import           Unison.Names2                  ( Names )
+import           Unison.Names3                  ( Names0, Names )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
                                                 , Result)
 import           Unison.DataDeclaration         ( Decl )
-
 import qualified Unison.Codebase.Runtime       as Runtime
+import qualified Unison.ConstructorType        as CT
+import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Lexer                  as L
+import qualified Unison.Parser                 as Parser
 
 
 type AmbientAbilities v = [Type.AnnotatedType v Ann]
 type SourceName = Text
 type Source = Text
+type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
@@ -50,13 +53,19 @@ data Command m i v a where
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
+  -- the hash length needed to disambiguate any definition in the codebase
+  CodebaseHashLength :: Command m i v Int
+
+  ParseType :: Names -> LexedSource -> Command m i v (Either (Parser.Error v) (Type v Ann))
+
   -- Typecheck a unison file relative to a particular link.
   -- If we want to be able to resolve relative names (seems unnecessary,
   -- at least in M1), we can keep a map from Link to parent in memory.
   Typecheck :: AmbientAbilities v
             -> Names
+            -> (Reference -> CT.ConstructorType)
             -> SourceName
-            -> Source
+            -> LexedSource
             -> Command m i v (TypecheckingResult v)
 
   -- Evaluate all watched expressions in a UnisonFile and return

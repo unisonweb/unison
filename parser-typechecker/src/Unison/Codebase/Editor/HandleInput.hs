@@ -77,8 +77,8 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name(Name) )
-import           Unison.Names2                  ( Names'(..), Names0 )
-import qualified Unison.Names2                  as Names
+import           Unison.Names3                  ( Names, Names0 )
+import qualified Unison.Names3                 as Names
 import qualified Unison.Names                  as OldNames
 import qualified Unison.Parsers                as Parsers
 import           Unison.Parser                  ( Ann(..) )
@@ -212,10 +212,12 @@ loop = do
             Path.Path (toList -> []) -> id
             p -> Names.prefix0 (Path.toName p)
 
-      ppe0 = PPE.fromNames0 prettyPrintNames0
       withFile ambient sourceName text k = do
-        let names = Names.names0ToNames parseNames0
-        Result notes r <- eval $ Typecheck ambient names sourceName text
+        -- todo: Need to lex the file, pull out all the hash-qualified tokens
+        -- then monadically load from history info related to these HQs, and
+        -- then use both `names0` and the historical `names0` to construct
+        -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
+        Result notes r <- eval $ Typecheck ambient parseNames0 sourceName text
         case r of
           -- Parsing failed
           Nothing -> respond $
@@ -459,6 +461,8 @@ loop = do
                   in over Branch.terms tmUpdates . over Branch.types tyUpdates $ b0
           _ -> respond $ LinkFailure input
 
+      -- > links List.map (.Docs .English)
+      -- > links List.map
       LinksI src mdTypeStr -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
@@ -468,19 +472,18 @@ loop = do
             mdTypes = foldl' Metadata.merge mempty [
               BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
             allMd = Metadata.merge mdTerms mdTypes
-            allowed = case mdTypeStr of
-              Just str -> case Parsers.parseType str mempty of
-                Left e -> Left e
-                Right ty0 -> let
-                  ty = Type.bindBuiltins' parseNames0 ty0
-                  in Right $ Set.singleton (Type.toReference ty)
-              Nothing -> Right (Map.keysSet allMd)
+        (names, allowed) <- case mdTypeStr of
+          Nothing -> pure $ Right (Map.keysSet allMd)
+          Just typeStr -> do
+            (names, lexed) <- lexedSource "" mdTypeSrc
+            allowed <- fmap (Set.singleton . Type.toReference) <$> eval (ParseType names lexed)
+            pure (names, allowed)
         case allowed of
           Left e -> respond $ ParseErrors (Text.pack (fromMaybe "" mdTypeStr)) [e]
           Right allowed -> do
             let allMd' = Map.restrictKeys allMd allowed
                 allRefs = toList (Set.unions (Map.elems allMd'))
-                ppe = PPE.fromNames0 prettyPrintNames0
+            ppe <- prettyPrintEnv names
             termDisplays <- Map.fromList <$> do
               terms <- filterM (eval . IsTerm) allRefs
               traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
@@ -633,16 +636,17 @@ loop = do
           currentBranchNames, rootNames :: Names0
           currentBranchNames = Branch.toNames0 currentBranch0
           rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
-          ppe = PPE.fromTipAndHistoricalNames0
-                  (queryNames
-                     `Names.unionLeft` currentBranchNames
-                     `Names.unionLeft` rootNames)
-                  (historicalNames
-                    `Names.unionLeftRef` historicalNamesForQueries)
-          loc = case outputLoc of
-            ConsoleLocation    -> Nothing
-            FileLocation path  -> Just path
-            LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+          names = Names.Names
+                    (queryNames
+                       `Names.unionLeft0` currentBranchNames
+                       `Names.unionLeft0` rootNames)
+                    (historicalNames
+                      `Names.unionLeftRef0` historicalNamesForQueries)
+        ppe <- prettyPrintEnv names
+        let loc = case outputLoc of
+              ConsoleLocation    -> Nothing
+              FileLocation path  -> Just path
+              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
 --          traceM "historicalNamesForQueries"
 --          traceShowM historicalNamesForQueries
@@ -1665,19 +1669,6 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
-parseSearchType
-  :: Var v
-  => Input
-  -> Names0
-  -> [String]
-  -> Either (Output v) (Type.AnnotatedType v Ann)
-parseSearchType input ns typ =
-  let ns' = OldNames.fromNames2 (Names.names0ToNames ns)
-      src = intercalate " " typ
-  in case Parsers.parseType src (mempty, ns') of
-    Left err -> Left $ TypeParseError input src err
-    Right typ -> Right $ Type.removeAllEffectVars typ
-
 fixupHistoricalRefs :: Monad m
   => Set (Either Reference Referent)
   -> Branch m
@@ -1688,33 +1679,33 @@ fixupHistoricalRefs =
     f (types, terms) (Left r) = (Set.insert r types, terms)
     f (types, terms) (Right r) = (types, Set.insert r terms)
 
-makeFixupHistorical :: Monad m
-  => (a -> Branch m -> m (a, Names0))
-  -> Path.Absolute
-  -> Branch m
-  -> a
-  -> Action' m v Names0
-makeFixupHistorical find currentPath' root' query = do
-  (_missing, historicalNames) <- eval . Eval $ find query root'
-  pure (fixup currentPath' historicalNames)
-  where
-  -- okay, so the names in `historicalNames` are relative to the roots
-  -- of their respective historical branches, but the names we want to
-  -- display should be relative to the user's current branch, or
-  -- .absolute from the root.  So, `fixup` is going to either strip
-  -- a prefix or add a `.` to the start.
-  -- e.g. if currentPath = .foo.bar
-  --      then name foo.bar.baz becomes baz
-  --           name cat.dog     becomes .cat.dog
-  fixup :: Path.Absolute -> Names0 -> Names0
-  fixup currentPath' (Names terms types) = Names terms' types' where
-    fixName n = if currentPath' == Path.absoluteEmpty then n else
-      case Name.stripNamePrefix
-            (Path.toName (Path.unabsolute currentPath')) n of
-        Just n -> n
-        Nothing -> Name ("." <> Name.toText n)
-    terms' = R.mapDom fixName terms
-    types' = R.mapDom fixName types
+-- makeFixupHistorical :: Monad m
+--   => (a -> Branch m -> m (a, Names0))
+--   -> Path.Absolute
+--   -> Branch m
+--   -> a
+--   -> Action' m v Names0
+-- makeFixupHistorical find currentPath' root' query = do
+--   (_missing, historicalNames) <- eval . Eval $ find query root'
+--   pure (fixup currentPath' historicalNames)
+--   where
+
+-- Any absolute names in the input which have `currentPath` as a prefix
+-- are converted to names relative to current path. All other names are
+-- converted to absolute names. For example:
+--
+-- e.g. if currentPath = .foo.bar
+--      then name foo.bar.baz becomes baz
+--           name cat.dog     becomes .cat.dog
+prettyPrintFixup :: Path.Absolute -> Names0 -> Names0
+prettyPrintFixup currentPath' (Names terms types) = Names terms' types' where
+  prefix = Path.toName (Path.unabsolute currentPath')
+  fixName n = if currentPath' == Path.absoluteEmpty then n else
+    case Name.stripNamePrefix prefix n of
+      Just n -> n
+      Nothing -> Name.makeAbsolute n
+  terms' = R.mapDom fixName terms
+  types' = R.mapDom fixName types
 
 
 fixupHistoricalRefs' :: Monad m
@@ -1730,6 +1721,27 @@ fixupHistoricalRefs' types terms root' currentPath' =
   root0 = Branch.head root'
   filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
   filteredReferents = Set.difference terms (Branch.deepReferents root0)
+
+lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
+lexedSource name src = undefined
+  -- should lex the file, then using the current path, and branch, produce a names
+
+prettyPrintEnv :: Names -> Action' m v PrettyPrintEnv
+prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
+
+parseSearchType :: Var v
+  => Input -> [String] -> Action' m v (Either (Output v) (Type.AnnotatedType v Ann))
+parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
+
+parseType :: Var v
+  => Input -> [String] -> Action' m v (Either (Output v) (Type.AnnotatedType v Ann))
+parseType input typ = do
+  let src = Text.pack $ intercalate " " typ
+  (names, lexed) <- lexedSource (show Input)
+  e <- eval $ ParseType names lexed
+  pure $ case e of
+    Left err -> Left $ TypeParseError input src err
+    Right typ -> Right typ
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.

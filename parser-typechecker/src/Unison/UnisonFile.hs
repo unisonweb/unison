@@ -255,7 +255,7 @@ data Env v a = Env
   -- Effect declaration name to hash and its fully resolved form
   , effects :: Map v (Reference, EffectDeclaration' v a)
   -- Naming environment
-  , names   :: Names0 -- seems like this should be Names0
+  , names   :: Names0
 }
 
 data Error v a

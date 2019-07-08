@@ -58,10 +58,10 @@ typecheck
   -> SourceName
   -> Text
   -> m (TypecheckingResult v)
-typecheck ambient codebase names sourceName src =
+typecheck ambient codebase parsingEnv sourceName src =
   Result.getResult $ parseAndSynthesizeFile ambient
     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-    names
+    parsingEnv
     (Text.unpack sourceName)
     src
 
@@ -92,15 +92,12 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
-    Typecheck ambient names sourceName source -> do
+    Typecheck ambient names ctorType sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen
-      typecheck ambient
-                codebase
-                (namegen, OldNames.fromNames2 names)
-                sourceName
-                source
+      let env = Parser.ParsingEnv namegen names ctorType
+      typecheck ambient codebase env sourceName source
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase

@@ -74,6 +74,12 @@ unqualified = unsafeFromText . unqualified' . toText
 unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."
 
+makeAbsolute :: Name -> Name
+makeAbsolute n =
+  if toText n == "." then Name ".."
+  else if Text.isPrefixOf "." (toText n) then n
+  else Name ("." <> toText n)
+
 instance Show Name where
   show = toString
 

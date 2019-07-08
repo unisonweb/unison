@@ -34,7 +34,13 @@ filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
 
 unionLeft0 :: Names0 -> Names0 -> Names0
-unionLeft0 = Unison.Names2.unionLeftName
+unionLeft0 = Unison.Names2.unionLeft
+
+unionLeftName0 :: Names0 -> Names0 -> Names0
+unionLeftName0 = Unison.Names2.unionLeftName
+
+unionLeftRef0 :: Names0 -> Names0 -> Names0
+unionLeftRef0 = Unison.Names2.unionLeftRef
 
 names0 :: Relation Name Referent -> Relation Name Reference -> Names0
 names0 terms types = Unison.Names2.Names terms types
