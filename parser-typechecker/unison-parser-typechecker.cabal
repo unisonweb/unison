@@ -87,7 +87,6 @@ library
     Unison.Kind
     Unison.Lexer
     Unison.Name
-    Unison.Names
     Unison.Names2
     Unison.Names3
     Unison.NamePrinter

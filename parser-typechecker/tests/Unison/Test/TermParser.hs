@@ -12,12 +12,8 @@ import           Text.RawString.QQ
 import           Unison.Parser
 import qualified Unison.Parsers as Ps
 import           Unison.PrintError (renderParseErrorAsANSI)
-import qualified Unison.Reference as R
-import qualified Unison.Referent as Referent
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
-import qualified Unison.Names as Names
-import Unison.Names (Names)
 import qualified Unison.Test.Common as Common
 
 test1 :: Test ()
@@ -187,11 +183,6 @@ unitTests =
    t = parseWith
    w = wordyDefinitionName
    s = symbolyDefinitionName
-
-builtins :: Names
-builtins = Names.fromTerms
-  [("Pair", Referent.Con (R.Builtin "Pair") 0),
-   ("State.set", Referent.Con (R.Builtin "State") 0)]
 
 parses :: String -> Test ()
 parses = parseWith TP.term

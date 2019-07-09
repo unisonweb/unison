@@ -21,6 +21,7 @@ import           Unison.Paths                   ( Path )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Unison.Typechecker.Context    as Context
 import           Control.Error.Util             ( note)
+import qualified Unison.Names3                 as Names
 
 type Result notes = ResultT notes Identity
 
@@ -30,6 +31,7 @@ type Term v loc = AnnotatedTerm v loc
 
 data Note v loc
   = Parsing (Parser.Err v)
+  | NameResolutionFailures [Names.ResolutionFailure v loc]
   | InvalidPath Path (Term v loc) -- todo: move me!
   | UnknownSymbol v loc
   | TypeError (Context.ErrorNote v loc)

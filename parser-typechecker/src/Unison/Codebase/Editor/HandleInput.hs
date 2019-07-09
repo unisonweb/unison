@@ -85,7 +85,6 @@ import           Unison.Names3                  ( Names(..), Names0
                                                 , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
-import qualified Unison.Names                  as OldNames
 import qualified Unison.Parsers                as Parsers
 import           Unison.Parser                  ( Ann(..) )
 import           Unison.Reference               ( Reference(..) )

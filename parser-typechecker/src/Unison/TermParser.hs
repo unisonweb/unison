@@ -147,7 +147,7 @@ parsePattern =
     where
     die hq s = case L.payload hq of
       -- not a unique constructor name, catch it later with var parser
-      HQ.NameOnly _n | Set.null s -> fail "constructor name"
+      HQ.NameOnly _n | Set.null s -> fail "not a constructor name"
       _ -> failCommitted $ err hq s
 
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
@@ -176,19 +176,12 @@ parsePattern =
     pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
-    _t <- ctor UnknownDataConstructor
-    ---
-    error "todo"
---    let name = L.payload t
---    env <- asks snd
---    case Names.patternNameds env name of
---      Just (ref, cid) -> go <$> many leaf
---        where
---          go = unzipPatterns f
---          f patterns vs =
---            let loc = foldl (<>) (ann t) $ map ann patterns
---            in (Pattern.Constructor loc ref cid patterns, vs)
---      Nothing -> customFailure $ UnknownDataConstructor t
+    tok <- ctor UnknownDataConstructor
+    let (ref,cid) = L.payload tok
+        f patterns vs =
+          let loc = foldl (<>) (ann tok) $ map ann patterns
+          in (Pattern.Constructor loc ref cid patterns, vs)
+    unzipPatterns f <$> many leaf
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)

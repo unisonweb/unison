@@ -13,7 +13,6 @@ import Control.Monad.Writer (tell)
 import           Data.Bifunctor             ( first )
 import           Data.Functor               ( ($>) )
 import qualified Data.Foldable              as Foldable
-import           Data.Maybe                 (fromMaybe)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import Data.List (partition)
@@ -30,7 +29,6 @@ import qualified Unison.Name                as Name
 import qualified Unison.Names3              as Names
 import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
-import qualified Unison.PrettyPrintEnv      as PPE
 import           Unison.Reference           (Reference)
 import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
@@ -40,14 +38,11 @@ import           Unison.Type                (AnnotatedType)
 import qualified Unison.Typechecker         as Typechecker
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
-import           Unison.UnisonFile          (pattern UnisonFile)
 import qualified Unison.UnisonFile          as UF
 import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
-import qualified Unison.Names as ON
-import qualified Unison.HashQualified' as HQ
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
@@ -102,7 +97,7 @@ synthesizeFile ambient preexistingTypes preexistingNames uf = do
   let tl :: TL.TypeLookup v Ann = UF.declsToTypeLookup uf <> preexistingTypes
   let names = UF.toNames uf `Names.unionLeft0` preexistingNames
   term <- case Term.bindNames (TL.unsafeConstructorType tl) names (UF.typecheckingTerm uf) of
-    Left e -> undefined
+    Left e -> Result.tellAndFail $ Result.NameResolutionFailures (Foldable.toList e)
     Right a -> pure a
   let
     -- substitute Blanks for any remaining free vars in UF body
