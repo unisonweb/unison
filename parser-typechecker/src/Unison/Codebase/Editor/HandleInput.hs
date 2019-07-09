@@ -1,4 +1,8 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- todo: delete
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
+{-# OPTIONS_GHC -Wno-unused-local-binds #-} -- todo: delete
+{-# OPTIONS_GHC -Wno-unused-matches #-} -- todo: delete
 
 {-# LANGUAGE ApplicativeDo       #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -114,6 +118,8 @@ import           Unison.Util.Monoid (foldMapM)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
+import Unison.ConstructorType (ConstructorType)
+import qualified Unison.Lexer as L
 
 --import Debug.Trace
 
@@ -217,15 +223,15 @@ loop = do
 --            Path.Path (toList -> []) -> id
 --            p -> Names.prefix0 (Path.toName p)
 
-      withFile ambient sourceName text k = do
+      withFile ambient sourceName lexed@(text, _) k = do
         -- todo: Need to lex the file, pull out all the hash-qualified tokens
         -- then monadically load from history info related to these HQs, and
         -- then use both `names0` and the historical `names0` to construct
         -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
         ppe <- undefined
-        parseNames <- undefined
-        Result notes r <- undefined
---        Result notes r <- eval $ Typecheck ambient parseNames sourceName text
+        parseNames :: Names <- undefined
+        ctorTypes :: Reference -> ConstructorType <- undefined
+        Result notes r <- eval $ Typecheck ambient parseNames ctorTypes sourceName lexed
         case r of
           -- Parsing failed
           Nothing -> respond $
@@ -233,6 +239,7 @@ loop = do
           Just Nothing -> respond $
             TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Just r) -> k r
+
   case e of
     Left (IncomingRootBranch _names) ->
       error $ "todo: notify user about externally deposited head, and offer\n"
@@ -245,8 +252,9 @@ loop = do
       if maybe False snd latestFile'
         then modifying latestFile (fmap (const False) <$>)
         else do
+          let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
           eval (Notify $ FileChangeEvent sourceName text)
-          withFile [] sourceName text $ \unisonFile -> do
+          withFile [] sourceName (text, lexed) $ \unisonFile -> do
             ppe <- makeHistoricalPPE (UF.labeledDependencies unisonFile)
                                      (UF.typecheckedToNames0 unisonFile)
             sr <- toSlurpResult unisonFile <$> basicPrettyPrintNames0
@@ -335,21 +343,21 @@ loop = do
             stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
             success
 
-      DeleteBranchI p ->
-        maybe (branchNotFound' p) go $ getAtSplit' p
-        where
-        go (Branch.head -> b) = do
-          let rootNames = Branch.toNames0 root0
-              toDelete = Names.prefix0
-                (Path.toName . Path.unsplit . resolveSplit' $ p)
-                (Branch.toNames0 b)
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then
-            stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
-          else do
-            failed <- loadSearchResults $ Names.asSearchResults failed
-            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input rootNames failed failedDependents
+--      DeleteBranchI p ->
+--        maybe (branchNotFound' p) go $ getAtSplit' p
+--        where
+--        go (Branch.head -> b) = do
+--          let rootNames = Branch.toNames0 root0
+--              toDelete = Names.prefix0
+--                (Path.toName . Path.unsplit . resolveSplit' $ p)
+--                (Branch.toNames0 b)
+--          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
+--          if failed == mempty then
+--            stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
+--          else do
+--            failed <- loadSearchResults $ Names.asSearchResults failed
+--            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+--            respond $ CantDelete input rootNames failed failedDependents
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
@@ -390,39 +398,39 @@ loop = do
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
-      NamesI thing -> case thing of
-        Left shorthash -> let
-          allTerms = toList . filterSh $ Names.termReferences ns
-          allTypes = toList . filterSh $ Names.typeReferences ns
-          filterSh = Set.filter (Reference.isPrefixOf shorthash)
-          ns = prettyPrintNames0
-          in
-          respond $ ListNames
-            [ (Referent.Ref r, Names.namesForReferent ns (Referent.Ref r))
-              | r <- allTerms ]
-            [ (r, Names.namesForReference ns r) | r <- allTypes ]
-        Right p0 -> do
-          let (p, hq) = p0
-              namePortion = HQ'.toName hq
-          case hq of
-            HQ'.NameOnly _ ->
-              respond $ uncurry ListNames (results p namePortion)
-            HQ'.HashQualified _ sh -> let
-              (terms, types) = results p namePortion
-              -- filter terms and types based on `sh : ShortHash`
-              terms' = filter (Reference.isPrefixOf sh . Referent.toReference . fst) terms
-              types' = filter (Reference.isPrefixOf sh . fst) types
-              in respond $ ListNames terms' types'
-          where
-            results p namePortion = let
-              name = Path.toName . Path.unprefix currentPath' . Path.snoc' p
-                   $ namePortion
-              ns = prettyPrintNames0
-              terms = [ (r, Names.namesForReferent ns r)
-                      | r <- toList $ Names.termsNamed ns name ]
-              types = [ (r, Names.namesForReference ns r)
-                      | r <- toList $ Names.typesNamed ns name ]
-              in (terms, types)
+--      NamesI thing -> case thing of
+--        Left shorthash -> let
+--          allTerms = toList . filterSh $ Names.termReferences ns
+--          allTypes = toList . filterSh $ Names.typeReferences ns
+--          filterSh = Set.filter (Reference.isPrefixOf shorthash)
+--          ns = prettyPrintNames0
+--          in
+--          respond $ ListNames
+--            [ (Referent.Ref r, Names.namesForReferent ns (Referent.Ref r))
+--              | r <- allTerms ]
+--            [ (r, Names.namesForReference ns r) | r <- allTypes ]
+--        Right p0 -> do
+--          let (p, hq) = p0
+--              namePortion = HQ'.toName hq
+--          case hq of
+--            HQ'.NameOnly _ ->
+--              respond $ uncurry ListNames (results p namePortion)
+--            HQ'.HashQualified _ sh -> let
+--              (terms, types) = results p namePortion
+--              -- filter terms and types based on `sh : ShortHash`
+--              terms' = filter (Reference.isPrefixOf sh . Referent.toReference . fst) terms
+--              types' = filter (Reference.isPrefixOf sh . fst) types
+--              in respond $ ListNames terms' types'
+--          where
+--            results p namePortion = let
+--              name = Path.toName . Path.unprefix currentPath' . Path.snoc' p
+--                   $ namePortion
+--              ns = prettyPrintNames0
+--              terms = [ (r, Names.namesForReferent ns r)
+--                      | r <- toList $ Names.termsNamed ns name ]
+--              types = [ (r, Names.namesForReference ns r)
+--                      | r <- toList $ Names.typesNamed ns name ]
+--              in (terms, types)
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
@@ -471,34 +479,34 @@ loop = do
 
       -- > links List.map (.Docs .English)
       -- > links List.map
-      LinksI src mdTypeStr -> do
-        let srcle = toList (getHQ'Terms src)
-            srclt = toList (getHQ'Types src)
-            p = resolveSplit' src
-            mdTerms = foldl' Metadata.merge mempty [
-              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
-            mdTypes = foldl' Metadata.merge mempty [
-              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
-            allMd = Metadata.merge mdTerms mdTypes
-        (names, allowed) <- case mdTypeStr of
-          Nothing -> pure $ Right (Map.keysSet allMd)
-          Just typeStr -> do
-            (names, lexed) <- lexedSource "" mdTypeSrc
-            allowed <- fmap (Set.singleton . Type.toReference) <$> eval (ParseType names lexed)
-            pure (names, allowed)
-        case allowed of
-          Left e -> respond $ ParseErrors (Text.pack (fromMaybe "" mdTypeStr)) [e]
-          Right allowed -> do
-            let allMd' = Map.restrictKeys allMd allowed
-                allRefs = toList (Set.unions (Map.elems allMd'))
-            ppe <- prettyPrintEnv names
-            termDisplays <- Map.fromList <$> do
-              terms <- filterM (eval . IsTerm) allRefs
-              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
-            typeDisplays <- Map.fromList <$> do
-              types <- filterM (eval . IsType) allRefs
-              traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
-            respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
+--      LinksI src mdTypeStr -> do
+--        let srcle = toList (getHQ'Terms src)
+--            srclt = toList (getHQ'Types src)
+--            p = resolveSplit' src
+--            mdTerms = foldl' Metadata.merge mempty [
+--              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+--            mdTypes = foldl' Metadata.merge mempty [
+--              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+--            allMd = Metadata.merge mdTerms mdTypes
+--        (names, allowed) <- case mdTypeStr of
+--          Nothing -> pure $ Right (Map.keysSet allMd)
+--          Just typeStr -> do
+--            (names, lexed) <- lexedSource "" mdTypeSrc
+--            allowed <- fmap (Set.singleton . Type.toReference) <$> eval (ParseType names lexed)
+--            pure (names, allowed)
+--        case allowed of
+--          Left e -> respond $ ParseErrors (Text.pack (fromMaybe "" mdTypeStr)) [e]
+--          Right allowed -> do
+--            let allMd' = Map.restrictKeys allMd allowed
+--                allRefs = toList (Set.unions (Map.elems allMd'))
+--            ppe <- prettyPrintEnv names
+--            termDisplays <- Map.fromList <$> do
+--              terms <- filterM (eval . IsTerm) allRefs
+--              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
+--            typeDisplays <- Map.fromList <$> do
+--              types <- filterM (eval . IsType) allRefs
+--              traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
+--            respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -527,189 +535,189 @@ loop = do
         p = resolveSplit' (HQ'.toName <$> src)
         mdSrc r = BranchUtil.getTypeMetadataAt p r root0
 
-      DeleteTypeI hq -> case toList (getHQ'Types hq) of
-        [] -> typeNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
-        goMany rs = do
-          let rootNames = Branch.toNames0 root0
-              toDelete = Names.fromTypes ((name,) <$> toList rs)
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <- loadSearchResults $ Names.asSearchResults failed
-            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input rootNames failed failedDependents
-
-      -- like the previous
-      DeleteTermI hq -> case toList (getHQ'Terms hq) of
-        [] -> termNotFound hq
-        [r] -> goMany (Set.singleton r)
-        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
-        where
-        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
-        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
-        goMany rs = do
-          let rootNames, toDelete :: Names0
-              rootNames = Branch.toNames0 root0
-              toDelete = Names.fromTerms ((name,) <$> toList rs)
-                where name = Path.toName . Path.unsplit $ resolvedPath
-          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
-          else do
-            failed <- loadSearchResults $ Names.asSearchResults failed
-            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
-            respond $ CantDelete input rootNames failed failedDependents
+--      DeleteTypeI hq -> case toList (getHQ'Types hq) of
+--        [] -> typeNotFound hq
+--        [r] -> goMany (Set.singleton r)
+--        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (typeConflicted hq rs)
+--        where
+--        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
+--        makeDelete = BranchUtil.makeDeleteTypeName resolvedPath
+--        goMany rs = do
+--          let rootNames = Branch.toNames0 root0
+--              toDelete = Names.fromTypes ((name,) <$> toList rs)
+--                where name = Path.toName . Path.unsplit $ resolvedPath
+--          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
+--          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+--          else do
+--            failed <- loadSearchResults $ Names.asSearchResults failed
+--            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+--            respond $ CantDelete input rootNames failed failedDependents
+--
+--      -- like the previous
+--      DeleteTermI hq -> case toList (getHQ'Terms hq) of
+--        [] -> termNotFound hq
+--        [r] -> goMany (Set.singleton r)
+--        (Set.fromList -> rs) -> ifConfirmed (goMany rs) (termConflicted hq rs)
+--        where
+--        resolvedPath = resolveSplit' (HQ'.toName <$> hq)
+--        makeDelete = BranchUtil.makeDeleteTermName resolvedPath
+--        goMany rs = do
+--          let rootNames, toDelete :: Names0
+--              rootNames = Branch.toNames0 root0
+--              toDelete = Names.fromTerms ((name,) <$> toList rs)
+--                where name = Path.toName . Path.unsplit $ resolvedPath
+--          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
+--          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
+--          else do
+--            failed <- loadSearchResults $ Names.asSearchResults failed
+--            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+--            respond $ CantDelete input rootNames failed failedDependents
 
       -- todo: this should probably be able to show definitions by Path.HQSplit'
-      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
-        historicalNamesForQueries <-
-          makeFixupHistorical
-            Branch.findHistoricalHQs
-              currentPath'
-              root'
-              (Set.fromList
-                . (fmap . fmap) (resolveHQName currentPath')
-                . filter HQ.hasHash
-                $ hqs)
-        let resultss = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
-            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
-            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
-            queryNames = Names terms types where
-              terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
-              types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
-        results' <- loadSearchResults results
-        let termTypes :: Map.Map Reference (Type v Ann)
-            termTypes =
-              Map.fromList
-                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
-            (collatedTypes, collatedTerms) = collateReferences
-              (mapMaybe Output.tpReference results')
-              (mapMaybe Output.tmReferent results')
-        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
-        loadedDerivedTerms <-
-          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
-            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
-            _ -> pure Nothing
-        loadedDerivedTypes <-
-          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
-            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
-            _ -> pure Nothing
-        -- Populate DisplayThings for the search results, in anticipation of
-        -- displaying the definitions.
-        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
-          r@(Reference.DerivedId i) -> do
-            let tm = Map.lookup i loadedDerivedTerms
-            -- We add a type annotation to the term using if it doesn't
-            -- already have one that the user provided
-            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
-              Nothing        -> MissingThing i
-              Just (tm, typ) -> case tm of
-                Term.Ann' _ _ -> RegularThing tm
-                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
-          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
-        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
-            loadedDisplayTypes =
-              Map.fromList . (`fmap` toList collatedTypes) $ \case
-                r@(Reference.DerivedId i) ->
-                  (r,) . maybe (MissingThing i) RegularThing
-                       $ Map.lookup i loadedDerivedTypes
-                r@(Reference.Builtin _) -> (r, BuiltinThing)
-        historicalNames <- do
-          -- traverse the ABTs looking for dependencies
-          labeledTypeDependencies <- pure . Set.map Left $
-                foldMap DD.declDependencies (toList loadedDerivedTypes)
-          labeledTermDependencies <-
-            foldMapM (Term.labeledDependencies $ eval . IsType)
-                     (toList loadedDerivedTerms)
-          -- seed the historical find algorithm with the terms and types that
-          -- aren't present in root0
-          fixupHistoricalRefs
-            (labeledTypeDependencies <> labeledTermDependencies)
-            root'
-            currentPath'
-
-        -- We might like to make sure that the user search terms get used as
-        -- the names in the pretty-printer, but the current implementation
-        -- doesn't.
-        let
-          -- The definitions will generally reference names outside the current
-          -- path.  For now we'll assume the pretty-printer will factor out
-          -- excess name prefixes.
-          currentBranchNames, rootNames :: Names0
-          currentBranchNames = Branch.toNames0 currentBranch0
-          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
-          names = Names.Names
-                    (queryNames
-                       `Names.unionLeft` currentBranchNames
-                       `Names.unionLeft` rootNames)
-                    (historicalNames
-                      `Names.unionLeftRef` historicalNamesForQueries)
-        ppe <- prettyPrintEnv names
-        let loc = case outputLoc of
-              ConsoleLocation    -> Nothing
-              FileLocation path  -> Just path
-              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
-        do
-          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
-          eval . Notify . SearchTermsNotFound $ fmap fst misses
-          -- We set latestFile to be programmatically generated, if we
-          -- are viewing these definitions to a file - this will skip the
-          -- next update for that file (which will happen immediately)
-          latestFile .= ((, True) <$> loc)
+--      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
+--        historicalNamesForQueries <-
+--          makeFixupHistorical
+--            Branch.findHistoricalHQs
+--              currentPath'
+--              root'
+--              (Set.fromList
+--                . (fmap . fmap) (resolveHQName currentPath')
+--                . filter HQ.hasHash
+--                $ hqs)
+--        let resultss = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
+--            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
+--            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
+--            queryNames = Names terms types where
+--              terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
+--              types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
+--        results' <- loadSearchResults results
+--        let termTypes :: Map.Map Reference (Type v Ann)
+--            termTypes =
+--              Map.fromList
+--                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
+--            (collatedTypes, collatedTerms) = collateReferences
+--              (mapMaybe Output.tpReference results')
+--              (mapMaybe Output.tmReferent results')
+--        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
+--        loadedDerivedTerms <-
+--          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
+--            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
+--            _ -> pure Nothing
+--        loadedDerivedTypes <-
+--          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
+--            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
+--            _ -> pure Nothing
+--        -- Populate DisplayThings for the search results, in anticipation of
+--        -- displaying the definitions.
+--        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+--          r@(Reference.DerivedId i) -> do
+--            let tm = Map.lookup i loadedDerivedTerms
+--            -- We add a type annotation to the term using if it doesn't
+--            -- already have one that the user provided
+--            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+--              Nothing        -> MissingThing i
+--              Just (tm, typ) -> case tm of
+--                Term.Ann' _ _ -> RegularThing tm
+--                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
+--          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+--        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
+--            loadedDisplayTypes =
+--              Map.fromList . (`fmap` toList collatedTypes) $ \case
+--                r@(Reference.DerivedId i) ->
+--                  (r,) . maybe (MissingThing i) RegularThing
+--                       $ Map.lookup i loadedDerivedTypes
+--                r@(Reference.Builtin _) -> (r, BuiltinThing)
+--        historicalNames <- do
+--          -- traverse the ABTs looking for dependencies
+--          labeledTypeDependencies <- pure . Set.map Left $
+--                foldMap DD.declDependencies (toList loadedDerivedTypes)
+--          labeledTermDependencies <-
+--            foldMapM (Term.labeledDependencies $ eval . IsType)
+--                     (toList loadedDerivedTerms)
+--          -- seed the historical find algorithm with the terms and types that
+--          -- aren't present in root0
+--          fixupHistoricalRefs
+--            (labeledTypeDependencies <> labeledTermDependencies)
+--            root'
+--            currentPath'
+--
+--        -- We might like to make sure that the user search terms get used as
+--        -- the names in the pretty-printer, but the current implementation
+--        -- doesn't.
+--        let
+--          -- The definitions will generally reference names outside the current
+--          -- path.  For now we'll assume the pretty-printer will factor out
+--          -- excess name prefixes.
+--          currentBranchNames, rootNames :: Names0
+--          currentBranchNames = Branch.toNames0 currentBranch0
+--          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
+--          names = Names.Names
+--                    (queryNames
+--                       `Names.unionLeft` currentBranchNames
+--                       `Names.unionLeft` rootNames)
+--                    (historicalNames
+--                      `Names.unionLeftRef` historicalNamesForQueries)
+--        ppe <- prettyPrintEnv names
+--        let loc = case outputLoc of
+--              ConsoleLocation    -> Nothing
+--              FileLocation path  -> Just path
+--              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+--        do
+--          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+--          eval . Notify . SearchTermsNotFound $ fmap fst misses
+--          -- We set latestFile to be programmatically generated, if we
+--          -- are viewing these definitions to a file - this will skip the
+--          -- next update for that file (which will happen immediately)
+--          latestFile .= ((, True) <$> loc)
       FindPatchI ->
         let patches = Set.fromList
               [ Path.toName $ Path.snoc p seg
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
-      SearchByNameI q | q == [] || q == ["-l"] -> do
-        let results = listBranch $ Branch.head currentBranch'
-        numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 (q == ["-l"])
-      SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
-        ->
-        let ws = drop 1 . dropWhile (/= ":") $ q in
-        parseSearchType input ws >>= \case
-          Left e -> respond e
-          Right typ -> do
-            let locals = Branch.deepReferents (Branch.head currentBranch')
-            matches <- fmap toList . eval $ GetTermsOfType typ
-            matches <- filter (`Set.member` locals) <$>
-              if null matches then do
-                respond $ NoExactTypeMatches
-                fmap toList . eval $ GetTermsMentioningType typ
-              else pure matches
-            let isVerbose = (take 1 q == ["-l"])
-            let results =
-                  -- in verbose mode, aliases are shown, so we collapse all
-                  -- aliases to a single search result; in non-verbose mode,
-                  -- a separate result may be shown for each alias
-                  (if isVerbose then uniqueBy SR.toReferent else id) $
-                  searchResultsFor prettyPrintNames0 matches []
-            numberedArgs .= fmap searchResultToHQString results
-            loadSearchResults results
-              >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
-      SearchByNameI ("-l" : ws) -> do
-        let qs = map HQ.fromString ws
-        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
-        let results = uniqueBy SR.toReferent
-                    $ searchBranchScored b0 fuzzyNameDistance qs
-        numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 True
-      SearchByNameI ws -> do
-        let qs = map HQ.fromString ws
-        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
-        let results = searchBranchScored b0 fuzzyNameDistance qs
-        numberedArgs .= fmap searchResultToHQString results
-        loadSearchResults results
-          >>= respond . ListOfDefinitions prettyPrintNames0 False
+--      SearchByNameI q | q == [] || q == ["-l"] -> do
+--        let results = listBranch $ Branch.head currentBranch'
+--        numberedArgs .= fmap searchResultToHQString results
+--        loadSearchResults results
+--          >>= respond . ListOfDefinitions prettyPrintNames0 (q == ["-l"])
+--      SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
+--        ->
+--        let ws = drop 1 . dropWhile (/= ":") $ q in
+--        parseSearchType input ws >>= \case
+--          Left e -> respond e
+--          Right typ -> do
+--            let locals = Branch.deepReferents (Branch.head currentBranch')
+--            matches <- fmap toList . eval $ GetTermsOfType typ
+--            matches <- filter (`Set.member` locals) <$>
+--              if null matches then do
+--                respond $ NoExactTypeMatches
+--                fmap toList . eval $ GetTermsMentioningType typ
+--              else pure matches
+--            let isVerbose = (take 1 q == ["-l"])
+--            let results =
+--                  -- in verbose mode, aliases are shown, so we collapse all
+--                  -- aliases to a single search result; in non-verbose mode,
+--                  -- a separate result may be shown for each alias
+--                  (if isVerbose then uniqueBy SR.toReferent else id) $
+--                  searchResultsFor prettyPrintNames0 matches []
+--            numberedArgs .= fmap searchResultToHQString results
+--            loadSearchResults results
+--              >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
+--      SearchByNameI ("-l" : ws) -> do
+--        let qs = map HQ.fromString ws
+--        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
+--        let results = uniqueBy SR.toReferent
+--                    $ searchBranchScored b0 fuzzyNameDistance qs
+--        numberedArgs .= fmap searchResultToHQString results
+--        loadSearchResults results
+--          >>= respond . ListOfDefinitions prettyPrintNames0 True
+--      SearchByNameI ws -> do
+--        let qs = map HQ.fromString ws
+--        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
+--        let results = searchBranchScored b0 fuzzyNameDistance qs
+--        numberedArgs .= fmap searchResultToHQString results
+--        loadSearchResults results
+--          >>= respond . ListOfDefinitions prettyPrintNames0 False
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
         where
@@ -726,154 +734,154 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      AddI hqs -> case uf of
-        Nothing -> respond NoUnisonFile
-        Just uf -> do
-          let result = Slurp.disallowUpdates
-                     . applySelection hqs uf
-                     $ toSlurpResult uf (toSlurpResultNames uf)
-          when (Slurp.isNonempty result) $ do
-            stepAt ( Path.unabsolute currentPath'
-                   , doSlurpAdds (Slurp.adds result) uf)
-            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          let fileNames0 = UF.typecheckedToNames0 uf
-          ppe <- do
-            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
-            -- unionLeft shadows names
-            prettyPrintEnv $
-              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
-                    (prettyPrintNames0 <> historicalNames0)
-          respond $ SlurpOutput input ppe result
+--      AddI hqs -> case uf of
+--        Nothing -> respond NoUnisonFile
+--        Just uf -> do
+--          let result = Slurp.disallowUpdates
+--                     . applySelection hqs uf
+--                     $ toSlurpResult uf (toSlurpResultNames uf)
+--          when (Slurp.isNonempty result) $ do
+--            stepAt ( Path.unabsolute currentPath'
+--                   , doSlurpAdds (Slurp.adds result) uf)
+--            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+--          let fileNames0 = UF.typecheckedToNames0 uf
+--          ppe <- do
+--            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
+--            -- unionLeft shadows names
+--            prettyPrintEnv $
+--              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
+--                    (prettyPrintNames0 <> historicalNames0)
+--          respond $ SlurpOutput input ppe result
 
-      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
-        Nothing -> respond NoUnisonFile
-        Just uf -> do
-          let result = applySelection hqs uf
-                     $ toSlurpResult uf (toSlurpResultNames uf)
-          let fileNames0 = UF.typecheckedToNames0 uf
-              -- todo: display some error if typeEdits or termEdits itself contains a loop
-              typeEdits :: Map Name (Reference, Reference)
-              typeEdits = Map.fromList $ map f (toList $ SC.types (updates result)) where
-                f v = case (toList (Names.typesNamed parseNames0 n)
-                           ,toList (Names.typesNamed fileNames0 n)) of
-                  ([old],[new]) -> (n, (old, new))
-                  _ -> error $ "Expected unique matches for "
-                                  ++ Var.nameStr v ++ " but got: "
-                                  ++ show otherwise
-                  where n = Name.fromVar v
-              hashTerms :: Map Reference (Type v Ann)
-              hashTerms = Map.fromList (toList hashTerms0) where
-                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
-              termEdits :: Map Name (Reference, Reference)
-              termEdits = Map.fromList $ map g (toList $ SC.terms (updates result)) where
-                g v = case ( toList (Names.refTermsNamed parseNames0 n)
-                           , toList (Names.refTermsNamed fileNames0 n)) of
-                  ([old], [new]) -> (n, (old, new))
-                  _ -> error $ "Expected unique matches for "
-                                 ++ Var.nameStr v ++ " but got: "
-                                 ++ show otherwise
-                  where n = Name.fromVar v
-          ye'ol'Patch <- do
-            b <- getAt p
-            eval . Eval $ Branch.getPatch seg (Branch.head b)
-          -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
-          -- with (a0 -> a') in patch'.
-          -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
-          -- we must know the type of a0, a, a'.
-          let
-            -- we need:
-            -- all of the `old` references from the `new` edits,
-            -- plus all of the `old` references for edits from patch we're replacing
-            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
-            collectOldForTyping new old = foldl' f mempty (new ++ fromOld) where
-              f acc (r, _r') = Set.insert r acc
-              newLHS = Set.fromList . fmap fst $ new
-              fromOld :: [(Reference, Reference)]
-              fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old
-                                 , Set.member r' newLHS ]
-            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+--      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
+--        Nothing -> respond NoUnisonFile
+--        Just uf -> do
+--          let result = applySelection hqs uf
+--                     $ toSlurpResult uf (toSlurpResultNames uf)
+--          let fileNames0 = UF.typecheckedToNames0 uf
+--              -- todo: display some error if typeEdits or termEdits itself contains a loop
+--              typeEdits :: Map Name (Reference, Reference)
+--              typeEdits = Map.fromList $ map f (toList $ SC.types (updates result)) where
+--                f v = case (toList (Names.typesNamed parseNames0 n)
+--                           ,toList (Names.typesNamed fileNames0 n)) of
+--                  ([old],[new]) -> (n, (old, new))
+--                  _ -> error $ "Expected unique matches for "
+--                                  ++ Var.nameStr v ++ " but got: "
+--                                  ++ show otherwise
+--                  where n = Name.fromVar v
+--              hashTerms :: Map Reference (Type v Ann)
+--              hashTerms = Map.fromList (toList hashTerms0) where
+--                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+--              termEdits :: Map Name (Reference, Reference)
+--              termEdits = Map.fromList $ map g (toList $ SC.terms (updates result)) where
+--                g v = case ( toList (Names.refTermsNamed parseNames0 n)
+--                           , toList (Names.refTermsNamed fileNames0 n)) of
+--                  ([old], [new]) -> (n, (old, new))
+--                  _ -> error $ "Expected unique matches for "
+--                                 ++ Var.nameStr v ++ " but got: "
+--                                 ++ show otherwise
+--                  where n = Name.fromVar v
+--          ye'ol'Patch <- do
+--            b <- getAt p
+--            eval . Eval $ Branch.getPatch seg (Branch.head b)
+--          -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
+--          -- with (a0 -> a') in patch'.
+--          -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
+--          -- we must know the type of a0, a, a'.
+--          let
+--            -- we need:
+--            -- all of the `old` references from the `new` edits,
+--            -- plus all of the `old` references for edits from patch we're replacing
+--            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
+--            collectOldForTyping new old = foldl' f mempty (new ++ fromOld) where
+--              f acc (r, _r') = Set.insert r acc
+--              newLHS = Set.fromList . fmap fst $ new
+--              fromOld :: [(Reference, Reference)]
+--              fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old
+--                                 , Set.member r' newLHS ]
+--            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+--
+--          allTypes :: Map Reference (Type v Ann) <-
+--            fmap Map.fromList . for (toList neededTypes) $ \r ->
+--              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
+--
+--          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
+--                (Just t1, Just t2)
+--                  | Typechecker.isEqual t1 t2 -> TermEdit.Same
+--                  | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
+--                  | otherwise -> TermEdit.Different
+--                e -> error $ "compiler bug: typing map not constructed properly\n" <>
+--                  "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
+--
+--          let updatePatch :: Patch -> Patch
+--              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
+--                where
+--                step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
+--                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+--              updatePatches :: Branch0 m -> m (Branch0 m)
+--              updatePatches = Branch.modifyPatches seg updatePatch
+--
+--          when (Slurp.isNonempty result) $ do
+--          -- take a look at the `updates` from the SlurpResult
+--          -- and make a patch diff to record a replacement from the old to new references
+--            stepManyAtM
+--              [( Path.unabsolute currentPath'
+--               , pure . doSlurpUpdates typeEdits termEdits)
+--              ,( Path.unabsolute currentPath'
+--               , pure . doSlurpAdds (Slurp.adds result) uf)
+--              ,( Path.unabsolute p, updatePatches )]
+--            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
+--          let fileNames0 = UF.typecheckedToNames0 uf
+--          ppe <- makeHistoricalPPE (UF.labeledDependencies) fileNames0 prettyPrintNames0
+--          respond $ SlurpOutput input ppe result
+--
+--      TodoI editPath' branchPath' -> do
+--        patch <- getPatchAt editPath'
+--        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+--        -- checkTodo only needs the local names
+--        let names0 = (Branch.toNames0 . Branch.head) branch
+--        checkTodo patch names0 >>= respond . TodoOutput names0
 
-          allTypes :: Map Reference (Type v Ann) <-
-            fmap Map.fromList . for (toList neededTypes) $ \r ->
-              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
-
-          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
-                (Just t1, Just t2)
-                  | Typechecker.isEqual t1 t2 -> TermEdit.Same
-                  | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
-                  | otherwise -> TermEdit.Different
-                e -> error $ "compiler bug: typing map not constructed properly\n" <>
-                  "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
-
-          let updatePatch :: Patch -> Patch
-              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
-                where
-                step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
-                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
-              updatePatches :: Branch0 m -> m (Branch0 m)
-              updatePatches = Branch.modifyPatches seg updatePatch
-
-          when (Slurp.isNonempty result) $ do
-          -- take a look at the `updates` from the SlurpResult
-          -- and make a patch diff to record a replacement from the old to new references
-            stepManyAtM
-              [( Path.unabsolute currentPath'
-               , pure . doSlurpUpdates typeEdits termEdits)
-              ,( Path.unabsolute currentPath'
-               , pure . doSlurpAdds (Slurp.adds result) uf)
-              ,( Path.unabsolute p, updatePatches )]
-            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
-          let fileNames0 = UF.typecheckedToNames0 uf
-          ppe <- makeHistoricalPPE (UF.labeledDependencies) fileNames0 prettyPrintNames0
-          respond $ SlurpOutput input ppe result
-
-      TodoI editPath' branchPath' -> do
-        patch <- getPatchAt editPath'
-        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
-        -- checkTodo only needs the local names
-        let names0 = (Branch.toNames0 . Branch.head) branch
-        checkTodo patch names0 >>= respond . TodoOutput names0
-
-      TestI showOk showFail -> do
-        let
-          testTerms = Star3.fact . Star3.select1D3 isTest
-                    . Branch.deepTerms $ currentBranch0
-          testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
-          oks results =
-            [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
-            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
-            , cid == DD.okConstructorId && ref == DD.testResultRef ]
-          fails results =
-            [ (r, msg)
-            | (r, Term.Sequence' ts) <- Map.toList results
-            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
-            , cid == DD.failConstructorId && ref == DD.testResultRef ]
-        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
-        let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
-        respond $ TestResults stats ppe0 showOk showFail
-                    (oks cachedTests) (fails cachedTests)
-        let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-        when (not . Set.null $ toCompute) $ do
-          let total = Set.size toCompute
-          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
-            case r of
-              Reference.DerivedId rid -> do
-                tm <- eval $ LoadTerm rid
-                case tm of
-                  Nothing -> [] <$ respond (TermNotFound' input rid)
-                  Just tm -> do
-                    respond $ TestIncrementalOutputStart ppe0 (n,total) r tm
-                    tm' <- eval (Evaluate1 ppe0 tm) <&> \case
-                      Left e -> Term.seq External
-                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
-                      Right tm' -> tm'
-                    eval $ PutWatch UF.TestWatch rid tm'
-                    respond $ TestIncrementalOutputEnd ppe0 (n,total) r tm'
-                    pure [(r, tm')]
-              r -> error $ "unpossible, tests can't be builtins: " <> show r
-          let m = Map.fromList computedTests
-          respond $ TestResults Output.NewlyComputed ppe0 showOk showFail (oks m) (fails m)
+--      TestI showOk showFail -> do
+--        let
+--          testTerms = Star3.fact . Star3.select1D3 isTest
+--                    . Branch.deepTerms $ currentBranch0
+--          testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
+--          oks results =
+--            [ (r, msg)
+--            | (r, Term.Sequence' ts) <- Map.toList results
+--            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+--            , cid == DD.okConstructorId && ref == DD.testResultRef ]
+--          fails results =
+--            [ (r, msg)
+--            | (r, Term.Sequence' ts) <- Map.toList results
+--            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+--            , cid == DD.failConstructorId && ref == DD.testResultRef ]
+--        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
+--        let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
+--        respond $ TestResults stats ppe0 showOk showFail
+--                    (oks cachedTests) (fails cachedTests)
+--        let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
+--        when (not . Set.null $ toCompute) $ do
+--          let total = Set.size toCompute
+--          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
+--            case r of
+--              Reference.DerivedId rid -> do
+--                tm <- eval $ LoadTerm rid
+--                case tm of
+--                  Nothing -> [] <$ respond (TermNotFound' input rid)
+--                  Just tm -> do
+--                    respond $ TestIncrementalOutputStart ppe0 (n,total) r tm
+--                    tm' <- eval (Evaluate1 ppe0 tm) <&> \case
+--                      Left e -> Term.seq External
+--                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
+--                      Right tm' -> tm'
+--                    eval $ PutWatch UF.TestWatch rid tm'
+--                    respond $ TestIncrementalOutputEnd ppe0 (n,total) r tm'
+--                    pure [(r, tm')]
+--              r -> error $ "unpossible, tests can't be builtins: " <> show r
+--          let m = Map.fromList computedTests
+--          respond $ TestResults Output.NewlyComputed ppe0 showOk showFail (oks m) (fails m)
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
@@ -888,16 +896,18 @@ loop = do
       --       else ifM (confirmedCommand input)
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
-      PatchI patchPath scopePath -> do
-        patch <- getPatchAt patchPath
-        ppe <- makeHistoricalPPE (Patch.labeledDependencies patch) mempty absoluteRootNames0
-        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
-        if changed then do
-          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
-          -- checkTodo only needs the local names
-          let names0 = (Branch.toNames0 . Branch.head) branch
-          checkTodo patch names0 >>= respond . TodoOutput names0
-        else respond $ NothingToPatch patchPath scopePath
+
+--      PatchI patchPath scopePath -> do
+--        patch <- getPatchAt patchPath
+--        ppe <- makeHistoricalPPE (Patch.labeledDependencies patch) mempty absoluteRootNames0
+--        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
+--        if changed then do
+--          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
+--          -- checkTodo only needs the local names
+--          let names0 = (Branch.toNames0 . Branch.head) branch
+--          checkTodo patch names0 >>= respond . TodoOutput names0
+--        else respond $ NothingToPatch patchPath scopePath
+
       -- ExecuteI input ->
       --   withFile [Type.ref External $ IOSource.ioReference]
       --            "execute command"
@@ -908,11 +918,13 @@ loop = do
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
-      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
-        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
-        names0 <- eval . Eval $
-          Branch.findRefsInHistory (Patch.allReferences patch) currentBranch'
-        respond $ ListEdits patch names0
+
+--      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
+--        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
+--        names0 <- eval . Eval $
+--          Branch.findRefsInHistory (Patch.allReferences patch) currentBranch'
+--        respond $ ListEdits patch names0
+
       PullRemoteBranchI repo path -> do
         loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
         success
@@ -1711,7 +1723,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
 --  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
 --  filteredReferents = Set.difference terms (Branch.deepReferents root0)
 
---lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
+lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = undefined
   -- should lex the file, then using the current path, and branch, produce a names
 
@@ -1765,14 +1777,14 @@ makeHistoricalPPE deps shadowing = do
   --      then name foo.bar.baz becomes baz
   --           name cat.dog     becomes .cat.dog
   prettyPrintFixup :: Path.Absolute -> Names0 -> Names0
-  prettyPrintFixup currentPath' (Names0 terms types) = Names0 terms' types' where
+  prettyPrintFixup currentPath' names0 = Names0 terms' types' where
     prefix = Path.toName (Path.unabsolute currentPath')
     fixName n = if currentPath' == Path.absoluteEmpty then n else
       case Name.stripNamePrefix prefix n of
         Just n -> n
         Nothing -> Name.makeAbsolute n
-    terms' = R.mapDom fixName terms
-    types' = R.mapDom fixName types
+    terms' = R.mapDom fixName (Names3.terms0 names0)
+    types' = R.mapDom fixName (Names3.types0 names0)
 
 basicPrettyPrintNames0 :: Functor m => Action' m v Names0
 basicPrettyPrintNames0 = do

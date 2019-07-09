@@ -32,7 +32,6 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Editor.Git    as Git
-import qualified Unison.Names                  as OldNames
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
@@ -126,6 +125,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
+    CodebaseHashLength -> Codebase.hashLength codebase
+    ParseType _names _lexed -> undefined
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

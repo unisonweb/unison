@@ -53,6 +53,10 @@ types0 = Names.types
 terms0 :: Names0 -> Relation Name Referent
 terms0 = Names.terms
 
+--labeledDependencies0 :: Names0 -> Set (Either Reference Referent)
+--labeledDependencies0 (Names0 terms types) =
+--  Set.map Left (R.ran types) <> Set.map Right (R.ran terms)
+
 -- do a prefix match on currentNames and, if no match, then check oldNames.
 lookupHQType :: HashQualified -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of

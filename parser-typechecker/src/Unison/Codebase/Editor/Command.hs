@@ -4,6 +4,7 @@ module Unison.Codebase.Editor.Command (
   Command(..),
   AmbientAbilities,
   LexedSource,
+  Source,
   SourceName,
   TypecheckingResult
   ) where
@@ -19,7 +20,7 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.GitError
-import           Unison.Names3                  ( Names0, Names )
+import           Unison.Names3                  ( Names )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )

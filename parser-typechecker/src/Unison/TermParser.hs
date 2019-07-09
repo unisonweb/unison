@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -144,7 +146,8 @@ parsePattern =
         | otherwise      -> pure $ Set.findMin s <$ tok
     where
     die hq s = case L.payload hq of
-      HQ.NameOnly n -> fail "constructor name"
+      -- not a unique constructor name, catch it later with var parser
+      HQ.NameOnly _n | Set.null s -> fail "constructor name"
       _ -> failCommitted $ err hq s
 
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
@@ -173,7 +176,7 @@ parsePattern =
     pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
-    t <- ctor UnknownDataConstructor
+    _t <- ctor UnknownDataConstructor
     ---
     error "todo"
 --    let name = L.payload t
@@ -435,13 +438,6 @@ topLevelBlock
   :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 topLevelBlock = block' True
 
-substTermImports :: Names -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
-substTermImports ns t = error "todo"
-  -- let importTerms  = [ (n, Term.var () qn) | (n, qn) <- imported ]
-  --     substImports = ABT.substsInheritAnnotation importTerms
-  --       . Term.typeMap (Names.bindType env)
-
---
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
@@ -465,7 +461,7 @@ block' isTop s openBlock closeBlock = do
     _ <- optional semi
     statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    substTermImports names <$> go open statements
+    (error "was substTermImports") names <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]

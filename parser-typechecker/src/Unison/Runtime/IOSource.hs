@@ -8,7 +8,6 @@ module Unison.Runtime.IOSource where
 import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
 import Data.List (elemIndex, genericIndex)
-import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Data.Text (Text)
 import Text.RawString.QQ (r)

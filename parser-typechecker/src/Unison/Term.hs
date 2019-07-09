@@ -13,7 +13,6 @@
 module Unison.Term where
 
 import Prelude hiding (and,or)
-import           Control.Monad.Extra (partitionM)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Functor (void, ($>))
 import           Data.Foldable (traverse_, toList)
@@ -36,7 +35,6 @@ import qualified Unison.Blank as B
 import qualified Unison.Hash as Hash
 import           Unison.Hashable (Hashable1, accumulateToken)
 import qualified Unison.Hashable as Hashable
-import qualified Unison.HashQualified' as HQ
 import           Unison.Names3 ( Names0 )
 import qualified Unison.Names3 as Names
 import           Unison.PatternP (Pattern)

@@ -18,6 +18,7 @@ import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
 import qualified Unison.Names as Names
 import Unison.Names (Names)
+import qualified Unison.Test.Common as Common
 
 test1 :: Test ()
 test1 = scope "termparser" . tests . map parses $
@@ -184,8 +185,8 @@ unitTests =
    -- type TermP v = P v (AnnotatedTerm v Ann)
    t :: P Symbol a -> String -> Test ()
    t = parseWith
-   w = wordyId
-   s = symbolyId
+   w = wordyDefinitionName
+   s = symbolyDefinitionName
 
 builtins :: Names
 builtins = Names.fromTerms
@@ -197,7 +198,7 @@ parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s (mempty, builtins) of
+  case Ps.parse @ Symbol p s Common.parsingEnv of
     Left e -> do
       note $ renderParseErrorAsANSI s e
       crash $ renderParseErrorAsANSI s e

@@ -38,7 +38,6 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Names3 as Names
 
 -- push names onto the stack ahead of existing names

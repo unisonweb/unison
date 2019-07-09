@@ -165,3 +165,7 @@ foldResult' f g = \case
   Tp' tp -> g tp
 
 type SourceFileContents = Text
+
+--searchResultLabeledDependencies :: SearchResult' v a -> Set (Either Reference Referent)
+--searchResultLabeledDependencies = \case
+--  Tm' (TermResult' _ t r _rethinkAliases) -> Set.fromList $

@@ -28,7 +28,7 @@ import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
 import           Unison.Term            ( amap )
-import           Unison.Test.Common     (parseAndSynthesizeAsFile)
+import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
 import qualified Unison.Var as Var
@@ -39,12 +39,12 @@ type Note = Result.Note Symbol Parser.Ann
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result (Seq Note)
-         (PrintError.Env, Maybe TFile)
+         (Maybe TFile)
 
 type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames0 Builtin.names0
+ppEnv = PPE.fromNames 10 Builtin.names
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left  e) = crash e
@@ -120,9 +120,9 @@ decodeResult
   :: String -> SynthResult -> EitherResult--  String (UF.TypecheckedUnisonFile Symbol Ann)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source ppEnv notes
-decodeResult source (Result notes (Just (env, Nothing))) =
-  Left $ showNotes source env notes
-decodeResult _source (Result _notes (Just (_env, Just uf))) =
+decodeResult source (Result notes (Just Nothing)) =
+  Left $ showNotes source ppEnv notes
+decodeResult _source (Result _notes (Just (Just uf))) =
   Right uf
 
 makePassingTest
@@ -136,7 +136,7 @@ makePassingTest rt how filepath = scope shortName $ do
     (True, Right file) -> do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
-      let term        = Parsers.parseTerm values $ (mempty, UF.toNames untypedFile)
+      let term        = Parsers.parseTerm values parsingEnv
       (bindings, watches) <- io $ either undefined id <$>
         evaluateWatches Builtin.codeLookup
                         mempty

@@ -18,7 +18,6 @@ import qualified Unison.TypeParser             as TypeParser
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
-import qualified Unison.PrettyPrintEnv         as PPE
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =

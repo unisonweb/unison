@@ -13,6 +13,8 @@ import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
 import qualified Unison.Referent as Referent
 import qualified Data.Set as Set
+import Data.Set (Set)
+import Unison.Referent (Referent)
 
 type Pattern = PatternP ()
 
@@ -156,6 +158,7 @@ foldMap' f p = case p of
 -- instance Eq (PatternP loc) where
 --   (PatternP p) == (PatternP p2) = void p == void p2
 
+labeledDependencies :: PatternP loc -> Set (Either Reference Referent)
 labeledDependencies = Set.fromList . foldMap' (\case
   UnboundP _              -> mempty
   VarP _                  -> mempty

@@ -5,19 +5,14 @@ module Unison.Test.FileParser where
   import EasyTest
   import Data.List (uncons)
   import Data.Set (elems)
-  import Data.Maybe (fromMaybe)
   import qualified Text.Megaparsec.Error as MPE
   import Unison.FileParser (file)
   import qualified Unison.Parser as P
   import Unison.Parsers (unsafeGetRightFrom, unsafeParseFileBuiltinsOnly)
-  import qualified Unison.Reference as R
-  import qualified Unison.Referent as Referent
   import Unison.Symbol (Symbol)
   import Unison.UnisonFile (UnisonFile)
-  import qualified Unison.Names3 as Names
-  import Unison.Names3 (Names0)
   import Unison.Var (Var)
-  import qualified Unison.Builtin as Builtin
+  import qualified Unison.Test.Common as Common
 
   test1 :: Test ()
   test1 = scope "test1" . tests . map parses $
@@ -68,7 +63,7 @@ module Unison.Test.FileParser where
 
   expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
   expectFileParseFailure s expectation = scope s $ do
-    let result = P.run (P.rootFile file) s (P.ParsingEnv mempty builtins builtinCtorType)
+    let result = P.run (P.rootFile file) s Common.parsingEnv
     case result of
       Right _ -> crash "Parser succeeded"
       Left (MPE.FancyError _ sets) ->
@@ -132,15 +127,10 @@ module Unison.Test.FileParser where
           P.UnknownAbilityConstructor _ _ -> ok
           _ -> crash "Error wasn't UnknownAbilityConstructor"
 
-  builtins = Names.Names Builtin.names0 mempty
-
-  builtinCtorType r =
-    fromMaybe (error $ "unknown: " <> show r) (Builtin.constructorType r)
-
   parses :: String -> Test ()
   parses s = scope s $ do
     let
       p :: UnisonFile Symbol P.Ann
       !p = unsafeGetRightFrom s $
-             P.run (P.rootFile file) s (P.ParsingEnv mempty builtins builtinCtorType)
+             P.run (P.rootFile file) s Common.parsingEnv
     pure p >> ok

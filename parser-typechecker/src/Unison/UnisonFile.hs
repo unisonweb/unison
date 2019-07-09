@@ -13,14 +13,14 @@ import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe             (catMaybes, fromMaybe)
+import           Data.Maybe             (fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
 import           Unison.DataDeclaration (EffectDeclaration' (..))
-import           Unison.DataDeclaration (hashDecls, toDataDecl, withEffectDecl)
+import           Unison.DataDeclaration (hashDecls, toDataDecl)
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Name            as Name
 import qualified Unison.Names3          as Names
@@ -37,8 +37,7 @@ import qualified Unison.Util.Relation   as Relation
 import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
-import Unison.Names3 (Names, Names0)
-import Data.Bitraversable (bitraverse)
+import Unison.Names3 (Names0)
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
