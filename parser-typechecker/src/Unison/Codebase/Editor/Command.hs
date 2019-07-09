@@ -1,6 +1,12 @@
 {-# LANGUAGE GADTs #-}
 
-module Unison.Codebase.Editor.Command (Command(..), AmbientAbilities, SourceName, TypecheckingResult) where
+module Unison.Codebase.Editor.Command (
+  Command(..),
+  AmbientAbilities,
+  LexedSource,
+  SourceName,
+  TypecheckingResult
+  ) where
 
 import           Data.Map                       ( Map )
 import           Data.Set                       ( Set )
@@ -39,8 +45,7 @@ type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
 
 type TypecheckingResult v =
-  Result (Seq (Note v Ann))
-         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
+  Result (Seq (Note v Ann)) (Maybe (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   Eval :: m a -> Command m i v a

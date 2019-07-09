@@ -399,7 +399,7 @@ putDecl
   -> S.Put a
   -> FilePath
   -> Reference.Id
-  -> Codebase.Decl v a
+  -> DD.Decl v a
   -> m ()
 putDecl putV putA path h decl = liftIO $ do
   S.putWithParentDirs

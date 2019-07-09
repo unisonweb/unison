@@ -32,6 +32,7 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
+import Unison.DataDeclaration (Decl)
 
 --import Debug.Trace
 
@@ -40,7 +41,6 @@ type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 
 data Codebase m v a =

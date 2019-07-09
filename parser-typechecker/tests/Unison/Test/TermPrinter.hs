@@ -18,7 +18,7 @@ import qualified Unison.Util.ColorText as CT
 import Unison.Test.Common (t, tm)
 
 get_names :: PPE.PrettyPrintEnv
-get_names = PPE.fromNames0 Unison.Builtin.names0
+get_names = PPE.fromNames 10 Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.

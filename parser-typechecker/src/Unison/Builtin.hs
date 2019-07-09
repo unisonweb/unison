@@ -45,7 +45,8 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import Unison.Names2 (Names'(Names), Names, Names0, names0ToNames)
+import Unison.Names3 (Names(Names), Names0)
+import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
@@ -53,10 +54,10 @@ type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
 
 names :: Names
-names = names0ToNames names0
+names = Names names0 mempty
 
 names0 :: Names0
-names0 = Names terms types where
+names0 = Names3.names0 terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
     Rel.fromList [ (Name.fromVar vc, Referent.Con r cid)
                  | (_,(r,decl)) <- builtinDataDecls @Symbol <>

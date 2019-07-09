@@ -56,14 +56,14 @@ typecheck
   -> Codebase m v Ann
   -> Parser.ParsingEnv
   -> SourceName
-  -> Text
+  -> LexedSource
   -> m (TypecheckingResult v)
 typecheck ambient codebase parsingEnv sourceName src =
   Result.getResult $ parseAndSynthesizeFile ambient
     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
     parsingEnv
     (Text.unpack sourceName)
-    src
+    (fst src)
 
 tempGitDir :: Text -> Text -> IO FilePath
 tempGitDir url commit =

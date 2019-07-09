@@ -77,7 +77,8 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
 import           Unison.Name                    ( Name(Name) )
-import           Unison.Names3                  ( Names(..), Names0 )
+import           Unison.Names3                  ( Names(..), Names0
+                                                , pattern Names0 )
 import qualified Unison.Names2                 as Names
 import qualified Unison.Names3                 as Names3
 import qualified Unison.Names                  as OldNames
@@ -111,6 +112,8 @@ import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
 import Unison.UnisonFile (TypecheckedUnisonFile)
+import qualified Unison.Codebase.Editor.TodoOutput as TO
+import Unison.PrettyPrintEnv (PrettyPrintEnv)
 
 --import Debug.Trace
 
@@ -160,7 +163,7 @@ type Action' m v = Action m (Either Event Input) v
 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
-  uf          <- use latestTypecheckedFile
+  uf           <- use latestTypecheckedFile
   root'        <- use root
   currentPath' <- use currentPath
   latestFile'  <- use latestFile
@@ -194,40 +197,42 @@ loop = do
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
       -- | Names used as a basis for computing slurp results.
-      -- todo: include relevant external names if we support writing outside of this branch
-      toSlurpResultNames _uf = prettyPrintNames0
-      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
-      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
-        where
-        -- parsing should respond to local and absolute names
-        parseNames00 = currentPathNames0 <> absoluteRootNames0
-        -- pretty-printing should use local names where available
-        prettyPrintNames00 = currentAndExternalNames0
-        currentPathNames0 = Branch.toNames0 currentBranch0
-        -- all names, but with local names in their relative form only, rather
-        -- than absolute; external names appear as absolute
-        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
-          absDot = Names.prefix0 (Name.Name "")
-          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
-          rootNames = Branch.toNames0 root0
-          pathPrefixed = case Path.unabsolute currentPath' of
-            Path.Path (toList -> []) -> id
-            p -> Names.prefix0 (Path.toName p)
+--      -- todo: include relevant external names if we support writing outside of this branch
+--      toSlurpResultNames _uf = prettyPrintNames0
+--      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
+--      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
+--        where
+--        -- parsing should respond to local and absolute names
+--        parseNames00 = currentPathNames0 <> absoluteRootNames0
+--        -- pretty-printing should use local names where available
+--        prettyPrintNames00 = currentAndExternalNames0
+--        currentPathNames0 = Branch.toNames0 currentBranch0
+--        -- all names, but with local names in their relative form only, rather
+--        -- than absolute; external names appear as absolute
+--        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+--          absDot = Names.prefix0 (Name.Name "")
+--          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
+--          rootNames = Branch.toNames0 root0
+--          pathPrefixed = case Path.unabsolute currentPath' of
+--            Path.Path (toList -> []) -> id
+--            p -> Names.prefix0 (Path.toName p)
 
       withFile ambient sourceName text k = do
         -- todo: Need to lex the file, pull out all the hash-qualified tokens
         -- then monadically load from history info related to these HQs, and
         -- then use both `names0` and the historical `names0` to construct
         -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
-        Result notes r <- eval $ Typecheck ambient parseNames0 sourceName text
+        ppe <- undefined
+        parseNames <- undefined
+        Result notes r <- undefined
+--        Result notes r <- eval $ Typecheck ambient parseNames sourceName text
         case r of
           -- Parsing failed
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just (names, r) -> case r of
-            Nothing -> respond $
-              TypeErrors text names [ err | Result.TypeError err <- toList notes ]
-            Just r -> k names r
+          Just Nothing -> respond $
+            TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
+          Just (Just r) -> k r
   case e of
     Left (IncomingRootBranch _names) ->
       error $ "todo: notify user about externally deposited head, and offer\n"
@@ -241,10 +246,11 @@ loop = do
         then modifying latestFile (fmap (const False) <$>)
         else do
           eval (Notify $ FileChangeEvent sourceName text)
-          withFile [] sourceName text $ \errorEnv unisonFile -> do
-            let sr = toSlurpResult unisonFile (toSlurpResultNames unisonFile)
-            let ppe = PPE.unionLeft errorEnv ppe0
-            eval (Notify $ Typechecked sourceName errorEnv sr unisonFile)
+          withFile [] sourceName text $ \unisonFile -> do
+            ppe <- makeHistoricalPPE (UF.labeledDependencies unisonFile)
+                                     (UF.typecheckedToNames0 unisonFile)
+            sr <- toSlurpResult unisonFile <$> basicPrettyPrintNames0
+            eval (Notify $ Typechecked sourceName ppe sr unisonFile)
             r <- eval . Evaluate ppe $ unisonFile
             case r of
               Left e -> respond $ EvaluationFailure e
@@ -570,7 +576,6 @@ loop = do
                 . (fmap . fmap) (resolveHQName currentPath')
                 . filter HQ.hasHash
                 $ hqs)
---        let results = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
         let resultss = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
             results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
@@ -650,10 +655,6 @@ loop = do
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
---          traceM "historicalNamesForQueries"
---          traceShowM historicalNamesForQueries
---          traceM "historicalNames"
---          traceShowM historicalNames
           eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
@@ -823,12 +824,7 @@ loop = do
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult result $ uf
           let fileNames0 = UF.typecheckedToNames0 uf
-          ppe <- do
-            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
-            -- unionLeft shadows names
-            prettyPrintEnv $
-              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
-                    (prettyPrintNames0 <> historicalNames0)
+          ppe <- makeHistoricalPPE (UF.labeledDependencies) fileNames0 prettyPrintNames0
           respond $ SlurpOutput input ppe result
 
       TodoI editPath' branchPath' -> do
@@ -860,7 +856,7 @@ loop = do
         let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
         when (not . Set.null $ toCompute) $ do
           let total = Set.size toCompute
-          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) -> do
+          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
             case r of
               Reference.DerivedId rid -> do
                 tm <- eval $ LoadTerm rid
@@ -894,8 +890,8 @@ loop = do
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
       PatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        changed <- updateAtM (resolveToAbsolute scopePath)
-                          (propagate (PPE.fromNames0 absoluteRootNames0) patch)
+        ppe <- makeHistoricalPPE (Patch.labeledDependencies patch) mempty absoluteRootNames0
+        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
         if changed then do
           branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
           -- checkTodo only needs the local names
@@ -951,7 +947,7 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
-checkTodo :: Patch -> Names0 -> Action m i v (TodoOutput v Ann)
+checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
   f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
@@ -972,7 +968,7 @@ checkTodo patch names0 = do
     dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s)
       [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
   pure $
-    TodoOutput_
+    TO.TodoOutput
       (Set.size remainingTransitive)
       (frontierTermsNamed, frontierTypesNamed)
       (dirtyTermsNamed, dirtyTypesNamed)
@@ -1680,59 +1676,42 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
-fixupHistoricalRefs :: Monad m
-  => Set (Either Reference Referent)
-  -> Branch m
-  -> Path.Absolute
-  -> Action' m v (Names0)
-fixupHistoricalRefs =
-  uncurry fixupHistoricalRefs' . foldl' f (mempty, mempty) where
-    f (types, terms) (Left r) = (Set.insert r types, terms)
-    f (types, terms) (Right r) = (types, Set.insert r terms)
+--fixupHistoricalRefs :: Monad m
+--  => Set (Either Reference Referent)
+--  -> Branch m
+--  -> Path.Absolute
+--  -> Action' m v (Names0)
+--fixupHistoricalRefs =
+--  uncurry fixupHistoricalRefs' . foldl' f (mempty, mempty) where
+--    f (types, terms) (Left r) = (Set.insert r types, terms)
+--    f (types, terms) (Right r) = (types, Set.insert r terms)
 
--- makeFixupHistorical :: Monad m
---   => (a -> Branch m -> m (a, Names0))
---   -> Path.Absolute
---   -> Branch m
---   -> a
---   -> Action' m v Names0
--- makeFixupHistorical find currentPath' root' query = do
---   (_missing, historicalNames) <- eval . Eval $ find query root'
---   pure (fixup currentPath' historicalNames)
---   where
+--makeFixupHistorical :: Monad m
+--  => (a -> Branch m -> m (a, Names0))
+--  -> Path.Absolute
+--  -> Branch m
+--  -> a
+--  -> Action' m v Names0
+--makeFixupHistorical find currentPath' root' query = do
+--  (_missing, historicalNames) <- eval . Eval $ find query root'
+--  pure (fixup currentPath' historicalNames)
+--  where
 
--- Any absolute names in the input which have `currentPath` as a prefix
--- are converted to names relative to current path. All other names are
--- converted to absolute names. For example:
---
--- e.g. if currentPath = .foo.bar
---      then name foo.bar.baz becomes baz
---           name cat.dog     becomes .cat.dog
-prettyPrintFixup :: Path.Absolute -> Names0 -> Names0
-prettyPrintFixup currentPath' (Names terms types) = Names terms' types' where
-  prefix = Path.toName (Path.unabsolute currentPath')
-  fixName n = if currentPath' == Path.absoluteEmpty then n else
-    case Name.stripNamePrefix prefix n of
-      Just n -> n
-      Nothing -> Name.makeAbsolute n
-  terms' = R.mapDom fixName terms
-  types' = R.mapDom fixName types
+--fixupHistoricalRefs' :: Monad m
+--  => Set Reference
+--  -> Set Referent
+--  -> Branch m
+--  -> Path.Absolute
+--  -> Action' m v (Names0)
+--fixupHistoricalRefs' types terms root' currentPath' =
+--  makeFixupHistorical Branch.findHistoricalRefs currentPath' root' $
+--    (Set.map Left filteredReferences <> Set.map Right filteredReferents)
+--  where
+--  root0 = Branch.head root'
+--  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
+--  filteredReferents = Set.difference terms (Branch.deepReferents root0)
 
-fixupHistoricalRefs' :: Monad m
-  => Set Reference
-  -> Set Referent
-  -> Branch m
-  -> Path.Absolute
-  -> Action' m v (Names0)
-fixupHistoricalRefs' types terms root' currentPath' =
-  makeFixupHistorical Branch.findHistoricalRefs currentPath' root' $
-    (Set.map Left filteredReferences <> Set.map Right filteredReferents)
-  where
-  root0 = Branch.head root'
-  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
-  filteredReferents = Set.difference terms (Branch.deepReferents root0)
-
-lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
+--lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = undefined
   -- should lex the file, then using the current path, and branch, produce a names
 
@@ -1745,13 +1724,14 @@ parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input ty
 
 parseType :: Var v
   => Input -> [String] -> Action' m v (Either (Output v) (Type.AnnotatedType v Ann))
-parseType input typ = do
-  let src = Text.pack $ intercalate " " typ
-  (names, lexed) <- lexedSource (show Input)
-  e <- eval $ ParseType names lexed
-  pure $ case e of
-    Left err -> Left $ TypeParseError input src err
-    Right typ -> Right typ
+parseType input typ = undefined
+--do
+--  let src = Text.pack $ intercalate " " typ
+--  (names, lexed) <- lexedSource (show Input)
+--  e <- eval $ ParseType names lexed
+--  pure $ case e of
+--    Left err -> Left $ TypeParseError input src err
+--    Right typ -> Right typ
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.
@@ -1761,5 +1741,84 @@ resolveHQName (Path.unabsolute -> p) n =
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
 
-namesForTypecheckedUnisonFile :: TypecheckedUnisonFile v a -> Action' m v Names
-namesForTypecheckedUnisonFile uf = R.ran (UF.dependencies' uf)
+--namesForTypecheckedUnisonFile :: TypecheckedUnisonFile v a -> Action' m v Names
+--namesForTypecheckedUnisonFile uf = R.ran (UF.dependencies' uf)
+
+makeHistoricalPPE :: Monad m
+                  => Set (Either Reference Referent)
+                  -> Names0
+                  -> Action' m v PrettyPrintEnv
+makeHistoricalPPE deps shadowing = do
+  root' <- use root
+  currentPath' <- use currentPath
+  basicNames0 <- basicPrettyPrintNames0
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root'
+  prettyPrintEnv $
+    Names (Names3.unionLeft0 shadowing basicNames0)
+          (basicNames0 <> prettyPrintFixup currentPath' rawHistoricalNames)
+  where
+  -- Any absolute names in the input which have `currentPath` as a prefix
+  -- are converted to names relative to current path. All other names are
+  -- converted to absolute names. For example:
+  --
+  -- e.g. if currentPath = .foo.bar
+  --      then name foo.bar.baz becomes baz
+  --           name cat.dog     becomes .cat.dog
+  prettyPrintFixup :: Path.Absolute -> Names0 -> Names0
+  prettyPrintFixup currentPath' (Names0 terms types) = Names0 terms' types' where
+    prefix = Path.toName (Path.unabsolute currentPath')
+    fixName n = if currentPath' == Path.absoluteEmpty then n else
+      case Name.stripNamePrefix prefix n of
+        Just n -> n
+        Nothing -> Name.makeAbsolute n
+    terms' = R.mapDom fixName terms
+    types' = R.mapDom fixName types
+
+basicPrettyPrintNames0 :: Functor m => Action' m v Names0
+basicPrettyPrintNames0 = do
+  root' <- use root
+  currentPath' <- use currentPath
+  currentBranch' <- getAt currentPath'
+  let root0 = Branch.head root'
+      currentBranch0 = Branch.head currentBranch'
+      currentPathNames0 = Branch.toNames0 currentBranch0
+      -- all names, but with local names in their relative form only, rather
+      -- than absolute; external names appear as absolute
+      currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+        absDot = Names.prefix0 (Name.Name "")
+        externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
+        rootNames = Branch.toNames0 root0
+        pathPrefixed = case Path.unabsolute currentPath' of
+          Path.Path (toList -> []) -> id
+          p -> Names.prefix0 (Path.toName p)
+  pure currentAndExternalNames0
+
+
+_makeHistoricalParsingNames ::
+  Monad m => Set HQ.HashQualified -> Action' m v Names
+_makeHistoricalParsingNames _lexedHQs = undefined
+--do
+--  root <- use root
+--  currentPath <- use currentPath
+--  (_missing, rawHistoricalNames) <- Branch.findHistoricalHQs lexedHQs root
+--  pure _names
+
+--  let root0 = Branch.head root'
+--      currentBranch0 = Branch.head currentBranch'
+--      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
+--      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
+--        where
+--        -- parsing should respond to local and absolute names
+--        parseNames00 = currentPathNames0 <> absoluteRootNames0
+--        -- pretty-printing should use local names where available
+--        prettyPrintNames00 = currentAndExternalNames0
+--        currentPathNames0 = Branch.toNames0 currentBranch0
+--        -- all names, but with local names in their relative form only, rather
+--        -- than absolute; external names appear as absolute
+--        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+--          absDot = Names.prefix0 (Name.Name "")
+--          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
+--          rootNames = Branch.toNames0 root0
+--          pathPrefixed = case Path.unabsolute currentPath' of
+--            Path.Path (toList -> []) -> id
+--            p -> Names.prefix0 (Path.toName p)

@@ -16,6 +16,7 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
+import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 
 
@@ -657,28 +658,28 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => PPE.PrettyPrintEnv -> E.TodoOutput v a -> IO ()
+todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> IO ()
 todoOutput ppe todo =
   if noConflicts && noEdits
   then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
   else putPrettyLn (todoConflicts <> todoEdits)
   where
-  noConflicts = E.nameConflicts todo == mempty
-             && E.editConflicts todo == Patch.empty
-  noEdits = E.todoScore todo == 0
-  (frontierTerms, frontierTypes) = E.todoFrontier todo
-  (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
+  noConflicts = TO.nameConflicts todo == mempty
+             && TO.editConflicts todo == Patch.empty
+  noEdits = TO.todoScore todo == 0
+  (frontierTerms, frontierTypes) = TO.todoFrontier todo
+  (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
   corruptTerms = [ (HQ'.toHQ name, r) | (name, r, Nothing) <- frontierTerms ]
   corruptTypes = [ (HQ'.toHQ name, r) | (name, r, MissingThing _) <- frontierTypes ]
   goodTerms ts = [ (HQ'.toHQ name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (E.editConflicts todo)
+    [ renderEditConflicts ppe (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
     -- conflicts section
     c :: Names0
-    c = removeEditConflicts (E.editConflicts todo) (E.nameConflicts todo)
+    c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
     conflictedTypeNames = (R.dom . Names.types) c
     conflictedTermNames = (R.dom . Names.terms) c
     -- e.g. `foo#a` has been independently updated to `foo#b` and `foo#c`.
@@ -708,7 +709,7 @@ todoOutput ppe todo =
 
 
   todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-      [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+      [ P.wrap ("The branch has" <> fromString (show (TO.todoScore todo))
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (

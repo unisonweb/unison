@@ -6,7 +6,6 @@ module Unison.Codebase.Editor.Output
   , SearchResult'(..)
   , TermResult'(..)
   , TestReportStats(..)
-  , TodoOutput(..)
   , TypeResult'(..)
   , UndoFailureReason(..)
   , pattern Tm
@@ -25,7 +24,7 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names, Names0 )
+import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
@@ -44,6 +43,7 @@ import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
+import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -165,17 +165,3 @@ foldResult' f g = \case
   Tp' tp -> g tp
 
 type SourceFileContents = Text
-
-type Score = Int
-
-data TodoOutput v a = TodoOutput_
-  { todoScore :: Int
-  , todoFrontier ::
-        ( [(HQ'.HashQualified, Reference, Maybe (Type v a))]
-        , [(HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
-  , todoFrontierDependents ::
-        ( [(Score, HQ'.HashQualified, Reference, Maybe (Type v a))]
-        , [(Score, HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
-  , nameConflicts :: Names0
-  , editConflicts :: Patch
-  } deriving (Show)
