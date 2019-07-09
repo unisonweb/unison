@@ -201,34 +201,22 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' patchPath'
         b <- getAt p
         eval . Eval $ Branch.getPatch seg (Branch.head b)
-      -- | Names used as a basis for computing slurp results.
---      -- todo: include relevant external names if we support writing outside of this branch
---      toSlurpResultNames _uf = prettyPrintNames0
---      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
---      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
---        where
---        -- parsing should respond to local and absolute names
---        parseNames00 = currentPathNames0 <> absoluteRootNames0
---        -- pretty-printing should use local names where available
---        prettyPrintNames00 = currentAndExternalNames0
---        currentPathNames0 = Branch.toNames0 currentBranch0
---        -- all names, but with local names in their relative form only, rather
---        -- than absolute; external names appear as absolute
---        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
---          absDot = Names.prefix0 (Name.Name "")
---          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
---          rootNames = Branch.toNames0 root0
---          pathPrefixed = case Path.unabsolute currentPath' of
---            Path.Path (toList -> []) -> id
---            p -> Names.prefix0 (Path.toName p)
 
-      withFile ambient sourceName lexed@(text, _) k = do
+      withFile ambient sourceName lexed@(text, tokens) k = do
         -- todo: Need to lex the file, pull out all the hash-qualified tokens
         -- then monadically load from history info related to these HQs, and
         -- then use both `names0` and the historical `names0` to construct
         -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
-        ppe <- undefined
-        parseNames :: Names <- undefined
+        let getHQ = \case
+              L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+              L.Hash      sh          -> Just (HQ.HashOnly sh)
+              _                       -> Nothing
+            hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+        parseNames :: Names <- makeHistoricalParsingNames hqs
+        -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
+        ppe <- makeHistoricalPPE' hqs
         ctorTypes :: Reference -> ConstructorType <- undefined
         Result notes r <- eval $ Typecheck ambient parseNames ctorTypes sourceName lexed
         case r of
@@ -1752,45 +1740,71 @@ resolveHQName (Path.unabsolute -> p) n =
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
 
---namesForTypecheckedUnisonFile :: TypecheckedUnisonFile v a -> Action' m v Names
---namesForTypecheckedUnisonFile uf = R.ran (UF.dependencies' uf)
-
 makeHistoricalPPE :: Monad m
                   => Set (Either Reference Referent)
                   -> Names0
                   -> Action' m v PrettyPrintEnv
 makeHistoricalPPE deps shadowing = do
-  root' <- use root
-  currentPath' <- use currentPath
+  root <- use root
+  currentPath <- use currentPath
+  (_missing, rawHistoricalNames) <-
+    eval . Eval $ Branch.findHistoricalRefs deps root
   basicNames0 <- basicPrettyPrintNames0
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root'
+  -- The basic names go into "current", but are shadowed by "shadowing".
+  -- They go again into "historical" as a hack that makes them available HQ-ed.
   prettyPrintEnv $
     Names (Names3.unionLeft0 shadowing basicNames0)
-          (basicNames0 <> prettyPrintFixup currentPath' rawHistoricalNames)
-  where
-  -- Any absolute names in the input which have `currentPath` as a prefix
-  -- are converted to names relative to current path. All other names are
-  -- converted to absolute names. For example:
-  --
-  -- e.g. if currentPath = .foo.bar
-  --      then name foo.bar.baz becomes baz
-  --           name cat.dog     becomes .cat.dog
-  prettyPrintFixup :: Path.Absolute -> Names0 -> Names0
-  prettyPrintFixup currentPath' names0 = Names0 terms' types' where
-    prefix = Path.toName (Path.unabsolute currentPath')
-    fixName n = if currentPath' == Path.absoluteEmpty then n else
-      case Name.stripNamePrefix prefix n of
-        Just n -> n
-        Nothing -> Name.makeAbsolute n
-    terms' = R.mapDom fixName (Names3.terms0 names0)
-    types' = R.mapDom fixName (Names3.types0 names0)
+          (basicNames0 <> fixupNamesRelative currentPath rawHistoricalNames)
 
-basicPrettyPrintNames0 :: Functor m => Action' m v Names0
-basicPrettyPrintNames0 = do
+-- a version of makeHistoricalPPE for printing errors for a file that didn't hash
+makeHistoricalPPE' :: Monad m => Set HQ.HashQualified -> Action' m v PrettyPrintEnv
+makeHistoricalPPE' lexedHQs = do
+  root <- use root
+  currentPath <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  basicNames0 <- basicPrettyPrintNames0
+  -- The basic names go into "current", but are shadowed by "shadowing".
+  -- They go again into "historical" as a hack that makes them available HQ-ed.
+  prettyPrintEnv $
+    Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+
+
+-- Any absolute names in the input which have `currentPath` as a prefix
+-- are converted to names relative to current path. All other names are
+-- converted to absolute names. For example:
+--
+-- e.g. if currentPath = .foo.bar
+--      then name foo.bar.baz becomes baz
+--           name cat.dog     becomes .cat.dog
+fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
+fixupNamesRelative currentPath' names0 = Names3.map0 fixName names0 where
+  prefix = Path.toName (Path.unabsolute currentPath')
+  fixName n = if currentPath' == Path.absoluteEmpty then n else
+    fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
+
+makeHistoricalParsingNames ::
+  Monad m => Set HQ.HashQualified -> Action' m v Names
+makeHistoricalParsingNames lexedHQs = do
+  root <- use root
+  currentPath <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  basicNames0 <- basicParseNames0
+  pure $ Names basicNames0
+               (Names3.makeAbsolute0 rawHistoricalNames <>
+                 fixupNamesRelative currentPath rawHistoricalNames)
+
+basicParseNames0, basicPrettyPrintNames0 :: Functor m => Action' m v Names0
+basicParseNames0 = fst <$> basicNames0'
+basicPrettyPrintNames0 = snd <$> basicNames0'
+
+-- implementation detail of baseicParseNames0 and basicPrettyPrintNames0
+basicNames0' :: Functor m => Action' m v (Names0, Names0)
+basicNames0' = do
   root' <- use root
   currentPath' <- use currentPath
   currentBranch' <- getAt currentPath'
   let root0 = Branch.head root'
+      absoluteRootNames0 = Names3.makeAbsolute0 (Branch.toNames0 root0)
       currentBranch0 = Branch.head currentBranch'
       currentPathNames0 = Branch.toNames0 currentBranch0
       -- all names, but with local names in their relative form only, rather
@@ -1802,34 +1816,8 @@ basicPrettyPrintNames0 = do
         pathPrefixed = case Path.unabsolute currentPath' of
           Path.Path (toList -> []) -> id
           p -> Names.prefix0 (Path.toName p)
-  pure currentAndExternalNames0
-
-
-_makeHistoricalParsingNames ::
-  Monad m => Set HQ.HashQualified -> Action' m v Names
-_makeHistoricalParsingNames _lexedHQs = undefined
---do
---  root <- use root
---  currentPath <- use currentPath
---  (_missing, rawHistoricalNames) <- Branch.findHistoricalHQs lexedHQs root
---  pure _names
-
---  let root0 = Branch.head root'
---      currentBranch0 = Branch.head currentBranch'
---      absoluteRootNames0 = Names.prefix0 (Name.Name "") (Branch.toNames0 root0)
---      (parseNames0, prettyPrintNames0) = (parseNames00, prettyPrintNames00)
---        where
---        -- parsing should respond to local and absolute names
---        parseNames00 = currentPathNames0 <> absoluteRootNames0
---        -- pretty-printing should use local names where available
---        prettyPrintNames00 = currentAndExternalNames0
---        currentPathNames0 = Branch.toNames0 currentBranch0
---        -- all names, but with local names in their relative form only, rather
---        -- than absolute; external names appear as absolute
---        currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
---          absDot = Names.prefix0 (Name.Name "")
---          externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
---          rootNames = Branch.toNames0 root0
---          pathPrefixed = case Path.unabsolute currentPath' of
---            Path.Path (toList -> []) -> id
---            p -> Names.prefix0 (Path.toName p)
+      -- parsing should respond to local and absolute names
+      parseNames00 = currentPathNames0 <> absoluteRootNames0
+      -- pretty-printing should use local names where available
+      prettyPrintNames00 = currentAndExternalNames0
+  pure (parseNames00, prettyPrintNames00)

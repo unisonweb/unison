@@ -13,6 +13,7 @@ module Unison.Name
   , unqualified
   , unqualified'
   , unsafeFromText
+  , unsafeFromString
   , fromVar
   )
 where
@@ -31,6 +32,9 @@ newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 unsafeFromText :: Text -> Name
 unsafeFromText t =
   if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
+
+unsafeFromString :: String -> Name
+unsafeFromString = unsafeFromText . Text.pack
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t

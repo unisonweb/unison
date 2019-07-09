@@ -16,6 +16,7 @@ import Unison.Referent (Referent)
 import Unison.Referent as Referent
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
+import qualified Unison.Name as Name
 import qualified Unison.Names2
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.Relation as R
@@ -44,14 +45,22 @@ unionLeftName0 = Unison.Names2.unionLeftName
 unionLeftRef0 :: Names0 -> Names0 -> Names0
 unionLeftRef0 = Unison.Names2.unionLeftRef
 
+map0 :: (Name -> Name) -> Names0 -> Names0
+map0 f (Names.Names terms types) = Names.Names terms' types' where
+  terms' = R.mapDom f terms
+  types' = R.mapDom f types
+
 names0 :: Relation Name Referent -> Relation Name Reference -> Names0
-names0 terms types = Unison.Names2.Names terms types
+names0 = Unison.Names2.Names
 
 types0 :: Names0 -> Relation Name Reference
 types0 = Names.types
 
 terms0 :: Names0 -> Relation Name Referent
 terms0 = Names.terms
+
+makeAbsolute0:: Names0 -> Names0
+makeAbsolute0 = map0 Name.makeAbsolute
 
 --labeledDependencies0 :: Names0 -> Set (Either Reference Referent)
 --labeledDependencies0 (Names0 terms types) =

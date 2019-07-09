@@ -21,7 +21,6 @@ import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
-import           Unison.Hash (Hash)
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 
@@ -53,7 +52,7 @@ data Lexeme
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
-  | Hash Hash        -- hash literals
+  | Hash ShortHash   -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
 
@@ -96,7 +95,7 @@ instance ShowToken (Token Lexeme) where
       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
-      pretty (Hash h) = show h
+      pretty (Hash sh) = show sh
       pretty (Err e) = show e
       pretty Close = "<outdent>"
       pretty Semi = "<virtual semicolon>"
