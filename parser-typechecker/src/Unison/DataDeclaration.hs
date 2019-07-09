@@ -9,6 +9,7 @@
 
 module Unison.DataDeclaration where
 
+import Control.Lens (_3, over)
 import Data.Bifunctor (first)
 import Data.Traversable (for)
 import qualified Unison.Util.Relation as Rel
@@ -331,13 +332,16 @@ hashDecls
   => Map v (DataDeclaration' v a)
   -> Names.ResolutionResult v a [(v, Reference, DataDeclaration' v a)]
 hashDecls decls = do
+  -- todo: make sure all other external references are resolved before calling this
   let varToRef = hashDecls0 (void <$> decls)
+      decls'   = bindTypes <$> decls
+      bindTypes dd = dd { constructors' = over _3 (Type.bindExternal varToRef) <$> constructors' dd }
       typeNames0 = Names.names0 mempty
                  $ Rel.fromList (first Name.fromVar <$> varToRef)
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
       hash3 (_, _, typ) = ABT.hash typ :: Hash
-  decls' <- fmap sortCtors <$> traverse (bindNames typeNames0) decls
+  decls' <- fmap sortCtors <$> traverse (bindNames typeNames0) decls'
   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 
