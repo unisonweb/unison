@@ -82,11 +82,11 @@ test1 = scope "termparser" . tests . map parses $
     "  x -> 1\n" ++
     "  2 -> 7\n" ++
     "  _ -> 3\n" ++
-    "  Pair x y -> x + y\n" ++
-    "  Pair (Pair x y) _ -> x + y \n"
+    "  Pair.Pair x y -> x + y\n" ++
+    "  Pair.Pair (Pair.Pair x y) _ -> x + y \n"
   , "case x of\n" ++
-    "  {Pair x y} -> 1\n" ++
-    "  {State.set 42 -> k} -> k 42\n"
+    "  {Pair.Pair x y} -> 1\n" ++
+    "  {Optional.Some 42 -> k} -> k 42\n"
   , "case x of\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
