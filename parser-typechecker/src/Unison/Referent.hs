@@ -101,7 +101,7 @@ fromText t = either (const Nothing) Just $
          | otherwise -> Left ("invalid constructor type (expected 'a' or 'd'): " <> Text.unpack cidPart')
     refPart = Text.dropWhileEnd (/= '#') t
     cidPart' = Text.takeWhileEnd (/= '#') t
-    cidPart = Text.drop 1 cidPart
+    cidPart = Text.drop 1 cidPart'
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r
