@@ -6,29 +6,43 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Unison.Referent as R
 import qualified Unison.ShortHash as SH
+import qualified Unison.Reference as Rf
 import EasyTest
 
 test :: Test ()
 test = scope "hashparsing" . tests $
-  [ scope "Referent" $ tests
+  [
+    scope "Reference" $ tests
+    [ ref h
+    , ref (h <> "." <> suffix1)
+    , ref (h <> "." <> suffix2) ],
+
+    scope "Referent" $ tests
     [ r h
-    , r $ h <> ".y6"
+    , r $ h <> "." <> suffix1
     , r $ h <> "#d10"
-    , r $ h <> "#e0"
-    , r $ h <> ".y6" <> "#d6"
-    , r $ h <> ".y6" <> "#e9" ],
+    , r $ h <> "#a0"
+    , r $ h <> "." <> suffix2 <> "#d6"
+    , r $ h <> "." <> suffix1 <> "#a9" ],
 
     scope "ShortHash" $ tests
-    [ sh "#abcd"
-    , sh h
-    , sh "#abcd.y6"
+    [ sh h
+    , sh "#abcd"
+    , sh $ "#abcd." <> suffix1
     , sh "#abcd#d10"
-    , sh "#abcd#e3"
-    , sh "#abcd.y6#d10"
-    , sh "#abcd.y6#e5" ]
+    , sh "#abcd#a3"
+    , sh $ "#abcd." <> suffix2 <> "#d10"
+    , sh $ "#abcd.y6#a5" ]
   ]
   where
   h = "#zNRtcQJ2LpPxdtU8jDT7jrbR7JLC65o3GtPJXAw4Pz963kdBWB6FYNx8tatkzWj8HEA8eKZohsercgKDn9uYhbB"
+  suffix1 = Rf.showSuffix 0 10
+  suffix2 = Rf.showSuffix 3 6
+  ref txt = scope (Text.unpack txt) $ case Rf.fromText txt of
+    Left e -> fail e
+    Right r1 -> case Rf.fromText (Rf.toText r1) of
+      Left e -> fail e
+      Right r2 -> expect (r1 == r2)
   r :: Text -> Test ()
   r txt = scope (Text.unpack txt) $ case R.fromText txt of
     Nothing -> fail "oh noes"
