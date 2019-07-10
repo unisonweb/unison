@@ -64,9 +64,6 @@ data Command m i v a where
 
   ParseType :: Names -> LexedSource -> Command m i v (Either (Parser.Error v) (Type v Ann))
 
-  -- Typecheck a unison file relative to a particular link.
-  -- If we want to be able to resolve relative names (seems unnecessary,
-  -- at least in M1), we can keep a map from Link to parent in memory.
   Typecheck :: AmbientAbilities v
             -> Names
             -> (Reference -> CT.ConstructorType)

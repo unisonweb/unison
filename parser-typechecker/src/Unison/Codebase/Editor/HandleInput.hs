@@ -216,7 +216,7 @@ loop = do
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
         -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
-        ppe <- makeHistoricalPPE' hqs
+        ppe <- prettyPrintEnv =<< makeHistoricalPrintNamesFromHQ hqs
         ctorTypes :: Reference -> ConstructorType <- undefined
         Result notes r <- eval $ Typecheck ambient parseNames ctorTypes sourceName lexed
         case r of
@@ -242,9 +242,10 @@ loop = do
           let lexed = L.lexer (Text.unpack sourceName) (Text.unpack text)
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
-            ppe <- makeHistoricalPPE (UF.labeledDependencies unisonFile)
-                                     (UF.typecheckedToNames0 unisonFile)
-            sr <- toSlurpResult unisonFile <$> basicPrettyPrintNames0
+            sr <- toSlurpResult unisonFile <$> slurpResultNames0
+            hnames <- makePrintNamesFromLabeled (UF.labeledDependencies unisonFile)
+                                                (UF.typecheckedToNames0 unisonFile)
+            ppe <- prettyPrintEnv hnames
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
             r <- eval . Evaluate ppe $ unisonFile
             case r of
@@ -721,113 +722,116 @@ loop = do
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
---      AddI hqs -> case uf of
---        Nothing -> respond NoUnisonFile
---        Just uf -> do
---          let result = Slurp.disallowUpdates
---                     . applySelection hqs uf
---                     $ toSlurpResult uf (toSlurpResultNames uf)
---          when (Slurp.isNonempty result) $ do
---            stepAt ( Path.unabsolute currentPath'
---                   , doSlurpAdds (Slurp.adds result) uf)
---            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
---          let fileNames0 = UF.typecheckedToNames0 uf
---          ppe <- do
---            historicalNames <- fixupHistoricalRefs (UF.labeledDependencies uf)
---            -- unionLeft shadows names
---            prettyPrintEnv $
---              Names (Names3.unionLeft0 fileNames0 prettyPrintNames0)
---                    (prettyPrintNames0 <> historicalNames0)
---          respond $ SlurpOutput input ppe result
+      AddI hqs -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf -> do
+          sr <- Slurp.disallowUpdates
+              . applySelection hqs uf
+              . toSlurpResult uf
+             <$> slurpResultNames0
+          when (Slurp.isNonempty sr) $ do
+            stepAt ( Path.unabsolute currentPath'
+                   , doSlurpAdds (Slurp.adds sr) uf)
+            eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+          ppe <- prettyPrintEnv =<<
+            makePrintNamesFromLabeled (UF.labeledDependencies uf)
+                                      (UF.typecheckedToNames0 uf)
+          respond $ SlurpOutput input ppe sr
 
---      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
---        Nothing -> respond NoUnisonFile
---        Just uf -> do
---          let result = applySelection hqs uf
---                     $ toSlurpResult uf (toSlurpResultNames uf)
---          let fileNames0 = UF.typecheckedToNames0 uf
---              -- todo: display some error if typeEdits or termEdits itself contains a loop
---              typeEdits :: Map Name (Reference, Reference)
---              typeEdits = Map.fromList $ map f (toList $ SC.types (updates result)) where
---                f v = case (toList (Names.typesNamed parseNames0 n)
---                           ,toList (Names.typesNamed fileNames0 n)) of
---                  ([old],[new]) -> (n, (old, new))
---                  _ -> error $ "Expected unique matches for "
---                                  ++ Var.nameStr v ++ " but got: "
---                                  ++ show otherwise
---                  where n = Name.fromVar v
---              hashTerms :: Map Reference (Type v Ann)
---              hashTerms = Map.fromList (toList hashTerms0) where
---                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
---              termEdits :: Map Name (Reference, Reference)
---              termEdits = Map.fromList $ map g (toList $ SC.terms (updates result)) where
---                g v = case ( toList (Names.refTermsNamed parseNames0 n)
---                           , toList (Names.refTermsNamed fileNames0 n)) of
---                  ([old], [new]) -> (n, (old, new))
---                  _ -> error $ "Expected unique matches for "
---                                 ++ Var.nameStr v ++ " but got: "
---                                 ++ show otherwise
---                  where n = Name.fromVar v
---          ye'ol'Patch <- do
---            b <- getAt p
---            eval . Eval $ Branch.getPatch seg (Branch.head b)
---          -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
---          -- with (a0 -> a') in patch'.
---          -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
---          -- we must know the type of a0, a, a'.
---          let
---            -- we need:
---            -- all of the `old` references from the `new` edits,
---            -- plus all of the `old` references for edits from patch we're replacing
---            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
---            collectOldForTyping new old = foldl' f mempty (new ++ fromOld) where
---              f acc (r, _r') = Set.insert r acc
---              newLHS = Set.fromList . fmap fst $ new
---              fromOld :: [(Reference, Reference)]
---              fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old
---                                 , Set.member r' newLHS ]
---            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
---
---          allTypes :: Map Reference (Type v Ann) <-
---            fmap Map.fromList . for (toList neededTypes) $ \r ->
---              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
---
---          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
---                (Just t1, Just t2)
---                  | Typechecker.isEqual t1 t2 -> TermEdit.Same
---                  | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
---                  | otherwise -> TermEdit.Different
---                e -> error $ "compiler bug: typing map not constructed properly\n" <>
---                  "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
---
---          let updatePatch :: Patch -> Patch
---              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
---                where
---                step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
---                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
---              updatePatches :: Branch0 m -> m (Branch0 m)
---              updatePatches = Branch.modifyPatches seg updatePatch
---
---          when (Slurp.isNonempty result) $ do
---          -- take a look at the `updates` from the SlurpResult
---          -- and make a patch diff to record a replacement from the old to new references
---            stepManyAtM
---              [( Path.unabsolute currentPath'
---               , pure . doSlurpUpdates typeEdits termEdits)
---              ,( Path.unabsolute currentPath'
---               , pure . doSlurpAdds (Slurp.adds result) uf)
---              ,( Path.unabsolute p, updatePatches )]
---            eval . AddDefsToCodebase . filterBySlurpResult result $ uf
---          let fileNames0 = UF.typecheckedToNames0 uf
---          ppe <- makeHistoricalPPE (UF.labeledDependencies) fileNames0 prettyPrintNames0
---          respond $ SlurpOutput input ppe result
---
---      TodoI editPath' branchPath' -> do
---        patch <- getPatchAt editPath'
---        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
---        -- checkTodo only needs the local names
---        let names0 = (Branch.toNames0 . Branch.head) branch
---        checkTodo patch names0 >>= respond . TodoOutput names0
+      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
+        Nothing -> respond NoUnisonFile
+        Just uf -> do
+          slurpCheckNames0 <- slurpResultNames0
+          let sr = applySelection hqs uf
+                 . toSlurpResult uf
+                 $ slurpCheckNames0
+          let fileNames0 = UF.typecheckedToNames0 uf
+              -- todo: display some error if typeEdits or termEdits itself contains a loop
+              typeEdits :: Map Name (Reference, Reference)
+              typeEdits = Map.fromList $ map f (toList $ SC.types (updates sr)) where
+                f v = case (toList (Names.typesNamed slurpCheckNames0 n)
+                           ,toList (Names.typesNamed fileNames0 n)) of
+                  ([old],[new]) -> (n, (old, new))
+                  _ -> error $ "Expected unique matches for "
+                                  ++ Var.nameStr v ++ " but got: "
+                                  ++ show otherwise
+                  where n = Name.fromVar v
+              hashTerms :: Map Reference (Type v Ann)
+              hashTerms = Map.fromList (toList hashTerms0) where
+                hashTerms0 = (\(r, _, typ) -> (r, typ)) <$> UF.hashTerms uf
+              termEdits :: Map Name (Reference, Reference)
+              termEdits = Map.fromList $ map g (toList $ SC.terms (updates sr)) where
+                g v = case ( toList (Names.refTermsNamed slurpCheckNames0 n)
+                           , toList (Names.refTermsNamed fileNames0 n)) of
+                  ([old], [new]) -> (n, (old, new))
+                  _ -> error $ "Expected unique matches for "
+                                 ++ Var.nameStr v ++ " but got: "
+                                 ++ show otherwise
+                  where n = Name.fromVar v
+          ye'ol'Patch <- do
+            b <- getAt p
+            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
+          -- with (a0 -> a') in patch'.
+          -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
+          -- we must know the type of a0, a, a'.
+          let
+            -- we need:
+            -- all of the `old` references from the `new` edits,
+            -- plus all of the `old` references for edits from patch we're replacing
+            collectOldForTyping :: [(Reference, Reference)] -> Patch -> Set Reference
+            collectOldForTyping new old = foldl' f mempty (new ++ fromOld) where
+              f acc (r, _r') = Set.insert r acc
+              newLHS = Set.fromList . fmap fst $ new
+              fromOld :: [(Reference, Reference)]
+              fromOld = [ (r,r') | (r, TermEdit.Replace r' _) <- R.toList . Patch._termEdits $ old
+                                 , Set.member r' newLHS ]
+            neededTypes = collectOldForTyping (toList termEdits) ye'ol'Patch
+
+          allTypes :: Map Reference (Type v Ann) <-
+            fmap Map.fromList . for (toList neededTypes) $ \r ->
+              (r,) . fromJust <$> (eval . LoadTypeOfTerm) r
+
+          let typing r1 r2 = case (Map.lookup r1 allTypes, Map.lookup r2 hashTerms) of
+                (Just t1, Just t2)
+                  | Typechecker.isEqual t1 t2 -> TermEdit.Same
+                  | Typechecker.isSubtype t1 t2 -> TermEdit.Subtype
+                  | otherwise -> TermEdit.Different
+                e -> error $ "compiler bug: typing map not constructed properly\n" <>
+                  "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
+
+          let updatePatch :: Patch -> Patch
+              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
+                where
+                step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
+                step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+              updatePatches :: Branch0 m -> m (Branch0 m)
+              updatePatches = Branch.modifyPatches seg updatePatch
+
+          when (Slurp.isNonempty sr) $ do
+          -- take a look at the `updates` from the SlurpResult
+          -- and make a patch diff to record a replacement from the old to new references
+            stepManyAtM
+              [( Path.unabsolute currentPath'
+               , pure . doSlurpUpdates typeEdits termEdits)
+              ,( Path.unabsolute currentPath'
+               , pure . doSlurpAdds (Slurp.adds sr) uf)
+              ,( Path.unabsolute p, updatePatches )]
+            eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
+          let fileNames0 = UF.typecheckedToNames0 uf
+          ppe <- prettyPrintEnv =<<
+            makePrintNamesFromLabeled (UF.labeledDependencies uf)
+                                      (UF.typecheckedToNames0 uf)
+          respond $ SlurpOutput input ppe sr
+
+      TodoI patchPath branchPath' -> do
+        patch <- getPatchAt patchPath
+        ppe <- prettyPrintEnv =<<
+          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+        -- checkTodo only needs the local references to check for obsolete defs
+        let names0 = (Branch.toNames0 . Branch.head) branch
+        respond . TodoOutput ppe =<< checkTodo patch names0
 
 --      TestI showOk showFail -> do
 --        let
@@ -884,16 +888,17 @@ loop = do
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
---      PatchI patchPath scopePath -> do
---        patch <- getPatchAt patchPath
---        ppe <- makeHistoricalPPE (Patch.labeledDependencies patch) mempty absoluteRootNames0
---        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
---        if changed then do
---          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
---          -- checkTodo only needs the local names
---          let names0 = (Branch.toNames0 . Branch.head) branch
---          checkTodo patch names0 >>= respond . TodoOutput names0
---        else respond $ NothingToPatch patchPath scopePath
+      PatchI patchPath scopePath -> do
+        patch <- getPatchAt patchPath
+        ppe <- prettyPrintEnv =<<
+          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
+        if changed then do
+          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
+          -- checkTodo only needs the local names
+          let names0 = (Branch.toNames0 . Branch.head) branch
+          respond . TodoOutput ppe =<< checkTodo patch names0
+        else respond $ NothingToPatch patchPath scopePath
 
       -- ExecuteI input ->
       --   withFile [Type.ref External $ IOSource.ioReference]
@@ -906,11 +911,11 @@ loop = do
       --   stepAt updateBuiltins
       --   checkTodo
 
---      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
---        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
---        names0 <- eval . Eval $
---          Branch.findRefsInHistory (Patch.allReferences patch) currentBranch'
---        respond $ ListEdits patch names0
+      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
+        patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
+        ppe <- prettyPrintEnv =<<
+          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        respond $ ListEdits patch ppe
 
       PullRemoteBranchI repo path -> do
         loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
@@ -1740,11 +1745,11 @@ resolveHQName (Path.unabsolute -> p) n =
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
 
-makeHistoricalPPE :: Monad m
-                  => Set (Either Reference Referent)
-                  -> Names0
-                  -> Action' m v PrettyPrintEnv
-makeHistoricalPPE deps shadowing = do
+makePrintNamesFromLabeled :: Monad m
+                          => Set (Either Reference Referent)
+                          -> Names0
+                          -> Action' m v Names
+makePrintNamesFromLabeled deps shadowing = do
   root <- use root
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <-
@@ -1752,21 +1757,30 @@ makeHistoricalPPE deps shadowing = do
   basicNames0 <- basicPrettyPrintNames0
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
-  prettyPrintEnv $
+  pure $
     Names (Names3.unionLeft0 shadowing basicNames0)
           (basicNames0 <> fixupNamesRelative currentPath rawHistoricalNames)
 
--- a version of makeHistoricalPPE for printing errors for a file that didn't hash
-makeHistoricalPPE' :: Monad m => Set HQ.HashQualified -> Action' m v PrettyPrintEnv
-makeHistoricalPPE' lexedHQs = do
+makePrintNamesFromLabeled' :: Monad m => Set (Either Reference Referent) -> Action' m v Names
+makePrintNamesFromLabeled' deps = do
+  root <- use root
+  currentPath <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root
+  basicNames0 <- basicPrettyPrintNames0
+  -- The basic names go into "current", but are shadowed by "shadowing".
+  -- They go again into "historical" as a hack that makes them available HQ-ed.
+  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+
+-- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
+makeHistoricalPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
+makeHistoricalPrintNamesFromHQ lexedHQs = do
   root <- use root
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   basicNames0 <- basicPrettyPrintNames0
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
-  prettyPrintEnv $
-    Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
+  pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 
 -- Any absolute names in the input which have `currentPath` as a prefix
@@ -1793,9 +1807,12 @@ makeHistoricalParsingNames lexedHQs = do
                (Names3.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)
 
-basicParseNames0, basicPrettyPrintNames0 :: Functor m => Action' m v Names0
+basicParseNames0, basicPrettyPrintNames0, slurpResultNames0 :: Functor m => Action' m v Names0
 basicParseNames0 = fst <$> basicNames0'
 basicPrettyPrintNames0 = snd <$> basicNames0'
+-- we check the file against everything we can reference during parsing
+slurpResultNames0 = basicParseNames0
+
 
 -- implementation detail of baseicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Functor m => Action' m v (Names0, Names0)
