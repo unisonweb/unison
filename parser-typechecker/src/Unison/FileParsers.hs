@@ -6,7 +6,7 @@
 module Unison.FileParsers where
 
 import qualified Unison.Parser as Parser
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, when)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
@@ -84,6 +84,29 @@ parseAndSynthesizeFile ambient typeLookupf names filePath src = do
         (Names.currentNames $ Parser.names names)
         parsedFile
   tell notes' $> r
+
+resolveNames
+  :: (Var v, Monad m)
+  => (Set Reference -> m (TL.TypeLookup v Ann))
+  -> Names.Names0
+  -> UnisonFile v
+  -> ResultT
+       (Seq (Note v Ann))
+       m
+       (AnnotatedTerm v Ann, Map Typechecker.Name [Typechecker.NamedReference v Ann], TL.TypeLookup v Ann)
+resolveNames typeLookupf preexistingNames uf = do
+  let names = UF.toNames uf `Names.unionLeft0` preexistingNames
+  -- note, this will fail if there are any free type vars left, which we want
+  tm <- case Term.bindSomeNames names (UF.typecheckingTerm uf) of
+    Left e -> Result.tellAndFail $ Result.NameResolutionFailures (Foldable.toList e)
+    Right a -> pure a
+  tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>) $ typeLookupf (Term.dependencies tm)
+  let fqnsByShortName = Map.fromListWith mappend
+        [ (Name.toText $ Name.unqualified name,
+           [Typechecker.NamedReference (Name.toText name) typ (Right r)]) |
+          (name, r) <- Rel.toList $ Names.terms0 names,
+          typ <- Foldable.toList $ TL.typeOfReferent tl r ]
+  pure (tm, fqnsByShortName, tl)
 
 synthesizeFile
   :: forall v

@@ -155,6 +155,13 @@ bindNames keepFreeTerms ns e = do
   typeSubsts <- validate okTy freeTyVars
   pure . substTypeVars typeSubsts . ABT.substsInheritAnnotation termSubsts $ e
 
+bindSomeNames
+  :: forall v a . Var v
+  => Names0
+  -> AnnotatedTerm v a
+  -> Names.ResolutionResult v a (AnnotatedTerm v a)
+bindSomeNames ns e = bindNames (freeVars e) ns e
+
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR
 prepareTDNR :: Var v => ABT.Term (F vt b ap) v b -> ABT.Term (F vt b ap) v b
