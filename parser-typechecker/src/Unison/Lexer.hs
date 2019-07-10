@@ -383,6 +383,11 @@ lexer0 scope rem =
             in Token (Backticks id Nothing) pos end
                  : goWhitespace l end (pop rem)
 
+      rem@('#' : _) -> case shortHash rem of
+         Left e -> Token (Err e) pos pos : recover l pos rem
+         Right (h, rem) ->
+           let end = incBy (SH.toString h) $ pos
+           in Token (Hash h) pos end : goWhitespace l end rem
       -- keywords and identifiers
       (symbolyId -> Right (id, rem')) -> case numericLit rem of
         Right (Just (num, rem)) ->
@@ -392,7 +397,7 @@ lexer0 scope rem =
                case shortHash rem' of
                  Left e -> Token (Err e) pos pos : recover l pos rem'
                  Right (h, rem) ->
-                   let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+                   let end = incBy id . incBy (SH.toString h) $ pos
                     in Token (SymbolyId id (Just h)) pos end
                        : goWhitespace l end rem
              else
@@ -403,7 +408,7 @@ lexer0 scope rem =
           case shortHash rem of
             Left e -> Token (Err e) pos pos : recover l pos rem
             Right (h, rem) ->
-              let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+              let end = incBy id . incBy (SH.toString h) $ pos
                in Token (SymbolyId id (Just h)) pos end
                   : goWhitespace l end rem
         else let end = incBy id pos
