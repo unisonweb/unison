@@ -67,11 +67,8 @@ names0 = Names3.names0 terms types where
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]
 
--- Is this a term (as opposed to a type)
--- todo: why isn't this being used? if it doesn't actually make sense, we can delete it
-_isBuiltinTerm :: R.Reference -> Bool
-_isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
-
+-- note: this function is really for deciding whether `r` is a term or type,
+-- but it can only answer correctly for Builtins.
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType r = elem r . fmap snd $ builtinTypes
 
