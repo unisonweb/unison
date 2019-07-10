@@ -11,12 +11,14 @@ module Unison.Codebase.Editor.Output
   , pattern Tm
   , pattern Tp
   , foldResult'
+  , srLabeledDependencies
   , tmReferent
   , tpReference
   ) where
 
 import Data.Map (Map)
 import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
@@ -29,6 +31,8 @@ import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
+import qualified Unison.DataDeclaration as DD
+import qualified Unison.Codebase.Editor.DisplayThing as DT
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
@@ -166,6 +170,9 @@ foldResult' f g = \case
 
 type SourceFileContents = Text
 
---searchResultLabeledDependencies :: SearchResult' v a -> Set (Either Reference Referent)
---searchResultLabeledDependencies = \case
---  Tm' (TermResult' _ t r _rethinkAliases) -> Set.fromList $
+srLabeledDependencies :: Ord v => SearchResult' v a -> Set (Either Reference Referent)
+srLabeledDependencies = \case
+  Tm' (TermResult' _ t r _) ->
+    Set.insert (Right r) $ maybe mempty (Set.map Left . Type.dependencies) t
+  Tp' (TypeResult' _ d r _) ->
+    Set.map Left . Set.insert r $ maybe mempty (DD.declDependencies) (DT.toMaybe d)

@@ -1,27 +1,59 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Names2 where
+module Unison.Names2
+  ( Names0
+  , Names'(Names)
+  , Names
+  , addTerm
+  , addType
+  , allReferences
+  , asSearchResults
+  , conflicts
+  , contains
+  , difference
+  , filter
+  , filterByHQs
+  , filterTypes
+  , hqTermName
+  , hqTypeName
+  , hqTermAliases
+  , hqTypeAliases
+  , names0ToNames
+  , prefix0
+  , restrictReferences
+  , refTermsNamed
+  , termName
+  , typeName
+  , terms
+  , types
+  , termSearchResult
+  , typeSearchResult
+  , termsNamed
+  , typesNamed
+  , unionLeft
+  )
+where
 
-import           Data.Foldable (toList)
-import           Data.List        (foldl')
-import           Data.Set (Set)
-import qualified Data.Set         as Set
-import           Unison.Codebase.SearchResult   ( SearchResult )
-import qualified Unison.Codebase.SearchResult  as SR
-import           Unison.HashQualified'   (HashQualified)
-import qualified Unison.HashQualified' as HQ
-import           Unison.Name      (Name)
-import qualified Unison.Name      as Name
-import qualified Unison.Referent  as Referent
-import           Unison.Referent        (Referent(..))
-import           Unison.Reference        (Reference)
-import           Unison.Util.Relation   ( Relation )
-import qualified Unison.Util.Relation as R
-import           Unison.Codebase.NameSegment (NameSegment)
+import           Data.Foldable                (toList)
+import           Data.List                    (foldl')
+import           Data.Set                     (Set)
+import qualified Data.Set                     as Set
+import           Prelude                      hiding (filter)
+import           Unison.Codebase.SearchResult (SearchResult)
+import qualified Unison.Codebase.SearchResult as SR
+import           Unison.HashQualified'        (HashQualified)
+import qualified Unison.HashQualified'        as HQ
+import           Unison.Name                  (Name)
+import qualified Unison.Name                  as Name
+import           Unison.Reference             (Reference)
+import           Unison.Referent              (Referent (..))
+import qualified Unison.Referent              as Referent
+import           Unison.Util.Relation         (Relation)
+import qualified Unison.Util.Relation         as R
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -34,7 +66,6 @@ data Names' n = Names
 
 type Names = Names' HashQualified
 type Names0 = Names' Name
-type NamesSeg = Names' (HQ.HashQualified' NameSegment)
 
 names0ToNames :: Names0 -> Names
 names0ToNames names0 = Names terms' types' where
@@ -49,15 +80,6 @@ names0ToNames names0 = Names terms' types' where
     if Set.size (R.lookupDom n (types names0)) > 1
     then (HQ.take length $ HQ.fromNamedReference n r, r)
     else (HQ.NameOnly n, r)
-
-hasTerm :: Referent -> Names' n -> Bool
-hasTerm r = R.memberRan r . terms
-
-hasType :: Reference -> Names' n -> Bool
-hasType r = R.memberRan r . types
-
-termReferents :: Names' n -> Set Referent
-termReferents Names{..} = R.ran terms
 
 termReferences, typeReferences, allReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
@@ -105,15 +127,15 @@ restrictReferences refs Names{..} = Names terms' types' where
 --                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
 -- Btw, it's ok to create name conflicts for parsing environments, if you don't
 -- mind disambiguating.
-unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
-unionLeftName = unionLeft' $ const . R.memberDom
+_unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
+_unionLeftName = unionLeft' $ const . R.memberDom
 
 -- unionLeft two Names, excluding new aliases.
 -- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
 --                   [foo -> #b, baz -> #c]
 --                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]
-unionLeftRef :: Ord n => Names' n -> Names' n -> Names' n
-unionLeftRef = unionLeft' $ const R.memberRan
+_unionLeftRef :: Ord n => Names' n -> Names' n -> Names' n
+_unionLeftRef = unionLeft' $ const R.memberRan
 
 -- unionLeft two Names, but don't create new aliases or new name conflicts.
 -- e.g. unionLeft [foo -> #a, bar -> #a, cat -> #c]
@@ -211,41 +233,8 @@ hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
 hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
 
-hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
-hqTypeName' b n r =
-  HQ.take (numHashChars b) $ HQ.fromNamedReference n r
-
--- subtractTerms :: Var v => [v] -> Names -> Names
--- subtractTerms vs n = let
---   taken = Set.fromList (Name.fromVar <$> vs)
---   in n { termNames = Map.withoutKeys (termNames n) taken }
-
--- renderNameTarget :: NameTarget -> String
--- renderNameTarget = \case
---   TermName -> "term"
---   TypeName -> "type"
-  -- PatternName -> "pattern"
-
--- instance Show Names where
---   -- really barebones, just to see what names are present
---   show (Names es ts) =
---     "terms: " ++ show (es) ++ "\n" ++
---     "types: " ++ show (ts)
---
--- lookupType :: Names -> Name -> Maybe Reference
--- lookupType ns n = Map.lookup n (typeNames ns)
---
--- fromBuiltins :: [Reference] -> Names
--- fromBuiltins rs =
---   mempty { termNames = Map.fromList
---           [ (Name.unsafeFromText t, Referent.Ref r) | r@(Builtin t) <- rs ] }
-
 fromTerms :: Ord n => [(n, Referent)] -> Names' n
 fromTerms ts = Names (R.fromList ts) mempty
-
--- fromTypesV :: Var v => [(v, Reference)] -> Names
--- fromTypesV env =
---   Names mempty . Map.fromList $ fmap (first $ Name.fromVar) env
 
 fromTypes :: Ord n => [(n, Reference)] -> Names' n
 fromTypes ts = Names mempty (R.fromList ts)
@@ -255,13 +244,6 @@ asSearchResults :: Names0 -> [SearchResult]
 asSearchResults b =
   map (uncurry (typeSearchResult b)) (R.toList . types $ b) <>
   map (uncurry (termSearchResult b)) (R.toList . terms $ b)
-
-fromSearchResults :: [SearchResult] -> Names
-fromSearchResults = foldl' go mempty where
-  go Names{..} (SR.Tp SR.TypeResult{..}) =
-    Names terms (R.insert typeName reference types)
-  go Names{..} (SR.Tm SR.TermResult{..}) =
-    Names (R.insert termName referent terms) types
 
 termSearchResult :: Names0 -> Name -> Referent -> SearchResult
 termSearchResult b n r =
@@ -296,17 +278,12 @@ _toSearchResults n0@(Names terms types) = typeResults <> termResults where
     [ SR.termResult (hqTermName n0 name r) r (hqTermAliases n0 name r)
     | (name, r) <- R.toList terms]
 
-filterTerms, filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
-filterTerms f (Names terms types) = Names (R.filterDom f terms) types
+filterTypes :: Ord n => (n -> Bool) -> Names' n -> Names' n
 filterTypes f (Names terms types) = Names terms (R.filterDom f types)
 
 difference :: Ord n => Names' n -> Names' n -> Names' n
 difference a b = Names (R.difference (terms a) (terms b))
                        (R.difference (types a) (types b))
-
-intersection :: Ord n => Names' n -> Names' n -> Names' n
-intersection a b = Names (R.intersection (terms a) (terms b))
-                         (R.intersection (types a) (types b))
 
 contains :: Names' n -> Reference -> Bool
 contains names r =

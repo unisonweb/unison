@@ -8,7 +8,8 @@ import Data.List (foldl')
 import Data.Sequence (Seq)
 import Data.Set (Set)
 import Unison.HashQualified (HashQualified)
-import Unison.HashQualified as HQ
+import qualified Unison.HashQualified as HQ
+import qualified Unison.HashQualified' as HQ'
 import Unison.Name (Name)
 import Unison.Reference (Reference)
 import Unison.Reference as Reference
@@ -38,12 +39,6 @@ filterTypes = Unison.Names2.filterTypes
 
 unionLeft0 :: Names0 -> Names0 -> Names0
 unionLeft0 = Unison.Names2.unionLeft
-
-unionLeftName0 :: Names0 -> Names0 -> Names0
-unionLeftName0 = Unison.Names2.unionLeftName
-
-unionLeftRef0 :: Names0 -> Names0 -> Names0
-unionLeftRef0 = Unison.Names2.unionLeftRef
 
 map0 :: (Name -> Name) -> Names0 -> Names0
 map0 f (Names.Names terms types) = Names.Names terms' types' where
@@ -98,29 +93,28 @@ lookupHQTerm hq Names{..} = case hq of
 -- If `r` is in "current" names, look up each of its names, and hash-qualify
 -- them if they are conflicted names.  If `r` isn't in "current" names, look up
 -- each of its "old" names and hash-qualify them.
-typeName :: Int -> Reference -> Names -> Set HashQualified
+typeName :: Int -> Reference -> Names -> Set HQ'.HashQualified
 typeName length r Names{..} =
   if R.memberRan r . Names.types $ currentNames
-  then Set.map (\n -> if isConflicted n then hq n else HQ.fromName n)
+  then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
                (R.lookupRan r . Names.types $ currentNames)
   else Set.map hq (R.lookupRan r . Names.types $ oldNames)
-  where hq n = HQ.take length (HQ.fromNamedReference n r)
+  where hq n = HQ'.take length (HQ'.fromNamedReference n r)
         isConflicted n = R.manyDom n (Names.types currentNames)
 
-termName :: Int -> Referent -> Names -> Set HashQualified
+termName :: Int -> Referent -> Names -> Set HQ'.HashQualified
 termName length r Names{..} =
   if R.memberRan r . Names.terms $ currentNames
-  then Set.map (\n -> if isConflicted n then hq n else HQ.fromName n)
+  then Set.map (\n -> if isConflicted n then hq n else HQ'.fromName n)
                (R.lookupRan r . Names.terms $ currentNames)
   else Set.map hq (R.lookupRan r . Names.terms $ oldNames)
-  where hq n = HQ.take length (HQ.fromNamedReferent n r)
+  where hq n = HQ'.take length (HQ'.fromNamedReferent n r)
         isConflicted n = R.manyDom n (Names.terms currentNames)
 
 -- Set HashQualified -> Branch m -> Action' m v Names
 -- Set HashQualified -> Branch m -> Free (Command m i v) Names
 -- Set HashQualified -> Branch m -> Command m i v Names
 -- populate historical names
-
 lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList
   [ (r, cid) | Referent.Con r cid _ <- toList $ lookupHQTerm hq names ]
