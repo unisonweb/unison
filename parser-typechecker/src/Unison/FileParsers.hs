@@ -96,7 +96,7 @@ synthesizeFile
 synthesizeFile ambient preexistingTypes preexistingNames uf = do
   let tl :: TL.TypeLookup v Ann = UF.declsToTypeLookup uf <> preexistingTypes
   let names = UF.toNames uf `Names.unionLeft0` preexistingNames
-  term <- case Term.bindNames (TL.unsafeConstructorType tl) names (UF.typecheckingTerm uf) of
+  term <- case Term.bindNames mempty (TL.unsafeConstructorType tl) names (UF.typecheckingTerm uf) of
     Left e -> Result.tellAndFail $ Result.NameResolutionFailures (Foldable.toList e)
     Right a -> pure a
   let

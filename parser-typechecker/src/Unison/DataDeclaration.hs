@@ -173,12 +173,13 @@ constructorNames :: Var v => DataDeclaration' v a -> [Text]
 constructorNames dd = Var.name <$> constructorVars dd
 
 bindNames :: Var v
-          => Names0
+          => Set v
+          -> Names0
           -> DataDeclaration' v a
           -> Names.ResolutionResult v a (DataDeclaration' v a)
-bindNames names (DataDeclaration m a bound constructors) = do
+bindNames keepFree names (DataDeclaration m a bound constructors) = do
   constructors <- for constructors $ \(a, v, ty) ->
-    (a,v,) <$> Type.bindNames names ty
+    (a,v,) <$> Type.bindNames keepFree names ty
   pure $ DataDeclaration m a bound constructors
 
 dependencies :: Ord v => DataDeclaration' v a -> Set Reference
@@ -341,7 +342,7 @@ hashDecls decls = do
       -- normalize the order of the constructors based on a hash of their types
       sortCtors dd = dd { constructors' = sortOn hash3 $ constructors' dd }
       hash3 (_, _, typ) = ABT.hash typ :: Hash
-  decls' <- fmap sortCtors <$> traverse (bindNames typeNames0) decls'
+  decls' <- fmap sortCtors <$> traverse (bindNames mempty typeNames0) decls'
   pure  [ (v, r, dd) | (v, r) <- varToRef, Just dd <- [Map.lookup v decls'] ]
 
 

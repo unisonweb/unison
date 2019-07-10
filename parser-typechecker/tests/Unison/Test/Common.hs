@@ -38,14 +38,14 @@ type Type v = AnnotatedType v Ann
 t :: String -> Type Symbol
 t s = ABT.amap (const Intrinsic)
   . either (error . show ) id
-  . Type.bindNames B.names0
+  . Type.bindNames mempty B.names0
   . either (error . showParseError s) tweak
   $ Parser.run (Parser.root TypeParser.valueType) s parsingEnv
   where tweak = Type.generalizeLowercase mempty
 
 tm :: String -> Term Symbol
 tm s = either (error . show) id
-     . Term.bindNames (fromJust . B.constructorType) B.names0
+     . Term.bindNames mempty (fromJust . B.constructorType) B.names0
      . either (error . showParseError s) id
      $ Parser.run (Parser.root TermParser.term) s parsingEnv
 

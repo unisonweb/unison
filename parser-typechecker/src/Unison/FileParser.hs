@@ -65,7 +65,8 @@ file = do
     names <- TermParser.imports <* optional semi
     ctorType <- asks constructorType
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
-    stanzas <- case List.validate (traverse $ Term.bindNames ctorType (Names.currentNames names)) stanzas0 of
+    let allTermVars = Set.fromList $ foldMap getVars stanzas0
+    stanzas <- case List.validate (traverse $ Term.bindNames allTermVars ctorType (Names.currentNames names)) stanzas0 of
       Left es -> resolutionFailures (toList es)
       Right s -> pure s
     _ <- closeBlock
@@ -104,6 +105,13 @@ data Stanza v term
   | WatchExpression UF.WatchKind Text Ann term
   | Binding ((Ann, v), term)
   | Bindings [((Ann, v), term)] deriving (Foldable, Traversable, Functor)
+
+getVars :: Var v => Stanza v term -> [v]
+getVars = \case
+  WatchBinding _ _ ((_,v), _) -> [v]
+  WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
+  Binding ((_,v), _) -> [v]
+  Bindings bs -> [ v | ((_,v), _) <- bs ]
 
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace

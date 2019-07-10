@@ -133,12 +133,15 @@ type Term' vt v = AnnotatedTerm' vt v ()
 --   g :: AnnotatedTerm2 v b a v a -> AnnotatedTerm2 v b a v a
 --   g = ABT.substsInheritAnnotation termBuiltins
 bindNames
-  :: forall v a . Var v => (Reference -> CT.ConstructorType)
+  :: forall v a . Var v
+  => Set v
+  -> (Reference -> CT.ConstructorType)
   -> Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
-bindNames ctorType ns e = do
-  let freeTmVars = ABT.freeVarOccurrences (ABT.freeVars e) e
+bindNames keepFreeTerms ctorType ns e = do
+  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences (ABT.freeVars e) e
+                           , Set.notMember v keepFreeTerms ]
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
       okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)

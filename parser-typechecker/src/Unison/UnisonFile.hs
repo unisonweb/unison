@@ -238,23 +238,18 @@ bindNames :: Var v
           -> Names0
           -> UnisonFile v a
           -> Names.ResolutionResult v a (UnisonFile v a)
-bindNames ctorType externalNames uf@(UnisonFile d e ts ws) = do
+bindNames ctorType names uf@(UnisonFile d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
   let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
-      names' = subtractTerms termVars externalNames
+      termVarsSet = Set.fromList termVars
       ctFile = constructorType uf
       ct r = fromMaybe (ctorType r) (ctFile r)
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t) ts
-  ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames ct names' t)) ws
+  ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet ct names t) ts
+  ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet ct names t)) ws
   pure $ UnisonFile d e ts' ws'
-  where
-  subtractTerms :: Var v => [v] -> Names0 -> Names0
-  subtractTerms vs n = let
-    taken = Set.fromList (Name.fromVar <$> vs)
-    in Names.names0 (Relation.subtractDom taken (Names.terms0 n)) (Names.types0 n)
 
 constructorType ::
   Var v => UnisonFile v a -> Reference -> Maybe CT.ConstructorType
@@ -288,17 +283,13 @@ environmentFor
   -> Map v (DataDeclaration' v a)
   -> Map v (EffectDeclaration' v a)
   -> Names.ResolutionResult v a (Either [Error v a] (Env v a))
-environmentFor names0 dataDecls0 effectDecls0 = do
-  let
-    -- ignore builtin types that will be shadowed by user-defined data/effects
-    unshadowed n = Map.notMember (Name.toVar n) dataDecls0
-                && Map.notMember (Name.toVar n) effectDecls0
-    names = Names.filterTypes unshadowed names0
-    -- data decls and hash decls may reference each other, and thus must be hashed together
+environmentFor names dataDecls0 effectDecls0 = do
+  let locallyBoundTypes = Map.keysSet dataDecls0 <> Map.keysSet effectDecls0
+  -- data decls and hash decls may reference each other, and thus must be hashed together
   dataDecls :: Map v (DataDeclaration' v a) <-
-    traverse (DD.bindNames names) dataDecls0
+    traverse (DD.bindNames locallyBoundTypes names) dataDecls0
   effectDecls :: Map v (EffectDeclaration' v a) <-
-    traverse (DD.withEffectDeclM (DD.bindNames names)) effectDecls0
+    traverse (DD.withEffectDeclM (DD.bindNames locallyBoundTypes names)) effectDecls0
   let allDecls0 :: Map v (DataDeclaration' v a)
       allDecls0 = Map.union dataDecls (toDataDecl <$> effectDecls)
   hashDecls' :: [(v, Reference, DataDeclaration' v a)] <-

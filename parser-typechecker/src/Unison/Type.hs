@@ -80,12 +80,14 @@ bindExternal bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
 bindNames
   :: Var v
-  => Names.Names0
+  => Set v
+  -> Names.Names0
   -> AnnotatedType v a
   -> Names.ResolutionResult v a (AnnotatedType v a)
-bindNames ns t = let
+bindNames keepFree ns t = let
   fvs = ABT.freeVarOccurrences (freeVars t) t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
+  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) |
+        (v,a) <- fvs, Set.notMember v keepFree ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t
