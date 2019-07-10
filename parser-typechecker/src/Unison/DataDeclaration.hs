@@ -47,6 +47,7 @@ import           Unison.Names3                 (Names0)
 import qualified Unison.Names3                 as Names
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Pattern                as Pattern
+import qualified Unison.ConstructorType as CT
 
 type ConstructorId = Int
 
@@ -55,6 +56,11 @@ type Decl v a = Either (EffectDeclaration' v a) (DataDeclaration' v a)
 
 declDependencies :: Ord v => Decl v a -> Set Reference
 declDependencies = either (dependencies . toDataDecl) dependencies
+
+constructorType :: Decl v a -> CT.ConstructorType
+constructorType = \case
+  Left{} -> CT.Effect
+  Right{} -> CT.Data
 
 data Modifier = Structural | Unique Text -- | Opaque (Set Reference)
   deriving (Eq, Ord, Show)
@@ -190,21 +196,21 @@ third :: (a -> b) -> (x,y,a) -> (x,y,b)
 third f (x,y,a) = (x, y, f a)
 
 -- implementation of dataDeclToNames and effectDeclToNames
-toNames0 :: Var v => v -> Reference -> DataDeclaration' v a -> Names0
-toNames0 typeSymbol r dd =
+toNames0 :: Var v => CT.ConstructorType -> v -> Reference -> DataDeclaration' v a -> Names0
+toNames0 ct typeSymbol r dd =
   -- constructor names
   foldMap names (constructorVars dd `zip` [0 ..])
   -- name of the type itself
   <> Names.names0 mempty (Rel.singleton (Name.fromVar typeSymbol) r)
   where
   names (ctor, i) =
-    Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i)) mempty
+    Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names0
-dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r dd
+dataDeclToNames typeSymbol r dd = toNames0 CT.Data typeSymbol r dd
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names0
-effectDeclToNames typeSymbol r ed = toNames0 typeSymbol r $ toDataDecl ed
+effectDeclToNames typeSymbol r ed = toNames0 CT.Effect typeSymbol r $ toDataDecl ed
 
 dataDeclToNames' :: Var v => (v, (Reference, DataDeclaration' v a)) -> Names0
 dataDeclToNames' (v,(r,d)) = dataDeclToNames v r d

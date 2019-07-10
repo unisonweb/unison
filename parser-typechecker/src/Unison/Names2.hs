@@ -9,9 +9,7 @@ module Unison.Names2 where
 import           Data.Foldable (toList)
 import           Data.List        (foldl')
 import           Data.Set (Set)
-import           Data.Maybe (mapMaybe)
 import qualified Data.Set         as Set
-import           Data.String      (fromString)
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import           Unison.HashQualified'   (HashQualified)
@@ -159,9 +157,6 @@ termName names r =
     hq : _ -> hq
     _ -> error
       ("Names construction should have included something for " <> show r)
-
-patternName :: Ord n => Names' n -> Reference -> Int -> n
-patternName names r cid = termName names (Con r cid)
 
 termsNamed :: Ord n => Names' n -> n -> Set Referent
 termsNamed = flip R.lookupDom . terms
@@ -322,14 +317,6 @@ contains names r =
 -- | filters out everything from the domain except what's conflicted
 conflicts :: Ord n => Names' n -> Names' n
 conflicts Names{..} = Names (R.filterManyDom terms) (R.filterManyDom types)
-
-patternNameds :: Names0 -> String -> [(Reference, Int)]
-patternNameds ns s = patternNamed ns (fromString s)
-
-patternNamed :: Names0 -> Name -> [(Reference, Int)]
-patternNamed ns n = flip mapMaybe (toList . R.lookupDom n $ terms ns) $ \case
-  Referent.Con r cid -> Just (r, cid)
-  _ -> Nothing
 
 instance Ord n => Semigroup (Names' n) where (<>) = mappend
 

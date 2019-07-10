@@ -31,11 +31,9 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import qualified Unison.ConstructorType     as CT
 import qualified Unison.Name                as N
 import           Unison.Names3              (Names0)
 import qualified Unison.Names3              as Names
-import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
@@ -270,11 +268,7 @@ typeDirectedNameResolution oldNotes oldType env = do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
    where
-    solved =
-      either (Term.var loc) (Term.fromReferent constructorType loc) replacement
-    constructorType :: Reference -> CT.ConstructorType
-    constructorType = fromMaybe (error "no constructor type in substSuggestion")
-      . TL.constructorType (view typeLookup env)
+    solved = either (Term.var loc) (Term.fromReferent loc) replacement
   substSuggestion _ = pure ()
 
   -- Resolve a `Blank` to a term

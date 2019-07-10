@@ -13,7 +13,6 @@ import           Data.Bifunctor         (second)
 import           Data.Foldable          (toList, foldl')
 import           Data.Map               (Map)
 import qualified Data.Map               as Map
-import           Data.Maybe             (fromMaybe)
 import qualified Data.Set               as Set
 import Data.Set (Set)
 import qualified Unison.ABT as ABT
@@ -218,9 +217,9 @@ hashConstructors
   :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
+        [ (v, Referent.Con ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
       ctors2 = Map.elems (effectDeclarations' file) >>= \(ref, dd) ->
-        [ (v, Referent.Con ref i) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
+        [ (v, Referent.Con ref i CT.Effect) | (v,i) <- DD.constructorVars (DD.toDataDecl dd) `zip` [0 ..] ]
   in Map.fromList (ctors1 ++ ctors2)
 
 type CtorLookup = Map String (Reference, Int)
@@ -234,21 +233,18 @@ type CtorLookup = Map String (Reference, Int)
 -- we are done parsing, whereas `math.sqrt#abc` can be resolved immediately
 -- as it can't refer to a local definition.
 bindNames :: Var v
-          => (Reference -> CT.ConstructorType)
-          -> Names0
+          => Names0
           -> UnisonFile v a
           -> Names.ResolutionResult v a (UnisonFile v a)
-bindNames ctorType names uf@(UnisonFile d e ts ws) = do
+bindNames names (UnisonFile d e ts ws) = do
   -- todo: consider having some kind of binding structure for terms & watches
   --    so that you don't weirdly have free vars to tiptoe around.
   --    The free vars should just be the things that need to be bound externally.
   let termVars = (fst <$> ts) ++ (Map.elems ws >>= map fst)
       termVarsSet = Set.fromList termVars
-      ctFile = constructorType uf
-      ct r = fromMaybe (ctorType r) (ctFile r)
   -- todo: can we clean up this lambda using something like `second`
-  ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet ct names t) ts
-  ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet ct names t)) ws
+  ts' <- traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t) ts
+  ws' <- traverse (traverse (\(v,t) -> (v,) <$> Term.bindNames termVarsSet names t)) ws
   pure $ UnisonFile d e ts' ws'
 
 constructorType ::

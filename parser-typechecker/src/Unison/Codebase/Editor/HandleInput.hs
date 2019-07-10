@@ -217,8 +217,7 @@ loop = do
         parseNames :: Names <- makeHistoricalParsingNames hqs
         -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
         ppe <- prettyPrintEnv =<< makeHistoricalPrintNamesFromHQ hqs
-        ctorTypes :: Reference -> ConstructorType <- undefined
-        Result notes r <- eval $ Typecheck ambient parseNames ctorTypes sourceName lexed
+        Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing -> respond $
@@ -1116,7 +1115,7 @@ collateReferences
   -> (Set Reference, Set Reference)
 collateReferences (toList -> types) (toList -> terms) =
   let terms' = [ r | Referent.Ref r <- terms ]
-      types' = [ r | Referent.Con r _ <- terms ]
+      types' = [ r | Referent.Con r _ _ <- terms ]
   in  (Set.fromList types' <> Set.fromList types, Set.fromList terms')
 
 -- Foo#123
@@ -1459,7 +1458,7 @@ loadDisplayInfo refs = do
 loadReferentType :: Referent -> _ (Maybe (Type _ _))
 loadReferentType = \case
   Referent.Ref r -> eval $ LoadTypeOfTerm r
-  Referent.Con r cid -> getTypeOfConstructor r cid
+  Referent.Con r cid _ -> getTypeOfConstructor r cid
   where
   getTypeOfConstructor :: Reference -> Int -> Action m i v (Maybe (Type v Ann))
   getTypeOfConstructor (Reference.DerivedId r) cid = do

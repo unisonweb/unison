@@ -28,7 +28,6 @@ import           Unison.Result                  ( Note
                                                 , Result)
 import           Unison.DataDeclaration         ( Decl )
 import qualified Unison.Codebase.Runtime       as Runtime
-import qualified Unison.ConstructorType        as CT
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
@@ -66,7 +65,6 @@ data Command m i v a where
 
   Typecheck :: AmbientAbilities v
             -> Names
-            -> (Reference -> CT.ConstructorType)
             -> SourceName
             -> LexedSource
             -> Command m i v (TypecheckingResult v)

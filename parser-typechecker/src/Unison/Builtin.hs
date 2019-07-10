@@ -59,9 +59,9 @@ names = Names names0 mempty
 names0 :: Names0
 names0 = Names3.names0 terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
-    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid)
-                 | (_,(r,decl)) <- builtinDataDecls @Symbol <>
-                    ((second . second) DD.toDataDecl <$> builtinEffectDecls)
+    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid ct)
+                 | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
+                    ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>

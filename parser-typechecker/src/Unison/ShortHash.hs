@@ -8,6 +8,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 
 -- Arya created this type to be able to query the Codebase for anonymous definitions.  The parsing functions can't fail, because they only try to pull apart the syntactic elements "#" and ".".  They don't necessarily produce a meaningful reference; you'll figure that out during base58 decoding.  We don't attempt base58 decoding here because the base58 prefix doesn't correspond to anything useful.  We'll just compare strings against the codebase or namespace later.
+-- None of the punctuation is stored here.
 data ShortHash
   = Builtin Text
   | ShortHash { prefix :: Text, cycle :: Maybe Text, cid :: Maybe Text }

@@ -28,8 +28,8 @@ asDataDecl = either DD.toDataDecl id
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r
-  Referent.Con r cid -> typeOfDataConstructor tl r cid <|>
-                        typeOfEffectConstructor tl r cid
+  Referent.Con r cid CT.Data   -> typeOfDataConstructor   tl r cid
+  Referent.Con r cid CT.Effect -> typeOfEffectConstructor tl r cid
 
 -- bombs if not found
 unsafeConstructorType :: TypeLookup v a -> Reference -> CT.ConstructorType

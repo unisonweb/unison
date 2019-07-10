@@ -123,7 +123,7 @@ termName length r Names{..} =
 
 lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList
-  [ (r, cid) | Referent.Con r cid <- toList $ lookupHQTerm hq names ]
+  [ (r, cid) | Referent.Con r cid _ <- toList $ lookupHQTerm hq names ]
 
 -- Given a mapping from name to qualified name, update a `Names`,
 -- so for instance if the input has [(Some, Optional.Some)],

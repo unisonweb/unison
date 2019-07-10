@@ -52,6 +52,7 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.ConstructorType as CT
 
 -- Information about the context in which a term appears, which affects how the
 -- term should be rendered.
@@ -172,9 +173,9 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     Text'    s  -> fmt S.TextLiteral $ l $ show s
     Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $ 
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
     Request' ref i -> styleHashQualified'' (fmt S.Request) $ 
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
         $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty0 n (ac 2 Normal im) h)
@@ -630,8 +631,8 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> Pr
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.fromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
-    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
-    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
+    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
     Ann' _ t -> countTypeUsages n t
     Match' _ bs -> let pat (MatchCase p _ _) = p
                    in foldMap ((countPatternUsages n) . pat) bs

@@ -54,7 +54,7 @@ type Err v = P.ParseError (Token Input) (Error v)
 data ParsingEnv =
   ParsingEnv { uniqueNames :: UniqueName
              , names :: Names
-             , constructorType :: Reference -> ConstructorType }
+             }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 

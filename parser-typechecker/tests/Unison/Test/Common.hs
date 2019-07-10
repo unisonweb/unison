@@ -8,7 +8,6 @@ module Unison.Test.Common
   , parsingEnv
   ) where
 
-import Data.Maybe (fromJust)
 import           Data.Sequence (Seq)
 import qualified Data.Text as Text
 import qualified Unison.Builtin as B
@@ -45,7 +44,7 @@ t s = ABT.amap (const Intrinsic)
 
 tm :: String -> Term Symbol
 tm s = either (error . show) id
-     . Term.bindNames mempty (fromJust . B.constructorType) B.names0
+     . Term.bindNames mempty B.names0
      . either (error . showParseError s) id
      $ Parser.run (Parser.root TermParser.term) s parsingEnv
 
@@ -71,4 +70,4 @@ parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   (Text.pack s)
 
 parsingEnv :: Parser.ParsingEnv
-parsingEnv = Parser.ParsingEnv mempty B.names (fromJust . B.constructorType)
+parsingEnv = Parser.ParsingEnv mempty B.names

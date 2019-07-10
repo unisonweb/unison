@@ -419,8 +419,10 @@ putDecl putV putA path h decl = liftIO $ do
         typeMentions = Type.toReferenceMentions typ
     touchReferentFile r (typeIndexDir path rootHash)
     traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  ct = DD.constructorType decl
   ctors =
-    [ (Referent.Con r i, Type.removeAllEffectVars t) | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
+    [ (Referent.Con r i ct, Type.removeAllEffectVars t)
+    | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
 
 putWatch
   :: MonadIO m

@@ -135,11 +135,10 @@ type Term' vt v = AnnotatedTerm' vt v ()
 bindNames
   :: forall v a . Var v
   => Set v
-  -> (Reference -> CT.ConstructorType)
   -> Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
-bindNames keepFreeTerms ctorType ns e = do
+bindNames keepFreeTerms ns e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences (ABT.freeVars e) e
                            , Set.notMember v keepFreeTerms ]
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
@@ -147,7 +146,7 @@ bindNames keepFreeTerms ctorType ns e = do
       okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)
       okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
         rs | Set.size rs == 1 ->
-               pure (v, fromReferent ctorType a $ Set.findMin rs)
+               pure (v, fromReferent a $ Set.findMin rs)
            | otherwise -> Left (pure (Names.TermResolutionFailure v a rs))
       okTy (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.types0 ns) of
         rs | Set.size rs == 1 -> pure (v, Type.ref a $ Set.findMin rs)
@@ -773,8 +772,8 @@ labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
   f t@(Boolean _) = Writer.tell [Left Type.booleanRef] $> t
   f t@(Text _)    = Writer.tell [Left Type.textRef] $> t
   f t@(Sequence _) = Writer.tell [Left Type.vectorRef] $> t
-  f t@(Constructor r cid) = Writer.tell [Right $ Referent.Con r cid] $> t
-  f t@(Request r cid)     = Writer.tell [Right $ Referent.Con r cid] $> t
+  f t@(Constructor r cid) = Writer.tell [Right $ Referent.Con r cid CT.Data] $> t
+  f t@(Request r cid)     = Writer.tell [Right $ Referent.Con r cid CT.Effect] $> t
   f t@(Match _ cases)     = traverse_ goPat cases $> t
   f t                     = pure t
   goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
@@ -840,13 +839,12 @@ hashRequest :: Reference -> Int -> Reference
 hashRequest = hashConstructor' $ request ()
 
 fromReferent :: Ord v
-             => (Reference -> CT.ConstructorType)
-             -> a
+             => a
              -> Referent
              -> AnnotatedTerm2 vt at ap v a
-fromReferent ct a = \case
+fromReferent a = \case
   Referent.Ref r -> ref a r
-  Referent.Con r i -> case ct r of
+  Referent.Con r i ct -> case ct of
     CT.Data -> constructor a r i
     CT.Effect -> request a r i
 

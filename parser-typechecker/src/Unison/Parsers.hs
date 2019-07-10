@@ -79,7 +79,6 @@ unsafeParseFileBuiltinsOnly =
   unsafeReadAndParseFile $ Parser.ParsingEnv
     mempty
     (Names.Names Builtin.names0 mempty)
-    (\r -> fromJust $ Builtin.constructorType r)
 
 unsafeParseFile
   :: String -> Parser.ParsingEnv -> UnisonFile Symbol Ann

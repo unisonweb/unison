@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Referent where
 
@@ -14,9 +15,11 @@ import           Unison.Reference       (Reference)
 import qualified Unison.Reference       as R
 import           Unison.ShortHash       (ShortHash)
 import qualified Unison.ShortHash       as SH
--- import           Safe                   (readMay)
 
-data Referent = Ref Reference | Con Reference Int
+import Unison.ConstructorType (ConstructorType)
+import qualified Unison.ConstructorType as CT
+
+data Referent = Ref Reference | Con Reference Int ConstructorType
   deriving (Show, Ord, Eq)
 
 type Pos = Word64
@@ -29,22 +32,33 @@ type Size = Word64
 toShortHash :: Referent -> ShortHash
 toShortHash = \case
   Ref r -> R.toShortHash r
-  Con r i -> (R.toShortHash r) { SH.cid = Just $ Text.pack . show $ i }
+  Con r i _ -> patternShortHash r i
+
+-- also used by HashQualified.fromPattern
+patternShortHash :: Reference -> Int -> ShortHash
+patternShortHash r i = (R.toShortHash r) { SH.cid = Just . Text.pack $ show i }
 
 showShort :: Int -> Referent -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 
 toText :: Referent -> Text
 toText = \case
-  Ref r     -> R.toText r
-  Con r cid -> R.toText r <> "#" <> Text.pack (show cid)
+  Ref r        -> R.toText r
+  Con r cid ct -> R.toText r <> "#" <> ctorTypeText ct <> Text.pack (show cid)
+
+ctorTypeText :: CT.ConstructorType -> Text
+ctorTypeText CT.Effect = EffectCtor
+ctorTypeText CT.Data = DataCtor
+
+pattern EffectCtor = "a"
+pattern DataCtor = "d"
 
 toString :: Referent -> String
 toString = Text.unpack . toText
 
 isConstructor :: Referent -> Bool
-isConstructor (Con _ _) = True
-isConstructor _         = False
+isConstructor Con{} = True
+isConstructor _     = False
 
 toTermReference :: Referent -> Maybe Reference
 toTermReference = \case
@@ -54,11 +68,11 @@ toTermReference = \case
 toReference :: Referent -> Reference
 toReference = \case
   Ref r -> r
-  Con r _i -> r
+  Con r _i _t -> r
 
 toTypeReference :: Referent -> Maybe Reference
 toTypeReference = \case
-  Con r _i -> Just r
+  Con r _i _t -> Just r
   _ -> Nothing
 
 isPrefixOf :: ShortHash -> Referent -> Bool
@@ -67,20 +81,28 @@ isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 unsafeFromText :: Text -> Referent
 unsafeFromText = fromMaybe (error "invalid referent") . fromText
 
+-- #abc[.xy][#<T>cid]
 fromText :: Text -> Maybe Referent
 fromText t = either (const Nothing) Just $
   -- if the string has just one hash at the start, it's just a reference
   if Text.length refPart == 1 then
     Ref <$> R.fromText t
-  else if Text.all Char.isDigit cidPart then
-    (\r -> Con r (read (Text.unpack cidPart))) <$>
-    R.fromText (Text.dropEnd 1 refPart)
+  else if Text.all Char.isDigit cidPart then do
+    r <- R.fromText (Text.dropEnd 1 refPart)
+    ctorType <- ctorType
+    let cid = read (Text.unpack cidPart)
+    pure $ Con r cid ctorType
   else
     Left ("invalid constructor id: " <> Text.unpack cidPart)
   where
+    ctorType = case Text.take 1 cidPart' of
+      ch | ch == EffectCtor -> Right CT.Effect
+         | ch == DataCtor -> Right CT.Data
+         | otherwise -> Left ("invalid constructor type (expected 'a' or 'd'): " <> Text.unpack cidPart')
     refPart = Text.dropWhileEnd (/= '#') t
-    cidPart = Text.takeWhileEnd (/= '#') t
+    cidPart' = Text.takeWhileEnd (/= '#') t
+    cidPart = Text.drop 1 cidPart
 
 instance Hashable Referent where
   tokens (Ref r) = [H.Tag 0] ++ H.tokens r
-  tokens (Con r i) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64)
+  tokens (Con r i dt) = [H.Tag 2] ++ H.tokens r ++ H.tokens (fromIntegral i :: Word64) ++ H.tokens dt

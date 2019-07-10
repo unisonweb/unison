@@ -15,6 +15,7 @@ import qualified Unison.Referent as Referent
 import qualified Data.Set as Set
 import Data.Set (Set)
 import Unison.Referent (Referent)
+import qualified Unison.ConstructorType as CT
 
 type Pattern = PatternP ()
 
@@ -163,9 +164,9 @@ labeledDependencies = Set.fromList . foldMap' (\case
   UnboundP _              -> mempty
   VarP _                  -> mempty
   AsP _ _                 -> mempty
-  ConstructorP _ r cid _  -> [Right (Referent.Con r cid)]
+  ConstructorP _ r cid _  -> [Right (Referent.Con r cid CT.Data)]
   EffectPureP _ _         -> [Left Type.effectRef]
-  EffectBindP _ r cid _ _ -> [Left Type.effectRef, Right (Referent.Con r cid)]
+  EffectBindP _ r cid _ _ -> [Left Type.effectRef, Right (Referent.Con r cid CT.Effect)]
   SequenceLiteralP _ _    -> [Left Type.vectorRef]
   SequenceOpP _ _ _ _     -> [Left Type.vectorRef]
   BooleanP _ _            -> [Left Type.booleanRef]

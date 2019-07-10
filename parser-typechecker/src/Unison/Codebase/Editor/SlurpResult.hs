@@ -69,7 +69,7 @@ constructorsFor types uf = let
   names = UF.typecheckedToNames0 uf
   typesRefs = Set.unions $ Names.typesNamed names . Name.fromVar <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
-  isOkCtor (Referent.Con r _) | Set.member r typesRefs = True
+  isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
   isOkCtor _ = False
   in Set.map Name.toVar $ R.dom ctorNames
 

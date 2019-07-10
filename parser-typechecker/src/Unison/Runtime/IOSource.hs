@@ -31,8 +31,7 @@ typecheckedFile :: UF.TypecheckedUnisonFile Symbol Ann
 typecheckedFile = let
   tl :: a -> Identity (TL.TypeLookup Symbol Ann)
   tl = const $ pure (External <$ Builtin.typeLookup)
-  ctorType = TL.unsafeConstructorType (Builtin.typeLookup @Symbol)
-  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty) ctorType
+  env = Parser.ParsingEnv mempty (Names.Names Builtin.names0 mempty)
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes

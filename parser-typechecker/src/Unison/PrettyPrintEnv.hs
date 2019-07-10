@@ -19,12 +19,17 @@ import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
 import qualified Unison.Names3                 as Names
 import qualified Unison.Referent               as Referent
+import qualified Unison.ConstructorType as CT
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
   terms :: Referent -> Maybe HashQualified,
   -- names for types
   types :: Reference -> Maybe HashQualified }
+
+patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe HashQualified
+patterns ppe r cid = terms ppe (Referent.Con r cid CT.Data)
+                  <|>terms ppe (Referent.Con r cid CT.Effect)
 
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
@@ -66,9 +71,9 @@ typeName env r =
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
 patternName env r cid =
-  case terms env (Referent.Con r cid) of
+  case patterns env r cid of
     Just name -> name
-    Nothing -> HQ.take todoHashLength $ HQ.fromReferent (Referent.Con r cid)
+    Nothing -> HQ.take todoHashLength $ HQ.fromPattern r cid
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)

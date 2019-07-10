@@ -232,11 +232,10 @@ hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
 resolveHashQualified :: Var v => L.Token HQ.HashQualified -> TermP v
 resolveHashQualified tok = do
   names <- asks names
-  ctorType <- asks constructorType
   case Names.lookupHQTerm (L.payload tok) names of
     s | Set.null s     -> die tok s
       | Set.size s > 1 -> die tok s
-      | otherwise      -> pure $ Term.fromReferent ctorType (ann tok) (Set.findMin s)
+      | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
     where
       die hq s = case L.payload hq of
        HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)

@@ -104,6 +104,9 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified
 fromReference = HashOnly . Reference.toShortHash
 
+fromPattern :: Reference -> Int -> HashQualified
+fromPattern r cid = HashOnly $ Referent.patternShortHash r cid
+
 fromName :: n -> HashQualified' n
 fromName = NameOnly
 
