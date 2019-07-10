@@ -85,9 +85,8 @@ bindNames
   -> AnnotatedType v a
   -> Names.ResolutionResult v a (AnnotatedType v a)
 bindNames keepFree ns t = let
-  fvs = ABT.freeVarOccurrences (freeVars t) t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) |
-        (v,a) <- fvs, Set.notMember v keepFree ]
+  fvs = ABT.freeVarOccurrences keepFree t
+  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t

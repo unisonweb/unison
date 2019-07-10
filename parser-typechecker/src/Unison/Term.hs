@@ -139,8 +139,7 @@ bindNames
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
 bindNames keepFreeTerms ns e = do
-  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences (ABT.freeVars e) e
-                           , Set.notMember v keepFreeTerms ]
+  let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
       okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)

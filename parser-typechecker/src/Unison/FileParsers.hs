@@ -6,7 +6,7 @@
 module Unison.FileParsers where
 
 import qualified Unison.Parser as Parser
-import           Control.Monad              (foldM, when)
+import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
@@ -73,17 +73,14 @@ parseAndSynthesizeFile
        (Seq (Note v Ann))
        m
        (Maybe (UF.TypecheckedUnisonFile v Ann))
-parseAndSynthesizeFile ambient typeLookupf names filePath src = do
-  parsedFile <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) names
-  -- we collect up all the references in the file, since we need type info
-  -- for all these references in order to do typechecking
-  let refs = UF.dependencies parsedFile
-  typeLookup <- lift . lift $ typeLookupf refs
-  let (Result notes' r) = synthesizeFile ambient typeLookup
-        -- historical names not used after parsing
-        (Names.currentNames $ Parser.names names)
-        parsedFile
+parseAndSynthesizeFile ambient typeLookupf env filePath src = do
+  uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
+  let names0 = Names.currentNames (Parser.names env)
+  (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
+  let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
   tell notes' $> r
+
+type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 
 resolveNames
   :: (Var v, Monad m)
@@ -93,7 +90,7 @@ resolveNames
   -> ResultT
        (Seq (Note v Ann))
        m
-       (AnnotatedTerm v Ann, Map Typechecker.Name [Typechecker.NamedReference v Ann], TL.TypeLookup v Ann)
+       (AnnotatedTerm v Ann, TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let names = UF.toNames uf `Names.unionLeft0` preexistingNames
   -- note, this will fail if there are any free type vars left, which we want
@@ -113,25 +110,14 @@ synthesizeFile
    . Var v
   => [Type v]
   -> TL.TypeLookup v Ann
-  -> Names.Names0
+  -> TDNRMap v
   -> UnisonFile v
+  -> AnnotatedTerm v Ann
   -> Result (Seq (Note v Ann)) (UF.TypecheckedUnisonFile v Ann)
-synthesizeFile ambient preexistingTypes preexistingNames uf = do
-  let tl :: TL.TypeLookup v Ann = UF.declsToTypeLookup uf <> preexistingTypes
-  let names = UF.toNames uf `Names.unionLeft0` preexistingNames
-  term <- case Term.bindNames mempty names (UF.typecheckingTerm uf) of
-    Left e -> Result.tellAndFail $ Result.NameResolutionFailures (Foldable.toList e)
-    Right a -> pure a
-  let
-    -- substitute Blanks for any remaining free vars in UF body
+synthesizeFile ambient tl fqnsByShortName uf term = do
+  let -- substitute Blanks for any remaining free vars in UF body
     tdnrTerm = Term.prepareTDNR term
-    fqnsByShortName :: Map Typechecker.Name [Typechecker.NamedReference v Ann]
-    fqnsByShortName = Map.fromListWith mappend
-       [ (Name.toText $ Name.unqualified name,
-          [Typechecker.NamedReference (Name.toText name) typ (Right r)]) |
-         (name, r) <- Rel.toList $ Names.terms0 names,
-         typ <- Foldable.toList $ TL.typeOfReferent tl r ]
-    env0 = Typechecker.Env ambient tl fqnsByShortName names
+    env0 = Typechecker.Env ambient tl fqnsByShortName
     Result notes mayType =
       evalStateT (Typechecker.synthesizeAndResolve env0) tdnrTerm
   -- If typechecking succeeded, reapply the TDNR decisions to user's term:
