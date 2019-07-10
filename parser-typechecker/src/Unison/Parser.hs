@@ -42,7 +42,6 @@ import qualified Unison.Hashable as Hashable
 import Data.Set (Set)
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
-import Unison.ConstructorType (ConstructorType)
 
 debug :: Bool
 debug = False

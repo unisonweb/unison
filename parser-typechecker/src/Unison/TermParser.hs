@@ -39,6 +39,7 @@ import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
@@ -138,16 +139,19 @@ parsePattern =
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
   ctor :: _ -> P v (L.Token (Reference, Int))
   ctor err = do
-    tok <- P.try hqPrefixId
+    -- this might be a var, so we avoid consuming it at first
+    tok <- P.try (P.lookAhead hqPrefixId)
     names <- asks names
     case Names.lookupHQPattern (L.payload tok) names of
       s | Set.null s     -> die tok s
         | Set.size s > 1 -> die tok s
-        | otherwise      -> pure $ Set.findMin s <$ tok
+        | otherwise      -> -- matched ctor name, consume the token
+                            do anyToken; pure (Set.findMin s <$ tok)
     where
     die hq s = case L.payload hq of
-      -- not a unique constructor name, catch it later with var parser
-      HQ.NameOnly _n | Set.null s -> fail "not a constructor name"
+      -- if token not hash qualified, fail w/out consuming it to allow backtracking
+      HQ.NameOnly n | Set.null s -> fail $ "not a constructor name: " <> show n
+      -- it was hash qualified, and wasn't found in the env, that's a failure!
       _ -> failCommitted $ err hq s
 
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
@@ -433,11 +437,17 @@ topLevelBlock = block' True
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
-imports :: Ord v => P v Names
+imports :: Var v => P v (Names, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  Names.importing imported <$> asks names
+  ns' <- Names.importing imported <$> asks names
+  pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
+
+substImports :: Var v => [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+substImports imports =
+  ABT.substsInheritAnnotation [ (suffix, Term.var () full) | (suffix,full) <- imports ] .
+  Term.substTypeVars [ (suffix, Type.var () full) | (suffix, full) <- imports ]
 
 block'
   :: forall v b
@@ -449,11 +459,11 @@ block'
   -> TermP v
 block' isTop s openBlock closeBlock = do
     open <- openBlock
-    names <- imports
+    (names, imports) <- imports
     _ <- optional semi
     statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    (error "was substTermImports") names <$> go open statements
+    substImports imports <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]

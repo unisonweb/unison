@@ -1,6 +1,5 @@
 module Unison.Parsers where
 
-import           Data.Maybe                     (fromJust)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )
