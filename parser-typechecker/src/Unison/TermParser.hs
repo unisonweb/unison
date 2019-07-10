@@ -39,6 +39,7 @@ import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
@@ -434,11 +435,17 @@ topLevelBlock = block' True
 -- subst
 -- use Foo.Bar + blah
 -- use Bar.Baz zonk zazzle
-imports :: Ord v => P v Names
+imports :: Var v => P v (Names, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  Names.importing imported <$> asks names
+  ns' <- Names.importing imported <$> asks names
+  pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
+
+substImports :: Var v => [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+substImports imports =
+  ABT.substsInheritAnnotation [ (suffix, Term.var () full) | (suffix,full) <- imports ] .
+  Term.substTypeVars [ (suffix, Type.var () full) | (suffix, full) <- imports ]
 
 block'
   :: forall v b
@@ -450,11 +457,11 @@ block'
   -> TermP v
 block' isTop s openBlock closeBlock = do
     open <- openBlock
-    names <- imports
+    (names, imports) <- imports
     _ <- optional semi
     statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    (error "was substTermImports") names <$> go open statements
+    substImports imports <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]

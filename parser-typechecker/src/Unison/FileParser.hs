@@ -62,7 +62,7 @@ file = do
   pushNames0 (UF.names env) $ do
     -- The file may optionally contain top-level imports,
     -- which are parsed and applied to each stanza
-    names <- TermParser.imports <* optional semi
+    (names, _imports) <- TermParser.imports <* optional semi
     ctorType <- asks constructorType
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
     let allTermVars = Set.fromList $ foldMap getVars stanzas0
