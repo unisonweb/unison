@@ -3,9 +3,8 @@
 module Unison.PatternP where
 
 import qualified Unison.Pattern as P
-import Unison.Referent (Referent)
-import Unison.Reference (Reference)
 import Data.Set.Internal (Set)
+import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern loc = P.PatternP loc
 
@@ -34,5 +33,5 @@ loc = P.loc
 setLoc :: P.PatternP loc -> loc -> P.PatternP loc
 setLoc = P.setLoc
 
-labeledDependencies :: P.PatternP loc -> Set (Either Reference Referent)
+labeledDependencies :: P.PatternP loc -> Set LabeledDependency
 labeledDependencies = P.labeledDependencies

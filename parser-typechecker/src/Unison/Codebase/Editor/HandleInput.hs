@@ -122,6 +122,8 @@ import qualified Unison.Lexer as L
 import Data.List (sortOn)
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
 
 --import Debug.Trace
@@ -1656,7 +1658,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else fail $ "Invalid reference: " <> show ref
 
 --fixupHistoricalRefs :: Monad m
---  => Set (Either Reference Referent)
+--  => Set LabeledDependency
 --  -> Branch m
 --  -> Path.Absolute
 --  -> Action' m v (Names0)
@@ -1721,7 +1723,7 @@ resolveHQName (Path.unabsolute -> p) n =
     _ -> Name.joinDot (Path.toName p) n
 
 makePrintNamesFromLabeled :: Monad m
-                          => Set (Either Reference Referent)
+                          => Set LabeledDependency
                           -> Names0
                           -> Action' m v Names
 makePrintNamesFromLabeled deps shadowing = do
@@ -1736,7 +1738,7 @@ makePrintNamesFromLabeled deps shadowing = do
     Names (Names3.unionLeft0 shadowing basicNames0)
           (basicNames0 <> fixupNamesRelative currentPath rawHistoricalNames)
 
-makePrintNamesFromLabeled' :: Monad m => Set (Either Reference Referent) -> Action' m v Names
+makePrintNamesFromLabeled' :: Monad m => Set LabeledDependency -> Action' m v Names
 makePrintNamesFromLabeled' deps = do
   root <- use root
   currentPath <- use currentPath

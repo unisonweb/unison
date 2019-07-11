@@ -57,10 +57,6 @@ terms0 = Names.terms
 makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 
---labeledDependencies0 :: Names0 -> Set (Either Reference Referent)
---labeledDependencies0 (Names0 terms types) =
---  Set.map Left (R.ran types) <> Set.map Right (R.ran terms)
-
 -- do a prefix match on currentNames and, if no match, then check oldNames.
 lookupHQType :: HashQualified -> Names -> Set Reference
 lookupHQType hq Names{..} = case hq of

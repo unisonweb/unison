@@ -57,6 +57,8 @@ import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
 import Data.Maybe (mapMaybe)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 data MatchCase loc a = MatchCase (Pattern loc) (Maybe a) a
   deriving (Show,Eq,Foldable,Functor,Generic,Generic1,Traversable)
@@ -762,28 +764,28 @@ isVarKindInfo t = case t of
 
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
-dependencies t = Set.map (either id Referent.toReference) (labeledDependencies t)
+dependencies t = Set.map (LD.fold id Referent.toReference) (labeledDependencies t)
 
 typeDependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
 typeDependencies =
-  Set.fromList . mapMaybe (either Just (const Nothing)) . toList . labeledDependencies
+  Set.fromList . mapMaybe (LD.fold Just (const Nothing)) . toList . labeledDependencies
 
 labeledDependencies :: (Ord v, Ord vt)
                     => AnnotatedTerm2 vt at ap v a
-                    -> Set (Either Reference Referent)
+                    -> Set LabeledDependency
 labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
-  f t@(Ref r    ) = Writer.tell [Right $ Referent.Ref r] $> t
-  f t@(Ann _ typ) = Writer.tell (map Left . toList $ Type.dependencies typ) $> t
-  f t@(Nat _)     = Writer.tell [Left Type.natRef] $> t
-  f t@(Int _)     = Writer.tell [Left Type.intRef] $> t
-  f t@(Float _)   = Writer.tell [Left Type.floatRef] $> t
-  f t@(Boolean _) = Writer.tell [Left Type.booleanRef] $> t
-  f t@(Text _)    = Writer.tell [Left Type.textRef] $> t
-  f t@(Sequence _) = Writer.tell [Left Type.vectorRef] $> t
+  f t@(Ref r    ) = Writer.tell [LD.termRef r] $> t
+  f t@(Ann _ typ) = Writer.tell (map LD.typeRef . toList $ Type.dependencies typ) $> t
+  f t@(Nat _)     = Writer.tell [LD.typeRef Type.natRef] $> t
+  f t@(Int _)     = Writer.tell [LD.typeRef Type.intRef] $> t
+  f t@(Float _)   = Writer.tell [LD.typeRef Type.floatRef] $> t
+  f t@(Boolean _) = Writer.tell [LD.typeRef Type.booleanRef] $> t
+  f t@(Text _)    = Writer.tell [LD.typeRef Type.textRef] $> t
+  f t@(Sequence _) = Writer.tell [LD.typeRef Type.vectorRef] $> t
   f t@(Constructor r cid) =
-    Writer.tell [Left r, Right (Referent.Con r cid CT.Data)] $> t
+    Writer.tell [LD.typeRef r, LD.dataConstructor r cid] $> t
   f t@(Request r cid) =
-    Writer.tell [Left r, Right (Referent.Con r cid CT.Effect)] $> t
+    Writer.tell [LD.typeRef r, LD.effectConstructor r cid] $> t
   f t@(Match _ cases)     = traverse_ goPat cases $> t
   f t                     = pure t
   goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))

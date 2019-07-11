@@ -37,6 +37,8 @@ import           Unison.Var             (Var)
 import qualified Unison.Var             as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 import Unison.Names3 (Names0)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 data UnisonFile v a = UnisonFile {
   dataDeclarations   :: Map v (Reference, DataDeclaration' v a),
@@ -129,16 +131,16 @@ getDecl' uf v =
 -- todo: consider dealing with two sets instead of set of Eithers
 labeledDependencies :: Var v
                     => TypecheckedUnisonFile v a
-                    -> Set (Either Reference Referent)
+                    -> Set LabeledDependency
 labeledDependencies TypecheckedUnisonFile{..} =
-  Set.map Left typeDeps <> termDeps
+  Set.map LD.termRef typeDeps <> termDeps
   where
   typeDeps :: Set Reference
   typeDeps = foldMap DD.dependencies
               (fmap snd (toList dataDeclarations')
                 <> fmap (DD.toDataDecl . snd) (toList effectDeclarations'))
              <> foldMap (\(_, _e, t) -> Type.dependencies t) (toList hashTerms)
-  termDeps :: Set (Either Reference Referent)
+  termDeps :: Set LabeledDependency
   termDeps = foldMap Term.labeledDependencies
               (fmap (\(_, e, _r) -> e) (toList hashTerms))
 

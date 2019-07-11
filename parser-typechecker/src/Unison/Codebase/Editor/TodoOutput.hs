@@ -2,7 +2,6 @@
 module Unison.Codebase.Editor.TodoOutput where
 
 import qualified Unison.Names3 as Names
-import qualified Unison.Referent as Referent
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
 import qualified Unison.Codebase.Patch as Patch
@@ -16,8 +15,9 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing(RegularThing))
 import Unison.Type (Type)
 import Unison.DataDeclaration (Decl)
 import Data.Foldable (toList)
-import Unison.Referent (Referent)
 import Data.Set (Set)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 type Score = Int
 
@@ -33,28 +33,24 @@ data TodoOutput v a = TodoOutput
   , editConflicts :: Patch
   } deriving (Show)
 
-labeledDependencies :: Ord v => TodoOutput v a -> Set (Either Reference Referent)
+labeledDependencies :: Ord v => TodoOutput v a -> Set LabeledDependency
 labeledDependencies TodoOutput{..} = Set.fromList (
   -- term refs
-  [tmRef r | (_, r, _) <- fst todoFrontier] <>
-  [tmRef r | (_, _, r, _) <- fst todoFrontierDependents] <>
-  [tyRef r | (_, r, _) <- snd todoFrontier] <>
-  [tyRef r | (_, _, r, _) <- snd todoFrontierDependents] <>
+  [LD.termRef r | (_, r, _) <- fst todoFrontier] <>
+  [LD.termRef r | (_, _, r, _) <- fst todoFrontierDependents] <>
+  [LD.typeRef r | (_, r, _) <- snd todoFrontier] <>
+  [LD.typeRef r | (_, _, r, _) <- snd todoFrontierDependents] <>
   -- types of term refs
-  [tyRef r | (_, _, Just t) <- fst todoFrontier
+  [LD.typeRef r | (_, _, Just t) <- fst todoFrontier
             , r <- toList (Type.dependencies t)] <>
-  [tyRef r | (_, _, _, Just t) <- fst todoFrontierDependents
+  [LD.typeRef r | (_, _, _, Just t) <- fst todoFrontierDependents
             , r <- toList (Type.dependencies t)] <>
   -- and decls of type refs
-  [tyRef r | (_, _, RegularThing d) <- snd todoFrontier
+  [LD.typeRef r | (_, _, RegularThing d) <- snd todoFrontier
            , r <- toList (DD.declDependencies d)] <>
-  [tyRef r | (_, _, _, RegularThing d) <- snd todoFrontierDependents
+  [LD.typeRef r | (_, _, _, RegularThing d) <- snd todoFrontierDependents
            , r <- toList (DD.declDependencies d)]) <>
   -- name conflicts
-  Set.map tmRef' (R.ran (Names.terms0 nameConflicts)) <>
-  Set.map tyRef (R.ran (Names.types0 nameConflicts)) <>
+  Set.map LD.referent (R.ran (Names.terms0 nameConflicts)) <>
+  Set.map LD.typeRef (R.ran (Names.types0 nameConflicts)) <>
   Patch.labeledDependencies editConflicts
-  where
-  tmRef = Right . Referent.Ref
-  tmRef' = Right
-  tyRef = Left

@@ -11,11 +11,10 @@ import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
-import qualified Unison.Referent as Referent
 import qualified Data.Set as Set
 import Data.Set (Set)
-import Unison.Referent (Referent)
-import qualified Unison.ConstructorType as CT
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern = PatternP ()
 
@@ -159,22 +158,21 @@ foldMap' f p = case p of
 -- instance Eq (PatternP loc) where
 --   (PatternP p) == (PatternP p2) = void p == void p2
 
-labeledDependencies :: PatternP loc -> Set (Either Reference Referent)
+labeledDependencies :: PatternP loc -> Set LabeledDependency
 labeledDependencies = Set.fromList . foldMap' (\case
   UnboundP _              -> mempty
   VarP _                  -> mempty
   AsP _ _                 -> mempty
-  ConstructorP _ r cid _  -> [Left r,
-                              Right (Referent.Con r cid CT.Data)]
-  EffectPureP _ _         -> [Left Type.effectRef]
-  EffectBindP _ r cid _ _ -> [Left Type.effectRef,
-                              Left r,
-                              Right (Referent.Con r cid CT.Effect)]
-  SequenceLiteralP _ _    -> [Left Type.vectorRef]
-  SequenceOpP _ _ _ _     -> [Left Type.vectorRef]
-  BooleanP _ _            -> [Left Type.booleanRef]
-  IntP _ _                -> [Left Type.intRef]
-  NatP _ _                -> [Left Type.natRef]
-  FloatP _ _              -> [Left Type.floatRef]
-  TextP _ _               -> [Left Type.textRef]
+  ConstructorP _ r cid _  -> [LD.typeRef r, LD.dataConstructor r cid]
+  EffectPureP _ _         -> [LD.typeRef Type.effectRef]
+  EffectBindP _ r cid _ _ -> [LD.typeRef Type.effectRef,
+                              LD.typeRef r,
+                              LD.effectConstructor r cid]
+  SequenceLiteralP _ _    -> [LD.typeRef Type.vectorRef]
+  SequenceOpP _ _ _ _     -> [LD.typeRef Type.vectorRef]
+  BooleanP _ _            -> [LD.typeRef Type.booleanRef]
+  IntP _ _                -> [LD.typeRef Type.intRef]
+  NatP _ _                -> [LD.typeRef Type.natRef]
+  FloatP _ _              -> [LD.typeRef Type.floatRef]
+  TextP _ _               -> [LD.typeRef Type.textRef]
  )

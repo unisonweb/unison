@@ -86,6 +86,7 @@ library
     Unison.HashQualified
     Unison.HashQualified'
     Unison.Kind
+    Unison.LabeledDependency
     Unison.Lexer
     Unison.Name
     Unison.Names2
