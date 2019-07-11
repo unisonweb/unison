@@ -40,6 +40,9 @@ foldResult' f g = \case
   Tm' tm -> f tm
   Tp' tp -> g tp
 
+-- todo: comment me out, is this actually useful, given what we saw in ShowDefinitionI?
+-- namely, that it doesn't include the Term's deps, just the Decl's and the
+-- result Term/Type names.
 labeledDependencies :: Ord v => SearchResult' v a -> Set LabeledDependency
 labeledDependencies = \case
   Tm' (TermResult' _ t r _) ->

@@ -34,15 +34,17 @@ import           Unison.Util.Monoid     (intercalateMap)
 import qualified Unison.Var as Var
 import qualified Unison.Type as Type
 import qualified Unison.Test.Common as Common
+import qualified Unison.Names3
 
 type Note = Result.Note Symbol Parser.Ann
 
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result (Seq Note)
-         (Maybe TFile)
+         (Either Unison.Names3.Names0 TFile)
 
 type EitherResult = Either String TFile
+
 
 ppEnv :: PPE.PrettyPrintEnv
 ppEnv = PPE.fromNames Common.hqLength Builtin.names
@@ -121,9 +123,13 @@ decodeResult
   :: String -> SynthResult -> EitherResult--  String (UF.TypecheckedUnisonFile Symbol Ann)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source ppEnv notes
-decodeResult source (Result notes (Just Nothing)) =
-  Left $ showNotes source ppEnv notes
-decodeResult _source (Result _notes (Just (Just uf))) =
+decodeResult source (Result notes (Just (Left errNames))) =
+  Left $ showNotes
+          source
+          (PPE.fromNames Common.hqLength
+            (Unison.Names3.shadowing errNames Builtin.names))
+          notes
+decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf
 
 makePassingTest

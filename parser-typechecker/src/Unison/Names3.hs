@@ -54,6 +54,10 @@ types0 = Names.types
 terms0 :: Names0 -> Relation Name Referent
 terms0 = Names.terms
 
+shadowing :: Names0 -> Names -> Names
+shadowing prio (Names current old) =
+  Names (prio `unionLeft0` current) (current <> old)
+
 makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute
 

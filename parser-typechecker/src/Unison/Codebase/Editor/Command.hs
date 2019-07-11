@@ -20,7 +20,7 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.GitError
-import           Unison.Names3                  ( Names )
+import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
@@ -44,7 +44,8 @@ type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
 
 type TypecheckingResult v =
-  Result (Seq (Note v Ann)) (Maybe (UF.TypecheckedUnisonFile v Ann))
+  Result (Seq (Note v Ann))
+         (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   Eval :: m a -> Command m i v a

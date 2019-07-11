@@ -223,13 +223,11 @@ loop = do
           -- Parsing failed
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just Nothing -> do
-            -- todo: like in makePrintNamesFromLabeled, these names need to be
-            -- shadowed by whatever was found in the file.
-            ppe <- prettyPrintEnv =<< makePrintNamesFromHQ hqs
+          Just (Left errNames) -> do
+            ppe <- prettyPrintEnv =<< makeShadowedPrintNamesFromHQ hqs errNames
             respond $
               TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
-          Just (Just r) -> k r
+          Just (Right uf) -> k uf
 
   case e of
     Left (IncomingRootBranch _names) ->
@@ -247,8 +245,9 @@ loop = do
           eval (Notify $ FileChangeEvent sourceName text)
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
-            hnames <- makePrintNamesFromLabeled (UF.labeledDependencies unisonFile)
-                                                (UF.typecheckedToNames0 unisonFile)
+            hnames <- makeShadowedPrintNamesFromLabeled
+                        (UF.labeledDependencies unisonFile)
+                        (UF.typecheckedToNames0 unisonFile)
             ppe <- prettyPrintEnv hnames
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
             r <- eval . Evaluate ppe $ unisonFile
@@ -707,8 +706,9 @@ loop = do
                    , doSlurpAdds (Slurp.adds sr) uf)
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnv =<<
-            makePrintNamesFromLabeled (UF.labeledDependencies uf)
-                                      (UF.typecheckedToNames0 uf)
+            makeShadowedPrintNamesFromLabeled
+              (UF.labeledDependencies uf)
+              (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
       UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
@@ -793,8 +793,9 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           let fileNames0 = UF.typecheckedToNames0 uf
           ppe <- prettyPrintEnv =<<
-            makePrintNamesFromLabeled (UF.labeledDependencies uf)
-                                      (UF.typecheckedToNames0 uf)
+            makeShadowedPrintNamesFromLabeled
+              (UF.labeledDependencies uf)
+              (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
       TodoI patchPath branchPath' -> do
@@ -1723,11 +1724,9 @@ resolveHQName (Path.unabsolute -> p) n =
     '.' : _ : _ -> n
     _ -> Name.joinDot (Path.toName p) n
 
-makePrintNamesFromLabeled :: Monad m
-                          => Set LabeledDependency
-                          -> Names0
-                          -> Action' m v Names
-makePrintNamesFromLabeled deps shadowing = do
+makeShadowedPrintNamesFromLabeled ::
+  Monad m => Set LabeledDependency -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromLabeled deps shadowing = do
   root <- use root
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <-
@@ -1736,8 +1735,22 @@ makePrintNamesFromLabeled deps shadowing = do
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
-    Names (Names3.unionLeft0 shadowing basicNames0)
-          (basicNames0 <> fixupNamesRelative currentPath rawHistoricalNames)
+    Names3.shadowing
+      shadowing
+      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
+
+makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
+  root <- use root
+  currentPath <- use currentPath
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  basicNames0 <- basicPrettyPrintNames0
+  -- The basic names go into "current", but are shadowed by "shadowing".
+  -- They go again into "historical" as a hack that makes them available HQ-ed.
+  pure $
+    Names3.shadowing
+      shadowing
+      (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
 makePrintNamesFromLabeled' :: Monad m => Set LabeledDependency -> Action' m v Names
 makePrintNamesFromLabeled' deps = do
@@ -1745,8 +1758,6 @@ makePrintNamesFromLabeled' deps = do
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root
   basicNames0 <- basicPrettyPrintNames0
-  -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 -- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
@@ -1756,8 +1767,6 @@ makePrintNamesFromHQ lexedHQs = do
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   basicNames0 <- basicPrettyPrintNames0
-  -- The basic names go into "current", but are shadowed by "shadowing".
-  -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 
