@@ -5,6 +5,8 @@
 
 module Unison.FileParsers where
 
+import Debug.Trace
+import Control.Lens (view, _3)
 import qualified Unison.Parser as Parser
 import           Control.Monad              (foldM)
 import           Control.Monad.Trans        (lift)
@@ -12,6 +14,7 @@ import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
 import           Data.Bifunctor             ( first )
 import           Data.Functor               ( ($>) )
+import           Data.Foldable              ( toList )
 import qualified Data.Foldable              as Foldable
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
@@ -29,6 +32,7 @@ import qualified Unison.Name                as Name
 import qualified Unison.Names3              as Names
 import           Unison.Parser              (Ann)
 import qualified Unison.Parsers             as Parsers
+import qualified Unison.Referent            as Referent
 import           Unison.Reference           (Reference)
 import           Unison.Result              (Note (..), Result, pattern Result, ResultT)
 import qualified Unison.Result              as Result
@@ -92,15 +96,26 @@ resolveNames
        m
        (AnnotatedTerm v Ann, TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
-  let names = UF.toNames uf `Names.unionLeft0` preexistingNames
   let tm = UF.typecheckingTerm uf
-  tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>) $ typeLookupf (Term.dependencies tm)
-  let fqnsByShortName = Map.fromListWith mappend
-        [ (Name.toText $ Name.unqualified name,
-           [Typechecker.NamedReference (Name.toText name) typ (Right r)]) |
-          (name, r) <- Rel.toList $ Names.terms0 names,
-          typ <- Foldable.toList $ TL.typeOfReferent tl r ]
-  pure (tm, fqnsByShortName, tl)
+      deps = Term.dependencies tm
+      possibleDeps = [ (Name.toText name, Var.name v, r) |
+        (name, r) <- Rel.toList (Names.terms0 preexistingNames),
+        v <- Set.toList (Term.freeVars tm),
+        Name.unqualified name == Name.unqualified (Name.fromVar v) ]
+      possibleRefs = Referent.toReference . view _3 <$> possibleDeps
+  tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>)
+      $ typeLookupf (deps <> Set.fromList possibleRefs)
+  let fqnsByShortName = List.multimap $
+        [ (shortname, nr) |
+          (name, shortname, r) <- possibleDeps,
+          typ <- toList $ TL.typeOfReferent tl r,
+          let nr = Typechecker.NamedReference name typ (Right r) ] <>
+        [ (shortname, nr) |
+          (name, r) <- Rel.toList (Names.terms0 $ UF.toNames uf),
+          typ <- toList $ TL.typeOfReferent tl r,
+          let shortname = Name.toText $ Name.unqualified name,
+          let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
+  pure (tm, traceShow (Map.keys fqnsByShortName) fqnsByShortName, tl)
 
 synthesizeFile
   :: forall v
