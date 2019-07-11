@@ -13,7 +13,7 @@
 
 module Unison.Term where
 
-import Debug.Trace
+-- import Debug.Trace
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Functor (void, ($>))
@@ -142,16 +142,16 @@ bindNames
   -> Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
-bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
-                           || traceShow keepFreeTerms False = undefined
+-- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
+--                            || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
-      !_ = trace "free term vars: " ()
-      !_ = traceShow $ fst <$> freeTmVars
+      -- !_ = trace "free term vars: " ()
+      -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
-      !_ = trace "free type vars: " ()
-      !_ = traceShow $ fst <$> freeTyVars
+      -- !_ = trace "free type vars: " ()
+      -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)
       okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
         rs | Set.size rs == 1 ->
@@ -169,12 +169,12 @@ bindSomeNames
   => Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
-bindSomeNames ns e | trace "Term.bindSome" False
-                  || trace "Names =" False
-                  || traceShow ns False
-                  || trace "Free type vars:" False
-                  || traceShow (freeTypeVars e) False
-                  = undefined
+-- bindSomeNames ns e | trace "Term.bindSome" False
+--                   || trace "Names =" False
+--                   || traceShow ns False
+--                   || trace "Free type vars:" False
+--                   || traceShow (freeTypeVars e) False
+--                   = undefined
 bindSomeNames ns e = bindNames keepFree ns e where
   keepFree = Set.difference (freeVars e)
                             (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))

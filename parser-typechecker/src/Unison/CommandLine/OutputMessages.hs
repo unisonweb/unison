@@ -315,8 +315,7 @@ notifyUser dir o = case o of
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
       if fileStatusMsg == mempty then do
-        putPrettyLn' . P.wrap . P.okCallout $
-          fileName <> " changed."
+        putPrettyLn' . P.okCallout $ fileName <> " changed."
       else
         if SlurpResult.isAllDuplicates slurpResult then
           putPrettyLn' . (P.newline <>) . P.okCallout . P.wrap $ "I found and"

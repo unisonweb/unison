@@ -7,7 +7,7 @@
 
 module Unison.FileParser where
 
-import Debug.Trace
+-- import Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import Data.Foldable (toList)
@@ -77,15 +77,12 @@ file = do
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     let curNames = Names.currentNames names
-    traceM $ "Current names before binding stanzas"
-    traceShowM $ Names.currentNames names
     terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
     watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
-    traceM "Finished binding stanzas"
     let toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
