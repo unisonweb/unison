@@ -125,6 +125,7 @@ import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
+import Debug.Trace (traceShowM, traceM)
 
 --import Debug.Trace
 
@@ -573,8 +574,6 @@ loop = do
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
             results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
         results' <- loadSearchResults results
-        printNames <-
-          makePrintNamesFromLabeled' (foldMap SR'.labeledDependencies results')
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
@@ -611,6 +610,10 @@ loop = do
                   (r,) . maybe (MissingThing i) RegularThing
                        $ Map.lookup i loadedDerivedTypes
                 r@(Reference.Builtin _) -> (r, BuiltinThing)
+        -- the SR' deps include the result term/type names, and the
+        let deps = foldMap SR'.labeledDependencies results'
+                <> foldMap Term.labeledDependencies loadedDerivedTerms
+        printNames <- makePrintNamesFromLabeled' deps
 
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
