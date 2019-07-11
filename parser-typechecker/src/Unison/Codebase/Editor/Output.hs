@@ -30,7 +30,6 @@ import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)

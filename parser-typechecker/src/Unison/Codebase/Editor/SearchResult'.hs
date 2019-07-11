@@ -12,14 +12,14 @@ import qualified Unison.Type as Type
 import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
-import Unison.Type (AnnotatedType)
+import Unison.Type (Type)
 
 data SearchResult' v a
   = Tm' (TermResult' v a)
   | Tp' (TypeResult' v a)
   deriving (Eq, Show)
 data TermResult' v a =
-  TermResult' HQ'.HashQualified (Maybe (AnnotatedType v a)) Referent (Set HQ'.HashQualified)
+  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
   deriving (Eq, Show)
 data TypeResult' v a =
   TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
