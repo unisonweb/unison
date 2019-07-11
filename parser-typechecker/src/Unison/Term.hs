@@ -159,7 +159,9 @@ bindSomeNames
   => Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
-bindSomeNames ns e = bindNames (freeVars e) ns e
+bindSomeNames ns e = bindNames keepFree ns e where
+  keepFree = Set.difference (freeVars e)
+                            (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
 
 -- Prepare a term for type-directed name resolution by replacing
 -- any remaining free variables with blanks to be resolved by TDNR

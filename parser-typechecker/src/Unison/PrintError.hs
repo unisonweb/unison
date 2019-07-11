@@ -1029,7 +1029,7 @@ prettyParseError s = \case
     ]
   go (Parser.ResolutionFailures        failures) =
     Pr.render defaultWidth . Pr.border 2 . Pr.callout "❓" $ Pr.linesNonEmpty [
-      Pr.wrap "I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:",
+      Pr.wrap ("I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:"),
       "",
       Pr.lit . annotatedsAsErrorSite s $
         [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
