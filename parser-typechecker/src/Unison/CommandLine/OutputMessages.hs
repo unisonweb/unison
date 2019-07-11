@@ -18,6 +18,7 @@ import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
+import qualified Unison.Codebase.Editor.SearchResult' as SR'
 
 
 --import Debug.Trace
@@ -548,9 +549,9 @@ displayTestResults showTip ppe oks fails = let
           P.sep ", " . P.nonEmpty $ [failSummary, okSummary], tipMsg]
 
 unsafePrettyTermResultSig' :: Var v =>
-  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+  PPE.PrettyPrintEnv -> SR'.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSig' ppe = \case
-  E.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
+  SR'.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
@@ -558,9 +559,9 @@ unsafePrettyTermResultSig' ppe = \case
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
 -- Optional.None, Maybe.Nothing : Maybe a
 unsafePrettyTermResultSigFull' :: Var v =>
-  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+  PPE.PrettyPrintEnv -> SR'.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
+  SR'.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
@@ -571,16 +572,16 @@ unsafePrettyTermResultSigFull' ppe = \case
   _ -> error "Don't pass Nothing"
   where greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeader' (E.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
+prettyTypeResultHeader' :: Var v => SR'.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 -- produces:
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeaderFull' (E.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
+prettyTypeResultHeaderFull' :: Var v => SR'.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
   P.lines stuff <> P.newline
   where
   stuff =
@@ -727,7 +728,7 @@ todoOutput ppe todo =
       ]
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO ()
 listOfDefinitions ppe detailed results =
   putPrettyLn $ listOfDefinitions' ppe detailed results
 
@@ -739,7 +740,7 @@ noResults = P.callout "😶" $
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
-                   -> [E.SearchResult' v a]
+                   -> [SR'.SearchResult' v a]
                    -> P.Pretty P.ColorText
 listOfDefinitions' ppe detailed results =
   if null results then noResults
@@ -757,7 +758,7 @@ listOfDefinitions' ppe detailed results =
     P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
   -- todo: group this by namespace
   prettyResults =
-    map (E.foldResult' renderTerm renderType)
+    map (SR'.foldResult' renderTerm renderType)
         (filter (not.missingType) results)
     where
       (renderTerm, renderType) =
@@ -765,21 +766,21 @@ listOfDefinitions' ppe detailed results =
           (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
         else
           (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
-  missingType (E.Tm _ Nothing _ _)          = True
-  missingType (E.Tp _ (MissingThing _) _ _) = True
+  missingType (SR'.Tm _ Nothing _ _)          = True
+  missingType (SR'.Tp _ (MissingThing _) _ _) = True
   missingType _                             = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
     [ (HQ'.toHQ name, r)
-    | E.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
+    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
   missingTypes = nubOrdOn snd $
     [ (HQ'.toHQ name, Reference.DerivedId r)
-    | E.Tp name (MissingThing r) _ _ <- results ] <>
+    | SR'.Tp name (MissingThing r) _ _ <- results ] <>
     [ (HQ'.toHQ name, r)
-    | E.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
+    | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
   missingBuiltins = results >>= \case
-    E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
+    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
     _ -> []
 
 watchPrinter
