@@ -44,7 +44,7 @@ import qualified Unison.Reference as Reference
 import qualified Unison.Reference.Util as ReferenceUtil
 import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
-import           Unison.Type (AnnotatedType, Type)
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Util.Relation as Rel
@@ -77,7 +77,7 @@ data F typeVar typeAnn patternAnn a
   | Request Reference Int
   | Handle a a
   | App a a
-  | Ann a (Type.AnnotatedType typeVar typeAnn)
+  | Ann a (Type typeVar typeAnn)
   | Sequence (Seq a)
   | If a a a
   | And a a
@@ -193,7 +193,7 @@ vtmap f = typeMap (ABT.vmap f)
 
 typeMap
   :: Ord vt2
-  => (Type.AnnotatedType vt at -> Type.AnnotatedType vt2 at2)
+  => (Type vt at -> Type vt2 at2)
   -> AnnotatedTerm2 vt at ap v a
   -> AnnotatedTerm2 vt2 at2 ap v a
 typeMap f = go
@@ -289,7 +289,7 @@ freeTypeVarAnnotations e = multimap $ go Set.empty e where
     _ -> error "unpossible"
 
 substTypeVars :: (Ord v, Var vt)
-  => [(vt, AnnotatedType vt b)]
+  => [(vt, Type vt b)]
   -> AnnotatedTerm' vt v a
   -> AnnotatedTerm' vt v a
 substTypeVars subs e = foldl' go e subs where
@@ -301,7 +301,7 @@ substTypeVars subs e = foldl' go e subs where
 substTypeVar
   :: (Ord v, Var vt)
   => vt
-  -> AnnotatedType vt b
+  -> Type vt b
   -> AnnotatedTerm' vt v a
   -> AnnotatedTerm' vt v a
 substTypeVar vt ty = go Set.empty where
@@ -527,13 +527,13 @@ apps' = foldl' (\f t -> app (ABT.annotation f <> ABT.annotation t) f t)
 iff :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
 iff a cond t f = ABT.tm' a (If cond t f)
 
-ann_ :: Ord v => Term' vt v -> Type vt -> Term' vt v
+ann_ :: Ord v => Term' vt v -> Type vt () -> Term' vt v
 ann_ e t = ABT.tm (Ann e t)
 
 ann :: Ord v
     => a
     -> AnnotatedTerm2 vt at ap v a
-    -> Type.AnnotatedType vt at
+    -> Type vt at
     -> AnnotatedTerm2 vt at ap v a
 ann a e t = ABT.tm' a (Ann e t)
 

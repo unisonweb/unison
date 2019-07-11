@@ -69,7 +69,7 @@ tc_breaks width s = tc_diff_rtt True s s width
 tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tc_binding width v mtp tm expected =
    let base_term = Unison.Test.Common.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
-       input_type = (fmap Unison.Test.Common.t mtp) :: Maybe (Type.AnnotatedType Symbol Ann)
+       input_type = (fmap Unison.Test.Common.t mtp) :: Maybe (Type.Type Symbol Ann)
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v

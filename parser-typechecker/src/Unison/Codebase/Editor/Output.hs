@@ -36,9 +36,9 @@ import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Type (Type)
 
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 type ListDetailed = Bool
 type SourceName = Text
 

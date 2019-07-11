@@ -12,7 +12,7 @@ import           Unison.PrintError              ( prettyParseError )
 import           Unison.Symbol                  ( Symbol )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Unison.TermParser             as TermParser
-import           Unison.Type                    ( AnnotatedType )
+import           Unison.Type                    ( Type )
 import qualified Unison.TypeParser             as TypeParser
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Util.ColorText         as Color
@@ -41,7 +41,7 @@ parseType
   :: Var v
   => String
   -> Parser.ParsingEnv
-  -> Either (Parser.Err v) (AnnotatedType v Ann)
+  -> Either (Parser.Err v) (Type v Ann)
 parseType = Parser.run (Parser.root TypeParser.valueType)
 
 parseFile

@@ -59,6 +59,7 @@ import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import qualified Unison.Names3 as Names
 import Unison.HashQualified (HashQualified)
+import Unison.Type (Type)
 
 type Env = PPE.PrettyPrintEnv
 
@@ -96,7 +97,7 @@ showTypeWithProvenance
   => Env
   -> String
   -> style
-  -> Type.AnnotatedType v a
+  -> Type v a
   -> AnnotatedText style
 showTypeWithProvenance env src color typ =
   style color (renderType' env typ)
@@ -135,7 +136,7 @@ renderTypeInfo i env = case i of
  where
   renderOne
     :: IsString s
-    => (v, Type.AnnotatedType v loc, RedundantTypeAnnotation)
+    => (v, Type v loc, RedundantTypeAnnotation)
     -> [s]
   renderOne (v, typ, _) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
@@ -700,7 +701,7 @@ renderTerm env e =
      else fromString s
 
 -- | renders a type with no special styling
-renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
+renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
 renderType' env typ = fromString . Color.toPlain $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
@@ -709,7 +710,7 @@ renderType
   :: Var v
   => Env
   -> (loc -> AnnotatedText a -> AnnotatedText a)
-  -> Type.AnnotatedType v loc
+  -> Type v loc
   -> AnnotatedText a
 renderType env f t =
   renderType0 env f (0 :: Int) (Type.removePureEffects t)

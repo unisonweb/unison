@@ -40,7 +40,7 @@ import qualified Unison.SyntaxHighlights       as S
 import           Unison.SyntaxHighlights        ( fmt )
 import           Unison.Term
 import           Debug.Trace                    ( trace )
-import           Unison.Type                    ( AnnotatedType )
+import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
@@ -638,7 +638,7 @@ suffixCounterTerm n = \case
                    in foldMap ((countPatternUsages n) . pat) bs
     _ -> mempty
 
-suffixCounterType :: Var v => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
     Type.Var' v -> countHQ $ HQ.fromVar v
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
@@ -649,7 +649,7 @@ printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
   go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
   go = extraMap' id (const ()) (const ())
 
-countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
 countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t 
                       
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
