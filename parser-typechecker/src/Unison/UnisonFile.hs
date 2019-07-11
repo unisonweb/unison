@@ -28,7 +28,7 @@ import           Unison.Referent        (Referent)
 import qualified Unison.Referent        as Referent
 import           Unison.Term            (AnnotatedTerm)
 import qualified Unison.Term            as Term
-import           Unison.Type            (AnnotatedType)
+import           Unison.Type            (Type)
 import qualified Unison.Type            as Type
 import qualified Unison.Util.List       as List
 import           Unison.Util.Relation   (Relation)
@@ -81,16 +81,16 @@ data TypecheckedUnisonFile v a =
   TypecheckedUnisonFile {
     dataDeclarations'   :: Map v (Reference, DataDeclaration' v a),
     effectDeclarations' :: Map v (Reference, EffectDeclaration' v a),
-    topLevelComponents' :: [[(v, AnnotatedTerm v a, AnnotatedType v a)]],
-    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])],
-    hashTerms           :: Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
+    topLevelComponents' :: [[(v, AnnotatedTerm v a, Type v a)]],
+    watchComponents     :: [(WatchKind, [(v, AnnotatedTerm v a, Type v a)])],
+    hashTerms           :: Map v (Reference, AnnotatedTerm v a, Type v a)
   } deriving Show
 
 typecheckedUnisonFile :: Var v
                       => Map v (Reference, DataDeclaration' v a)
                       -> Map v (Reference, EffectDeclaration' v a)
-                      -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
-                      -> [(WatchKind, [(v, AnnotatedTerm v a, AnnotatedType v a)])]
+                      -> [[(v, AnnotatedTerm v a, Type v a)]]
+                      -> [(WatchKind, [(v, AnnotatedTerm v a, Type v a)])]
                       -> TypecheckedUnisonFile v a
 typecheckedUnisonFile datas effects tlcs watches =
   file0 { hashTerms = hashImpl file0 }
@@ -117,7 +117,7 @@ allTerms uf =
   Map.fromList [ (v, t) | (v, t, _) <- join $ topLevelComponents' uf ]
 
 topLevelComponents :: TypecheckedUnisonFile v a
-                   -> [[(v, AnnotatedTerm v a, AnnotatedType v a)]]
+                   -> [[(v, AnnotatedTerm v a, Type v a)]]
 topLevelComponents file =
   topLevelComponents' file ++ [ comp | (TestWatch, comp) <- watchComponents file ]
 
@@ -149,7 +149,7 @@ labeledDependencies TypecheckedUnisonFile{..} =
 dependencies' ::
   forall v a. Var v => TypecheckedUnisonFile v a -> Relation Reference Reference
 dependencies' file = let
-  terms :: Map v (Reference, AnnotatedTerm v a, AnnotatedType v a)
+  terms :: Map v (Reference, AnnotatedTerm v a, Type v a)
   terms = hashTerms file
   decls :: Map v (Reference, DataDeclaration' v a)
   decls = dataDeclarations' file <>

@@ -5,13 +5,12 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Type (AnnotatedType)
+import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Referent as Referent
 
-type Type v a = AnnotatedType v a
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 

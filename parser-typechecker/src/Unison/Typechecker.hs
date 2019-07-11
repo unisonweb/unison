@@ -39,7 +39,7 @@ import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
-import           Unison.Type                (AnnotatedType)
+import           Unison.Type                (Type)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.TypeVar             as TypeVar
@@ -52,7 +52,6 @@ import           Unison.Util.Relation       (lookupDom)
 type Name = Text
 
 type Term v loc = AnnotatedTerm v loc
-type Type v loc = AnnotatedType v loc
 
 data Notes v loc = Notes {
   errors :: Seq (Context.ErrorNote v loc),
@@ -69,7 +68,7 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
+  NamedReference { fqn :: Name, fqnType :: Type v loc
                  , replacement :: Either v Referent }
   deriving Show
 

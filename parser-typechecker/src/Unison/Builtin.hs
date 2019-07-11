@@ -39,7 +39,6 @@ import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
-import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -52,6 +51,7 @@ import qualified Unison.Util.Relation          as Rel
 
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
+type Type v = Type.Type v ()
 
 names :: Names
 names = Names names0 mempty

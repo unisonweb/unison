@@ -38,7 +38,7 @@ import qualified Unison.Term                   as Term
 import           Unison.Term                    ( AnnotatedTerm
                                                 , AnnotatedTerm2
                                                 )
-import           Unison.Type                    ( AnnotatedType )
+import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import           Data.Text                      ( Text )
@@ -69,7 +69,7 @@ data DataDeclaration' v a = DataDeclaration {
   modifier :: Modifier,
   annotation :: a,
   bound :: [v],
-  constructors' :: [(a, v, AnnotatedType v a)]
+  constructors' :: [(a, v, Type v a)]
 } deriving (Eq, Show, Functor)
 
 generateConstructorRefs
@@ -142,7 +142,7 @@ constructorTerms
   -> (a -> Reference -> ConstructorId -> AnnotatedTerm v a)
   -> Reference.Id
   -> DataDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
 constructorTerms hashCtor f rid dd =
   (\((a, _, t), (i, re@(Reference.DerivedId r))) -> (r, f a re i, t)) <$> zip
     (constructors' dd)
@@ -152,24 +152,24 @@ dataConstructorTerms
   :: Ord v
   => Reference.Id
   -> DataDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
 dataConstructorTerms = constructorTerms Term.hashConstructor Term.constructor
 
 effectConstructorTerms
   :: Ord v
   => Reference.Id
   -> EffectDeclaration' v a
-  -> [(Reference.Id, AnnotatedTerm v a, AnnotatedType v a)]
+  -> [(Reference.Id, AnnotatedTerm v a, Type v a)]
 effectConstructorTerms rid ed =
   constructorTerms Term.hashRequest Term.request rid $ toDataDecl ed
 
-constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
+constructorTypes :: DataDeclaration' v a -> [Type v a]
 constructorTypes = (snd <$>) . constructors
 
-typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (AnnotatedType v a)
+typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (Type v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
-constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
+constructors :: DataDeclaration' v a -> [(v, Type v a)]
 constructors (DataDeclaration _ _ _ ctors) = [(v,t) | (_,v,t) <- ctors ]
 
 constructorVars :: DataDeclaration' v a -> [v]
@@ -234,16 +234,16 @@ withEffectDeclM :: Functor f
 withEffectDeclM f = fmap EffectDeclaration . f . toDataDecl
 
 mkEffectDecl'
-  :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
+  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> EffectDeclaration' v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
+mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration' v ()
 mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
 
-mkDataDecl' :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
+mkDataDecl' :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration' v a
 mkDataDecl' m a b cs = DataDeclaration m a b cs
 
-mkDataDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
+mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration' v ()
 mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
 
 constructorArities :: DataDeclaration' v a -> [Int]
@@ -302,7 +302,7 @@ toLetRec decls = do1 <$> vs
   -- for each of the mutually recursive types
   do1 v = ABT.cycle (ABT.absChain vs . ABT.tm $ LetRec decls' (ABT.var v))
 
-unsafeUnwrapType :: (Var v) => ABT.Term F v a -> AnnotatedType v a
+unsafeUnwrapType :: (Var v) => ABT.Term F v a -> Type v a
 unsafeUnwrapType typ = ABT.transform f typ
   where f (Type t) = t
         f _ = error $ "Tried to unwrap a type that wasn't a type: " ++ show typ
@@ -434,7 +434,7 @@ pattern TupleTerm' xs <- (unTupleTerm -> Just xs)
 pattern TuplePattern ps <- (unTuplePattern -> Just ps)
 
 unitType, pairType, optionalType, testResultType
-  :: Ord v => a -> AnnotatedType v a
+  :: Ord v => a -> Type v a
 unitType a = Type.ref a unitRef
 pairType a = Type.ref a pairRef
 testResultType a = Type.app a (Type.vector a) (Type.ref a testResultRef)
@@ -467,7 +467,7 @@ unTupleTerm t = case t of
   Term.Constructor' UnitRef 0 -> Just []
   _ -> Nothing
 
-unTupleType :: Var v => Type.AnnotatedType v a -> Maybe [Type.AnnotatedType v a]
+unTupleType :: Var v => Type v a -> Maybe [Type v a]
 unTupleType t = case t of
   Type.Apps' (Type.Ref' PairRef) [fst, snd] -> (fst :) <$> unTupleType snd
   Type.Ref' UnitRef -> Just []

@@ -122,12 +122,12 @@ import qualified Unison.Lexer as L
 import Data.List (sortOn)
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
+import Unison.Type (Type)
 
 --import Debug.Trace
 
 type F m i v = Free (Command m i v)
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 -- type (Action m i v) a
 type Action m i v = MaybeT (StateT (LoopState m v) (F m i v))
@@ -1696,11 +1696,11 @@ prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
 parseSearchType :: Var v
-  => Input -> [String] -> Action' m v (Either (Output v) (Type.AnnotatedType v Ann))
+  => Input -> [String] -> Action' m v (Either (Output v) (Type v Ann))
 parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
 
 parseType :: Var v
-  => Input -> [String] -> Action' m v (Either (Output v) (Type.AnnotatedType v Ann))
+  => Input -> [String] -> Action' m v (Either (Output v) (Type v Ann))
 parseType input typ = undefined
 --do
 --  let src = Text.pack $ intercalate " " typ

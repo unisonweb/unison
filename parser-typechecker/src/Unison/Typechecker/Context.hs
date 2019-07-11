@@ -81,7 +81,6 @@ import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
 import           Unison.Term                    ( AnnotatedTerm' )
 import qualified Unison.Term                   as Term
-import           Unison.Type                    ( AnnotatedType )
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.Components  ( minimize' )
 import qualified Unison.Typechecker.TypeLookup as TL
@@ -91,7 +90,7 @@ import qualified Unison.Var                    as Var
 import qualified Unison.TypePrinter            as TP
 
 type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
-type Type v loc = AnnotatedType (TypeVar v loc) loc
+type Type v loc = Type.Type (TypeVar v loc) loc
 type Term v loc = AnnotatedTerm' (TypeVar v loc) v loc
 type Monotype v loc = Type.Monotype (TypeVar v loc) loc
 type RedundantTypeAnnotation = Bool
@@ -241,7 +240,7 @@ data ErrorNote v loc = ErrorNote {
 data InfoNote v loc
   = SolvedBlank (B.Recorded loc) v (Type v loc)
   | Decision v loc (Term.AnnotatedTerm v loc)
-  | TopLevelComponent [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)]
+  | TopLevelComponent [(v, Type.Type v loc, RedundantTypeAnnotation)]
   deriving (Show)
 
 data Cause v loc
@@ -1595,7 +1594,7 @@ verifyClosed t toV2 =
   in all id <$> ABT.foreachSubterm go (ABT.annotateBound t)
 
 annotateRefs :: (Applicative f, Var v)
-             => (Reference -> f (Type.AnnotatedType v loc))
+             => (Reference -> f (Type.Type v loc))
              -> Term v loc
              -> f (Term v loc)
 annotateRefs synth = ABT.visit f where

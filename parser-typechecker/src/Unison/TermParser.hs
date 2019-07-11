@@ -25,7 +25,7 @@ import           Unison.Names3 (Names)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
-import           Unison.Type (AnnotatedType)
+import           Unison.Type (Type)
 import           Unison.Var (Var)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -305,7 +305,7 @@ infixApp = label "infixApp"
   $ chainl1 term4 (f <$> (hashQualifiedInfixTerm <* optional semi))
   where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
-typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
+typedecl :: Var v => P v (L.Token v, Type v Ann)
 typedecl =
   (,) <$> P.try (prefixDefinitionName <* reserved ":")
       <*> TypeParser.valueType

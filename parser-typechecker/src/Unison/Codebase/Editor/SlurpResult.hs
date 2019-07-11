@@ -21,17 +21,12 @@ import qualified Unison.Name as Name
 import qualified Unison.Names2 as Names
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Var as Var
-
-type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from

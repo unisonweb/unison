@@ -7,7 +7,7 @@ import           Data.List
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser
-import           Unison.Type (AnnotatedType)
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import           Unison.Var (Var)
 import qualified Unison.DataDeclaration as DD
@@ -19,7 +19,7 @@ import Control.Monad.Reader (asks)
 
 -- A parsed type is annotated with its starting and ending position in the
 -- source text.
-type TypeP v = P v (AnnotatedType v Ann)
+type TypeP v = P v (Type v Ann)
 
 -- Value types cannot have effects, unless those effects appear to
 -- the right of a function arrow:

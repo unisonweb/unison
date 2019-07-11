@@ -34,7 +34,7 @@ import           Unison.Result              (Note (..), Result, pattern Result, 
 import qualified Unison.Result              as Result
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
-import           Unison.Type                (AnnotatedType)
+import qualified Unison.Type
 import qualified Unison.Typechecker         as Typechecker
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Typechecker.Context as Context
@@ -45,7 +45,7 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 
 type Term v = AnnotatedTerm v Ann
-type Type v = AnnotatedType v Ann
+type Type v = Unison.Type.Type v Ann
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
 type UnisonFile v = UF.UnisonFile v Ann

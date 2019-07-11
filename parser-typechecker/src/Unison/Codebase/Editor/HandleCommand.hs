@@ -39,7 +39,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
@@ -48,10 +47,11 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import qualified Unison.PrettyPrintEnv         as PPE
+import Unison.Type (Type)
 
 typecheck
   :: (Monad m, Var v)
-  => [Type.AnnotatedType v Ann]
+  => [Type v Ann]
   -> Codebase m v Ann
   -> Parser.ParsingEnv
   -> SourceName

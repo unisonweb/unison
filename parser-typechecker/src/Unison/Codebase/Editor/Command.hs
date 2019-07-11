@@ -31,18 +31,17 @@ import qualified Unison.Codebase.Runtime       as Runtime
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
+import Unison.Type (Type)
 
 
-type AmbientAbilities v = [Type.AnnotatedType v Ann]
+type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
 type Source = Text
 type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann)) (Maybe (UF.TypecheckedUnisonFile v Ann))

@@ -30,7 +30,7 @@ import           Unison.Parser
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (AnnotatedType)
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
@@ -158,7 +158,7 @@ terminateTerm e = e
 --
 -- The `Token v` is the variable name and location (here `zero` and `(+)`) of
 -- each field, and the type is the type of that field
-type Accessors v = [(L.Token v, [(L.Token v, AnnotatedType v Ann)])]
+type Accessors v = [(L.Token v, [(L.Token v, Type v Ann)])]
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
@@ -219,7 +219,7 @@ dataDeclaration mod = do
   let
       -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
-      go :: L.Token v -> [AnnotatedType v Ann] -> (Ann, v, AnnotatedType v Ann)
+      go :: L.Token v -> [Type v Ann] -> (Ann, v, Type v Ann)
       go ctorName ctorArgs = let
         arrow i o = Type.arrow (ann i <> ann o) i o
         app f arg = Type.app (ann f <> ann arg) f arg
@@ -263,7 +263,7 @@ effectDeclaration mod = do
   let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
   pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
   where
-    constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
+    constructor :: Var v => L.Token v -> P v (Ann, v, Type v Ann)
     constructor typename = explodeToken <$>
       TermParser.verifyRelativeVarName prefixDefinitionName
         <* reserved ":"
