@@ -220,7 +220,7 @@ loop = do
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
         -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
-        ppe <- prettyPrintEnv =<< makeHistoricalPrintNamesFromHQ hqs
+        ppe <- prettyPrintEnv =<< makePrintNamesFromHQ hqs
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
@@ -542,8 +542,9 @@ loop = do
 --          else do
 --            failed <- loadSearchResults $ Names.asSearchResults failed
 --            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+--            printNames <- makePrintNamesFromLabeled' (srLabeledDependencies)
 --            respond $ CantDelete input rootNames failed failedDependents
---
+
 --      -- like the previous
 --      DeleteTermI hq -> case toList (getHQ'Terms hq) of
 --        [] -> termNotFound hq
@@ -631,6 +632,7 @@ loop = do
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
+
 --      SearchByNameI q | q == [] || q == ["-l"] -> do
 --        let results = listBranch $ Branch.head currentBranch'
 --        numberedArgs .= fmap searchResultToHQString results
@@ -1745,8 +1747,8 @@ makePrintNamesFromLabeled' deps = do
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 -- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
-makeHistoricalPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
-makeHistoricalPrintNamesFromHQ lexedHQs = do
+makePrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
+makePrintNamesFromHQ lexedHQs = do
   root <- use root
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
