@@ -164,213 +164,213 @@ type Socket = Socket Text
 
 -- Builtin handles: standard in, out, error
 
--- namespace IO where
---   stdin : Handle
---   stdin = Handle "stdin"
---
---   stdout : Handle
---   stdout = Handle "stdout"
---
---   stderr : Handle
---   stderr = Handle "stderr"
---
---   -- Throw an I/O error on the left as an effect in `IO`
---   rethrow : (Either IOError a) -> {IO} a
---   rethrow x = case x of
---     Either.Left e -> IO.throw e
---     Either.Right a -> a
---
---   -- Print a line to the standard output
---   printLine : Text ->{IO} ()
---   printLine t =
---     IO.putText stdout t
---     IO.putText stdout "\n"
---
---   -- Read a line from the standard input
---   readLine : '{IO} Text
---   readLine = '(IO.getLine stdin)
---
---   -- Open a named file in the given mode, yielding an open file handle
---   openFile : FilePath -> IOMode ->{IO} Handle
---   openFile f m = rethrow (IO.openFile_ f m)
---
---   -- Close an open file handle
---   closeFile : Handle ->{IO} ()
---   closeFile f = rethrow (IO.closeFile_ f)
---
---   -- Check whether a file handle has reached the end of the file
---   isFileEOF : Handle ->{IO} Boolean
---   isFileEOF h = rethrow (IO.isFileEOF_ h)
---
---   -- Check whether a file handle is open
---   isFileOpen : Handle ->{IO} Boolean
---   isFileOpen h = rethrow (IO.isFileOpen_ h)
---
---   -- Get a line of text from a text file handle
---   getLine : Handle ->{IO} Text
---   getLine h = rethrow (IO.getLine_ h)
---
---   -- Get the entire contents of a file as a single block of text
---   getText : Handle ->{IO} Text
---   getText h = rethrow (IO.getText_ h)
---
---   -- Write some text to a file
---   putText : Handle -> Text ->{IO} ()
---   putText h t = rethrow (IO.putText_ h t)
---
---   -- Get epoch system time
---   systemTime : '{IO} EpochTime
---   systemTime = '(rethrow (IO.systemTime_))
---
---   -- Run the given computation, and if it throws an error
---   -- handle the error with the given handler.
---   -- catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
---   -- catch c h =
---   --   k io = case io of
---   --            { IO.throw e } -> h e
---   --            x -> x
---   --   handle k in c
---
---
--- -- IO Modes from the Haskell API
--- type IOMode = Read | Write | Append | ReadWrite
---
--- -- IO error types from the Haskell API
--- type IOErrorType
---   = AlreadyExists
---   | NoSuchThing
---   | ResourceBusy
---   | ResourceExhausted
---   | EOF
---   | IllegalOperation
---   | PermissionDenied
---   | UserError
---
--- type ErrorLocation = ErrorLocation Text
--- type ErrorDescription = ErrorDescription Text
--- type FilePath = FilePath Text
---
--- type IOError = IOError IOErrorType Text
---
--- type SeekMode = Absolute | Relative | FromEnd
---
--- -- If the buffer size is not specified,
--- -- use an implementation-specific size.
--- type BufferMode = Line | Block (Optional Nat)
---
--- type EpochTime = EpochTime Nat
---
--- -- Either a host name e.g., "unisonweb.org" or a numeric host address
--- -- string consisting of a dotted decimal IPv4 address
--- -- e.g., "192.168.0.1".
--- type HostName = HostName Text
---
--- -- For example a port number like "8080"
--- type ServiceName = ServiceName Text
---
--- -- Thread IDs are strings for now. Need nominal/opaque types.
--- type ThreadId = ThreadId Text
---
--- ability IO where
---
---   -- Basic file IO
---   openFile_ : FilePath -> IOMode ->{IO} (Either IOError Handle)
---   closeFile_ : Handle ->{IO} (Either IOError ())
---   isFileEOF_ : Handle ->{IO} (Either IOError Boolean)
---   isFileOpen_ : Handle ->{IO} (Either IOError Boolean)
---
---   -- Text input and output
---
---   --getChar : Handle ->{IO} Char
---   getLine_ : Handle ->{IO} (Either IOError Text)
---   -- Get the entire contents of the file as text
---   getText_ : Handle ->{IO} (Either IOError Text)
---   -- putChar : Handle -> Char ->{IO} ()
---   putText_ : Handle -> Text ->{IO} (Either IOError ())
---
---   -- Throw an error as an `IO` effect
---   throw : IOError ->{IO} a
---
---   -- File positioning
---   isSeekable : Handle ->{IO} (Either IOError Boolean)
---   seek : Handle -> SeekMode -> Int ->{IO} (Either IOError ())
---   position : Handle ->{IO} (Either IOError Int)
---
---   -- File buffering
---   getBuffering : Handle ->{IO} Either IOError (Optional BufferMode)
---   setBuffering : Handle -> Optional BufferMode ->{IO} (Either IOError ())
---
---   -- Should we expose mutable arrays for byte buffering?
---   -- Inclined to say no, although that sounds a lot like
---   -- a decision to just be slow.
---   -- We'll need a byte buffer manipulation library in that case.
---
---   -- getBytes : Handle -> Nat ->{IO} Bytes
---   -- putBytes : Handle -> Bytes ->{IO} ()
---
---   -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
---   -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
---
---   systemTime_ : {IO} (Either IOError EpochTime)
---
---   -- File system operations
---   getTempDirectory : {IO} (Either IOError FilePath)
---   getCurrentDirectory : {IO} (Either IOError FilePath)
---   setCurrentDirectory : FilePath ->{IO} (Either IOError ())
---   directoryContents : FilePath ->{IO} Either IOError [FilePath]
---   fileExists : FilePath -> {IO} (Either IOError Boolean)
---   isDirectory : FilePath ->{IO} (Either IOError Boolean)
---   createDirectory : FilePath ->{IO} (Either IOError ())
---   removeDirectory : FilePath ->{IO} (Either IOError ())
---   renameDirectory : FilePath -> FilePath -> {IO} (Either IOError ())
---   removeFile : FilePath ->{IO} (Either IOError ())
---   renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
---   getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
---   getFileSize : FilePath ->{IO} (Either IOError Nat)
---
---   -- Simple TCP Networking
---
---   -- Create a socket bound to the given local address.
---   -- If a hostname is not given, this will use any available host.
---   serverSocket : Optional HostName ->
---                  ServiceName -> {IO} (Either IOError Socket)
---   -- Start listening for connections
---   listen : Socket ->{IO} (Either IOError ())
---
---   -- Create a socket connected to the given remote address
---   clientSocket : HostName ->
---                  ServiceName ->{IO} (Either IOError Socket)
---
---   closeSocket : Socket ->{IO} (Either IOError ())
---
---   --socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
---   --handleToSocket : Handle ->{IO} (Either IOError Socket)
---
---   -- Accept a connection on a socket.
---   -- Returns a socket that can send and receive data on a new connection
---   accept : Socket ->{IO} (Either IOError Socket)
---
---   -- Send some bytes to a socket.
---   send : Socket -> Bytes ->{IO} (Either IOError ())
---
---   -- Read the spefified number of bytes from the socket.
---   receive : Socket -> Int ->{IO} (Either IOError (Optional Bytes))
---
---   -- scatter/gather mode network I/O
---   -- sendMany : Socket -> [Bytes] ->{IO} Int
---
---   -- Threading --
---
---   -- Fork a thread
---   fork : '{IO} a ->{IO} (Either IOError ThreadId)
---
---   -- Kill a running thread
---   kill : ThreadId ->{IO} (Either IOError ())
---
---   -- Suspend the current thread for a number of microseconds.
---   delay : Nat ->{IO} (Either IOError ())
---
---   -- Safely acquire and release a resource
---   bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
+namespace IO where
+  stdin : Handle
+  stdin = Handle "stdin"
+
+  stdout : Handle
+  stdout = Handle "stdout"
+
+  stderr : Handle
+  stderr = Handle "stderr"
+
+  -- Throw an I/O error on the left as an effect in `IO`
+  rethrow : (Either IOError a) -> {IO} a
+  rethrow x = case x of
+    Either.Left e -> IO.throw e
+    Either.Right a -> a
+
+  -- Print a line to the standard output
+  printLine : Text ->{IO} ()
+  printLine t =
+    IO.putText stdout t
+    IO.putText stdout "\n"
+
+  -- Read a line from the standard input
+  readLine : '{IO} Text
+  readLine = '(IO.getLine stdin)
+
+  -- Open a named file in the given mode, yielding an open file handle
+  openFile : FilePath -> IOMode ->{IO} Handle
+  openFile f m = rethrow (IO.openFile_ f m)
+
+  -- Close an open file handle
+  closeFile : Handle ->{IO} ()
+  closeFile f = rethrow (IO.closeFile_ f)
+
+  -- Check whether a file handle has reached the end of the file
+  isFileEOF : Handle ->{IO} Boolean
+  isFileEOF h = rethrow (IO.isFileEOF_ h)
+
+  -- Check whether a file handle is open
+  isFileOpen : Handle ->{IO} Boolean
+  isFileOpen h = rethrow (IO.isFileOpen_ h)
+
+  -- Get a line of text from a text file handle
+  getLine : Handle ->{IO} Text
+  getLine h = rethrow (IO.getLine_ h)
+
+  -- Get the entire contents of a file as a single block of text
+  getText : Handle ->{IO} Text
+  getText h = rethrow (IO.getText_ h)
+
+  -- Write some text to a file
+  putText : Handle -> Text ->{IO} ()
+  putText h t = rethrow (IO.putText_ h t)
+
+  -- Get epoch system time
+  systemTime : '{IO} EpochTime
+  systemTime = '(rethrow (IO.systemTime_))
+
+  -- Run the given computation, and if it throws an error
+  -- handle the error with the given handler.
+  -- catch : '{IO} a -> (IOError ->{IO} a) ->{IO} a
+  -- catch c h =
+  --   k io = case io of
+  --            { IO.throw e } -> h e
+  --            x -> x
+  --   handle k in c
+
+
+-- IO Modes from the Haskell API
+type IOMode = Read | Write | Append | ReadWrite
+
+-- IO error types from the Haskell API
+type IOErrorType
+  = AlreadyExists
+  | NoSuchThing
+  | ResourceBusy
+  | ResourceExhausted
+  | EOF
+  | IllegalOperation
+  | PermissionDenied
+  | UserError
+
+type ErrorLocation = ErrorLocation Text
+type ErrorDescription = ErrorDescription Text
+type FilePath = FilePath Text
+
+type IOError = IOError IOErrorType Text
+
+type SeekMode = Absolute | Relative | FromEnd
+
+-- If the buffer size is not specified,
+-- use an implementation-specific size.
+type BufferMode = Line | Block (Optional Nat)
+
+type EpochTime = EpochTime Nat
+
+-- Either a host name e.g., "unisonweb.org" or a numeric host address
+-- string consisting of a dotted decimal IPv4 address
+-- e.g., "192.168.0.1".
+type HostName = HostName Text
+
+-- For example a port number like "8080"
+type ServiceName = ServiceName Text
+
+-- Thread IDs are strings for now. Need nominal/opaque types.
+type ThreadId = ThreadId Text
+
+ability IO where
+
+  -- Basic file IO
+  openFile_ : FilePath -> IOMode ->{IO} (Either IOError Handle)
+  closeFile_ : Handle ->{IO} (Either IOError ())
+  isFileEOF_ : Handle ->{IO} (Either IOError Boolean)
+  isFileOpen_ : Handle ->{IO} (Either IOError Boolean)
+
+  -- Text input and output
+
+  --getChar : Handle ->{IO} Char
+  getLine_ : Handle ->{IO} (Either IOError Text)
+  -- Get the entire contents of the file as text
+  getText_ : Handle ->{IO} (Either IOError Text)
+  -- putChar : Handle -> Char ->{IO} ()
+  putText_ : Handle -> Text ->{IO} (Either IOError ())
+
+  -- Throw an error as an `IO` effect
+  throw : IOError ->{IO} a
+
+  -- File positioning
+  isSeekable : Handle ->{IO} (Either IOError Boolean)
+  seek : Handle -> SeekMode -> Int ->{IO} (Either IOError ())
+  position : Handle ->{IO} (Either IOError Int)
+
+  -- File buffering
+  getBuffering : Handle ->{IO} Either IOError (Optional BufferMode)
+  setBuffering : Handle -> Optional BufferMode ->{IO} (Either IOError ())
+
+  -- Should we expose mutable arrays for byte buffering?
+  -- Inclined to say no, although that sounds a lot like
+  -- a decision to just be slow.
+  -- We'll need a byte buffer manipulation library in that case.
+
+  -- getBytes : Handle -> Nat ->{IO} Bytes
+  -- putBytes : Handle -> Bytes ->{IO} ()
+
+  -- getBytes : Handle -> Nat -> ByteArray ->{IO} Nat
+  -- putBytes : Handle -> Nat -> ByteArray ->{IO} ()
+
+  systemTime_ : {IO} (Either IOError EpochTime)
+
+  -- File system operations
+  getTempDirectory : {IO} (Either IOError FilePath)
+  getCurrentDirectory : {IO} (Either IOError FilePath)
+  setCurrentDirectory : FilePath ->{IO} (Either IOError ())
+  directoryContents : FilePath ->{IO} Either IOError [FilePath]
+  fileExists : FilePath -> {IO} (Either IOError Boolean)
+  isDirectory : FilePath ->{IO} (Either IOError Boolean)
+  createDirectory : FilePath ->{IO} (Either IOError ())
+  removeDirectory : FilePath ->{IO} (Either IOError ())
+  renameDirectory : FilePath -> FilePath -> {IO} (Either IOError ())
+  removeFile : FilePath ->{IO} (Either IOError ())
+  renameFile : FilePath -> FilePath ->{IO} (Either IOError ())
+  getFileTimestamp : FilePath ->{IO} (Either IOError EpochTime)
+  getFileSize : FilePath ->{IO} (Either IOError Nat)
+
+  -- Simple TCP Networking
+
+  -- Create a socket bound to the given local address.
+  -- If a hostname is not given, this will use any available host.
+  serverSocket : Optional HostName ->
+                 ServiceName -> {IO} (Either IOError Socket)
+  -- Start listening for connections
+  listen : Socket ->{IO} (Either IOError ())
+
+  -- Create a socket connected to the given remote address
+  clientSocket : HostName ->
+                 ServiceName ->{IO} (Either IOError Socket)
+
+  closeSocket : Socket ->{IO} (Either IOError ())
+
+  --socketToHandle : Socket -> IOMode ->{IO} (Either IOError Handle)
+  --handleToSocket : Handle ->{IO} (Either IOError Socket)
+
+  -- Accept a connection on a socket.
+  -- Returns a socket that can send and receive data on a new connection
+  accept : Socket ->{IO} (Either IOError Socket)
+
+  -- Send some bytes to a socket.
+  send : Socket -> Bytes ->{IO} (Either IOError ())
+
+  -- Read the spefified number of bytes from the socket.
+  receive : Socket -> Int ->{IO} (Either IOError (Optional Bytes))
+
+  -- scatter/gather mode network I/O
+  -- sendMany : Socket -> [Bytes] ->{IO} Int
+
+  -- Threading --
+
+  -- Fork a thread
+  fork : '{IO} a ->{IO} (Either IOError ThreadId)
+
+  -- Kill a running thread
+  kill : ThreadId ->{IO} (Either IOError ())
+
+  -- Suspend the current thread for a number of microseconds.
+  delay : Nat ->{IO} (Either IOError ())
+
+  -- Safely acquire and release a resource
+  bracket : '{IO} a -> (a ->{IO} b) -> (a ->{IO} c) ->{IO} (Either IOError c)
 
 |]

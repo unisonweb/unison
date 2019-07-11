@@ -76,6 +76,12 @@ lookupHQType hq Names{..} = case hq of
     where
     matches sh ns = Set.filter (Reference.isPrefixOf sh) (R.ran $ Names.types ns)
 
+hasTermNamed :: Name -> Names -> Bool
+hasTermNamed n ns = not (Set.null $ lookupHQTerm (HQ.NameOnly n) ns)
+
+hasTypeNamed :: Name -> Names -> Bool
+hasTypeNamed n ns = not (Set.null $ lookupHQType (HQ.NameOnly n) ns)
+
 lookupHQTerm :: HashQualified -> Names -> Set Referent
 lookupHQTerm hq Names{..} = case hq of
   HQ.NameOnly n -> R.lookupDom n (Names.terms currentNames)

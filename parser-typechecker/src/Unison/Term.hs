@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -12,6 +13,7 @@
 
 module Unison.Term where
 
+-- import Debug.Trace
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Functor (void, ($>))
@@ -140,10 +142,16 @@ bindNames
   -> Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
+-- bindNames keepFreeTerms _ _ | trace "Keep free terms:" False
+--                            || traceShow keepFreeTerms False = undefined
 bindNames keepFreeTerms ns e = do
   let freeTmVars = [ (v,a) | (v,a) <- ABT.freeVarOccurrences keepFreeTerms e ]
+      -- !_ = trace "free term vars: " ()
+      -- !_ = traceShow $ fst <$> freeTmVars
       freeTyVars = [ (v, a) | (v,as) <- Map.toList (freeTypeVarAnnotations e)
                             , a <- as ]
+      -- !_ = trace "free type vars: " ()
+      -- !_ = traceShow $ fst <$> freeTyVars
       okTm :: (v,a) -> Names.ResolutionResult v a (v, AnnotatedTerm v a)
       okTm (v,a) = case Rel.lookupDom (Name.fromVar v) (Names.terms0 ns) of
         rs | Set.size rs == 1 ->
@@ -161,6 +169,12 @@ bindSomeNames
   => Names0
   -> AnnotatedTerm v a
   -> Names.ResolutionResult v a (AnnotatedTerm v a)
+-- bindSomeNames ns e | trace "Term.bindSome" False
+--                   || trace "Names =" False
+--                   || traceShow ns False
+--                   || trace "Free type vars:" False
+--                   || traceShow (freeTypeVars e) False
+--                   = undefined
 bindSomeNames ns e = bindNames keepFree ns e where
   keepFree = Set.difference (freeVars e)
                             (Set.map Name.toVar $ Rel.dom (Names.terms0 ns))
@@ -282,9 +296,11 @@ freeTypeVarAnnotations :: Ord vt => AnnotatedTerm' vt v a -> Map vt [a]
 freeTypeVarAnnotations e = multimap $ go Set.empty e where
   go bound tm = case tm of
     Var' _ -> mempty
-    Ann' e (Type.stripIntroOuters -> t1@(Type.ForallsNamed' vs _)) ->
-      let bound' = bound <> Set.fromList vs
-      in go bound' e <> ABT.freeVarOccurrences bound t1
+    Ann' e (Type.stripIntroOuters -> t1) -> case t1 of
+      Type.ForallsNamed' vs _ ->
+        let bound' = bound <> Set.fromList vs
+        in  go bound' e <> ABT.freeVarOccurrences bound t1
+      t1 -> ABT.freeVarOccurrences bound t1
     ABT.Tm' f -> foldMap (go bound) f
     (ABT.out -> ABT.Abs _ body) -> go bound body
     (ABT.out -> ABT.Cycle body) -> go bound body

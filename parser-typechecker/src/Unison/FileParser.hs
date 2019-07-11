@@ -7,6 +7,7 @@
 
 module Unison.FileParser where
 
+-- import Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import Data.Foldable (toList)
@@ -62,11 +63,9 @@ file = do
   pushNames0 (UF.names env) $ do
     -- The file may optionally contain top-level imports,
     -- which are parsed and applied to each stanza
-    (names, _imports) <- TermParser.imports <* optional semi
-    stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
-    stanzas <- case List.validate (traverse $ Term.bindSomeNames (Names.currentNames names)) stanzas0 of
-      Left es -> resolutionFailures (toList es)
-      Right s -> pure s
+    (names, imports) <- TermParser.imports <* optional semi
+    stanzas00 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    let stanzas = fmap (TermParser.substImports names imports) <$> stanzas00
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
@@ -76,14 +75,22 @@ file = do
             (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
-    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
-        toPair (tok, _) = (L.payload tok, ann tok)
+    let (terms, watches) = (reverse termsr, reverse watchesr)
+    let curNames = Names.currentNames names
+    terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
+      Left es -> resolutionFailures (toList es)
+      Right terms -> pure terms
+    watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames) watches of
+      Left es -> resolutionFailures (toList es)
+      Right ws -> pure ws
+    let toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors
           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
-        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
+        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors)
+                        (List.multimap watches)
     pure uf
 
 -- A stanza is either a watch expression like:

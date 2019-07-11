@@ -444,10 +444,12 @@ imports = do
   ns' <- Names.importing imported <$> asks names
   pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
 
-substImports :: Var v => [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
-substImports imports =
-  ABT.substsInheritAnnotation [ (suffix, Term.var () full) | (suffix,full) <- imports ] .
-  Term.substTypeVars [ (suffix, Type.var () full) | (suffix, full) <- imports ]
+substImports :: Var v => Names -> [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+substImports ns imports =
+  ABT.substsInheritAnnotation [ (suffix, Term.var () full)
+    | (suffix,full) <- imports, Names.hasTermNamed (Name.fromVar full) ns ] .
+  Term.substTypeVars [ (suffix, Type.var () full)
+    | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
 
 block'
   :: forall v b
@@ -463,7 +465,7 @@ block' isTop s openBlock closeBlock = do
     _ <- optional semi
     statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    substImports imports <$> go open statements
+    substImports names imports <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]

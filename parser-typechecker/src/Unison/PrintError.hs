@@ -1036,12 +1036,17 @@ prettyParseError s = \case
         [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
         [ a | Names.TypeResolutionFailure _ a _ <- failures ],
       let
-        conflicts =
+        conflicts = nubOrd $
           [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
           [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
+        allVars = nubOrd $
+          [ v | Names.TermResolutionFailure v _ _ <- failures ] ++
+          [ v | Names.TypeResolutionFailure v _ _ <- failures ]
       in
-        if null conflicts then ""
-        else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+        "Using these fully qualified names:" `Pr.hang` Pr.spaced (prettyVar <$> allVars)
+        <> "\n" <>
+          if null conflicts then ""
+          else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
     ]
   unknownConstructor
     :: String -> L.Token HashQualified -> AnnotatedText Color
