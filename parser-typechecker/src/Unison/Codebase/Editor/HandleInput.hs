@@ -120,6 +120,8 @@ import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Lexer as L
 import Data.List (sortOn)
+import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import qualified Unison.Codebase.Editor.SearchResult' as SR'
 
 --import Debug.Trace
 
@@ -569,14 +571,14 @@ loop = do
             results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
         results' <- loadSearchResults results
         printNames <-
-          makePrintNamesFromLabeled' (foldMap Output.srLabeledDependencies results')
+          makePrintNamesFromLabeled' (foldMap SR'.labeledDependencies results')
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
-                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
+                [ (r, t) | SR'.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
             (collatedTypes, collatedTerms) = collateReferences
-              (mapMaybe Output.tpReference results')
-              (mapMaybe Output.tmReferent results')
+              (mapMaybe SR'.tpReference results')
+              (mapMaybe SR'.tmReferent results')
         -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
         loadedDerivedTerms <-
           fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
@@ -1412,10 +1414,10 @@ loadSearchResults = traverse loadSearchResult
   loadSearchResult = \case
     SR.Tm (SR.TermResult name r aliases) -> do
       typ <- loadReferentType r
-      pure $ Tm name typ r aliases
+      pure $ SR'.Tm name typ r aliases
     SR.Tp (SR.TypeResult name r aliases) -> do
       dt <- loadTypeDisplayThing r
-      pure $ Tp name dt r aliases
+      pure $ SR'.Tp name dt r aliases
 
 loadDisplayInfo ::
   Set Reference -> Action m i v ([(Reference, Maybe (Type v Ann))]

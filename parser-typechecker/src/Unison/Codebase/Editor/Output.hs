@@ -3,22 +3,12 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
-  , SearchResult'(..)
-  , TermResult'(..)
   , TestReportStats(..)
-  , TypeResult'(..)
   , UndoFailureReason(..)
-  , pattern Tm
-  , pattern Tp
-  , foldResult'
-  , srLabeledDependencies
-  , tmReferent
-  , tpReference
   ) where
 
 import Data.Map (Map)
 import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Text (Text)
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
@@ -31,23 +21,20 @@ import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
-import qualified Unison.DataDeclaration as DD
-import qualified Unison.Codebase.Editor.DisplayThing as DT
 import Unison.Util.Relation (Relation)
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
+import Unison.Codebase.Editor.SearchResult' (SearchResult')
 
 type Term v a = Term.AnnotatedTerm v a
 type Type v a = Type.AnnotatedType v a
@@ -145,34 +132,4 @@ type ShowFailures = Bool  -- whether to list results or just summarize
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 
-data SearchResult' v a
-  = Tm' (TermResult' v a)
-  | Tp' (TypeResult' v a)
-  deriving (Eq, Show)
-data TermResult' v a =
-  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
-  deriving (Eq, Show)
-data TypeResult' v a =
-  TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
-  deriving (Eq, Show)
-pattern Tm n t r as = Tm' (TermResult' n t r as)
-pattern Tp n t r as = Tp' (TypeResult' n t r as)
-
-tmReferent :: SearchResult' v a -> Maybe Referent
-tmReferent = \case; Tm _ _ r _ -> Just r; _ -> Nothing
-tpReference :: SearchResult' v a -> Maybe Reference
-tpReference = \case; Tp _ _ r _ -> Just r; _ -> Nothing
-
-foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
-foldResult' f g = \case
-  Tm' tm -> f tm
-  Tp' tp -> g tp
-
 type SourceFileContents = Text
-
-srLabeledDependencies :: Ord v => SearchResult' v a -> Set (Either Reference Referent)
-srLabeledDependencies = \case
-  Tm' (TermResult' _ t r _) ->
-    Set.insert (Right r) $ maybe mempty (Set.map Left . Type.dependencies) t
-  Tp' (TypeResult' _ d r _) ->
-    Set.map Left . Set.insert r $ maybe mempty (DD.declDependencies) (DT.toMaybe d)
