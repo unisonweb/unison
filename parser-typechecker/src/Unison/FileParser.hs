@@ -43,10 +43,7 @@ import qualified Unison.Names3 as Names
 
 -- push names onto the stack ahead of existing names
 pushNames0 :: Names.Names0 -> P v a -> P v a
-pushNames0 ns = local push where
-  push e = e { names =
-    let ns0 = names e
-    in ns0 { Names.currentNames = Names.unionLeft0 ns (Names.currentNames ns0) }}
+pushNames0 ns = local (\e -> e { names = Names.push ns (names e) })
 
 resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
 resolutionFailures es = P.customFailure (ResolutionFailures es)

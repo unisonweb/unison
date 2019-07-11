@@ -37,8 +37,20 @@ type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
 
+-- Add `n1` to `currentNames`, shadowing anything with the same name and
+-- moving shadowed definitions into `oldNames` so they can can still be
+-- referenced hash qualified.
+push :: Names0 -> Names -> Names
+push n1 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
+  cur = currentNames ns
+  shadowed = names0 terms' types' where
+    terms' = R.dom (terms0 n1) R.<| (terms0 cur `R.difference` terms0 n1)
+    types' = R.dom (types0 n1) R.<| (types0 cur `R.difference` types0 n1)
+
 unionLeft0 :: Names0 -> Names0 -> Names0
-unionLeft0 = Unison.Names2.unionLeft
+unionLeft0 n1 n2 = names0 terms' types' where
+  terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
+  types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
 
 map0 :: (Name -> Name) -> Names0 -> Names0
 map0 f (Names.Names terms types) = Names.Names terms' types' where

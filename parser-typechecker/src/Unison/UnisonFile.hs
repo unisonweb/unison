@@ -300,7 +300,7 @@ environmentFor names dataDecls0 effectDecls0 = do
     -- ctor and effect terms
     ctors = foldMap DD.dataDeclToNames' (Map.toList dataDecls')
     effects = foldMap DD.effectDeclToNames' (Map.toList effectDecls')
-    names' = ctors <> effects <> names
+    names' = ctors <> effects
     overlaps = let
       w v dd (toDataDecl -> ed) = DupDataAndAbility v (DD.annotation dd) (DD.annotation ed)
       in Map.elems $ Map.intersectionWithKey w dataDecls effectDecls where
