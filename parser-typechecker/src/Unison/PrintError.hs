@@ -57,6 +57,7 @@ import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
+import qualified Unison.Names3 as Names
 import Unison.HashQualified (HashQualified)
 
 type Env = PPE.PrettyPrintEnv
@@ -766,6 +767,9 @@ renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t  -> renderType' env $ Type.getPolytype t
 
+prettyVar :: Var v => v -> Pr.Pretty Pr.ColorText
+prettyVar = Pr.text . Var.name
+
 renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
 renderKind (Kind.Arrow k1 k2) = renderKind k1 <> " -> " <> renderKind k2
@@ -1023,7 +1027,21 @@ prettyParseError s = \case
     , tokenAsErrorSite s $ HQ.toString <$> tok
     , ". Make sure it's spelled correctly and that you have the right hash."
     ]
-  go (Parser.ResolutionFailures        _failures) = error "todo"
+  go (Parser.ResolutionFailures        failures) =
+    Pr.render defaultWidth . Pr.border 2 . Pr.callout "❓" $ Pr.linesNonEmpty [
+      Pr.wrap "I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:",
+      "",
+      Pr.lit . annotatedsAsErrorSite s $
+        [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
+        [ a | Names.TypeResolutionFailure _ a _ <- failures ],
+      let
+        conflicts =
+          [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
+          [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
+      in
+        if null conflicts then ""
+        else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+    ]
   unknownConstructor
     :: String -> L.Token HashQualified -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
@@ -1048,6 +1066,10 @@ annotatedAsStyle
   :: (Ord style, Annotated a) => style -> String -> a -> AnnotatedText style
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
+
+annotatedsAsErrorSite ::
+  (Annotated a) => String -> [a] -> AnnotatedText Color
+annotatedsAsErrorSite = annotatedsAsStyle ErrorSite
 
 annotatedsAsStyle ::
   (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
