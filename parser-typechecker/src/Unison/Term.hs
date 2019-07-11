@@ -780,8 +780,10 @@ labeledDependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t where
   f t@(Boolean _) = Writer.tell [Left Type.booleanRef] $> t
   f t@(Text _)    = Writer.tell [Left Type.textRef] $> t
   f t@(Sequence _) = Writer.tell [Left Type.vectorRef] $> t
-  f t@(Constructor r cid) = Writer.tell [Right $ Referent.Con r cid CT.Data] $> t
-  f t@(Request r cid)     = Writer.tell [Right $ Referent.Con r cid CT.Effect] $> t
+  f t@(Constructor r cid) =
+    Writer.tell [Left r, Right (Referent.Con r cid CT.Data)] $> t
+  f t@(Request r cid) =
+    Writer.tell [Left r, Right (Referent.Con r cid CT.Effect)] $> t
   f t@(Match _ cases)     = traverse_ goPat cases $> t
   f t                     = pure t
   goPat (MatchCase pat _ _)   = Writer.tell (toList (Pattern.labeledDependencies pat))
