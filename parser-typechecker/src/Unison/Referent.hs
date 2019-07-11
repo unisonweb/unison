@@ -96,9 +96,11 @@ fromText t = either (const Nothing) Just $
     Left ("invalid constructor id: " <> Text.unpack cidPart)
   where
     ctorType = case Text.take 1 cidPart' of
-      ch | ch == EffectCtor -> Right CT.Effect
-         | ch == DataCtor -> Right CT.Data
-         | otherwise -> Left ("invalid constructor type (expected 'a' or 'd'): " <> Text.unpack cidPart')
+      EffectCtor  -> Right CT.Effect
+      DataCtor    -> Right CT.Data
+      _otherwise  ->
+        Left ("invalid constructor type (expected '"
+          <> EffectCtor <> "' or '" <> DataCtor <> "'): " <> Text.unpack cidPart')
     refPart = Text.dropWhileEnd (/= '#') t
     cidPart' = Text.takeWhileEnd (/= '#') t
     cidPart = Text.drop 1 cidPart'
