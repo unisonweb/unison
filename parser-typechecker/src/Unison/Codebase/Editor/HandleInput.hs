@@ -122,7 +122,10 @@ import qualified Unison.Lexer as L
 import Data.List (sortOn)
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
+import Debug.Trace (traceShowM, traceM)
 
 --import Debug.Trace
 
@@ -207,10 +210,6 @@ loop = do
         eval . Eval $ Branch.getPatch seg (Branch.head b)
 
       withFile ambient sourceName lexed@(text, tokens) k = do
-        -- todo: Need to lex the file, pull out all the hash-qualified tokens
-        -- then monadically load from history info related to these HQs, and
-        -- then use both `names0` and the historical `names0` to construct
-        -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
         let getHQ = \case
               L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
               L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
@@ -219,15 +218,17 @@ loop = do
               _                       -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
-        -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
-        ppe <- prettyPrintEnv =<< makeHistoricalPrintNamesFromHQ hqs
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just Nothing -> respond $
-            TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
+          Just Nothing -> do
+            -- todo: like in makePrintNamesFromLabeled, these names need to be
+            -- shadowed by whatever was found in the file.
+            ppe <- prettyPrintEnv =<< makePrintNamesFromHQ hqs
+            respond $
+              TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Just r) -> k r
 
   case e of
@@ -542,8 +543,9 @@ loop = do
 --          else do
 --            failed <- loadSearchResults $ Names.asSearchResults failed
 --            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+--            printNames <- makePrintNamesFromLabeled' (srLabeledDependencies)
 --            respond $ CantDelete input rootNames failed failedDependents
---
+
 --      -- like the previous
 --      DeleteTermI hq -> case toList (getHQ'Terms hq) of
 --        [] -> termNotFound hq
@@ -570,8 +572,6 @@ loop = do
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
             results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
         results' <- loadSearchResults results
-        printNames <-
-          makePrintNamesFromLabeled' (foldMap SR'.labeledDependencies results')
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
               Map.fromList
@@ -608,6 +608,10 @@ loop = do
                   (r,) . maybe (MissingThing i) RegularThing
                        $ Map.lookup i loadedDerivedTypes
                 r@(Reference.Builtin _) -> (r, BuiltinThing)
+        -- the SR' deps include the result term/type names, and the
+        let deps = foldMap SR'.labeledDependencies results'
+                <> foldMap Term.labeledDependencies loadedDerivedTerms
+        printNames <- makePrintNamesFromLabeled' deps
 
         -- We might like to make sure that the user search terms get used as
         -- the names in the pretty-printer, but the current implementation
@@ -631,6 +635,7 @@ loop = do
               | (p, b) <- Branch.toList0 currentBranch0
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
+
 --      SearchByNameI q | q == [] || q == ["-l"] -> do
 --        let results = listBranch $ Branch.head currentBranch'
 --        numberedArgs .= fmap searchResultToHQString results
@@ -1654,7 +1659,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else fail $ "Invalid reference: " <> show ref
 
 --fixupHistoricalRefs :: Monad m
---  => Set (Either Reference Referent)
+--  => Set LabeledDependency
 --  -> Branch m
 --  -> Path.Absolute
 --  -> Action' m v (Names0)
@@ -1719,7 +1724,7 @@ resolveHQName (Path.unabsolute -> p) n =
     _ -> Name.joinDot (Path.toName p) n
 
 makePrintNamesFromLabeled :: Monad m
-                          => Set (Either Reference Referent)
+                          => Set LabeledDependency
                           -> Names0
                           -> Action' m v Names
 makePrintNamesFromLabeled deps shadowing = do
@@ -1734,7 +1739,7 @@ makePrintNamesFromLabeled deps shadowing = do
     Names (Names3.unionLeft0 shadowing basicNames0)
           (basicNames0 <> fixupNamesRelative currentPath rawHistoricalNames)
 
-makePrintNamesFromLabeled' :: Monad m => Set (Either Reference Referent) -> Action' m v Names
+makePrintNamesFromLabeled' :: Monad m => Set LabeledDependency -> Action' m v Names
 makePrintNamesFromLabeled' deps = do
   root <- use root
   currentPath <- use currentPath
@@ -1745,8 +1750,8 @@ makePrintNamesFromLabeled' deps = do
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 -- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
-makeHistoricalPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
-makeHistoricalPrintNamesFromHQ lexedHQs = do
+makePrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
+makePrintNamesFromHQ lexedHQs = do
   root <- use root
   currentPath <- use currentPath
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root

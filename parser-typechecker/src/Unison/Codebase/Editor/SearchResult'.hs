@@ -13,6 +13,8 @@ import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Type (Type)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 data SearchResult' v a
   = Tm' (TermResult' v a)
@@ -38,9 +40,9 @@ foldResult' f g = \case
   Tm' tm -> f tm
   Tp' tp -> g tp
 
-labeledDependencies :: Ord v => SearchResult' v a -> Set (Either Reference Referent)
+labeledDependencies :: Ord v => SearchResult' v a -> Set LabeledDependency
 labeledDependencies = \case
   Tm' (TermResult' _ t r _) ->
-    Set.insert (Right r) $ maybe mempty (Set.map Left . Type.dependencies) t
+    Set.insert (LD.referent r) $ maybe mempty (Set.map LD.typeRef . Type.dependencies) t
   Tp' (TypeResult' _ d r _) ->
-    Set.map Left . Set.insert r $ maybe mempty (DD.declDependencies) (DT.toMaybe d)
+    Set.map LD.typeRef . Set.insert r $ maybe mempty (DD.declDependencies) (DT.toMaybe d)

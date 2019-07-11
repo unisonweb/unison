@@ -18,9 +18,9 @@ import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
-import qualified Unison.Referent as Referent
 import Data.Foldable (toList)
-import Unison.Referent (Referent)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 data Patch = Patch
   { _termEdits :: Relation Reference TermEdit
@@ -29,14 +29,12 @@ data Patch = Patch
 
 makeLenses ''Patch
 
-labeledDependencies :: Patch -> Set (Either Reference Referent)
+labeledDependencies :: Patch -> Set LabeledDependency
 labeledDependencies Patch{..} =
-  Set.map tmRef (R.dom _termEdits) <>
-  (Set.fromList . fmap tmRef $ TermEdit.references =<< toList (R.ran _termEdits)) <>
-  Set.map tyRef (R.dom _typeEdits) <>
-  (Set.fromList . fmap tyRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
-  where tmRef = Right . Referent.Ref
-        tyRef = Left
+  Set.map LD.termRef (R.dom _termEdits) <>
+  (Set.fromList . fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits)) <>
+  Set.map LD.typeRef (R.dom _typeEdits) <>
+  (Set.fromList . fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
 
 empty :: Patch
 empty = Patch mempty mempty
