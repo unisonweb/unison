@@ -210,10 +210,6 @@ loop = do
         eval . Eval $ Branch.getPatch seg (Branch.head b)
 
       withFile ambient sourceName lexed@(text, tokens) k = do
-        -- todo: Need to lex the file, pull out all the hash-qualified tokens
-        -- then monadically load from history info related to these HQs, and
-        -- then use both `names0` and the historical `names0` to construct
-        -- the ParsingEnv, also pull out ctorTypes for all HQ'd stuff here
         let getHQ = \case
               L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
               L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
@@ -222,15 +218,17 @@ loop = do
               _                       -> Nothing
             hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
-        -- unlike makeHistoricalParsingNames, makeHistoricalPPE prefers relative names
-        ppe <- prettyPrintEnv =<< makePrintNamesFromHQ hqs
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
           -- Parsing failed
           Nothing -> respond $
             ParseErrors text [ err | Result.Parsing err <- toList notes ]
-          Just Nothing -> respond $
-            TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
+          Just Nothing -> do
+            -- todo: like in makePrintNamesFromLabeled, these names need to be
+            -- shadowed by whatever was found in the file.
+            ppe <- prettyPrintEnv =<< makePrintNamesFromHQ hqs
+            respond $
+              TypeErrors text ppe [ err | Result.TypeError err <- toList notes ]
           Just (Just r) -> k r
 
   case e of
