@@ -119,6 +119,7 @@ import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Lexer as L
+import Data.List (sortOn)
 
 --import Debug.Trace
 
@@ -174,6 +175,7 @@ loop = do
   latestFile'  <- use latestFile
   currentBranch' <- getAt currentPath'
   e           <- eval Input
+  hqLength    <- eval CodebaseHashLength
   let
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
@@ -560,102 +562,67 @@ loop = do
 --            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
 --            respond $ CantDelete input rootNames failed failedDependents
 
-      -- todo: this should probably be able to show definitions by Path.HQSplit'
---      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
---        historicalNamesForQueries <-
---          makeFixupHistorical
---            Branch.findHistoricalHQs
---              currentPath'
---              root'
---              (Set.fromList
---                . (fmap . fmap) (resolveHQName currentPath')
---                . filter HQ.hasHash
---                $ hqs)
---        let resultss = searchBranchExact (parseNames0 <> historicalNamesForQueries) hqs
---            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
---            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
---            queryNames = Names terms types where
---              terms = R.fromList [ (HQ'.toName hq, r) | SR.Tm' hq r _as <- results ]
---              types = R.fromList [ (HQ'.toName hq, r) | SR.Tp' hq r _as <- results ]
---        results' <- loadSearchResults results
---        let termTypes :: Map.Map Reference (Type v Ann)
---            termTypes =
---              Map.fromList
---                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
---            (collatedTypes, collatedTerms) = collateReferences
---              (mapMaybe Output.tpReference results')
---              (mapMaybe Output.tmReferent results')
---        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
---        loadedDerivedTerms <-
---          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
---            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
---            _ -> pure Nothing
---        loadedDerivedTypes <-
---          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
---            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
---            _ -> pure Nothing
---        -- Populate DisplayThings for the search results, in anticipation of
---        -- displaying the definitions.
---        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
---          r@(Reference.DerivedId i) -> do
---            let tm = Map.lookup i loadedDerivedTerms
---            -- We add a type annotation to the term using if it doesn't
---            -- already have one that the user provided
---            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
---              Nothing        -> MissingThing i
---              Just (tm, typ) -> case tm of
---                Term.Ann' _ _ -> RegularThing tm
---                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
---          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
---        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
---            loadedDisplayTypes =
---              Map.fromList . (`fmap` toList collatedTypes) $ \case
---                r@(Reference.DerivedId i) ->
---                  (r,) . maybe (MissingThing i) RegularThing
---                       $ Map.lookup i loadedDerivedTypes
---                r@(Reference.Builtin _) -> (r, BuiltinThing)
---        historicalNames <- do
---          -- traverse the ABTs looking for dependencies
---          labeledTypeDependencies <- pure . Set.map Left $
---                foldMap DD.declDependencies (toList loadedDerivedTypes)
---          labeledTermDependencies <-
---            foldMapM (Term.labeledDependencies $ eval . IsType)
---                     (toList loadedDerivedTerms)
---          -- seed the historical find algorithm with the terms and types that
---          -- aren't present in root0
---          fixupHistoricalRefs
---            (labeledTypeDependencies <> labeledTermDependencies)
---            root'
---            currentPath'
---
---        -- We might like to make sure that the user search terms get used as
---        -- the names in the pretty-printer, but the current implementation
---        -- doesn't.
---        let
---          -- The definitions will generally reference names outside the current
---          -- path.  For now we'll assume the pretty-printer will factor out
---          -- excess name prefixes.
---          currentBranchNames, rootNames :: Names0
---          currentBranchNames = Branch.toNames0 currentBranch0
---          rootNames = Names.prefix0 (Name.Name "") $ Branch.toNames0 root0
---          names = Names.Names
---                    (queryNames
---                       `Names.unionLeft` currentBranchNames
---                       `Names.unionLeft` rootNames)
---                    (historicalNames
---                      `Names.unionLeftRef` historicalNamesForQueries)
---        ppe <- prettyPrintEnv names
---        let loc = case outputLoc of
---              ConsoleLocation    -> Nothing
---              FileLocation path  -> Just path
---              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
---        do
---          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
---          eval . Notify . SearchTermsNotFound $ fmap fst misses
---          -- We set latestFile to be programmatically generated, if we
---          -- are viewing these definitions to a file - this will skip the
---          -- next update for that file (which will happen immediately)
---          latestFile .= ((, True) <$> loc)
+      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
+        parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
+        let resultss = searchBranchExact hqLength parseNames hqs
+            (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
+            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
+        results' <- loadSearchResults results
+        printNames <-
+          makePrintNamesFromLabeled' (foldMap Output.srLabeledDependencies results')
+        let termTypes :: Map.Map Reference (Type v Ann)
+            termTypes =
+              Map.fromList
+                [ (r, t) | Output.Tm _ (Just t) (Referent.Ref r) _ <- results' ]
+            (collatedTypes, collatedTerms) = collateReferences
+              (mapMaybe Output.tpReference results')
+              (mapMaybe Output.tmReferent results')
+        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
+        loadedDerivedTerms <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
+            Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
+            _ -> pure Nothing
+        loadedDerivedTypes <-
+          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
+            Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
+            _ -> pure Nothing
+        -- Populate DisplayThings for the search results, in anticipation of
+        -- displaying the definitions.
+        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+          r@(Reference.DerivedId i) -> do
+            let tm = Map.lookup i loadedDerivedTerms
+            -- We add a type annotation to the term using if it doesn't
+            -- already have one that the user provided
+            pure . (r, ) $ case liftA2 (,) tm (Map.lookup r termTypes) of
+              Nothing        -> MissingThing i
+              Just (tm, typ) -> case tm of
+                Term.Ann' _ _ -> RegularThing tm
+                _ -> RegularThing (Term.ann (ABT.annotation tm) tm typ)
+          r@(Reference.Builtin _) -> pure (r, BuiltinThing)
+        let loadedDisplayTypes :: Map Reference (DisplayThing (DD.Decl v Ann))
+            loadedDisplayTypes =
+              Map.fromList . (`fmap` toList collatedTypes) $ \case
+                r@(Reference.DerivedId i) ->
+                  (r,) . maybe (MissingThing i) RegularThing
+                       $ Map.lookup i loadedDerivedTypes
+                r@(Reference.Builtin _) -> (r, BuiltinThing)
+
+        -- We might like to make sure that the user search terms get used as
+        -- the names in the pretty-printer, but the current implementation
+        -- doesn't.
+        ppe <- prettyPrintEnv printNames
+        let loc = case outputLoc of
+              ConsoleLocation    -> Nothing
+              FileLocation path  -> Just path
+              LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
+        do
+          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          eval . Notify . SearchTermsNotFound $ fmap fst misses
+          -- We set latestFile to be programmatically generated, if we
+          -- are viewing these definitions to a file - this will skip the
+          -- next update for that file (which will happen immediately)
+          latestFile .= ((, True) <$> loc)
+
       FindPatchI ->
         let patches = Set.fromList
               [ Path.toName $ Path.snoc p seg
@@ -1134,26 +1101,31 @@ collateReferences (toList -> types) (toList -> terms) =
 -- #567 = +3
 
 -- | The output list (of lists) corresponds to the query list.
-searchBranchExact :: Names0 -> [HQ.HashQualified] -> [[SearchResult]]
-searchBranchExact names0 queries = let
+searchBranchExact :: Int -> Names -> [HQ.HashQualified] -> [[SearchResult]]
+searchBranchExact len names queries = let
   searchTypes :: HQ.HashQualified -> [SearchResult]
   searchTypes query =
-    -- construct a search result with appropriately hash-qualified version of the query
-    -- for each (n,r) see if it matches a query.  If so, get appropriately hash-qualified version.
-    [ SR.typeResult (Names.hqTypeName names0 name r) r
-                    (Names.hqTypeAliases names0 name r)
-    | (name, r) <- R.toList $ Names.types names0
-    , uncurry HQ.matchesNamedReference (name, r) query
-    ]
+    -- a bunch of references will match a HQ ref.
+    let refs = toList $ Names3.lookupHQType query names in
+    refs <&> \r ->
+      let hqNames = Names3.typeName len r names in
+      let primaryName =
+            last . sortOn (\n -> HQ.matchesNamedReference (HQ'.toName n) r query)
+                 $ toList hqNames in
+      let aliases = Set.delete primaryName hqNames in
+      SR.typeResult primaryName r aliases
   searchTerms :: HQ.HashQualified -> [SearchResult]
   searchTerms query =
-    [ SR.termResult (Names.hqTermName names0 name r) r
-                    (Names.hqTermAliases names0 name r)
-    | (name, r) <- R.toList $ Names.terms names0
-    , uncurry HQ.matchesNamedReferent (name, r) query
-    ]
+    -- a bunch of references will match a HQ ref.
+    let refs = toList $ Names3.lookupHQTerm query names in
+    refs <&> \r ->
+      let hqNames = Names3.termName len r names in
+      let primaryName =
+            last . sortOn (\n -> HQ.matchesNamedReferent (HQ'.toName n) r query)
+                 $ toList hqNames in
+      let aliases = Set.delete primaryName hqNames in
+      SR.termResult primaryName r aliases
   in [ searchTypes q <> searchTerms q | q <- queries ]
-
 
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output

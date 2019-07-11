@@ -1,8 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module Unison.Test.Common
-  (
-    t
+  ( hqLength
+  , t
   , tm
   , parseAndSynthesizeAsFile
   , parsingEnv
@@ -33,6 +33,9 @@ import qualified Text.Megaparsec.Error         as MPE
 
 type Term v = AnnotatedTerm v Ann
 type Type v = AnnotatedType v Ann
+
+hqLength :: Int
+hqLength = 10
 
 t :: String -> Type Symbol
 t s = ABT.amap (const Intrinsic)

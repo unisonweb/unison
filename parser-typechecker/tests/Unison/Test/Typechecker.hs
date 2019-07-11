@@ -33,6 +33,7 @@ import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
 import qualified Unison.Var as Var
 import qualified Unison.Type as Type
+import qualified Unison.Test.Common as Common
 
 type Note = Result.Note Symbol Parser.Ann
 
@@ -44,7 +45,7 @@ type SynthResult =
 type EitherResult = Either String TFile
 
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames 10 Builtin.names
+ppEnv = PPE.fromNames Common.hqLength Builtin.names
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left  e) = crash e

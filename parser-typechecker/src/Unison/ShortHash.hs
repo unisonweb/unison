@@ -36,7 +36,7 @@ isConstructor = \case
 --   e.g. foo#abc.1f.x is parsed as #abc.1f
 fromText :: Text -> Maybe ShortHash
 fromText t = case Text.split (=='#') t of
-  [_, "", b] -> Just $ Builtin b -- builtin gets ##
+  [_, "", b] -> Just $ Builtin b -- builtin starts with ##
   [_, h]     -> Just $ uncurry ShortHash (getCycle h) Nothing
   _ : h : c : _garbage  -> Just $ uncurry ShortHash (getCycle h) (Just c)
   _ -> Nothing

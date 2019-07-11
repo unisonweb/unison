@@ -20,6 +20,8 @@ import qualified Unison.Name                   as Name
 import qualified Unison.Names3                 as Names
 import qualified Unison.Referent               as Referent
 import qualified Unison.ConstructorType as CT
+import qualified Unison.HashQualified' as HQ'
+import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -36,8 +38,8 @@ instance Show PrettyPrintEnv where
 
 fromNames :: Int -> Names -> PrettyPrintEnv
 fromNames length names = PrettyPrintEnv terms' types' where
-  terms' r = safeHead (Names.termName length r names)
-  types' r = safeHead (Names.typeName length r names)
+  terms' r = safeHead . Set.map HQ'.toHQ $ (Names.termName length r names)
+  types' r = safeHead . Set.map HQ'.toHQ $ (Names.typeName length r names)
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
