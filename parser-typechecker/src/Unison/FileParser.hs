@@ -65,7 +65,7 @@ file = do
     -- which are parsed and applied to each stanza
     (names, imports) <- TermParser.imports <* optional semi
     stanzas00 <- local (\e -> e { names = names }) $ sepBy semi stanza
-    let stanzas = fmap (TermParser.substImports imports) <$> stanzas00
+    let stanzas = fmap (TermParser.substImports names imports) <$> stanzas00
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
