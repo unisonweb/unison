@@ -5,7 +5,7 @@
 
 module Unison.FileParsers where
 
-import Debug.Trace
+-- import Debug.Trace
 import Control.Lens (view, _3)
 import qualified Unison.Parser as Parser
 import           Control.Monad              (foldM)
@@ -115,7 +115,7 @@ resolveNames typeLookupf preexistingNames uf = do
           typ <- toList $ TL.typeOfReferent tl r,
           let shortname = Name.toText $ Name.unqualified name,
           let nr = Typechecker.NamedReference (Name.toText name) typ (Right r) ]
-  pure (tm, traceShow (Map.keys fqnsByShortName) fqnsByShortName, tl)
+  pure (tm, fqnsByShortName, tl)
 
 synthesizeFile
   :: forall v
