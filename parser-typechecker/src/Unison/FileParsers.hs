@@ -47,6 +47,7 @@ import qualified Unison.Util.List           as List
 import qualified Unison.Util.Relation       as Rel
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
+import Unison.Names3 (Names0)
 
 type Term v = AnnotatedTerm v Ann
 type Type v = Unison.Type.Type v Ann
@@ -76,13 +77,13 @@ parseAndSynthesizeFile
   -> ResultT
        (Seq (Note v Ann))
        m
-       (Maybe (UF.TypecheckedUnisonFile v Ann))
+       (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 parseAndSynthesizeFile ambient typeLookupf env filePath src = do
   uf <- Result.fromParsing $ Parsers.parseFile filePath (unpack src) env
   let names0 = Names.currentNames (Parser.names env)
   (tm, tdnrMap, typeLookup) <- resolveNames typeLookupf names0 uf
   let (Result notes' r) = synthesizeFile ambient typeLookup tdnrMap uf tm
-  tell notes' $> r
+  tell notes' $> maybe (Left (UF.toNames uf )) Right r
 
 type TDNRMap v = Map Typechecker.Name [Typechecker.NamedReference v Ann]
 

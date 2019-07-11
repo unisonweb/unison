@@ -35,8 +35,8 @@ typecheckedFile = let
   r = parseAndSynthesizeFile [] tl env "<IO.u builtin>" source
   in case runIdentity $ Result.runResultT r of
     (Nothing, notes) -> error $ "parsing failed: " <> show notes
-    (Just Nothing, notes) -> error $ "typechecking failed" <> show notes
-    (Just (Just file), _) -> file
+    (Just Left{}, notes) -> error $ "typechecking failed" <> show notes
+    (Just (Right file), _) -> file
 
 typecheckedFileTerms :: Map.Map Symbol R.Reference
 typecheckedFileTerms = view _1 <$> UF.hashTerms typecheckedFile

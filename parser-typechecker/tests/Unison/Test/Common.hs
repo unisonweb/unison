@@ -29,6 +29,7 @@ import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
 import qualified Unison.Util.ColorText         as Color
 import qualified Text.Megaparsec.Error         as MPE
+import qualified Unison.Names3
 
 
 type Term v = AnnotatedTerm v Ann
@@ -64,7 +65,7 @@ parseAndSynthesizeAsFile
   -> String
   -> Result
        (Seq (Note v Ann))
-       (Maybe (TypecheckedUnisonFile v Ann))
+       (Either Unison.Names3.Names0 (TypecheckedUnisonFile v Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)
