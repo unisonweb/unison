@@ -64,8 +64,6 @@ file = do
     -- which are parsed and applied to each stanza
     (names, _imports) <- TermParser.imports <* optional semi
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
-    let allTermVars = Set.fromList $ foldMap getVars stanzas0
-    stanzas <- case List.validate (traverse $ Term.bindNames allTermVars (Names.currentNames names)) stanzas0 of
     stanzas <- case List.validate (traverse $ Term.bindSomeNames (Names.currentNames names)) stanzas0 of
       Left es -> resolutionFailures (toList es)
       Right s -> pure s
