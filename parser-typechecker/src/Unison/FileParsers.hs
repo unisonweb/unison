@@ -93,10 +93,7 @@ resolveNames
        (AnnotatedTerm v Ann, TDNRMap v, TL.TypeLookup v Ann)
 resolveNames typeLookupf preexistingNames uf = do
   let names = UF.toNames uf `Names.unionLeft0` preexistingNames
-  -- note, this will fail if there are any free type vars left, which we want
-  tm <- case Term.bindSomeNames names (UF.typecheckingTerm uf) of
-    Left e -> Result.tellAndFail $ Result.NameResolutionFailures (Foldable.toList e)
-    Right a -> pure a
+  let tm = UF.typecheckingTerm uf
   tl <- lift . lift . fmap (UF.declsToTypeLookup uf <>) $ typeLookupf (Term.dependencies tm)
   let fqnsByShortName = Map.fromListWith mappend
         [ (Name.toText $ Name.unqualified name,

@@ -66,6 +66,7 @@ file = do
     stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
     let allTermVars = Set.fromList $ foldMap getVars stanzas0
     stanzas <- case List.validate (traverse $ Term.bindNames allTermVars (Names.currentNames names)) stanzas0 of
+    stanzas <- case List.validate (traverse $ Term.bindSomeNames (Names.currentNames names)) stanzas0 of
       Left es -> resolutionFailures (toList es)
       Right s -> pure s
     _ <- closeBlock
