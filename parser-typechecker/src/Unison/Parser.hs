@@ -308,8 +308,9 @@ prefixDefinitionName =
 -- Parse a wordy identifier e.g. Foo, discarding any hash
 wordyDefinitionName :: Var v => P v (L.Token v)
 wordyDefinitionName = queryToken $ \case
-  L.WordyId s _ -> Just $ Var.nameds s
-  _             -> Nothing
+  L.WordyId s _            -> Just $ Var.nameds s
+  L.Blank s                -> Just $ Var.nameds ("_" <> s)
+  _                        -> Nothing
 
 -- Parse a wordyId as a String, rejecting any hash
 wordyIdString :: Ord v => P v (L.Token String)
