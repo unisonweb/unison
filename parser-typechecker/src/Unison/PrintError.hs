@@ -57,7 +57,9 @@ import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
+import qualified Unison.Names3 as Names
 import Unison.HashQualified (HashQualified)
+import Unison.Type (Type)
 
 type Env = PPE.PrettyPrintEnv
 
@@ -95,7 +97,7 @@ showTypeWithProvenance
   => Env
   -> String
   -> style
-  -> Type.AnnotatedType v a
+  -> Type v a
   -> AnnotatedText style
 showTypeWithProvenance env src color typ =
   style color (renderType' env typ)
@@ -134,7 +136,7 @@ renderTypeInfo i env = case i of
  where
   renderOne
     :: IsString s
-    => (v, Type.AnnotatedType v loc, RedundantTypeAnnotation)
+    => (v, Type v loc, RedundantTypeAnnotation)
     -> [s]
   renderOne (v, typ, _) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
@@ -699,7 +701,7 @@ renderTerm env e =
      else fromString s
 
 -- | renders a type with no special styling
-renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
+renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
 renderType' env typ = fromString . Color.toPlain $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
@@ -708,7 +710,7 @@ renderType
   :: Var v
   => Env
   -> (loc -> AnnotatedText a -> AnnotatedText a)
-  -> Type.AnnotatedType v loc
+  -> Type v loc
   -> AnnotatedText a
 renderType env f t =
   renderType0 env f (0 :: Int) (Type.removePureEffects t)
@@ -765,6 +767,9 @@ renderVar' :: (Var v, Annotated a) => Env -> C.Context v a -> v -> String
 renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t  -> renderType' env $ Type.getPolytype t
+
+prettyVar :: Var v => v -> Pr.Pretty Pr.ColorText
+prettyVar = Pr.text . Var.name
 
 renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
@@ -1023,7 +1028,21 @@ prettyParseError s = \case
     , tokenAsErrorSite s $ HQ.toString <$> tok
     , ". Make sure it's spelled correctly and that you have the right hash."
     ]
-  go (Parser.ResolutionFailures        _failures) = error "todo"
+  go (Parser.ResolutionFailures        failures) =
+    Pr.render defaultWidth . Pr.border 2 . Pr.callout "❓" $ Pr.linesNonEmpty [
+      Pr.wrap ("I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:"),
+      "",
+      Pr.lit . annotatedsAsErrorSite s $
+        [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
+        [ a | Names.TypeResolutionFailure _ a _ <- failures ],
+      let
+        conflicts =
+          [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
+          [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
+      in
+        if null conflicts then ""
+        else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+    ]
   unknownConstructor
     :: String -> L.Token HashQualified -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
@@ -1048,6 +1067,10 @@ annotatedAsStyle
   :: (Ord style, Annotated a) => style -> String -> a -> AnnotatedText style
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
+
+annotatedsAsErrorSite ::
+  (Annotated a) => String -> [a] -> AnnotatedText Color
+annotatedsAsErrorSite = annotatedsAsStyle ErrorSite
 
 annotatedsAsStyle ::
   (Annotated a) => Color -> String -> [a] -> AnnotatedText Color

@@ -33,6 +33,7 @@ import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
 import Unison.DataDeclaration (Decl)
+import Unison.Type (Type)
 
 --import Debug.Trace
 
@@ -40,7 +41,6 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 
 data Codebase m v a =

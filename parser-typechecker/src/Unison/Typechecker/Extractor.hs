@@ -29,6 +29,7 @@ import           Unison.Util.Monoid             ( whenM )
 import qualified Unison.Blank                  as B
 import Unison.Var                              (Var)
 import qualified Unison.Var                    as Var
+import Unison.Type (Type)
 
 type RedundantTypeAnnotation = Bool
 
@@ -304,7 +305,7 @@ topLevelComponent
   :: InfoExtractor
        v
        loc
-       [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)]
+       [(v, Type v loc, RedundantTypeAnnotation)]
 topLevelComponent = extractor go
  where
   go (C.TopLevelComponent c) = Just c

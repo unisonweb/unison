@@ -47,10 +47,10 @@ import qualified Unison.DataDeclaration as DD
 
 pretty
   :: forall v a . (Var v)
-  => PrettyPrintEnv -> AnnotatedType v a -> Pretty ColorText
+  => PrettyPrintEnv -> Type v a -> Pretty ColorText
 pretty ppe ty = pretty0 ppe mempty (-1) ty
 
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> AnnotatedType v a -> String
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Type v a -> String
 pretty' (Just width) n t = toPlain $ PP.render width $ pretty0 n Map.empty (-1) t
 pretty' Nothing      n t = toPlain $ PP.render maxBound $ pretty0 n Map.empty (-1) t
 
@@ -59,7 +59,7 @@ pretty0
   => PrettyPrintEnv
   -> Imports
   -> Int
-  -> AnnotatedType v a
+  -> Type v a
   -> Pretty ColorText
 pretty0 n im p tp = prettyRaw n im p (cleanup (removePureEffects tp))
 
@@ -68,14 +68,14 @@ prettyRaw
   => PrettyPrintEnv
   -> Imports
   -> Int
-  -> AnnotatedType v a
+  -> Type v a
   -> Pretty ColorText
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
 prettyRaw n im p tp = go n im p tp
   where
-  go :: PrettyPrintEnv -> Imports -> Int -> AnnotatedType v a -> Pretty ColorText
+  go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty ColorText
   go n im p tp = case stripIntroOuters tp of
     Var' v     -> fmt S.Var $ PP.text (Var.name v)
     -- Would be nice to use a different SyntaxHighlights color if the reference is an ability.
@@ -135,7 +135,7 @@ prettyRaw n im p tp = go n im p tp
 -- todo: provide sample output in comment
 prettySignatures'
   :: Var v => PrettyPrintEnv
-  -> [(HashQualified, AnnotatedType v a)]
+  -> [(HashQualified, Type v a)]
   -> [Pretty ColorText]
 prettySignatures' env ts = PP.align
   [ (styleHashQualified'' (fmt S.DataType) name, ((fmt S.TypeAscriptionColon ": ") <> (pretty0 env Map.empty (-1) typ)) `PP.orElse`
@@ -146,7 +146,7 @@ prettySignatures' env ts = PP.align
 -- todo: provide sample output in comment; different from prettySignatures'
 prettySignaturesAlt'
   :: Var v => PrettyPrintEnv
-  -> [([HashQualified], AnnotatedType v a)]
+  -> [([HashQualified], Type v a)]
   -> [Pretty ColorText]
 prettySignaturesAlt' env ts = PP.align
   [ (PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names, ((fmt S.TypeAscriptionColon ": ") <> (pretty0 env Map.empty (-1) typ)) `PP.orElse`
@@ -154,13 +154,13 @@ prettySignaturesAlt' env ts = PP.align
   | (names, typ) <- ts
   ]
 
--- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, AnnotatedType v a)] -> [Pretty ColorText]
+-- prettySignatures'' :: Var v => PrettyPrintEnv -> [(Name, Type v a)] -> [Pretty ColorText]
 -- prettySignatures'' env ts = prettySignatures' env (first HQ.fromName <$> ts)
 
 prettySignatures
   :: Var v
   => PrettyPrintEnv
-  -> [(HashQualified, AnnotatedType v a)]
+  -> [(HashQualified, Type v a)]
   -> Pretty ColorText
 prettySignatures env ts = PP.lines $
   PP.group <$> prettySignatures' env ts
@@ -168,7 +168,7 @@ prettySignatures env ts = PP.lines $
 prettySignaturesAlt
   :: Var v
   => PrettyPrintEnv
-  -> [([HashQualified], AnnotatedType v a)]
+  -> [([HashQualified], Type v a)]
   -> Pretty ColorText
 prettySignaturesAlt env ts = PP.lines $
   PP.group <$> prettySignaturesAlt' env ts

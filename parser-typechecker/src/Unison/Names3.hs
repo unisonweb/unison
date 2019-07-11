@@ -22,7 +22,7 @@ import qualified Unison.Names2
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.Relation as R
 
-data Names = Names { currentNames :: Names0, oldNames :: Names0 }
+data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
 type Names0 = Unison.Names2.Names0
 pattern Names0 terms types = Unison.Names2.Names terms types

@@ -13,14 +13,13 @@ import Unison.Reference (Reference)
 import Unison.Names3 (Names0)
 import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(RegularThing))
-import Unison.Type (AnnotatedType)
+import Unison.Type (Type)
 import Unison.DataDeclaration (Decl)
 import Data.Foldable (toList)
 import Unison.Referent (Referent)
 import Data.Set (Set)
 
 type Score = Int
-type Type v a = AnnotatedType v a
 
 data TodoOutput v a = TodoOutput
   { todoScore :: Score

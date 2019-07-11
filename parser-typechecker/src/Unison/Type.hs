@@ -64,46 +64,42 @@ instance Ord1 F where compare1 = compare
 instance Show1 F where showsPrec1 = showsPrec
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
-type Type v = AnnotatedType v ()
+type Type v a = ABT.Term F v a
 
--- | Like `Type v`, but with an annotation of type `a` at every level in the tree
-type AnnotatedType v a = ABT.Term F v a
-
-wrapV :: Ord v => AnnotatedType v a -> AnnotatedType (ABT.V v) a
+wrapV :: Ord v => Type v a -> Type (ABT.V v) a
 wrapV = ABT.vmap ABT.Bound
 
-freeVars :: AnnotatedType v a -> Set v
+freeVars :: Type v a -> Set v
 freeVars = ABT.freeVars
 
-bindExternal :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
+bindExternal :: Var v => [(v, Reference)] -> Type v a -> Type v a
 bindExternal bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
 
 bindNames
   :: Var v
   => Set v
   -> Names.Names0
-  -> AnnotatedType v a
-  -> Names.ResolutionResult v a (AnnotatedType v a)
+  -> Type v a
+  -> Names.ResolutionResult v a (Type v a)
 bindNames keepFree ns t = let
-  fvs = ABT.freeVarOccurrences (freeVars t) t
-  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) |
-        (v,a) <- fvs, Set.notMember v keepFree ]
+  fvs = ABT.freeVarOccurrences keepFree t
+  rs = [(v, a, R.lookupDom (Name.fromVar v) (Names.types0 ns)) | (v,a) <- fvs ]
   ok (v, a, rs) = if Set.size rs == 1 then pure (v, Set.findMin rs)
                   else Left (pure (Names.TypeResolutionFailure v a rs))
   in List.validate ok rs <&> \es -> bindExternal es t
 
-data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
+data Monotype v a = Monotype { getPolytype :: Type v a } deriving Eq
 
 instance (Var v) => Show (Monotype v a) where
   show = show . getPolytype
 
 -- Smart constructor which checks if a `Type` has no `Forall` quantifiers.
-monotype :: Var v => AnnotatedType v a -> Maybe (Monotype v a)
+monotype :: Var v => Type v a -> Maybe (Monotype v a)
 monotype t = Monotype <$> ABT.visit isMono t where
   isMono (Forall' _) = Just Nothing
   isMono _ = Nothing
 
-arity :: AnnotatedType v a -> Int
+arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
@@ -136,31 +132,31 @@ pattern Abs' subst <- ABT.Abs' subst
 pattern Existential' b v <- ABT.Var' (TypeVar.Existential b v)
 pattern Universal' v <- ABT.Var' (TypeVar.Universal v)
 
-unPure :: Ord v => AnnotatedType v a -> Maybe (AnnotatedType v a)
+unPure :: Ord v => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t
 unPure (Effect'' _ _) = Nothing
 unPure t = Just t
 
-unArrows :: AnnotatedType v a -> Maybe [AnnotatedType v a]
+unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
   case go t of [_] -> Nothing; l -> Just l
   where go (Arrow' i o) = i : go o
         go o = [o]
 
-unEffectfulArrows :: AnnotatedType v a ->
-     Maybe (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
+unEffectfulArrows :: Type v a ->
+     Maybe (Type v a, [(Maybe [Type v a], Type v a)])
 unEffectfulArrows t = case t of Arrow' i o -> Just (i, go o); _ -> Nothing
   where go (Effect1' (Effects' es) (Arrow' i o)) = (Just $ es >>= flattenEffects, i) : go o
         go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
         go (Arrow' i o) = (Nothing, i) : go o
         go t = [(Nothing, t)]
 
-unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
+unApps :: Type v a -> Maybe (Type v a, [Type v a])
 unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
   where go (App' i o) acc = go i (o:acc)
         go fn args = fn:args
 
-unIntroOuters :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unIntroOuters :: Type v a -> Maybe ([v], Type v a)
 unIntroOuters t = go t []
   where go (IntroOuterNamed' v body) vs = go body (v:vs)
         go _body [] = Nothing
@@ -169,48 +165,48 @@ unIntroOuters t = go t []
 -- Most code doesn't care about `introOuter` binders and is fine dealing with the
 -- these outer variable references as free variables. This function strips out
 -- one or more `introOuter` binders, so `outer a b . (a, b)` becomes `(a, b)`.
-stripIntroOuters :: AnnotatedType v a -> AnnotatedType v a
+stripIntroOuters :: Type v a -> Type v a
 stripIntroOuters t = case unIntroOuters t of
   Just (_, t) -> t
   Nothing     -> t
 
-unForalls :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
+unForalls :: Type v a -> Maybe ([v], Type v a)
 unForalls t = go t []
   where go (ForallNamed' v body) vs = go body (v:vs)
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
 
-unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+unEffect0 :: Ord v => Type v a -> ([Type v a], Type v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
 unEffect0 t = ([], t)
 
-unEffects1 :: Ord v => AnnotatedType v a -> Maybe ([AnnotatedType v a], AnnotatedType v a)
+unEffects1 :: Ord v => Type v a -> Maybe ([Type v a], Type v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
 unEffects1 _ = Nothing
 
-matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
+matchExistential :: Eq v => v -> Type (TypeVar b v) () -> Bool
 matchExistential v (Existential' _ x) = x == v
 matchExistential _ _ = False
 
-matchUniversal :: Eq v => v -> Type (TypeVar b v) -> Bool
+matchUniversal :: Eq v => v -> Type (TypeVar b v) () -> Bool
 matchUniversal v (Universal' x) = x == v
 matchUniversal _ _ = False
 
 -- | True if the given type is a function, possibly quantified
-isArrow :: Var v => AnnotatedType v a -> Bool
+isArrow :: Var v => Type v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
 isArrow _ = False
 
 -- some smart constructors
 
---vectorOf :: Ord v => a -> AnnotatedType v a -> Type v
+--vectorOf :: Ord v => a -> Type v a -> Type v
 --vectorOf a t = vector `app` t
 
-ref :: Ord v => a -> Reference -> AnnotatedType v a
+ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
-derivedBase58 :: Ord v => Reference -> a -> AnnotatedType v a
+derivedBase58 :: Ord v => Reference -> a -> Type v a
 derivedBase58 r a = ref a r
 
 derivedBase58' :: Text -> Reference
@@ -226,168 +222,169 @@ vectorRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 
-builtin :: Ord v => a -> Text -> AnnotatedType v a
+builtin :: Ord v => a -> Text -> Type v a
 builtin a = ref a . Reference.Builtin
 
-int :: Ord v => a -> AnnotatedType v a
+int :: Ord v => a -> Type v a
 int a = ref a $ intRef
 
-nat :: Ord v => a -> AnnotatedType v a
+nat :: Ord v => a -> Type v a
 nat a = ref a $ natRef
 
-float :: Ord v => a -> AnnotatedType v a
+float :: Ord v => a -> Type v a
 float a = ref a $ floatRef
 
-boolean :: Ord v => a -> AnnotatedType v a
+boolean :: Ord v => a -> Type v a
 boolean a = ref a $ booleanRef
 
-text :: Ord v => a -> AnnotatedType v a
+text :: Ord v => a -> Type v a
 text a = ref a $ textRef
 
-vector :: Ord v => a -> AnnotatedType v a
+vector :: Ord v => a -> Type v a
 vector a = ref a $ vectorRef
 
-bytes :: Ord v => a -> AnnotatedType v a
+bytes :: Ord v => a -> Type v a
 bytes a = ref a $ bytesRef
 
-effectType :: Ord v => a -> AnnotatedType v a
+effectType :: Ord v => a -> Type v a
 effectType a = ref a $ effectRef
 
-app :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+app :: Ord v => a -> Type v a -> Type v a -> Type v a
 app a f arg = ABT.tm' a (App f arg)
 
 -- `f x y z` means `((f x) y) z` and the annotation paired with `y` is the one
 -- meant for `app (f x) y`
-apps :: Ord v => AnnotatedType v a -> [(a, AnnotatedType v a)] -> AnnotatedType v a
+apps :: Ord v => Type v a -> [(a, Type v a)] -> Type v a
 apps f params = foldl' go f params where
   go f (a,t) = app a f t
 
-app' :: (Ord v, Semigroup a) => AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+app' :: (Ord v, Semigroup a) => Type v a -> Type v a -> Type v a
 app' f arg = app (ABT.annotation f <> ABT.annotation arg) f arg
 
-apps' :: (Semigroup a, Ord v) => AnnotatedType v a -> [AnnotatedType v a] -> AnnotatedType v a
+apps' :: (Semigroup a, Ord v) => Type v a -> [Type v a] -> Type v a
 apps' f args = foldl app' f args
 
-arrow :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+arrow :: Ord v => a -> Type v a -> Type v a -> Type v a
 arrow a i o = ABT.tm' a (Arrow i o)
 
-arrow' :: (Semigroup a, Ord v) => AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+arrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
 arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
 
-ann :: Ord v => a -> AnnotatedType v a -> K.Kind -> AnnotatedType v a
+ann :: Ord v => a -> Type v a -> K.Kind -> Type v a
 ann a e t = ABT.tm' a (Ann e t)
 
-forall :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
+forall :: Ord v => a -> v -> Type v a -> Type v a
 forall a v body = ABT.tm' a (Forall (ABT.abs' a v body))
 
-introOuter :: Ord v => a -> v -> AnnotatedType v a -> AnnotatedType v a
+introOuter :: Ord v => a -> v -> Type v a -> Type v a
 introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
-iff :: Var v => Type v
+iff :: Var v => Type v ()
 iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
   where aa = ABT.v' "a"
         a = var () aa
         f x = ((), x)
 
-iff' :: Var v => a -> AnnotatedType v a
+iff' :: Var v => a -> Type v a
 iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
   where aa = ABT.v' "a"
         a = var loc aa
         f x = (loc, x)
 
-iff2 :: Var v => a -> AnnotatedType v a
+iff2 :: Var v => a -> Type v a
 iff2 loc = forall loc aa $ arrows (f <$> [a, a]) a
   where aa = ABT.v' "a"
         a = var loc aa
         f x = (loc, x)
 
-andor :: Ord v => Type v
+andor :: Ord v => Type v ()
 andor = arrows (f <$> [boolean(), boolean()]) $ boolean()
   where f x = ((), x)
 
-andor' :: Ord v => a -> AnnotatedType v a
+andor' :: Ord v => a -> Type v a
 andor' a = arrows (f <$> [boolean a, boolean a]) $ boolean a
   where f x = (a, x)
 
-var :: Ord v => a -> v -> AnnotatedType v a
+var :: Ord v => a -> v -> Type v a
 var = ABT.annotatedVar
 
-existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v)
+existential :: Ord v => Blank loc -> v -> Type (TypeVar (Blank loc) v) ()
 existential blank v = ABT.var (TypeVar.Existential blank v)
 
-universal :: Ord v => v -> Type (TypeVar b v)
+universal :: Ord v => v -> Type (TypeVar b v) ()
 universal v = ABT.var (TypeVar.Universal v)
 
-existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existentialp :: Ord v => a -> v -> Type (TypeVar (Blank x) v) a
 existentialp a v = existential' a Blank v
 
-existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
+existential' :: Ord v => a -> Blank x -> v -> Type (TypeVar (Blank x) v) a
 existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
 
-universal' :: Ord v => a -> v -> AnnotatedType (TypeVar b v) a
+universal' :: Ord v => a -> v -> Type (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
-v' :: Var v => Text -> Type v
+v' :: Var v => Text -> Type v ()
 v' s = ABT.var (ABT.v' s)
 
 -- Like `v'`, but creates an annotated variable given an annotation
-av' :: Var v => a -> Text -> AnnotatedType v a
+av' :: Var v => a -> Text -> Type v a
 av' a s = ABT.annotatedVar a (ABT.v' s)
 
-forall' :: Var v => a -> [Text] -> AnnotatedType v a -> AnnotatedType v a
+forall' :: Var v => a -> [Text] -> Type v a -> Type v a
 forall' a vs body = foldr (forall a) body (Var.named <$> vs)
 
-foralls :: Var v => a -> [v] -> AnnotatedType v a -> AnnotatedType v a
+foralls :: Var v => a -> [v] -> Type v a -> Type v a
 foralls a vs body = foldr (forall a) body vs
 
 -- Note: `a -> b -> c` parses as `a -> (b -> c)`
 -- the annotation associated with `b` will be the annotation for the `b -> c`
 -- node
-arrows :: Ord v => [(a, AnnotatedType v a)] -> AnnotatedType v a -> AnnotatedType v a
+arrows :: Ord v => [(a, Type v a)] -> Type v a -> Type v a
 arrows ts result = foldr go result ts where
   go (a,t) result = arrow a t result
 
 -- The types of effectful computations
-effect :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a -> AnnotatedType v a
+effect :: Ord v => a -> [Type v a] -> Type v a -> Type v a
 effect a es (Effect1' fs t) =
   let es' = (es >>= flattenEffects) ++ flattenEffects fs
   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
 effect a es t = ABT.tm' a (Effect (ABT.tm' a (Effects es)) t)
 
-effects :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a
+effects :: Ord v => a -> [Type v a] -> Type v a
 effects a es = ABT.tm' a (Effects $ es >>= flattenEffects)
 
-effect1 :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
+effect1 :: Ord v => a -> Type v a -> Type v a -> Type v a
 effect1 a es (Effect1' fs t) =
   let es' = flattenEffects es ++ flattenEffects fs
   in ABT.tm' a (Effect (ABT.tm' a (Effects es')) t)
 effect1 a es t = ABT.tm' a (Effect es t)
 
-flattenEffects :: AnnotatedType v a -> [AnnotatedType v a]
+flattenEffects :: Type v a -> [Type v a]
 flattenEffects (Effects' es) = es >>= flattenEffects
 flattenEffects es = [es]
 
 -- The types of first-class effect values
 -- which get deconstructed in effect handlers.
-effectV :: Ord v => a -> (a, AnnotatedType v a) -> (a, AnnotatedType v a) -> AnnotatedType v a
+effectV :: Ord v => a -> (a, Type v a) -> (a, Type v a) -> Type v a
 effectV builtinA e t = apps (builtin builtinA "Effect") [e, t]
 
 -- Strips effects from a type. E.g. `{e} a` becomes `a`.
-stripEffect :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+stripEffect :: Ord v => Type v a -> ([Type v a], Type v a)
 stripEffect (Effect' e t) = case stripEffect t of (ei, t) -> (e ++ ei, t)
 stripEffect t = ([], t)
+
 -- The type of the flipped function application operator:
 -- `(a -> (a -> b) -> b)`
-flipApply :: Var v => Type v -> Type v
+flipApply :: Var v => Type v () -> Type v ()
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
   where b = ABT.fresh t (ABT.v' "b")
 
-generalize' :: Var v => Var.Type -> AnnotatedType v a -> AnnotatedType v a
+generalize' :: Var v => Var.Type -> Type v a -> Type v a
 generalize' k t = generalize vsk t where
   vsk = [ v | v <- Set.toList (freeVars t), Var.typeOf v == k ]
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
-generalize :: Ord v => [v] -> AnnotatedType v a -> AnnotatedType v a
+generalize :: Ord v => [v] -> Type v a -> Type v a
 generalize vs t = foldr f t $ vs
   where
   f v t = if Set.member v (ABT.freeVars t)
@@ -395,34 +392,34 @@ generalize vs t = foldr f t $ vs
           else t
 
 generalizeExistentials
-  :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType (TypeVar b v) a
+  :: Var v => Type (TypeVar b v) a -> Type (TypeVar b v) a
 generalizeExistentials t =
   generalize (filter isExistential . Set.toList $ freeVars t) t
   where
   isExistential (TypeVar.Existential _ _) = True
   isExistential _ = False
 
-unforall :: AnnotatedType v a -> AnnotatedType v a
+unforall :: Type v a -> Type v a
 unforall (ForallsNamed' _ t) = t
 unforall t = t
 
-unforall' :: AnnotatedType v a -> ([v], AnnotatedType v a)
+unforall' :: Type v a -> ([v], Type v a)
 unforall' (ForallsNamed' vs t) = (vs, t)
 unforall' t = ([], t)
 
-generalizeAndUnTypeVar :: Var v => AnnotatedType (TypeVar b v) a -> AnnotatedType v a
+generalizeAndUnTypeVar :: Var v => Type (TypeVar b v) a -> Type v a
 generalizeAndUnTypeVar t =
   cleanup . ABT.vmap TypeVar.underlying . generalize (Set.toList $ ABT.freeVars t) $ t
 
-toTypeVar :: Ord v => AnnotatedType v a -> AnnotatedType (TypeVar b v) a
+toTypeVar :: Ord v => Type v a -> Type (TypeVar b v) a
 toTypeVar = ABT.vmap TypeVar.Universal
 
-dependencies :: Ord v => AnnotatedType v a -> Set Reference
+dependencies :: Ord v => Type v a -> Set Reference
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
   where f t@(Ref r) = Writer.tell [r] *> pure t
         f t = pure t
 
-usesEffects :: Var v => AnnotatedType v a -> Bool
+usesEffects :: Var v => Type v a -> Bool
 usesEffects t = getAny . getConst $ ABT.visit go t where
   go (Effect1' _ _) = Just (Const (Any True))
   go _ = Nothing
@@ -433,7 +430,7 @@ usesEffects t = getAny . getConst $ ABT.visit go t where
 --
 -- This function would return the set {e, e2}, but not `e3` since `e3`
 -- is bound by the enclosing forall.
-freeEffectVars :: Var v => AnnotatedType v a -> Set v
+freeEffectVars :: Var v => Type v a -> Set v
 freeEffectVars t =
   Set.fromList . join . runIdentity $
     ABT.foreachSubterm go (snd <$> ABT.annotateBound t)
@@ -448,8 +445,8 @@ freeEffectVars t =
 
 existentializeArrows :: (Var v, Monad m)
                      => m v
-                     -> AnnotatedType v a
-                     -> m (AnnotatedType v a)
+                     -> Type v a
+                     -> m (Type v a)
 existentializeArrows freshVar t = ABT.visit go t
   where
   go t@(Arrow' a b) = case b of
@@ -463,7 +460,7 @@ existentializeArrows freshVar t = ABT.visit go t
   go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
-removeEffectVars :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+removeEffectVars :: Var v => Set v -> Type v a -> Type v a
 removeEffectVars removals t =
   let z = effects () []
       t' = ABT.substsInheritAnnotation ((,z) <$> Set.toList removals) t
@@ -482,7 +479,7 @@ removeEffectVars removals t =
 -- Used for type-based search, we apply this transformation to both the
 -- indexed type and the query type, so the user can supply `a -> b` that will
 -- match `a ->{e} b` (but not `a ->{IO} b`).
-removeAllEffectVars :: Var v => AnnotatedType v a -> AnnotatedType v a
+removeAllEffectVars :: Var v => Type v a -> Type v a
 removeAllEffectVars t = let
   allEffectVars = foldMap go (ABT.subterms t)
   go (Effects' vs) = Set.fromList [ v | Var' v <- vs]
@@ -491,7 +488,7 @@ removeAllEffectVars t = let
   (vs, tu) = unforall' t
   in generalize vs (removeEffectVars allEffectVars tu)
 
-removePureEffects :: Var v => AnnotatedType v a -> AnnotatedType v a
+removePureEffects :: Var v => Type v a -> Type v a
 removePureEffects t | not Settings.removePureEffects = t
                     | otherwise =
   generalize vs $ removeEffectVars (Set.filter isPure fvs) tu
@@ -503,7 +500,7 @@ removePureEffects t | not Settings.removePureEffects = t
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
     isPure v = ABT.occurrences v tu <= 1
 
-functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
+functionResult :: Type v a -> Maybe (Type v a)
 functionResult t = go False t where
   go inArr (ForallNamed' _ body) = go inArr body
   go _inArr (Arrow' _i o) = go True o
@@ -512,20 +509,20 @@ functionResult t = go False t where
 
 -- | Bind all free variables (not in `except`) that start with a lowercase
 -- letter with an outer `forall`.
-generalizeLowercase :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
         isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
-freeVarsToOuters :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
+freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.intersection` allowed)]
 
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
 -- two different types.
-cleanupVars :: Var v => [AnnotatedType v a] -> [AnnotatedType v a]
+cleanupVars :: Var v => [Type v a] -> [Type v a]
 cleanupVars ts | not Settings.cleanupTypes = ts
 cleanupVars ts = let
   changedVars = cleanupVarsMap ts
@@ -534,7 +531,7 @@ cleanupVars ts = let
 -- Compute a variable replacement map from a collection of types, which
 -- can be passed to `cleanupVars1'`. This is used to cleanup variable ids
 -- for multiple related types, like when reporting a type error.
-cleanupVarsMap :: Var v => [AnnotatedType v a] -> Map.Map v v
+cleanupVarsMap :: Var v => [Type v a] -> Map.Map v v
 cleanupVarsMap ts = let
   varsByName = foldl' step Map.empty (ts >>= ABT.allVars)
   step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
@@ -543,17 +540,17 @@ cleanupVarsMap ts = let
                              , (v,i) <- nubOrd vs `zip` [0..]]
   in changedVars
 
-cleanupVars1' :: Var v => Map.Map v v -> AnnotatedType v a -> AnnotatedType v a
+cleanupVars1' :: Var v => Map.Map v v -> Type v a -> Type v a
 cleanupVars1' = ABT.changeVars
 
 -- | This function removes all variable shadowing from the type and reduces
 -- fresh ids to the minimum possible to avoid ambiguity.
-cleanupVars1 :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupVars1 :: Var v => Type v a -> Type v a
 cleanupVars1 t | not Settings.cleanupTypes = t
 cleanupVars1 t = let [t'] = cleanupVars [t] in t'
 
 -- This removes duplicates and normalizes the order of ability lists
-cleanupAbilityLists :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanupAbilityLists :: Var v => Type v a -> Type v a
 cleanupAbilityLists t = ABT.visitPure go t where
   -- leave explicitly empty `{}` alone
   go (Effect1' (Effects' []) _v) = Nothing
@@ -564,20 +561,20 @@ cleanupAbilityLists t = ABT.visitPure go t where
          _ -> Just (effect (ABT.annotation t) es $ ABT.visitPure go v)
   go _ = Nothing
 
-cleanups :: Var v => [AnnotatedType v a] -> [AnnotatedType v a]
+cleanups :: Var v => [Type v a] -> [Type v a]
 cleanups ts = cleanupVars $ map cleanupAbilityLists ts
 
-cleanup :: Var v => AnnotatedType v a -> AnnotatedType v a
+cleanup :: Var v => Type v a -> Type v a
 cleanup t | not Settings.cleanupTypes = t
 cleanup t = cleanupVars1 . cleanupAbilityLists $ t
 
-toReference :: Var v => AnnotatedType v a -> Reference
+toReference :: Var v => Type v a -> Reference
 toReference (Ref' r) = r
 -- a bit of normalization - any unused type parameters aren't part of the hash
 toReference (ForallNamed' v body) | not (Set.member v (ABT.freeVars body)) = toReference body
 toReference t = Reference.Derived (ABT.hash t) 0 1
 
-toReferenceMentions :: Var v => AnnotatedType v a -> Set Reference
+toReferenceMentions :: Var v => Type v a -> Set Reference
 toReferenceMentions ty =
   let (vs, _) = unforall' ty
   in Set.fromList $ toReference . generalize vs <$> ABT.subterms ty

@@ -17,6 +17,7 @@ import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor  as Ex
 import           Unison.Util.Monoid            (whenM)
 import           Unison.Var                    (Var)
+import Unison.Type (Type)
 
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
   deriving Show
@@ -83,7 +84,7 @@ type RedundantTypeAnnotation = Bool
 
 data TypeInfo v loc =
   TopLevelComponent
-    { definitions :: [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)] }
+    { definitions :: [(v, Type v loc, RedundantTypeAnnotation)] }
     deriving (Show)
 
 type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)

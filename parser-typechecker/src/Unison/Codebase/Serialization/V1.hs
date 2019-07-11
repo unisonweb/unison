@@ -79,6 +79,7 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 )
 import qualified Unison.Var                    as Var
 import qualified Unison.ConstructorType        as CT
+import Unison.Type (Type)
 
 -- ABOUT THIS FORMAT:
 --
@@ -375,7 +376,7 @@ getKind = getWord8 >>= \tag -> case tag of
 
 putType :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
-        -> Type.AnnotatedType v a
+        -> Type v a
         -> m ()
 putType putVar putA = putABT putVar putA go where
   go putChild t = case t of
@@ -389,7 +390,7 @@ putType putVar putA = putABT putVar putA go where
     Type.IntroOuter body -> putWord8 7 *> putChild body
 
 getType :: (MonadGet m, Ord v)
-        => m v -> m a -> m (Type.AnnotatedType v a)
+        => m v -> m a -> m (Type v a)
 getType getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Type.Ref <$> getReference

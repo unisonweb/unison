@@ -76,12 +76,12 @@ import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
+import Unison.Type (Type)
 import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
--- import Debug.Trace
 
 type CodebasePath = FilePath
 
@@ -377,7 +377,7 @@ putTerm
   -> FilePath
   -> Reference.Id
   -> Term.AnnotatedTerm v a
-  -> Type.AnnotatedType v a
+  -> Type v a
   -> m ()
 putTerm putV putA path h e typ = liftIO $ do
   let typeForIndexing = Type.removeAllEffectVars typ
