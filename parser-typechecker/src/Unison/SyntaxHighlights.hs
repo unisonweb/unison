@@ -14,7 +14,7 @@ data Element = NumericLiteral
              | Request
              | AbilityBraces
              -- let|handle|in|where|case|of|->|if|then|else|and|or
-             | ControlKeyword 
+             | ControlKeyword
              -- forall|->
              | TypeOperator
              | BindingEquals
@@ -39,31 +39,31 @@ data Element = NumericLiteral
              | Parenthesis
 
 defaultColors :: Element -> ColorText -> ColorText
-defaultColors = \case 
-  NumericLiteral      -> purple
-  TextLiteral         -> yellow
-  BooleanLiteral      -> cyan
-  Blank               -> hiCyan
-  Var                 -> white
-  Reference           -> green
-  Constructor         -> green
-  Request             -> hiGreen
-  AbilityBraces       -> hiGreen
-  ControlKeyword      -> red
-  TypeOperator        -> red
-  BindingEquals       -> hiBlack
-  TypeAscriptionColon -> hiBlack
-  DataTypeKeyword     -> hiBlue
-  DataType            -> blue
-  DataTypeParams      -> white
-  DataTypeModifier    -> hiBlack
+defaultColors = \case
+  NumericLiteral      -> id
+  TextLiteral         -> id
+  BooleanLiteral      -> id
+  Blank               -> id
+  Var                 -> id
+  Reference           -> id
+  Constructor         -> id
+  Request             -> id
+  AbilityBraces       -> hiBlack
+  ControlKeyword      -> bold
+  TypeOperator        -> hiBlack
+  BindingEquals       -> id
+  TypeAscriptionColon -> blue
+  DataTypeKeyword     -> id
+  DataType            -> id
+  DataTypeParams      -> id
+  DataTypeModifier    -> id
   UseKeyword          -> hiBlack
   UsePrefix           -> hiBlack
   UseSuffix           -> hiBlack
   HashQualifier       -> hiBlack
   DelayForceChar      -> yellow
-  DelimiterChar       -> white
-  Parenthesis         -> white
+  DelimiterChar       -> id
+  Parenthesis         -> id
 
 fmt :: Element -> Pretty ColorText -> Pretty ColorText
 fmt e = fmap $ defaultColors e
