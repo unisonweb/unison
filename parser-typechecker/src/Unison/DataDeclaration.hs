@@ -373,6 +373,9 @@ constructorId ref name = do
 okConstructorId, failConstructorId :: Int
 Just okConstructorId = constructorId testResultRef "Test.Result.Ok"
 Just failConstructorId = constructorId testResultRef "Test.Result.Fail"
+okConstructorReferent, failConstructorReferent :: Referent.Referent
+okConstructorReferent = Referent.Con testResultRef okConstructorId CT.Data
+failConstructorReferent = Referent.Con testResultRef failConstructorId CT.Data
 
 failResult :: (Ord v, Monoid a) => a -> Text -> AnnotatedTerm v a
 failResult ann msg =

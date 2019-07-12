@@ -820,8 +820,11 @@ loop = do
             , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
             , cid == DD.failConstructorId && ref == DD.testResultRef ]
         cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
-        let ppe = undefined
         let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
+        names <- makePrintNamesFromLabeled' $
+          LD.referents testTerms <>
+          LD.referents [ DD.okConstructorReferent, DD.failConstructorReferent ]
+        ppe <- prettyPrintEnv names
         respond $ TestResults stats ppe showOk showFail
                     (oks cachedTests) (fails cachedTests)
         let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
