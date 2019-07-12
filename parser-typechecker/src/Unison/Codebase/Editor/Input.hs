@@ -88,7 +88,7 @@ data Input
   | LinksI Path.HQSplit' (Maybe String)
   -- other
   | UndoRootI
-  | SearchByNameI [String]
+  | SearchByNameI Bool [String]
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]

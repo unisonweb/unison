@@ -147,6 +147,7 @@ unionLeft :: Ord n => Names' n -> Names' n -> Names' n
 unionLeft = unionLeft' go
   where go n r acc = R.memberDom n acc || R.memberRan r acc
 
+-- implementation detail of the above
 unionLeft'
   :: Ord n
   => (forall a b . (Ord a, Ord b) => a -> b -> Relation a b -> Bool)

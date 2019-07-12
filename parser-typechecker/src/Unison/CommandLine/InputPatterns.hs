@@ -151,11 +151,15 @@ find = InputPattern "find" ["list", "ls"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
         , "lists all definitions with a name similar to 'foo' in the current branch.")
       , ( "`find foo bar`"
         , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
-      , ( "`find -l foo bar`"
-        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
       ]
     )
-    (pure . Input.SearchByNameI)
+    (pure . Input.SearchByNameI False)
+
+findVerbose :: InputPattern
+findVerbose = InputPattern "find.verbose" ["list.verbose", "ls.verbose"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
+  "`find.verbose` searches for definitions like `find`, but includes hashes and aliases in the results."
+  (pure . Input.SearchByNameI True)
+
 
 findPatch :: InputPattern
 findPatch = InputPattern "find.patch" ["list.patch", "ls.patch"] []
@@ -605,6 +609,7 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
+  , findVerbose
   , view
   , findPatch
   , viewPatch
