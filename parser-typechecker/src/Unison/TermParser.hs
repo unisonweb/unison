@@ -448,10 +448,14 @@ imports = do
   ns' <- Names.importing imported <$> asks names
   pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
 
+-- A key feature of imports is we want to be able to say:
+-- `use foo.bar Baz qux` without having to specify whether `Baz` or `qux` are
+-- terms or types.
 substImports :: Var v => Names -> [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
 substImports ns imports =
   ABT.substsInheritAnnotation [ (suffix, Term.var () full)
-    | (suffix,full) <- imports, Names.hasTermNamed (Name.fromVar full) ns ] .
+    | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound
+                                   -- not in Names, but in a later term binding
   Term.substTypeVars [ (suffix, Type.var () full)
     | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
 
