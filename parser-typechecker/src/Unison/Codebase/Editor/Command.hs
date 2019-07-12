@@ -61,7 +61,7 @@ data Command m i v a where
   -- the hash length needed to disambiguate any definition in the codebase
   CodebaseHashLength :: Command m i v Int
 
-  ParseType :: Names -> LexedSource -> Command m i v (Either (Parser.Error v) (Type v Ann))
+  ParseType :: Names -> LexedSource -> Command m i v (Either (Parser.Err v) (Type v Ann))
 
   Typecheck :: AmbientAbilities v
             -> Names

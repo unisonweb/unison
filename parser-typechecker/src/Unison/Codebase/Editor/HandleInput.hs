@@ -24,6 +24,7 @@ import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.DisplayThing
+import qualified Unison.Codebase.Editor.DisplayThing as DT
 import qualified Unison.Codebase.Editor.Output as Output
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SlurpResult as Slurp
@@ -471,35 +472,40 @@ loop = do
           _ -> respond $ LinkFailure input
 
       -- > links List.map (.Docs .English)
-      -- > links List.map
---      LinksI src mdTypeStr -> do
---        let srcle = toList (getHQ'Terms src)
---            srclt = toList (getHQ'Types src)
---            p = resolveSplit' src
---            mdTerms = foldl' Metadata.merge mempty [
---              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
---            mdTypes = foldl' Metadata.merge mempty [
---              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
---            allMd = Metadata.merge mdTerms mdTypes
---        (names, allowed) <- case mdTypeStr of
---          Nothing -> pure $ Right (Map.keysSet allMd)
---          Just typeStr -> do
---            (names, lexed) <- lexedSource "" mdTypeSrc
---            allowed <- fmap (Set.singleton . Type.toReference) <$> eval (ParseType names lexed)
---            pure (names, allowed)
---        case allowed of
---          Left e -> respond $ ParseErrors (Text.pack (fromMaybe "" mdTypeStr)) [e]
---          Right allowed -> do
---            let allMd' = Map.restrictKeys allMd allowed
---                allRefs = toList (Set.unions (Map.elems allMd'))
---            ppe <- prettyPrintEnv names
---            termDisplays <- Map.fromList <$> do
---              terms <- filterM (eval . IsTerm) allRefs
---              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
---            typeDisplays <- Map.fromList <$> do
---              types <- filterM (eval . IsType) allRefs
---              traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
---            respond $ DisplayLinks ppe allMd' typeDisplays termDisplays
+      -- > links List.map -- give me all the
+      -- > links Optional License
+      LinksI src mdTypeStr -> do
+        let srcle = toList (getHQ'Terms src) -- list of matching src terms
+            srclt = toList (getHQ'Types src) -- list of matching src types
+            p = resolveSplit' src -- ex: the parent of `List.map` - `List`
+            mdTerms = foldl' Metadata.merge mempty [
+              BranchUtil.getTermMetadataUnder p r root0 | r <- srcle ]
+            mdTypes = foldl' Metadata.merge mempty [
+              BranchUtil.getTypeMetadataUnder p r root0 | r <- srclt ]
+            allMd = Metadata.merge mdTerms mdTypes
+        selection <- case mdTypeStr of
+          Nothing -> pure $ Right (Map.keysSet allMd)
+          Just mdTypeStr -> parseType input mdTypeStr <&> \case
+            Left e -> Left e
+            Right typ -> Right (Set.singleton (Type.toReference typ))
+        case selection of
+          Left e -> respond e
+          Right selection -> do
+            let allMd' = Map.restrictKeys allMd selection
+                allRefs = toList (Set.unions (Map.elems allMd'))
+            termDisplays <- Map.fromList <$> do
+              terms <- filterM (eval . IsTerm) allRefs
+              traverse (\r -> (r,) <$> loadTermDisplayThing r) terms
+            --   typeDisplays <- Map.fromList <$> do
+            --     types <- filterM (eval . IsType) allRefs
+            --     traverse (\r -> (r,) <$> loadTypeDisplayThing r) types
+            ppe <- prettyPrintEnv =<< makePrintNamesFromLabeled' (deps termDisplays)
+            respond $ DisplayLinks ppe allMd' mempty termDisplays
+          where
+            deps :: Map Reference (DisplayThing (Term v Ann)) -> Set LabeledDependency
+            deps dts = Set.map LD.termRef (Map.keysSet dts)
+                    <> foldMap Term.labeledDependencies
+                               (mapMaybe DT.toMaybe $ Map.elems dts)
 
       MoveTermI src dest ->
         case (toList (getHQ'Terms src), toList (getTerms dest)) of
@@ -668,7 +674,7 @@ loop = do
           [] -> pure . listBranch $ Branch.head currentBranch'
 
           -- type query
-          ":" : ws -> ExceptT (parseSearchType input ws) >>= \typ -> ExceptT$ do
+          ":" : ws -> ExceptT (parseSearchType input (intercalate " " ws)) >>= \typ -> ExceptT $ do
             let locals = Branch.deepReferents (Branch.head currentBranch')
             matches <- fmap toList . eval $ GetTermsOfType typ
             matches <- filter (`Set.member` locals) <$>
@@ -1690,27 +1696,35 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
-lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
-lexedSource name src = undefined
-  -- should lex the file, then using the current path, and branch, produce a names
+lexedSource :: Monad m => SourceName -> Source -> Action' m v (Names, LexedSource)
+lexedSource name src = do
+  let tokens = L.lexer (Text.unpack name) (Text.unpack src)
+      getHQ = \case
+        L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+        L.Hash      sh          -> Just (HQ.HashOnly sh)
+        _                       -> Nothing
+      hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+  parseNames <- makeHistoricalParsingNames hqs
+  pure (parseNames, (src, tokens))
 
 prettyPrintEnv :: Names -> Action' m v PPE.PrettyPrintEnv
 prettyPrintEnv ns = eval CodebaseHashLength <&> (`PPE.fromNames` ns)
 
-parseSearchType :: Var v
-  => Input -> [String] -> Action' m v (Either (Output v) (Type v Ann))
+parseSearchType :: (Monad m, Var v)
+  => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
 parseSearchType input typ = fmap Type.removeAllEffectVars <$> parseType input typ
 
-parseType :: Var v
-  => Input -> [String] -> Action' m v (Either (Output v) (Type v Ann))
-parseType input typ = undefined
---do
---  let src = Text.pack $ intercalate " " typ
---  (names, lexed) <- lexedSource (show Input)
---  e <- eval $ ParseType names lexed
---  pure $ case e of
---    Left err -> Left $ TypeParseError input src err
---    Right typ -> Right typ
+parseType :: (Monad m, Var v)
+  => Input -> String -> Action' m v (Either (Output v) (Type v Ann))
+parseType input src = do
+  -- `show Input` is the name of the "file" being lexed
+  (names, lexed) <- lexedSource (Text.pack $ show input) (Text.pack src)
+  e <- eval $ ParseType names lexed
+  pure $ case e of
+    Left err -> Left $ TypeParseError input src err
+    Right typ -> Right typ
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.
