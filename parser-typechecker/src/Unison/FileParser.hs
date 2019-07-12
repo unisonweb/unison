@@ -16,7 +16,6 @@ import           Control.Monad.Reader (local, asks)
 import           Data.Functor
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
-import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -239,7 +238,7 @@ effectDeclaration mod = do
   typeArgs <- many prefixVar
   let typeArgVs = L.payload <$> typeArgs
   blockStart   <- openBlockWith "where"
-  constructors <- sepBy semi (constructor name)
+  constructors <- sepBy semi (constructor typeArgs name)
                -- `ability` opens a block, as does `where`
   _            <- closeBlock <* closeBlock
   let closingAnn =
@@ -252,8 +251,9 @@ effectDeclaration mod = do
                        constructors
     )
  where
-  constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
-  constructor name =
+  constructor
+    :: Var v => [L.Token v] -> L.Token v -> P v (Ann, v, AnnotatedType v Ann)
+  constructor typeArgs name =
     explodeToken
       <$> TermParser.verifyRelativeName prefixVar
       <*  reserved ":"
@@ -267,11 +267,17 @@ effectDeclaration mod = do
     -- add them after parsing.
     ensureEffect t = case t of
       Type.Effect' _ _ -> modEffect t
-      x -> fromMaybe (go [] x) $ Type.editFunctionResult modEffect x
+      x -> Type.editFunctionResult modEffect x
     modEffect t = case t of
       Type.Effect' es t -> go es t
       t                 -> go [] t
-    go es t = Type.cleanupAbilityLists $ Type.effect
-      (ABT.annotation t)
-      (Type.av' (ann name) (Var.name $ L.payload name) : es)
-      t
+    toTypeVar t = Type.av' (ann t) (Var.name $ L.payload t)
+    headIs t v = case t of
+      Type.Apps' (Type.Var' x) _ -> x == v
+      Type.Var' x                -> x == v
+      _                          -> False
+    go es t =
+      let es' = if any (`headIs` L.payload name) es
+            then es
+            else Type.apps' (toTypeVar name) (toTypeVar <$> typeArgs) : es
+      in  Type.cleanupAbilityLists $ Type.effect (ABT.annotation t) es' t
