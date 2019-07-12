@@ -677,7 +677,7 @@ loop = do
             matches <- fmap toList . eval $ GetTermsOfType typ
             matches <- filter (`Set.member` locals) <$>
               if null matches then do
-                respond $ NoExactTypeMatches
+                respond NoExactTypeMatches
                 fmap toList . eval $ GetTermsMentioningType typ
               else pure matches
             let results =
@@ -698,9 +698,11 @@ loop = do
           Left error -> respond error
           Right results -> do
             numberedArgs .= fmap searchResultToHQString results
-            ppe <- prettyPrintEnv (Names prettyPrintNames0 mempty)
-            loadSearchResults results
-              >>= respond . ListOfDefinitions ppe isVerbose
+            results' <- loadSearchResults results
+            ppe <- prettyPrintEnv =<<
+              makePrintNamesFromLabeled'
+                (foldMap SR'.labeledDependencies results')
+            respond $ ListOfDefinitions ppe isVerbose results'
 
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
