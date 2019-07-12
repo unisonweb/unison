@@ -23,7 +23,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import qualified Unison.TermParser             as TermParser
-import qualified Unison.Term                   as Term
+-- import qualified Unison.Term                   as Term
 import qualified Unison.Type
 import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
@@ -40,16 +40,16 @@ hqLength = 10
 
 t :: String -> Type Symbol
 t s = ABT.amap (const Intrinsic)
-  . either (error . show ) id
-  . Type.bindNames mempty B.names0
+  -- . either (error . show ) id
+  -- . Type.bindSomeNames B.names0
   . either (error . showParseError s) tweak
   $ Parser.run (Parser.root TypeParser.valueType) s parsingEnv
   where tweak = Type.generalizeLowercase mempty
 
 tm :: String -> Term Symbol
 tm s = either (error . show) id
-     . Term.bindNames mempty B.names0
-     . either (error . showParseError s) id
+     -- . Term.bindSomeNames mempty B.names0
+     -- . either (error . showParseError s) id
      $ Parser.run (Parser.root TermParser.term) s parsingEnv
 
 showParseError :: Var v
