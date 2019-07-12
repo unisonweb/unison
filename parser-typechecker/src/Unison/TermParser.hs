@@ -27,6 +27,7 @@ import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
 import           Unison.Type (Type)
 import           Unison.Var (Var)
+import qualified Data.Char as Char
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
@@ -148,9 +149,12 @@ parsePattern =
         | otherwise      -> -- matched ctor name, consume the token
                             do anyToken; pure (Set.findMin s <$ tok)
     where
+    isLower n = Text.all Char.isLower . Text.take 1 . Name.toText $ n
     die hq s = case L.payload hq of
-      -- if token not hash qualified, fail w/out consuming it to allow backtracking
-      HQ.NameOnly n | Set.null s -> fail $ "not a constructor name: " <> show n
+      -- if token not hash qualified or uppercase,
+      -- fail w/out consuming it to allow backtracking
+      HQ.NameOnly n | Set.null s &&
+                      isLower n -> fail $ "not a constructor name: " <> show n
       -- it was hash qualified, and wasn't found in the env, that's a failure!
       _ -> failCommitted $ err hq s
 
