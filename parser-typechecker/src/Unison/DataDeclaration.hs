@@ -91,9 +91,9 @@ generateRecordAccessors fields typename typ =
   where
   argname = Var.uncapitalize typename
   tm (fname, ann) i =
-    [(Var.namespaced $ [typename, fname], get),
-     (Var.namespaced $ [typename, fname, Var.named "set"], set),
-     (Var.namespaced $ [typename, fname, Var.named "modify"], modify)]
+    [(Var.namespaced [typename, fname], get),
+     (Var.namespaced [typename, fname, Var.named "set"], set),
+     (Var.namespaced [typename, fname, Var.named "modify"], modify)]
     where
     -- example: `point -> case point of Point x _ -> x`
     get = Term.lam ann argname $ Term.match ann
@@ -207,7 +207,7 @@ toNames0 ct typeSymbol r dd =
     Names.names0 (Rel.singleton (Name.fromVar ctor) (Referent.Con r i ct)) mempty
 
 dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names0
-dataDeclToNames typeSymbol r dd = toNames0 CT.Data typeSymbol r dd
+dataDeclToNames = toNames0 CT.Data
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names0
 effectDeclToNames typeSymbol r ed = toNames0 CT.Effect typeSymbol r $ toDataDecl ed
@@ -224,7 +224,9 @@ newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
 } deriving (Eq,Show,Functor)
 
-withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
+withEffectDecl
+  :: (DataDeclaration' v a -> DataDeclaration' v' a')
+  -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
 withEffectDeclM :: Functor f
@@ -238,10 +240,11 @@ mkEffectDecl'
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
 mkEffectDecl :: Modifier -> [v] -> [(v, Type v ())] -> EffectDeclaration' v ()
-mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
+mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
 
-mkDataDecl' :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration' v a
-mkDataDecl' m a b cs = DataDeclaration m a b cs
+mkDataDecl'
+  :: Modifier -> a -> [v] -> [(a, v, Type v a)] -> DataDeclaration' v a
+mkDataDecl' = DataDeclaration
 
 mkDataDecl :: Modifier -> [v] -> [(v, Type v ())] -> DataDeclaration' v ()
 mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
@@ -269,7 +272,7 @@ instance Hashable1 F where
         in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
       Constructors cs ->
         let (hashes, _) = hashCycle cs
-        in [tag 2] ++ map hashed hashes
+        in tag 2 :  map hashed hashes
       Modified m t ->
         [tag 3, Hashable.accumulateToken m, hashed $ hash t]
 
@@ -384,7 +387,7 @@ builtinDataDecls = case hashDecls $ Map.fromList
   , (v "Test.Result"    , tr)
   ] of Right a -> a; Left e -> error $ "builtinDataDecls: " <> show e
  where
-  v name = Var.named name
+  v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
   -- see note on `hashDecls` above for why ctor must be called `().()`.
@@ -459,13 +462,16 @@ forceTerm :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
 delayTerm :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
-delayTerm a e = Term.lam a (Var.named "()") e
+delayTerm a = Term.lam a $ Var.named "()"
 
-unTupleTerm :: Term.AnnotatedTerm2 vt at ap v a -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
+unTupleTerm
+  :: Term.AnnotatedTerm2 vt at ap v a
+  -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
 unTupleTerm t = case t of
-  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] -> (fst :) <$> unTupleTerm snd
+  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] ->
+    (fst :) <$> unTupleTerm snd
   Term.Constructor' UnitRef 0 -> Just []
-  _ -> Nothing
+  _                           -> Nothing
 
 unTupleType :: Var v => Type v a -> Maybe [Type v a]
 unTupleType t = case t of

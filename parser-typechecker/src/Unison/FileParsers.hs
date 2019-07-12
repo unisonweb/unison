@@ -167,7 +167,8 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
         watchedVars = Set.fromList [ v | (v, _) <- UF.allWatches uf ]
         tlcKind [] = error "empty TLC, should never occur"
         tlcKind tlc@((v,_,_):_) = let
-          hasE k = any (== v) . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
+          hasE k =
+            elem v . fmap fst $ Map.findWithDefault [] k (UF.watches uf)
           in case Foldable.find hasE (Map.keys $ UF.watches uf) of
                Nothing -> error "wat"
                Just kind -> (kind, tlc)
@@ -186,11 +187,13 @@ synthesizeFile ambient tl fqnsByShortName uf term = do
     -- UF data/effect ctors + builtins + TLC Term.vars
     go term _decision@(shortv, loc, replacement) =
       ABT.visit (resolve shortv loc replacement) term
-    decisions = [ (v, loc, replacement) | Context.Decision v loc replacement <- infos ]
+    decisions =
+      [ (v, loc, replacement) | Context.Decision v loc replacement <- infos ]
     -- resolve (v,loc) in a matching Blank to whatever `fqn` maps to in `names`
     resolve shortv loc replacement t = case t of
       Term.Blank' (Blank.Recorded (Blank.Resolve loc' name))
         | loc' == loc && Var.nameStr shortv == name ->
-          -- loc of replacement already chosen correctly by whatever made the Decision
+          -- loc of replacement already chosen correctly by whatever made the
+          -- Decision
           pure . pure $ replacement
       _ -> Nothing
