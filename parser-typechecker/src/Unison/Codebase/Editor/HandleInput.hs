@@ -337,21 +337,25 @@ loop = do
             stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
             success
 
---      DeleteBranchI p ->
---        maybe (branchNotFound' p) go $ getAtSplit' p
---        where
---        go (Branch.head -> b) = do
---          let rootNames = Branch.toNames0 root0
---              toDelete = Names.prefix0
---                (Path.toName . Path.unsplit . resolveSplit' $ p)
---                (Branch.toNames0 b)
---          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
---          if failed == mempty then
---            stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
---          else do
---            failed <- loadSearchResults $ Names.asSearchResults failed
---            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
---            respond $ CantDelete input rootNames failed failedDependents
+      DeleteBranchI p ->
+        maybe (branchNotFound' p) go $ getAtSplit' p
+        where
+        go (Branch.head -> b) = do
+          (failed, failedDependents) <-
+            let rootNames = Branch.toNames0 root0
+                toDelete = Names.prefix0
+                  (Path.toName . Path.unsplit . resolveSplit' $ p)
+                  (Branch.toNames0 b)
+            in getEndangeredDependents (eval . GetDependents) toDelete rootNames
+          if failed == mempty then
+            stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
+          else do
+            failed <- loadSearchResults $ Names.asSearchResults failed
+            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
+            ppe <- prettyPrintEnv =<<
+              makePrintNamesFromLabeled'
+                (foldMap SR'.labeledDependencies $ failed <> failedDependents)
+            respond $ CantDelete input ppe failed failedDependents
 
       SwitchBranchI path' -> do
         path <- use $ currentPath . to (`Path.toAbsolutePath` path')
@@ -1258,7 +1262,7 @@ getEndangeredDependents getDependents toDelete root = do
       hasEndangeredDependent r = any (`Set.member` endangered)
                                      (dependentsOfExtinct Map.! r)
   pure ( Names.restrictReferences failed toDelete
-       , Names.restrictReferences endangered root )
+       , Names.restrictReferences endangered root `Names.difference` toDelete)
 
 -- Applies the selection filter to the adds/updates of a slurp result,
 -- meaning that adds/updates should only contain the selection or its transitive
