@@ -827,46 +827,47 @@ loop = do
         let names0 = (Branch.toNames0 . Branch.head) branch
         respond . TodoOutput ppe =<< checkTodo patch names0
 
---      TestI showOk showFail -> do
---        let
---          testTerms = Star3.fact . Star3.select1D3 isTest
---                    . Branch.deepTerms $ currentBranch0
---          testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
---          oks results =
---            [ (r, msg)
---            | (r, Term.Sequence' ts) <- Map.toList results
---            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
---            , cid == DD.okConstructorId && ref == DD.testResultRef ]
---          fails results =
---            [ (r, msg)
---            | (r, Term.Sequence' ts) <- Map.toList results
---            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
---            , cid == DD.failConstructorId && ref == DD.testResultRef ]
---        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
---        let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
---        respond $ TestResults stats ppe0 showOk showFail
---                    (oks cachedTests) (fails cachedTests)
---        let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
---        when (not . Set.null $ toCompute) $ do
---          let total = Set.size toCompute
---          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
---            case r of
---              Reference.DerivedId rid -> do
---                tm <- eval $ LoadTerm rid
---                case tm of
---                  Nothing -> [] <$ respond (TermNotFound' input rid)
---                  Just tm -> do
---                    respond $ TestIncrementalOutputStart ppe0 (n,total) r tm
---                    tm' <- eval (Evaluate1 ppe0 tm) <&> \case
---                      Left e -> Term.seq External
---                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
---                      Right tm' -> tm'
---                    eval $ PutWatch UF.TestWatch rid tm'
---                    respond $ TestIncrementalOutputEnd ppe0 (n,total) r tm'
---                    pure [(r, tm')]
---              r -> error $ "unpossible, tests can't be builtins: " <> show r
---          let m = Map.fromList computedTests
---          respond $ TestResults Output.NewlyComputed ppe0 showOk showFail (oks m) (fails m)
+      TestI showOk showFail -> do
+        let
+          testTerms = Star3.fact . Star3.select1D3 isTest
+                    . Branch.deepTerms $ currentBranch0
+          testRefs = Set.fromList [ r | Referent.Ref r <- toList testTerms ]
+          oks results =
+            [ (r, msg)
+            | (r, Term.Sequence' ts) <- Map.toList results
+            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+            , cid == DD.okConstructorId && ref == DD.testResultRef ]
+          fails results =
+            [ (r, msg)
+            | (r, Term.Sequence' ts) <- Map.toList results
+            , Term.App' (Term.Constructor' ref cid) (Term.Text' msg) <- toList ts
+            , cid == DD.failConstructorId && ref == DD.testResultRef ]
+        cachedTests <- fmap Map.fromList . eval $ LoadWatches UF.TestWatch testRefs
+        let ppe = undefined
+        let stats = Output.CachedTests (Set.size testRefs) (Map.size cachedTests)
+        respond $ TestResults stats ppe showOk showFail
+                    (oks cachedTests) (fails cachedTests)
+        let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
+        when (not . Set.null $ toCompute) $ do
+          let total = Set.size toCompute
+          computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
+            case r of
+              Reference.DerivedId rid -> do
+                tm <- eval $ LoadTerm rid
+                case tm of
+                  Nothing -> [] <$ respond (TermNotFound' input rid)
+                  Just tm -> do
+                    respond $ TestIncrementalOutputStart ppe (n,total) r tm
+                    tm' <- eval (Evaluate1 ppe tm) <&> \case
+                      Left e -> Term.seq External
+                        [ DD.failResult External (Text.pack $ P.toANSI 80 ("\n" <> e)) ]
+                      Right tm' -> tm'
+                    eval $ PutWatch UF.TestWatch rid tm'
+                    respond $ TestIncrementalOutputEnd ppe (n,total) r tm'
+                    pure [(r, tm')]
+              r -> error $ "unpossible, tests can't be builtins: " <> show r
+          let m = Map.fromList computedTests
+          respond $ TestResults Output.NewlyComputed ppe showOk showFail (oks m) (fails m)
 
       -- ListBranchesI ->
       --   eval ListBranches >>= respond . ListOfBranches currentBranchName'
