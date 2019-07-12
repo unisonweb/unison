@@ -61,6 +61,11 @@ makeExampleEOS p args = P.group $
 helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
 helpFor p = I.parse help [I.patternName p]
 
+mergeBuiltins :: InputPattern
+mergeBuiltins = InputPattern "builtins.merge" [] []
+  "Adds all the builtins to the current path."
+  (const . pure $ Input.MergeBuiltinsI)
+
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern "builtins.update" [] []
   "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
@@ -626,6 +631,7 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
+  , mergeBuiltins
   ]
 
 commandNames :: [String]

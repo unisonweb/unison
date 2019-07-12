@@ -126,6 +126,7 @@ import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
 import Debug.Trace (traceShowM, traceM)
+import qualified Unison.Builtin as Builtin
 
 --import Debug.Trace
 
@@ -884,6 +885,13 @@ loop = do
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
+
+      MergeBuiltinsI -> do
+          let names0 = Builtin.names0 -- <> UF.typecheckedToNames0 IOSource.typecheckedFile
+          let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+          let srcb = Branch.one b0
+          _ <- updateAtM currentPath' $ \destb -> eval . Eval $ Branch.merge srcb destb
+          success
 
       ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
         patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p

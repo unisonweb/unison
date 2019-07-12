@@ -93,6 +93,7 @@ data Input
   | ShowDefinitionI OutputLocation [String]
   | ShowDefinitionByPrefixI OutputLocation [String]
   | UpdateBuiltinsI
+  | MergeBuiltinsI
   | QuitI
   deriving (Eq, Show)
 
