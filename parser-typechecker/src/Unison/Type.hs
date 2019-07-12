@@ -14,6 +14,7 @@ module Unison.Type where
 
 import qualified Control.Monad.Writer.Strict as Writer
 import Control.Monad (join)
+import Data.Functor (($>))
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
@@ -73,14 +74,14 @@ wrapV = ABT.vmap ABT.Bound
 freeVars :: AnnotatedType v a -> Set v
 freeVars = ABT.freeVars
 
-bindBuiltins :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
-bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref() r) | (v,r) <- bs ]
+bindBuiltins
+  :: Var v => [(v, Reference)] -> AnnotatedType v a -> AnnotatedType v a
+bindBuiltins bs = ABT.substsInheritAnnotation [ (v, ref () r) | (v, r) <- bs ]
 
 bindBuiltins' :: Var v => Names.Names0 -> AnnotatedType v a -> AnnotatedType v a
-bindBuiltins' ns =
-  bindBuiltins [ (Var.named (Name.toText n), r) | (n, r) <- R.toList $ Names.types ns ]
-
-data Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
+bindBuiltins' ns = bindBuiltins
+  [ (Var.named (Name.toText n), r) | (n, r) <- R.toList $ Names.types ns ]
+newtype Monotype v a = Monotype { getPolytype :: AnnotatedType v a } deriving Eq
 
 instance (Var v) => Show (Monotype v a) where
   show = show . getPolytype
@@ -135,18 +136,28 @@ unArrows t =
   where go (Arrow' i o) = i : go o
         go o = [o]
 
-unEffectfulArrows :: AnnotatedType v a ->
-     Maybe (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
-unEffectfulArrows t = case t of Arrow' i o -> Just (i, go o); _ -> Nothing
-  where go (Effect1' (Effects' es) (Arrow' i o)) = (Just $ es >>= flattenEffects, i) : go o
-        go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
-        go (Arrow' i o) = (Nothing, i) : go o
-        go t = [(Nothing, t)]
+unEffectfulArrows
+  :: AnnotatedType v a
+  -> Maybe
+       (AnnotatedType v a, [(Maybe [AnnotatedType v a], AnnotatedType v a)])
+unEffectfulArrows t = case t of
+  Arrow' i o -> Just (i, go o)
+  _          -> Nothing
+ where
+  go (Effect1' (Effects' es) (Arrow' i o)) =
+    (Just $ es >>= flattenEffects, i) : go o
+  go (Effect1' (Effects' es) t) = [(Just $ es >>= flattenEffects, t)]
+  go (Arrow'   i             o) = (Nothing, i) : go o
+  go t                          = [(Nothing, t)]
 
 unApps :: AnnotatedType v a -> Maybe (AnnotatedType v a, [AnnotatedType v a])
-unApps t = case go t [] of [] -> Nothing; [_] -> Nothing; f:args -> Just (f,args)
-  where go (App' i o) acc = go i (o:acc)
-        go fn args = fn:args
+unApps t = case go t [] of
+  []       -> Nothing
+  [ _ ]    -> Nothing
+  f : args -> Just (f, args)
+ where
+  go (App' i o) acc  = go i (o : acc)
+  go fn         args = fn : args
 
 unIntroOuters :: AnnotatedType v a -> Maybe ([v], AnnotatedType v a)
 unIntroOuters t = go t []
@@ -168,13 +179,17 @@ unForalls t = go t []
         go _body [] = Nothing
         go body vs = Just(reverse vs, body)
 
-unEffect0 :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
+unEffect0
+  :: Ord v => AnnotatedType v a -> ([AnnotatedType v a], AnnotatedType v a)
 unEffect0 (Effect1' e a) = (flattenEffects e, a)
-unEffect0 t = ([], t)
+unEffect0 t              = ([], t)
 
-unEffects1 :: Ord v => AnnotatedType v a -> Maybe ([AnnotatedType v a], AnnotatedType v a)
+unEffects1
+  :: Ord v
+  => AnnotatedType v a
+  -> Maybe ([AnnotatedType v a], AnnotatedType v a)
 unEffects1 (Effect1' (Effects' es) a) = Just (es, a)
-unEffects1 _ = Nothing
+unEffects1 _                          = Nothing
 
 matchExistential :: Eq v => v -> Type (TypeVar b v) -> Bool
 matchExistential v (Existential' _ x) = x == v
@@ -218,28 +233,28 @@ builtin :: Ord v => a -> Text -> AnnotatedType v a
 builtin a = ref a . Reference.Builtin
 
 int :: Ord v => a -> AnnotatedType v a
-int a = ref a $ intRef
+int a = ref a intRef
 
 nat :: Ord v => a -> AnnotatedType v a
-nat a = ref a $ natRef
+nat a = ref a natRef
 
 float :: Ord v => a -> AnnotatedType v a
-float a = ref a $ floatRef
+float a = ref a floatRef
 
 boolean :: Ord v => a -> AnnotatedType v a
-boolean a = ref a $ booleanRef
+boolean a = ref a booleanRef
 
 text :: Ord v => a -> AnnotatedType v a
-text a = ref a $ textRef
+text a = ref a textRef
 
 vector :: Ord v => a -> AnnotatedType v a
-vector a = ref a $ vectorRef
+vector a = ref a vectorRef
 
 bytes :: Ord v => a -> AnnotatedType v a
-bytes a = ref a $ bytesRef
+bytes a = ref a bytesRef
 
 effectType :: Ord v => a -> AnnotatedType v a
-effectType a = ref a $ effectRef
+effectType a = ref a effectRef
 
 app :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 app a f arg = ABT.tm' a (App f arg)
@@ -247,14 +262,14 @@ app a f arg = ABT.tm' a (App f arg)
 -- `f x y z` means `((f x) y) z` and the annotation paired with `y` is the one
 -- meant for `app (f x) y`
 apps :: Ord v => AnnotatedType v a -> [(a, AnnotatedType v a)] -> AnnotatedType v a
-apps f params = foldl' go f params where
+apps = foldl' go where
   go f (a,t) = app a f t
 
 app' :: (Ord v, Semigroup a) => AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 app' f arg = app (ABT.annotation f <> ABT.annotation arg) f arg
 
 apps' :: (Semigroup a, Ord v) => AnnotatedType v a -> [AnnotatedType v a] -> AnnotatedType v a
-apps' f args = foldl app' f args
+apps' = foldl app'
 
 arrow :: Ord v => a -> AnnotatedType v a -> AnnotatedType v a -> AnnotatedType v a
 arrow a i o = ABT.tm' a (Arrow i o)
@@ -307,7 +322,7 @@ universal :: Ord v => v -> Type (TypeVar b v)
 universal v = ABT.var (TypeVar.Universal v)
 
 existentialp :: Ord v => a -> v -> AnnotatedType (TypeVar (Blank x) v) a
-existentialp a v = existential' a Blank v
+existentialp a = existential' a Blank
 
 existential' :: Ord v => a -> Blank x -> v -> AnnotatedType (TypeVar (Blank x) v) a
 existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
@@ -333,7 +348,7 @@ foralls a vs body = foldr (forall a) body vs
 -- node
 arrows :: Ord v => [(a, AnnotatedType v a)] -> AnnotatedType v a -> AnnotatedType v a
 arrows ts result = foldr go result ts where
-  go (a,t) result = arrow a t result
+  go = uncurry arrow
 
 -- The types of effectful computations
 effect :: Ord v => a -> [AnnotatedType v a] -> AnnotatedType v a -> AnnotatedType v a
@@ -376,7 +391,7 @@ generalize' k t = generalize vsk t where
 
 -- | Bind the given variables with an outer `forall`, if they are used in `t`.
 generalize :: Ord v => [v] -> AnnotatedType v a -> AnnotatedType v a
-generalize vs t = foldr f t $ vs
+generalize vs t = foldr f t vs
   where
   f v t = if Set.member v (ABT.freeVars t)
           then forall (ABT.annotation t) v t
@@ -407,7 +422,7 @@ toTypeVar = ABT.vmap TypeVar.Universal
 
 dependencies :: Ord v => AnnotatedType v a -> Set Reference
 dependencies t = Set.fromList . Writer.execWriter $ ABT.visit' f t
-  where f t@(Ref r) = Writer.tell [r] *> pure t
+  where f t@(Ref r) = Writer.tell [r] $> t
         f t = pure t
 
 usesEffects :: Var v => AnnotatedType v a -> Bool
@@ -438,7 +453,7 @@ existentializeArrows :: (Var v, Monad m)
                      => m v
                      -> AnnotatedType v a
                      -> m (AnnotatedType v a)
-existentializeArrows freshVar t = ABT.visit go t
+existentializeArrows freshVar = ABT.visit go
   where
   go t@(Arrow' a b) = case b of
     Effect1' _ _ -> Nothing
@@ -491,8 +506,21 @@ removePureEffects t | not Settings.removePureEffects = t
     -- `∀ e . a ->{e} b` gives us the pure arrow `a -> b`.
     isPure v = ABT.occurrences v tu <= 1
 
+editFunctionResult
+  :: forall v a
+   . (AnnotatedType v a -> AnnotatedType v a)
+  -> AnnotatedType v a
+  -> Maybe (AnnotatedType v a)
+editFunctionResult f = go False
+ where
+  go :: Bool -> AnnotatedType v a -> Maybe (AnnotatedType v a)
+  go inArr (ABT.Term s a t) = case t of
+    ABT.Tm (Forall t ) -> ABT.Term s a . ABT.Tm . Forall <$> go inArr t
+    ABT.Tm (Arrow i o) -> ABT.Term s a . ABT.Tm . Arrow i <$> go True o
+    _                  -> if inArr then Just (f (ABT.Term s a t)) else Nothing
+
 functionResult :: AnnotatedType v a -> Maybe (AnnotatedType v a)
-functionResult t = go False t where
+functionResult = go False where
   go inArr (ForallNamed' _ body) = go inArr body
   go _inArr (Arrow' _i o) = go True o
   go inArr t = if inArr then Just t else Nothing
@@ -503,12 +531,12 @@ functionResult t = go False t where
 generalizeLowercase :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
   where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
-        isLow v = all Char.isLower . take 1 . Text.unpack . Var.name $ v
+        isLow = all Char.isLower . take 1 . Text.unpack . Var.name
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Var v => Set v -> AnnotatedType v a -> AnnotatedType v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
-  where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.intersection` allowed)]
+  where vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
 
 -- | This function removes all variable shadowing from the types and reduces
 -- fresh ids to the minimum possible to avoid ambiguity. Useful when showing
@@ -542,7 +570,7 @@ cleanupVars1 t = let [t'] = cleanupVars [t] in t'
 
 -- This removes duplicates and normalizes the order of ability lists
 cleanupAbilityLists :: Var v => AnnotatedType v a -> AnnotatedType v a
-cleanupAbilityLists t = ABT.visitPure go t where
+cleanupAbilityLists = ABT.visitPure go where
   -- leave explicitly empty `{}` alone
   go (Effect1' (Effects' []) _v) = Nothing
   go t@(Effect1' e v) =
@@ -587,29 +615,29 @@ instance Hashable1 F where
       --   c) {Remote, Abort} (() -> {Abort} ())
       Effects es -> let
         (hs, _) = hashCycle es
-        in [tag 4] ++ map hashed hs
+        in tag 4 : map hashed hs
       Effect e t -> [tag 5, hashed (hash e), hashed (hash t)]
       Forall a -> [tag 6, hashed (hash a)]
       IntroOuter a -> [tag 7, hashed (hash a)]
 
 instance Show a => Show (F a) where
-  showsPrec p fa = go p fa where
-    go _ (Ref r) = showsPrec 0 r
+  showsPrec = go where
+    go _ (Ref r) = shows r
     go p (Arrow i o) =
       showParen (p > 0) $ showsPrec (p+1) i <> s" -> " <> showsPrec p o
     go p (Ann t k) =
-      showParen (p > 1) $ showsPrec 0 t <> s":" <> showsPrec 0 k
+      showParen (p > 1) $ shows t <> s":" <> shows k
     go p (App f x) =
       showParen (p > 9) $ showsPrec 9 f <> s" " <> showsPrec 10 x
     go p (Effects es) = showParen (p > 0) $
-      s"{" <> showsPrec 0 es <> s"}"
+      s"{" <> shows es <> s"}"
     go p (Effect e t) = showParen (p > 0) $
-     showParen True $ showsPrec 0 e <> s" " <> showsPrec p t
+     showParen True $ shows e <> s" " <> showsPrec p t
     go p (Forall body) = case p of
       0 -> showsPrec p body
-      _ -> showParen True $ s"∀ " <> showsPrec 0 body
+      _ -> showParen True $ s"∀ " <> shows body
     go p (IntroOuter body) = case p of
       0 -> showsPrec p body
-      _ -> showParen True $ s"outer " <> showsPrec 0 body
+      _ -> showParen True $ s"outer " <> shows body
     (<>) = (.)
     s = showString

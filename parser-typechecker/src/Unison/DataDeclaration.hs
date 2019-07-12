@@ -82,9 +82,9 @@ generateRecordAccessors fields typename typ =
   where
   argname = Var.uncapitalize typename
   tm (fname, ann) i =
-    [(Var.namespaced $ [typename, fname], get),
-     (Var.namespaced $ [typename, fname, Var.named "set"], set),
-     (Var.namespaced $ [typename, fname, Var.named "modify"], modify)]
+    [(Var.namespaced [typename, fname], get),
+     (Var.namespaced [typename, fname, Var.named "set"], set),
+     (Var.namespaced [typename, fname, Var.named "modify"], modify)]
     where
     -- example: `point -> case point of Point x _ -> x`
     get = Term.lam ann argname $ Term.match ann
@@ -157,7 +157,8 @@ effectConstructorTerms rid ed =
 constructorTypes :: DataDeclaration' v a -> [AnnotatedType v a]
 constructorTypes = (snd <$>) . constructors
 
-typeOfConstructor :: DataDeclaration' v a -> ConstructorId -> Maybe (AnnotatedType v a)
+typeOfConstructor
+  :: DataDeclaration' v a -> ConstructorId -> Maybe (AnnotatedType v a)
 typeOfConstructor dd i = constructorTypes dd `atMay` i
 
 constructors :: DataDeclaration' v a -> [(v, AnnotatedType v a)]
@@ -195,7 +196,7 @@ toNames0 typeSymbol r f dd =
         <> Names.fromTypesV [(typeSymbol, r)]
 
 dataDeclToNames :: Var v => v -> Reference -> DataDeclaration' v a -> Names
-dataDeclToNames typeSymbol r dd = toNames0 typeSymbol r Referent.Con dd
+dataDeclToNames typeSymbol r = toNames0 typeSymbol r Referent.Con
 
 effectDeclToNames :: Var v => v -> Reference -> EffectDeclaration' v a -> Names
 effectDeclToNames typeSymbol r ed =
@@ -213,21 +214,30 @@ newtype EffectDeclaration' v a = EffectDeclaration {
   toDataDecl :: DataDeclaration' v a
 } deriving (Eq,Show,Functor)
 
-withEffectDecl :: (DataDeclaration' v a -> DataDeclaration' v' a') -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
+withEffectDecl
+  :: (DataDeclaration' v a -> DataDeclaration' v' a')
+  -> (EffectDeclaration' v a -> EffectDeclaration' v' a')
 withEffectDecl f e = EffectDeclaration (f . toDataDecl $ e)
 
 mkEffectDecl'
-  :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> EffectDeclaration' v a
+  :: Modifier
+  -> a
+  -> [v]
+  -> [(a, v, AnnotatedType v a)]
+  -> EffectDeclaration' v a
 mkEffectDecl' m a b cs = EffectDeclaration (DataDeclaration m a b cs)
 
-mkEffectDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
-mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
+mkEffectDecl
+  :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> EffectDeclaration' v ()
+mkEffectDecl m b cs = mkEffectDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
 
-mkDataDecl' :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
-mkDataDecl' m a b cs = DataDeclaration m a b cs
+mkDataDecl'
+  :: Modifier -> a -> [v] -> [(a, v, AnnotatedType v a)] -> DataDeclaration' v a
+mkDataDecl' = DataDeclaration
 
-mkDataDecl :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
-mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v,t) -> ((),v,t)) cs
+mkDataDecl
+  :: Modifier -> [v] -> [(v, AnnotatedType v ())] -> DataDeclaration' v ()
+mkDataDecl m b cs = mkDataDecl' m () b $ map (\(v, t) -> ((), v, t)) cs
 
 constructorArities :: DataDeclaration' v a -> [Int]
 constructorArities (DataDeclaration _ _a _bound ctors) =
@@ -252,7 +262,7 @@ instance Hashable1 F where
         in [tag 1] ++ map hashed hashes ++ [hashed $ hash' body]
       Constructors cs ->
         let (hashes, _) = hashCycle cs
-        in [tag 2] ++ map hashed hashes
+        in tag 2 :  map hashed hashes
       Modified m t ->
         [tag 3, Hashable.accumulateToken m, hashed $ hash t]
 
@@ -358,7 +368,7 @@ builtinDataDecls = hashDecls $ Map.fromList
   , (v "Test.Result"    , tr)
   ]
  where
-  v name = Var.named name
+  v = Var.named
   var name = Type.var () (v name)
   arr  = Type.arrow'
   -- see note on `hashDecls` above for why ctor must be called `().()`.
@@ -433,13 +443,16 @@ forceTerm :: Var v => a -> a -> AnnotatedTerm v a -> AnnotatedTerm v a
 forceTerm a au e = Term.app a e (unitTerm au)
 
 delayTerm :: Var v => a -> AnnotatedTerm v a -> AnnotatedTerm v a
-delayTerm a e = Term.lam a (Var.named "()") e
+delayTerm a = Term.lam a $ Var.named "()"
 
-unTupleTerm :: Term.AnnotatedTerm2 vt at ap v a -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
+unTupleTerm
+  :: Term.AnnotatedTerm2 vt at ap v a
+  -> Maybe [Term.AnnotatedTerm2 vt at ap v a]
 unTupleTerm t = case t of
-  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] -> (fst :) <$> unTupleTerm snd
+  Term.Apps' (Term.Constructor' PairRef 0) [fst, snd] ->
+    (fst :) <$> unTupleTerm snd
   Term.Constructor' UnitRef 0 -> Just []
-  _ -> Nothing
+  _                           -> Nothing
 
 unTupleType :: Var v => Type.AnnotatedType v a -> Maybe [Type.AnnotatedType v a]
 unTupleType t = case t of
