@@ -96,7 +96,7 @@ test = scope "termprinter" . tests $
   , tc "and true false"
   , tc "or false false"
   , tc "g (and (or true false) (f x y))"
-  , tc "if _something then _foo else _"
+  , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
@@ -355,7 +355,7 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
   , tc_diff_rtt False "let\n\
-                      \  delay = 'isEven" 
+                      \  delay = 'isEven"
                       "let\n\
                       \  delay () = isEven\n\
                       \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS

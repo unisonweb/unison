@@ -357,9 +357,10 @@ hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
 hqWordyId_ = queryToken $ \case
   L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
-  L.Hash h              -> Just $ HQ.HashOnly h
   L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
   L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  L.Hash h              -> Just $ HQ.HashOnly h
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
   _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&

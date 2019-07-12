@@ -222,9 +222,6 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-placeholder :: Var v => TermP v
-placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
-
 seq :: Var v => TermP v -> TermP v
 seq = Parser.seq Term.seq
 
@@ -258,7 +255,6 @@ termLeaf = do
     , boolean
     , tupleOrParenthesizedTerm
     , keywordBlock
-    , placeholder
     , seq term
     , delayQuote
     , bang
