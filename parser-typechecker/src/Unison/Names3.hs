@@ -46,11 +46,16 @@ push n1 ns = Names (unionLeft0 n1 cur) (oldNames ns <> shadowed) where
   shadowed = names0 terms' types' where
     terms' = R.dom (terms0 n1) R.<| (terms0 cur `R.difference` terms0 n1)
     types' = R.dom (types0 n1) R.<| (types0 cur `R.difference` types0 n1)
+  unionLeft0 :: Names0 -> Names0 -> Names0
+  unionLeft0 n1 n2 = names0 terms' types' where
+    terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
+    types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
 
 unionLeft0 :: Names0 -> Names0 -> Names0
-unionLeft0 n1 n2 = names0 terms' types' where
-  terms' = terms0 n1 <> R.subtractDom (R.dom $ terms0 n1) (terms0 n2)
-  types' = types0 n1 <> R.subtractDom (R.dom $ types0 n1) (types0 n2)
+unionLeft0 = Unison.Names2.unionLeft
+
+unionLeftName0 :: Names0 -> Names0 -> Names0
+unionLeftName0 = Unison.Names2.unionLeftName
 
 map0 :: (Name -> Name) -> Names0 -> Names0
 map0 f (Names.Names terms types) = Names.Names terms' types' where
@@ -66,9 +71,12 @@ types0 = Names.types
 terms0 :: Names0 -> Relation Name Referent
 terms0 = Names.terms
 
+-- if I push an existing name, the pushed reference should be the thing
+-- if I push a different name for the same thing, i suppose they should coexist
+-- thus, `unionLeftName0`.
 shadowing :: Names0 -> Names -> Names
 shadowing prio (Names current old) =
-  Names (prio `unionLeft0` current) (current <> old)
+  Names (prio `unionLeftName0` current) (current <> old)
 
 makeAbsolute0:: Names0 -> Names0
 makeAbsolute0 = map0 Name.makeAbsolute

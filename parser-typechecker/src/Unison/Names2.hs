@@ -35,6 +35,7 @@ module Unison.Names2
   , termsNamed
   , typesNamed
   , unionLeft
+  , unionLeftName
   )
 where
 
@@ -94,6 +95,7 @@ restrictReferences refs Names{..} = Names terms' types' where
 -- | Guide to unionLeft*
 -- Is it ok to create new aliases for parsing?
 --    Sure.
+--
 -- Is it ok to create name conflicts for parsing?
 --    It's okay but not great. The user will have to hash-qualify to disambiguate.
 --
@@ -121,16 +123,16 @@ restrictReferences refs Names{..} = Names terms' types' where
 --
 -- Not sure if the above is helpful or correct!
 
--- unionLeft two Names, excluding new name conflicts.
+-- unionLeft two Names, including new aliases, but excluding new name conflicts.
 -- e.g. unionLeftName [foo -> #a, bar -> #a, cat -> #c]
 --                    [foo -> #b, baz -> #c]
 --                  = [foo -> #a, bar -> #a, baz -> #c, cat -> #c)]
 -- Btw, it's ok to create name conflicts for parsing environments, if you don't
 -- mind disambiguating.
-_unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
-_unionLeftName = unionLeft' $ const . R.memberDom
+unionLeftName :: Ord n => Names' n -> Names' n -> Names' n
+unionLeftName = unionLeft' $ const . R.memberDom
 
--- unionLeft two Names, excluding new aliases.
+-- unionLeft two Names, including new name conflicts, but excluding new aliases.
 -- e.g. unionLeftRef [foo -> #a, bar -> #a, cat -> #c]
 --                   [foo -> #b, baz -> #c]
 --                 = [foo -> #a, bar -> #a, foo -> #b, cat -> #c]

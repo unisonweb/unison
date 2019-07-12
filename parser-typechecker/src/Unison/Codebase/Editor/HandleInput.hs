@@ -679,6 +679,7 @@ loop = do
 --        numberedArgs .= fmap searchResultToHQString results
 --        loadSearchResults results
 --          >>= respond . ListOfDefinitions prettyPrintNames0 False
+
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
         where
@@ -1821,7 +1822,7 @@ basicNames0' = do
       currentPathNames0 = Branch.toNames0 currentBranch0
       -- all names, but with local names in their relative form only, rather
       -- than absolute; external names appear as absolute
-      currentAndExternalNames0 = currentPathNames0 <> absDot externalNames where
+      currentAndExternalNames0 = currentPathNames0 `Names3.unionLeft0` absDot externalNames where
         absDot = Names.prefix0 (Name.Name "")
         externalNames = rootNames `Names.difference` pathPrefixed currentPathNames0
         rootNames = Branch.toNames0 root0
