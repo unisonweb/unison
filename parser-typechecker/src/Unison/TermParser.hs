@@ -326,7 +326,7 @@ verifyRelativeName name = do
 verifyRelativeName' :: Ord v => L.Token Name -> P v ()
 verifyRelativeName' name = do
   let txt = Name.toText . L.payload $ name
-  when (Text.isPrefixOf "." txt && txt /= ".") $ do
+  when (Text.isPrefixOf "." txt && txt /= ".") $
     failCommitted (DisallowedAbsoluteName name)
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)

@@ -19,6 +19,7 @@ import           Control.Monad.Reader (local, asks)
 import           Data.Functor
 import           Data.Either (partitionEithers)
 import           Data.List (foldl')
+import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -254,23 +255,47 @@ dataDeclaration mod = do
         DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors,
         accessors)
 
-effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
+effectDeclaration
+  :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
-  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
-  name <- TermParser.verifyRelativeVarName prefixDefinitionName
+  _        <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  name     <- TermParser.verifyRelativeVarName prefixDefinitionName
   typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
-  blockStart <- openBlockWith "where"
+  blockStart   <- openBlockWith "where"
   constructors <- sepBy semi (constructor name)
-  _ <- closeBlock <* closeBlock -- `ability` opens a block, as does `where`
-  let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
-  where
-    constructor :: Var v => L.Token v -> P v (Ann, v, Type v Ann)
-    constructor typename = explodeToken <$>
-      TermParser.verifyRelativeVarName prefixDefinitionName
-        <* reserved ":"
-        <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
-      where
-      explodeToken v t =
-        (ann v, Var.namespaced [L.payload typename, L.payload v], t)
+  _            <- closeBlock <* closeBlock -- `ability` opens a block, as does `where`
+  let closingAnn =
+        last $ ann blockStart : ((\(_, _, t) -> ann t) <$> constructors)
+  pure
+    ( L.payload name
+    , DD.mkEffectDecl' (L.payload mod)
+                       (ann mod <> closingAnn)
+                       typeArgVs
+                       constructors
+    )
+ where
+  constructor :: Var v => L.Token v -> P v (Ann, v, Type v Ann)
+  constructor typename =
+    explodeToken
+      <$> TermParser.verifyRelativeVarName prefixDefinitionName
+      <*  reserved ":"
+      <*> (   Type.generalizeLowercase mempty
+          .   ensureEffect
+          <$> TypeParser.computationType
+          )
+   where
+    explodeToken v t =
+      (ann v, Var.namespaced [L.payload typename, L.payload v], t)
+    -- If the effect is not syntactically present in the constructor types,
+    -- add them after parsing.
+    ensureEffect t = case t of
+      Type.Effect' _ _ -> modEffect t
+      x -> fromMaybe (go [] x) $ Type.editFunctionResult modEffect x
+    modEffect t = case t of
+      Type.Effect' es t -> go es t
+      t                 -> go [] t
+    go es t = Type.cleanupAbilityLists $ Type.effect
+      (ABT.annotation t)
+      (Type.av' (ann typename) (Var.name $ L.payload typename) : es)
+      t
