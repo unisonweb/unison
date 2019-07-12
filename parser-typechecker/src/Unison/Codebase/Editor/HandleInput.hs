@@ -18,7 +18,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..)) where
+module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
 
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
@@ -40,6 +40,7 @@ import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
 import           Control.Monad.Trans            ( lift )
+import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( toList
@@ -636,49 +637,43 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
---      SearchByNameI q | q == [] || q == ["-l"] -> do
---        let results = listBranch $ Branch.head currentBranch'
---        numberedArgs .= fmap searchResultToHQString results
---        loadSearchResults results
---          >>= respond . ListOfDefinitions prettyPrintNames0 (q == ["-l"])
---      SearchByNameI q | take 1 q == [":"] || take 2 q == ["-l", ":"]
---        ->
---        let ws = drop 1 . dropWhile (/= ":") $ q in
---        parseSearchType input ws >>= \case
---          Left e -> respond e
---          Right typ -> do
---            let locals = Branch.deepReferents (Branch.head currentBranch')
---            matches <- fmap toList . eval $ GetTermsOfType typ
---            matches <- filter (`Set.member` locals) <$>
---              if null matches then do
---                respond $ NoExactTypeMatches
---                fmap toList . eval $ GetTermsMentioningType typ
---              else pure matches
---            let isVerbose = (take 1 q == ["-l"])
---            let results =
---                  -- in verbose mode, aliases are shown, so we collapse all
---                  -- aliases to a single search result; in non-verbose mode,
---                  -- a separate result may be shown for each alias
---                  (if isVerbose then uniqueBy SR.toReferent else id) $
---                  searchResultsFor prettyPrintNames0 matches []
---            numberedArgs .= fmap searchResultToHQString results
---            loadSearchResults results
---              >>= respond . ListOfDefinitions prettyPrintNames0 isVerbose
---      SearchByNameI ("-l" : ws) -> do
---        let qs = map HQ.fromString ws
---        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
---        let results = uniqueBy SR.toReferent
---                    $ searchBranchScored b0 fuzzyNameDistance qs
---        numberedArgs .= fmap searchResultToHQString results
---        loadSearchResults results
---          >>= respond . ListOfDefinitions prettyPrintNames0 True
---      SearchByNameI ws -> do
---        let qs = map HQ.fromString ws
---        let b0 = Branch.toNames0 . Branch.head $ currentBranch'
---        let results = searchBranchScored b0 fuzzyNameDistance qs
---        numberedArgs .= fmap searchResultToHQString results
---        loadSearchResults results
---          >>= respond . ListOfDefinitions prettyPrintNames0 False
+      SearchByNameI isVerbose ws -> do
+        prettyPrintNames0 <- basicPrettyPrintNames0
+        -- results became an Either to accommodate `parseSearchType` returning an error
+        results <- runExceptT $ case ws of
+          -- no query, list everything
+          [] -> pure . listBranch $ Branch.head currentBranch'
+
+          -- type query
+          ":" : ws -> ExceptT (parseSearchType input ws) >>= \typ -> ExceptT$ do
+            let locals = Branch.deepReferents (Branch.head currentBranch')
+            matches <- fmap toList . eval $ GetTermsOfType typ
+            matches <- filter (`Set.member` locals) <$>
+              if null matches then do
+                respond $ NoExactTypeMatches
+                fmap toList . eval $ GetTermsMentioningType typ
+              else pure matches
+            let results =
+                  -- in verbose mode, aliases are shown, so we collapse all
+                  -- aliases to a single search result; in non-verbose mode,
+                  -- a separate result may be shown for each alias
+                  (if isVerbose then uniqueBy SR.toReferent else id) $
+                  searchResultsFor prettyPrintNames0 matches []
+            pure . pure $ results
+
+          -- name query
+          (map HQ.fromString -> qs) -> pure $
+            let b0 = Branch.toNames0 . Branch.head $ currentBranch'
+                srs = searchBranchScored b0 fuzzyNameDistance qs
+            in uniqueBy SR.toReferent srs
+
+        case results of
+          Left error -> respond error
+          Right results -> do
+            numberedArgs .= fmap searchResultToHQString results
+            ppe <- prettyPrintEnv (Names prettyPrintNames0 mempty)
+            loadSearchResults results
+              >>= respond . ListOfDefinitions ppe isVerbose
 
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
@@ -1668,41 +1663,6 @@ propagate errorPPE patch b = validatePatch patch >>= \case
     else if isType then pure Nothing
     else fail $ "Invalid reference: " <> show ref
 
---fixupHistoricalRefs :: Monad m
---  => Set LabeledDependency
---  -> Branch m
---  -> Path.Absolute
---  -> Action' m v (Names0)
---fixupHistoricalRefs =
---  uncurry fixupHistoricalRefs' . foldl' f (mempty, mempty) where
---    f (types, terms) (Left r) = (Set.insert r types, terms)
---    f (types, terms) (Right r) = (types, Set.insert r terms)
-
---makeFixupHistorical :: Monad m
---  => (a -> Branch m -> m (a, Names0))
---  -> Path.Absolute
---  -> Branch m
---  -> a
---  -> Action' m v Names0
---makeFixupHistorical find currentPath' root' query = do
---  (_missing, historicalNames) <- eval . Eval $ find query root'
---  pure (fixup currentPath' historicalNames)
---  where
-
---fixupHistoricalRefs' :: Monad m
---  => Set Reference
---  -> Set Referent
---  -> Branch m
---  -> Path.Absolute
---  -> Action' m v (Names0)
---fixupHistoricalRefs' types terms root' currentPath' =
---  makeFixupHistorical Branch.findHistoricalRefs currentPath' root' $
---    (Set.map Left filteredReferences <> Set.map Right filteredReferents)
---  where
---  root0 = Branch.head root'
---  filteredReferences = Set.difference types (Branch.deepTypeReferences root0)
---  filteredReferents = Set.difference terms (Branch.deepReferents root0)
-
 lexedSource :: SourceName -> Source -> Action' m v (Names, LexedSource)
 lexedSource name src = undefined
   -- should lex the file, then using the current path, and branch, produce a names
@@ -1808,7 +1768,6 @@ basicParseNames0 = fst <$> basicNames0'
 basicPrettyPrintNames0 = snd <$> basicNames0'
 -- we check the file against everything we can reference during parsing
 slurpResultNames0 = basicParseNames0
-
 
 -- implementation detail of baseicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Functor m => Action' m v (Names0, Names0)
