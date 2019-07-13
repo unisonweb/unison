@@ -152,7 +152,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
-      where name = elideFQN im $ HQ.fromVar (Var.reset v)
+      where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Reference) $ name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
@@ -265,7 +265,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty0 n (ac (-1) Normal im') binding
-      else prettyBinding0 n (ac (-1) Normal im') (HQ.fromVar v) binding
+      else prettyBinding0 n (ac (-1) Normal im') (HQ.unsafeFromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
@@ -289,7 +289,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
   binaryOpsPred :: Var v => AnnotatedTerm3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
-    Var' v | isSymbolic (HQ.fromVar v) -> True
+    Var' v | isSymbolic (HQ.unsafeFromVar v) -> True
     _ -> False
 
   nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
@@ -629,7 +629,7 @@ instance Monoid PrintAnnotation where
 
 suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
 suffixCounterTerm n = \case
-    Var' v -> countHQ $ HQ.fromVar v
+    Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
     Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
@@ -640,7 +640,7 @@ suffixCounterTerm n = \case
 
 suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
-    Type.Var' v -> countHQ $ HQ.fromVar v
+    Type.Var' v -> countHQ $ HQ.unsafeFromVar v
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 

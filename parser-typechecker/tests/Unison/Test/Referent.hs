@@ -32,7 +32,32 @@ test = scope "hashparsing" . tests $
     , sh "#abcd#d10"
     , sh "#abcd#a3"
     , sh $ "#abcd." <> suffix2 <> "#d10"
-    , sh $ "#abcd.y6#a5" ]
+    , sh $ "#abcd.y6#a5"
+    , scope "builtin" $
+        expect (SH.fromText "##Text.take" == Just (SH.Builtin "Text.take"))
+    , scope "builtins don't have CIDs" $
+        expect (SH.fromText "##FileIO#3" == Nothing)
+    , scope "term ref, no cycle" $
+        expect (SH.fromText "#2tWjVAuc7" ==
+                  Just (SH.ShortHash "2tWjVAuc7" Nothing Nothing))
+    , scope "term ref, part of cycle" $
+        expect (SH.fromText "#y9ycWkiC1.y9" ==
+                  Just (SH.ShortHash "y9ycWkiC1" (Just "y9") Nothing))
+    , scope "constructor" $
+        expect (SH.fromText "#cWkiC1x89#1" ==
+                  Just (SH.ShortHash "cWkiC1x89" Nothing (Just "1")))
+    , scope "constructor of a type in a cycle" $
+        expect (SH.fromText "#DCxrnCAPS.WD#0" ==
+                  Just (SH.ShortHash "DCxrnCAPS" (Just "WD") (Just "0")))
+    , scope "Anything to the left of the first # is ignored" $
+        expect (SH.fromText "foo#abc" ==
+                  Just (SH.ShortHash "abc" Nothing Nothing))
+    , scope "Anything including and following a third # is rejected" $
+        expect (SH.fromText "foo#abc#2#hello" == Nothing)
+    , scope "Anything after a second . before a second # is ignored" $
+        expect (SH.fromText "foo#abc.1f.x" ==
+                  Just (SH.ShortHash "abc" (Just "1f") Nothing))
+    ]
   ]
   where
   h = "#zNRtcQJ2LpPxdtU8jDT7jrbR7JLC65o3GtPJXAw4Pz963kdBWB6FYNx8tatkzWj8HEA8eKZohsercgKDn9uYhbB"

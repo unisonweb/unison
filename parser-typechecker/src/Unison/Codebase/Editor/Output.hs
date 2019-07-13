@@ -36,6 +36,7 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
+import Unison.HashQualified' as HQ'
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -73,8 +74,8 @@ data Output v
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
-  | ListNames [(Referent, Set Name)] -- term match, term names
-              [(Reference, Set Name)] -- type match, type names
+  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+              [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
   | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)

@@ -167,7 +167,7 @@ pretty isPast ppe sr = let
   plus = P.green "  "
   okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
     Just (_, dd) ->
-      DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd <> aliases where
+      DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd <> aliases where
         aliases = case Map.lookup v (typeAlias sr) of
           Nothing -> ""
           Just ns ->
@@ -193,7 +193,7 @@ pretty isPast ppe sr = let
     header = badIcon <> P.wrap (if isPast then past else present)
     typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
-        (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd, aliases)
+        (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd, aliases)
       Nothing ->
         (prettyStatus status,
          prettyVar v <> P.red (P.wrap " (Unison bug, unknown type)"),

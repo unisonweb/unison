@@ -8,7 +8,8 @@ module Unison.Codebase.Editor.Input
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import qualified Unison.Codebase.Branch        as Branch
-import           Unison.HashQualified'          ( HashQualified )
+import qualified Unison.HashQualified          as HQ
+import qualified Unison.HashQualified'         as HQ'
 import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
@@ -42,7 +43,7 @@ data Input
     -- > names .foo.bar
     -- > names .foo.bar#asdflkjsdf
     -- > names #sdflkjsdfhsdf
-    | NamesI (Either ShortHash Path.HQSplit')
+    | NamesI HQ.HashQualified
     | AliasTermI Path.HQSplit' Path.Split'
     | AliasTypeI Path.HQSplit' Path.Split'
     -- Move = Rename; It's an HQSplit' not an HQSplit', meaning the arg has to have a name.
@@ -63,8 +64,8 @@ data Input
     | ResolveTermNameI Path.HQSplit'
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
-    | AddI [HashQualified]
-    | UpdateI PatchPath [HashQualified]
+    | AddI [HQ'.HashQualified]
+    | UpdateI PatchPath [HQ'.HashQualified]
     | TodoI PatchPath Path'
     | PatchI PatchPath Path'
     | ListEditsI PatchPath

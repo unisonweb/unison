@@ -17,6 +17,7 @@ module Unison.Names2
   , difference
   , filter
   , filterByHQs
+  , filterBySHs
   , filterTypes
   , hqTermName
   , hqTypeName
@@ -30,6 +31,9 @@ module Unison.Names2
   , typeName
   , terms
   , types
+  , termReferences
+  , termReferents
+  , typeReferences
   , termSearchResult
   , typeSearchResult
   , termsNamed
@@ -51,10 +55,13 @@ import qualified Unison.HashQualified'        as HQ
 import           Unison.Name                  (Name)
 import qualified Unison.Name                  as Name
 import           Unison.Reference             (Reference)
+import qualified Unison.Reference             as Reference
 import           Unison.Referent              (Referent (..))
 import qualified Unison.Referent              as Referent
 import           Unison.Util.Relation         (Relation)
 import qualified Unison.Util.Relation         as R
+import qualified Unison.ShortHash             as SH
+import           Unison.ShortHash             (ShortHash)
 
 -- This will support the APIs of both PrettyPrintEnv and the old Names.
 -- For pretty-printing, we need to look up names for References; they may have
@@ -86,6 +93,9 @@ termReferences, typeReferences, allReferences :: Names' n -> Set Reference
 termReferences Names{..} = Set.map Referent.toReference $ R.ran terms
 typeReferences Names{..} = R.ran types
 allReferences n = termReferences n <> typeReferences n
+
+termReferents :: Names' n -> Set Referent
+termReferents Names{..} = R.ran terms
 
 restrictReferences :: Ord n => Set Reference -> Names' n -> Names' n
 restrictReferences refs Names{..} = Names terms' types' where
@@ -271,6 +281,13 @@ filterByHQs hqs Names{..} = Names terms' types' where
   types' = R.filter g types
   f (n, r) = any (HQ.matchesNamedReferent n r) hqs
   g (n, r) = any (HQ.matchesNamedReference n r) hqs
+
+filterBySHs :: Set ShortHash -> Names0 -> Names0
+filterBySHs shs Names{..} = Names terms' types' where
+  terms' = R.filter f terms
+  types' = R.filter g types
+  f (_n, r) = any (`SH.isPrefixOf` Referent.toShortHash r) shs
+  g (_n, r) = any (`SH.isPrefixOf` Reference.toShortHash r) shs
 
 _toSearchResults :: Names0 -> [SearchResult]
 _toSearchResults n0@(Names terms types) = typeResults <> termResults where

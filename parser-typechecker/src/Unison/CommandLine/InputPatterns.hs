@@ -30,9 +30,9 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern as I
+import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Names2 as Names
-import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -583,12 +583,10 @@ names = InputPattern "names" []
   [(Required, exactDefinitionQueryArg)]
   "`names foo` shows the hash and all known names for `foo`."
   (\case
-    [thing] -> case Path.parseHQSplit' thing of
-      Right p -> Right $ Input.NamesI (Right p)
-      Left _err -> case ShortHash.fromText (Text.pack thing) of
-        Nothing -> Left $ "I was looking for one of these forms: "
-                       <> P.blue ("foo .foo.bar foo#abc #abcde .foo.bar#asdf")
-        Just sh -> Right $ Input.NamesI (Left sh)
+    [thing] -> case HQ.fromString thing of
+      Just hq -> Right $ Input.NamesI hq
+      Nothing -> Left $ "I was looking for one of these forms: "
+                       <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
     _ -> Left (I.help names)
   )
 

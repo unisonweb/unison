@@ -395,18 +395,25 @@ loop = do
         p = resolveSplit' src
         oldMD r = BranchUtil.getTypeMetadataAt p r root0
 
---      NamesI thing -> case thing of
---        Left shorthash -> let
---          allTerms = toList . filterSh $ Names.termReferences ns
---          allTypes = toList . filterSh $ Names.typeReferences ns
---          filterSh = Set.filter (Reference.isPrefixOf shorthash)
---          ns = prettyPrintNames0
---          in
---          respond $ ListNames
---            [ (Referent.Ref r, Names.namesForReferent ns (Referent.Ref r))
---              | r <- allTerms ]
---            [ (r, Names.namesForReference ns r) | r <- allTypes ]
---        Right p0 -> do
+      NamesI thing -> do
+        len <- eval CodebaseHashLength
+        parseNames0 <- basicParseNames0
+        let filtered = case thing of
+              HQ.HashOnly shortHash ->
+                Names.filterBySHs (Set.singleton shortHash) parseNames0
+              HQ.HashQualified n sh ->
+                Names.filterByHQs (Set.singleton $ HQ'.HashQualified n sh) parseNames0
+              HQ.NameOnly n ->
+                Names.filterByHQs (Set.singleton $ HQ'.NameOnly n) parseNames0
+        printNames0 <- basicPrettyPrintNames0
+        let printNames = Names printNames0 mempty
+        let terms' ::Set (Referent, Set HQ'.HashQualified)
+            terms' = (`Set.map` Names.termReferents filtered) $
+                        \r -> (r, Names3.termName len r printNames)
+            types' :: Set (Reference, Set HQ'.HashQualified)
+            types' = (`Set.map` Names.typeReferences filtered) $
+                        \r -> (r, Names3.typeName len r printNames)
+        respond $ ListNames (toList terms') (toList types')
 --          let (p, hq) = p0
 --              namePortion = HQ'.toName hq
 --          case hq of
@@ -428,6 +435,7 @@ loop = do
 --              types = [ (r, Names.namesForReference ns r)
 --                      | r <- toList $ Names.typesNamed ns name ]
 --              in (terms, types)
+
       LinkI src mdValue -> do
         let srcle = toList (getHQ'Terms src)
             srclt = toList (getHQ'Types src)
@@ -594,7 +602,7 @@ loop = do
 --            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
 --            respond $ CantDelete input rootNames failed failedDependents
 
-      ShowDefinitionI outputLoc (fmap HQ.fromString -> hqs) -> do
+      ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
         let resultss = searchBranchExact hqLength parseNames hqs
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
@@ -618,7 +626,8 @@ loop = do
             _ -> pure Nothing
         -- Populate DisplayThings for the search results, in anticipation of
         -- displaying the definitions.
-        loadedDisplayTerms <- fmap Map.fromList . for (toList collatedTerms) $ \case
+        loadedDisplayTerms :: Map Reference (DisplayThing (Term v Ann)) <-
+         fmap Map.fromList . for (toList collatedTerms) $ \case
           r@(Reference.DerivedId i) -> do
             let tm = Map.lookup i loadedDerivedTerms
             -- We add a type annotation to the term using if it doesn't
@@ -689,7 +698,7 @@ loop = do
             pure . pure $ results
 
           -- name query
-          (map HQ.fromString -> qs) -> pure $
+          (map HQ.unsafeFromString -> qs) -> pure $
             let b0 = Branch.toNames0 . Branch.head $ currentBranch'
                 srs = searchBranchScored b0 fuzzyNameDistance qs
             in uniqueBy SR.toReferent srs

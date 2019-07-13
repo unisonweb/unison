@@ -71,7 +71,7 @@ import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
-                                                styleHashQualified')
+                                                styleHashQualified', prettyHashQualified')
 import           Unison.Names2                 (Names'(..), Names, Names0)
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                 (Ann, startingLine)
@@ -229,15 +229,15 @@ notifyUser dir o = case o of
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
-      go (ref, ns) = P.column2
+      go (ref, hqs) = P.column2
         [ ("Hash:", prettyHashQualified (HQ.fromReferent ref))
-        , ("Names: ", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
+        , ("Names: ", P.group (P.spaced (P.bold . prettyHashQualified' <$> toList hqs)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
-      go (ref, ns) = P.column2
+      go (ref, hqs) = P.column2
         [ ("Hash:", prettyHashQualified (HQ.fromReference ref))
-        , ("Names:", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
+        , ("Names:", P.group (P.spaced (P.bold . prettyHashQualified' <$> toList hqs)))
         ]
   -- > names foo
   --   Terms:
@@ -285,7 +285,7 @@ notifyUser dir o = case o of
       --       the decompiled output.
       let prettyBindings = P.bracket . P.lines $
             P.wrap "The watch expression(s) reference these definitions:" : "" :
-            [TermPrinter.prettyBinding ppe (HQ.fromVar v) b
+            [TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b
             | (v, b) <- bindings]
           prettyWatches = P.sep "\n\n" [
             watchPrinter fileContents ppe ann kind evald isCacheHit |

@@ -39,7 +39,6 @@ take i = \case
   n@(NameOnly _)    -> n
   HashQualified n s -> if i == 0 then NameOnly n else HashQualified n (SH.take i s)
 
-
 toNameOnly :: HashQualified' n -> HashQualified' n
 toNameOnly = fromName . toName
 
@@ -57,7 +56,7 @@ fromText t = case Text.breakOn "#" t of
   (name, ""  ) ->
     Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
   (name, hash) ->
-    Just $ HashQualified (Name.unsafeFromText name) (SH.unsafeFromText hash)
+    HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
 
 unsafeFromText :: Text -> HashQualified
 unsafeFromText = fromJust . fromText
