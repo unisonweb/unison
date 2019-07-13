@@ -419,11 +419,17 @@ test = scope "termprinter" . tests $
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
                  \  f (x : (∀ t. Pair t t))"
-  , tc_breaks 12 "if\n\
-                 \  use A x\n\
-                 \  f x x then\n\
-                 \  x\n\
-                 \else y"  -- missing break before 'then', issue #518
+  , tc_diff_rtt False "handle foo in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)"  -- missing break before 'then', issue #518; surplus parentheses #517
+                      "handle foo\n\
+                      \in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)" 15  -- parser doesn't like 'in' beginning a line
   , tc_breaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\
