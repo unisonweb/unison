@@ -79,6 +79,7 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
                                                 , renderNoteAsANSI
+                                                , prettyResolutionFailures
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
@@ -262,6 +263,8 @@ notifyUser dir o = case o of
       "",
       P.lit $ prettyParseError src e
     ]
+  ParseResolutionFailures input src es -> putPrettyLn $
+    prettyResolutionFailures src es
   TypeHasFreeVars input typ ->
     putPrettyLn . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",

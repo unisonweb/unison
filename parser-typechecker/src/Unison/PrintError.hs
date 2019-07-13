@@ -1029,25 +1029,7 @@ prettyParseError s = \case
     , ". Make sure it's spelled correctly and that you have the right hash."
     ]
   go (Parser.ResolutionFailures        failures) =
-    Pr.render defaultWidth . Pr.border 2 . Pr.callout "❓" $ Pr.linesNonEmpty [
-      Pr.wrap ("I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:"),
-      "",
-      Pr.lit . annotatedsAsErrorSite s $
-        [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
-        [ a | Names.TypeResolutionFailure _ a _ <- failures ],
-      let
-        conflicts = nubOrd $
-          [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
-          [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
-        allVars = nubOrd $
-          [ v | Names.TermResolutionFailure v _ _ <- failures ] ++
-          [ v | Names.TypeResolutionFailure v _ _ <- failures ]
-      in
-        "Using these fully qualified names:" `Pr.hang` Pr.spaced (prettyVar <$> allVars)
-        <> "\n" <>
-          if null conflicts then ""
-          else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
-    ]
+    Pr.render defaultWidth . Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
     :: String -> L.Token HashQualified -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
@@ -1138,3 +1120,29 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
     "\nTip: Use the syntax " <> style Type2 ("+"<>show n) <> " to produce an "
                              <> style Type2 "Int" <> "."
   _ -> ""
+
+prettyResolutionFailures
+  :: (Annotated a, Var v)
+  => String
+  -> [Names.ResolutionFailure v a]
+  -> Pr.Pretty (AnnotatedText Color)
+prettyResolutionFailures s failures =
+  Pr.callout "❓" $ Pr.linesNonEmpty [
+    Pr.wrap ("I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:"),
+    "",
+    Pr.lit . annotatedsAsErrorSite s $
+      [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
+      [ a | Names.TypeResolutionFailure _ a _ <- failures ],
+    let
+      conflicts = nubOrd $
+        [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
+        [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
+      allVars = nubOrd $
+        [ v | Names.TermResolutionFailure v _ _ <- failures ] ++
+        [ v | Names.TypeResolutionFailure v _ _ <- failures ]
+    in
+      "Using these fully qualified names:" `Pr.hang` Pr.spaced (prettyVar <$> allVars)
+      <> "\n" <>
+        if null conflicts then ""
+        else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+  ]

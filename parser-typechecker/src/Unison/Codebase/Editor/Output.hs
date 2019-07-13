@@ -36,6 +36,7 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
+import qualified Unison.Names3 as Names
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
@@ -54,6 +55,7 @@ data Output v
   | NoExactTypeMatches
   | TypeAlreadyExists Input Path.Split' (Set Reference)
   | TypeParseError Input String (Parser.Err v)
+  | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)

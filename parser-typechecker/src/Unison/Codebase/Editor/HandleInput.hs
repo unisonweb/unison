@@ -1730,7 +1730,10 @@ parseType input src = do
   e <- eval $ ParseType names lexed
   pure $ case e of
     Left err -> Left $ TypeParseError input src err
-    Right typ -> Right typ
+    Right typ -> case Type.bindNames mempty (Names3.currentNames names)
+                    $ Type.generalizeLowercase mempty typ of
+      Left es -> Left $ ParseResolutionFailures input src (toList es)
+      Right typ -> Right typ
 
 -- todo: likely broken when dealing with definitions with `.` in the name;
 -- we don't have a spec for it yet.
