@@ -268,6 +268,8 @@ isAllDuplicates (SlurpResult {..}) =
   SC.isEmpty extraDefinitions &&
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
+  Map.null typeAlias &&
+  Map.null termAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
   SC.isEmpty defsWithBlockedDependencies
