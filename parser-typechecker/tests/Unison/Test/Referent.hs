@@ -35,7 +35,7 @@ test = scope "hashparsing" . tests $
     , sh $ "#abcd.y6#a5"
     , scope "builtin" $
         expect (SH.fromText "##Text.take" == Just (SH.Builtin "Text.take"))
-    , scope "builtins don't have CIDs" $
+    , pending $ scope "builtins don't have CIDs" $
         expect (SH.fromText "##FileIO#3" == Nothing)
     , scope "term ref, no cycle" $
         expect (SH.fromText "#2tWjVAuc7" ==
@@ -52,7 +52,7 @@ test = scope "hashparsing" . tests $
     , scope "Anything to the left of the first # is ignored" $
         expect (SH.fromText "foo#abc" ==
                   Just (SH.ShortHash "abc" Nothing Nothing))
-    , scope "Anything including and following a third # is rejected" $
+    , pending $ scope "Anything including and following a third # is rejected" $
         expect (SH.fromText "foo#abc#2#hello" == Nothing)
     , scope "Anything after a second . before a second # is ignored" $
         expect (SH.fromText "foo#abc.1f.x" ==
