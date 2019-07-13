@@ -190,7 +190,7 @@ pretty isPast ppe sr = let
     in header <> "\n\n" <> P.linesNonEmpty [ addedTypes, addedTerms ]
   notOks _past _present sr | isOk sr = mempty
   notOks past present sr = let
-    header = badIcon <> P.wrap (if isPast then past else present)
+    header = badIcon <> P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
     typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
         (prettyStatus status, DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd, aliases)
@@ -231,26 +231,24 @@ pretty isPast ppe sr = let
               <> P.indentN 2 (P.linesNonEmpty [typeMsgs, termMsgs]) <> "\n\n"
               <> P.indentN 2 (P.column2 [("Tip:", "Use `help filestatus` to learn more.")])
   dups = Set.toList (SC.terms (duplicates sr) <> SC.types (duplicates sr))
-  more i = "... " <> P.bold (P.shown i) <> " more."
-        <> P.purple "Tip:"
-        <> P.hiBlack "you can skip parsing and typechecking"
-        <> P.hiBlack "by moving these below a `---` \"fold\" in your .u file."
+  more i = "... " <> P.bold (P.shown i) <> P.hiBlack " more." <>
+          "Try moving these below the `---` \"fold\" in your file."
   in
     P.sepNonEmpty "\n\n" [
       if SC.isEmpty (duplicates sr) then mempty
       else (if isPast then "⊡ Ignored previously added definitions: "
             else "⊡ Previously added definitions will be ignored: ") <>
             (P.indentNAfterNewline 2 $
-             (P.wrap $ P.excerptSep' 10 more " " (P.hiBlack . prettyVar <$> dups))),
-      oks ("I've " <> P.green "added " <> "these definitions:")
-          ("These new definitions are" <> P.green "ok to `add`:")
+             (P.wrap $ P.excerptSep' 7 more " " (P.hiBlack . prettyVar <$> dups))),
+      oks (P.green "I've added these definitions:")
+          (P.green "These new definitions are ok to `add`:")
           (adds sr),
-      oks ("I've " <> P.green "updated to" <> "these definitions:")
-          ("These new definitions will replace existing ones of the same name and are" <>
-            P.green "ok to `update`:")
+      oks (P.green "I've updated to these definitions:")
+          (P.green $ "These new definitions will replace existing ones of the same name and are"
+                  <> "ok to `update`:")
           (updates sr),
-      notOks ("These definitions " <> P.red "failed:")
-             ("These definitions" <> P.red "would fail on `add` or `update`:")
+      notOks (P.red "These definitions failed:")
+             (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
              sr
     ]
 
@@ -270,6 +268,8 @@ isAllDuplicates (SlurpResult {..}) =
   SC.isEmpty extraDefinitions &&
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
+  Map.null typeAlias &&
+  Map.null termAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
   SC.isEmpty defsWithBlockedDependencies

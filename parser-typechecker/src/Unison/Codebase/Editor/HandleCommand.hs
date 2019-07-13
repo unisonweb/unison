@@ -35,6 +35,7 @@ import qualified Unison.Codebase.Editor.Git    as Git
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
+import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
@@ -126,7 +127,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
     CodebaseHashLength -> Codebase.hashLength codebase
-    ParseType _names _lexed -> undefined
+    ParseType names (src, _) -> pure $
+      Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do
