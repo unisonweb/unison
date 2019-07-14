@@ -540,7 +540,8 @@ splitOn c = unfoldr step where
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
 symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':ch:_) | isSpace ch = symbolyId0 r -- lone dot treated as an operator
+symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
+                       = symbolyId0 r -- lone dot treated as an operator
 symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
@@ -628,6 +629,9 @@ layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
 delimiters = Set.fromList "()[]{},?;"
+
+isDelimeter :: Char -> Bool
+isDelimeter ch = Set.member ch delimiters
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""
