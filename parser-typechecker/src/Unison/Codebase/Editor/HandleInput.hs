@@ -756,6 +756,7 @@ loop = do
         Nothing -> respond NoUnisonFile
         Just uf -> do
           slurpCheckNames0 <- slurpResultNames0
+          currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
                  . toSlurpResult uf
                  $ slurpCheckNames0
@@ -782,6 +783,11 @@ loop = do
                                  ++ Var.nameStr v ++ " but got: "
                                  ++ show otherwise
                   where n = Name.fromVar v
+              termDeprecations :: [(Name, Referent)]
+              termDeprecations =
+                [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
+                         , (n, r) <- Names3.constructorsForType0 oldTypeRef currentPathNames0 ]
+
           ye'ol'Patch <- do
             b <- getAt p
             eval . Eval $ Branch.getPatch seg (Branch.head b)
@@ -815,8 +821,9 @@ loop = do
                   "typing " <> show r1 <> " " <> show r2 <> " : " <> show e
 
           let updatePatch :: Patch -> Patch
-              updatePatch p = foldl' step2 (foldl' step1 p typeEdits) termEdits
+              updatePatch p = foldl' step2 p' termEdits
                 where
+                p' = foldl' step1 p typeEdits
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
               updatePatches :: Branch0 m -> m (Branch0 m)
@@ -827,9 +834,9 @@ loop = do
           -- and make a patch diff to record a replacement from the old to new references
             stepManyAtM
               [( Path.unabsolute currentPath'
-               , pure . doSlurpUpdates typeEdits termEdits)
+               , pure . doSlurpUpdates typeEdits termEdits termDeprecations)
               ,( Path.unabsolute currentPath'
-               , pure . doSlurpAdds (Slurp.adds sr) uf)
+               , pure . doSlurpAdds (Slurp.updates sr <> Slurp.adds sr) uf)
               ,( Path.unabsolute p, updatePatches )]
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           let fileNames0 = UF.typecheckedToNames0 uf
@@ -1328,17 +1335,27 @@ toSlurpResult uf existingNames =
   termCtorCollisions :: Set v
   termCtorCollisions = Set.fromList
     [ var n | (n, Referent.Ref{}) <- R.toList (Names.terms fileNames0)
-            , [Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
+            , [r@Referent.Con{}] <- [toList $ Names.termsNamed existingNames n]
+            -- ignore collisions w/ ctors of types being updated
+            , Set.notMember (Referent.toReference r) typesToUpdate
             ]
+
+  -- the set of typerefs that are being updated by this file
+  typesToUpdate :: Set Reference
+  typesToUpdate = Set.fromList $
+    [ r | (n,r') <- R.toList (Names.types fileNames0)
+        , r <- toList (Names.typesNamed existingNames n)
+        , r /= r' ]
 
   -- ctorTermCollisions (n,r) if (n, r' /= r) exists in names0 and r is Con and r' is Ref
   -- except we relaxed it to where r' can be Con or Ref
   -- what if (n,r) and (n,r' /= r) exists in names and r, r' are Con
   ctorTermCollisions :: Set v
   ctorTermCollisions = Set.fromList
-    [ var n | (n, r@Referent.Con{}) <- R.toList (Names.terms fileNames0)
-            , [r'] <- [toList $ Names.termsNamed existingNames n]
-            , r /= r'
+    [ var n | (n, Referent.Con{}) <- R.toList (Names.terms fileNames0)
+            , r <- toList $ Names.termsNamed existingNames n
+            -- ignore collisions w/ ctors of types being updated
+            , Set.notMember (Referent.toReference r) typesToUpdate
             ]
 
   -- duplicate (n,r) if (n,r) exists in names0
@@ -1364,14 +1381,18 @@ toSlurpResult uf existingNames =
     | (n, r@Referent.Ref{}) <- R.toList $ Names.terms fileNames0
     , aliases <- [Set.delete n $ R.lookupRan r (Names.terms existingNames)]
     , not (null aliases)
+    , let v = var n
+    , Set.notMember v (SC.terms dups)
     ]
 
   typeAliases :: Map v (Set Name)
   typeAliases = Map.fromList
-    [ (var n, aliases)
+    [ (v, aliases)
     | (n, r) <- R.toList $ Names.types fileNames0
     , aliases <- [Set.delete n $ R.lookupRan r (Names.types existingNames)]
     , not (null aliases)
+    , let v = var n
+    , Set.notMember v (SC.types dups)
     ]
 
   -- add (n,r) if n doesn't exist and r doesn't exist in names0
@@ -1413,7 +1434,8 @@ doSlurpAdds :: forall m v. (Applicative m, Var v)
 doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
   where
   typeActions = map doType . toList $ SC.types slurp
-  termActions = map doTerm . toList $ SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
+  termActions = map doTerm . toList $
+    SC.terms slurp <> Slurp.constructorsFor (SC.types slurp) uf
   names = UF.typecheckedToNames0 uf
   tests = Set.fromList $ fst <$> UF.watchesOfKind UF.TestWatch (UF.discardTypes uf)
   (isTestType, isTestValue) = isTest
@@ -1442,11 +1464,18 @@ doSlurpAdds slurp uf = Branch.stepManyAt0 (typeActions <> termActions)
 doSlurpUpdates :: Applicative m
                => Map Name (Reference, Reference)
                -> Map Name (Reference, Reference)
+               -> [(Name, Referent)]
                -> (Branch0 m -> Branch0 m)
-doSlurpUpdates typeEdits termEdits b0 = Branch.stepManyAt0 (typeActions <> termActions) b0
+doSlurpUpdates typeEdits termEdits deprecated b0 =
+  Branch.stepManyAt0 (typeActions <> termActions <> deprecateActions) b0
   where
   typeActions = join . map doType . Map.toList $ typeEdits
   termActions = join . map doTerm . Map.toList $ termEdits
+  deprecateActions = join . map doDeprecate $ deprecated where
+    doDeprecate (n, r) = case Path.splitFromName n of
+      Nothing -> errorEmptyVar
+      Just split -> [BranchUtil.makeDeleteTermName split r]
+
   -- we copy over the metadata on the old thing
   -- todo: if the thing being updated, m, is metadata for something x in b0
   -- update x's md to reference `m`
@@ -1827,6 +1856,12 @@ basicParseNames0 = fst <$> basicNames0'
 basicPrettyPrintNames0 = snd <$> basicNames0'
 -- we check the file against everything we can reference during parsing
 slurpResultNames0 = basicParseNames0
+
+currentPathNames0 :: Functor m => Action' m v Names0
+currentPathNames0 = do
+  currentPath' <- use currentPath
+  currentBranch' <- getAt currentPath'
+  pure $ Branch.toNames0 (Branch.head currentBranch')
 
 -- implementation detail of baseicParseNames0 and basicPrettyPrintNames0
 basicNames0' :: Functor m => Action' m v (Names0, Names0)
