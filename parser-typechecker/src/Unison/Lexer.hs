@@ -43,7 +43,7 @@ data Err
 --   any knowledge of comments
 data Lexeme
   = Open String      -- start of a block
-  | Semi             -- separator between elements of a block
+  | Semi IsVirtual   -- separator between elements of a block
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
@@ -55,6 +55,8 @@ data Lexeme
   | Hash ShortHash   -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
+
+type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
 
@@ -73,7 +75,7 @@ data Token a = Token {
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
   Close -> False
-  Semi -> False
+  Semi _ -> False
   Open _ -> False
   _ -> True
 
@@ -98,7 +100,8 @@ instance ShowToken (Token Lexeme) where
       pretty (Hash sh) = show sh
       pretty (Err e) = show e
       pretty Close = "<outdent>"
-      pretty Semi = "<virtual semicolon>"
+      pretty (Semi True) = "<virtual semicolon>"
+      pretty (Semi False) = ";"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -188,7 +191,7 @@ stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas = go [] where
   go acc [] = [reverse acc]
   go acc (t:ts) = case payload $ headToken t of
-    Semi   -> reverse (t : acc) : go [] ts
+    Semi _ -> reverse (t : acc) : go [] ts
     _      -> go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
@@ -209,7 +212,7 @@ lexer scope rem =
   let t = tree $ lexer0 scope rem
       -- after reordering can end up with trailing semicolon at the end of
       -- a block, which we remove with this pass
-      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup ((payload -> Semi _) : t@(payload -> Close) : tl) = t : fixup tl
       fixup [] = []
       fixup (h : t) = h : fixup t
   in fixup . toList $ reorderTree reorder t
@@ -219,10 +222,15 @@ lexer0 scope rem =
     tweak $ Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
-    -- 1+1 lexes as [1, +1], and it's not easy to fix without adding more
-    -- state to the lexer, so we have a hacky postprocessing pass to convert
-    -- it to [1, +, 1]
+    -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
+    -- fix without adding more state to the lexer:
+    --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
+    --   - when a semi followed by a virtual semi, drop the virtual, lets you
+    --     write
+    --       foo x = action1;
+    --               2
     tweak [] = []
+    tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
     tweak (h@(payload -> Reserved _):t) = h : tweak t
     tweak (t1:t2@(payload -> Numeric num):rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
@@ -261,7 +269,7 @@ lexer0 scope rem =
     popLayout0 :: Layout -> Pos -> String -> [Token Lexeme]
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
-      | top l == c2 = Token Semi p p : go l p rem
+      | top l == c2 = Token (Semi True) p p : go l p rem
       | top l <  c2 = go l p rem
       | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
@@ -327,6 +335,7 @@ lexer0 scope rem =
       '}' : rem -> close "{" "}" l pos rem
       '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
       ')' : rem -> close "(" ")" l pos rem
+      ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
@@ -586,7 +595,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -618,7 +627,7 @@ layoutCloseOnlyKeywords :: Set String
 layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
-delimiters = Set.fromList "()[]{},?"
+delimiters = Set.fromList "()[]{},?;"
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

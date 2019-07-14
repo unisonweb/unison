@@ -289,7 +289,9 @@ importDotId = queryToken go where
 
 -- Consume a virtual semicolon
 semi :: Ord v => P v (L.Token ())
-semi = void <$> matchToken L.Semi
+semi = queryToken go where
+  go (L.Semi _) = Just ()
+  go _ = Nothing
 
 -- Consume the end of a block
 closeBlock :: Ord v => P v (L.Token ())
