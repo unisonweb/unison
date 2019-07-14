@@ -14,7 +14,6 @@ import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
-import           Unison.ShortHash               ( ShortHash )
 
 data Event
   = UnisonFileChanged SourceName Source

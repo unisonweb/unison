@@ -505,14 +505,22 @@ removePureEffects t | not Settings.removePureEffects = t
     isPure v = ABT.occurrences v tu <= 1
 
 editFunctionResult
-  :: forall v a . (Type v a -> Type v a) -> Type v a -> Maybe (Type v a)
-editFunctionResult f = go False
+  :: forall v a
+   . Ord v
+  => (Type v a -> Type v a)
+  -> Type v a
+  -> Type v a
+editFunctionResult f = go
  where
-  go :: Bool -> Type v a -> Maybe (Type v a)
-  go inArr (ABT.Term s a t) = case t of
-    ABT.Tm (Forall t ) -> ABT.Term s a . ABT.Tm . Forall <$> go inArr t
-    ABT.Tm (Arrow i o) -> ABT.Term s a . ABT.Tm . Arrow i <$> go True o
-    _                  -> if inArr then Just (f (ABT.Term s a t)) else Nothing
+  go :: Type v a -> Type v a
+  go (ABT.Term s a t) = case t of
+    ABT.Tm (Forall t) ->
+      (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
+    ABT.Tm (Arrow i o) ->
+      (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
+    ABT.Abs v r ->
+      (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
+    _ -> f (ABT.Term s a t)
 
 functionResult :: Type v a -> Maybe (Type v a)
 functionResult = go False
@@ -526,8 +534,10 @@ functionResult = go False
 -- letter with an outer `forall`.
 generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
-  where vars = [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v]
-        isLow = all Char.isLower . take 1 . Text.unpack . Var.name
+ where
+  vars =
+    [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v ]
+  isLow = all Char.isLower . take 1 . Text.unpack . Var.name
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a

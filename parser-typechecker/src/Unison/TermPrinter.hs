@@ -204,7 +204,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
        ]
      where
        height = PP.preferredHeight pt `max` PP.preferredHeight pf
-       pcond  = branch cond
+       pcond  = pretty0 n (ac 2 Block im) cond
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
@@ -822,7 +822,7 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
 immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
-    If' cond t f -> [cond, t, f]
+    If' _ t f -> [t, f]
     tm@(LetRecNamed' bs _) -> [tm] ++ (concat $ map doLet bs)
     tm@(Lets' bs _)        -> [tm] ++ (concat $ map doLet ((map (\(_, v, binding) -> (v, binding)) bs)))
     Match' _ branches -> concat $ map doCase branches
