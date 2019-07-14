@@ -9,13 +9,14 @@ module Unison.Util.Pretty (
    Pretty,
    ColorText,
    align,
+   backticked,
    bulleted,
    bracket,
    -- breakable
    callout,
    excerptSep,
    excerptSep',
-   warnCallout, fatalCallout, okCallout,
+   warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
    column3,
    column3sep,
@@ -495,11 +496,15 @@ callout header p = header <> "\n\n" <> p
 bracket :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 bracket = indent "  "
 
-warnCallout, fatalCallout, okCallout
+warnCallout, blockedCallout, fatalCallout, okCallout
   :: (LL.ListLike s Char, IsString s) => Pretty s -> Pretty s
 warnCallout = callout "⚠️"
 fatalCallout = callout "❗️"
 okCallout = callout "✅"
+blockedCallout = callout "🚫"
+
+backticked :: IsString s => Pretty s -> Pretty s
+backticked p = group ("`" <> p <> "`")
 
 instance Show s => Show (Pretty s) where
   show p = render 80 (metaPretty p)

@@ -374,16 +374,28 @@ block :: forall v. Var v => String -> TermP v
 block s = block' False s (openBlockWith s) closeBlock
 
 -- example: use Foo.bar.Baz + ++ x
+-- + ++ and x are called the "suffixes" of the `use` statement, and
+-- `Foo.bar.Baz` is called the prefix. A `use` statement has the effect
+-- of allowing you to reference identifiers of the form <prefix>.<suffix>
+-- using just <suffix>.
+--
 -- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
 importp :: Ord v => P v [(Name, Name)]
 importp = do
-  _        <- reserved "use"
-  prefix   <- fmap L.payload $ importWordyId <|> importDotId -- use . Nat
-  suffixes <- some (importWordyId <|> importSymbolyId)
-              P.<?> "one or more identifiers"
-  pure $ do
-    suffix <- L.payload <$> suffixes
-    pure (suffix, Name.joinDot prefix suffix)
+  kw      <- reserved "use"
+  -- we allow symbolyId here and parse the suffix optionaly, so we can generate
+  -- a nicer error message if the suffixes are empty
+  prefix   <- optional
+            $ (fmap Right $ importWordyId <|> importDotId) -- use . Nat
+          <|> (fmap Left $ importSymbolyId)
+  suffixes <- optional (some (importWordyId <|> importSymbolyId))
+  case (prefix, suffixes) of
+    (Nothing, _) -> P.customFailure $ UseEmpty kw
+    (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
+    (Just prefix@(Right _), Nothing) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
+    (Just (Right prefix), Just suffixes) -> pure $ do
+      suffix <- L.payload <$> suffixes
+      pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and

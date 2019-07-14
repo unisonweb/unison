@@ -6,6 +6,7 @@ module Unison.Name
   , isPrefixOf
   , joinDot
   , makeAbsolute
+  , parent
   , stripNamePrefix
   , stripPrefixes
   , toString
@@ -18,6 +19,7 @@ module Unison.Name
   )
 where
 
+import           Control.Lens                   ( unsnoc )
 import           Data.String                    ( IsString
                                                 , fromString
                                                 )
@@ -75,6 +77,17 @@ joinDot prefix suffix =
 
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
+
+-- parent . -> Nothing
+-- parent + -> Nothing
+-- parent foo -> Nothing
+-- parent foo.bar -> foo
+-- parent foo.bar.+ -> foo.bar
+parent :: Name -> Maybe Name
+parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
+  Nothing -> Nothing
+  Just ([],_) -> Nothing
+  Just (init,_) -> Just $ Name (Text.intercalate "." init)
 
 unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."

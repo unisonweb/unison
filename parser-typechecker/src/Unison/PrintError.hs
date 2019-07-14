@@ -58,6 +58,7 @@ import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
 import qualified Unison.Names3 as Names
+import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
 
@@ -933,6 +934,40 @@ prettyParseError s = \case
   go' (P.ErrorCustom e) = go e
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  -- | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  go (Parser.UseEmpty tok) = Pr.render defaultWidth msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
+      Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword", "",
+      Pr.lit (tokenAsErrorSite s tok),
+      useExamples
+      ]
+  go (Parser.UseInvalidPrefixSuffix prefix suffix) = Pr.render defaultWidth msg where
+    msg :: Pr.Pretty Pr.ColorText
+    msg = Pr.indentN 2 . Pr.blockedCallout . Pr.lines $ case (prefix, suffix) of
+      (Left tok, Just _) -> [
+        Pr.wrap $ "The first argument of a `use` statement can't be an operator name:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        useExamples
+        ]
+      (tok0, Nothing) -> let tok = either id id tok0 in [
+        Pr.wrap $ "I was expecting something after " <> Pr.hiRed "here:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        case Name.parent (L.payload tok) of
+          Nothing -> useExamples
+          Just parent -> Pr.wrap $
+            "You can write" <>
+            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
+                                       <> Pr.shown (Name.unqualified (L.payload tok))) <>
+            "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
+            "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))
+        ]
+      (Right tok, _) -> [ -- this is unpossible but rather than bomb, nice msg
+        "You found a Unison bug 🐞  here:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        Pr.wrap $
+          "This looks like a valid `use` statement," <>
+          "but the parser didn't recognize it. This is a Unison bug."
+        ]
   go (Parser.DisallowedAbsoluteName t) = Pr.render defaultWidth msg where
    msg :: Pr.Pretty Pr.ColorText
    msg = Pr.indentN 2 $ Pr.fatalCallout $ Pr.lines [
@@ -1145,4 +1180,13 @@ prettyResolutionFailures s failures =
       <> "\n" <>
         if null conflicts then ""
         else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+  ]
+
+useExamples :: Pr.Pretty Pr.ColorText
+useExamples = Pr.lines [
+  "Here's a few examples of valid `use` statements:", "",
+  Pr.indentN 2 . Pr.column2 $
+    [ (Pr.blue "use math sqrt", Pr.wrap "Introduces `sqrt` as a local alias for `math.sqrt`")
+    , (Pr.blue "use List :+", Pr.wrap "Introduces `:+` as a local alias for `List.:+`.")
+    , (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`") ]
   ]
