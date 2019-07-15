@@ -57,6 +57,10 @@ import qualified Unison.Var                   as Var
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.TermPrinter as TermPrinter
 import qualified Unison.Util.Pretty as Pr
+import qualified Unison.Names3 as Names
+import qualified Unison.Name as Name
+import Unison.HashQualified (HashQualified)
+import Unison.Type (Type)
 
 type Env = PPE.PrettyPrintEnv
 
@@ -94,7 +98,7 @@ showTypeWithProvenance
   => Env
   -> String
   -> style
-  -> Type.AnnotatedType v a
+  -> Type v a
   -> AnnotatedText style
 showTypeWithProvenance env src color typ =
   style color (renderType' env typ)
@@ -133,7 +137,7 @@ renderTypeInfo i env = case i of
  where
   renderOne
     :: IsString s
-    => (v, Type.AnnotatedType v loc, RedundantTypeAnnotation)
+    => (v, Type v loc, RedundantTypeAnnotation)
     -> [s]
   renderOne (v, typ, _) =
     [fromString . Text.unpack $ Var.name v, " : ", renderType' env typ]
@@ -698,7 +702,7 @@ renderTerm env e =
      else fromString s
 
 -- | renders a type with no special styling
-renderType' :: (IsString s, Var v) => Env -> Type.AnnotatedType v loc -> s
+renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
 renderType' env typ = fromString . Color.toPlain $ renderType env (const id) typ
 
 -- | `f` may do some styling based on `loc`.
@@ -707,7 +711,7 @@ renderType
   :: Var v
   => Env
   -> (loc -> AnnotatedText a -> AnnotatedText a)
-  -> Type.AnnotatedType v loc
+  -> Type v loc
   -> AnnotatedText a
 renderType env f t =
   renderType0 env f (0 :: Int) (Type.removePureEffects t)
@@ -764,6 +768,9 @@ renderVar' :: (Var v, Annotated a) => Env -> C.Context v a -> v -> String
 renderVar' env ctx v = case C.lookupSolved ctx v of
   Nothing -> "unsolved"
   Just t  -> renderType' env $ Type.getPolytype t
+
+prettyVar :: Var v => v -> Pr.Pretty Pr.ColorText
+prettyVar = Pr.text . Var.name
 
 renderKind :: Kind -> AnnotatedText a
 renderKind Kind.Star          = "*"
@@ -853,6 +860,7 @@ printNoteWithSource
 printNoteWithSource env  _s (TypeInfo  n) = prettyTypeInfo n env
 printNoteWithSource _env s  (Parsing   e) = prettyParseError s e
 printNoteWithSource env  s  (TypeError e) = prettyTypecheckError e env s
+printNoteWithSource _env _s   (NameResolutionFailures _es) = undefined
 printNoteWithSource _env s (InvalidPath path term) =
   fromString ("Invalid Path: " ++ show path ++ "\n")
     <> annotatedAsErrorSite s term
@@ -926,6 +934,40 @@ prettyParseError s = \case
   go' (P.ErrorCustom e) = go e
   errorVar v = style ErrorSite . fromString . Text.unpack $ Var.name v
   go :: Parser.Error v -> AnnotatedText Color
+  -- | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  go (Parser.UseEmpty tok) = Pr.render defaultWidth msg where
+    msg = Pr.indentN 2 . Pr.callout "😶" $ Pr.lines [
+      Pr.wrap $ "I was expecting something after the " <> Pr.hiRed "use" <> "keyword", "",
+      Pr.lit (tokenAsErrorSite s tok),
+      useExamples
+      ]
+  go (Parser.UseInvalidPrefixSuffix prefix suffix) = Pr.render defaultWidth msg where
+    msg :: Pr.Pretty Pr.ColorText
+    msg = Pr.indentN 2 . Pr.blockedCallout . Pr.lines $ case (prefix, suffix) of
+      (Left tok, Just _) -> [
+        Pr.wrap $ "The first argument of a `use` statement can't be an operator name:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        useExamples
+        ]
+      (tok0, Nothing) -> let tok = either id id tok0 in [
+        Pr.wrap $ "I was expecting something after " <> Pr.hiRed "here:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        case Name.parent (L.payload tok) of
+          Nothing -> useExamples
+          Just parent -> Pr.wrap $
+            "You can write" <>
+            Pr.group (Pr.blue $ "use " <> Pr.shown parent <> " "
+                                       <> Pr.shown (Name.unqualified (L.payload tok))) <>
+            "to introduce " <> Pr.backticked (Pr.shown (Name.unqualified (L.payload tok))) <>
+            "as a local alias for " <> Pr.backticked (Pr.shown (L.payload tok))
+        ]
+      (Right tok, _) -> [ -- this is unpossible but rather than bomb, nice msg
+        "You found a Unison bug 🐞  here:", "",
+        Pr.lit (tokenAsErrorSite s tok),
+        Pr.wrap $
+          "This looks like a valid `use` statement," <>
+          "but the parser didn't recognize it. This is a Unison bug."
+        ]
   go (Parser.DisallowedAbsoluteName t) = Pr.render defaultWidth msg where
    msg :: Pr.Pretty Pr.ColorText
    msg = Pr.indentN 2 $ Pr.fatalCallout $ Pr.lines [
@@ -1009,15 +1051,22 @@ prettyParseError s = \case
     ]
   go Parser.EmptyWatch =
     "I expected a non-empty watch expression and not just \">\""
-  go (Parser.UnknownAbilityConstructor tok) = unknownConstructor "ability" tok
-  go (Parser.UnknownDataConstructor    tok) = unknownConstructor "data" tok
-  go (Parser.UnknownHashQualifiedName tok) = mconcat
-    [ "I couldn't find the referent of the hash-qualified name "
+  go (Parser.UnknownAbilityConstructor tok _referents) = unknownConstructor "ability" tok
+  go (Parser.UnknownDataConstructor    tok _referents) = unknownConstructor "data" tok
+  go (Parser.UnknownTerm               tok _referents) = mconcat
+    [ "I couldn't find a term for "
     , tokenAsErrorSite s $ HQ.toString <$> tok
     , ". Make sure it's spelled correctly and that you have the right hash."
     ]
+  go (Parser.UnknownType               tok _referents) = mconcat
+    [ "I couldn't find a type for "
+    , tokenAsErrorSite s $ HQ.toString <$> tok
+    , ". Make sure it's spelled correctly and that you have the right hash."
+    ]
+  go (Parser.ResolutionFailures        failures) =
+    Pr.render defaultWidth . Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
-    :: String -> L.Token String -> AnnotatedText Color
+    :: String -> L.Token HashQualified -> AnnotatedText Color
   unknownConstructor ctorType tok = mconcat
     [ "I don't know about any "
     , fromString ctorType
@@ -1040,6 +1089,10 @@ annotatedAsStyle
   :: (Ord style, Annotated a) => style -> String -> a -> AnnotatedText style
 annotatedAsStyle style s ann =
   showSourceMaybes s [(, style) <$> rangeForAnnotated ann]
+
+annotatedsAsErrorSite ::
+  (Annotated a) => String -> [a] -> AnnotatedText Color
+annotatedsAsErrorSite = annotatedsAsStyle ErrorSite
 
 annotatedsAsStyle ::
   (Annotated a) => Color -> String -> [a] -> AnnotatedText Color
@@ -1102,3 +1155,38 @@ intLiteralSyntaxTip term expectedType = case (term, expectedType) of
     "\nTip: Use the syntax " <> style Type2 ("+"<>show n) <> " to produce an "
                              <> style Type2 "Int" <> "."
   _ -> ""
+
+prettyResolutionFailures
+  :: (Annotated a, Var v)
+  => String
+  -> [Names.ResolutionFailure v a]
+  -> Pr.Pretty (AnnotatedText Color)
+prettyResolutionFailures s failures =
+  Pr.callout "❓" $ Pr.linesNonEmpty [
+    Pr.wrap ("I couldn't resolve any of" <> Pr.lit (style ErrorSite "these") <> "symbols:"),
+    "",
+    Pr.lit . annotatedsAsErrorSite s $
+      [ a | Names.TermResolutionFailure _ a _ <- failures ] ++
+      [ a | Names.TypeResolutionFailure _ a _ <- failures ],
+    let
+      conflicts = nubOrd $
+        [ v | Names.TermResolutionFailure v _ s <- failures, Set.size s > 1 ] ++
+        [ v | Names.TypeResolutionFailure v _ s <- failures, Set.size s > 1 ]
+      allVars = nubOrd $
+        [ v | Names.TermResolutionFailure v _ _ <- failures ] ++
+        [ v | Names.TypeResolutionFailure v _ _ <- failures ]
+    in
+      "Using these fully qualified names:" `Pr.hang` Pr.spaced (prettyVar <$> allVars)
+      <> "\n" <>
+        if null conflicts then ""
+        else Pr.spaced (prettyVar <$> conflicts) <> Pr.bold " are currently conflicted symbols"
+  ]
+
+useExamples :: Pr.Pretty Pr.ColorText
+useExamples = Pr.lines [
+  "Here's a few examples of valid `use` statements:", "",
+  Pr.indentN 2 . Pr.column2 $
+    [ (Pr.blue "use math sqrt", Pr.wrap "Introduces `sqrt` as a local alias for `math.sqrt`")
+    , (Pr.blue "use List :+", Pr.wrap "Introduces `:+` as a local alias for `List.:+`.")
+    , (Pr.blue "use .foo bar.baz", Pr.wrap "Introduces `bar.baz` as a local alias for the absolute name `.foo.bar.baz`") ]
+  ]

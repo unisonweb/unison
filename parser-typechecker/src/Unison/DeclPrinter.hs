@@ -128,7 +128,7 @@ fieldNames env r name dd = case DD.constructors dd of
                , (f, rest) <- pure $ span (/= '.') rest
                , rest `elem` ["",".set",".modify"] ]
     in if Map.size fieldNames == length names then
-         Just [ HQ.fromString name
+         Just [ HQ.unsafeFromString name
               | v <- vars
               , Just (ref, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
               , Just name <- [Map.lookup ref fieldNames] ]

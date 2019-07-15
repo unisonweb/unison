@@ -4,9 +4,7 @@ module Unison.HashQualified where
 
 import           Data.Maybe                     ( isJust
                                                 , fromMaybe
-                                                )
-import           Data.String                    ( IsString
-                                                , fromString
+                                                , fromJust
                                                 )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
@@ -24,7 +22,7 @@ import qualified Unison.Var                    as Var
 
 data HashQualified' n
   = NameOnly n | HashOnly ShortHash | HashQualified n ShortHash
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Functor, Show)
 
 type HashQualified = HashQualified' Name
 
@@ -43,8 +41,9 @@ toName = \case
   HashQualified name _ -> Just name
   HashOnly _           -> Nothing
 
-hasName :: HashQualified -> Bool
+hasName, hasHash :: HashQualified -> Bool
 hasName = isJust . toName
+hasHash = isJust . toHash
 
 toHash :: HashQualified -> Maybe ShortHash
 toHash = \case
@@ -71,17 +70,24 @@ take i = \case
 toString :: Show n => HashQualified' n -> String
 toString = Text.unpack . toText
 
-fromString :: String -> HashQualified
+fromString :: String -> Maybe HashQualified
 fromString = fromText . Text.pack
 
+unsafeFromString :: String -> HashQualified
+unsafeFromString = fromJust . fromString
+
 -- Parses possibly-hash-qualified into structured type.
--- Won't crash, but also doesn't validate against base58 or the codebase.
-fromText :: Text -> HashQualified
-fromText t = case Text.breakOn "#" t of
-  (name, ""  ) -> NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
-  (""  , hash) -> HashOnly (SH.unsafeFromText hash)   -- safe bc breakOn #
-  (name, hash) ->
-    HashQualified (Name.unsafeFromText name) (SH.unsafeFromText hash)
+-- Doesn't validate against base58 or the codebase.
+fromText :: Text -> Maybe HashQualified
+fromText t = case Text.breakOn "#" t of -- breakOn leaves the '#' on the RHS
+  (name, ""  ) -> Just $ NameOnly (Name.unsafeFromText name) -- safe bc breakOn #
+  (""  , hash) -> HashOnly <$> SH.fromText hash
+  (name, hash) -> HashQualified (Name.unsafeFromText name) <$> SH.fromText hash
+
+-- Won't crash as long as SH.unsafeFromText doesn't crash on any input that
+-- starts with '#', which is true as of the time of this writing, but not great.
+unsafeFromText :: Text -> HashQualified
+unsafeFromText  = fromJust . fromText
 
 toText :: Show n => HashQualified' n -> Text
 toText = \case
@@ -103,10 +109,16 @@ fromReferent = HashOnly . Referent.toShortHash
 fromReference :: Reference -> HashQualified
 fromReference = HashOnly . Reference.toShortHash
 
+fromPattern :: Reference -> Int -> HashQualified
+fromPattern r cid = HashOnly $ Referent.patternShortHash r cid
+
 fromName :: n -> HashQualified' n
 fromName = NameOnly
 
-fromVar :: Var v => v -> HashQualified
+unsafeFromVar :: Var v => v -> HashQualified
+unsafeFromVar = unsafeFromText . Var.name
+
+fromVar :: Var v => v -> Maybe HashQualified
 fromVar = fromText . Var.name
 
 toVar :: Var v => HashQualified -> v
@@ -132,8 +144,5 @@ requalify hq r = case hq of
   HashQualified n _ -> fromNamedReferent n r
   HashOnly _        -> fromReferent r
 
-instance IsString HashQualified where
-  fromString = fromText . Text.pack
-
-instance Show n => Show (HashQualified' n) where
-  show = Text.unpack . toText
+--instance Show n => Show (HashQualified' n) where
+--  show = Text.unpack . toText

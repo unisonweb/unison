@@ -3,17 +3,8 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
-  , SearchResult'(..)
-  , TermResult'(..)
   , TestReportStats(..)
-  , TodoOutput(..)
-  , TypeResult'(..)
   , UndoFailureReason(..)
-  , pattern Tm
-  , pattern Tp
-  , foldResult'
-  , tmReferent
-  , tpReference
   ) where
 
 import Data.Map (Map)
@@ -25,7 +16,7 @@ import Unison.Codebase.GitError
 import Unison.Codebase.Path (Path')
 import Unison.Codebase.Patch (Patch)
 import Unison.Name ( Name )
-import Unison.Names2 ( Names, Names0 )
+import Unison.Names2 ( Names )
 import Unison.Parser ( Ann )
 import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
@@ -35,18 +26,20 @@ import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
 import qualified Unison.HashQualified as HQ
-import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Parser as Parser
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Reference as Reference
 import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.UnisonFile as UF
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
+import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
+import Unison.Codebase.Editor.SearchResult' (SearchResult')
+import Unison.Type (Type)
+import Unison.HashQualified' as HQ'
+import qualified Unison.Names3 as Names
 
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 type ListDetailed = Bool
 type SourceName = Text
 
@@ -63,6 +56,7 @@ data Output v
   | NoExactTypeMatches
   | TypeAlreadyExists Input Path.Split' (Set Reference)
   | TypeParseError Input String (Parser.Err v)
+  | ParseResolutionFailures Input String [Names.ResolutionFailure v Ann]
   | TypeHasFreeVars Input (Type v Ann)
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
@@ -81,11 +75,11 @@ data Output v
   | DeleteBranchConfirmation
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
-  | CantDelete Input Names0 [SearchResult' v Ann] [SearchResult' v Ann]
-  | ListNames [(Referent, Set Name)] -- term match, term names
-              [(Reference, Set Name)] -- type match, type names
+  | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+  | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
+              [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
-  | ListOfDefinitions Names0 ListDetailed [SearchResult' v Ann]
+  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
@@ -105,14 +99,14 @@ data Output v
                        PPE.PrettyPrintEnv
                        (Map Reference (DisplayThing (Decl v Ann)))
                        (Map Reference (DisplayThing (Term v Ann)))
-  | TodoOutput Names0 (TodoOutput v Ann)
+  | TodoOutput PPE.PrettyPrintEnv (TodoOutput v Ann)
   | TestIncrementalOutputStart PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestIncrementalOutputEnd PPE.PrettyPrintEnv (Int,Int) Reference (Term v Ann)
   | TestResults TestReportStats
       PPE.PrettyPrintEnv ShowSuccesses ShowFailures
                 [(Reference, Text)] [(Reference, Text)]
   | CantUndo UndoFailureReason
-  | ListEdits Patch Names0
+  | ListEdits Patch PPE.PrettyPrintEnv
 
   -- new/unrepresented references followed by old/removed
   -- todo: eventually replace these sets with [SearchResult' v Ann]
@@ -141,41 +135,4 @@ type ShowFailures = Bool  -- whether to list results or just summarize
 
 data UndoFailureReason = CantUndoPastStart | CantUndoPastMerge deriving Show
 
-data SearchResult' v a
-  = Tm' (TermResult' v a)
-  | Tp' (TypeResult' v a)
-  deriving (Eq, Show)
-data TermResult' v a =
-  TermResult' HQ'.HashQualified (Maybe (Type v a)) Referent (Set HQ'.HashQualified)
-  deriving (Eq, Show)
-data TypeResult' v a =
-  TypeResult' HQ'.HashQualified (DisplayThing (Decl v a)) Reference (Set HQ'.HashQualified)
-  deriving (Eq, Show)
-pattern Tm n t r as = Tm' (TermResult' n t r as)
-pattern Tp n t r as = Tp' (TypeResult' n t r as)
-
-tmReferent :: SearchResult' v a -> Maybe Referent
-tmReferent = \case; Tm _ _ r _ -> Just r; _ -> Nothing
-tpReference :: SearchResult' v a -> Maybe Reference
-tpReference = \case; Tp _ _ r _ -> Just r; _ -> Nothing
-
-foldResult' :: (TermResult' v a -> b) -> (TypeResult' v a -> b) -> SearchResult' v a -> b
-foldResult' f g = \case
-  Tm' tm -> f tm
-  Tp' tp -> g tp
-
 type SourceFileContents = Text
-
-type Score = Int
-
-data TodoOutput v a = TodoOutput_
-  { todoScore :: Int
-  , todoFrontier ::
-        ( [(HQ'.HashQualified, Reference, Maybe (Type v a))]
-        , [(HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
-  , todoFrontierDependents ::
-        ( [(Score, HQ'.HashQualified, Reference, Maybe (Type v a))]
-        , [(Score, HQ'.HashQualified, Reference, DisplayThing (Decl v a))])
-  , nameConflicts :: Names0
-  , editConflicts :: Patch
-  } deriving (Show)

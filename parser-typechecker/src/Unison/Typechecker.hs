@@ -22,7 +22,6 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Control.Monad.Writer
 import           Data.Foldable              (for_, toList, traverse_)
-import           Data.List                  (nub, nubBy)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
@@ -31,33 +30,24 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import qualified Unison.ConstructorType     as CT
--- import           Unison.Name                (Name)
--- import qualified Unison.Name                as Name
-import qualified Unison.HashQualified'      as HQ
-import qualified Unison.Name                as N
-import           Unison.Names2              (Names)
-import qualified Unison.Names2              as Names
-import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
-import           Unison.Type                (AnnotatedType)
+import           Unison.Type                (Type)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.TypeVar             as TypeVar
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
-import           Unison.Util.Relation       (lookupDom)
+import           Unison.Util.List           ( uniqueBy )
 -- import           Debug.Trace
 
 type Name = Text
 
 type Term v loc = AnnotatedTerm v loc
-type Type v loc = AnnotatedType v loc
 
 data Notes v loc = Notes {
   errors :: Seq (Context.ErrorNote v loc),
@@ -74,16 +64,14 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
+  NamedReference { fqn :: Name, fqnType :: Type v loc
                  , replacement :: Either v Referent }
   deriving Show
 
--- Arya: _builtinLoc refers to anything external?
 data Env v loc = Env
   { _ambientAbilities  :: [Type v loc]
   , _typeLookup        :: TL.TypeLookup v loc
   , _unqualifiedTerms  :: Map Name [NamedReference v loc]
-  , _qualifiedNames :: Names
   }
 
 makeLenses ''Env
@@ -239,7 +227,7 @@ typeDirectedNameResolution oldNotes oldType env = do
     rs ->
       let
         goAgain =
-          any ((== 1) . length . filter Context.isExact . nub . suggestions) rs
+          any ((== 1) . length . dedupe . filter Context.isExact . suggestions) rs
       in  if goAgain
             then do
               traverse_ substSuggestion rs
@@ -261,7 +249,7 @@ typeDirectedNameResolution oldNotes oldType env = do
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
       typeError $ Context.ErrorNote
-        (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
+        (Context.UnknownTerm loc (Var.named name) (dedupe suggestions) inferredType)
         []
     )
   guard x a = if x then Just a else Nothing
@@ -273,11 +261,7 @@ typeDirectedNameResolution oldNotes oldType env = do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
    where
-    solved =
-      either (Term.var loc) (Term.fromReferent constructorType loc) replacement
-    constructorType :: Reference -> CT.ConstructorType
-    constructorType = fromMaybe (error "no constructor type in substSuggestion")
-      . TL.constructorType (view typeLookup env)
+    solved = either (Term.var loc) (Term.fromReferent loc) replacement
   substSuggestion _ = pure ()
 
   -- Resolve a `Blank` to a term
@@ -303,12 +287,7 @@ typeDirectedNameResolution oldNotes oldType env = do
       $ view unqualifiedTerms env
   resolveNote _ n = btw n >> pure Nothing
   dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
-  dedupe = nubBy $ \x y -> case (x, y) of
-    (Context.Suggestion name1 _ r1 _, Context.Suggestion name2 _ r2 _) ->
-      let refFor n =
-            lookupDom (HQ.fromName $ N.Name n)
-            . Names.terms $ view qualifiedNames env
-       in r1 == r2 || refFor name1 == refFor name2
+  dedupe = uniqueBy Context.suggestionReplacement
   resolve
     :: Context.Type v loc
     -> NamedReference v loc

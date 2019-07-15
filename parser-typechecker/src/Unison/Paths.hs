@@ -8,12 +8,13 @@ import Data.Maybe
 import GHC.Generics
 import Unison.ABT (V)
 import Unison.Term (Term)
-import Unison.Type (Type)
 import Unison.Var (Var)
 import qualified Data.Sequence as Sequence
 import qualified Unison.ABT as ABT
 import qualified Unison.Term as E
 import qualified Unison.Type as T
+
+type Type v = T.Type v ()
 
 data Target v
   = Term (Term v)

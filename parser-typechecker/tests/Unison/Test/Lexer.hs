@@ -17,6 +17,10 @@ test =
       , t "1 +1" [Numeric "1", Numeric "+1"]
       , t "1+ 1" [Numeric "1", simpleSymbolyId "+", Numeric "1"]
       , t "x+y" [simpleWordyId "x", simpleSymbolyId "+", simpleWordyId "y"]
+      , t "++;++" [simpleSymbolyId "++", Semi False, simpleSymbolyId "++"]
+      , t "++; woot" [simpleSymbolyId "++", Semi False, simpleWordyId "woot"]
+      , t "woot;woot" [simpleWordyId "woot", Semi False, simpleWordyId "woot"]
+      , t "woot;(woot)" [simpleWordyId "woot", Semi False, Open "(", simpleWordyId "woot", Close]
       , t
         "[+1,+1]"
         [Reserved "[", Numeric "+1", Reserved ",", Numeric "+1", Reserved "]"]
@@ -63,7 +67,7 @@ test =
               [ simpleWordyId "test"
               , Open "="
               , Close
-              , Semi
+              , (Semi True)
               , simpleWordyId "x"
               , Open "="
               , Numeric "1"
@@ -78,7 +82,7 @@ test =
               , Open "="
               , Close
               , Close
-              , Semi
+              , (Semi True)
               , simpleWordyId "x"
               , Open "="
               , Numeric "1"

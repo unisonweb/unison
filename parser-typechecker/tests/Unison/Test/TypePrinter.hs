@@ -7,7 +7,7 @@ import qualified Unison.Builtin
 import Unison.Util.ColorText (toPlain)
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
-import Unison.Test.Common
+import qualified Unison.Test.Common as Common
 
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
@@ -17,13 +17,13 @@ import Unison.Test.Common
 -- Note that this does not verify the position of the PrettyPrint Break elements.
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
-   let input_type = Unison.Test.Common.t s
-       get_names = PPE.fromNames0 Unison.Builtin.names0
+   let input_type = Common.t s
+       get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
        prettied = fmap toPlain $ PP.syntaxToColor $ prettyRaw get_names Map.empty (-1) input_type
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width $ prettied
-       actual_reparsed = Unison.Test.Common.t actual
+       actual_reparsed = Common.t actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected: " ++ show expected

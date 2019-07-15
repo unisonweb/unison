@@ -81,29 +81,29 @@ toANSI (AnnotatedText chunks) = join . toList $
           HiWhite  -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.White]
           Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
 
-defaultColors :: ST.Element -> Color
+defaultColors :: ST.Element -> Maybe Color
 defaultColors = \case 
-  ST.NumericLiteral      -> Purple
-  ST.TextLiteral         -> Yellow
-  ST.BooleanLiteral      -> Cyan
-  ST.Blank               -> HiCyan
-  ST.Var                 -> White
-  ST.Reference           -> Green
-  ST.Constructor         -> Green
-  ST.Request             -> HiGreen
-  ST.AbilityBraces       -> HiGreen
-  ST.ControlKeyword      -> Red
-  ST.TypeOperator        -> Red
-  ST.BindingEquals       -> HiBlack
-  ST.TypeAscriptionColon -> HiBlack
-  ST.DataTypeKeyword     -> HiBlue
-  ST.DataType            -> Blue
-  ST.DataTypeParams      -> White
-  ST.DataTypeModifier    -> HiBlack
-  ST.UseKeyword          -> HiBlack
-  ST.UsePrefix           -> HiBlack
-  ST.UseSuffix           -> HiBlack
-  ST.HashQualifier       -> HiBlack
-  ST.DelayForceChar      -> Yellow
-  ST.DelimiterChar       -> White
-  ST.Parenthesis         -> White
+  ST.NumericLiteral      -> Nothing
+  ST.TextLiteral         -> Nothing
+  ST.BooleanLiteral      -> Nothing
+  ST.Blank               -> Nothing
+  ST.Var                 -> Nothing
+  ST.Reference           -> Nothing
+  ST.Constructor         -> Nothing
+  ST.Request             -> Nothing
+  ST.AbilityBraces       -> Just HiBlack
+  ST.ControlKeyword      -> Just Bold
+  ST.TypeOperator        -> Just HiBlack
+  ST.BindingEquals       -> Nothing
+  ST.TypeAscriptionColon -> Just Blue
+  ST.DataTypeKeyword     -> Nothing
+  ST.DataType            -> Nothing
+  ST.DataTypeParams      -> Nothing
+  ST.DataTypeModifier    -> Nothing
+  ST.UseKeyword          -> Just HiBlack
+  ST.UsePrefix           -> Just HiBlack
+  ST.UseSuffix           -> Just HiBlack
+  ST.HashQualifier       -> Just HiBlack
+  ST.DelayForceChar      -> Just Yellow
+  ST.DelimiterChar       -> Nothing
+  ST.Parenthesis         -> Nothing

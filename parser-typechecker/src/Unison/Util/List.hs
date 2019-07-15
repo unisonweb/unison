@@ -4,6 +4,8 @@ import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Data.Either (partitionEithers)
+import Safe (headMay)
 
 multimap :: Foldable f => Ord k => f (k, v) -> Map k [v]
 multimap kvs =
@@ -31,3 +33,11 @@ nubOrdOn = uniqueBy
 -- prefers later copies
 uniqueBy' :: (Foldable f, Ord b) => (a -> b) -> f a -> [a]
 uniqueBy' f = reverse . uniqueBy f . reverse . toList
+
+safeHead :: Foldable f => f a -> Maybe a
+safeHead = headMay . toList
+
+validate :: (Semigroup e, Foldable f) => (a -> Either e b) -> f a -> Either e [b]
+validate f as = case partitionEithers (f <$> toList as) of
+  ([], bs) -> Right bs
+  (e:es, _) -> Left (foldl' (<>) e es)

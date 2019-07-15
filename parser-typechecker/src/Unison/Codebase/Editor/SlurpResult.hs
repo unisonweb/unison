@@ -21,17 +21,12 @@ import qualified Unison.Name as Name
 import qualified Unison.Names2 as Names
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Referent as Referent
-import qualified Unison.Term as Term
-import qualified Unison.Type as Type
 import qualified Unison.TypePrinter as TP
 import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.Monoid as Monoid
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
 import qualified Unison.Var as Var
-
-type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 data SlurpResult v = SlurpResult {
   -- The file that we tried to add from
@@ -69,7 +64,7 @@ constructorsFor types uf = let
   names = UF.typecheckedToNames0 uf
   typesRefs = Set.unions $ Names.typesNamed names . Name.fromVar <$> toList types
   ctorNames = R.filterRan isOkCtor (Names.terms names)
-  isOkCtor (Referent.Con r _) | Set.member r typesRefs = True
+  isOkCtor (Referent.Con r _ _) | Set.member r typesRefs = True
   isOkCtor _ = False
   in Set.map Name.toVar $ R.dom ctorNames
 
@@ -172,7 +167,7 @@ pretty isPast ppe sr = let
   plus = P.green "  "
   okType v = (plus <>) $ case UF.lookupDecl v (originalFile sr) of
     Just (_, dd) ->
-      P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd) <> aliases where
+      P.syntaxToColor (DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd) <> aliases where
         aliases = case Map.lookup v (typeAlias sr) of
           Nothing -> ""
           Just ns ->
@@ -195,10 +190,10 @@ pretty isPast ppe sr = let
     in header <> "\n\n" <> P.linesNonEmpty [ addedTypes, addedTerms ]
   notOks _past _present sr | isOk sr = mempty
   notOks past present sr = let
-    header = badIcon <> P.wrap (if isPast then past else present)
+    header = badIcon <> P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
     typeLineFor status v = case UF.lookupDecl v (originalFile sr) of
       Just (_, dd) ->
-        (prettyStatus status, P.syntaxToColor $ DeclPrinter.prettyDeclHeader (HQ.fromVar v) dd, aliases)
+        (prettyStatus status, P.syntaxToColor $ DeclPrinter.prettyDeclHeader (HQ.unsafeFromVar v) dd, aliases)
       Nothing ->
         (prettyStatus status,
          prettyVar v <> P.red (P.wrap " (Unison bug, unknown type)"),
@@ -213,9 +208,7 @@ pretty isPast ppe sr = let
       (typeLineFor Alias <$> typeAlias') ++
       (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
       (typeLineFor Collision <$> toList (types (collisions sr))) ++
-      (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr))) ++
-      (typeLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
-      (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
+      (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
     termLineFor status v = case Map.lookup v tms of
       Just (_, _, ty) -> (prettyStatus status, lhs,
          ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty))
@@ -236,26 +229,24 @@ pretty isPast ppe sr = let
               <> P.indentN 2 (P.linesNonEmpty [typeMsgs, termMsgs]) <> "\n\n"
               <> P.indentN 2 (P.column2 [("Tip:", "Use `help filestatus` to learn more.")])
   dups = Set.toList (SC.terms (duplicates sr) <> SC.types (duplicates sr))
-  more i = "... " <> P.bold (P.shown i) <> " more."
-        <> P.purple "Tip:"
-        <> P.hiBlack "you can skip parsing and typechecking"
-        <> P.hiBlack "by moving these below a `---` \"fold\" in your .u file."
+  more i = "... " <> P.bold (P.shown i) <> P.hiBlack " more." <>
+          "Try moving these below the `---` \"fold\" in your file."
   in
     P.sepNonEmpty "\n\n" [
       if SC.isEmpty (duplicates sr) then mempty
       else (if isPast then "⊡ Ignored previously added definitions: "
             else "⊡ Previously added definitions will be ignored: ") <>
             (P.indentNAfterNewline 2 $
-             (P.wrap $ P.excerptSep' 10 more " " (P.hiBlack . prettyVar <$> dups))),
-      oks ("I've " <> P.green "added " <> "these definitions:")
-          ("These new definitions are" <> P.green "ok to `add`:")
+             (P.wrap $ P.excerptSep' 7 more " " (P.hiBlack . prettyVar <$> dups))),
+      oks (P.green "I've added these definitions:")
+          (P.green "These new definitions are ok to `add`:")
           (adds sr),
-      oks ("I've " <> P.green "updated to" <> "these definitions:")
-          ("These new definitions will replace existing ones of the same name and are" <>
-            P.green "ok to `update`:")
+      oks (P.green "I've updated to these definitions:")
+          (P.green $ "These new definitions will replace existing ones of the same name and are"
+                  <> "ok to `update`:")
           (updates sr),
-      notOks ("These definitions " <> P.red "failed:")
-             ("These definitions" <> P.red "would fail on `add` or `update`:")
+      notOks (P.red "These definitions failed:")
+             (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
              sr
     ]
 
@@ -275,6 +266,8 @@ isAllDuplicates (SlurpResult {..}) =
   SC.isEmpty extraDefinitions &&
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
+  Map.null typeAlias &&
+  Map.null termAlias &&
   Set.null termExistingConstructorCollisions &&
   Set.null constructorExistingTermCollisions &&
   SC.isEmpty defsWithBlockedDependencies

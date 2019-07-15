@@ -1,6 +1,13 @@
 {-# LANGUAGE GADTs #-}
 
-module Unison.Codebase.Editor.Command (Command(..), AmbientAbilities, SourceName, TypecheckingResult) where
+module Unison.Codebase.Editor.Command (
+  Command(..),
+  AmbientAbilities,
+  LexedSource,
+  Source,
+  SourceName,
+  TypecheckingResult
+  ) where
 
 import           Data.Map                       ( Map )
 import           Data.Set                       ( Set )
@@ -13,31 +20,32 @@ import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
 import           Unison.Codebase.GitError
-import           Unison.Names2                  ( Names )
+import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
 import           Unison.Referent                ( Referent )
 import           Unison.Reference               ( Reference )
 import           Unison.Result                  ( Note
                                                 , Result)
 import           Unison.DataDeclaration         ( Decl )
-
 import qualified Unison.Codebase.Runtime       as Runtime
+import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Reference              as Reference
 import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
-import qualified Unison.PrettyPrintEnv         as PPE
+import qualified Unison.Lexer                  as L
+import qualified Unison.Parser                 as Parser
+import Unison.Type (Type)
 
 
-type AmbientAbilities v = [Type.AnnotatedType v Ann]
+type AmbientAbilities v = [Type v Ann]
 type SourceName = Text
 type Source = Text
+type LexedSource = (Text, [L.Token L.Lexeme])
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
 
 type TypecheckingResult v =
   Result (Seq (Note v Ann))
-         (PPE.PrettyPrintEnv, Maybe (UF.TypecheckedUnisonFile v Ann))
+         (Either Names0 (UF.TypecheckedUnisonFile v Ann))
 
 data Command m i v a where
   Eval :: m a -> Command m i v a
@@ -50,13 +58,15 @@ data Command m i v a where
   -- literally just write some terms and types .unison/{terms,types}
   AddDefsToCodebase :: UF.TypecheckedUnisonFile v Ann -> Command m i v ()
 
-  -- Typecheck a unison file relative to a particular link.
-  -- If we want to be able to resolve relative names (seems unnecessary,
-  -- at least in M1), we can keep a map from Link to parent in memory.
+  -- the hash length needed to disambiguate any definition in the codebase
+  CodebaseHashLength :: Command m i v Int
+
+  ParseType :: Names -> LexedSource -> Command m i v (Either (Parser.Err v) (Type v Ann))
+
   Typecheck :: AmbientAbilities v
             -> Names
             -> SourceName
-            -> Source
+            -> LexedSource
             -> Command m i v (TypecheckingResult v)
 
   -- Evaluate all watched expressions in a UnisonFile and return

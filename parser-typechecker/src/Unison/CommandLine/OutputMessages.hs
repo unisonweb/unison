@@ -16,7 +16,9 @@ module Unison.CommandLine.OutputMessages where
 
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
+import qualified Unison.Codebase.Editor.TodoOutput       as TO
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
+import qualified Unison.Codebase.Editor.SearchResult' as SR'
 
 
 --import Debug.Trace
@@ -69,7 +71,7 @@ import qualified Unison.Name                   as Name
 import           Unison.NamePrinter            (prettyHashQualified,
                                                 prettyName, prettyShortHash,
                                                 styleHashQualified,
-                                                styleHashQualified')
+                                                styleHashQualified', prettyHashQualified')
 import           Unison.Names2                 (Names'(..), Names, Names0)
 import qualified Unison.Names2                 as Names
 import           Unison.Parser                 (Ann, startingLine)
@@ -77,6 +79,7 @@ import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
                                                 , renderNoteAsANSI
+                                                , prettyResolutionFailures
                                                 )
 import qualified Unison.Reference              as Reference
 import           Unison.Reference              ( Reference )
@@ -171,13 +174,13 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout $ "A type by that name already exists."
   PatchAlreadyExists input _ ->
     putPrettyLn . P.warnCallout $ "A patch by that name already exists."
-  CantDelete input names failed failedDependents -> putPrettyLn . P.warnCallout $
+  CantDelete input ppe failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
-      "", P.indentN 2 $ listOfDefinitions' names False failed,
+      "", P.indentN 2 $ listOfDefinitions' ppe False failed,
       "",
       "because it's still being used by these definitions:",
-      "", P.indentN 2 $ listOfDefinitions' names False failedDependents
+      "", P.indentN 2 $ listOfDefinitions' ppe False failedDependents
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
@@ -218,8 +221,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions names detailed results ->
-     listOfDefinitions names detailed results
+  ListOfDefinitions ppe detailed results ->
+     listOfDefinitions ppe detailed results
   ListNames [] [] -> putPrettyLn . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
@@ -227,15 +230,15 @@ notifyUser dir o = case o of
     where
     formatTerms tms =
       P.lines . P.nonEmpty $ P.plural tms (P.blue "Term") : (go <$> tms) where
-      go (ref, ns) = P.column2
+      go (ref, hqs) = P.column2
         [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReferent ref))
-        , ("Names: ", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
+        , ("Names: ", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
     formatTypes types =
       P.lines . P.nonEmpty $ P.plural types (P.blue "Type") : (go <$> types) where
-      go (ref, ns) = P.column2
+      go (ref, hqs) = P.column2
         [ ("Hash:", P.syntaxToColor $ prettyHashQualified (HQ.fromReference ref))
-        , ("Names:", P.group (P.spaced (P.bold . prettyName <$> toList ns)))
+        , ("Names:", P.group (P.spaced (P.bold . P.syntaxToColor . prettyHashQualified' <$> toList hqs)))
         ]
   -- > names foo
   --   Terms:
@@ -260,6 +263,8 @@ notifyUser dir o = case o of
       "",
       P.lit $ prettyParseError src e
     ]
+  ParseResolutionFailures input src es -> putPrettyLn $
+    prettyResolutionFailures src es
   TypeHasFreeVars input typ ->
     putPrettyLn . P.warnCallout $ P.lines [
       P.wrap "The type uses these names, but I'm not sure what they are:",
@@ -283,7 +288,7 @@ notifyUser dir o = case o of
       --       the decompiled output.
       let prettyBindings = P.bracket . P.lines $
             P.wrap "The watch expression(s) reference these definitions:" : "" :
-            [(P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.fromVar v) b)
+            [(P.syntaxToColor $ TermPrinter.prettyBinding ppe (HQ.unsafeFromVar v) b)
             | (v, b) <- bindings]
           prettyWatches = P.sep "\n\n" [
             watchPrinter fileContents ppe ann kind evald isCacheHit |
@@ -313,8 +318,7 @@ notifyUser dir o = case o of
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
       if fileStatusMsg == mempty then do
-        putPrettyLn' . P.wrap . P.okCallout $
-          fileName <> " changed."
+        putPrettyLn' . P.okCallout $ fileName <> " changed."
       else
         if SlurpResult.isAllDuplicates slurpResult then
           putPrettyLn' . (P.newline <>) . P.okCallout . P.wrap $ "I found and"
@@ -352,9 +356,8 @@ notifyUser dir o = case o of
                     putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
                     <> P.text t <> ". Make sure there's a branch or commit "
                     <> "with that name."
-  ListEdits patch names0 -> do
+  ListEdits patch ppe -> do
     let
-      ppe = PPE.fromNames0 names0
       types = Patch._typeEdits patch
       terms = Patch._termEdits patch
 
@@ -548,9 +551,9 @@ displayTestResults showTip ppe oks fails = let
           P.sep ", " . P.nonEmpty $ [failSummary, okSummary], tipMsg]
 
 unsafePrettyTermResultSig' :: Var v =>
-  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+  PPE.PrettyPrintEnv -> SR'.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSig' ppe = \case
-  E.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
+  SR'.TermResult' (HQ'.toHQ -> name) (Just typ) _r _aliases ->
     head (TypePrinter.prettySignatures' ppe [(name,typ)])
   _ -> error "Don't pass Nothing"
 
@@ -558,9 +561,9 @@ unsafePrettyTermResultSig' ppe = \case
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms#0
 -- Optional.None, Maybe.Nothing : Maybe a
 unsafePrettyTermResultSigFull' :: Var v =>
-  PPE.PrettyPrintEnv -> E.TermResult' v a -> P.Pretty P.ColorText
+  PPE.PrettyPrintEnv -> SR'.TermResult' v a -> P.Pretty P.ColorText
 unsafePrettyTermResultSigFull' ppe = \case
-  E.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
+  SR'.TermResult' (HQ'.toHQ -> hq) (Just typ) r (Set.map HQ'.toHQ -> aliases) ->
    P.lines
     [ P.hiBlack "-- " <> greyHash (HQ.fromReferent r)
     , P.group $
@@ -571,16 +574,16 @@ unsafePrettyTermResultSigFull' ppe = \case
   _ -> error "Don't pass Nothing"
   where greyHash = styleHashQualified' id P.hiBlack
 
-prettyTypeResultHeader' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeader' (E.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
+prettyTypeResultHeader' :: Var v => SR'.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeader' (SR'.TypeResult' (HQ'.toHQ -> name) dt r _aliases) =
   prettyDeclTriple (name, r, dt)
 
 -- produces:
 -- -- #5v5UtREE1fTiyTsTK2zJ1YNqfiF25SkfUnnji86Lms
 -- type Optional
 -- type Maybe
-prettyTypeResultHeaderFull' :: Var v => E.TypeResult' v a -> P.Pretty P.ColorText
-prettyTypeResultHeaderFull' (E.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
+prettyTypeResultHeaderFull' :: Var v => SR'.TypeResult' v a -> P.Pretty P.ColorText
+prettyTypeResultHeaderFull' (SR'.TypeResult' (HQ'.toHQ -> name) dt r (Set.map HQ'.toHQ -> aliases)) =
   P.lines stuff <> P.newline
   where
   stuff =
@@ -658,28 +661,28 @@ renderEditConflicts ppe Patch{..} =
       P.oxfordCommas [ termName r | TermEdit.Replace r _ <- es ]
     formatConflict = either formatTypeEdits formatTermEdits
 
-todoOutput :: Var v => Names0 -> E.TodoOutput v a -> IO ()
-todoOutput (PPE.fromNames0 -> ppe) todo =
+todoOutput :: Var v => PPE.PrettyPrintEnv -> TO.TodoOutput v a -> IO ()
+todoOutput ppe todo =
   if noConflicts && noEdits
   then putPrettyLn $ P.okCallout "No conflicts or edits in progress."
   else putPrettyLn (todoConflicts <> todoEdits)
   where
-  noConflicts = E.nameConflicts todo == mempty
-             && E.editConflicts todo == Patch.empty
-  noEdits = E.todoScore todo == 0
-  (frontierTerms, frontierTypes) = E.todoFrontier todo
-  (dirtyTerms, dirtyTypes) = E.todoFrontierDependents todo
+  noConflicts = TO.nameConflicts todo == mempty
+             && TO.editConflicts todo == Patch.empty
+  noEdits = TO.todoScore todo == 0
+  (frontierTerms, frontierTypes) = TO.todoFrontier todo
+  (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
   corruptTerms = [ (HQ'.toHQ name, r) | (name, r, Nothing) <- frontierTerms ]
   corruptTypes = [ (HQ'.toHQ name, r) | (name, r, MissingThing _) <- frontierTypes ]
   goodTerms ts = [ (HQ'.toHQ name, typ) | (name, _, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
-    [ renderEditConflicts ppe (E.editConflicts todo)
+    [ renderEditConflicts ppe (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
     where
     -- If a conflict is both an edit and a name conflict, we show it in the edit
     -- conflicts section
     c :: Names0
-    c = removeEditConflicts (E.editConflicts todo) (E.nameConflicts todo)
+    c = removeEditConflicts (TO.editConflicts todo) (TO.nameConflicts todo)
     conflictedTypeNames = (R.dom . Names.types) c
     conflictedTermNames = (R.dom . Names.terms) c
     -- e.g. `foo#a` has been independently updated to `foo#b` and `foo#c`.
@@ -709,7 +712,7 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
 
 
   todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-      [ P.wrap ("The branch has" <> fromString (show (E.todoScore todo))
+      [ P.wrap ("The branch has" <> fromString (show (TO.todoScore todo))
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
@@ -727,9 +730,9 @@ todoOutput (PPE.fromNames0 -> ppe) todo =
       ]
 
 listOfDefinitions ::
-  Var v => Names0 -> E.ListDetailed -> [E.SearchResult' v a] -> IO ()
-listOfDefinitions names detailed results =
-  putPrettyLn $ listOfDefinitions' names detailed results
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO ()
+listOfDefinitions ppe detailed results =
+  putPrettyLn $ listOfDefinitions' ppe detailed results
 
 noResults :: P.Pretty P.ColorText
 noResults = P.callout "😶" $
@@ -737,11 +740,11 @@ noResults = P.callout "😶" $
           <> "to supply command arguments."
 
 listOfDefinitions' :: Var v
-                   => Names0 -- for printing types of terms :-\
+                   => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
-                   -> [E.SearchResult' v a]
+                   -> [SR'.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
+listOfDefinitions' ppe detailed results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
     [formatMissingStuff termsWithMissingTypes missingTypes
@@ -757,7 +760,7 @@ listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
     P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
   -- todo: group this by namespace
   prettyResults =
-    map (E.foldResult' renderTerm renderType)
+    map (SR'.foldResult' renderTerm renderType)
         (filter (not.missingType) results)
     where
       (renderTerm, renderType) =
@@ -765,21 +768,21 @@ listOfDefinitions' (PPE.fromNames0 -> ppe) detailed results =
           (unsafePrettyTermResultSigFull' ppe, prettyTypeResultHeaderFull')
         else
           (unsafePrettyTermResultSig' ppe, prettyTypeResultHeader')
-  missingType (E.Tm _ Nothing _ _)          = True
-  missingType (E.Tp _ (MissingThing _) _ _) = True
+  missingType (SR'.Tm _ Nothing _ _)          = True
+  missingType (SR'.Tp _ (MissingThing _) _ _) = True
   missingType _                             = False
   -- termsWithTypes = [(name,t) | (name, Just t) <- sigs0 ]
   --   where sigs0 = (\(name, _, typ) -> (name, typ)) <$> terms
   termsWithMissingTypes =
     [ (HQ'.toHQ name, r)
-    | E.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
+    | SR'.Tm name Nothing (Referent.Ref (Reference.DerivedId r)) _ <- results ]
   missingTypes = nubOrdOn snd $
     [ (HQ'.toHQ name, Reference.DerivedId r)
-    | E.Tp name (MissingThing r) _ _ <- results ] <>
+    | SR'.Tp name (MissingThing r) _ _ <- results ] <>
     [ (HQ'.toHQ name, r)
-    | E.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
+    | SR'.Tm name Nothing (Referent.toTypeReference -> Just r) _ <- results]
   missingBuiltins = results >>= \case
-    E.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
+    SR'.Tm name Nothing r@(Referent.Ref (Reference.Builtin _)) _ -> [(HQ'.toHQ name,r)]
     _ -> []
 
 watchPrinter

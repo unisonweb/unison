@@ -1,4 +1,5 @@
 {-# Language OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Unison.PrettyPrintEnv where
 
@@ -9,17 +10,18 @@ import           Data.Text                      ( Text )
 import           Debug.Trace                    ( trace )
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
-import           Unison.Names                   ( Names )
+import           Unison.Names3                  ( Names )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
+import           Unison.Util.List               (safeHead)
 import qualified Data.Map                      as Map
-import qualified Data.Set                      as Set
 import qualified Unison.HashQualified          as HQ
-import qualified Unison.HashQualified'         as HQ'
 import qualified Unison.Name                   as Name
-import qualified Unison.Names                  as Names
-import qualified Unison.Names2                 as Names2
+import qualified Unison.Names3                 as Names
 import qualified Unison.Referent               as Referent
+import qualified Unison.ConstructorType as CT
+import qualified Unison.HashQualified' as HQ'
+import qualified Data.Set as Set
 
 data PrettyPrintEnv = PrettyPrintEnv {
   -- names for terms, constructors, and requests
@@ -27,26 +29,17 @@ data PrettyPrintEnv = PrettyPrintEnv {
   -- names for types
   types :: Reference -> Maybe HashQualified }
 
+patterns :: PrettyPrintEnv -> Reference -> Int -> Maybe HashQualified
+patterns ppe r cid = terms ppe (Referent.Con r cid CT.Data)
+                  <|>terms ppe (Referent.Con r cid CT.Effect)
+
 instance Show PrettyPrintEnv where
   show _ = "PrettyPrintEnv"
 
-fromNames :: Names -> PrettyPrintEnv
-fromNames ns =
-  let terms =
-        Map.fromList [ (r, HQ.fromName n) | (n, r) <- Map.toList (Names.termNames ns) ]
-      types =
-        Map.fromList [ (r, HQ.fromName n) | (n, r) <- Map.toList (Names.typeNames ns) ]
-  in PrettyPrintEnv (`Map.lookup` terms) (`Map.lookup` types)
-
-fromNames2 :: Names2.Names -> PrettyPrintEnv
-fromNames2 = fromNames . Names.fromNames2
-
-fromNames0 :: Names2.Names0 -> PrettyPrintEnv
-fromNames0 names0 = let
-  names = Names2.names0ToNames names0
-  terms r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReferent names r
-  types r = fmap HQ'.toHQ . Set.lookupMin $ Names2.namesForReference names r
-  in PrettyPrintEnv terms types
+fromNames :: Int -> Names -> PrettyPrintEnv
+fromNames length names = PrettyPrintEnv terms' types' where
+  terms' r = safeHead . Set.map HQ'.toHQ $ (Names.termName length r names)
+  types' r = safeHead . Set.map HQ'.toHQ $ (Names.typeName length r names)
 
 -- Left-biased union of environments
 unionLeft :: PrettyPrintEnv -> PrettyPrintEnv -> PrettyPrintEnv
@@ -80,9 +73,9 @@ typeName env r =
 
 patternName :: PrettyPrintEnv -> Reference -> Int -> HashQualified
 patternName env r cid =
-  case terms env (Referent.Con r cid) of
+  case patterns env r cid of
     Just name -> name
-    Nothing -> HQ.take todoHashLength $ HQ.fromReferent (Referent.Con r cid)
+    Nothing -> HQ.take todoHashLength $ HQ.fromPattern r cid
 
 instance Monoid PrettyPrintEnv where
   mempty = PrettyPrintEnv (const Nothing) (const Nothing)

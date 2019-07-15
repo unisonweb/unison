@@ -324,12 +324,14 @@ r |> t = fromList
 
 
 -- Restrict the range to not include these `b`s
-(||>) :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
+(||>), subtractRan :: (Ord a, Ord b) => Relation a b -> Set b -> Relation a b
 r ||> t = fromList [ (a,b) | (a,b) <- toList r, not (b `S.member` t)]
+subtractRan = (||>)
 
 -- Restrict the domain to not include these `a`
-(<||) :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
+(<||), subtractDom :: (Ord a, Ord b) => Set a -> Relation a b -> Relation a b
 s <|| r = fromList [ (a,b) | (a,b) <- toList r, not (a `S.member` s)]
+subtractDom = (<||)
 
 -- Note:
 --

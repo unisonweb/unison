@@ -1,47 +1,51 @@
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Unison.TermParser where
 
 import           Control.Applicative
-import           Control.Monad (guard, join, when)
+import           Control.Monad (join, when)
 import           Control.Monad.Reader (asks, local)
-import           Data.Char (isUpper)
 import           Data.Foldable (asum)
 import           Data.Functor
 import           Data.Int (Int64)
-import           Data.List (elem, find)
+import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
-import           Unison.Names (Names)
+import           Unison.Name (Name)
+import           Unison.Names3 (Names)
 import           Unison.Parser hiding (seq)
 import           Unison.PatternP (Pattern)
 import           Unison.Term (AnnotatedTerm, IsTop)
-import           Unison.Type (AnnotatedType)
+import           Unison.Type (Type)
 import           Unison.Var (Var)
-import qualified Data.Map as Map
+import qualified Data.Char as Char
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Text.Megaparsec as P
 import qualified Unison.ABT as ABT
-import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer as L
 import qualified Unison.Name as Name
-import qualified Unison.Names as Names
+import qualified Unison.Names3 as Names
 import qualified Unison.Parser as Parser (seq)
 import qualified Unison.PatternP as Pattern
-import qualified Unison.Reference as R
 import qualified Unison.Term as Term
+import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
 import Debug.Trace
+import Unison.Reference (Reference)
 
 watch :: Show a => String -> a -> a
 watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
@@ -124,37 +128,50 @@ parsePattern =
   pair (p1, v1) (p2, v2) =
     (Pattern.Constructor (ann p1 <> ann p2) DD.pairRef 0 [p1, p2],
      v1 ++ v2)
+  -- Foo x@(Blah 10)
   varOrAs :: P v (Pattern Ann, [(Ann, v)])
   varOrAs = do
-    v <- prefixVar
+    v <- wordyPatternName
     o <- optional (reserved "@")
     if isJust o then
       (\(p, vs) -> (Pattern.As (ann v) p, tokenToPair v : vs)) <$> leaf
       else pure (Pattern.Var (ann v), [tokenToPair v])
   unbound :: P v (Pattern Ann, [(Ann, v)])
   unbound = (\tok -> (Pattern.Unbound (ann tok), [])) <$> blank
-  ctorName = P.try $ do
-    s <- wordyId
-    guard . isUpper . head . L.payload $ s
-    pure s
+  ctor :: _ -> P v (L.Token (Reference, Int))
+  ctor err = do
+    -- this might be a var, so we avoid consuming it at first
+    tok <- P.try (P.lookAhead hqPrefixId)
+    names <- asks names
+    case Names.lookupHQPattern (L.payload tok) names of
+      s | Set.null s     -> die tok s
+        | Set.size s > 1 -> die tok s
+        | otherwise      -> -- matched ctor name, consume the token
+                            do anyToken; pure (Set.findMin s <$ tok)
+    where
+    isLower n = Text.all Char.isLower . Text.take 1 . Name.toText $ n
+    die hq s = case L.payload hq of
+      -- if token not hash qualified or uppercase,
+      -- fail w/out consuming it to allow backtracking
+      HQ.NameOnly n | Set.null s &&
+                      isLower n -> fail $ "not a constructor name: " <> show n
+      -- it was hash qualified, and wasn't found in the env, that's a failure!
+      _ -> failCommitted $ err hq s
 
   unzipPatterns f elems = case unzip elems of (patterns, vs) -> f patterns (join vs)
 
   effectBind0 = do
-    name <- ctorName
+    tok <- ctor UnknownAbilityConstructor
     leaves <- many leaf
     _ <- reserved "->"
-    pure (name, leaves)
+    pure (tok, leaves)
 
   effectBind = do
-    (name, leaves) <- P.try effectBind0
+    (tok, leaves) <- P.try effectBind0
+    let (ref,cid) = L.payload tok
     (cont, vsp) <- parsePattern
-    env <- asks snd
-    (ref,cid) <- case Names.patternNameds env (L.payload name) of
-      Just (ref, cid) -> pure (ref, cid)
-      Nothing -> customFailure $ UnknownAbilityConstructor name
     pure $
-      let f patterns vs = (Pattern.EffectBind (ann name <> ann cont) ref cid patterns cont, vs ++ vsp)
+      let f patterns vs = (Pattern.EffectBind (ann tok <> ann cont) ref cid patterns cont, vs ++ vsp)
       in unzipPatterns f leaves
 
   effectPure = go <$> parsePattern where
@@ -167,23 +184,18 @@ parsePattern =
     pure (Pattern.setLoc inner (ann start <> ann end), vs)
 
   constructor = do
-    t <- ctorName
-    let name = L.payload t
-    env <- asks snd
-    case Names.patternNameds env name of
-      Just (ref, cid) -> go <$> many leaf
-        where
-          go = unzipPatterns f
-          f patterns vs =
-            let loc = foldl (<>) (ann t) $ map ann patterns
-            in (Pattern.Constructor loc ref cid patterns, vs)
-      Nothing -> customFailure $ UnknownDataConstructor t
+    tok <- ctor UnknownDataConstructor
+    let (ref,cid) = L.payload tok
+        f patterns vs =
+          let loc = foldl (<>) (ann tok) $ map ann patterns
+          in (Pattern.Constructor loc ref cid patterns, vs)
+    unzipPatterns f <$> many leaf
 
   seqLiteral = Parser.seq f leaf
     where f loc = unzipPatterns ((,) . Pattern.SequenceLiteral loc)
 
 lam :: Var v => TermP v -> TermP v
-lam p = label "lambda" $ mkLam <$> P.try (some prefixVar <* reserved "->") <*> p
+lam p = label "lambda" $ mkLam <$> P.try (some prefixDefinitionName <* reserved "->") <*> p
   where
     mkLam vs b = Term.lam' (ann (head vs) <> ann b) (map L.payload vs) b
 
@@ -203,14 +215,6 @@ ifthen = label "if" $ do
   f <- block "else"
   pure $ Term.iff (ann start <> ann f) c t f
 
-hashLit :: Var v => TermP v
-hashLit =
-  -- todo: should probably come up with syntax for hash component refs
-  tok (\ann h -> Term.ref ann (R.DerivedId (R.Id h 0 1))) <$> hashLiteral
-
-prefixTerm :: Var v => TermP v
-prefixTerm = tok Term.var <$> prefixVar
-
 text :: Var v => TermP v
 text = tok Term.text <$> string
 
@@ -218,41 +222,39 @@ boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
 
-placeholder :: Var v => TermP v
-placeholder = (\t -> Term.placeholder (ann t) (L.payload t)) <$> blank
-
 seq :: Var v => TermP v -> TermP v
 seq = Parser.seq Term.seq
 
 hashQualifiedPrefixTerm :: Var v => TermP v
-hashQualifiedPrefixTerm = do
-  t <- hqPrefixVar
-  flip tok t $ \ann (name, mayHash) -> case mayHash of
-    Nothing   -> pure . Term.var ann $ Var.nameds name
-    Just hash -> do
-      -- This is a hash-qualified name
-      env <- asks $ Map.toList . Names.termNames . snd
-      let hqName   = HQ.HashQualified (Name.fromString name) hash
-          mayMatch = find (\(n, r) -> HQ.matchesNamedReferent n r hqName) env
-      case mayMatch of
-        Nothing -> customFailure . UnknownHashQualifiedName $ L.Token
-          hqName
-          (L.start t)
-          (L.end t)
-        Just (_, r) -> pure $ Term.fromReferent (const CT.Data) ann r
+hashQualifiedPrefixTerm = resolveHashQualified =<< hqPrefixId
+
+hashQualifiedInfixTerm :: Var v => TermP v
+hashQualifiedInfixTerm = resolveHashQualified =<< hqInfixId
+
+-- If the hash qualified is name only, it is treated as a var, if it
+-- has a short hash, we resolve that short hash immediately and fail
+-- committed if that short hash can't be found in the current environment
+resolveHashQualified :: Var v => L.Token HQ.HashQualified -> TermP v
+resolveHashQualified tok = do
+  names <- asks names
+  case Names.lookupHQTerm (L.payload tok) names of
+    s | Set.null s     -> die tok s
+      | Set.size s > 1 -> die tok s
+      | otherwise      -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
+    where
+      die hq s = case L.payload hq of
+       HQ.NameOnly n -> pure $ Term.var (ann tok) (Name.toVar n)
+       _ -> failCommitted $ UnknownTerm hq s
 
 termLeaf :: forall v . Var v => TermP v
 termLeaf = do
   e <- asum
-    [ hashLit
-    , prefixTerm
-    , hashQualifiedPrefixTerm
+    [ hashQualifiedPrefixTerm
     , text
     , number
     , boolean
     , tupleOrParenthesizedTerm
     , keywordBlock
-    , placeholder
     , seq term
     , delayQuote
     , bang
@@ -286,7 +288,7 @@ or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
 var :: Var v => L.Token v -> AnnotatedTerm v Ann
 var t = Term.var (ann t) (L.payload t)
 
-seqOp :: Var v => P v Pattern.SeqOp
+seqOp :: Ord v => P v Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
   <|> (Pattern.Cons <$ matchToken (L.SymbolyId "+:" Nothing))
@@ -300,38 +302,46 @@ term4 = f <$> some termLeaf
 
 -- e.g. term4 + term4 - term4
 infixApp = label "infixApp"
-  $ chainl1 term4 (f <$> fmap var (infixVar <* optional semi))
+  $ chainl1 term4 (f <$> (hashQualifiedInfixTerm <* optional semi))
   where f op lhs rhs = Term.apps op [(ann lhs, lhs), (ann rhs, rhs)]
 
-typedecl :: Var v => P v (L.Token v, AnnotatedType v Ann)
+typedecl :: Var v => P v (L.Token v, Type v Ann)
 typedecl =
-  (,) <$> P.try (prefixVar <* reserved ":")
+  (,) <$> P.try (prefixDefinitionName <* reserved ":")
       <*> TypeParser.valueType
       <* semi
 
-verifyRelativeName :: Var v => P v (L.Token v) -> P v (L.Token v)
+verifyRelativeVarName :: Var v => P v (L.Token v) -> P v (L.Token v)
+verifyRelativeVarName p = do
+  v <- p
+  verifyRelativeName' (Name.fromVar <$> v)
+  pure v
+
+verifyRelativeName :: Ord v => P v (L.Token Name) -> P v (L.Token Name)
 verifyRelativeName name = do
   name <- name
   verifyRelativeName' name
   pure name
 
-verifyRelativeName' :: Var v => L.Token v -> P v ()
+verifyRelativeName' :: Ord v => L.Token Name -> P v ()
 verifyRelativeName' name = do
-  let txt = Var.name . L.payload $ name
-  when (Text.isPrefixOf "." txt && txt /= ".") $ do
-    _ <- P.optional anyToken -- commits to the failure
-    P.customFailure (DisallowedAbsoluteName name)
+  let txt = Name.toText . L.payload $ name
+  when (Text.isPrefixOf "." txt && txt /= ".") $
+    failCommitted (DisallowedAbsoluteName name)
 
 binding :: forall v. Var v => P v ((Ann, v), AnnotatedTerm v Ann)
 binding = label "binding" $ do
   typ <- optional typedecl
+  -- a ++ b = ... OR
+  -- foo `mappend` bar = ...
   let infixLhs = do
-        (arg1, op) <- P.try ((,) <$> prefixVar <*> infixVar)
-        arg2 <- prefixVar
+        (arg1, op) <- P.try $
+          (,) <$> prefixDefinitionName <*> infixDefinitionName
+        arg2 <- prefixDefinitionName
         pure (ann arg1, op, [arg1, arg2])
   let prefixLhs = do
-        v  <- prefixVar
-        vs <- many prefixVar
+        v  <- prefixDefinitionName
+        vs <- many prefixDefinitionName
         pure (ann v, v, vs)
   let
     lhs :: P v (Ann, L.Token v, [L.Token v])
@@ -341,11 +351,11 @@ binding = label "binding" $ do
       -- we haven't seen a type annotation, so lookahead to '=' before commit
       (loc, name, args) <- P.try (lhs <* P.lookAhead (openBlockWith "="))
       body <- block "="
-      verifyRelativeName' name
+      verifyRelativeName' (fmap Name.fromVar name)
       pure $ mkBinding loc (L.payload name) args body
     Just (nameT, typ) -> do
       (_, name, args) <- lhs
-      verifyRelativeName' name
+      verifyRelativeName' (fmap Name.fromVar name)
       when (L.payload name /= L.payload nameT) $
         customFailure $ SignatureNeedsAccompanyingBody nameT
       body <- block "="
@@ -363,16 +373,29 @@ customFailure = P.customFailure
 block :: forall v. Var v => String -> TermP v
 block s = block' False s (openBlockWith s) closeBlock
 
-importp :: Var v => P v [(v, v)]
+-- example: use Foo.bar.Baz + ++ x
+-- + ++ and x are called the "suffixes" of the `use` statement, and
+-- `Foo.bar.Baz` is called the prefix. A `use` statement has the effect
+-- of allowing you to reference identifiers of the form <prefix>.<suffix>
+-- using just <suffix>.
+--
+-- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
+importp :: Ord v => P v [(Name, Name)]
 importp = do
-  _        <- reserved "use"
-  prefix   <- wordyId <|> dotId
-  suffixes <- some (wordyId <|> symbolyId) P.<?> "one or more identifiers"
-  pure $ do
-    let v = Var.nameds (L.payload prefix)
-    s <- suffixes
-    let suffix = Var.nameds . L.payload $ s
-    pure (suffix, Var.joinDot v suffix)
+  kw      <- reserved "use"
+  -- we allow symbolyId here and parse the suffix optionaly, so we can generate
+  -- a nicer error message if the suffixes are empty
+  prefix   <- optional
+            $ (fmap Right $ importWordyId <|> importDotId) -- use . Nat
+          <|> (fmap Left $ importSymbolyId)
+  suffixes <- optional (some (importWordyId <|> importSymbolyId))
+  case (prefix, suffixes) of
+    (Nothing, _) -> P.customFailure $ UseEmpty kw
+    (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
+    (Just prefix@(Right _), Nothing) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
+    (Just (Right prefix), Just suffixes) -> pure $ do
+      suffix <- L.payload <$> suffixes
+      pure (suffix, Name.joinDot (L.payload prefix) suffix)
 
 --module Monoid where
 --  -- we replace all the binding names with Monoid.op, and
@@ -388,12 +411,13 @@ data BlockElement v
 namespaceBlock :: Var v => P v (BlockElement v)
 namespaceBlock = do
   _ <- reserved "namespace"
-  name <- verifyRelativeName prefixVar
+  -- need a version of verifyRelativeName that takes a `Token Name`
+  name <- verifyRelativeName importWordyId
   let statement = (Binding <$> binding) <|> namespaceBlock
   _ <- openBlockWith "where"
   elems <- sepBy semi statement
   _ <- closeBlock
-  pure $ Namespace (Var.nameStr $ L.payload name) elems
+  pure $ Namespace (Name.toString $ L.payload name) elems
 
 toBindings :: forall v . Var v => [BlockElement v] -> [((Ann,v), AnnotatedTerm v Ann)]
 toBindings b = let
@@ -422,15 +446,26 @@ topLevelBlock
   :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
 topLevelBlock = block' True
 
-imports :: Var v => P v (Names, AnnotatedTerm v Ann -> AnnotatedTerm v Ann)
+-- subst
+-- use Foo.Bar + blah
+-- use Bar.Baz zonk zazzle
+imports :: Var v => P v (Names, [(v,v)])
 imports = do
   let sem = P.try (semi <* P.lookAhead (reserved "use"))
   imported <- mconcat . reverse <$> sepBy sem importp
-  env      <- Names.importing imported <$> asks snd
-  let importTerms  = [ (n, Term.var () qn) | (n, qn) <- imported ]
-      substImports = ABT.substsInheritAnnotation importTerms
-        . Term.typeMap (Names.bindType env)
-  pure (env, substImports)
+  ns' <- Names.importing imported <$> asks names
+  pure (ns', [(Name.toVar suffix, Name.toVar full) | (suffix,full) <- imported ])
+
+-- A key feature of imports is we want to be able to say:
+-- `use foo.bar Baz qux` without having to specify whether `Baz` or `qux` are
+-- terms or types.
+substImports :: Var v => Names -> [(v,v)] -> AnnotatedTerm v Ann -> AnnotatedTerm v Ann
+substImports ns imports =
+  ABT.substsInheritAnnotation [ (suffix, Term.var () full)
+    | (suffix,full) <- imports ] . -- no guard here, as `full` could be bound
+                                   -- not in Names, but in a later term binding
+  Term.substTypeVars [ (suffix, Type.var () full)
+    | (suffix, full) <- imports, Names.hasTypeNamed (Name.fromVar full) ns ]
 
 block'
   :: forall v b
@@ -442,12 +477,11 @@ block'
   -> TermP v
 block' isTop s openBlock closeBlock = do
     open <- openBlock
-    (env, substImports) <- imports
-    uniqueNames <- asks fst
+    (names, imports) <- imports
     _ <- optional semi
-    statements <- local (const (uniqueNames, env)) $ sepBy semi statement
+    statements <- local (\e -> e { names = names } ) $ sepBy semi statement
     _ <- closeBlock
-    substImports <$> go open statements
+    substImports names imports <$> go open statements
   where
     statement = namespaceBlock <|>
       asum [ Binding <$> binding, Action <$> blockTerm ]
@@ -481,7 +515,7 @@ number :: Var v => TermP v
 number = number' (tok Term.int) (tok Term.nat) (tok Term.float)
 
 number'
-  :: Var v
+  :: Ord v
   => (L.Token Int64 -> a)
   -> (L.Token Word64 -> a)
   -> (L.Token Double -> a)

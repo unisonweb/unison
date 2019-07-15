@@ -18,6 +18,9 @@ import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
+import Data.Foldable (toList)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 data Patch = Patch
   { _termEdits :: Relation Reference TermEdit
@@ -25,6 +28,13 @@ data Patch = Patch
   } deriving (Eq, Ord, Show)
 
 makeLenses ''Patch
+
+labeledDependencies :: Patch -> Set LabeledDependency
+labeledDependencies Patch{..} =
+  Set.map LD.termRef (R.dom _termEdits) <>
+  (Set.fromList . fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits)) <>
+  Set.map LD.typeRef (R.dom _typeEdits) <>
+  (Set.fromList . fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
 
 empty :: Patch
 empty = Patch mempty mempty

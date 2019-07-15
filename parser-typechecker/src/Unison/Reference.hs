@@ -19,6 +19,7 @@ module Unison.Reference
    fromText,
    readSuffix,
    showShort,
+   showSuffix,
    toText,
    unsafeId,
    toShortHash) where
@@ -77,12 +78,13 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
-    showSuffix :: Pos -> Size -> Text
-    showSuffix i n = encode58 . runPutS $ put where
-      encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
-      put = putLength i >> putLength n
-      putLength = serialize . VarInt
 toShortHash (DerivedId _) = error "this should be covered above"
+
+showSuffix :: Pos -> Size -> Text
+showSuffix i n = encode58 . runPutS $ put where
+  encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
+  put = putLength i >> putLength n
+  putLength = serialize . VarInt
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)

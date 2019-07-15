@@ -16,9 +16,10 @@ import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Util.ColorText as CT
 import Unison.Test.Common (t, tm)
+import qualified Unison.Test.Common as Common
 
 get_names :: PPE.PrettyPrintEnv
-get_names = PPE.fromNames0 Unison.Builtin.names0
+get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -68,12 +69,12 @@ tc_breaks width s = tc_diff_rtt True s s width
 tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tc_binding width v mtp tm expected =
    let base_term = Unison.Test.Common.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
-       input_type = (fmap Unison.Test.Common.t mtp) :: Maybe (Type.AnnotatedType Symbol Ann)
+       input_type = (fmap Unison.Test.Common.t mtp) :: Maybe (Type.Type Symbol Ann)
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
        prettied = fmap (CT.toPlain) $ PP.syntaxToColor $ 
-        prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
+        prettyBinding get_names (HQ.unsafeFromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -95,7 +96,7 @@ test = scope "termprinter" . tests $
   , tc "and true false"
   , tc "or false false"
   , tc "g (and (or true false) (f x y))"
-  , tc "if _something then _foo else _"
+  , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
@@ -354,7 +355,7 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
   , tc_diff_rtt False "let\n\
-                      \  delay = 'isEven" 
+                      \  delay = 'isEven"
                       "let\n\
                       \  delay () = isEven\n\
                       \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
@@ -419,11 +420,17 @@ test = scope "termprinter" . tests $
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
                  \  f (x : (∀ t. Pair t t))"
-  , tc_breaks 12 "if\n\
-                 \  use A x\n\
-                 \  f x x then\n\
-                 \  x\n\
-                 \else y"  -- missing break before 'then', issue #518
+  , tc_diff_rtt False "handle foo in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)"  -- missing break before 'then', issue #518; surplus parentheses #517
+                      "handle foo\n\
+                      \in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)" 15  -- parser doesn't like 'in' beginning a line
   , tc_breaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\

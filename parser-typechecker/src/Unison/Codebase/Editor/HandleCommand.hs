@@ -32,15 +32,14 @@ import           Unison.Codebase                ( Codebase )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Editor.Git    as Git
-import qualified Unison.Names                  as OldNames
 import qualified Unison.Hash                   as Hash
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
+import qualified Unison.Parsers                as Parsers
 import qualified Unison.Reference              as Reference
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.Codebase.Runtime       (Runtime)
 import qualified Unison.Term                   as Term
-import qualified Unison.Type                   as Type
 import qualified Unison.UnisonFile             as UF
 import           Unison.Util.Free               ( Free )
 import qualified Unison.Util.Free              as Free
@@ -49,21 +48,22 @@ import qualified Unison.Var                    as Var
 import qualified Unison.Result as Result
 import           Unison.FileParsers             ( parseAndSynthesizeFile )
 import qualified Unison.PrettyPrintEnv         as PPE
+import Unison.Type (Type)
 
 typecheck
   :: (Monad m, Var v)
-  => [Type.AnnotatedType v Ann]
+  => [Type v Ann]
   -> Codebase m v Ann
   -> Parser.ParsingEnv
   -> SourceName
-  -> Text
+  -> LexedSource
   -> m (TypecheckingResult v)
-typecheck ambient codebase names sourceName src =
+typecheck ambient codebase parsingEnv sourceName src =
   Result.getResult $ parseAndSynthesizeFile ambient
     (((<> B.typeLookup) <$>) . Codebase.typeLookupForDependencies codebase)
-    names
+    parsingEnv
     (Text.unpack sourceName)
-    src
+    (fst src)
 
 tempGitDir :: Text -> Text -> IO FilePath
 tempGitDir url commit =
@@ -96,11 +96,8 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time
       namegen <- Parser.uniqueBase58Namegen
-      typecheck ambient
-                codebase
-                (namegen, OldNames.fromNames2 names)
-                sourceName
-                source
+      let env = Parser.ParsingEnv namegen names
+      typecheck ambient codebase env sourceName source
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
@@ -129,6 +126,9 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     AddDefsToCodebase unisonFile -> Codebase.addDefsToCodebase codebase unisonFile
     GetTermsOfType ty -> Codebase.termsOfType codebase ty
     GetTermsMentioningType ty -> Codebase.termsMentioningType codebase ty
+    CodebaseHashLength -> Codebase.hashLength codebase
+    ParseType names (src, _) -> pure $
+      Parsers.parseType (Text.unpack src) (Parser.ParsingEnv mempty names)
 
 --    Todo b -> doTodo codebase (Branch.head b)
 --    Propagate b -> do

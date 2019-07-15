@@ -24,28 +24,36 @@ import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
 import qualified Unison.ABT           as ABT
-import           Unison.Hash
 import qualified Unison.Hash          as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.Lexer         as L
 import           Unison.Pattern       (PatternP)
 import qualified Unison.PatternP      as Pattern
-import           Unison.ShortHash     (ShortHash)
 import           Unison.Term          (MatchCase (..))
 import           Unison.Var           (Var)
 import qualified Unison.Var           as Var
 import qualified Unison.UnisonFile    as UF
-import Unison.Names (Names)
-import Control.Monad.Reader.Class (ask)
+import Unison.Name as Name
+import Unison.Names3 (Names)
+import qualified Unison.Names3 as Names
+import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
+import Data.Set (Set)
+import Unison.Referent (Referent)
+import Unison.Reference (Reference)
 
 debug :: Bool
 debug = False
 
-type P v = P.ParsecT (Error v) Input ((->) (UniqueName, Names))
+type P v = P.ParsecT (Error v) Input ((->) ParsingEnv)
 type Token s = P.Token s
 type Err v = P.ParseError (Token Input) (Error v)
+
+data ParsingEnv =
+  ParsingEnv { uniqueNames :: UniqueName
+             , names :: Names
+             }
 
 newtype UniqueName = UniqueName (L.Pos -> Int -> Maybe Text)
 
@@ -74,23 +82,27 @@ uniqueBase58Namegen = do
 
 uniqueName :: Var v => Int -> P v Text
 uniqueName lenInBase58 = do
-  (UniqueName mkName, _) <- ask
+  UniqueName mkName <- asks uniqueNames
   pos <- L.start <$> P.lookAhead anyToken
   let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
   pure . fromMaybe none $ mkName pos lenInBase58
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)
-  | DisallowedAbsoluteName (L.Token v)
+  | DisallowedAbsoluteName (L.Token Name)
   | EmptyBlock (L.Token String)
-  | UnknownAbilityConstructor (L.Token String)
-  | UnknownDataConstructor (L.Token String)
+  | UnknownAbilityConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
+  | UnknownDataConstructor (L.Token HQ.HashQualified) (Set (Reference, Int))
+  | UnknownTerm (L.Token HQ.HashQualified) (Set Referent)
+  | UnknownType (L.Token HQ.HashQualified) (Set Reference)
   | ExpectedBlockOpen String (L.Token L.Lexeme)
   | EmptyWatch
+  | UseInvalidPrefixSuffix (Either (L.Token Name) (L.Token Name)) (Maybe [L.Token Name])
+  | UseEmpty (L.Token String) -- an empty `use` statement
   | DidntExpectExpression (L.Token L.Lexeme) (Maybe (L.Token L.Lexeme))
   | TypeDeclarationErrors [UF.Error v Ann]
+  | ResolutionFailures [Names.ResolutionFailure v Ann]
   | DuplicateTypeNames [(v, [Ann])]
-  | UnknownHashQualifiedName (L.Token HQ.HashQualified)
   deriving (Show, Eq, Ord)
 
 data Ann
@@ -182,11 +194,11 @@ instance Annotated a => Annotated (PatternP a) where
 instance (Annotated a, Annotated b) => Annotated (MatchCase a b) where
   ann (MatchCase p _ b) = ann p <> ann b
 
-label :: (Var v, Show a) => String -> P v a -> P v a
+label :: (Ord v, Show a) => String -> P v a -> P v a
 label = P.label
 -- label = P.dbg
 
-traceRemainingTokens :: Var v => String -> P v ()
+traceRemainingTokens :: Ord v => String -> P v ()
 traceRemainingTokens label = do
   remainingTokens <- lookAhead $ many anyToken
   let
@@ -205,28 +217,31 @@ showLineCol a =
 tok :: (Ann -> a -> b) -> L.Token a -> b
 tok f (L.Token a start end) = f (Ann start end) a
 
-peekAny :: Var v => P v (L.Token L.Lexeme)
+peekAny :: Ord v => P v (L.Token L.Lexeme)
 peekAny = P.lookAhead P.anyChar
 
-lookAhead :: Var v => P v a -> P v a
+lookAhead :: Ord v => P v a -> P v a
 lookAhead = P.lookAhead
 
-anyToken :: Var v => P v (L.Token L.Lexeme)
+anyToken :: Ord v => P v (L.Token L.Lexeme)
 anyToken = P.anyChar
+
+failCommitted :: Ord v => Error v -> P v x
+failCommitted e = do
+  void anyToken <|> void P.eof
+  P.customFailure e
 
 proxy :: Proxy Input
 proxy = Proxy
 
-root :: Var v => P v a -> P v a
+root :: Ord v => P v a -> P v a
 root p = (openBlock *> p) <* closeBlock <* P.eof
 
 -- |
-rootFile :: Var v => P v a -> P v a
+rootFile :: Ord v => P v a -> P v a
 rootFile p = p <* P.eof
 
-type ParsingEnv = (UniqueName, Names)
-
-run' :: Var v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
+run' :: Ord v => P v a -> String -> String -> ParsingEnv -> Either (Err v) a
 run' p s name =
   let lex = if debug
             then L.lexer name (trace (L.debugLex''' "lexer receives" s) s)
@@ -234,16 +249,16 @@ run' p s name =
       pTraced = traceRemainingTokens "parser receives" *> p
   in runParserT pTraced name (Input lex)
 
-run :: Var v => P v a -> String -> ParsingEnv -> Either (Err v) a
+run :: Ord v => P v a -> String -> ParsingEnv -> Either (Err v) a
 run p s = run' p s ""
 
 -- Virtual pattern match on a lexeme.
-queryToken :: Var v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
+queryToken :: Ord v => (L.Lexeme -> Maybe a) -> P v (L.Token a)
 queryToken f = P.token go Nothing
   where go t@(f . L.payload -> Just s) = Right $ fmap (const s) t
         go x = Left (pure (P.Tokens (x:|[])), Set.empty)
 
-currentLine :: Var v => P v (Int, String)
+currentLine :: Ord v => P v (Int, String)
 currentLine = P.lookAhead $ do
   tok0 <- P.satisfy (const True)
   let line0 = L.line (L.start tok0)
@@ -252,125 +267,153 @@ currentLine = P.lookAhead $ do
   pure (line0, P.showTokens lineToks)
 
 -- Consume a block opening and return the string that opens the block.
-openBlock :: Var v => P v (L.Token String)
+openBlock :: Ord v => P v (L.Token String)
 openBlock = queryToken getOpen
   where
     getOpen (L.Open s) = Just s
     getOpen _          = Nothing
 
-openBlockWith :: Var v => String -> P v (L.Token ())
+openBlockWith :: Ord v => String -> P v (L.Token ())
 openBlockWith s = void <$> P.satisfy ((L.Open s ==) . L.payload)
 
 -- Match a particular lexeme exactly, and consume it.
-matchToken :: Var v => L.Lexeme -> P v (L.Token L.Lexeme)
+matchToken :: Ord v => L.Lexeme -> P v (L.Token L.Lexeme)
 matchToken x = P.satisfy ((==) x . L.payload)
 
-dot :: Var v => P v (L.Token L.Lexeme)
+dot :: Ord v => P v (L.Token L.Lexeme)
 dot = matchToken (L.SymbolyId "." Nothing)
 
-dotId :: Var v => P v (L.Token String)
-dotId = queryToken go where
-  go (L.SymbolyId "." Nothing) = Just "."
+-- The package name that refers to the root, literally just `.`
+importDotId :: Ord v => P v (L.Token Name)
+importDotId = queryToken go where
+  go (L.SymbolyId "." Nothing) = Just (Name.fromString ".")
   go _ = Nothing
 
 -- Consume a virtual semicolon
-semi :: Var v => P v (L.Token ())
-semi = void <$> matchToken L.Semi
+semi :: Ord v => P v (L.Token ())
+semi = queryToken go where
+  go (L.Semi _) = Just ()
+  go _ = Nothing
 
 -- Consume the end of a block
-closeBlock :: Var v => P v (L.Token ())
+closeBlock :: Ord v => P v (L.Token ())
 closeBlock = void <$> matchToken L.Close
 
--- Parse an alphanumeric identifier
-wordyId :: Var v => P v (L.Token String)
-wordyId = fmap fst <$> hqWordyId
+wordyPatternName :: Var v => P v (L.Token v)
+wordyPatternName = queryToken $ \case
+  L.WordyId s Nothing -> Just $ Var.nameds s
+  _                   -> Nothing
+
+-- Parse an prefix identifier e.g. Foo or (+), discarding any hash
+prefixDefinitionName :: Var v => P v (L.Token v)
+prefixDefinitionName =
+  wordyDefinitionName <|> parenthesize symbolyDefinitionName
+
+-- Parse a wordy identifier e.g. Foo, discarding any hash
+wordyDefinitionName :: Var v => P v (L.Token v)
+wordyDefinitionName = queryToken $ \case
+  L.WordyId s _            -> Just $ Var.nameds s
+  L.Blank s                -> Just $ Var.nameds ("_" <> s)
+  _                        -> Nothing
+
+-- Parse a wordyId as a String, rejecting any hash
+wordyIdString :: Ord v => P v (L.Token String)
+wordyIdString = queryToken $ \case
+  L.WordyId s Nothing -> Just s
+  _                   -> Nothing
+
+-- Parse a wordyId as a Name, rejecting any hash
+importWordyId :: Ord v => P v (L.Token Name)
+importWordyId = (fmap . fmap) Name.fromString wordyIdString
+
+-- The `+` in: use Foo.bar + as a Name
+importSymbolyId :: Ord v => P v (L.Token Name)
+importSymbolyId = (fmap . fmap) Name.fromString symbolyIdString
+
+-- Parse a symbolyId as a String, rejecting any hash
+symbolyIdString :: Ord v => P v (L.Token String)
+symbolyIdString = queryToken $ \case
+  L.SymbolyId s Nothing -> Just s
+  _                     -> Nothing
+
+-- Parse an infix id e.g. + or `cons`, discarding any hash
+infixDefinitionName :: Var v => P v (L.Token v)
+infixDefinitionName = symbolyDefinitionName <|> backticked where
+  backticked :: Var v => P v (L.Token v)
+  backticked = queryToken $ \case
+    L.Backticks s _ -> Just $ Var.nameds s
+    _               -> Nothing
+
+-- Parse a symboly ID like >>= or &&, discarding any hash
+symbolyDefinitionName :: Var v => P v (L.Token v)
+symbolyDefinitionName = queryToken $ \case
+  L.SymbolyId s _ -> Just $ Var.nameds s
+  _               -> Nothing
+
+parenthesize :: Ord v => P v a -> P v a
+parenthesize p = P.try (openBlockWith "(" *> p) <* closeBlock
+
+hqPrefixId, hqInfixId :: Ord v => P v (L.Token HQ.HashQualified)
+hqPrefixId = hqWordyId_ <|> parenthesize hqSymbolyId_
+hqInfixId = hqSymbolyId_ <|> hqBacktickedId_
 
 -- Parse a hash-qualified alphanumeric identifier
-hqWordyId :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqWordyId = queryToken getWordy
- where
-  getWordy (L.WordyId s h) = Just (s, h)
-  getWordy _               = Nothing
-
--- Parse a specific wordy id
-exactWordyId :: Var v => String -> P v (L.Token String)
-exactWordyId target = queryToken getWordy
- where
-  getWordy (L.WordyId s Nothing) | s == target = Just s
-  getWordy _ = Nothing
-
--- Parse a symboly ID like >>= or &&
-symbolyId :: Var v => P v (L.Token String)
-symbolyId = fmap fst <$> hqSymbolyId
+hqWordyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqWordyId_ = queryToken $ \case
+  L.WordyId "" (Just h) -> Just $ HQ.HashOnly h
+  L.WordyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.WordyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  L.Hash h              -> Just $ HQ.HashOnly h
+  L.Blank s | not (null s) -> Just $ HQ.NameOnly (Name.fromString ("_" <> s))
+  _ -> Nothing
 
 -- Parse a hash-qualified symboly ID like >>=#foo or &&
-hqSymbolyId :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqSymbolyId = queryToken getSymboly
- where
-  getSymboly (L.SymbolyId s h) = Just (s, h)
-  getSymboly _                 = Nothing
+hqSymbolyId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqSymbolyId_ = queryToken $ \case
+  L.SymbolyId "" (Just h) -> Just $ HQ.HashOnly h
+  L.SymbolyId s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.SymbolyId s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  _ -> Nothing
 
-backticks :: Var v => P v (L.Token String)
-backticks = queryToken getBackticks
- where
-  getBackticks (L.Backticks s Nothing) = Just s
-  getBackticks _                       = Nothing
+hqBacktickedId_ :: Ord v => P v (L.Token HQ.HashQualified)
+hqBacktickedId_ = queryToken $ \case
+  L.Backticks "" (Just h) -> Just $ HQ.HashOnly h
+  L.Backticks s  (Just h) -> Just $ HQ.HashQualified (Name.fromString s) h
+  L.Backticks s  Nothing  -> Just $ HQ.NameOnly (Name.fromString s)
+  _ -> Nothing
 
 -- Parse a reserved word
-reserved :: Var v => String -> P v (L.Token String)
+reserved :: Ord v => String -> P v (L.Token String)
 reserved w = label w $ queryToken getReserved
   where getReserved (L.Reserved w') | w == w' = Just w
         getReserved _               = Nothing
 
 -- Parse a placeholder or typed hole
-blank :: Var v => P v (L.Token String)
+blank :: Ord v => P v (L.Token String)
 blank = label "blank" $ queryToken getBlank
   where getBlank (L.Blank s) = Just ('_' : s)
         getBlank _           = Nothing
 
-numeric :: Var v => P v (L.Token String)
+numeric :: Ord v => P v (L.Token String)
 numeric = queryToken getNumeric
   where getNumeric (L.Numeric s) = Just s
         getNumeric _             = Nothing
 
-sepComma :: Var v => P v a -> P v [a]
+sepComma :: Ord v => P v a -> P v [a]
 sepComma = sepBy (reserved ",")
 
-sepBy :: Var v => P v a -> P v b -> P v [b]
+sepBy :: Ord v => P v a -> P v b -> P v [b]
 sepBy sep pb = P.sepBy pb sep
 
-sepBy1 :: Var v => P v a -> P v b -> P v [b]
+sepBy1 :: Ord v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
-prefixVar :: Var v => P v (L.Token v)
-prefixVar = fmap (Var.named . Text.pack) <$> label "symbol" prefixOp
- where
-  prefixOp = blank <|> wordyId <|> label
-    "prefix-operator"
-    (P.try (openBlockWith "(" *> symbolyId) <* closeBlock)
-
-hqPrefixVar :: Var v => P v (L.Token (String, Maybe ShortHash))
-hqPrefixVar = label "symbol" prefixOp
- where
-  prefixOp = hqWordyId <|> label
-    "prefix-operator"
-    (P.try (openBlockWith "(" *> hqSymbolyId) <* closeBlock)
-
-infixVar :: Var v => P v (L.Token v)
-infixVar =
-  fmap (Var.named . Text.pack) <$> (symbolyId <|> backticks)
-
-hashLiteral :: Var v => P v (L.Token Hash)
-hashLiteral = queryToken getHash
-  where getHash (L.Hash s) = Just s
-        getHash _          = Nothing
-
-string :: Var v => P v (L.Token Text)
+string :: Ord v => P v (L.Token Text)
 string = queryToken getString
   where getString (L.Textual s) = Just (Text.pack s)
         getString _             = Nothing
 
-tupleOrParenthesized :: Var v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
+tupleOrParenthesized :: Ord v => P v a -> (Ann -> a) -> (a -> a -> a) -> P v a
 tupleOrParenthesized p unit pair = do
     open <- openBlockWith "("
     es <- sepBy (reserved "," *> optional semi) p
@@ -380,7 +423,7 @@ tupleOrParenthesized p unit pair = do
     go [t] _ _ = t
     go as s e  = foldr pair (unit (ann s <> ann e)) as
 
-seq :: Var v => (Ann -> [a] -> a) -> P v a -> P v a
+seq :: Ord v => (Ann -> [a] -> a) -> P v a -> P v a
 seq f p = f' <$> reserved "[" <*> elements <*> trailing
   where
     f' open elems close = f (ann open <> ann close) elems
@@ -388,21 +431,21 @@ seq f p = f' <$> reserved "[" <*> elements <*> trailing
     sep = P.try $ optional semi *> reserved "," <* optional semi
     elements = sepBy sep p
 
-chainr1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
+chainr1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainr1 p op = go1 where
   go1 = p >>= go2
   go2 hd = do { op <- op; op hd <$> go1 } <|> pure hd
 
 -- Parse `p` 1+ times, combining with `op`
-chainl1 :: Var v => P v a -> P v (a -> a -> a) -> P v a
+chainl1 :: Ord v => P v a -> P v (a -> a -> a) -> P v a
 chainl1 p op = foldl (flip ($)) <$> p <*> P.many (flip <$> op <*> p)
 
-attempt :: Var v => P v a -> P v a
+attempt :: Ord v => P v a -> P v a
 attempt = P.try
 
 -- If `p` would succeed, this fails uncommitted.
 -- Otherwise, `failIfOk` used to produce the output
-failureIf :: Var v => P v (P v b) -> P v a -> P v b
+failureIf :: Ord v => P v (P v b) -> P v a -> P v b
 failureIf failIfOk p = do
   dontwant <- P.try . P.lookAhead $ failIfOk
   p <- P.try $ P.lookAhead (optional p)

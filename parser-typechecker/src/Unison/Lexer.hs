@@ -21,7 +21,6 @@ import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
-import           Unison.Hash (Hash)
 import           Unison.ShortHash ( ShortHash )
 import qualified Unison.ShortHash as SH
 
@@ -44,7 +43,7 @@ data Err
 --   any knowledge of comments
 data Lexeme
   = Open String      -- start of a block
-  | Semi             -- separator between elements of a block
+  | Semi IsVirtual   -- separator between elements of a block
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
@@ -53,9 +52,11 @@ data Lexeme
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
-  | Hash Hash        -- hash literals
+  | Hash ShortHash   -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
+
+type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
 
@@ -74,7 +75,7 @@ data Token a = Token {
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
   Close -> False
-  Semi -> False
+  Semi _ -> False
   Open _ -> False
   _ -> True
 
@@ -96,10 +97,11 @@ instance ShowToken (Token Lexeme) where
       pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
-      pretty (Hash h) = show h
+      pretty (Hash sh) = show sh
       pretty (Err e) = show e
       pretty Close = "<outdent>"
-      pretty Semi = "<virtual semicolon>"
+      pretty (Semi True) = "<virtual semicolon>"
+      pretty (Semi False) = ";"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -189,7 +191,7 @@ stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
 stanzas = go [] where
   go acc [] = [reverse acc]
   go acc (t:ts) = case payload $ headToken t of
-    Semi   -> reverse (t : acc) : go [] ts
+    Semi _ -> reverse (t : acc) : go [] ts
     _      -> go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
@@ -210,7 +212,7 @@ lexer scope rem =
   let t = tree $ lexer0 scope rem
       -- after reordering can end up with trailing semicolon at the end of
       -- a block, which we remove with this pass
-      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup ((payload -> Semi _) : t@(payload -> Close) : tl) = t : fixup tl
       fixup [] = []
       fixup (h : t) = h : fixup t
   in fixup . toList $ reorderTree reorder t
@@ -220,10 +222,15 @@ lexer0 scope rem =
     tweak $ Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
-    -- 1+1 lexes as [1, +1], and it's not easy to fix without adding more
-    -- state to the lexer, so we have a hacky postprocessing pass to convert
-    -- it to [1, +, 1]
+    -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
+    -- fix without adding more state to the lexer:
+    --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
+    --   - when a semi followed by a virtual semi, drop the virtual, lets you
+    --     write
+    --       foo x = action1;
+    --               2
     tweak [] = []
+    tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
     tweak (h@(payload -> Reserved _):t) = h : tweak t
     tweak (t1:t2@(payload -> Numeric num):rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
@@ -262,7 +269,7 @@ lexer0 scope rem =
     popLayout0 :: Layout -> Pos -> String -> [Token Lexeme]
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
-      | top l == c2 = Token Semi p p : go l p rem
+      | top l == c2 = Token (Semi True) p p : go l p rem
       | top l <  c2 = go l p rem
       | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
@@ -328,6 +335,7 @@ lexer0 scope rem =
       '}' : rem -> close "{" "}" l pos rem
       '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
       ')' : rem -> close "(" ")" l pos rem
+      ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
@@ -384,6 +392,11 @@ lexer0 scope rem =
             in Token (Backticks id Nothing) pos end
                  : goWhitespace l end (pop rem)
 
+      rem@('#' : _) -> case shortHash rem of
+         Left e -> Token (Err e) pos pos : recover l pos rem
+         Right (h, rem) ->
+           let end = incBy (SH.toString h) pos
+           in Token (Hash h) pos end : goWhitespace l end rem
       -- keywords and identifiers
       (symbolyId -> Right (id, rem')) -> case numericLit rem of
         Right (Just (num, rem)) ->
@@ -393,7 +406,7 @@ lexer0 scope rem =
                case shortHash rem' of
                  Left e -> Token (Err e) pos pos : recover l pos rem'
                  Right (h, rem) ->
-                   let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+                   let end = incBy id . incBy (SH.toString h) $ pos
                     in Token (SymbolyId id (Just h)) pos end
                        : goWhitespace l end rem
              else
@@ -404,8 +417,8 @@ lexer0 scope rem =
           case shortHash rem of
             Left e -> Token (Err e) pos pos : recover l pos rem
             Right (h, rem) ->
-              let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
-               in Token (SymbolyId id (Just h)) pos end
+              let end = incBy id . incBy (SH.toString h) $ pos
+               in Token (WordyId id (Just h)) pos end
                   : goWhitespace l end rem
         else let end = incBy id pos
               in Token (WordyId id Nothing) pos end : goWhitespace l end rem
@@ -527,7 +540,8 @@ splitOn c = unfoldr step where
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
 symbolyId :: String -> Either Err (String, String)
-symbolyId r@('.':ch:_) | isSpace ch = symbolyId0 r -- lone dot treated as an operator
+symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
+                       = symbolyId0 r -- lone dot treated as an operator
 symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
 symbolyId s = symbolyId' s
 
@@ -582,7 +596,7 @@ symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -614,7 +628,10 @@ layoutCloseOnlyKeywords :: Set String
 layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
-delimiters = Set.fromList "()[]{},?"
+delimiters = Set.fromList "()[]{},?;"
+
+isDelimeter :: Char -> Bool
+isDelimeter ch = Set.member ch delimiters
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

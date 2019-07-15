@@ -3,7 +3,7 @@ module Unison.Parsers where
 import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )
-import qualified Unison.Names as Names
+import qualified Unison.Names3                 as Names
 import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
 import           Unison.Parser                  ( Ann )
@@ -12,12 +12,11 @@ import           Unison.PrintError              ( prettyParseError )
 import           Unison.Symbol                  ( Symbol )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Unison.TermParser             as TermParser
-import           Unison.Type                    ( AnnotatedType )
+import           Unison.Type                    ( Type )
 import qualified Unison.TypeParser             as TypeParser
 import           Unison.UnisonFile              ( UnisonFile )
 import qualified Unison.Util.ColorText         as Color
 import           Unison.Var                     ( Var )
-import qualified Unison.PrettyPrintEnv         as PPE
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
@@ -42,7 +41,7 @@ parseType
   :: Var v
   => String
   -> Parser.ParsingEnv
-  -> Either (Parser.Err v) (AnnotatedType v Ann)
+  -> Either (Parser.Err v) (Type v Ann)
 parseType = Parser.run (Parser.root TypeParser.valueType)
 
 parseFile
@@ -50,14 +49,14 @@ parseFile
   => FilePath
   -> String
   -> Parser.ParsingEnv
-  -> Either (Parser.Err v) (PPE.PrettyPrintEnv, UnisonFile v Ann)
+  -> Either (Parser.Err v) (UnisonFile v Ann)
 parseFile filename s = Parser.run' (Parser.rootFile FileParser.file) s filename
 
 readAndParseFile
   :: Var v
   => Parser.ParsingEnv
   -> FilePath
-  -> IO (Either (Parser.Err v) (PPE.PrettyPrintEnv, UnisonFile v Ann))
+  -> IO (Either (Parser.Err v) (UnisonFile v Ann))
 readAndParseFile penv fileName = do
   txt <- readFile fileName
   let src = Text.unpack txt
@@ -67,18 +66,20 @@ unsafeParseTerm :: Var v => String -> Parser.ParsingEnv -> AnnotatedTerm v Ann
 unsafeParseTerm s = fmap (unsafeGetRightFrom s) . parseTerm $ s
 
 unsafeReadAndParseFile
-  :: Parser.ParsingEnv -> FilePath -> IO (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: Parser.ParsingEnv -> FilePath -> IO (UnisonFile Symbol Ann)
 unsafeReadAndParseFile penv fileName = do
   txt <- readFile fileName
   let str = Text.unpack txt
   pure . unsafeGetRightFrom str $ parseFile fileName str penv
 
 unsafeParseFileBuiltinsOnly
-  :: FilePath -> IO (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: FilePath -> IO (UnisonFile Symbol Ann)
 unsafeParseFileBuiltinsOnly =
-  unsafeReadAndParseFile (mempty, Names.fromNames2 Builtin.names)
+  unsafeReadAndParseFile $ Parser.ParsingEnv
+    mempty
+    (Names.Names Builtin.names0 mempty)
 
 unsafeParseFile
-  :: String -> Parser.ParsingEnv -> (PPE.PrettyPrintEnv, UnisonFile Symbol Ann)
+  :: String -> Parser.ParsingEnv -> UnisonFile Symbol Ann
 unsafeParseFile s pEnv = unsafeGetRightFrom s $ parseFile "" s pEnv
 

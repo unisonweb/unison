@@ -78,6 +78,8 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.Var                    as Var
+import qualified Unison.ConstructorType        as CT
+import Unison.Type (Type)
 
 -- ABOUT THIS FORMAT:
 --
@@ -251,22 +253,34 @@ getReference = do
     _ -> unknownTag "Reference" tag
 
 putReferent :: MonadPut m => Referent -> m ()
-putReferent r = case r of
+putReferent = \case
   Referent.Ref r -> do
     putWord8 0
     putReference r
-  Referent.Con r i -> do
+  Referent.Con r i ct -> do
     putWord8 1
     putReference r
     putLength i
+    putConstructorType ct
+
+putConstructorType :: MonadPut m => CT.ConstructorType -> m ()
+putConstructorType = \case
+  CT.Data -> putWord8 0
+  CT.Effect -> putWord8 1
 
 getReferent :: MonadGet m => m Referent
 getReferent = do
   tag <- getWord8
   case tag of
     0 -> Referent.Ref <$> getReference
-    1 -> Referent.Con <$> getReference <*> getLength
+    1 -> Referent.Con <$> getReference <*> getLength <*> getConstructorType
     _ -> unknownTag "getReferent" tag
+
+getConstructorType :: MonadGet m => m CT.ConstructorType
+getConstructorType = getWord8 >>= \case
+  0 -> pure CT.Data
+  1 -> pure CT.Effect
+  t -> unknownTag "getConstructorType" t
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
 putMaybe Nothing _ = putWord8 0
@@ -362,7 +376,7 @@ getKind = getWord8 >>= \tag -> case tag of
 
 putType :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
-        -> Type.AnnotatedType v a
+        -> Type v a
         -> m ()
 putType putVar putA = putABT putVar putA go where
   go putChild t = case t of
@@ -376,7 +390,7 @@ putType putVar putA = putABT putVar putA go where
     Type.IntroOuter body -> putWord8 7 *> putChild body
 
 getType :: (MonadGet m, Ord v)
-        => m v -> m a -> m (Type.AnnotatedType v a)
+        => m v -> m a -> m (Type v a)
 getType getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Type.Ref <$> getReference

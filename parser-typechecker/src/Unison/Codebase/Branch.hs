@@ -56,6 +56,8 @@ import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.HashQualified as HQ
 import Unison.HashQualified (HashQualified)
+import qualified Unison.LabeledDependency as LD
+import Unison.LabeledDependency (LabeledDependency)
 
 newtype Branch m = Branch { _history :: Causal m Raw (Branch0 m) }
   deriving (Eq, Ord)
@@ -93,8 +95,6 @@ toNames0 :: Branch0 m -> Names0
 toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
                    (R.swap . Star3.d1 . deepTypes $ b)
 
-
-
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
 findHistoricalSHs :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
@@ -104,16 +104,19 @@ findHistoricalSHs = findInHistory
 
 -- This stops searching for a given HashQualified once it encounters
 -- any term or type in any Branch0 that satisfies that HashQualified.
-findHistoricalHQs :: Monad m => Set HashQualified -> Branch m -> m (Set HashQualified, Names0)
+findHistoricalHQs :: Monad m
+                  => Set HashQualified
+                  -> Branch m
+                  -> m (Set HashQualified, Names0)
 findHistoricalHQs = findInHistory
   (\hq r n -> HQ.matchesNamedReferent n r hq)
   (\hq r n -> HQ.matchesNamedReference n r hq)
 
-findHistoricalRefs :: Monad m => Set (Either Reference Referent) -> Branch m
-                   -> m (Set (Either Reference Referent), Names0)
+findHistoricalRefs :: Monad m => Set LabeledDependency -> Branch m
+                   -> m (Set LabeledDependency, Names0)
 findHistoricalRefs = findInHistory
-  (\query r _n -> either (const False) (==r) query)
-  (\query r _n -> either (==r) (const False) query)
+  (\query r _n -> LD.fold (const False) (==r) query)
+  (\query r _n -> LD.fold (==r) (const False) query)
 
 findInHistory :: forall m q. (Monad m, Ord q)
   => (q -> Referent -> Name -> Bool)

@@ -40,7 +40,7 @@ import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
 import           Debug.Trace                    ( trace )
-import           Unison.Type                    ( AnnotatedType )
+import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
 import           Unison.Var                     ( Var )
@@ -52,6 +52,7 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv, Suffix, Prefix
 import qualified Unison.PrettyPrintEnv         as PrettyPrintEnv
 import qualified Unison.DataDeclaration        as DD
 import Unison.DataDeclaration (pattern TuplePattern, pattern TupleTerm')
+import qualified Unison.ConstructorType as CT
 
 pretty :: Var v => PrettyPrintEnv -> AnnotatedTerm v a -> Pretty ColorText
 pretty env tm = PP.syntaxToColor $ pretty0 env (ac (-1) Normal Map.empty) (printAnnotate env tm)
@@ -151,7 +152,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
   = specialCases term $ \case
     Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
-      where name = elideFQN im $ HQ.fromVar (Var.reset v)
+      where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
     Ref' r -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Reference) $ name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
@@ -172,9 +173,9 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     Text'    s  -> fmt S.TextLiteral $ l $ show s
     Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $ 
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
     Request' ref i -> styleHashQualified'' (fmt S.Request) $ 
-      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i)
+      elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
         $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty0 n (ac 2 Normal im) h)
@@ -203,7 +204,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
        ]
      where
        height = PP.preferredHeight pt `max` PP.preferredHeight pf
-       pcond  = branch cond
+       pcond  = pretty0 n (ac 2 Block im) cond
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
@@ -264,7 +265,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
    where
     printBinding (v, binding) = if isBlank $ Var.nameStr v
       then pretty0 n (ac (-1) Normal im') binding
-      else prettyBinding0 n (ac (-1) Normal im') (HQ.fromVar v) binding
+      else prettyBinding0 n (ac (-1) Normal im') (HQ.unsafeFromVar v) binding
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
@@ -288,7 +289,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
   binaryOpsPred :: Var v => AnnotatedTerm3 v PrintAnnotation -> Bool
   binaryOpsPred = \case
     Ref' r | isSymbolic (PrettyPrintEnv.termName n (Referent.Ref r)) -> True
-    Var' v | isSymbolic (HQ.fromVar v) -> True
+    Var' v | isSymbolic (HQ.unsafeFromVar v) -> True
     _ -> False
 
   nonForcePred :: AnnotatedTerm3 v PrintAnnotation -> Bool
@@ -631,18 +632,18 @@ instance Monoid PrintAnnotation where
 
 suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> PrintAnnotation
 suffixCounterTerm n = \case
-    Var' v -> countHQ $ HQ.fromVar v
+    Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
-    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
-    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i)
+    Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
+    Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
     Ann' _ t -> countTypeUsages n t
     Match' _ bs -> let pat (MatchCase p _ _) = p
                    in foldMap ((countPatternUsages n) . pat) bs
     _ -> mempty
 
-suffixCounterType :: Var v => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
-    Type.Var' v -> countHQ $ HQ.fromVar v
+    Type.Var' v -> countHQ $ HQ.unsafeFromVar v
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
@@ -651,7 +652,7 @@ printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
   go :: Ord v => AnnotatedTerm2 v at ap v b -> AnnotatedTerm2 v () () v b
   go = extraMap' id (const ()) (const ())
 
-countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> AnnotatedType v a -> PrintAnnotation
+countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
 countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t 
                       
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
@@ -824,7 +825,7 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
 immediateChildBlockTerms :: (Var vt, Var v) => AnnotatedTerm2 vt at ap v a -> [AnnotatedTerm2 vt at ap v a]
 immediateChildBlockTerms = \case
     Handle' _ body -> [body]
-    If' cond t f -> [cond, t, f]
+    If' _ t f -> [t, f]
     tm@(LetRecNamed' bs _) -> [tm] ++ (concat $ map doLet bs)
     tm@(Lets' bs _)        -> [tm] ++ (concat $ map doLet ((map (\(_, v, binding) -> (v, binding)) bs)))
     Match' _ branches -> concat $ map doCase branches

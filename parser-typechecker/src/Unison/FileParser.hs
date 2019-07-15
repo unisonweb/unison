@@ -1,13 +1,16 @@
 {-# Language DoAndIfThenElse #-}
 {-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
 {-# Language ScopedTypeVariables #-}
 {-# Language TupleSections #-}
 {-# Language OverloadedStrings #-}
 
 module Unison.FileParser where
 
+-- import Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
+import Data.Foldable (toList)
 import Data.String (fromString)
 import Control.Lens
 import           Control.Applicative
@@ -28,7 +31,7 @@ import           Unison.Parser
 import           Unison.Term (AnnotatedTerm)
 import qualified Unison.Term as Term
 import qualified Unison.TermParser as TermParser
-import           Unison.Type (AnnotatedType)
+import           Unison.Type (Type)
 import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import           Unison.UnisonFile (UnisonFile(..), environmentFor)
@@ -36,24 +39,30 @@ import qualified Unison.UnisonFile as UF
 import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
-import qualified Unison.PrettyPrintEnv as PPE
+import qualified Unison.Names3 as Names
 
-file :: forall v . Var v => P v (PPE.PrettyPrintEnv, UnisonFile v Ann)
+-- push names onto the stack ahead of existing names
+pushNames0 :: Names.Names0 -> P v a -> P v a
+pushNames0 ns = local (\e -> e { names = Names.push ns (names e) })
+
+resolutionFailures :: Ord v => [Names.ResolutionFailure v Ann] -> P v x
+resolutionFailures es = P.customFailure (ResolutionFailures es)
+
+file :: forall v . Var v => P v (UnisonFile v Ann)
 file = do
   _ <- openBlock
-  names <- asks snd
+  namesStart <- asks names
   (dataDecls, effectDecls, parsedAccessors) <- declarations
-  env <- case environmentFor names dataDecls effectDecls of
-    Right env -> pure env
-    Left es -> P.customFailure $ TypeDeclarationErrors es
-  -- push names onto the stack ahead of existing names
-  local (fmap (UF.names env `mappend`)) $ do
-    names <- asks snd
+  env <- case environmentFor (Names.currentNames namesStart) dataDecls effectDecls of
+    Right (Right env) -> pure env
+    Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
+    Left es -> resolutionFailures (toList es)
+  pushNames0 (UF.names env) $ do
     -- The file may optionally contain top-level imports,
     -- which are parsed and applied to each stanza
-    (names', substImports) <- TermParser.imports <* optional semi
-    stanzas0 <- local (fmap (names' `mappend`)) $ sepBy semi stanza
-    let stanzas = fmap substImports <$> stanzas0
+    (names, imports) <- TermParser.imports <* optional semi
+    stanzas00 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    let stanzas = fmap (TermParser.substImports names imports) <$> stanzas00
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
@@ -63,15 +72,23 @@ file = do
             (terms, (kind, (Var.unnamedTest guid, Term.generalizeTypeSignatures at)) : watches)
           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
-    let (terms, watches) = (reverse termsr, List.multimap $ reverse watchesr)
-        toPair (tok, _) = (L.payload tok, ann tok)
+    let (terms, watches) = (reverse termsr, reverse watchesr)
+    let curNames = Names.currentNames names
+    terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
+      Left es -> resolutionFailures (toList es)
+      Right terms -> pure terms
+    watches <- case List.validate (traverse . traverse $ Term.bindSomeNames curNames) watches of
+      Left es -> resolutionFailures (toList es)
+      Right ws -> pure ws
+    let toPair (tok, _) = (L.payload tok, ann tok)
         accessors =
           [ DD.generateRecordAccessors (toPair <$> fields) (L.payload typ) r
           | (typ, fields) <- parsedAccessors
           , Just (r,_) <- [Map.lookup (L.payload typ) (UF.datas env)]
           ]
-        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors) watches
-    pure (PPE.fromNames names, uf)
+        uf = UnisonFile (UF.datas env) (UF.effects env) (terms <> join accessors)
+                        (List.multimap watches)
+    pure uf
 
 -- A stanza is either a watch expression like:
 --   > 1 + x
@@ -89,7 +106,14 @@ data Stanza v term
   = WatchBinding UF.WatchKind Ann ((Ann, v), term)
   | WatchExpression UF.WatchKind Text Ann term
   | Binding ((Ann, v), term)
-  | Bindings [((Ann, v), term)] deriving Functor
+  | Bindings [((Ann, v), term)] deriving (Foldable, Traversable, Functor)
+
+getVars :: Var v => Stanza v term -> [v]
+getVars = \case
+  WatchBinding _ _ ((_,v), _) -> [v]
+  WatchExpression _ guid _ _ -> [Var.unnamedTest guid]
+  Binding ((_,v), _) -> [v]
+  Bindings bs -> [ v | ((_,v), _) <- bs ]
 
 stanza :: Var v => P v (Stanza v (AnnotatedTerm v Ann))
 stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
@@ -111,9 +135,9 @@ stanza = watchExpression <|> unexpectedAction <|> binding <|> namespace
 
 watched :: Var v => P v (UF.WatchKind, Text, Ann)
 watched = P.try $ do
-  kind <- optional wordyId
+  kind <- optional wordyIdString
   guid <- uniqueName 10
-  op <- optional (L.payload <$> P.lookAhead symbolyId)
+  op <- optional (L.payload <$> P.lookAhead symbolyIdString)
   guard (op == Just ">")
   tok <- anyToken
   guard $ maybe True (`L.touches` tok) kind
@@ -137,7 +161,7 @@ terminateTerm e = e
 --
 -- The `Token v` is the variable name and location (here `zero` and `(+)`) of
 -- each field, and the type is the type of that field
-type Accessors v = [(L.Token v, [(L.Token v, AnnotatedType v Ann)])]
+type Accessors v = [(L.Token v, [(L.Token v, Type v Ann)])]
 
 declarations :: Var v => P v
                          (Map v (DataDeclaration' v Ann),
@@ -170,7 +194,7 @@ modifier = do
     Nothing -> fmap (const DD.Structural) <$> P.lookAhead anyToken
     Just tok -> do
       uid <- do
-        o <- optional (reserved "[" *> wordyId <* reserved "]")
+        o <- optional (reserved "[" *> wordyIdString <* reserved "]")
         case o of
           Nothing -> uniqueName 32
           Just uid -> pure (fromString . L.payload $ uid)
@@ -191,13 +215,14 @@ dataDeclaration
 dataDeclaration mod = do
   _                <- fmap void (reserved "type") <|> openBlockWith "type"
   (name, typeArgs) <-
-    (,) <$> TermParser.verifyRelativeName prefixVar <*> many prefixVar
+    (,) <$> TermParser.verifyRelativeVarName prefixDefinitionName
+        <*> many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
   eq <- reserved "="
   let
       -- go gives the type of the constructor, given the types of
       -- the constructor arguments, e.g. Cons becomes forall a . a -> List a -> List a
-      go :: L.Token v -> [AnnotatedType v Ann] -> (Ann, v, AnnotatedType v Ann)
+      go :: L.Token v -> [Type v Ann] -> (Ann, v, Type v Ann)
       go ctorName ctorArgs = let
         arrow i o = Type.arrow (ann i <> ann o) i o
         app f arg = Type.app (ann f <> ann arg) f arg
@@ -210,13 +235,12 @@ dataDeclaration mod = do
                   (if null ctorArgs then mempty else ann (last ctorArgs))
         in (ann ctorName, Var.namespaced [L.payload name, L.payload ctorName],
             Type.foralls ctorAnn typeArgVs ctorType)
-      dataConstructor = go <$> TermParser.verifyRelativeName prefixVar
-                           <*> many TypeParser.valueTypeLeaf
-      wordyIdVar = TermParser.verifyRelativeName prefixVar
+      prefixVar = TermParser.verifyRelativeVarName prefixDefinitionName
+      dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
       record = do
         _ <- openBlockWith "{"
         fields <- sepBy1 (reserved ",") $
-          liftA2 (,) (wordyIdVar <* reserved ":") TypeParser.valueType
+          liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
         pure ([go name (snd <$> fields)], [(name, fields)])
   (constructors, accessors) <-
@@ -230,21 +254,54 @@ dataDeclaration mod = do
         DD.mkDataDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors,
         accessors)
 
-effectDeclaration :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
+effectDeclaration
+  :: Var v => L.Token DD.Modifier -> P v (v, EffectDeclaration' v Ann)
 effectDeclaration mod = do
-  _ <- fmap void (reserved "ability") <|> openBlockWith "ability"
-  name <- TermParser.verifyRelativeName prefixVar
-  typeArgs <- many prefixVar
+  _        <- fmap void (reserved "ability") <|> openBlockWith "ability"
+  name     <- TermParser.verifyRelativeVarName prefixDefinitionName
+  typeArgs <- many (TermParser.verifyRelativeVarName prefixDefinitionName)
   let typeArgVs = L.payload <$> typeArgs
-  blockStart <- openBlockWith "where"
-  constructors <- sepBy semi (constructor name)
-  _ <- closeBlock <* closeBlock -- `ability` opens a block, as does `where`
-  let closingAnn = last $ ann blockStart : ((\(_,_,t) -> ann t) <$> constructors)
-  pure (L.payload name, DD.mkEffectDecl' (L.payload mod) (ann mod <> closingAnn) typeArgVs constructors)
-  where
-    constructor :: Var v => L.Token v -> P v (Ann, v, AnnotatedType v Ann)
-    constructor name = explodeToken <$>
-      TermParser.verifyRelativeName prefixVar
-        <* reserved ":"
-        <*> (Type.generalizeLowercase mempty <$> TypeParser.computationType)
-      where explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
+  blockStart   <- openBlockWith "where"
+  constructors <- sepBy semi (constructor typeArgs name)
+               -- `ability` opens a block, as does `where`
+  _            <- closeBlock <* closeBlock
+  let closingAnn =
+        last $ ann blockStart : ((\(_, _, t) -> ann t) <$> constructors)
+  pure
+    ( L.payload name
+    , DD.mkEffectDecl' (L.payload mod)
+                       (ann mod <> closingAnn)
+                       typeArgVs
+                       constructors
+    )
+ where
+  constructor
+    :: Var v => [L.Token v] -> L.Token v -> P v (Ann, v, Type v Ann)
+  constructor typeArgs name =
+    explodeToken
+      <$> TermParser.verifyRelativeVarName prefixDefinitionName
+      <*  reserved ":"
+      <*> (   Type.generalizeLowercase mempty
+          .   ensureEffect
+          <$> TypeParser.computationType
+          )
+   where
+    explodeToken v t = (ann v, Var.namespaced [L.payload name, L.payload v], t)
+    -- If the effect is not syntactically present in the constructor types,
+    -- add them after parsing.
+    ensureEffect t = case t of
+      Type.Effect' _ _ -> modEffect t
+      x -> Type.editFunctionResult modEffect x
+    modEffect t = case t of
+      Type.Effect' es t -> go es t
+      t                 -> go [] t
+    toTypeVar t = Type.av' (ann t) (Var.name $ L.payload t)
+    headIs t v = case t of
+      Type.Apps' (Type.Var' x) _ -> x == v
+      Type.Var' x                -> x == v
+      _                          -> False
+    go es t =
+      let es' = if any (`headIs` L.payload name) es
+            then es
+            else Type.apps' (toTypeVar name) (toTypeVar <$> typeArgs) : es
+      in  Type.cleanupAbilityLists $ Type.effect (ABT.annotation t) es' t

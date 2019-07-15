@@ -30,9 +30,9 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern as I
+import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Names2 as Names
-import qualified Unison.ShortHash as ShortHash
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
@@ -60,6 +60,11 @@ makeExampleEOS p args = P.group $
 
 helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
 helpFor p = I.parse help [I.patternName p]
+
+mergeBuiltins :: InputPattern
+mergeBuiltins = InputPattern "builtins.merge" [] []
+  "Adds all the builtins to the current path."
+  (const . pure $ Input.MergeBuiltinsI)
 
 updateBuiltins :: InputPattern
 updateBuiltins = InputPattern "builtins.update" [] []
@@ -146,11 +151,15 @@ find = InputPattern "find" ["list", "ls"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
         , "lists all definitions with a name similar to 'foo' in the current branch.")
       , ( "`find foo bar`"
         , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
-      , ( "`find -l foo bar`"
-        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch, along with their hashes and aliases.")
       ]
     )
-    (pure . Input.SearchByNameI)
+    (pure . Input.SearchByNameI False)
+
+findVerbose :: InputPattern
+findVerbose = InputPattern "find.verbose" ["list.verbose", "ls.verbose"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
+  "`find.verbose` searches for definitions like `find`, but includes hashes and aliases in the results."
+  (pure . Input.SearchByNameI True)
+
 
 findPatch :: InputPattern
 findPatch = InputPattern "find.patch" ["list.patch", "ls.patch"] []
@@ -574,12 +583,10 @@ names = InputPattern "names" []
   [(Required, exactDefinitionQueryArg)]
   "`names foo` shows the hash and all known names for `foo`."
   (\case
-    [thing] -> case Path.parseHQSplit' thing of
-      Right p -> Right $ Input.NamesI (Right p)
-      Left _err -> case ShortHash.fromText (Text.pack thing) of
-        Nothing -> Left $ "I was looking for one of these forms: "
-                       <> P.blue ("foo .foo.bar foo#abc #abcde .foo.bar#asdf")
-        Just sh -> Right $ Input.NamesI (Left sh)
+    [thing] -> case HQ.fromString thing of
+      Just hq -> Right $ Input.NamesI hq
+      Nothing -> Left $ "I was looking for one of these forms: "
+                       <> P.blue "foo .foo.bar foo#abc #abcde .foo.bar#asdf"
     _ -> Left (I.help names)
   )
 
@@ -600,6 +607,7 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
+  , findVerbose
   , view
   , findPatch
   , viewPatch
@@ -626,6 +634,7 @@ validInputs =
                else pure . Input.ExecuteI $ unwords ws)
   , quit
   , updateBuiltins
+  , mergeBuiltins
   ]
 
 commandNames :: [String]

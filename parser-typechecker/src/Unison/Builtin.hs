@@ -6,6 +6,7 @@
 
 module Unison.Builtin
   (codeLookup
+  ,constructorType
   ,names
   ,names0
   ,builtinDataDecls
@@ -28,6 +29,7 @@ import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
+import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -37,38 +39,36 @@ import           Unison.Parser                  ( Ann(..) )
 import qualified Unison.Reference              as R
 import qualified Unison.Referent               as Referent
 import           Unison.Symbol                  ( Symbol )
-import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
-import Unison.Names2 (Names'(Names), Names, Names0, names0ToNames)
+import Unison.Names3 (Names(Names), Names0)
+import qualified Unison.Names3 as Names3
 import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Util.Relation          as Rel
 
 type DataDeclaration v = DataDeclaration' v Ann
 type EffectDeclaration v = EffectDeclaration' v Ann
+type Type v = Type.Type v ()
 
 names :: Names
-names = names0ToNames names0
+names = Names names0 mempty
 
 names0 :: Names0
-names0 = Names terms types where
+names0 = Names3.names0 terms types where
   terms = Rel.mapRan Referent.Ref (Rel.fromMap termNameRefs) <>
-    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid)
-                 | (_,(r,decl)) <- builtinDataDecls @Symbol <>
-                    ((second . second) DD.toDataDecl <$> builtinEffectDecls)
+    Rel.fromList [ (Name.fromVar vc, Referent.Con r cid ct)
+                 | (ct, (_,(r,decl))) <- ((CT.Data,) <$> builtinDataDecls @Symbol) <>
+                    ((CT.Effect,) . (second . second) DD.toDataDecl <$> builtinEffectDecls)
                  , ((_,vc,_), cid) <- DD.constructors' decl `zip` [0..]]
   types = Rel.fromList builtinTypes <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinDataDecls @Symbol ] <>
     Rel.fromList [ (Name.fromVar v, r) | (v,(r,_)) <- builtinEffectDecls @Symbol ]
 
--- Is this a term (as opposed to a type)
--- todo: why isn't this being used? if it doesn't actually make sense, we can delete it
-_isBuiltinTerm :: R.Reference -> Bool
-_isBuiltinTerm r = Map.member r (termRefTypes @Symbol)
-
+-- note: this function is really for deciding whether `r` is a term or type,
+-- but it can only answer correctly for Builtins.
 isBuiltinType :: R.Reference -> Bool
 isBuiltinType r = elem r . fmap snd $ builtinTypes
 
@@ -78,6 +78,9 @@ typeLookup =
     (fmap (const Intrinsic) <$> termRefTypes)
     (Map.fromList $ map snd builtinDataDecls)
     (Map.fromList $ map snd builtinEffectDecls)
+
+constructorType :: R.Reference -> Maybe CT.ConstructorType
+constructorType = TL.constructorType (typeLookup @Symbol)
 
 -- | parse some builtin data types, and resolve their free variables using
 -- | builtinTypes' and those types defined herein

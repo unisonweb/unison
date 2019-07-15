@@ -32,6 +32,8 @@ import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
 import qualified Unison.Codebase.BranchUtil as BranchUtil
+import Unison.DataDeclaration (Decl)
+import Unison.Type (Type)
 
 --import Debug.Trace
 
@@ -39,8 +41,6 @@ type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
 
 type Term v a = Term.AnnotatedTerm v a
-type Type v a = Type.AnnotatedType v a
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 
 data Codebase m v a =
@@ -70,6 +70,9 @@ data Codebase m v a =
            , termsOfTypeImpl    :: Reference -> m (Set Referent)
            -- list of terms that mention the given type anywhere in their signature
            , termsMentioningTypeImpl :: Reference -> m (Set Referent)
+           -- number of base58 characters needed to distinguish any two references in the codebase
+           , hashLength         :: m Int
+           -- , refsByPrefix :: Text -> m (Set Reference)
            }
 
 -- | Write all of the builtins types and IO types into the codebase

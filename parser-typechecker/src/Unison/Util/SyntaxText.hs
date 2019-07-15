@@ -17,7 +17,7 @@ data Element = NumericLiteral
              | Request
              | AbilityBraces
              -- let|handle|in|where|case|of|->|if|then|else|and|or
-             | ControlKeyword 
+             | ControlKeyword
              -- forall|->
              | TypeOperator
              | BindingEquals

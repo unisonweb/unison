@@ -5,6 +5,8 @@ module Unison.Name
   , fromString
   , isPrefixOf
   , joinDot
+  , makeAbsolute
+  , parent
   , stripNamePrefix
   , stripPrefixes
   , toString
@@ -12,10 +14,12 @@ module Unison.Name
   , unqualified
   , unqualified'
   , unsafeFromText
+  , unsafeFromString
   , fromVar
   )
 where
 
+import           Control.Lens                   ( unsnoc )
 import           Data.String                    ( IsString
                                                 , fromString
                                                 )
@@ -30,6 +34,9 @@ newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 unsafeFromText :: Text -> Name
 unsafeFromText t =
   if Text.any (== '#') t then error $ "not a name: " <> show t else Name t
+
+unsafeFromString :: String -> Name
+unsafeFromString = unsafeFromText . Text.pack
 
 toVar :: Var v => Name -> v
 toVar (Name t) = Var.named t
@@ -64,13 +71,32 @@ stripPrefixes :: Name -> Name
 stripPrefixes = unsafeFromText . last . Text.splitOn "." . toText
 
 joinDot :: Name -> Name -> Name
-joinDot n1 n2 = Name $ toText n1 <> "." <> toText n2
+joinDot prefix suffix =
+  if toText prefix == "." then Name (toText prefix <> toText suffix)
+  else Name (toText prefix <> "." <> toText suffix)
 
 unqualified :: Name -> Name
 unqualified = unsafeFromText . unqualified' . toText
 
+-- parent . -> Nothing
+-- parent + -> Nothing
+-- parent foo -> Nothing
+-- parent foo.bar -> foo
+-- parent foo.bar.+ -> foo.bar
+parent :: Name -> Maybe Name
+parent (Name txt) = case unsnoc (Text.splitOn "." txt) of
+  Nothing -> Nothing
+  Just ([],_) -> Nothing
+  Just (init,_) -> Just $ Name (Text.intercalate "." init)
+
 unqualified' :: Text -> Text
 unqualified' = last . Text.splitOn "."
+
+makeAbsolute :: Name -> Name
+makeAbsolute n =
+  if toText n == "." then Name ".."
+  else if Text.isPrefixOf "." (toText n) then n
+  else Name ("." <> toText n)
 
 instance Show Name where
   show = toString

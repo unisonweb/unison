@@ -133,43 +133,41 @@ parseSplit' lastSegment p = do
   pure (p', seg)
 
 parseShortHashOrHQSplit' :: String -> Either String (Either SH.ShortHash HQSplit')
-parseShortHashOrHQSplit' s = do
-  case Text.splitOn "#" $ Text.pack s of
-    [] -> error $ "encountered empty string parsing '" <> s <> "'"
-    [n] -> do
+parseShortHashOrHQSplit' s =
+  case Text.breakOn "#" $ Text.pack s of
+    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
+    (n,"") -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
       pure $ Right (p, HQ'.NameOnly seg)
-    ["", sh] -> do
-      sh <- maybeToRight (shError s) . SH.fromText $ "#" <> sh
+    ("", sh) -> do
+      sh <- maybeToRight (shError s) . SH.fromText $ sh
       pure $ Left sh
-    [n, sh] -> do
+    (n, sh) -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
       hq <- maybeToRight (shError s) .
         fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-        SH.fromText $ "#" <> sh
+        SH.fromText $ sh
       pure $ Right hq
-    _ -> Left $ s <> " has too many #."
   where
   shError s = "couldn't parse shorthash from " <> s
 
 parseHQSplit' :: String -> Either String HQSplit'
-parseHQSplit' s = do
-  case Text.splitOn "#" $ Text.pack s of
-    [] -> error $ "encountered empty string parsing '" <> s <> "'"
-    "" : _ -> Left "HQSplit' doesn't have a hash-only option."
-    [n] -> do
+parseHQSplit' s =
+  case Text.breakOn "#" $ Text.pack s of
+    ("","") -> error $ "encountered empty string parsing '" <> s <> "'"
+    ("", _) -> Left "HQSplit' doesn't have a hash-only option."
+    (n, "") -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
       pure (p, HQ'.NameOnly seg)
-    [n, sh] -> do
+    (n, sh) -> do
       (p, rem) <- parsePath'Impl (Text.unpack n)
       seg <- definitionNameSegment rem
       maybeToRight (shError s) .
         fmap (\sh -> (p, HQ'.HashQualified seg sh)) .
-        SH.fromText $ "#" <> sh
-    _ -> Left $ s <> " has too many #."
+        SH.fromText $ sh
   where
   shError s = "couldn't parse shorthash from " <> s
 
