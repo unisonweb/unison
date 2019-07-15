@@ -21,6 +21,7 @@ import qualified Unison.Name as Name
 import qualified Unison.Names2
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.Relation as R
+import qualified Unison.ConstructorType as CT
 
 data Names = Names { currentNames :: Names0, oldNames :: Names0 } deriving Show
 
@@ -144,6 +145,19 @@ termName length r Names{..} =
 lookupHQPattern :: HQ.HashQualified -> Names -> Set (Reference, Int)
 lookupHQPattern hq names = Set.fromList
   [ (r, cid) | Referent.Con r cid _ <- toList $ lookupHQTerm hq names ]
+
+-- Finds all the constructors for the given type in the `Names0`
+constructorsForType0 :: Reference -> Names0 -> [(Name,Referent)]
+constructorsForType0 r ns = let
+  -- rather than searching all of names, we use the known possible forms
+  -- that the constructors can take
+  possibleDatas =   [ Referent.Con r cid CT.Data | cid <- [0..] ]
+  possibleEffects = [ Referent.Con r cid CT.Effect | cid <- [0..] ]
+  trim [] = []
+  trim (h:t) = case R.lookupRan h (terms0 ns) of
+    s | Set.null s -> []
+      | otherwise  -> [ (n,h) | n <- toList s ] ++ trim t
+  in trim possibleEffects ++ trim possibleDatas
 
 -- Given a mapping from name to qualified name, update a `Names`,
 -- so for instance if the input has [(Some, Optional.Some)],

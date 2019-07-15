@@ -208,9 +208,7 @@ pretty isPast ppe sr = let
       (typeLineFor Alias <$> typeAlias') ++
       (typeLineFor Conflicted <$> toList (types (conflicts sr))) ++
       (typeLineFor Collision <$> toList (types (collisions sr))) ++
-      (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr))) ++
-      (typeLineFor ConstructorExistingTermCollision <$> toList (constructorExistingTermCollisions sr)) ++
-      (typeLineFor TermExistingConstructorCollision <$> toList (termExistingConstructorCollisions sr))
+      (typeLineFor BlockedDependency <$> toList (types (defsWithBlockedDependencies sr)))
     termLineFor status v = case Map.lookup v tms of
       Just (_, _, ty) -> (prettyStatus status, lhs,
          ": " <> P.indentNAfterNewline 6 (TP.pretty ppe ty))
