@@ -264,9 +264,11 @@ deleteBranch :: InputPattern
 deleteBranch = InputPattern "delete.path" [] [(Required, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
+        ["."] -> first fromString $ do
+          pure $ Input.DeleteBranchI Nothing
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.wordyNameSegment p
-          pure . Input.DeleteBranchI $ p
+          pure . Input.DeleteBranchI $ Just p
         _ -> Left (I.help deleteBranch)
       )
 
@@ -312,10 +314,13 @@ renameBranch = InputPattern "rename.path"
    [(Required, pathArg), (Required, pathArg)]
    "`rename.path foo bar` renames the path `bar` to `foo`."
     (\case
+      [".", dest] -> first fromString $ do
+        dest <- Path.parseSplit' Path.wordyNameSegment dest
+        pure $ Input.MoveBranchI Nothing dest
       [src, dest] -> first fromString $ do
         src <- Path.parseSplit' Path.wordyNameSegment src
         dest <- Path.parseSplit' Path.wordyNameSegment dest
-        pure $ Input.MoveBranchI src dest
+        pure $ Input.MoveBranchI (Just src) dest
       _ -> Left (I.help renameBranch)
     )
 

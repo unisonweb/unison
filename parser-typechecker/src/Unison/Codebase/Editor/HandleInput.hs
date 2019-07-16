@@ -297,7 +297,14 @@ loop = do
           _ <- updateAtM dest $ \destb -> eval . Eval $ Branch.merge srcb destb
           success
 
-      MoveBranchI src dest ->
+      -- move the root to a sub-branch
+      MoveBranchI Nothing dest -> do
+        b <- use root
+        stepManyAt [ (Path.empty, const Branch.empty0)
+                   , BranchUtil.makeSetBranch (resolveSplit' dest) b ]
+        success
+
+      MoveBranchI (Just src) dest ->
         maybe (branchNotFound' src) srcOk (getAtSplit' src)
         where
         srcOk b = maybe (destOk b) (branchExistsSplit dest) (getAtSplit' dest)
@@ -337,7 +344,14 @@ loop = do
             stepAt (BranchUtil.makeDeletePatch (resolveSplit' src))
             success
 
-      DeleteBranchI p ->
+      DeleteBranchI Nothing ->
+        ifConfirmed
+            (do
+              stepAt (Path.empty, const Branch.empty0)
+              respond DeletedEverything)
+            (respond DeleteEverythingConfirmation)
+
+      DeleteBranchI (Just p) ->
         maybe (branchNotFound' p) go $ getAtSplit' p
         where
         go (Branch.head -> b) = do

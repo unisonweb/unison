@@ -207,6 +207,15 @@ notifyUser dir o = case o of
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
   --   nameChange "alias" "aliased" existingName newName r
+  DeletedEverything ->
+    putPrettyLn . P.wrap . P.lines $
+      ["Okay, I deleted everything except the history."
+      ,"Use `undo` to undo, or `builtins.merge` to restore the absolute "
+        <> "basics to the current path."]
+  DeleteEverythingConfirmation ->
+    putPrettyLn . P.warnCallout . P.lines $
+      ["Are you sure you want to clear away everything?"
+      ,"You could use `cd` to switch to a new branch instead."]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
     -- let
     --   pretty (branchName, (ppe, results)) =

@@ -76,6 +76,8 @@ data Output v
       [(Path', (Names, [SearchResult' v Ann]))]
   -- CantDelete input couldntDelete becauseTheseStillReferenceThem
   | CantDelete Input PPE.PrettyPrintEnv [SearchResult' v Ann] [SearchResult' v Ann]
+  | DeleteEverythingConfirmation
+  | DeletedEverything
   | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
