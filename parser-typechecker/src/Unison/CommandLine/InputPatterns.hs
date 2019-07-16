@@ -171,10 +171,10 @@ findPatch = InputPattern "find.patch" ["list.patch", "ls.patch"] []
     (pure . const Input.FindPatchI)
 
 renameTerm :: InputPattern
-renameTerm = InputPattern "rename.term" []
+renameTerm = InputPattern "move.term" ["rename.term"]
     [(Required, exactDefinitionTermQueryArg)
     ,(Required, noCompletions)]
-    "`rename.term foo bar` renames `foo` to `bar`."
+    "`move.term foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
         src <- Path.parseHQSplit' oldName
@@ -184,10 +184,10 @@ renameTerm = InputPattern "rename.term" []
         "`rename.term` takes two arguments, like `rename.term oldname newname`.")
 
 renameType :: InputPattern
-renameType = InputPattern "rename.type" []
+renameType = InputPattern "move.type" ["rename.type"]
     [(Required, exactDefinitionTypeQueryArg)
     ,(Required, noCompletions)]
-    "`rename.type foo bar` renames `foo` to `bar`."
+    "`move.type foo bar` renames `foo` to `bar`."
     (\case
       [oldName, newName] -> first fromString $ do
         src <- Path.parseHQSplit' oldName
@@ -286,7 +286,7 @@ copyPatch :: InputPattern
 copyPatch = InputPattern "copy.patch"
    []
    [(Required, patchArg), (Required, patchArg)]
-   "`copy.path foo bar` copies the patch `bar` to `foo`."
+   "`copy.patch foo bar` copies the patch `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parseSplit' Path.wordyNameSegment src
@@ -296,10 +296,10 @@ copyPatch = InputPattern "copy.patch"
     )
 
 renamePatch :: InputPattern
-renamePatch = InputPattern "rename.patch"
-   []
+renamePatch = InputPattern "move.patch"
+   ["rename.patch"]
    [(Required, patchArg), (Required, patchArg)]
-   "`rename.path foo bar` renames the patch `bar` to `foo`."
+   "`move.path foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parseSplit' Path.wordyNameSegment src
@@ -309,10 +309,10 @@ renamePatch = InputPattern "rename.patch"
     )
 
 renameBranch :: InputPattern
-renameBranch = InputPattern "rename.path"
-   []
+renameBranch = InputPattern "move.path"
+   ["rename.path"]
    [(Required, pathArg), (Required, pathArg)]
-   "`rename.path foo bar` renames the path `bar` to `foo`."
+   "`move.path foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
         dest <- Path.parseSplit' Path.wordyNameSegment dest
@@ -502,7 +502,7 @@ helpTopics = Map.fromList [
       "I can't yet handle giving new definitions with absolute names in a .u file.",
     "",
     P.wrap $ "As a workaround, you can give definitions with a relative name"
-          <> "temporarily (like `exports.blah.foo`) and then use `rename.*` "
+          <> "temporarily (like `exports.blah.foo`) and then use `move.*` "
           <> "or `merge` commands to move stuff around afterwards."
     ]
 
