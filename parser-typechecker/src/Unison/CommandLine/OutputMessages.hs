@@ -122,7 +122,8 @@ notifyUser dir o = case o of
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
   DisplayLinks ppe md types terms ->
-    if Map.null md then putPrettyLn $ P.wrap "Nothing to show here. Use the `link` command to add links from this definition."
+    if Map.null md then putPrettyLn $ P.wrap "Nothing to show here. Use the "
+      <> IP.makeExample' IP.link <> " command to add links from this definition."
     else
       putPrettyLn $ intercalateMap "\n\n" go (Map.toList md)
       where
@@ -210,12 +211,15 @@ notifyUser dir o = case o of
   DeletedEverything ->
     putPrettyLn . P.wrap . P.lines $
       ["Okay, I deleted everything except the history."
-      ,"Use `undo` to undo, or `builtins.merge` to restore the absolute "
+      ,"Use " <> IP.makeExample' IP.undo <> " to undo, or "
+        <> IP.makeExample' IP.mergeBuiltins
+        <> " to restore the absolute "
         <> "basics to the current path."]
   DeleteEverythingConfirmation ->
     putPrettyLn . P.warnCallout . P.lines $
       ["Are you sure you want to clear away everything?"
-      ,"You could use `cd` to switch to a new branch instead."]
+      ,"You could use " <> IP.makeExample' IP.cd
+        <> " to switch to a new branch instead."]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
     -- let
     --   pretty (branchName, (ppe, results)) =
@@ -339,7 +343,11 @@ notifyUser dir o = case o of
             P.okCallout . P.wrap $ "I found and"
              <> P.bold "typechecked" <> "these definitions in "
              <> P.group (fileName <> ".")
-             <> "If you do an `add` or `update`, here's how your codebase would"
+             <> "If you do an "
+             <> IP.makeExample' IP.add
+             <> " or "
+             <> IP.makeExample' IP.update
+             <> ", here's how your codebase would"
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
