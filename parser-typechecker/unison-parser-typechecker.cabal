@@ -99,6 +99,7 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.PrettyPrintEnv
+    Unison.PrettyTerminal
     Unison.PrintError
     Unison.Reference
     Unison.Reference.Util

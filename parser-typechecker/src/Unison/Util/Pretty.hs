@@ -44,6 +44,7 @@ module Unison.Util.Pretty (
    nest,
    num,
    newline,
+   lineSkip,
    nonEmpty,
    numbered,
    orElse,
@@ -76,7 +77,8 @@ module Unison.Util.Pretty (
    wrapColumn2,
    wrapString,
    black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
-   border
+   border,
+   Width
   ) where
 
 import           Data.Char                      ( isSpace )
@@ -199,6 +201,9 @@ render availableWidth p = go mempty [Right p] where
 
 newline :: IsString s => Pretty s
 newline = "\n"
+
+lineSkip :: IsString s => Pretty s
+lineSkip = newline <> newline
 
 spaceIfBreak :: IsString s => Pretty s
 spaceIfBreak = "" `orElse` " "

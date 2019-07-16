@@ -51,14 +51,14 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.CommandLine           (
-                                                bigproblem,
-                                                clearCurrentLine,
-                                                putPretty',
-                                                putPrettyLn,
-                                                putPrettyLn',
-                                                tip,
-                                                note
+import           Unison.CommandLine             ( bigproblem
+                                                , tip
+                                                , note
+                                                )
+import           Unison.PrettyTerminal          ( clearCurrentLine
+                                                , putPretty'
+                                                , putPrettyLn
+                                                , putPrettyLn'
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -78,7 +78,7 @@ import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
-                                                , renderNoteAsANSI
+                                                , printNoteWithSource
                                                 , prettyResolutionFailures
                                                 )
 import qualified Unison.Reference              as Reference
@@ -261,7 +261,7 @@ notifyUser dir o = case o of
     putPrettyLn . P.fatalCallout $ P.lines [
       P.wrap "I couldn't parse the type you supplied:",
       "",
-      P.lit $ prettyParseError src e
+      prettyParseError src e
     ]
   ParseResolutionFailures input src es -> putPrettyLn $
     prettyResolutionFailures src es
@@ -272,13 +272,13 @@ notifyUser dir o = case o of
     ]
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
-    traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
+    traverse_ (putPrettyLn . prettyParseError (Text.unpack src)) es
   TypeErrors src ppenv notes -> do
     Console.setTitle "Unison ☹︎"
     let showNote =
-          intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    putStrLn . showNote $ notes
+    putPrettyLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else

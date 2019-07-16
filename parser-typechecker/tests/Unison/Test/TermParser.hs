@@ -152,7 +152,7 @@ test1 = scope "termparser" . tests . map parses $
   ]
 
 test2 :: Test ()
-test2 = (scope "fiddle" . tests $ unitTests)
+test2 = scope "fiddle" . tests $ unitTests
 
 test :: Test ()
 test = test1 <|> test2
@@ -187,6 +187,6 @@ parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
   case Ps.parse @ Symbol p s Common.parsingEnv of
     Left e -> do
-      note $ renderParseErrorAsANSI s e
-      crash $ renderParseErrorAsANSI s e
+      note $ renderParseErrorAsANSI 60 s e
+      crash $ renderParseErrorAsANSI 60 s e
     Right _ -> ok
