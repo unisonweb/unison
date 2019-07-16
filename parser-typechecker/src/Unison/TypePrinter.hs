@@ -97,14 +97,12 @@ prettyRaw n im p tp = go n im p tp
     Effect1' e t ->
       PP.parenthesizeIf (p >= 10) $ go n im 9 e <> " " <> go n im 10 t
     Effects' es         -> effects (Just es)
-    ForallNamed' v body -> if p < 0
-      then go n im p body
-      else
-        paren True
-        $         fmt S.TypeOperator "∀ "
-        <>        fmt S.Var          (PP.text $ Var.name v)
-        <>        fmt S.TypeOperator "."
-        `PP.hang` go n im (-1) body
+    ForallNamed' v body ->
+      paren (p >= 0)
+      $         fmt S.TypeOperator "∀ "
+      <>        fmt S.Var          (PP.text $ Var.name v)
+      <>        fmt S.TypeOperator "."
+      `PP.hang` go n im (-1) body
     t@(Arrow' _ _) -> case t of
       EffectfulArrows' (Ref' DD.UnitRef) rest -> arrows True True rest
       EffectfulArrows' fst rest ->
