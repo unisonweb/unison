@@ -1,7 +1,10 @@
-module Unison.SyntaxHighlights where
+module Unison.Util.SyntaxText where
 
-import Unison.Util.ColorText
-import Unison.Util.Pretty             ( Pretty )
+import Control.Monad                  ( join )
+import Data.Foldable                  ( toList )
+import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
+
+type SyntaxText = AnnotatedText Element
 
 -- The elements of the Unison grammar, for syntax highlighting purposes
 data Element = NumericLiteral
@@ -37,33 +40,11 @@ data Element = NumericLiteral
              | DelimiterChar
              -- ! '
              | Parenthesis
+             deriving (Eq, Ord, Bounded, Enum, Show, Read)
 
-defaultColors :: Element -> ColorText -> ColorText
-defaultColors = \case
-  NumericLiteral      -> id
-  TextLiteral         -> id
-  BooleanLiteral      -> id
-  Blank               -> id
-  Var                 -> id
-  Reference           -> id
-  Constructor         -> id
-  Request             -> id
-  AbilityBraces       -> hiBlack
-  ControlKeyword      -> bold
-  TypeOperator        -> hiBlack
-  BindingEquals       -> id
-  TypeAscriptionColon -> blue
-  DataTypeKeyword     -> id
-  DataType            -> id
-  DataTypeParams      -> id
-  DataTypeModifier    -> id
-  UseKeyword          -> hiBlack
-  UsePrefix           -> hiBlack
-  UseSuffix           -> hiBlack
-  HashQualifier       -> hiBlack
-  DelayForceChar      -> yellow
-  DelimiterChar       -> id
-  Parenthesis         -> id
+syntax :: Element -> SyntaxText -> SyntaxText
+syntax = annotate
 
-fmt :: Element -> Pretty ColorText -> Pretty ColorText
-fmt e = fmap $ defaultColors e
+-- Convert a `SyntaxText` to a `String`, ignoring syntax markup
+toPlain :: SyntaxText -> String
+toPlain (AnnotatedText at) = join (toList $ fst <$> at)

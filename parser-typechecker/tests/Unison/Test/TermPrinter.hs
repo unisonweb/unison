@@ -73,7 +73,7 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = fmap (CT.toPlain) $
+       prettied = fmap (CT.toPlain) $ PP.syntaxToColor $ 
         prettyBinding get_names (HQ.unsafeFromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied

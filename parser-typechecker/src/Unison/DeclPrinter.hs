@@ -21,14 +21,12 @@ import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference )
-import qualified Unison.SyntaxHighlights       as S
-import           Unison.SyntaxHighlights        ( fmt )
+import qualified Unison.Util.SyntaxText        as S
+import           Unison.Util.SyntaxText         ( SyntaxText )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Util.Pretty             ( Pretty
-                                                , ColorText
-                                                )
+import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -39,7 +37,7 @@ prettyEffectDecl
   -> Reference
   -> HashQualified
   -> EffectDeclaration' v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyEffectDecl ppe r name = prettyGADT ppe r name . toDataDecl
 
 prettyGADT
@@ -48,19 +46,19 @@ prettyGADT
   -> Reference
   -> HashQualified
   -> DataDeclaration' v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   [0 ..]
   (DD.constructors' dd)
  where
-  constructor (n, (_, _, t)) =
+  constructor (n, (_, _, t)) = 
     prettyPattern env r name n
       <>       (fmt S.TypeAscriptionColon " :")
       `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
   header = prettyEffectHeader name (DD.EffectDeclaration dd) <> (fmt S.ControlKeyword " where")
 
 prettyPattern
-  :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty ColorText
+  :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty SyntaxText
 prettyPattern env r namespace n = styleHashQualified'' (fmt S.Constructor)
   ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
   $ PPE.patternName env r n
@@ -72,8 +70,8 @@ prettyDataDecl
   -> Reference
   -> HashQualified
   -> DataDeclaration' v a
-  -> Pretty ColorText
-prettyDataDecl env r name dd =
+  -> Pretty SyntaxText
+prettyDataDecl env r name dd = 
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $ constructor <$> zip
     [0 ..]
     (DD.constructors' dd)
@@ -137,20 +135,20 @@ fieldNames env r name dd = case DD.constructors dd of
        else Nothing
   _ -> Nothing
 
-prettyModifier :: DD.Modifier -> Pretty ColorText
+prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = mempty
-prettyModifier (DD.Unique _uid) =
+prettyModifier (DD.Unique _uid) = 
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
-prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
-prettyDataHeader name dd =
+prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty SyntaxText
+prettyDataHeader name dd = 
   P.sepNonEmpty " " [
     prettyModifier (DD.modifier dd),
     fmt S.DataTypeKeyword "type",
     styleHashQualified'' (fmt S.DataType) name,
     P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd) ]
 
-prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
+prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty SyntaxText
 prettyEffectHeader name ed = P.sepNonEmpty " " [
   prettyModifier (DD.modifier (DD.toDataDecl ed)),
   fmt S.DataTypeKeyword "ability",
@@ -161,6 +159,9 @@ prettyDeclHeader
   :: Var v
   => HashQualified
   -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d
+
+fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt = P.withSyntax
