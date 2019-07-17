@@ -1211,11 +1211,13 @@ searchBranchExact len names queries = let
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
-loadRemoteBranchAt
-  :: Applicative m => RemoteRepo -> Path.Absolute -> Action m i v ()
+loadRemoteBranchAt :: Monad m => RemoteRepo -> Path.Absolute -> Action m i v ()
 loadRemoteBranchAt repo p = do
   b <- eval (LoadRemoteRootBranch repo)
-  either (eval . Notify . GitError) (void . updateAtM p . const . pure) b
+  case b of
+    Left  e -> eval . Notify $ GitError e
+    Right b -> void $ updateAtM p (doMerge b)
+  where doMerge b b0 = eval . Eval $ Branch.merge b b0
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
@@ -1810,12 +1812,18 @@ makeShadowedPrintNamesFromLabeled deps shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
-makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
-makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
+findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
+findHistoricalHQs lexedHQs = do
   root <- use root
   currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  (_missing, rawHistoricalNames) <- eval. Eval $ Branch.findHistoricalHQs lexedHQs root
+  pure rawHistoricalNames
+
+makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
+makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0
+  currentPath <- use currentPath
   -- The basic names go into "current", but are shadowed by "shadowing".
   -- They go again into "historical" as a hack that makes them available HQ-ed.
   pure $
@@ -1834,10 +1842,9 @@ makePrintNamesFromLabeled' deps = do
 -- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
 makePrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
 makePrintNamesFromHQ lexedHQs = do
-  root <- use root
-  currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0
+  currentPath <- use currentPath
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
 
 
@@ -1849,7 +1856,7 @@ makePrintNamesFromHQ lexedHQs = do
 --      then name foo.bar.baz becomes baz
 --           name cat.dog     becomes .cat.dog
 fixupNamesRelative :: Path.Absolute -> Names0 -> Names0
-fixupNamesRelative currentPath' names0 = Names3.map0 fixName names0 where
+fixupNamesRelative currentPath' = Names3.map0 fixName where
   prefix = Path.toName (Path.unabsolute currentPath')
   fixName n = if currentPath' == Path.absoluteEmpty then n else
     fromMaybe (Name.makeAbsolute n) (Name.stripNamePrefix prefix n)
@@ -1857,10 +1864,9 @@ fixupNamesRelative currentPath' names0 = Names3.map0 fixName names0 where
 makeHistoricalParsingNames ::
   Monad m => Set HQ.HashQualified -> Action' m v Names
 makeHistoricalParsingNames lexedHQs = do
-  root <- use root
+  rawHistoricalNames <- findHistoricalHQs lexedHQs
+  basicNames0 <- basicPrettyPrintNames0
   currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
-  basicNames0 <- basicParseNames0
   pure $ Names basicNames0
                (Names3.makeAbsolute0 rawHistoricalNames <>
                  fixupNamesRelative currentPath rawHistoricalNames)

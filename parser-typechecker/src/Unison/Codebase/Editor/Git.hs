@@ -21,16 +21,13 @@ import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
-                                                , removePathForcibly
                                                 )
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase
                                                 , syncToDirectory
                                                 )
-import           Unison.Codebase.FileCodebase   ( getRootBranch
-                                                , branchHeadDir
-                                                )
+import           Unison.Codebase.FileCodebase   ( getRootBranch)
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
@@ -82,11 +79,8 @@ pullGitRootBranch
 pullGitRootBranch localPath codebase url treeish = do
   pullFromGit localPath url treeish
   branch <- lift $ getRootBranch localPath
-  headExists <- liftIO $ doesDirectoryExist $ branchHeadDir localPath
-  when headExists $
-    liftIO . removePathForcibly $ branchHeadDir localPath
   lift $ Codebase.syncFromDirectory codebase localPath
-  pure branch
+  lift $ Codebase.getBranchForHash codebase (headHash branch)
 
 checkForGit :: MonadIO m => MonadError GitError m => m ()
 checkForGit = do

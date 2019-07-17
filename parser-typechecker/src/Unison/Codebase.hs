@@ -54,6 +54,7 @@ data Codebase m v a =
            , getRootBranch      :: m (Branch m)
            , putRootBranch      :: Branch m -> m ()
            , rootBranchUpdates  :: m (m (), m (Set Branch.Hash))
+           , getBranchForHash   :: Branch.Hash -> m (Branch m)
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
