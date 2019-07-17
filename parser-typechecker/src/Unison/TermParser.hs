@@ -391,7 +391,7 @@ importp = do
     (Nothing, _) -> P.customFailure $ UseEmpty kw
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
     (Just prefix@(Right _), Nothing) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
-    (Just (Right prefix), Just suffixes) -> pure $ do
+    (Just (Right prefix), Just suffixes) -> pure . traceShowId $ do
       suffix <- L.payload <$> suffixes
       pure (suffix, Name.joinDot (L.payload prefix) suffix)
 

@@ -7,7 +7,7 @@
 
 module Unison.FileParser where
 
--- import Debug.Trace
+import Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import Data.Foldable (toList)
@@ -40,6 +40,7 @@ import qualified Unison.Util.List as List
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import qualified Unison.Names3 as Names
+import qualified Unison.Name as Name
 
 -- push names onto the stack ahead of existing names
 pushNames0 :: Names.Names0 -> P v a -> P v a
@@ -51,16 +52,25 @@ resolutionFailures es = P.customFailure (ResolutionFailures es)
 file :: forall v . Var v => P v (UnisonFile v Ann)
 file = do
   _ <- openBlock
-  namesStart <- asks names
+  -- The file may optionally contain top-level imports,
+  -- which are parsed and applied to the type decls and term stanzas
+  (namesStart, imports) <- TermParser.imports <* optional semi
+  traceM "------ starting names"
+  n0 <- asks names
+  traceShowM n0
+  traceM "------ imports = "
+  traceShowM imports
+  traceM "------ namesStart = "
+  traceShowM namesStart
   (dataDecls, effectDecls, parsedAccessors) <- declarations
   env <- case environmentFor (Names.currentNames namesStart) dataDecls effectDecls of
     Right (Right env) -> pure env
     Right (Left es) -> P.customFailure $ TypeDeclarationErrors es
     Left es -> resolutionFailures (toList es)
-  pushNames0 (UF.names env) $ do
-    -- The file may optionally contain top-level imports,
-    -- which are parsed and applied to each stanza
-    (names, imports) <- TermParser.imports <* optional semi
+  let importNames = [(Name.fromVar v, Name.fromVar v2) | (v,v2) <- imports ]
+  let locals = Names.importing0 importNames (UF.names env)
+  local (\e -> e { names = Names.push locals namesStart }) $ do
+    names <- asks names
     stanzas00 <- local (\e -> e { names = names }) $ sepBy semi stanza
     let stanzas = fmap (TermParser.substImports names imports) <$> stanzas00
     _ <- closeBlock

@@ -3,6 +3,7 @@
 
 module Unison.Names3 where
 
+import Debug.Trace
 import Data.Foldable (toList)
 import Data.List (foldl')
 import Data.Sequence (Seq)
@@ -168,12 +169,16 @@ constructorsForType0 r ns = let
 -- Only affects `currentNames`.
 importing :: [(Name, Name)] -> Names -> Names
 importing shortToLongName ns =
-  ns { currentNames = Names.Names
-         (foldl' go (Names.terms $ currentNames ns) shortToLongName)
-         (foldl' go (Names.types $ currentNames ns) shortToLongName)
-     }
+  ns { currentNames = importing0 shortToLongName (currentNames ns) }
+
+importing0 :: [(Name, Name)] -> Names0 -> Names0
+importing0 shortToLongName ns =
+  Names.Names
+    (foldl' go (terms0 ns) shortToLongName)
+    (foldl' go (types0 ns) shortToLongName)
   where
-  go :: (Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
+  go :: (Show a, Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
+  go _ p | traceShow p False = undefined
   go m (shortname, qname) = case R.lookupDom qname m of
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
