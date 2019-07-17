@@ -7,7 +7,6 @@
 
 module Unison.FileParser where
 
-import Debug.Trace
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
 import Data.Foldable (toList)
@@ -55,13 +54,6 @@ file = do
   -- The file may optionally contain top-level imports,
   -- which are parsed and applied to the type decls and term stanzas
   (namesStart, imports) <- TermParser.imports <* optional semi
-  traceM "------ starting names"
-  n0 <- asks names
-  traceShowM n0
-  traceM "------ imports = "
-  traceShowM imports
-  traceM "------ namesStart = "
-  traceShowM namesStart
   (dataDecls, effectDecls, parsedAccessors) <- declarations
   env <- case environmentFor (Names.currentNames namesStart) dataDecls effectDecls of
     Right (Right env) -> pure env

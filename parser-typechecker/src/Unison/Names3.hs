@@ -3,7 +3,6 @@
 
 module Unison.Names3 where
 
-import Debug.Trace
 import Data.Foldable (toList)
 import Data.List (foldl')
 import Data.Sequence (Seq)
@@ -178,7 +177,6 @@ importing0 shortToLongName ns =
     (foldl' go (types0 ns) shortToLongName)
   where
   go :: (Show a, Ord a, Ord b) => Relation a b -> (a, a) -> Relation a b
-  go _ p | traceShow p False = undefined
   go m (shortname, qname) = case R.lookupDom qname m of
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
