@@ -79,7 +79,7 @@ makeLazy :: SymbolC -> SymbolC
 makeLazy s = s { isLazy = True }
 
 toSymbolC :: Symbol -> SymbolC
-toSymbolC s = SymbolC False s
+toSymbolC = SymbolC False
 
 -- Values, in normal form
 type RefID = Int

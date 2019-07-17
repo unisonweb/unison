@@ -64,7 +64,7 @@ ioHash = R.unsafeId ioReference
 eitherHash = R.unsafeId eitherReference
 ioModeHash = R.unsafeId ioModeReference
 
-ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference
+ioReference, bufferModeReference, eitherReference, ioModeReference, optionReference, errorReference, errorTypeReference, seekModeReference, threadIdReference, socketReference, handleReference, epochTimeReference, isTestReference, filePathReference
   :: R.Reference
 ioReference = abilityNamed "io.IO"
 bufferModeReference = typeNamed "io.BufferMode"
@@ -79,11 +79,12 @@ socketReference = typeNamed "io.Socket"
 handleReference = typeNamed "io.Handle"
 epochTimeReference = typeNamed "io.EpochTime"
 isTestReference = typeNamed "IsTest"
+filePathReference = typeNamed "io.FilePath"
 
 isTest :: (R.Reference, R.Reference)
 isTest = (isTestReference, termNamed "links.isTest")
 
-eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId
+eitherLeftId, eitherRightId, someId, noneId, ioErrorId, handleId, socketId, threadIdId, epochTimeId, bufferModeLineId, bufferModeBlockId, filePathId
   :: DD.ConstructorId
 eitherLeftId = constructorNamed eitherReference "Either.Left"
 eitherRightId = constructorNamed eitherReference "Either.Right"
@@ -96,6 +97,7 @@ threadIdId = constructorNamed threadIdReference "io.ThreadId.ThreadId"
 epochTimeId = constructorNamed epochTimeReference "io.EpochTime.EpochTime"
 bufferModeLineId = constructorNamed bufferModeReference "io.BufferMode.Line"
 bufferModeBlockId = constructorNamed bufferModeReference "io.BufferMode.Block"
+filePathId = constructorNamed filePathReference "io.FilePath.FilePath"
 
 mkErrorType :: Text -> DD.ConstructorId
 mkErrorType = constructorNamed errorTypeReference
@@ -251,8 +253,8 @@ namespace io where
   setBuffering h bm = rethrow (IO.setBuffering_ h bm)
 
   -- Get the path to a temporary directory managed by the operating system
-  getTempDirectory : '{IO} FilePath
-  getTempDirectory = '(rethrow (IO.getTempDirectory_))
+  getTemporaryDirectory : '{IO} FilePath
+  getTemporaryDirectory = '(rethrow (IO.getTemporaryDirectory_))
 
   -- Get the current working directory
   getCurrentDirectory : '{IO} FilePath
@@ -266,7 +268,7 @@ namespace io where
   directoryContents : FilePath -> {IO} [FilePath]
   directoryContents d = rethrow (IO.directoryContents_ d)
 
-  -- Check if a file exists
+  -- Check if a path exists
   fileExists : FilePath -> {IO} Boolean
   fileExists d = rethrow (IO.fileExists_ d)
 
@@ -274,7 +276,7 @@ namespace io where
   isDirectory : FilePath -> {IO} Bolean
   isDirectory d = rethrow (IO.isDirectory_ d)
 
-  -- Create a directory at the given path
+  -- Create a directory at the given path, including parent directories
   createDirectory : FilePath -> {IO} ()
   createDirectory d = rethrow (IO.createDirectory_ d)
 
@@ -291,7 +293,7 @@ namespace io where
   removeFile d = rethrow (IO.removeFile_ d)
 
   -- Move a file from one path to another
-  renameFile: FilePath -> FilePath -> {IO} ()
+  renameFile : FilePath -> FilePath -> {IO} ()
   renameFile from to = rethrow (IO.renameFile_ from to)
 
   -- Get the timestamp of a file
@@ -448,7 +450,7 @@ ability io.IO where
   systemTime_ : {IO} (Either Error EpochTime)
 
   -- File system operations
-  getTempDirectory_ : {IO} (Either Error FilePath)
+  getTemporaryDirectory_ : {IO} (Either Error FilePath)
   getCurrentDirectory_ : {IO} (Either Error FilePath)
   setCurrentDirectory_ : FilePath ->{IO} (Either Error ())
   directoryContents_ : FilePath ->{IO} Either Error [FilePath]

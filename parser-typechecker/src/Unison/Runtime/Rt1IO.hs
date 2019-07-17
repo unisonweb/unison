@@ -46,6 +46,7 @@ import           Data.GUID                      ( genText )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( isJust )
+import qualified Data.Sequence as Seq
 import           Data.Text                      ( Text )
 import           Data.Text                     as Text
 import           Data.Time.Clock.POSIX         as Time
@@ -68,6 +69,22 @@ import           System.IO                      ( Handle
                                                 , hIsSeekable
                                                 , hSeek
                                                 , hTell
+                                                , hGetBuffering
+                                                , hSetBuffering
+                                                )
+import           System.Directory               ( getCurrentDirectory
+                                                , setCurrentDirectory
+                                                , getTemporaryDirectory
+                                                , getDirectoryContents
+                                                , doesPathExist
+                                                , doesDirectoryExist
+                                                , createDirectoryIfMissing
+                                                , removeDirectoryRecursive
+                                                , renameDirectory
+                                                , removeFile
+                                                , renameFile
+                                                , getModificationTime
+                                                , getFileSize
                                                 )
 import qualified System.IO.Error               as SysError
 import           Type.Reflection                ( Typeable )
@@ -173,6 +190,15 @@ convertMaybe :: Maybe RT.Value -> RT.Value
 convertMaybe Nothing  = constructNone
 convertMaybe (Just v) = constructSome v
 
+convertOptional :: RT.Value -> Maybe RT.Value
+convertOptional (IR.Data _ _ [] ) = Nothing
+convertOptional (IR.Data _ _ [x]) = Just x
+convertOptional v =
+  error
+    $  "Compiler bug! This value showed up at runtime where "
+    <> "an Optional was expected: "
+    <> show v
+
 constructPair :: RT.Value -> RT.Value -> RT.Value
 constructPair a b = IR.Data DD.pairRef 0 [a, b]
 
@@ -202,6 +228,23 @@ haskellBufferMode mode = case mode of
   IR.Data _ _ [IR.Data _ _ [IR.Data _ _ [IR.N n]]] ->
     BlockBuffering (Just $ fromIntegral n)
   _ -> error $ "Unknown buffer mode " <> show mode
+
+unisonBufferMode :: BufferMode -> RT.Value
+unisonBufferMode mode = case mode of
+  NoBuffering -> constructNone
+  LineBuffering ->
+    constructSome (IR.Data IOSrc.bufferModeReference IOSrc.bufferModeLineId [])
+  BlockBuffering Nothing -> constructSome
+    (IR.Data IOSrc.bufferModeReference IOSrc.bufferModeBlockId [constructNone])
+  BlockBuffering (Just size) -> constructSome
+    (IR.Data IOSrc.bufferModeReference
+             IOSrc.bufferModeBlockId
+             [constructSome . IR.N $ fromIntegral size]
+    )
+
+unisonFilePath :: FilePath -> RT.Value
+unisonFilePath fp =
+  IR.Data IOSrc.filePathReference IOSrc.filePathId [IR.T $ Text.pack fp]
 
 hostPreference :: [RT.Value] -> Net.HostPreference
 hostPreference []                        = Net.HostAny
@@ -281,8 +324,8 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     hh       <- getHaskellHandleOrThrow handle
     seekable <- reraiseIO $ hIsSeekable hh
     pure $ IR.B seekable
-  go "io.IO.seek_" [IR.Data _ 0 [IR.T handle], IR.Data _ seekMode [], IR.I int] =
-    do
+  go "io.IO.seek_" [IR.Data _ 0 [IR.T handle], IR.Data _ seekMode [], IR.I int]
+    = do
       hh <- getHaskellHandleOrThrow handle
       let mode = IOSrc.constructorName IOSrc.seekModeReference seekMode
       reraiseIO . hSeek hh (haskellSeekMode mode) $ fromIntegral int
@@ -292,14 +335,56 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     pos <- reraiseIO $ hTell hh
     pure . IR.I $ fromIntegral pos
   go "io.IO.getBuffering_" [IR.Data _ 0 [IR.T handle]] = do
-    hh <- getHaskellHandleOrThrow handle
+    hh      <- getHaskellHandleOrThrow handle
     bufMode <- reraiseIO $ hGetBuffering hh
-    pure . IR.Data optionalRef $
-      case bufMode of
-        NoBuffering -> noneId []
-        LineBuffering -> someId []
-        BlockBuffering maySize -> some $ IOSrc.bufferModeBlockId
-    IOSrc.epochTimeId [IR.N t]
+    pure $ unisonBufferMode bufMode
+  go "io.IO.setBuffering_" [IR.Data _ 0 [IR.T handle], o] = do
+    hh <- getHaskellHandleOrThrow handle
+    reraiseIO . hSetBuffering hh $ haskellBufferMode o
+    pure IR.unit
+  go "io.IO.systemTime_" [] = do
+    t <- reraiseIO $ fmap round Time.getPOSIXTime
+    pure $ IR.Data IOSrc.epochTimeReference IOSrc.epochTimeId [IR.N t]
+  go "io.IO.getTemporaryDirectory_" [] =
+    reraiseIO $ unisonFilePath <$> getTemporaryDirectory
+  go "io.IO.getCurrentDirectory_" [] =
+    reraiseIO $ unisonFilePath <$> getCurrentDirectory
+  go "io.IO.setCurrentDirectory_" [IR.Data _ _ [IR.T dir]] = do
+    reraiseIO . setCurrentDirectory $ Text.unpack dir
+    pure IR.unit
+  go "io.IO.directoryContents_" [IR.Data _ _ [IR.T dir]] =
+    reraiseIO
+      $   IR.Sequence
+      .   Seq.fromList
+      .   fmap unisonFilePath
+      <$> getDirectoryContents (Text.unpack dir)
+  go "io.IO.fileExists_" [IR.Data _ _ [IR.T dir]] =
+    reraiseIO $ IR.B <$> doesPathExist (Text.unpack dir)
+  go "io.IO.isDirectory_" [IR.Data _ _ [IR.T dir]] =
+    reraiseIO $ IR.B <$> doesDirectoryExist (Text.unpack dir)
+  go "io.IO.createDirectory_" [IR.Data _ _ [IR.T dir]] = do
+    reraiseIO $ createDirectoryIfMissing True (Text.unpack dir)
+    pure IR.unit
+  go "io.IO.removeDirectory_" [IR.Data _ _ [IR.T dir]] = do
+    reraiseIO . removeDirectoryRecursive $ Text.unpack dir
+    pure IR.unit
+  go "io.IO.renameDirectory_" [IR.Data _ _ [IR.T from], IR.Data _ _ [IR.T to]]
+    = do
+      reraiseIO $ renameDirectory (Text.unpack from) (Text.unpack to)
+      pure IR.unit
+  go "io.IO.removeFile_" [IR.Data _ _ [IR.T file]] = do
+    reraiseIO . removeFile $ Text.unpack file
+    pure IR.unit
+  go "io.IO.renameFile_" [IR.Data _ _ [IR.T from], IR.Data _ _ [IR.T to]] = do
+    reraiseIO $ renameFile (Text.unpack from) (Text.unpack to)
+    pure IR.unit
+  go "io.IO.getFileTimestamp_" [IR.Data _ _ [IR.T file]] = do
+    t <- reraiseIO $ getModificationTime (Text.unpack file)
+    pure $ IR.Data IOSrc.epochTimeReference
+                   IOSrc.epochTimeId
+                   [IR.N . round $ Time.utcTimeToPOSIXSeconds t]
+  go "io.IO.getFileSize_" [IR.Data _ _ [IR.T file]] =
+    reraiseIO $ IR.N . fromIntegral <$> getFileSize (Text.unpack file)
   go "io.IO.serverSocket_" [IR.Data _ _ mayHost, IR.Data _ _ [IR.T port]] = do
     (s, _) <- reraiseIO
       $ Net.bindSock (hostPreference mayHost) (Text.unpack port)
@@ -308,9 +393,11 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
     hs <- getHaskellSocketOrThrow socket
     reraiseIO $ Net.listenSock hs 2048
     pure IR.unit
-  go "io.IO.clientSocket_" [IR.Data _ _ [IR.T host], IR.Data _ _ [IR.T port]] = do
-    (s, _) <- reraiseIO . Net.connectSock (Text.unpack host) $ Text.unpack port
-    newUnisonSocket s
+  go "io.IO.clientSocket_" [IR.Data _ _ [IR.T host], IR.Data _ _ [IR.T port]] =
+    do
+      (s, _) <- reraiseIO . Net.connectSock (Text.unpack host) $ Text.unpack
+        port
+      newUnisonSocket s
   go "io.IO.closeSocket_" [IR.Data _ _ [IR.T socket]] = do
     hs <- getHaskellSocket socket
     reraiseIO $ traverse_ Net.closeSock hs
@@ -347,22 +434,20 @@ handleIO cenv cid = go (IOSrc.constructorName IOSrc.ioReference cid)
       Just ht -> do
         killThread ht
         pure IR.unit
-  go "io.IO.bracket_" [IR.Lam _ _ acquire, IR.Lam _ _ release, IR.Lam _ _ use] = do
-    s <- ask
-    let resultToVal (RT.RDone v) = pure v
-        resultToVal v = fail $ "IO bracket expected a value but got " <> show v
-    reraiseIO $ resultToVal =<< bracket
-      (resultToVal =<< forceThunk cenv s acquire)
-      (lamToHask cenv s release)
-      (lamToHask cenv s use)
   go "io.IO.delay_" [IR.N n] = do
     reraiseIO . threadDelay $ fromIntegral n
     pure IR.unit
-  go "io.IO.systemTime_" [] = do
-    t <- reraiseIO $ fmap round Time.getPOSIXTime
-    pure $ IR.Data IOSrc.epochTimeReference IOSrc.epochTimeId [IR.N t]
-  go a _b =
-    error $ show a <> " is not implemented yet."
+  go "io.IO.bracket_" [IR.Lam _ _ acquire, IR.Lam _ _ release, IR.Lam _ _ use]
+    = do
+      s <- ask
+      let resultToVal (RT.RDone v) = pure v
+          resultToVal v =
+            fail $ "IO bracket expected a value but got " <> show v
+      reraiseIO $ resultToVal =<< bracket
+        (resultToVal =<< forceThunk cenv s acquire)
+        (lamToHask cenv s release)
+        (lamToHask cenv s use)
+  go a _b = error $ show a <> " is not implemented yet."
     -- error
     --   $  "IO handler called with unimplemented cid "
     --   <> show cid
