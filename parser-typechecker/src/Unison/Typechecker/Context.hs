@@ -1598,8 +1598,6 @@ annotateRefs :: (Applicative f, Var v)
              -> Term v loc
              -> f (Term v loc)
 annotateRefs synth = ABT.visit f where
-  -- already annotated; skip this subtree
-  f r@(Term.Ann' (Term.Ref' _) _) = Just (pure r)
   f r@(Term.Ref' h) = Just (Term.ann ra (Term.ref ra h) <$> (ge <$> synth h))
     where ra = ABT.annotation r
           ge t = ABT.vmap TypeVar.Universal $ t
