@@ -6,7 +6,7 @@
 module Unison.Codebase.FileCodebase where
 
 -- import Debug.Trace
-import           Control.Monad                  ( forever, foldM, unless, when )
+import           Control.Monad                  ( forever, foldM, unless, when)
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
                                                 , MonadUnliftIO
@@ -215,38 +215,38 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
+branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
+branchFromFiles rootDir = Branch.read (deserializeRawBranch rootDir)
+                                      (deserializeEdits rootDir)
+ where
+  deserializeRawBranch
+    :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
+  deserializeRawBranch root (RawHash h) = do
+    let ubf = branchPath root h
+    liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
+      Left  err -> failWith $ InvalidBranchFile ubf err
+      Right c0  -> pure c0
+  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
+  deserializeEdits root h =
+    let file = editsPath root h
+    in  liftIO (S.getFromFile' V1.getEdits file) >>= \case
+          Left  err   -> failWith $ InvalidEditsFile file err
+          Right edits -> pure edits
+
 getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
-getRootBranch root =
+getRootBranch root = do
+  unlessM (doesDirectoryExist $ branchHeadDir root)
+          (failWith . NoBranchHead $ branchHeadDir root)
   liftIO (listDirectory $ branchHeadDir root) >>= \case
-    []       -> failWith $ NoBranchHead (branchHeadDir root)
+    []       -> failWith . NoBranchHead $ branchHeadDir root
     [single] -> go single
     conflict -> traverse go conflict >>= \case
       x : xs -> foldM Branch.merge x xs
-      []     -> failWith $ NoBranchHead (branchHeadDir root)
+      []     -> failWith . NoBranchHead $ branchHeadDir root
  where
   go single = case Hash.fromBase58 (Text.pack single) of
     Nothing -> failWith $ CantParseBranchHead single
     Just h  -> branchFromFiles root (RawHash h)
-  branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
-  branchFromFiles rootDir = Branch.read
-    (deserializeRawBranch rootDir)
-    (deserializeEdits rootDir)
-
-  deserializeRawBranch
-    :: MonadIO m
-    => CodebasePath
-    -> Causal.Deserialize m Branch.Raw Branch.Raw
-  deserializeRawBranch root (RawHash h) = do
-    let ubf = branchPath root h
-    liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
-      Left err -> failWith $ InvalidBranchFile ubf err
-      Right c0 -> pure c0
-  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
-  deserializeEdits root h =
-    let file = editsPath root h in
-    liftIO (S.getFromFile' V1.getEdits file) >>= \case
-      Left err -> failWith $ InvalidEditsFile file err
-      Right edits -> pure edits
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -455,6 +455,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
                      (getRootBranch path)
                      (putRootBranch path)
                      (branchHeadUpdates path)
+                     (branchFromFiles path)
                      dependents
                      (copyFromGit path)
                      -- This is fine as long as watat doesn't call

@@ -8,19 +8,20 @@ import qualified Unison.Builtin                as Builtin
 import qualified Unison.FileParser             as FileParser
 import           Unison.Parser                  ( Ann )
 import qualified Unison.Parser                 as Parser
-import           Unison.PrintError              ( prettyParseError )
+import           Unison.PrintError              ( prettyParseError
+                                                , defaultWidth )
 import           Unison.Symbol                  ( Symbol )
 import           Unison.Term                    ( AnnotatedTerm )
 import qualified Unison.TermParser             as TermParser
 import           Unison.Type                    ( Type )
 import qualified Unison.TypeParser             as TypeParser
 import           Unison.UnisonFile              ( UnisonFile )
-import qualified Unison.Util.ColorText         as Color
+import qualified Unison.Util.Pretty            as Pr
 import           Unison.Var                     ( Var )
 
 unsafeGetRightFrom :: (Var v, Show v) => String -> Either (Parser.Err v) a -> a
 unsafeGetRightFrom src =
-  either (error . Color.toANSI . prettyParseError src) id
+  either (error . Pr.toANSI defaultWidth . prettyParseError src) id
 
 parse
   :: Var v

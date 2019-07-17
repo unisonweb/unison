@@ -23,11 +23,10 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.Lexer                  as L
 import qualified Unison.Parser                 as Parser
 import qualified Unison.TermParser             as TermParser
--- import qualified Unison.Term                   as Term
 import qualified Unison.Type
 import qualified Unison.Type                   as Type
 import qualified Unison.TypeParser             as TypeParser
-import qualified Unison.Util.ColorText         as Color
+import qualified Unison.Util.Pretty            as Pr
 import qualified Text.Megaparsec.Error         as MPE
 import qualified Unison.Names3
 
@@ -56,7 +55,7 @@ showParseError :: Var v
                => String
                -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
                -> String
-showParseError s = Color.toANSI . prettyParseError s
+showParseError s = Pr.toANSI 60 . prettyParseError s
 
 parseAndSynthesizeAsFile
   :: Var v

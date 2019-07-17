@@ -22,7 +22,6 @@ import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
-import qualified System.Console.Terminal.Size    as Terminal
 import           System.FilePath                 ( takeFileName )
 import           Unison.Codebase                 (Codebase)
 import qualified Unison.Codebase                 as Codebase
@@ -183,29 +182,3 @@ plural' :: Integral a => a -> b -> b -> b
 plural' 1 one _other = one
 plural' _ _one other = other
 
--- like putPrettyLn' but prints a blank line before and after.
-putPrettyLn :: P.Pretty CT.ColorText -> IO ()
-putPrettyLn p = do
-  width <- getAvailableWidth
-  putStrLn . P.toANSI width $ P.border 2 p
-
-putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
-putPrettyLn' p = do
-  width <- getAvailableWidth
-  putStrLn . P.toANSI width $ P.indentN 2 p
-
-clearCurrentLine :: IO ()
-clearCurrentLine = do
-  width <- getAvailableWidth
-  putStr "\r"
-  putStr . replicate width $ ' '
-  putStr "\r"
-
-putPretty' :: P.Pretty CT.ColorText -> IO ()
-putPretty' p = do
-  width <- getAvailableWidth
-  putStr . P.toANSI width $ p
-
-getAvailableWidth :: IO Int
-getAvailableWidth =
-  maybe 80 (\s -> 100 `min` Terminal.width s) <$> Terminal.size

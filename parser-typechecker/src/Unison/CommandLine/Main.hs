@@ -26,6 +26,7 @@ import qualified Unison.Codebase.Editor.HandleCommand as HandleCommand
 import Unison.Codebase.Runtime (Runtime)
 import Unison.Codebase (Codebase)
 import Unison.CommandLine
+import Unison.PrettyTerminal
 import Unison.CommandLine.InputPattern (ArgumentType (suggestions), InputPattern (aliases, patternName))
 import Unison.CommandLine.InputPatterns (validInputs)
 import Unison.CommandLine.OutputMessages (notifyUser, shortenDirectory)

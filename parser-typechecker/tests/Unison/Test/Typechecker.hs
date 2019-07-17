@@ -116,8 +116,8 @@ go rt files how = do
   tests (makePassingTest rt how <$> files')
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
-showNotes source env notes =
-  intercalateMap "\n\n" (PrintError.renderNoteAsANSI env source) notes
+showNotes source env =
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 decodeResult
   :: String -> SynthResult -> EitherResult--  String (UF.TypecheckedUnisonFile Symbol Ann)

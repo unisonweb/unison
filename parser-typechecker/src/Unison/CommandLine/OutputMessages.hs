@@ -51,14 +51,14 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.TermEdit      as TermEdit
 import qualified Unison.Codebase.TypeEdit      as TypeEdit
-import           Unison.CommandLine           (
-                                                bigproblem,
-                                                clearCurrentLine,
-                                                putPretty',
-                                                putPrettyLn,
-                                                putPrettyLn',
-                                                tip,
-                                                note
+import           Unison.CommandLine             ( bigproblem
+                                                , tip
+                                                , note
+                                                )
+import           Unison.PrettyTerminal          ( clearCurrentLine
+                                                , putPretty'
+                                                , putPrettyLn
+                                                , putPrettyLn'
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
 import qualified Unison.CommandLine.InputPatterns as IP
@@ -78,7 +78,7 @@ import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
 import           Unison.PrintError              ( prettyParseError
-                                                , renderNoteAsANSI
+                                                , printNoteWithSource
                                                 , prettyResolutionFailures
                                                 )
 import qualified Unison.Reference              as Reference
@@ -122,7 +122,8 @@ notifyUser dir o = case o of
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
   DisplayLinks ppe md types terms ->
-    if Map.null md then putPrettyLn $ P.wrap "Nothing to show here. Use the `link` command to add links from this definition."
+    if Map.null md then putPrettyLn $ P.wrap "Nothing to show here. Use the "
+      <> IP.makeExample' IP.link <> " command to add links from this definition."
     else
       putPrettyLn $ intercalateMap "\n\n" go (Map.toList md)
       where
@@ -207,6 +208,18 @@ notifyUser dir o = case o of
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
   --   nameChange "alias" "aliased" existingName newName r
+  DeletedEverything ->
+    putPrettyLn . P.wrap . P.lines $
+      ["Okay, I deleted everything except the history."
+      ,"Use " <> IP.makeExample' IP.undo <> " to undo, or "
+        <> IP.makeExample' IP.mergeBuiltins
+        <> " to restore the absolute "
+        <> "basics to the current path."]
+  DeleteEverythingConfirmation ->
+    putPrettyLn . P.warnCallout . P.lines $
+      ["Are you sure you want to clear away everything?"
+      ,"You could use " <> IP.makeExample' IP.cd
+        <> " to switch to a new branch instead."]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
     -- let
     --   pretty (branchName, (ppe, results)) =
@@ -261,7 +274,7 @@ notifyUser dir o = case o of
     putPrettyLn . P.fatalCallout $ P.lines [
       P.wrap "I couldn't parse the type you supplied:",
       "",
-      P.lit $ prettyParseError src e
+      prettyParseError src e
     ]
   ParseResolutionFailures input src es -> putPrettyLn $
     prettyResolutionFailures src es
@@ -272,13 +285,13 @@ notifyUser dir o = case o of
     ]
   ParseErrors src es -> do
     Console.setTitle "Unison ☹︎"
-    traverse_ (putStrLn . CT.toANSI . prettyParseError (Text.unpack src)) es
+    traverse_ (putPrettyLn . prettyParseError (Text.unpack src)) es
   TypeErrors src ppenv notes -> do
     Console.setTitle "Unison ☹︎"
     let showNote =
-          intercalateMap "\n\n" (renderNoteAsANSI ppenv (Text.unpack src))
+          intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
-    putStrLn . showNote $ notes
+    putPrettyLn . showNote $ notes
   Evaluated fileContents ppe bindings watches ->
     if null watches then putStrLn ""
     else
@@ -330,7 +343,11 @@ notifyUser dir o = case o of
             P.okCallout . P.wrap $ "I found and"
              <> P.bold "typechecked" <> "these definitions in "
              <> P.group (fileName <> ".")
-             <> "If you do an `add` or `update`, here's how your codebase would"
+             <> "If you do an "
+             <> IP.makeExample' IP.add
+             <> " or "
+             <> IP.makeExample' IP.update
+             <> ", here's how your codebase would"
              <> "change:"
             , P.indentN 2 $ SlurpResult.pretty False ppe slurpResult
             ]
