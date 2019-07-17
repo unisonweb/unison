@@ -531,13 +531,18 @@ functionResult = go False
 
 
 -- | Bind all free variables (not in `except`) that start with a lowercase
--- letter with an outer `forall`.
+-- letter and are unqualified with an outer `forall`.
+-- `a -> a` becomes `∀ a . a -> a`
+-- `B -> B` becomes `B -> B` (not changed)
+-- `.foo -> .foo` becomes `.foo -> .foo` (not changed)
+-- `.foo.bar -> blarrg.woot` becomes `.foo.bar -> blarrg.woot` (unchanged)
 generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
  where
   vars =
     [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v ]
-  isLow = all Char.isLower . take 1 . Text.unpack . Var.name
+  isLow v = (all Char.isLower . take 1 . Text.unpack . Var.name) v
+            && Var.unqualified v == v
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a
