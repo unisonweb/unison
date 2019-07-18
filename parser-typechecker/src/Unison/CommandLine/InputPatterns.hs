@@ -27,11 +27,11 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
-import qualified Unison.Codebase.NameSegment as NameSegment
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.CommandLine.InputPattern as I
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
+import qualified Unison.Name as Name
 import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
@@ -702,8 +702,7 @@ termCompletor filterQuery = pathCompletor filterQuery go where
 
 patchArg :: ArgumentType
 patchArg = ArgumentType "patch" $
-  bothCompletors (pathCompletor exactComplete (Set.map NameSegment.toText . Map.keysSet . Branch._edits))
-                 (pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths))
+  pathCompletor exactComplete (Set.map Name.toText . Branch.deepEdits)
 
 bothCompletors
   :: (Monad m, Ord a)

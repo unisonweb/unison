@@ -77,6 +77,7 @@ data Branch0 m = Branch0
   , deepTerms :: Star Referent Name
   , deepTypes :: Star Reference Name
   , deepPaths :: Set Path
+  , deepEdits :: Set Name
   }
 
 -- The raw Branch
@@ -167,7 +168,8 @@ branch0 :: Metadata.Star Referent NameSegment
         -> Map NameSegment (EditHash, m Patch)
         -> Branch0 m
 branch0 terms types children edits =
-  Branch0 terms types children edits deepTerms' deepTypes' deepPaths'
+  Branch0 terms types children edits
+          deepTerms' deepTypes' deepPaths' deepEdits'
   where
   deepTerms' =
     Star3.mapD1 nameSegToName terms <> foldMap go (Map.toList (snd <$> children))
@@ -180,6 +182,10 @@ branch0 terms types children edits =
   deepPaths' = Set.map Path.singleton (Map.keysSet children)
             <> foldMap go (Map.toList children) where
     go (nameSeg, (_,b)) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
+  deepEdits' = Set.map nameSegToName (Map.keysSet edits)
+              <> foldMap go (Map.toList children) where
+    go (nameSeg, (_, b)) =
+      Set.map (nameSegToName nameSeg `Name.joinDot`) (deepEdits $ head b)
   nameSegToName = Name . NameSegment.toText
 
 head :: Branch m -> Branch0 m
@@ -402,7 +408,7 @@ one :: Branch0 m -> Branch m
 one = Branch . Causal.one
 
 empty0 :: Branch0 m
-empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty
+empty0 = Branch0 mempty mempty mempty mempty mempty mempty mempty mempty
 
 isEmpty0 :: Branch0 m -> Bool
 isEmpty0 = (== empty0)
