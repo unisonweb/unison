@@ -58,6 +58,7 @@ import qualified Unison.Names3 as Names
 import qualified Unison.Name as Name
 import Unison.HashQualified (HashQualified)
 import Unison.Type (Type)
+import Unison.NamePrinter (prettyHashQualified0)
 
 type Env = PPE.PrettyPrintEnv
 
@@ -107,6 +108,9 @@ styleAnnotated sty a = (, sty) <$> rangeForAnnotated a
 
 style :: s -> String -> Pretty (AnnotatedText s)
 style sty str = Pr.lit . AT.annotate sty $ fromString str
+
+stylePretty :: Color -> Pretty ColorText -> Pretty ColorText
+stylePretty sty str = Pr.map (AT.annotate sty) str
 
 describeStyle :: Color -> Pretty ColorText
 describeStyle ErrorSite = "in " <> style ErrorSite "red"
@@ -1040,13 +1044,17 @@ prettyParseError s = \case
     Pr.border 2 . prettyResolutionFailures s $ failures
   unknownConstructor
     :: String -> L.Token HashQualified -> Pretty ColorText
-  unknownConstructor ctorType tok = mconcat
-    [ "I don't know about any "
+  unknownConstructor ctorType tok = Pr.lines [
+    (Pr.wrap . mconcat) [ "I don't know about any "
     , fromString ctorType
     , " constructor named "
-    , style ErrorSite (show (L.payload tok))
-    , ".\n"
-    , "Maybe make sure it's correctly spelled and that you've imported it:\n"
+    , Pr.group (
+        stylePretty ErrorSite (prettyHashQualified0 (L.payload tok)) <>
+        "."
+      )
+    , "Maybe make sure it's correctly spelled and that you've imported it:"
+    ]
+    , ""
     , tokenAsErrorSite s tok
     ]
   lexerOutput :: Pretty (AnnotatedText a)
