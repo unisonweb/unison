@@ -163,6 +163,7 @@ library
     containers,
     comonad,
     concurrent-supply,
+    configurator,
     cryptonite,
     directory,
     guid,

@@ -340,9 +340,12 @@ pull :: InputPattern
 pull = InputPattern
   "pull"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Optional, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
-    [ ( "`pull url`"
+    [ ( "`pull`"
+      , "pulls the contents of the git url configured for the current path."
+      )
+    , ( "`pull url`"
       , "pulls the contents of the git url `url` into the current path."
       )
     , ( "`pull url foo.bar`"
@@ -360,16 +363,17 @@ pull = InputPattern
     ]
   )
   (\case
+    []    -> pure $ Input.PullRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> pure $ Input.PullRemoteBranchI
-      (GitRepo (Text.pack url) "master")
+      (Just $ GitRepo (Text.pack url) "master")
       Path.relativeEmpty'
     [url, path] -> do
       p <- first fromString $ Path.parsePath' path
-      pure $ Input.PullRemoteBranchI (GitRepo (Text.pack url) "master") p
+      pure $ Input.PullRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
     [url, path, treeish] -> do
       p <- first fromString $ Path.parsePath' path
       pure $ Input.PullRemoteBranchI
-        (GitRepo (Text.pack url) $ Text.pack treeish)
+        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
         p
     _ -> Left (I.help pull)
   )
@@ -378,9 +382,13 @@ push :: InputPattern
 push = InputPattern
   "push"
   []
-  [(Required, gitUrlArg), (Optional, pathArg)]
+  [(Optional, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
-    [ ( "`push url`"
+    [ ( "`push`"
+      , "pushes the contents of the current path to the configured git url " <>
+        "for that path."
+      )
+    , ( "`push url`"
       , "pushes the contents of the current path to the git url given by `url`."
       )
     , ( "`push url foo.bar`"
@@ -398,16 +406,17 @@ push = InputPattern
     ]
   )
   (\case
+    [] -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> first fromString . pure $ Input.PushRemoteBranchI
-      (GitRepo (Text.pack url) "master")
+      (Just $ GitRepo (Text.pack url) "master")
       Path.relativeEmpty'
     [url, path] -> first fromString $ do
       p <- Path.parsePath' path
-      pure $ Input.PushRemoteBranchI (GitRepo (Text.pack url) "master") p
+      pure $ Input.PushRemoteBranchI (Just $ GitRepo (Text.pack url) "master") p
     [url, path, treeish] -> first fromString $ do
       p <- Path.parsePath' path
       pure $ Input.PushRemoteBranchI
-        (GitRepo (Text.pack url) $ Text.pack treeish)
+        (Just . GitRepo (Text.pack url) $ Text.pack treeish)
         p
     _ -> Left (I.help push)
   )
@@ -721,7 +730,7 @@ pathCompletor filterQuery getNames query _code b p = let
   -- todo: if these sets are huge, maybe trim results
   in pure . filterQuery query . map Text.unpack $
        toList (getNames b0local) ++
-       if ("." `isPrefixOf` query) then
+       if "." `isPrefixOf` query then
          map ("." <>) (toList (getNames b0root))
        else
          []

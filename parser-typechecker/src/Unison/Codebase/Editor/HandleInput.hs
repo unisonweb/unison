@@ -36,7 +36,7 @@ import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
 import           Control.Monad                  ( filterM, foldM, forM,
-                                                  join, when, void)
+                                                  unless, join, when, void)
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
@@ -44,6 +44,8 @@ import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
 import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
+import           Data.Configurator.Types        ( Config )
+import           Data.Configurator              ()
 import           Data.Foldable                  ( toList
                                                 , fold
                                                 , foldl'
@@ -51,7 +53,7 @@ import           Data.Foldable                  ( toList
                                                 )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
-import           Data.List                      ( partition )
+import           Data.List                      ( partition, sortOn )
 import           Data.List.Extra                (nubOrd, intercalate)
 import           Data.Maybe                     ( catMaybes
                                                 , fromMaybe
@@ -121,7 +123,6 @@ import qualified Unison.Codebase.Editor.TodoOutput as TO
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
 import Unison.ConstructorType (ConstructorType)
 import qualified Unison.Lexer as L
-import Data.List (sortOn)
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
@@ -213,13 +214,17 @@ loop = do
         eval . Eval $ Branch.getPatch seg (Branch.head b)
 
       withFile ambient sourceName lexed@(text, tokens) k = do
-        let getHQ = \case
-              L.Backticks s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.WordyId   s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.SymbolyId s (Just sh) -> Just (HQ.HashQualified (Name.unsafeFromString s) sh)
-              L.Hash      sh          -> Just (HQ.HashOnly sh)
-              _                       -> Nothing
-            hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
+        let
+          getHQ = \case
+            L.Backticks s (Just sh) ->
+              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+            L.WordyId s (Just sh) ->
+              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+            L.SymbolyId s (Just sh) ->
+              Just (HQ.HashQualified (Name.unsafeFromString s) sh)
+            L.Hash sh -> Just (HQ.HashOnly sh)
+            _         -> Nothing
+          hqs = Set.fromList . mapMaybe (getHQ . L.payload) $ tokens
         parseNames :: Names <- makeHistoricalParsingNames hqs
         Result notes r <- eval $ Typecheck ambient parseNames sourceName lexed
         case r of
@@ -626,7 +631,7 @@ loop = do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
         let resultss = searchBranchExact hqLength parseNames hqs
             (misses, hits) = partition (\(_, results) -> null results) (zip hqs resultss)
-            results = List.sort . (uniqueBy SR.toReferent) $ hits >>= snd
+            results = List.sort . uniqueBy SR.toReferent $ hits >>= snd
         results' <- loadSearchResults results
         let termTypes :: Map.Map Reference (Type v Ann)
             termTypes =
@@ -635,13 +640,14 @@ loop = do
             (collatedTypes, collatedTerms) = collateReferences
               (mapMaybe SR'.tpReference results')
               (mapMaybe SR'.tmReferent results')
-        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type for later
+        -- load the `collatedTerms` and types into a Map Reference.Id Term/Type
+        -- for later
         loadedDerivedTerms <-
-          fmap Map.fromList . fmap catMaybes . for (toList collatedTerms) $ \case
+          fmap (Map.fromList . catMaybes) . for (toList collatedTerms) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadTerm i)
             _ -> pure Nothing
         loadedDerivedTypes <-
-          fmap Map.fromList . fmap catMaybes . for (toList collatedTypes) $ \case
+          fmap (Map.fromList . catMaybes) . for (toList collatedTypes) $ \case
             Reference.DerivedId i -> fmap (i,) <$> eval (LoadType i)
             _ -> pure Nothing
         -- Populate DisplayThings for the search results, in anticipation of
@@ -679,7 +685,8 @@ loop = do
               FileLocation path  -> Just path
               LatestFileLocation -> fmap fst latestFile' <|> Just "scratch.u"
         do
-          eval . Notify $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
+          eval . Notify
+            $ DisplayDefinitions loc ppe loadedDisplayTypes loadedDisplayTerms
           eval . Notify . SearchTermsNotFound $ fmap fst misses
           -- We set latestFile to be programmatically generated, if we
           -- are viewing these definitions to a file - this will skip the
@@ -701,7 +708,7 @@ loop = do
           [] -> pure . listBranch $ Branch.head currentBranch'
 
           -- type query
-          ":" : ws -> ExceptT (parseSearchType input (intercalate " " ws)) >>= \typ -> ExceptT $ do
+          ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
             let locals = Branch.deepReferents (Branch.head currentBranch')
             matches <- fmap toList . eval $ GetTermsOfType typ
             matches <- filter (`Set.member` locals) <$>
@@ -893,7 +900,7 @@ loop = do
         respond $ TestResults stats ppe showOk showFail
                     (oks cachedTests) (fails cachedTests)
         let toCompute = Set.difference testRefs (Map.keysSet cachedTests)
-        when (not . Set.null $ toCompute) $ do
+        unless (Set.null toCompute) $ do
           let total = Set.size toCompute
           computedTests <- fmap join . for (toList toCompute `zip` [1..]) $ \(r,n) ->
             case r of
@@ -955,7 +962,8 @@ loop = do
           let names0 = Builtin.names0 -- <> UF.typecheckedToNames0 IOSource.typecheckedFile
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
-          _ <- updateAtM currentPath' $ \destb -> eval . Eval $ Branch.merge srcb destb
+          _ <- updateAtM currentPath' $ \destb ->
+                 eval . Eval $ Branch.merge srcb destb
           success
 
       ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
@@ -964,13 +972,29 @@ loop = do
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         respond $ ListEdits patch ppe
 
-      PullRemoteBranchI repo path -> do
-        loadRemoteBranchAt repo $ Path.toAbsolutePath currentPath' path
+      PullRemoteBranchI mayRepo path -> do
+        let p = Path.toAbsolutePath currentPath' path
+        case mayRepo of
+          Just repo ->
+            loadRemoteBranchAt repo p
+          Nothing -> do
+            repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
+            case repoUrl of
+              Just url -> loadRemoteBranchAt (GitRepo url "master") p
+              Nothing ->
+                eval . Notify $ NoConfiguredGitUrl path
         success
-      PushRemoteBranchI repo path -> do
-        b <- getAt $ Path.toAbsolutePath currentPath' path
-        e <- eval $ SyncRemoteRootBranch repo b
-        either (eval . Notify . GitError) pure e
+      PushRemoteBranchI mayRepo path -> do
+        let p = Path.toAbsolutePath currentPath' path
+        b <- getAt p
+        case mayRepo of
+          Just repo -> syncRemoteRootBranch repo b
+          Nothing -> do
+            repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
+            case repoUrl of
+              Just url -> syncRemoteRootBranch (GitRepo url "master") b
+              Nothing ->
+                eval . Notify $ NoConfiguredGitUrl path
         success
       QuitI -> MaybeT $ pure Nothing
       _ -> error $ "todo: " <> show input
@@ -1211,13 +1235,20 @@ searchBranchExact len names queries = let
 respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
-loadRemoteBranchAt :: Monad m => RemoteRepo -> Path.Absolute -> Action m i v ()
+loadRemoteBranchAt
+  :: Monad m => RemoteRepo -> Path.Absolute -> Action m i v ()
 loadRemoteBranchAt repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
     Left  e -> eval . Notify $ GitError e
     Right b -> void $ updateAtM p (doMerge b)
   where doMerge b b0 = eval . Eval $ Branch.merge b b0
+
+
+syncRemoteRootBranch :: Monad m => RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch repo b = do
+  e <- eval $ SyncRemoteRootBranch repo b
+  either (eval . Notify . GitError) pure e
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
@@ -1638,7 +1669,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
               Reference.DerivedId _ ->
                 if Map.member r edits || Set.member r seen
                 then collectEdits edits replacements newTerms seen todo
-                else do
+                else
                   unhashComponent r >>= \case
                     Nothing -> collectEdits edits replacements newTerms (Set.insert r seen) todo
                     Just componentMap -> do
@@ -1671,7 +1702,7 @@ propagate errorPPE patch b = validatePatch patch >>= \case
                        (getOrdered initialDirty)
 
       -- todo: can eliminate this filter if collectEdits doesn't leave temporary terms in the map!
-      let termEditTargets = Set.fromList . catMaybes . fmap TermEdit.toReference
+      let termEditTargets = Set.fromList . mapMaybe TermEdit.toReference
                           $ toList termEdits
       -- write the new terms to the codebase
       (writeTerms . Map.toList) (Map.restrictKeys newTerms termEditTargets)

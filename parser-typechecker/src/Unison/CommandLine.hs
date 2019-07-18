@@ -8,10 +8,11 @@
 
 module Unison.CommandLine where
 
--- import Debug.Trace
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
 import           Control.Monad                   (forever, when)
+import           Data.Configurator               (autoReload, autoConfig)
+import           Data.Configurator.Types         (Config, Worth (..))
 import           Data.Foldable                   (toList)
 import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
@@ -43,6 +44,11 @@ allow p =
   -- ignore Emacs .# prefixed files, see https://github.com/unisonweb/unison/issues/457
   not (".#" `isPrefixOf` takeFileName p) &&
   (isSuffixOf ".u" p || isSuffixOf ".uu" p)
+
+watchConfig :: FilePath -> IO (Config, IO ())
+watchConfig path = do
+  (config, t) <- autoReload autoConfig [Optional path]
+  pure (config, killThread t)
 
 watchFileSystem :: TQueue Event -> FilePath -> IO (IO ())
 watchFileSystem q dir = do

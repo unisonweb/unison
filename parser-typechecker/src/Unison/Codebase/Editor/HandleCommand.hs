@@ -18,6 +18,8 @@ import qualified Unison.Builtin                as B
 -- import Debug.Trace
 
 import           Control.Monad.Except           ( runExceptT )
+import qualified Data.Configurator             as Config
+import           Data.Configurator.Types        ( Config )
 import           Data.Functor
 import           Data.Foldable                  ( forM_, toList )
 import qualified Data.Map                      as Map
@@ -76,14 +78,15 @@ tempGitDir url commit =
 commandLine
   :: forall i v a
    . Var v
-  => IO i
+  => Config
+  -> IO i
   -> (Branch IO -> IO ())
   -> Runtime v
   -> (Output v -> IO ())
   -> Codebase IO v Ann
   -> Free (Command IO i v) a
   -> IO a
-commandLine awaitInput setBranchRef rt notifyUser codebase =
+commandLine config awaitInput setBranchRef rt notifyUser codebase =
  Free.fold go
  where
   go :: forall x . Command IO i v x -> IO x
@@ -92,6 +95,7 @@ commandLine awaitInput setBranchRef rt notifyUser codebase =
     Eval m        -> m
     Input         -> awaitInput
     Notify output -> notifyUser output
+    ConfigLookup name -> Config.lookup config name
     Typecheck ambient names sourceName source -> do
       -- todo: if guids are being shown to users,
       -- not ideal to generate new guid every time

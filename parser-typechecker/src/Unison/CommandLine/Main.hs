@@ -17,6 +17,7 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
+import System.FilePath.Posix ((</>))
 import Safe
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -133,6 +134,7 @@ main dir initialPath _initialFile startRuntime codebase = do
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
+    (config, cancelConfig)   <- watchConfig $ dir </> ".unisonConfig"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
                                                       readIORef rootRef)
@@ -155,13 +157,13 @@ main dir initialPath _initialFile startRuntime codebase = do
           x      -> pure x
       cleanup = do
         Runtime.terminate runtime
+        cancelConfig
         cancelFileSystemWatch
         cancelWatchBranchUpdates
       loop state = do
         writeIORef pathRef (HandleInput._currentPath state)
         let free = runStateT (runMaybeT HandleInput.loop) state
-
-        (o, state') <- HandleCommand.commandLine awaitInput
+        (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
                                      (notifyUser dir)
