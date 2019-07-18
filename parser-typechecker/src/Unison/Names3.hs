@@ -180,3 +180,15 @@ importing0 shortToLongName ns =
   go m (shortname, qname) = case R.lookupDom qname m of
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
+
+importWildcard0 :: Name -> Names0 -> Names0
+importWildcard0 prefix ns =
+  Names.Names (R.map go (terms0 ns)) (R.map go (types0 ns)) where
+  go :: Ord r => (Name, r) -> (Name,r)
+  go (name, r) = case Name.stripNamePrefix prefix name of
+    Nothing -> (name, r)
+    Just name' -> (name', r)
+
+importWildcard :: Name -> Names -> Names
+importWildcard prefix ns =
+  shadowing (importWildcard0 prefix (currentNames ns)) ns

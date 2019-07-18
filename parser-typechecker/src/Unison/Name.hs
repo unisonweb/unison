@@ -62,9 +62,12 @@ _stripTextPrefix prefix name =
 -- stripNamePrefix a.b. a.b.c = undefined, "a.b." isn't a valid name IMO
 -- stripNamePrefix x.y  a.b.c = Nothing, x.y isn't a prefix of a.b.c
 -- stripNamePrefix "" a.b.c = undefined, "" isn't a valid name IMO
+-- stripNamePrefix . .Nat = Just Nat
 stripNamePrefix :: Name -> Name -> Maybe Name
 stripNamePrefix prefix name =
-  Name <$> Text.stripPrefix (toText prefix <> ".") (toText name)
+  Name <$> Text.stripPrefix (toText prefix <> mid) (toText name)
+  where
+  mid = if toText prefix == "." then "" else "."
 
 -- a.b.c.d -> d
 stripPrefixes :: Name -> Name
