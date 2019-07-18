@@ -181,14 +181,15 @@ importing0 shortToLongName ns =
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
 
-importWildcard0 :: Name -> Names0 -> Names0
-importWildcard0 prefix ns =
-  Names.Names (R.map go (terms0 ns)) (R.map go (types0 ns)) where
-  go :: Ord r => (Name, r) -> (Name,r)
-  go (name, r) = case Name.stripNamePrefix prefix name of
-    Nothing -> (name, r)
-    Just name' -> (name', r)
-
-importWildcard :: Name -> Names -> Names
-importWildcard prefix ns =
-  shadowing (importWildcard0 prefix (currentNames ns)) ns
+-- Converts a wildcard import into a list of explicit imports, of the form
+-- [(suffix, full)]. Example: if `io` contains two functions, `foo` and
+-- `bar`, then `expandWildcardImport io` will produce
+-- `[(foo, io.foo), (bar, io.bar)]`.
+expandWildcardImport :: Name -> Names0 -> [(Name,Name)]
+expandWildcardImport prefix ns =
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms0 ns) ] <>
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types0 ns) ]
+  where
+  go (full, _) = case Name.stripNamePrefix prefix full of
+    Nothing -> Nothing
+    Just suffix -> Just (suffix, full)
