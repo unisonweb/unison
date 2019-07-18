@@ -8,6 +8,7 @@
 
 module Unison.Util.AnnotatedText where
 
+import           Control.Monad      (join)
 import qualified Data.List as L
 import           Data.Foldable      (foldl')
 import qualified Data.Foldable      as Foldable
@@ -16,6 +17,7 @@ import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>), (:<|)))
 import qualified Data.Sequence      as Seq
 import           Data.String        (IsString (..))
+import           Data.Tuple.Extra   (second)
 import           Safe               (headMay, lastMay)
 import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
@@ -92,6 +94,9 @@ deannotate = annotate' Nothing
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =
   AnnotatedText $ (\(s,_) -> (s,Just a)) <$> at
+
+annotateMaybe :: AnnotatedText (Maybe a) -> AnnotatedText a
+annotateMaybe (AnnotatedText s) = AnnotatedText (fmap (second join) s)
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (s,_))) =

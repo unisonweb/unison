@@ -68,11 +68,13 @@ module Unison.Util.Pretty (
    spacesIfBreak,
    string,
    surroundCommas,
+   syntaxToColor,
    text,
    toANSI,
    toAnsiUnbroken,
    toPlain,
    toPlainUnbroken,
+   withSyntax,
    wrap,
    wrapColumn2,
    wrapString,
@@ -88,7 +90,9 @@ import           Data.Sequence                  ( Seq )
 import           Data.String                    ( IsString , fromString )
 import           Data.Text                      ( Text )
 import           Prelude                 hiding ( lines , map )
+import           Unison.Util.AnnotatedText      ( annotateMaybe )
 import qualified Unison.Util.ColorText         as CT
+import qualified Unison.Util.SyntaxText        as ST
 import           Unison.Util.Monoid             ( intercalateMap )
 import qualified Data.ListLike                 as LL
 import qualified Data.Sequence                 as Seq
@@ -166,6 +170,12 @@ toPlain avail p = CT.toPlain (render avail p)
 
 toPlainUnbroken :: Pretty ColorText -> String
 toPlainUnbroken p = CT.toPlain (renderUnbroken p)
+
+syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
+syntaxToColor = fmap $ annotateMaybe . (fmap CT.defaultColors)
+
+withSyntax :: ST.Element -> Pretty ST.SyntaxText -> Pretty ST.SyntaxText
+withSyntax e = fmap $ ST.syntax e
 
 renderUnbroken :: (Monoid s, IsString s) => Pretty s -> s
 renderUnbroken = render maxBound

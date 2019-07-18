@@ -201,10 +201,10 @@ reorder = join . sortWith f . stanzas
   where
     f [] = 3 :: Int
     f (t : _) = case payload $ headToken t of
-      Open "type" -> 0
-      Open "unique" -> 0
-      Open "ability" -> 0
-      Reserved "use" -> 1
+      Open "type" -> 1
+      Open "unique" -> 1
+      Open "ability" -> 1
+      Reserved "use" -> 0
       _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]

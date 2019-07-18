@@ -101,7 +101,7 @@ fuzzyFindInBranch b hq =
         (Name.toString . HQ.toName . SR.name)
 
 getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)
-getName sr = (sr, prettyHashQualified' (SR.name sr))
+getName sr = (sr, P.syntaxToColor $ prettyHashQualified' (SR.name sr))
 
 candidates :: Names.Names' Name.Name -> HashQualified -> [SearchResult]
 candidates b hq = typeCandidates <> termCandidates

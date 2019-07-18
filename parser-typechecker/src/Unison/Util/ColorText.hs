@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 
 module Unison.Util.ColorText (
-  ColorText, Color(..), style, toANSI, toPlain,
+  ColorText, Color(..), style, toANSI, toPlain, defaultColors,
   black, red, green, yellow, blue, purple, cyan, white, hiBlack, hiRed, hiGreen, hiYellow, hiBlue, hiPurple, hiCyan, hiWhite, bold,
   module Unison.Util.AnnotatedText)
 where
@@ -12,6 +12,7 @@ import           Data.Foldable             (foldl', toList)
 import           Data.Sequence             (Seq)
 import qualified System.Console.ANSI       as ANSI
 import           Unison.Util.AnnotatedText (AnnotatedText(..), annotate)
+import qualified Unison.Util.SyntaxText    as ST hiding (toPlain)
 
 type ColorText = AnnotatedText Color
 
@@ -84,3 +85,30 @@ toANSI (AnnotatedText chunks) =
     HiCyan   -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.Cyan]
     HiWhite  -> [ANSI.SetColor ANSI.Foreground ANSI.Vivid ANSI.White]
     Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
+
+defaultColors :: ST.Element -> Maybe Color
+defaultColors = \case 
+  ST.NumericLiteral      -> Nothing
+  ST.TextLiteral         -> Nothing
+  ST.BooleanLiteral      -> Nothing
+  ST.Blank               -> Nothing
+  ST.Var                 -> Nothing
+  ST.Reference           -> Nothing
+  ST.Constructor         -> Nothing
+  ST.Request             -> Nothing
+  ST.AbilityBraces       -> Just HiBlack
+  ST.ControlKeyword      -> Just Bold
+  ST.TypeOperator        -> Just HiBlack
+  ST.BindingEquals       -> Nothing
+  ST.TypeAscriptionColon -> Just Blue
+  ST.DataTypeKeyword     -> Nothing
+  ST.DataType            -> Nothing
+  ST.DataTypeParams      -> Nothing
+  ST.DataTypeModifier    -> Nothing
+  ST.UseKeyword          -> Just HiBlack
+  ST.UsePrefix           -> Just HiBlack
+  ST.UseSuffix           -> Just HiBlack
+  ST.HashQualifier       -> Just HiBlack
+  ST.DelayForceChar      -> Just Yellow
+  ST.DelimiterChar       -> Nothing
+  ST.Parenthesis         -> Nothing

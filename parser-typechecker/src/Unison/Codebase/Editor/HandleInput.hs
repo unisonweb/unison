@@ -1896,7 +1896,7 @@ makeHistoricalParsingNames ::
   Monad m => Set HQ.HashQualified -> Action' m v Names
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
-  basicNames0 <- basicPrettyPrintNames0
+  basicNames0 <- basicParseNames0
   currentPath <- use currentPath
   pure $ Names basicNames0
                (Names3.makeAbsolute0 rawHistoricalNames <>

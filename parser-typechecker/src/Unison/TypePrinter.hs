@@ -13,15 +13,22 @@ import           Unison.NamePrinter    (styleHashQualified'')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)
 import qualified Unison.PrettyPrintEnv as PrettyPrintEnv
 import           Unison.Reference      (pattern Builtin)
-import qualified Unison.SyntaxHighlights as S
-import           Unison.SyntaxHighlights (fmt)
 import           Unison.Type
 import           Unison.Util.Pretty    (ColorText, Pretty)
 import           Unison.Util.ColorText (toPlain)
+import qualified Unison.Util.SyntaxText as S
+import           Unison.Util.SyntaxText (SyntaxText)
 import qualified Unison.Util.Pretty    as PP
 import           Unison.Var            (Var)
 import qualified Unison.Var            as Var
 import qualified Unison.DataDeclaration as DD
+
+pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
+pretty ppe = PP.syntaxToColor . pretty0 ppe mempty (-1)
+
+pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Type v a -> String
+pretty' (Just width) n t = toPlain $ PP.render width $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
+pretty' Nothing      n t = toPlain $ PP.render maxBound $ PP.syntaxToColor $ pretty0 n Map.empty (-1) t
 
 {- Explanation of precedence handling
 
@@ -45,21 +52,13 @@ import qualified Unison.DataDeclaration as DD
 
 -}
 
-pretty :: forall v a . (Var v) => PrettyPrintEnv -> Type v a -> Pretty ColorText
-pretty ppe = pretty0 ppe mempty (-1)
-
-pretty' :: Var v => Maybe Int -> PrettyPrintEnv -> Type v a -> String
-pretty' (Just width) n t =
-  toPlain $ PP.render width $ pretty0 n Map.empty (-1) t
-pretty' Nothing n t = toPlain $ PP.render maxBound $ pretty0 n Map.empty (-1) t
-
 pretty0
   :: forall v a . (Var v)
   => PrettyPrintEnv
   -> Imports
   -> Int
   -> Type v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 pretty0 n im p tp = prettyRaw n im p (cleanup (removePureEffects tp))
 
 prettyRaw
@@ -69,13 +68,13 @@ prettyRaw
   -> Imports
   -> Int
   -> Type v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 -- p is the operator precedence of the enclosing context (a number from 0 to
 -- 11, or -1 to avoid outer parentheses unconditionally).  Function
 -- application has precedence 10.
 prettyRaw n im p tp = go n im p tp
- where
-  go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty ColorText
+  where
+  go :: PrettyPrintEnv -> Imports -> Int -> Type v a -> Pretty SyntaxText
   go n im p tp = case stripIntroOuters tp of
     Var' v -> fmt S.Var $ PP.text (Var.name v)
     -- Would be nice to use a different SyntaxHighlights
@@ -144,13 +143,16 @@ prettyRaw n im p tp = go n im p tp
   parenNoGroup True  s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
   parenNoGroup False s = s
 
+fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt = PP.withSyntax
+
 -- todo: provide sample output in comment
 prettySignatures'
   :: Var v
   => PrettyPrintEnv
   -> [(HashQualified, Type v a)]
   -> [Pretty ColorText]
-prettySignatures' env ts = PP.align
+prettySignatures' env ts = map PP.syntaxToColor $ PP.align
   [ ( styleHashQualified'' (fmt S.DataType) name
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "
@@ -166,7 +168,7 @@ prettySignaturesAlt'
   => PrettyPrintEnv
   -> [([HashQualified], Type v a)]
   -> [Pretty ColorText]
-prettySignaturesAlt' env ts = PP.align
+prettySignaturesAlt' env ts = map PP.syntaxToColor $ PP.align
   [ ( PP.commas . fmap (styleHashQualified'' (fmt S.DataType)) $ names
     , (fmt S.TypeAscriptionColon ": " <> pretty0 env Map.empty (-1) typ)
       `PP.orElse` (  fmt S.TypeAscriptionColon ": "
