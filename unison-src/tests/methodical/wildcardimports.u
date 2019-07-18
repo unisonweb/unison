@@ -1,0 +1,6 @@
+
+use Text
+
+-- note: this `drop` call would be ambiguous normally (`Bytes.drop`, `Nat.drop`...)
+-- but the wildcard import of `Text` brings it into scope
+foo x = drop 10 x

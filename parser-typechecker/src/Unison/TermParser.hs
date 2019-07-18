@@ -377,6 +377,9 @@ block s = block' False s (openBlockWith s) closeBlock
 -- of allowing you to reference identifiers of the form <prefix>.<suffix>
 -- using just <suffix>.
 --
+-- `use foo` by itself is equivalent to `use foo bar baz ...` for all
+-- names in the environment prefixed by `foo`
+--
 -- todo: doesn't support use Foo.bar ++#abc, which lets you use `++` unqualified to refer to `Foo.bar.++#abc`
 importp :: Ord v => P v [(Name, Name)]
 importp = do
@@ -390,7 +393,9 @@ importp = do
   case (prefix, suffixes) of
     (Nothing, _) -> P.customFailure $ UseEmpty kw
     (Just prefix@(Left _), _) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
-    (Just prefix@(Right _), Nothing) -> P.customFailure $ UseInvalidPrefixSuffix prefix suffixes
+    (Just (Right prefix), Nothing) -> do -- `wildcard import`
+      names <- asks names
+      pure $ Names.expandWildcardImport (L.payload prefix) (Names.currentNames names)
     (Just (Right prefix), Just suffixes) -> pure $ do
       suffix <- L.payload <$> suffixes
       pure (suffix, Name.joinDot (L.payload prefix) suffix)

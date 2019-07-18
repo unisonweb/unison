@@ -180,3 +180,16 @@ importing0 shortToLongName ns =
   go m (shortname, qname) = case R.lookupDom qname m of
     s | Set.null s -> m
       | otherwise -> R.insertManyRan shortname s (R.deleteDom shortname m)
+
+-- Converts a wildcard import into a list of explicit imports, of the form
+-- [(suffix, full)]. Example: if `io` contains two functions, `foo` and
+-- `bar`, then `expandWildcardImport io` will produce
+-- `[(foo, io.foo), (bar, io.bar)]`.
+expandWildcardImport :: Name -> Names0 -> [(Name,Name)]
+expandWildcardImport prefix ns =
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (terms0 ns) ] <>
+  [ (suffix, full) | Just (suffix,full) <- go <$> R.toList (types0 ns) ]
+  where
+  go (full, _) = case Name.stripNamePrefix prefix full of
+    Nothing -> Nothing
+    Just suffix -> Just (suffix, full)
