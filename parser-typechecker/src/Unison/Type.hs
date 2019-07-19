@@ -18,14 +18,12 @@ import Data.Functor
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
-import qualified Data.Char as Char
 import           Data.List
 import           Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import           GHC.Generics
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
@@ -540,9 +538,7 @@ generalizeLowercase :: Var v => Set v -> Type v a -> Type v a
 generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
  where
   vars =
-    [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), isLow v ]
-  isLow v = (all Char.isLower . take 1 . Text.unpack . Var.name) v
-            && Var.unqualified v == v
+    [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.isLowercase v ]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
 freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a
