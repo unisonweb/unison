@@ -22,6 +22,7 @@ import Unison.Reference ( Reference )
 import Unison.Referent  ( Referent )
 import Unison.DataDeclaration ( Decl )
 import Unison.Util.Relation (Relation)
+import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Metadata as Metadata
 import qualified Unison.Codebase.Path as Path
 import qualified Unison.Codebase.Runtime as Runtime
@@ -125,6 +126,7 @@ data Output v
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
+  | WarnIncomingRootBranch (Set Branch.Hash)
   deriving (Show)
 
 data TestReportStats

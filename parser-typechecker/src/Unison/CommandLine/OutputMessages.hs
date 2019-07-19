@@ -103,6 +103,8 @@ import qualified Unison.Codebase.Editor.SlurpResult as SlurpResult
 import           System.Directory               ( getHomeDirectory )
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinThing, RegularThing))
 import qualified Unison.Codebase.Editor.Input as Input
+import qualified Unison.Hash as Hash
+import qualified Unison.Codebase.Causal as Causal
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -119,6 +121,24 @@ notifyUser dir o = case o of
   -- Success (MergeBranchI _ _) ->
   --   putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
+  WarnIncomingRootBranch hashes -> putPrettyLn $
+    if null hashes then P.wrap $
+      "Please let someone know I generated an empty IncomingRootBranch"
+                 <> " event, which shouldn't be possible!"
+    else P.lines
+      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
+         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
+         <> "with" <> P.group (P.plural hashes "hash" <> ":")
+      , ""
+      , (P.indentN 2 . P.oxfordCommas)
+                (map (P.text . Hash.base58 . Causal.unRawHash) $ toList hashes)
+      , ""
+      , P.wrap $ "but I'm not sure what to do about it."
+          <> "If you're feeling lucky, you can try deleting one of the heads"
+          <> "from `.unison/v1/branches/head/`, but please make a backup first."
+          <> "There will be a better way of handling this in the future. 😅"
+      ]
+
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
   DisplayLinks ppe md types terms ->

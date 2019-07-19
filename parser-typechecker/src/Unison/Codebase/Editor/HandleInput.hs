@@ -238,12 +238,7 @@ loop = do
           Just (Right uf) -> k uf
 
   case e of
-    Left (IncomingRootBranch _names) ->
-      error $ "todo: notify user about externally deposited head, and offer\n"
-           ++ "a command to undo the merge that is about to happen.  In the\n"
-           ++ "mean time until this is implemented, you can fix the issue by\n"
-           ++ "deleting one of the heads from `.unison/v0/branches/head/`."
-
+    Left (IncomingRootBranch hashes) -> respond $ WarnIncomingRootBranch hashes
     Left (UnisonFileChanged sourceName text) ->
       -- We skip this update if it was programmatically generated
       if maybe False snd latestFile'
