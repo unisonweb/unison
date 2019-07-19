@@ -131,7 +131,7 @@ notifyUser dir o = case o of
          <> "with" <> P.group (P.plural hashes "hash" <> ":")
       , ""
       , (P.indentN 2 . P.oxfordCommas)
-                (map (P.text . Hash.base58 . Causal.unRawHash) $ toList hashes)
+                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
       , ""
       , P.wrap $ "but I'm not sure what to do about it."
           <> "If you're feeling lucky, you can try deleting one of the heads"

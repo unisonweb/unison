@@ -8,7 +8,7 @@ module Unison.Reference
      pattern Derived,
      pattern DerivedId,
    Id(..),
-   derivedBase58,
+   derivedBase32Hex,
    Component, members,
    components,
    groupByComponent,
@@ -28,7 +28,7 @@ import           Control.Monad   (join)
 import           Data.Foldable   (toList)
 import           Data.List hiding (isPrefixOf)
 import qualified Data.Map        as Map
-import           Data.Maybe      (fromJust, maybe)
+import           Data.Maybe      (fromJust)
 import           Data.Set        (Set)
 import qualified Data.Set        as Set
 import           Data.Text       (Text)
@@ -45,7 +45,7 @@ import           Data.Bytes.Serial              ( serialize
                                                 , deserialize
                                                 )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import qualified Data.ByteString.Base58 as Base58
+import qualified Codec.Binary.Base32Hex as Base32Hex
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.ByteString (ByteString)
 
@@ -73,16 +73,16 @@ unsafeId (DerivedId x) = x
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h _ 1) = SH.ShortHash (H.base58 h) Nothing Nothing
-toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
+toShortHash (Derived h _ 1) = SH.ShortHash (H.base32Hex h) Nothing Nothing
+toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
 toShortHash (DerivedId _) = error "this should be covered above"
 
 showSuffix :: Pos -> Size -> Text
-showSuffix i n = encode58 . runPutS $ put where
-  encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
+showSuffix i n = encode . runPutS $ put where
+  encode = decodeUtf8 . Base32Hex.encode
   put = putLength i >> putLength n
   putLength = serialize . VarInt
 
@@ -98,10 +98,12 @@ showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
 -- todo: don't read or return size; must also update showSuffix and fromText
 readSuffix :: Text -> Either String (Pos, Size)
 readSuffix t =
-  runGetS get =<< (tagError . decode58) t where
-  tagError = maybe (Left "base58 decoding error") Right
-  decode58 :: Text -> Maybe ByteString
-  decode58 = Base58.decodeBase58 Base58.bitcoinAlphabet . encodeUtf8
+  runGetS get =<< (tagError . decode) t where
+  tagError e = case e of
+    Left _ -> Left "base32Hex decoding error"
+    Right a -> Right a
+  decode :: Text -> Either (ByteString, ByteString) ByteString
+  decode = Base32Hex.decode . encodeUtf8
   get = (,) <$> getLength <*> getLength
   getLength = unVarInt <$> deserialize
 
@@ -118,10 +120,10 @@ componentFor (  DerivedId (Id h _ n)) = Component
     [ DerivedId (Id h i n) | i <- take (fromIntegral n) [0 ..] ]
   )
 
-derivedBase58 :: Text -> Pos -> Size -> Reference
-derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
+derivedBase32Hex :: Text -> Pos -> Size -> Reference
+derivedBase32Hex b32Hex i n = DerivedId (Id (fromJust h) i n)
   where
-  h = H.fromBase58 b58
+  h = H.fromBase32Hex b32Hex
 
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
@@ -141,8 +143,8 @@ fromText :: Text -> Either String Reference
 fromText t = case Text.split (=='#') t of
   [_, "", b] -> Right (Builtin b)
   [_, h]     -> case Text.split (=='.') h of
-    [hash]         -> Right (derivedBase58 hash 0 1)
-    [hash, suffix] -> uncurry (derivedBase58 hash) <$> readSuffix suffix
+    [hash]         -> Right (derivedBase32Hex hash 0 1)
+    [hash, suffix] -> uncurry (derivedBase32Hex hash) <$> readSuffix suffix
     _ -> bail
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t

@@ -72,7 +72,7 @@ tempGitDir url commit =
   getXdgDirectory XdgCache
     $   "unisonlanguage"
     </> "gitfiles"
-    </> Hash.showBase58 url
+    </> Hash.showBase32Hex url
     </> Text.unpack commit
 
 commandLine

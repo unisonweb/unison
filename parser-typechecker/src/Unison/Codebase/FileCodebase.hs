@@ -98,7 +98,7 @@ termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
 termsDir root = root </> "terms"
 typesDir root = root </> "types"
-branchesDir root = root </> "branches"
+branchesDir root = root </> "paths"
 branchHeadDir root = branchesDir root </> "_head"
 editsDir root = root </> "patches"
 
@@ -136,13 +136,13 @@ decodeFileName p = Text.pack $ go p where
     ("less-than", _:tl) -> '<' : go tl
     ("greater-than", _:tl) -> '>' : go tl
     ("pipe", _:tl) -> '|' : go tl
-    ('b':'5':'8':b58, _:tl) -> unB58 b58 ++ go tl
+    ('b':'3':'2':b32, _:tl) -> unB32hex b32 ++ go tl
     ("",_:tl) -> '$' : go tl
     (s,_:tl) -> s ++ go tl
     (s,[]) -> s
   go (hd:tl) = hd : tl
   go [] = []
-  unB58 s = case Hash.fromBase58 (Text.pack s) of
+  unB32hex s = case Hash.fromBase32Hex (Text.pack s) of
     Nothing -> s
     Just h -> Text.unpack . decodeUtf8 . Hash.toBytes $ h
 
@@ -160,10 +160,10 @@ encodeFileName t = let
   go ('|' : rem) = "$pipe$" <> go rem
   go ('$' : rem) = "$$" <> go rem
   go (c : rem) | not (Char.isPrint c && Char.isAscii c)
-                 = "$b58" <> b58 [c] <> "$" <> go rem
+                 = "$b32" <> b58 [c] <> "$" <> go rem
                | otherwise = c : go rem
   go [] = []
-  b58 = Hash.base58s . Hash.fromBytes . encodeUtf8 . Text.pack
+  b58 = Hash.base32Hexs . Hash.fromBytes . encodeUtf8 . Text.pack
   in if t == "." then "$dot$"
      else if t == ".." then "$dotdot$"
      else go (Text.unpack t)
@@ -174,10 +174,10 @@ typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
 branchPath :: CodebasePath -> Hash.Hash -> FilePath
-branchPath root h = branchesDir root </> Hash.base58s h ++ ".ub"
+branchPath root h = branchesDir root </> Hash.base32Hexs h ++ ".ub"
 
 editsPath :: CodebasePath -> Hash.Hash -> FilePath
-editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
+editsPath root h = editsDir root </> Hash.base32Hexs h ++ ".up"
 
 touchIdFile :: Reference.Id -> FilePath -> IO ()
 touchIdFile id fp = do
@@ -244,7 +244,7 @@ getRootBranch root = do
       x : xs -> foldM Branch.merge x xs
       []     -> failWith . NoBranchHead $ branchHeadDir root
  where
-  go single = case Hash.fromBase58 (Text.pack single) of
+  go single = case Hash.fromBase32Hex (Text.pack single) of
     Nothing -> failWith $ CantParseBranchHead single
     Just h  -> branchFromFiles root (RawHash h)
 
@@ -277,7 +277,7 @@ serializeEdits root h medits = do
 updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
 updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
-      hs = Hash.base58s h
+      hs = Hash.base32Hexs h
   -- write new head
   exists <- doesDirectoryExist headDir
   unless exists $ createDirectory headDir
@@ -288,7 +288,7 @@ updateCausalHead headDir c = do
 
 -- decodeBuiltinName :: FilePath -> Maybe Text
 -- decodeBuiltinName p =
---   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
+--   decodeUtf8 . Hash.toBytes <$> Hash.fromBase32Hex (Text.pack p)
 
 componentId :: Reference.Id -> String
 componentId = Text.unpack . Reference.toText . Reference.DerivedId
@@ -303,7 +303,7 @@ parseHash s = case splitOn "-" s of
     makeId h x y
   _ -> Nothing
  where
-  makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase58 (Text.pack h)
+  makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase32Hex (Text.pack h)
 
 -- Adapted from
 -- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
@@ -545,7 +545,7 @@ branchHeadUpdates root = do
     )
 
 hashFromFilePath :: FilePath -> Maybe Hash.Hash
-hashFromFilePath = Hash.fromBase58 . Text.pack . takeBaseName
+hashFromFilePath = Hash.fromBase32Hex . Text.pack . takeBaseName
 
 failWith :: MonadIO m => Err -> m a
 failWith = fail . show
