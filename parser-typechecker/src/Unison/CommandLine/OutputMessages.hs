@@ -448,15 +448,20 @@ notifyUser dir o = case o of
   ListOfPatches patches ->
     -- todo: make this prettier
     putPrettyLn . P.lines . fmap prettyName $ toList patches
+  NoConfiguredGitUrl pp p ->
+    putPrettyLn . P.fatalCallout . P.wrap $ "I don't know where to " <>
+      (case pp of
+         Push -> "push"
+         Pull -> "pull"
+         ) <> " to! " <>
+      "Use `track <giturl>` to set up this path to push and pull from <giturl>."
+  NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> putPrettyLn "That branch already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."
   TermAmbiguous _ _ _ -> putPrettyLn "That term is ambiguous."
   BadDestinationBranch _ _ -> putPrettyLn "That destination branch is bad."
   TermNotFound' _ _ -> putPrettyLn "That term was not found."
   BranchDiff _ _ -> putPrettyLn "Those branches are different."
-  NoConfiguredGitUrl p ->
-    putPrettyLn . P.fatalCallout . P.wrap $ "I don't know where to push to! " <>
-      "Use `track <giturl>` to set up this path to push and pull from <giturl>."
   NothingToPatch _ _ -> putPrettyLn "There's nothing to patch."
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
