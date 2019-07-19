@@ -6,7 +6,6 @@
 {-# Language PartialTypeSignatures #-}
 {-# Language StrictData #-}
 {-# Language TupleSections #-}
-{-# Language TypeApplications #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
 {-# Language DoAndIfThenElse #-}
@@ -27,7 +26,7 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Word (Word64)
 import Unison.Hash (Hash)
-import Unison.NamePrinter (prettyHashQualified')
+import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Symbol (Symbol)
 import Unison.Term (AnnotatedTerm)
 import Unison.Util.CyclicEq (CyclicEq, cyclicEq)
@@ -80,7 +79,7 @@ makeLazy :: SymbolC -> SymbolC
 makeLazy s = s { isLazy = True }
 
 toSymbolC :: Symbol -> SymbolC
-toSymbolC s = SymbolC False s
+toSymbolC = SymbolC False
 
 -- Values, in normal form
 type RefID = Int
@@ -236,7 +235,7 @@ data IR' ann z
   | Or z (IR' ann z)
   | Not z
   -- pattern, optional guard, rhs
-  | Match z [(Pattern, [Symbol], Maybe (IR' ann z), (IR' ann z))]
+  | Match z [(Pattern, [Symbol], Maybe (IR' ann z), IR' ann z)]
   deriving (Functor,Foldable,Traversable,Eq,Show)
 
 prettyZ :: PPE.PrettyPrintEnv
@@ -255,7 +254,7 @@ prettyIR :: PPE.PrettyPrintEnv
          -> (cont -> P.Pretty String)
          -> IR e cont
          -> P.Pretty String
-prettyIR ppe prettyE prettyCont ir = pir ir
+prettyIR ppe prettyE prettyCont = pir
   where
   unlets (Let s hd tl _) = (Just s, hd) : unlets tl
   unlets e = [(Nothing, e)]
@@ -300,7 +299,7 @@ prettyIR ppe prettyE prettyCont ir = pir ir
     EqF a b -> P.parenthesize $ "EqF" `P.hang` P.spaced [pz a, pz b]
     EqU a b -> P.parenthesize $ "EqU" `P.hang` P.spaced [pz a, pz b]
     CompareU a b -> P.parenthesize $ "CompareU" `P.hang` P.spaced [pz a, pz b]
-    ir@(Let _ _ _ _) ->
+    ir@Let{} ->
       P.group $ "let" `P.hang` P.lines (blockElem <$> block)
       where
       block = unlets ir
@@ -318,11 +317,11 @@ prettyIR ppe prettyE prettyCont ir = pir ir
       P.surroundCommas "[" "]" (pz <$> vs)
     Apply fn args -> P.parenthesize $ pir fn `P.hang` P.spaced (pz <$> args)
     Construct r cid args -> P.parenthesize $
-      ("Construct " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Construct " <> prettyHashQualified0 (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Request r cid args -> P.parenthesize $
-      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified0 (PPE.patternName ppe r cid))
       `P.hang`
       P.surroundCommas "[" "]" (pz <$> args)
     Handle h body -> P.parenthesize $
@@ -345,7 +344,7 @@ prettyValue :: PPE.PrettyPrintEnv
             -> (cont -> P.Pretty String)
             -> Value e cont
             -> P.Pretty String
-prettyValue ppe prettyE prettyCont v = pv v
+prettyValue ppe prettyE prettyCont = pv
   where
   pv v = case v of
     I i -> (if i >= 0 then "+" else "" ) <> P.string (show i)
@@ -358,14 +357,14 @@ prettyValue ppe prettyE prettyCont v = pv v
       ("Lambda " <> P.string (show arity)) `P.hang`
         prettyIR ppe prettyE prettyCont b
     Data r cid vs -> P.parenthesize $
-      ("Data " <> prettyHashQualified' (PPE.patternName ppe r cid)) `P.hang`
+      ("Data " <> prettyHashQualified0 (PPE.patternName ppe r cid)) `P.hang`
         P.surroundCommas "[" "]" (pv <$> vs)
     Sequence vs -> P.surroundCommas "[" "]" (pv <$> vs)
     Ref id name _ -> P.parenthesize $
       P.sep " " ["Ref", P.shown id, P.shown name]
     Pure v -> P.surroundCommas "{" "}" [pv v]
     Requested (Req r cid vs cont) -> P.parenthesize $
-      ("Request " <> prettyHashQualified' (PPE.patternName ppe r cid))
+      ("Request " <> prettyHashQualified0 (PPE.patternName ppe r cid))
         `P.hang`
         P.spaced [
           P.surroundCommas "[" "]" (pv <$> vs),
@@ -384,7 +383,7 @@ data Req e cont = Req R.Reference ConstructorId [Value e cont] cont
 -- tracking free variables or converting away from debruijn indexing.
 -- Currently used as an implementation detail by `specializeIR`.
 annotateDepth :: IR' a z -> IR' a (z, Int)
-annotateDepth ir = go 0 ir where
+annotateDepth = go 0 where
   go depth ir = case ir of
     -- Only the binders modify the depth
     Let v b body ann -> Let v (go depth b) (go (depth + 1) body) ann
@@ -484,16 +483,16 @@ compile0 env bound t =
     Term.Ref' (toIR env -> Just ir) -> ir
     Term.Sequence' vs -> MakeSequence . toList . fmap (toZ "sequence" t) $ vs
     _ -> error $ "TODO - don't know how to compile this term:\n"
-              <> (CT.toPlain . P.render 80 . TP.prettyTop mempty $ void t)
+              <> (CT.toPlain . P.render 80 . TP.pretty mempty $ void t)
     where
       compileVar _ v [] = unknown v
-      compileVar i v ((v',o):tl) =
-        if v == v' then case o of
+      compileVar i v ((v',o):tl)
+        | v == v' = case o of
           Nothing | isLazy v  -> LazySlot i
                   | otherwise -> Slot i
           Just v -> Val v
-        else if isJust o then compileVar i v tl
-        else compileVar (i + 1) v tl
+        | isJust o = compileVar i v tl
+        | otherwise = compileVar (i + 1) v tl
 
       -- freeSlots :: _ -> Set Int
       freeSlots t = let
@@ -535,7 +534,7 @@ compile0 env bound t =
         Pattern.SequenceOp l op r -> case op of
           Pattern.Snoc -> (+ 1) <$> getSeqLength l
           Pattern.Cons -> (+ 1) <$> getSeqLength r
-          Pattern.Concat -> (+) <$> (getSeqLength l) <*> (getSeqLength r)
+          Pattern.Concat -> (+) <$> getSeqLength l <*> getSeqLength r
         Pattern.As p -> getSeqLength p
         _ -> Nothing
 
@@ -677,9 +676,9 @@ boundVarsIR = \case
   EqU _ _ -> mempty
   CompareU _ _ -> mempty
   MakeSequence _ -> mempty
-  Construct _ _ _ -> mempty
-  Request _ _ _ -> mempty
-  Not _ -> mempty
+  Construct{} -> mempty
+  Request{} -> mempty
+  Not{} -> mempty
 
 class External e where
   decompileExternal :: e -> IO (Term Symbol)
@@ -814,8 +813,8 @@ freeSlots ir = case ir of
   Match scrutinee cases -> free scrutinee <> foldMap freeInCase cases where
     freeInCase (_pat, bound, guard, rhs) = let
       n = length bound
-      in (decrementFreesBy n $ freeSlots rhs) <>
-         (fromMaybe mempty $ decrementFreesBy n . freeSlots <$> guard)
+      in decrementFreesBy n (freeSlots rhs) <>
+         maybe mempty (decrementFreesBy n . freeSlots) guard
   _ -> foldMap free (toList ir)
   where
   free z = case z of
@@ -845,7 +844,7 @@ builtins = Map.fromList $ arity0 <> arityN
     let r = Term.ref() $ R.Builtin name :: Term SymbolC
     in FormClosure (ABT.hash r) r []
   var = Var.named "x"
-  arity0 = [ (R.Builtin name, val $ value) | (name, value) <-
+  arity0 = [ (R.Builtin name, val value) | (name, value) <-
         [ ("Text.empty", T "")
         , ("Sequence.empty", Sequence mempty)
         , ("Bytes.empty", Bs mempty)
@@ -1021,22 +1020,22 @@ constructorId v = case v of
   B _ -> 3
   T _ -> 4
   Bs _ -> 5
-  Lam _ _ _ -> 6
-  Data _ _ _ -> 7
+  Lam{} -> 6
+  Data{} -> 7
   Sequence _ -> 8
   Pure _ -> 9
   Requested _ -> 10
-  Ref _ _ _ -> 11
+  Ref{} -> 11
   Cont _ -> 12
-  UninitializedLetRecSlot _ _ _ -> 13
+  UninitializedLetRecSlot{} -> 13
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
   cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =
     COrd.bothOrd' h1 h2 hash1 hash2 vs1 vs2
   cyclicOrd h1 h2 (Specialize hash1 _ vs1) (Specialize hash2 _ vs2) =
     COrd.bothOrd' h1 h2 hash1 hash2 (map snd vs1) (map snd vs2)
-  cyclicOrd _ _ (FormClosure _ _ _) _ = pure LT
-  cyclicOrd _ _ (Specialize _ _ _) _  = pure GT
+  cyclicOrd _ _ FormClosure{} _ = pure LT
+  cyclicOrd _ _ Specialize{} _  = pure GT
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (Req e cont) where
   cyclicOrd h1 h2 (Req r1 c1 vs1 k1) (Req r2 c2 vs2 k2) = case compare r1 r2 of

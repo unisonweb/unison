@@ -1,6 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# Language BangPatterns, ViewPatterns, TemplateHaskell, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 
 module Unison.Lexer where
 
@@ -16,11 +21,13 @@ import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
-import           Unison.Hash (Hash)
+import           Unison.ShortHash ( ShortHash )
+import qualified Unison.ShortHash as SH
 
 data Err
   = InvalidWordyId String
   | InvalidSymbolyId String
+  | InvalidShortHash String
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
   | UnknownLexeme
@@ -36,20 +43,28 @@ data Err
 --   any knowledge of comments
 data Lexeme
   = Open String      -- start of a block
-  | Semi             -- separator between elements of a block
+  | Semi IsVirtual   -- separator between elements of a block
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
-  | Backticks String -- an identifier in backticks
-  | WordyId String   -- a (non-infix) identifier
-  | SymbolyId String -- an infix identifier
+  | Backticks String (Maybe ShortHash) -- an identifier in backticks
+  | WordyId String   (Maybe ShortHash) -- a (non-infix) identifier
+  | SymbolyId String (Maybe ShortHash) -- an infix identifier
   | Blank String     -- a typed hole or placeholder
   | Numeric String   -- numeric literals, left unparsed
-  | Hash Hash        -- hash literals
+  | Hash ShortHash   -- hash literals
   | Err Err
   deriving (Eq,Show,Ord)
 
+type IsVirtual = Bool -- is it a virtual semi or an actual semi?
+
 makePrisms ''Lexeme
+
+simpleWordyId :: String -> Lexeme
+simpleWordyId = flip WordyId Nothing
+
+simpleSymbolyId :: String -> Lexeme
+simpleSymbolyId = flip SymbolyId Nothing
 
 data Token a = Token {
   payload :: a,
@@ -60,7 +75,7 @@ data Token a = Token {
 notLayout :: Token Lexeme -> Bool
 notLayout t = case payload t of
   Close -> False
-  Semi -> False
+  Semi _ -> False
   Open _ -> False
   _ -> True
 
@@ -68,7 +83,7 @@ instance ShowToken (Token Lexeme) where
   showTokens xs =
       join . Nel.toList . S.evalState (traverse go xs) . end $ Nel.head xs
     where
-      go :: (Token Lexeme) -> S.State Pos String
+      go :: Token Lexeme -> S.State Pos String
       go tok = do
         prev <- S.get
         S.put $ end tok
@@ -76,15 +91,17 @@ instance ShowToken (Token Lexeme) where
       pretty (Open s) = s
       pretty (Reserved w) = w
       pretty (Textual t) = '"' : t ++ ['"']
-      pretty (Backticks n) = '`' : n ++ ['`']
-      pretty (WordyId n) = n
-      pretty (SymbolyId n) = n
+      pretty (Backticks n h) =
+        '`' : n ++ (toList h >>= SH.toString) ++ ['`']
+      pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
+      pretty (SymbolyId n h) = n ++ (toList h >>= SH.toString)
       pretty (Blank s) = "_" ++ s
       pretty (Numeric n) = n
-      pretty (Hash h) = show h
+      pretty (Hash sh) = show sh
       pretty (Err e) = show e
       pretty Close = "<outdent>"
-      pretty Semi = "<virtual semicolon>"
+      pretty (Semi True) = "<virtual semicolon>"
+      pretty (Semi False) = ";"
       pad (Pos line1 col1) (Pos line2 col2) =
         if line1 == line2
         then replicate (col2 - col1) ' '
@@ -130,6 +147,10 @@ topBlockName :: Layout -> Maybe BlockName
 topBlockName [] = Nothing
 topBlockName ((name,_):_) = Just name
 
+topHasClosePair :: Layout -> Bool
+topHasClosePair [] = False
+topHasClosePair ((name,_):_) = name == "{" || name == "("
+
 pop :: [a] -> [a]
 pop = drop 1
 
@@ -158,7 +179,7 @@ reorderTree _ l@(L _) = l
 reorderTree f (T open mid close) = T open (f (reorderTree f <$> mid)) close
 
 tree :: [Token Lexeme] -> T (Token Lexeme)
-tree toks = one toks (\t _ -> t) where
+tree toks = one toks const where
   one (open@(payload -> Open _) : ts) k = many (T open) [] ts k
   one (t : ts) k = k (L t) ts
   one [] k = k lastErr [] where
@@ -171,23 +192,23 @@ tree toks = one toks (\t _ -> t) where
   many open acc ts k = one ts $ \t ts -> many open (t:acc) ts k
 
 stanzas :: [T (Token Lexeme)] -> [[T (Token Lexeme)]]
-stanzas ts = go [] ts where
+stanzas = go [] where
   go acc [] = [reverse acc]
   go acc (t:ts) = case payload $ headToken t of
-    Semi   -> (reverse $ t : acc) : go [] ts
+    Semi _ -> reverse (t : acc) : go [] ts
     _      -> go (t:acc) ts
 
 -- Moves type and effect declarations to the front of the token stream
 -- and move `use` statements to the front of each block
 reorder :: [T (Token Lexeme)] -> [T (Token Lexeme)]
-reorder ts = join . sortWith f . stanzas $ ts
+reorder = join . sortWith f . stanzas
   where
     f [] = 3 :: Int
     f (t : _) = case payload $ headToken t of
-      Open "type" -> 0
-      Open "unique" -> 0
-      Open "ability" -> 0
-      Reserved "use" -> 1
+      Open "type" -> 1
+      Open "unique" -> 1
+      Open "ability" -> 1
+      Reserved "use" -> 0
       _ -> 3 :: Int
 
 lexer :: String -> String -> [Token Lexeme]
@@ -195,7 +216,7 @@ lexer scope rem =
   let t = tree $ lexer0 scope rem
       -- after reordering can end up with trailing semicolon at the end of
       -- a block, which we remove with this pass
-      fixup ((payload -> Semi) : t@(payload -> Close) : tl) = t : fixup tl
+      fixup ((payload -> Semi _) : t@(payload -> Close) : tl) = t : fixup tl
       fixup [] = []
       fixup (h : t) = h : fixup t
   in fixup . toList $ reorderTree reorder t
@@ -205,27 +226,34 @@ lexer0 scope rem =
     tweak $ Token (Open scope) topLeftCorner topLeftCorner
       : pushLayout scope [] topLeftCorner rem
   where
-    -- 1+1 lexes as [1, +1], and it's not easy to fix without adding more
-    -- state to the lexer, so we have a hacky postprocessing pass to convert
-    -- it to [1, +, 1]
+    -- hacky postprocessing pass to do some cleanup of stuff that's annoying to
+    -- fix without adding more state to the lexer:
+    --   - 1+1 lexes as [1, +1], convert this to [1, +, 1]
+    --   - when a semi followed by a virtual semi, drop the virtual, lets you
+    --     write
+    --       foo x = action1;
+    --               2
     tweak [] = []
+    tweak (h@(payload -> Semi False):(payload -> Semi True):t) = h : tweak t
     tweak (h@(payload -> Reserved _):t) = h : tweak t
     tweak (t1:t2@(payload -> Numeric num):rem)
       | notLayout t1 && touches t1 t2 && isSigned num =
-        t1 : Token (SymbolyId $ take 1 num) (start t2) (inc $ start t2)
+        t1 : Token (SymbolyId (take 1 num) Nothing)
+                   (start t2)
+                   (inc $ start t2)
            : Token (Numeric (drop 1 num)) (inc $ start t2) (end t2)
            : tweak rem
     tweak (h:t) = h : tweak t
     isSigned num = all (\ch -> ch == '-' || ch == '+') $ take 1 num
     -- skip whitespace and comments
-    goWhitespace :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    goWhitespace :: Layout -> Pos -> String -> [Token Lexeme]
     goWhitespace l pos rem = span' isSpace rem $ \case
       (_spaces, '-':'-':'-':_rem) -> popLayout0 l pos []
       (spaces, '-':'-':rem) -> spanThru' (/= '\n') rem $ \(ignored, rem) ->
         goWhitespace l (incBy ('-':'-':ignored) . incBy spaces $ pos) rem
       (spaces, rem) -> popLayout l (incBy spaces pos) rem
 
-    popLayout :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    popLayout :: Layout -> Pos -> String -> [Token Lexeme]
     popLayout l pos rem = case matchKeyword' layoutCloseAndOpenKeywords rem of
       Nothing -> case matchKeyword' layoutCloseOnlyKeywords rem of
         Nothing -> popLayout0 l pos rem
@@ -242,11 +270,11 @@ lexer0 scope rem =
 
     -- Examine current column and pop the layout stack
     -- and emit `Semi` / `Close` tokens as needed
-    popLayout0 :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    popLayout0 :: Layout -> Pos -> String -> [Token Lexeme]
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
-      | top l == c2 = Token Semi p p : go l p rem
-      | top l <  c2 = go l p rem
+      | top l == c2 = Token (Semi True) p p : go l p rem
+      | top l <  c2 || topHasClosePair l = go l p rem
       | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
 
@@ -254,7 +282,7 @@ lexer0 scope rem =
     -- go1 (top l + 1 : l) pos rem
     -- looks for the next non whitespace, non-comment character, and
     -- pushes its column onto the layout stack
-    pushLayout :: BlockName -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    pushLayout :: BlockName -> Layout -> Pos -> String -> [Token Lexeme]
     pushLayout b l pos rem = span' isSpace rem $ \case
       (_spaces, '-':'-':'-':_rem) ->
         -- short circuit - everything after `---` is ignored
@@ -279,7 +307,7 @@ lexer0 scope rem =
     findClose s ((h,_):tl) = if s == h then Just 1 else (1+) <$> findClose s tl
 
     -- Closes a layout block with the given open/close pair, e.g `close "(" ")"`
-    close :: String -> String -> Layout -> Pos -> [Char] -> [Token Lexeme]
+    close :: String -> String -> Layout -> Pos -> String -> [Token Lexeme]
     close open close l pos rem = case findClose open l of
       Nothing -> [Token (Err $ CloseWithoutMatchingOpen open close) pos pos]
       Just n ->
@@ -298,7 +326,7 @@ lexer0 scope rem =
         (Just $ drop n l, replicate n $ Token Close pos (incBy close pos))
 
     -- assuming we've dealt with whitespace and layout, read a token
-    go :: Layout -> Pos -> [Char] -> [Token Lexeme]
+    go :: Layout -> Pos -> String -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
       -- '{' and '(' both introduce a block, which is closed by '}' and ')'
@@ -311,6 +339,7 @@ lexer0 scope rem =
       '}' : rem -> close "{" "}" l pos rem
       '(' : rem -> Token (Open "(") pos (inc pos) : pushLayout "(" l (inc pos) rem
       ')' : rem -> close "(" ")" l pos rem
+      ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
@@ -328,7 +357,7 @@ lexer0 scope rem =
         in Token (Blank id) pos pos' : goWhitespace l pos' rem
       '|' : c : rem | isSpace c || isAlphaNum c ->
         Token (Reserved "|") pos (inc pos) : goWhitespace l (inc pos) (c:rem)
-      '=' : (rem @ (c : _)) | isSpace c || isAlphaNum c ->
+      '=' : rem@(c : _) | isSpace c || isAlphaNum c ->
         let end = inc pos
         in case topBlockName l of
           -- '=' does not open a layout block if within a type declaration
@@ -336,7 +365,7 @@ lexer0 scope rem =
           Just "unique" -> Token (Reserved "=") pos end : goWhitespace l end rem
           Just _      -> Token (Open "=") pos end : pushLayout "=" l end rem
           Nothing     -> Token (Err LayoutError) pos pos : recover l pos rem
-      '-' : '>' : (rem @ (c : _))
+      '-' : '>' : rem@(c : _)
         | isSpace c || isAlphaNum c || Set.member c delimiters ->
           let end = incBy "->" pos
           in case topBlockName l of
@@ -349,23 +378,54 @@ lexer0 scope rem =
       '"' : rem -> case splitStringLit rem of
         Right (delta, lit, rem) -> let end = pos <> delta in
           Token (Textual lit) pos end : goWhitespace l end rem
-        Left (TextLiteralMissingClosingQuote _) -> [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
+        Left (TextLiteralMissingClosingQuote _) ->
+          [Token (Err $ TextLiteralMissingClosingQuote rem) pos pos]
         Left err -> [Token (Err err) pos pos]
       '`' : rem -> case wordyId rem of
         Left e -> Token (Err e) pos pos : recover l pos rem
         Right (id, rem) ->
-          let end = inc . incBy id . inc $ pos in
-                Token (Backticks id) pos end : goWhitespace l end (pop rem)
+          if ['#'] `isPrefixOf` rem then
+             case shortHash rem of
+               Left e -> Token (Err e) pos pos : recover l pos rem
+               Right (h, rem) ->
+                 let end = inc . incBy id . incBy (SH.toString h) . inc $ pos
+                  in Token (Backticks id (Just h)) pos end
+                     : goWhitespace l end (pop rem)
+          else
+           let end = inc . incBy id . inc $ pos
+            in Token (Backticks id Nothing) pos end
+                 : goWhitespace l end (pop rem)
 
+      rem@('#' : _) -> case shortHash rem of
+         Left e -> Token (Err e) pos pos : recover l pos rem
+         Right (h, rem) ->
+           let end = incBy (SH.toString h) pos
+           in Token (Hash h) pos end : goWhitespace l end rem
       -- keywords and identifiers
       (symbolyId -> Right (id, rem')) -> case numericLit rem of
         Right (Just (num, rem)) ->
           let end = incBy num pos
           in Token (Numeric num) pos end : goWhitespace l end rem
-        _ -> let end = incBy id pos
-             in Token (SymbolyId id) pos end : goWhitespace l end rem'
+        _ -> if ['#'] `isPrefixOf` rem then
+               case shortHash rem' of
+                 Left e -> Token (Err e) pos pos : recover l pos rem'
+                 Right (h, rem) ->
+                   let end = incBy id . incBy (SH.toString h) $ pos
+                    in Token (SymbolyId id (Just h)) pos end
+                       : goWhitespace l end rem
+             else
+              let end = incBy id pos
+               in Token (SymbolyId id Nothing) pos end : goWhitespace l end rem'
       (wordyId -> Right (id, rem)) ->
-        let end = incBy id pos in Token (WordyId id) pos end : goWhitespace l end rem
+        if ['#'] `isPrefixOf` rem then
+          case shortHash rem of
+            Left e -> Token (Err e) pos pos : recover l pos rem
+            Right (h, rem) ->
+              let end = incBy id . incBy (SH.toString h) $ pos
+               in Token (WordyId id (Just h)) pos end
+                  : goWhitespace l end rem
+        else let end = incBy id pos
+              in Token (WordyId id Nothing) pos end : goWhitespace l end rem
       (matchKeyword -> Just (kw,rem)) ->
         let end = incBy kw pos in
               case kw of
@@ -399,7 +459,7 @@ matchKeyword :: String -> Maybe (String,String)
 matchKeyword = matchKeyword' keywords
 
 matchKeyword' :: Set String -> String -> Maybe (String,String)
-matchKeyword' keywords s = case span (not . isSep) s of
+matchKeyword' keywords s = case break isSep s of
   (kw, rem) | Set.member kw keywords -> Just (kw, rem)
   _ -> Nothing
 
@@ -407,7 +467,7 @@ matchKeyword' keywords s = case span (not . isSep) s of
 -- both the starting and ending `"` character
 -- The input string should only start with a '"' if the string literal is empty
 splitStringLit :: String -> Either Err (Pos, String, String)
-splitStringLit rem0 = go (inc mempty) "" rem0 where
+splitStringLit = go (inc mempty) "" where
   -- n tracks the raw character delta of this literal
   go !n !acc ('\\':s:rem) = case parseEscapeChar s of
     Just e -> go (inc . inc $ n) (e:acc) rem
@@ -436,21 +496,21 @@ parseEscapeChar _    = Nothing
 
 
 numericLit :: String -> Either Err (Maybe (String,String))
-numericLit s = go s
+numericLit = go
   where
   go ('+':s) = go2 "+" s
   go ('-':s) = go2 "-" s
   go s = go2 "" s
   go2 sign s = case span isDigit s of
-    (num @ (_:_), []) -> pure $ pure (sign ++ num, [])
-    (num @ (_:_), '.':rem) -> case span isDigit rem of
-      (fractional @ (_:_), []) ->
+    (num@(_:_), []) -> pure $ pure (sign ++ num, [])
+    (num@(_:_), '.':rem) -> case span isDigit rem of
+      (fractional@(_:_), []) ->
         pure $ pure (sign ++ num ++ "." ++ fractional, [])
-      (fractional @ (_:_), c:rem)
+      (fractional@(_:_), c:rem)
         | isSep c -> pure $ pure (sign ++ num ++ "." ++ fractional, c:rem)
         | otherwise -> pure Nothing
       ([], _) -> Left (MissingFractional (sign ++ num ++ "."))
-    (num @ (_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
+    (num@(_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
     ([], _) -> pure Nothing
 
 isSep :: Char -> Bool
@@ -463,7 +523,7 @@ hasSep (ch:_) = isSep ch
 -- Not a keyword, '.' delimited list of wordyId0 (should not include a trailing '.')
 wordyId0 :: String -> Either Err (String, String)
 wordyId0 s = span' wordyIdChar s $ \case
-  (id @ (ch:_), rem) | not (Set.member id keywords)
+  (id@(ch:_), rem) | not (Set.member id keywords)
                     && wordyIdStartChar ch
                     -> Right (id, rem)
   (id, _rem) -> Left (InvalidWordyId id)
@@ -479,27 +539,44 @@ isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
 
 splitOn :: Char -> String -> [String]
-splitOn c s = unfoldr step s where
+splitOn c = unfoldr step where
   step [] = Nothing
   step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
 
--- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
 symbolyId :: String -> Either Err (String, String)
-symbolyId s = case wordyId0 s of
+symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
+                       = symbolyId0 r -- lone dot treated as an operator
+symbolyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> symbolyId' s
+symbolyId s = symbolyId' s
+
+-- Is a '.' delimited list of wordyId, with a final segment of `symbolyId0`
+symbolyId' :: String -> Either Err (String, String)
+symbolyId' s = case wordyId0 s of
   Left _ -> symbolyId0 s
   Right (wid, '.':rem) -> case symbolyId rem of
     Left e -> Left e
     Right (rest, rem) -> Right (wid <> "." <> rest, rem)
   Right (w,_) -> Left (InvalidSymbolyId w)
 
--- Is a '.' delimited list of wordyId
 wordyId :: String -> Either Err (String, String)
-wordyId s = case wordyId0 s of
+wordyId ('.':s) = (\(s,rem) -> ('.':s,rem)) <$> wordyId' s
+wordyId s = wordyId' s
+
+-- Is a '.' delimited list of wordyId
+wordyId' :: String -> Either Err (String, String)
+wordyId' s = case wordyId0 s of
   Left e -> Left e
   Right (wid, '.':rem@(ch:_)) | wordyIdStartChar ch -> case wordyId rem of
     Left e -> Left e
     Right (rest, rem) -> Right (wid <> "." <> rest, rem)
   Right (w,rem) -> Right (w,rem)
+
+-- Is a `ShortHash`
+shortHash :: String -> Either Err (ShortHash, String)
+shortHash s = case SH.fromString potentialHash of
+  Nothing -> Left (InvalidShortHash potentialHash)
+  Just x  -> Right (x, rem)
+  where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
 
 -- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
 splitWordy :: String -> (String, String)
@@ -516,14 +593,14 @@ splitSymboly s =
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
 symbolyId0 s = span' symbolyIdChar s $ \case
-  (id @ (_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
+  (id@(_:_), rem) | not (Set.member id reservedOperators) -> Right (id, rem)
   (id, _rem) -> Left (InvalidSymbolyId id)
 
 symbolyIdChar :: Char -> Bool
 symbolyIdChar ch = Set.member ch symbolyIdChars
 
 symbolyIdChars :: Set Char
-symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:;"
+symbolyIdChars = Set.fromList "!$%^&*-=+<>.~\\/|:"
 
 keywords :: Set String
 keywords = Set.fromList [
@@ -555,7 +632,10 @@ layoutCloseOnlyKeywords :: Set String
 layoutCloseOnlyKeywords = Set.fromList ["}"]
 
 delimiters :: Set Char
-delimiters = Set.fromList "()[]{},?"
+delimiters = Set.fromList "()[]{},?;"
+
+isDelimeter :: Char -> Bool
+isDelimeter ch = Set.member ch delimiters
 
 reserved :: Set Char
 reserved = Set.fromList "=:`\""

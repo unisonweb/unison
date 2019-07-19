@@ -12,6 +12,7 @@
 
 module Unison.Runtime.Rt1 where
 
+import Debug.Trace (traceM)
 import Control.Monad (foldM, join, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
@@ -66,6 +67,12 @@ data Continuation
   = WrapHandler Value Continuation
   | One NeededStack Size Stack IR
   | Chain Symbol Continuation Continuation
+
+-- just returns its input
+idContinuation :: IO Continuation
+idContinuation = do
+  m0 <- MV.new 1
+  pure $ One 0 1 m0 (IR.Leaf (IR.Slot 0))
 
 instance Show Continuation where
   show _c = "<continuation>"
@@ -142,7 +149,10 @@ atb size i m = at size i m >>= \case
 att :: Size -> Z -> Stack -> IO Text
 att size i m = at size i m >>= \case
   T t -> pure t
-  v -> fail $ "type error, expecting T, got " <> show v
+  v   -> do
+    stackStuff <- fmap (take 200 . show) <$> traverse (MV.read m) [0 .. size - 1]
+    traceM $ "nstack:\n" <> intercalateMap "\n" (take 200) stackStuff
+    fail $ "type error, expecting T at " <> show i <> ", got " <> show v
 
 atbs :: Size -> Z -> Stack -> IO Bytes.Bytes
 atbs size i m = at size i m >>= \case
@@ -152,7 +162,7 @@ atbs size i m = at size i m >>= \case
 ats :: Size -> Z -> Stack -> IO (Seq Value)
 ats size i m = at size i m >>= \case
   Sequence v -> pure v
-  v -> fail $ "type error, expecting Sequence, got: " <> show v
+  v -> fail $ "type error, expecting List, got: " <> show v
 
 atd :: Size -> Z -> Stack -> IO (R.Reference, ConstructorId, [Value])
 atd size i m = at size i m >>= \case
@@ -224,8 +234,7 @@ compilationEnv :: Monad m
   -> Term.AnnotatedTerm Symbol a
   -> m CompilationEnv
 compilationEnv env t = do
-  let typeDeps = Term.referencedDataDeclarations t
-              <> Term.referencedEffectDeclarations t
+  let typeDeps = Term.typeDependencies t
   arityMap <- fmap (Map.fromList . join) . for (toList typeDeps) $ \case
     r@(R.DerivedId id) -> do
       decl <- CL.getTypeDeclaration env id
@@ -267,22 +276,22 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.<"    att att (pure . B) (<)
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
 
-    , mk2 "Sequence.at" atn ats (pure . IR.maybeToOptional)
+    , mk2 "List.at" atn ats (pure . IR.maybeToOptional)
       $ Sequence.lookup
       . fromIntegral
-    , mk2 "Sequence.cons" at  ats (pure . Sequence) (Sequence.<|)
-    , mk2 "Sequence.snoc" ats at  (pure . Sequence) (Sequence.|>)
-    , mk2 "Sequence.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
-    , mk2 "Sequence.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
-    , mk2 "Sequence.++"   ats ats (pure . Sequence) (<>)
-    , mk1 "Sequence.size"  ats (pure . N) (fromIntegral . Sequence.length)
+    , mk2 "List.cons" at  ats (pure . Sequence) (Sequence.<|)
+    , mk2 "List.snoc" ats at  (pure . Sequence) (Sequence.|>)
+    , mk2 "List.take" atn ats (pure . Sequence) (Sequence.take . fromIntegral)
+    , mk2 "List.drop" atn ats (pure . Sequence) (Sequence.drop . fromIntegral)
+    , mk2 "List.++"   ats ats (pure . Sequence) (<>)
+    , mk1 "List.size"  ats (pure . N) (fromIntegral . Sequence.length)
 
-    , mk1 "Bytes.fromSequence" ats (pure . Bs) (\s ->
+    , mk1 "Bytes.fromList" ats (pure . Bs) (\s ->
         Bytes.fromByteString (BS.pack [ fromIntegral n | N n <- toList s]))
     , mk2 "Bytes.++"  atbs atbs (pure . Bs) (<>)
     , mk2 "Bytes.take" atn atbs (pure . Bs) (\n b -> Bytes.take (fromIntegral n) b)
     , mk2 "Bytes.drop" atn atbs (pure . Bs) (\n b -> Bytes.drop (fromIntegral n) b)
-    , mk1 "Bytes.toSequence" atbs (pure . Sequence)
+    , mk1 "Bytes.toList" atbs (pure . Sequence)
         (\bs -> Sequence.fromList [ N (fromIntegral n) | n <- Bytes.toWord8s bs ])
     , mk1 "Bytes.size" atbs (pure . N . fromIntegral) Bytes.size
     , mk2 "Bytes.at" atn atbs pure $ \i bs ->
@@ -320,6 +329,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.floor"         atf (pure . I) floor
     , mk1 "Float.round"         atf (pure . I) round
     , mk1 "Float.truncate"      atf (pure . I) truncate
+
+    , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
 
     -- Float Utils
     , mk1 "Float.abs"           atf (pure . F) abs
@@ -374,14 +385,14 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
       mkC $ f a b
     )
 
-run :: (R.Reference -> ConstructorId -> [Value] -> IO Value)
+run :: (R.Reference -> ConstructorId -> [Value] -> IO Result)
     -> CompilationEnv
     -> IR
     -> IO Result
 run ioHandler env ir = do
   let -- pir = prettyIR mempty pexternal pcont
       -- pvalue = prettyValue mempty pexternal pcont
-      -- pcont _k = "<continuation>" -- TP.prettyTop mempty <$> decompileExternal k
+      -- pcont _k = "<continuation>" -- TP.pretty mempty <$> decompileExternal k
       -- if we had a PrettyPrintEnv, we could use that here
       -- pexternal (ExternalFunction r _) = P.shown r
   -- traceM $ "Running this program"
@@ -426,7 +437,7 @@ run ioHandler env ir = do
             else pure (size, m)
           -- traceM . P.render 80 $ P.shown var <> " =" `P.hang` pvalue v
           push size v m >>= \m -> go (size + 1) m body
-        e@(RMatchFail _ _ _) -> error $ show e
+        e@(RMatchFail _ _ _) -> pure e
       LetRec bs body -> letrec size m bs body
       MakeSequence vs ->
         done . Sequence . Sequence.fromList =<< traverse (\i -> at size i m) vs
@@ -551,9 +562,15 @@ run ioHandler env ir = do
     -- call _ _ fn@(Lam _ _ _) args | trace ("call "<> show fn <> " " <>show args) False = undefined
     call size m fn@(Lam arity underapply body) args = let nargs = length args in
       -- fully applied call, `(x y -> ..) 9 10`
-      if nargs == arity then do
-        (size, m) <- pushManyZ size args m
-        go size m body
+      if nargs == arity then case underapply of
+        -- when calling a closure, we supply all the closure arguments, before
+        -- `args`. See fix528.u for an example.
+        FormClosure _hash _tm pushedArgs -> do
+          (size, m) <- pushManyZ size (fmap Val (reverse pushedArgs) ++ args) m
+          go size m body
+        _ -> do
+          (size, m) <- pushManyZ size args m
+          go size m body
       -- overapplied call, e.g. `id id 42`
       else if nargs > arity then do
         let (usedArgs, extraArgs) = splitAt arity args
@@ -590,14 +607,9 @@ run ioHandler env ir = do
               body
             in done $ Lam (arity - nargs) (Specialize hash lam pushedArgs') compiled
           Specialize _ e pushedArgs -> error $ "can't underapply a non-lambda: " <> show e <> " " <> show pushedArgs
-          FormClosure hash tm pushedArgs -> let
-            pushedArgs' = reverse argvs ++ pushedArgs
-            arity' = arity - nargs
-            allArgs = replicate arity' Nothing ++ map Just pushedArgs'
-            bound = Map.fromList [ (i, v) | (Just v, i) <- allArgs `zip` [0..]]
-            in done $ Lam (arity - nargs)
-                       (FormClosure hash tm pushedArgs')
-                       (specializeIR bound body)
+          FormClosure hash tm pushedArgs ->
+            let pushedArgs' = reverse argvs ++ pushedArgs
+            in done $ Lam (arity - nargs) (FormClosure hash tm pushedArgs') body
     call size m (Cont k) [arg] = do
       v <- at size arg m
       callContinuation size m k v
@@ -734,8 +746,11 @@ run ioHandler env ir = do
       pure (size2, m)
     loop (RRequest (Req ref cid vs k)) = do
       ioResult <- ioHandler ref cid vs
-      x <- callContinuation 0 m0 k ioResult
-      loop x
+      case ioResult of
+        RDone ioResult -> do
+          x <- callContinuation 0 m0 k ioResult
+          loop x
+        r -> pure r
     loop a = pure a
 
   r <- go 0 m0 ir

@@ -22,11 +22,11 @@ force f = case f of Future.Future r -> !r
 use Future Future
 use Optional None Some
 use Monoid Monoid
-use Sequence ++ at
+use List ++ at
 use Universal <
 
-Sequence.map : (a ->{e} b) -> [a] ->{e} [b]
-Sequence.map f as =
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
   go f acc as i = case at i as of
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
@@ -48,19 +48,19 @@ uncons as = case at 0 as of
 
 dreduce : Monoid a -> [a] ->{Remote} a
 dreduce m a =
-  if size a < 2 then Monoid.orElse m (Sequence.at 0 a)
+  if size a < 2 then Monoid.orElse m (List.at 0 a)
   else
     l = Remote.at Remote.spawn '(dreduce m (take (size a / 2) a))
     r = Remote.at Remote.spawn '(dreduce m (drop (size a / 2) a))
     Monoid.op m (force l) (force r)
 
 dmapReduce : (a ->{Remote} b) -> Monoid b -> [a] ->{Remote} b
-dmapReduce f m as = dreduce m (Sequence.map f as)
+dmapReduce f m as = dreduce m (List.map f as)
 
 dsort2 : (a -> a -> Boolean) -> [a] ->{Remote} [a]
 dsort2 lte as =
   dreduce (Monoid (merge lte) [])
-          (Sequence.map (a -> [a]) as)
+          (List.map (a -> [a]) as)
 
 halve : [a] -> ([a], [a])
 halve s = splitAt (size s / 2) s

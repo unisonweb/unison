@@ -1,45 +1,61 @@
 {-# LANGUAGE PatternSynonyms #-}
 
-module Unison.Test.Common where
+module Unison.Test.Common
+  ( hqLength
+  , t
+  , tm
+  , parseAndSynthesizeAsFile
+  , parsingEnv
+  ) where
 
-import           Data.Functor.Identity (runIdentity)
 import           Data.Sequence (Seq)
 import qualified Data.Text as Text
 import qualified Unison.Builtin as B
 import qualified Unison.FileParsers as FP
 import           Unison.Parser (Ann(..))
-import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Result (Result)
-import qualified Unison.Result as Result
-import           Unison.Result (Note)
+import           Unison.PrintError              ( prettyParseError )
+import           Unison.Result (Result, Note)
 import           Unison.Symbol (Symbol)
 import           Unison.Term (AnnotatedTerm)
-import           Unison.Type (AnnotatedType)
-import qualified Unison.Typechecker as Typechecker
 import           Unison.Var (Var)
 import           Unison.UnisonFile (TypecheckedUnisonFile)
+import qualified Unison.ABT                    as ABT
+import qualified Unison.Lexer                  as L
+import qualified Unison.Parser                 as Parser
+import qualified Unison.TermParser             as TermParser
+import qualified Unison.Type
+import qualified Unison.Type                   as Type
+import qualified Unison.TypeParser             as TypeParser
+import qualified Unison.Util.Pretty            as Pr
+import qualified Text.Megaparsec.Error         as MPE
+import qualified Unison.Names3
+
 
 type Term v = AnnotatedTerm v Ann
-type Type v = AnnotatedType v Ann
+type Type v = Unison.Type.Type v Ann
 
-tm :: String -> Term Symbol
-tm = B.tm
-
-file
-  :: String
-  -> Result
-       (Seq (Note Symbol Ann))
-       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile Symbol Ann))
-file = parseAndSynthesizeAsFile [] ""
+hqLength :: Int
+hqLength = 10
 
 t :: String -> Type Symbol
-t = B.t
+t s = ABT.amap (const Intrinsic)
+  -- . either (error . show ) id
+  -- . Type.bindSomeNames B.names0
+  . either (error . showParseError s) tweak
+  $ Parser.run (Parser.root TypeParser.valueType) s parsingEnv
+  where tweak = Type.generalizeLowercase mempty
 
-typechecks :: String -> Bool
-typechecks = runIdentity . Result.isSuccess . file
+tm :: String -> Term Symbol
+tm s = either (error . show) id
+     -- . Term.bindSomeNames mempty B.names0
+     -- . either (error . showParseError s) id
+     $ Parser.run (Parser.root TermParser.term) s parsingEnv
 
-env :: Typechecker.Env Symbol Ann
-env = Typechecker.Env Intrinsic [] B.typeLookup mempty
+showParseError :: Var v
+               => String
+               -> MPE.ParseError (L.Token L.Lexeme) (Parser.Error v)
+               -> String
+showParseError s = Pr.toANSI 60 . prettyParseError s
 
 parseAndSynthesizeAsFile
   :: Var v
@@ -48,10 +64,13 @@ parseAndSynthesizeAsFile
   -> String
   -> Result
        (Seq (Note v Ann))
-       (PPE.PrettyPrintEnv, Maybe (TypecheckedUnisonFile v Ann))
+       (Either Unison.Names3.Names0 (TypecheckedUnisonFile v Ann))
 parseAndSynthesizeAsFile ambient filename s = FP.parseAndSynthesizeFile
   ambient
   (\_deps -> pure B.typeLookup)
-  (mempty, B.names)
+  parsingEnv
   filename
   (Text.pack s)
+
+parsingEnv :: Parser.ParsingEnv
+parsingEnv = Parser.ParsingEnv mempty B.names

@@ -1,141 +1,150 @@
-{-# LANGUAGE DoAndIfThenElse #-}
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Unison.Codebase.FileCodebase where
 
-import           Control.Applicative
-import           Control.Concurrent             ( forkIO
+-- import Debug.Trace
+import           Control.Monad                  ( forever, foldM, unless, when)
+import           Control.Monad.Extra            ( unlessM )
+import           UnliftIO                       ( MonadIO
+                                                , MonadUnliftIO
+                                                , liftIO )
+import           UnliftIO.Concurrent            ( forkIO
                                                 , killThread
                                                 )
-import           Control.Monad                  ( filterM
-                                                , forever
-                                                , when
-                                                )
-import           Control.Monad.Error.Class      ( MonadError
-                                                , throwError
-                                                )
-import           Control.Monad.Except           ( runExceptT )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
-import           Control.Monad.STM              ( atomically )
-import qualified Data.Bytes.Get                as Get
-import qualified Data.ByteString               as BS
+import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
-import           Data.Foldable                  ( traverse_, toList )
-import           Data.List                      ( isSuffixOf
-                                                , partition
+import           Data.Foldable                  ( traverse_
+                                                , toList
+                                                , forM_
+                                                , for_
                                                 )
+import           Data.List                      ( isSuffixOf )
 import           Data.List.Split                ( splitOn )
-import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes, fromMaybe, isJust )
+import           Data.Maybe                     ( fromMaybe )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Text.Encoding             ( encodeUtf8, decodeUtf8 )
-import           System.Directory               ( createDirectoryIfMissing
+import           Data.Text.Encoding             ( encodeUtf8
+                                                , decodeUtf8
+                                                )
+import           UnliftIO.Directory             ( createDirectoryIfMissing
+                                                , doesFileExist
                                                 , doesDirectoryExist
                                                 , listDirectory
+                                                , createDirectory
                                                 , removeFile
-                                                , removeDirectoryRecursive
+                                                , doesPathExist
+                                                -- , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
                                                 , takeBaseName
-                                                , takeDirectory
-                                                , takeExtension
                                                 , takeFileName
                                                 , (</>)
                                                 )
-import           Text.Read                      ( readMaybe )
-import qualified Unison.Builtin                as Builtin
-import           Unison.Codebase                ( Codebase(Codebase)
-                                                , Err(InvalidBranchFile)
-                                                , BranchName
+import           System.Directory               ( copyFile )
+import           System.Path                    ( replaceRoot
+                                                , createDir
+                                                , subDirs
+                                                , files
+                                                , dirPath
                                                 )
+import           Text.Read                      ( readMaybe )
 import qualified Unison.Codebase               as Codebase
+import           Unison.Codebase                ( Codebase(Codebase)
+                                                , BuiltinAnnotation
+                                                )
+import           Unison.Codebase.Causal         ( Causal
+                                                , RawHash(..)
+                                                )
+import qualified Unison.Codebase.Causal        as Causal
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.Serialization as S
-import qualified Unison.Codebase.Serialization.V0
-                                               as V0
+import qualified Unison.Codebase.Serialization.V1
+                                               as V1
+
+import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Watch         as Watch
+import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash
-import qualified Unison.Reference              as Reference
 import           Unison.Reference               ( Reference )
+import qualified Unison.Reference              as Reference
+import           Unison.Referent                ( Referent(..) )
+import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
+import Unison.Type (Type)
+import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
--- import Debug.Trace
+import qualified Unison.Util.Star3             as Star3
 
--- checks if `path` looks like a unison codebase
-minimalCodebaseStructure :: FilePath -> [FilePath]
-minimalCodebaseStructure path =
-  [branchesPath path
-  ,path </> "terms"
-  ,path </> "types"]
-  -- todo: add data constructor paths or whatever that ends up being
+type CodebasePath = FilePath
 
-exists :: FilePath -> IO Bool
-exists path =
-  all id <$> traverse doesDirectoryExist (minimalCodebaseStructure path)
+data Err
+  = InvalidBranchFile FilePath String
+  | InvalidEditsFile FilePath String
+  | NoBranchHead FilePath
+  | CantParseBranchHead FilePath
+  | AmbiguouslyTypeAndTerm Reference.Id
+  | UnknownTypeOrTerm Reference
+  deriving Show
 
-initialize :: FilePath -> IO ()
-initialize path =
-  traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
+termsDir, typesDir, branchesDir, branchHeadDir, editsDir
+  :: CodebasePath -> FilePath
+termsDir root = root </> "terms"
+typesDir root = root </> "types"
+branchesDir root = root </> "branches"
+branchHeadDir root = branchesDir root </> "_head"
+editsDir root = root </> "patches"
 
-branchFromFile :: (MonadIO m, MonadError Err m) => FilePath -> m Branch
-branchFromFile ubf = do
-  bytes <- liftIO $ BS.readFile ubf
-  case Get.runGetS V0.getBranch bytes of
-    Left err     -> throwError $ InvalidBranchFile ubf err
-    Right branch -> pure branch
+termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
+termDir root r = termsDir root </> componentId r
+declDir root r = typesDir root </> componentId r
 
-branchToFile :: FilePath -> Branch -> IO ()
-branchToFile = S.putWithParentDirs V0.putBranch
+referenceToDir :: Reference -> FilePath
+referenceToDir r = case r of
+  Reference.Builtin name -> "_builtin" </> encodeFileName name
+  Reference.DerivedId hash -> componentId hash
 
-branchFromFile' :: FilePath -> IO (Maybe Branch)
-branchFromFile' ubf = go =<< runExceptT (branchFromFile ubf)
-  where
-    go (Left e) = do
-      liftIO $ putStrLn (show e)
-      pure Nothing
-    go (Right b) = pure (Just b)
+dependentsDir :: CodebasePath -> Reference -> FilePath
+dependentsDir root r = root </> "dependents" </> referenceToDir r
 
--- todo: might want to have richer return type that reflects merges that
--- may have been done
-branchFromDirectory :: FilePath -> IO (Maybe Branch)
-branchFromDirectory dir = do
-  exists <- doesDirectoryExist dir
-  case exists of
-    False -> pure Nothing
-    True  -> do
-      bos <- traverse branchFromFile'
-        =<< filesInPathMatchingExtension dir ".ubf"
-      pure $ case catMaybes bos of
-        []  -> Nothing
-        bos -> Just (mconcat bos)
+watchesDir :: CodebasePath -> Text -> FilePath
+watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
+watchesDir root kind = root </> "watches" </> encodeFileName kind
 
-filesInPathMatchingExtension :: FilePath -> String -> IO [FilePath]
-filesInPathMatchingExtension path extension =
-  doesDirectoryExist path >>= \ok -> if ok
-    then
-      fmap (path </>)
-        <$> (filter (((==) extension) . takeExtension) <$> listDirectory path)
-    else pure []
+typeIndexDir :: CodebasePath -> Reference -> FilePath
+typeIndexDir root r = root </> "type-index" </> referenceToDir r
 
-isValidBranchDirectory :: FilePath -> IO Bool
-isValidBranchDirectory path =
-  not . null <$> filesInPathMatchingExtension path ".ubf"
+typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
+typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
 
-termDir, declDir :: FilePath -> Reference.Id -> FilePath
-termDir path r = path </> "terms" </> componentId r
-declDir path r = path </> "types" </> componentId r
+decodeFileName :: FilePath -> Text
+decodeFileName p = Text.pack $ go p where
+  go ('$':tl) = case span (/= '$') tl of
+    ("forward-slash", _:tl) -> '/' : go tl
+    ("back-slash", _:tl) ->  '\\' : go tl
+    ("colon", _:tl) -> ':' : go tl
+    ("star", _:tl) -> '*' : go tl
+    ("question-mark", _:tl) -> '?' : go tl
+    ("double-quote", _:tl) -> '\"' : go tl
+    ("less-than", _:tl) -> '<' : go tl
+    ("greater-than", _:tl) -> '>' : go tl
+    ("pipe", _:tl) -> '|' : go tl
+    ('b':'5':'8':b58, _:tl) -> unB58 b58 ++ go tl
+    ("",_:tl) -> '$' : go tl
+    (s,_:tl) -> s ++ go tl
+    (s,[]) -> s
+  go (hd:tl) = hd : tl
+  go [] = []
+  unB58 s = case Hash.fromBase58 (Text.pack s) of
+    Nothing -> s
+    Just h -> Text.unpack . decodeUtf8 . Hash.toBytes $ h
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
@@ -150,7 +159,8 @@ encodeFileName t = let
   go ('>' : rem) = "$greater-than$" <> go rem
   go ('|' : rem) = "$pipe$" <> go rem
   go ('$' : rem) = "$$" <> go rem
-  go (c : rem) | not (Char.isPrint c) = "$b58" <> b58 [c] <> "$" <> go rem
+  go (c : rem) | not (Char.isPrint c && Char.isAscii c)
+                 = "$b58" <> b58 [c] <> "$" <> go rem
                | otherwise = c : go rem
   go [] = []
   b58 = Hash.base58s . Hash.fromBytes . encodeUtf8 . Text.pack
@@ -158,63 +168,130 @@ encodeFileName t = let
      else if t == ".." then "$dotdot$"
      else go (Text.unpack t)
 
-decodeFileName :: FilePath -> Maybe Text
-decodeFileName p = let
-  go ('$' : rem) = case span (/= '$') rem of
-    ("forward-slash", (drop 1) -> rem) -> ("/" <>) <$> go rem
-    ("back-slash", (drop 1) -> rem) -> ("\\" <>) <$> go rem
-    ("colon", drop 1 -> rem) -> (":" <>) <$> go rem
-    ("star", drop 1 -> rem) -> ("*" <>) <$> go rem
-    ("question-mark", drop 1 -> rem) -> ("?" <>) <$> go rem
-    ("double-quote", drop 1 -> rem) -> ("\"" <>) <$> go rem
-    ("less-than", drop 1 -> rem) -> ("<" <>) <$> go rem
-    ("greater-than", drop 1 -> rem) -> (">" <>) <$> go rem
-    ("pipe", drop 1 -> rem) -> ("|" <>) <$> go rem
-    ("dot", _rem) -> Just "."
-    ("dotdot", _rem) -> Just ".."
-    ('b':'5':'8':left, drop 1 -> rem) -> liftA2 (<>) (unb58 left) (go rem)
-    ("", drop 1 -> rem) -> ("$" <>) <$> go rem
-    (_, _) -> Nothing
-  go (c : rem) = (c:) <$> go rem
-  go [] = Just mempty
-  unb58 p = Text.unpack . decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
-  in Text.pack <$> go p
-
-builtinTermDir, builtinTypeDir :: FilePath -> Text -> FilePath
-builtinTermDir path name =
-  path </> "terms" </> "_builtin" </> encodeFileName name
-builtinTypeDir path name =
-  path </> "types" </> "_builtin" </> encodeFileName name
-builtinDir :: FilePath -> Reference -> Maybe FilePath
-builtinDir path r@(Reference.Builtin name) =
-  if Builtin.isBuiltinTerm r then Just (builtinTermDir path name)
-  else if Builtin.isBuiltinType r then Just (builtinTypeDir path name)
-  else Nothing
-builtinDir _ _ = Nothing
-
-termPath, typePath, declPath :: FilePath -> Reference.Id -> FilePath
+termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
 typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
-watchesDir :: FilePath -> FilePath -> FilePath
-watchesDir path kind = path </> "watches" </> encodeFileName (Text.pack kind)
+branchPath :: CodebasePath -> Hash.Hash -> FilePath
+branchPath root h = branchesDir root </> Hash.base58s h ++ ".ub"
+
+editsPath :: CodebasePath -> Hash.Hash -> FilePath
+editsPath root h = editsDir root </> Hash.base58s h ++ ".up"
+
+touchIdFile :: Reference.Id -> FilePath -> IO ()
+touchIdFile id fp = do
+  createDirectoryIfMissing True fp
+  -- note: contents of the file are equal to the name, rather than empty, to
+  -- hopefully avoid git getting clever about treating deletions as renames
+  let n = Reference.toText $ Reference.DerivedId id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
+
+touchReferentFile :: Referent -> FilePath -> IO ()
+touchReferentFile id fp = do
+  createDirectoryIfMissing True fp
+  -- note: contents of the file are equal to the name, rather than empty, to
+  -- hopefully avoid git getting clever about treating deletions as renames
+  let n = Referent.toText id
+  writeFile (fp </> encodeFileName n) (Text.unpack n)
+
+-- checks if `path` looks like a unison codebase
+minimalCodebaseStructure :: CodebasePath -> [FilePath]
+minimalCodebaseStructure root =
+  [ termsDir root
+  , typesDir root
+  , branchesDir root
+  , branchHeadDir root
+  , editsDir root
+  ]
+
+-- checks if a minimal codebase structure exists at `path`
+exists :: CodebasePath -> IO Bool
+exists root =
+  and <$> traverse doesDirectoryExist (minimalCodebaseStructure root)
+
+-- creates a minimal codebase structure at `path`
+initialize :: CodebasePath -> IO ()
+initialize path =
+  traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
+
+branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
+branchFromFiles rootDir = Branch.read (deserializeRawBranch rootDir)
+                                      (deserializeEdits rootDir)
+ where
+  deserializeRawBranch
+    :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
+  deserializeRawBranch root (RawHash h) = do
+    let ubf = branchPath root h
+    liftIO (S.getFromFile' (V1.getCausal0 V1.getRawBranch) ubf) >>= \case
+      Left  err -> failWith $ InvalidBranchFile ubf err
+      Right c0  -> pure c0
+  deserializeEdits :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch
+  deserializeEdits root h =
+    let file = editsPath root h
+    in  liftIO (S.getFromFile' V1.getEdits file) >>= \case
+          Left  err   -> failWith $ InvalidEditsFile file err
+          Right edits -> pure edits
+
+getRootBranch :: MonadIO m => CodebasePath -> m (Branch m)
+getRootBranch root = do
+  unlessM (doesDirectoryExist $ branchHeadDir root)
+          (failWith . NoBranchHead $ branchHeadDir root)
+  liftIO (listDirectory $ branchHeadDir root) >>= \case
+    []       -> failWith . NoBranchHead $ branchHeadDir root
+    [single] -> go single
+    conflict -> traverse go conflict >>= \case
+      x : xs -> foldM Branch.merge x xs
+      []     -> failWith . NoBranchHead $ branchHeadDir root
+ where
+  go single = case Hash.fromBase58 (Text.pack single) of
+    Nothing -> failWith $ CantParseBranchHead single
+    Just h  -> branchFromFiles root (RawHash h)
+
+putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
+putRootBranch root b = do
+  Branch.sync (hashExists root)
+              (serializeRawBranch root)
+              (serializeEdits root)
+              b
+  updateCausalHead (branchHeadDir root) (Branch._history b)
+
+hashExists :: MonadIO m => CodebasePath -> Branch.Hash -> m Bool
+hashExists root (RawHash h) = liftIO $ doesFileExist (branchPath root h)
+
+serializeRawBranch
+  :: (MonadIO m) => CodebasePath -> Causal.Serialize m Branch.Raw Branch.Raw
+serializeRawBranch root (RawHash h) = liftIO
+  . S.putWithParentDirs (V1.putRawCausal V1.putRawBranch) (branchPath root h)
+
+serializeEdits
+  :: MonadIO m => CodebasePath -> Branch.EditHash -> m Patch -> m ()
+serializeEdits root h medits = do
+  edits <- medits
+  unlessM (liftIO $ doesFileExist (editsPath root h))
+    $ liftIO
+    $ S.putWithParentDirs V1.putEdits (editsPath root h) edits
+
+-- `headDir` is like ".unison/branches/head", or ".unison/edits/head";
+-- not ".unison"
+updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
+updateCausalHead headDir c = do
+  let (RawHash h) = Causal.currentHash c
+      hs = Hash.base58s h
+  -- write new head
+  exists <- doesDirectoryExist headDir
+  unless exists $ createDirectory headDir
+  liftIO $ writeFile (headDir </> hs) ""
+  -- delete existing heads
+  liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
+       >>= traverse_ (removeFile . (headDir </>))
+
+-- decodeBuiltinName :: FilePath -> Maybe Text
+-- decodeBuiltinName p =
+--   decodeUtf8 . Hash.toBytes <$> Hash.fromBase58 (Text.pack p)
 
 componentId :: Reference.Id -> String
-componentId (Reference.Id h 0 1) = Hash.base58s h
-componentId (Reference.Id h i n) =
-  Hash.base58s h <> "-" <> show i <> "-" <> show n
-
-branchesPath :: FilePath -> FilePath
-branchesPath path = path </> "branches"
-
-branchPath :: FilePath -> Text -> FilePath
-branchPath path name = branchesPath path </> Text.unpack name
-
-touchDependentFile :: Reference.Id -> FilePath -> IO ()
-touchDependentFile dependent fp = do
-  createDirectoryIfMissing True (fp </> "dependents")
-  writeFile (fp </> "dependents" </> componentId dependent) ""
+componentId = Text.unpack . Reference.toText . Reference.DerivedId
 
 -- todo: this is base58-i-n ?
 parseHash :: String -> Maybe Reference.Id
@@ -228,160 +305,251 @@ parseHash s = case splitOn "-" s of
  where
   makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase58 (Text.pack h)
 
--- todo: builtin data decls (optional, unit, pair) should just have a regular
--- hash-based reference, rather than being Reference.Builtin
--- and we should verify that this doesn't break the runtime
+-- Adapted from
+-- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
+copyDir :: (FilePath -> Bool) -> FilePath -> FilePath -> IO ()
+copyDir predicate from to = do
+  createDirectoryIfMissing True to
+  d <- createDir from
+  when (predicate $ dirPath d) $ do
+    forM_ (subDirs d)
+      $ \path -> copyDir predicate path (replaceRoot from to path)
+    forM_ (files d) $ \path -> do
+      exists <- doesFileExist to
+      unless exists . copyFile path $ replaceRoot from to path
+
+copyFromGit :: MonadIO m => FilePath -> FilePath -> m ()
+copyFromGit = (liftIO .) . flip
+  (copyDir (\x -> not ((".git" `isSuffixOf` x) || ("_head" `isSuffixOf` x))))
+
+writeAllTermsAndTypes
+  :: forall m v a
+   . MonadIO m
+  => Var v
+  => Codebase.BuiltinAnnotation a
+  => S.Put v
+  -> S.Put a
+  -> Codebase m v a
+  -> FilePath
+  -> Branch m
+  -> m ()
+writeAllTermsAndTypes putV putA codebase localPath branch = do
+  Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
+  updateCausalHead (branchHeadDir localPath) $ Branch._history branch
+ where
+  serialize :: Causal.Serialize m Branch.Raw Branch.Raw
+  serialize rh rawBranch = do
+    writeBranch $ Causal.rawHead rawBranch
+    serializeRawBranch localPath rh rawBranch
+  calamity i =
+    error
+      $  "Calamity! Somebody deleted "
+      <> show i
+      <> " from the codebase while I wasn't looking."
+  writeBranch :: Branch.Raw -> m ()
+  writeBranch (Branch.Raw terms types _ _) = do
+    for_ (toList $ Star3.fact types) $ \case
+      Reference.DerivedId i -> do
+        alreadyExists <- liftIO . doesPathExist $ termPath localPath i
+        unless alreadyExists $ do
+          mayDecl <- Codebase.getTypeDeclaration codebase i
+          maybe (calamity i) (putDecl putV putA localPath i) mayDecl
+      _ -> pure ()
+    -- Write all terms
+    for_ (toList $ Star3.fact terms) $ \case
+      Ref r@(Reference.DerivedId i) -> do
+        alreadyExists <- liftIO . doesPathExist $ termPath localPath i
+        unless alreadyExists $ do
+          mayTerm <- Codebase.getTerm codebase i
+          mayType <- Codebase.getTypeOfTerm codebase r
+          fromMaybe (calamity i)
+                    (putTerm putV putA localPath i <$> mayTerm <*> mayType)
+          -- If the term is a test, write the cached value too.
+          mayTest <- Codebase.getWatch codebase UF.TestWatch i
+          maybe (pure ()) (putWatch putV putA localPath UF.TestWatch i) mayTest
+      _ -> pure ()
+
+putTerm
+  :: MonadIO m
+  => Var v
+  => S.Put v
+  -> S.Put a
+  -> FilePath
+  -> Reference.Id
+  -> Term.AnnotatedTerm v a
+  -> Type v a
+  -> m ()
+putTerm putV putA path h e typ = liftIO $ do
+  let typeForIndexing = Type.removeAllEffectVars typ
+      rootTypeHash = Type.toReference typeForIndexing
+      typeMentions = Type.toReferenceMentions typeForIndexing
+  S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
+  S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
+  -- Add the term as a dependent of its dependencies
+  let r = Referent.Ref (Reference.DerivedId h)
+  let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
+  traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  touchReferentFile r (typeIndexDir path rootTypeHash)
+
+putDecl
+  :: MonadIO m
+  => Var v
+  => S.Put v
+  -> S.Put a
+  -> FilePath
+  -> Reference.Id
+  -> DD.Decl v a
+  -> m ()
+putDecl putV putA path h decl = liftIO $ do
+  S.putWithParentDirs
+    (V1.putEither (V1.putEffectDeclaration putV putA)
+                  (V1.putDataDeclaration putV putA)
+    )
+    (declPath path h)
+    decl
+  traverse_ (touchIdFile h . dependentsDir path) deps
+  traverse_ addCtorToTypeIndex ctors
+ where
+  deps = deleteComponent h . DD.dependencies $ either DD.toDataDecl id decl
+  r = Reference.DerivedId h
+  decl' = either DD.toDataDecl id decl
+  addCtorToTypeIndex (r, typ) = do
+    let rootHash     = Type.toReference typ
+        typeMentions = Type.toReferenceMentions typ
+    touchReferentFile r (typeIndexDir path rootHash)
+    traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
+  ct = DD.constructorType decl
+  ctors =
+    [ (Referent.Con r i ct, Type.removeAllEffectVars t)
+    | (t,i) <- DD.constructorTypes decl' `zip` [0..] ]
+
+putWatch
+  :: MonadIO m
+  => Var v
+  => S.Put v
+  -> S.Put a
+  -> FilePath
+  -> UF.WatchKind
+  -> Reference.Id
+  -> Codebase.Term v a
+  -> m ()
+putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
+  (V1.putTerm putV putA)
+  (watchesDir path (Text.pack k) </> componentId id <> ".ub")
+  e
+
+-- builds a `Codebase IO v a`, given serializers for `v` and `a`
 codebase1
-  :: forall v a . Var v
-  => a -> S.Format v -> S.Format a -> FilePath -> Codebase IO v a
-codebase1 builtinTypeAnnotation (S.Format getV putV) (S.Format getA putA) path
-  = let
-      getTerm h = S.getFromFile (V0.getTerm getV getA) (termPath path h)
-      putTerm h e typ = do
-        S.putWithParentDirs (V0.putTerm putV putA) (termPath path h) e
-        S.putWithParentDirs (V0.putType putV putA) (typePath path h) typ
-        let declDependencies :: Set Reference
-            declDependencies = Term.referencedDataDeclarations e
-              <> Term.referencedEffectDeclarations e
-        -- Add the term as a dependent of its dependencies
-        let err = "FileCodebase.putTerm found reference to unknown builtin."
-            deps = Term.dependencies' e
-        traverse_
-          (touchDependentFile h  . fromMaybe (error err) . builtinDir path)
-          [ r | r@(Reference.Builtin _) <- Set.toList $ deps]
-        traverse_ (touchDependentFile h . termDir path)
-          $ [ r | Reference.DerivedId r <- Set.toList $ Term.dependencies' e ]
-        traverse_ (touchDependentFile h . declDir path)
-          $ [ r | Reference.DerivedId r <- Set.toList declDependencies ]
-      getTypeOfTerm r = case r of
-        Reference.Builtin _ -> pure $
-          fmap (const builtinTypeAnnotation) <$> Map.lookup r Builtin.builtins0
-        Reference.DerivedId h ->
-          S.getFromFile (V0.getType getV getA) (typePath path h)
-      getDecl h = S.getFromFile
-        (V0.getEither (V0.getEffectDeclaration getV getA)
-                      (V0.getDataDeclaration getV getA)
-        )
-        (declPath path h)
-      putDecl h decl = S.putWithParentDirs
-        (V0.putEither (V0.putEffectDeclaration putV putA)
-                      (V0.putDataDeclaration putV putA)
-        )
-        (declPath path h)
-        decl
-      branches = map Text.pack <$> do
-        files <- listDirectory (branchesPath path)
-        let paths = (branchesPath path </>) <$> files
-        fmap takeFileName <$> filterM isValidBranchDirectory paths
+  :: forall m v a
+   . MonadUnliftIO m
+  => Var v
+  => BuiltinAnnotation a
+  => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
+codebase1 (S.Format getV putV) (S.Format getA putA) path
+  = let c = Codebase getTerm
+                     getTypeOfTerm
+                     getDecl
+                     (putTerm putV putA path)
+                     (putDecl putV putA path)
+                     (getRootBranch path)
+                     (putRootBranch path)
+                     (branchHeadUpdates path)
+                     (branchFromFiles path)
+                     dependents
+                     (copyFromGit path)
+                     -- This is fine as long as watat doesn't call
+                     -- syncToDirectory c
+                     (writeAllTermsAndTypes putV putA c)
+                     watches
+                     getWatch
+                     (putWatch putV putA path)
+                     getTermsOfType
+                     getTermsMentioningType
+   -- todo: maintain a trie of references to come up with this number
+                     (pure 10)
+    in  c
+ where
+  getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
+  getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
+  getDecl h = liftIO $ S.getFromFile
+    (V1.getEither (V1.getEffectDeclaration getV getA)
+                  (V1.getDataDeclaration getV getA)
+    )
+    (declPath path h)
 
-      getBranch name = branchFromDirectory (branchPath path name)
+  dependents :: Reference -> m (Set Reference.Id)
+  dependents r = listDirAsIds (dependentsDir path r)
 
-      -- delete any leftover branch files "before" this one,
-      -- and write this one if it doesn't already exist.
-      overwriteBranch :: BranchName -> Branch -> IO ()
-      overwriteBranch name branch = do
-        let newBranchHash = Hash.base58s . Branch.toHash $ branch
-        (match, nonmatch) <-
-          partition (\s -> newBranchHash == takeBaseName s)
-            <$> filesInPathMatchingExtension (branchPath path name) ".ubf"
-        let isBefore :: Branch -> FilePath -> IO Bool
-            isBefore b ubf =
-              maybe False (`Branch.before` b) <$> branchFromFile' ubf
-        -- delete any existing .ubf files
-        traverse_ removeFile =<< filterM (isBefore branch) nonmatch
-        -- save new branch data under <base58>.ubf
-        when (null match) $ branchToFile
-          (branchPath path name </> newBranchHash <> ".ubf")
-          branch
+  getTermsOfType :: Reference -> m (Set Referent)
+  getTermsOfType r = listDirAsReferents (typeIndexDir path r)
 
-      mergeBranch name branch = do
-        target <- getBranch name
-        let newBranch = case target of
-              -- merge with existing branch if present
-              Just existing -> Branch.merge branch existing
-              -- or save new branch
-              Nothing       -> branch
-        overwriteBranch name newBranch
-        pure newBranch
+  getTermsMentioningType :: Reference -> m (Set Referent)
+  getTermsMentioningType r = listDirAsReferents (typeMentionsIndexDir path r)
 
-      deleteBranch name = removeDirectoryRecursive (branchPath path name)
+  -- todo: revisit these
+  listDirAsIds :: FilePath -> m (Set Reference.Id)
+  listDirAsIds d = do
+    e <- doesDirectoryExist d
+    if e
+      then do
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Reference.idFromText)
+      else pure Set.empty
 
+  listDirAsReferents :: FilePath -> m (Set Referent)
+  listDirAsReferents d = do
+    e <- doesDirectoryExist d
+    if e
+      then do
+        ls <- fmap decodeFileName <$> listDirectory d
+        pure . Set.fromList $ ls >>= (toList . Referent.fromText)
+      else pure Set.empty
 
-      dependents :: Reference -> IO (Set Reference.Id)
-      dependents r = do
-        d  <- dir
-        e  <- doesDirectoryExist (d </> "dependents")
-        if e then do
-              ls <- listDirectory (d </> "dependents")
-              pure . Set.fromList $ ls >>= (toList . parseHash)
-        else pure Set.empty
-       where
-        dir = case r of
-          Reference.Builtin name ->
-            pure $ (if Builtin.isBuiltinTerm r
-                    then builtinTermDir
-                    else builtinTypeDir) path name
-          Reference.DerivedId id -> do
-            b <- isJust <$> getTerm id
-            pure $ (if b then termDir else declDir) path id
+  watches :: UF.WatchKind -> m [Reference.Id]
+  watches k = liftIO $ do
+    let wp = watchesDir path (Text.pack k)
+    createDirectoryIfMissing True wp
+    ls <- listDirectory wp
+    pure $ ls >>= (toList . parseHash . takeFileName)
 
-      branchUpdates :: IO (IO (), IO (Set BranchName))
-      branchUpdates = do
-        branchFileChanges      <- TQueue.newIO
-        (cancelWatch, watcher) <- Watch.watchDirectory' (branchesPath path)
-        -- add .ubf file changes to intermediate queue
-        watcher1               <- forkIO $ do
-          forever $ do
-            (filePath, _) <- watcher
-            when (".ubf" `isSuffixOf` filePath)
-              $ atomically
-              . TQueue.enqueue branchFileChanges
-              $ filePath
-        -- smooth out intermediate queue
-        pure
-          $ ( cancelWatch >> killThread watcher1
-            , Set.map ubfPathToName . Set.fromList <$> Watch.collectUntilPause
-              branchFileChanges
-              400000
-            )
+  getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
+  getWatch k id = liftIO $ do
+    let wp = watchesDir path (Text.pack k)
+    createDirectoryIfMissing True wp
+    S.getFromFile (V1.getTerm getV getA) (wp </> componentId id <> ".ub")
 
-      watches :: UF.WatchKind -> IO [Reference.Id]
-      watches k = do
-        let wp = watchesDir path k
-        createDirectoryIfMissing True wp
-        ls <- listDirectory wp
-        pure $ ls >>= (toList . parseHash . takeFileName)
+-- watches in `branchHeadDir root` for externally deposited heads;
+-- parse them, and return them
+branchHeadUpdates
+  :: MonadUnliftIO m => CodebasePath -> m (m (), m (Set Branch.Hash))
+branchHeadUpdates root = do
+  branchHeadChanges      <- TQueue.newIO
+  (cancelWatch, watcher) <- Watch.watchDirectory' (branchHeadDir root)
+--  -- add .ubf file changes to intermediate queue
+  watcher1               <-
+    forkIO
+    $ forever
+    $ do
+      -- Q: what does watcher return on a file deletion?
+      -- A: nothing
+        (filePath, _) <- watcher
+        case hashFromFilePath filePath of
+          Nothing -> failWith $ CantParseBranchHead filePath
+          Just h ->
+            atomically . TQueue.enqueue branchHeadChanges $ Branch.Hash h
+  -- smooth out intermediate queue
+  pure
+    ( cancelWatch >> killThread watcher1
+    , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
+    )
 
-      getWatch :: UF.WatchKind -> Reference.Id
-               -> IO (Maybe (Codebase.Term v a))
-      getWatch k id = do
-        let wp = watchesDir path k
-        createDirectoryIfMissing True wp
-        S.getFromFile (V0.getTerm getV getA) (wp </> componentId id <> ".ub")
+hashFromFilePath :: FilePath -> Maybe Hash.Hash
+hashFromFilePath = Hash.fromBase58 . Text.pack . takeBaseName
 
-      putWatch :: UF.WatchKind -> Reference.Id -> Codebase.Term v a
-               -> IO ()
-      putWatch k id e =
-        S.putWithParentDirs (V0.putTerm putV putA)
-                            (watchesDir path k </> componentId id <> ".ub")
-                            e
+failWith :: MonadIO m => Err -> m a
+failWith = fail . show
 
-    in
-      Codebase getTerm
-               getTypeOfTerm
-               putTerm
-               getDecl
-               putDecl
-               branches
-               getBranch
-               mergeBranch
-               deleteBranch
-               branchUpdates
-               dependents
-               builtinTypeAnnotation
-               watches
-               getWatch
-               putWatch
-
-ubfPathToName :: FilePath -> BranchName
-ubfPathToName = Text.pack . takeFileName . takeDirectory
+deleteComponent :: Reference.Id -> Set Reference -> Set Reference
+deleteComponent r rs = Set.difference rs
+  (Reference.members . Reference.componentFor . Reference.DerivedId $ r)

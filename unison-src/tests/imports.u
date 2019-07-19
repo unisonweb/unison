@@ -1,5 +1,7 @@
+use . Int -- imports `.Int` from root path and gives it the local name `Int`
+
 -- This brings `None` into scope unqualified
-use Optional.None
+use Optional None
 
 -- '.' is optional, this brings `None` and `Some` into
 -- scope unqualified
@@ -7,12 +9,12 @@ use Optional None Some
 
 -- Can import operators this way also
 -- no need to put them in parens
-use Nat.+
+use Nat +
 
 -- Later imports shadow earlier ones
 use Nat - * /
-use Nat. drop *
-use Nat . drop
+use Nat drop *
+use Nat drop
 -- use Int + -- this would cause type error below!
 
 > case Some (100 + 200 / 3 * 2) of

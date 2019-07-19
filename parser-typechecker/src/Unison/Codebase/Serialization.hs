@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Unison.Codebase.Serialization where
@@ -26,6 +27,12 @@ getFromFile :: Get a -> FilePath -> IO (Maybe a)
 getFromFile getA file = do
   b <- doesFileExist file
   if b then getFromBytes getA <$> readFile file else pure Nothing
+
+getFromFile' :: Get a -> FilePath -> IO (Either String a)
+getFromFile' getA file = do
+  b <- doesFileExist file
+  if b then runGetS getA <$> readFile file
+  else pure . Left $ "No such file: " ++ file
 
 putBytes :: Put a -> a -> ByteString
 putBytes put a = runPutS (put a)

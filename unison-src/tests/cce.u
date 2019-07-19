@@ -42,11 +42,11 @@ Remote.forkAt node r = Remote.fork '(Remote.at node r)
 
 use Optional None Some
 use Monoid Monoid
-use Sequence ++
+use List ++
 
-Sequence.map : (a ->{e} b) -> [a] ->{e} [b]
-Sequence.map f as =
-  go f acc as i = case Sequence.at i as of
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f as =
+  go f acc as i = case List.at i as of
     None -> acc
     Some a -> go f (acc `snoc` f a) as (i + 1)
   go f [] as 0
@@ -62,7 +62,7 @@ Monoid.orElse m a = case a of
 
 merge : (a -> a -> Boolean) -> [a] -> [a] -> [a]
 merge lte a b =
-  go acc a b = case Sequence.at 0 a of
+  go acc a b = case List.at 0 a of
     None -> acc ++ b
     Some hd1 -> case at 0 b of
       None -> acc ++ a
@@ -73,15 +73,15 @@ merge lte a b =
 
 dmap : (a ->{Remote} b) -> [a] ->{Remote} [b]
 dmap f as =
-  bs = Sequence.map (a -> Remote.forkAt Remote.spawn '(f a)) as
-  Sequence.map force bs
+  bs = List.map (a -> Remote.forkAt Remote.spawn '(f a)) as
+  List.map force bs
 
 dreduce : Monoid a -> [a] ->{Remote} a
 dreduce m a =
-  if size a < 2 then Monoid.orElse m (Sequence.at 0 a)
+  if size a < 2 then Monoid.orElse m (List.at 0 a)
   else
-    l = Remote.forkAt Remote.spawn '(dreduce m (Sequence.take (size a / 2) a))
-    r = Remote.forkAt Remote.spawn '(dreduce m (Sequence.drop (size a / 2) a))
+    l = Remote.forkAt Remote.spawn '(dreduce m (List.take (size a / 2) a))
+    r = Remote.forkAt Remote.spawn '(dreduce m (List.drop (size a / 2) a))
     Monoid.op m (force l) (force r)
 
 dmapReduce : (a ->{Remote} b) -> Monoid b -> [a] ->{Remote} b
@@ -93,7 +93,7 @@ dsort lte a =
 
 sort : (a -> a -> Boolean) -> [a] -> [a]
 sort lte a =
-  if Sequence.size a < 2 then a
+  if List.size a < 2 then a
   else
     l = sort lte (take (size a / 2) a)
     r = sort lte (drop (size a / 2) a)
@@ -101,7 +101,7 @@ sort lte a =
 
 Node.increment : Node -> Node
 Node.increment n =
-  use Node.Node -- the constructor
+  use Node Node -- the constructor
   case n of Node n -> Node (n + 1)
 
 > Remote.runLocal '(dsort (<) [3,2,1,1,2,3,9182,1,2,34,1,23])

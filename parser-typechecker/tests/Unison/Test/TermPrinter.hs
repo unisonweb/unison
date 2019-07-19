@@ -1,6 +1,6 @@
 {-# Language OverloadedStrings #-}
 
-module Unison.Test.TermPrinter where
+module Unison.Test.TermPrinter (test) where
 
 import EasyTest
 import qualified Data.Text as Text
@@ -10,14 +10,16 @@ import Unison.Term
 import Unison.TermPrinter
 import qualified Unison.Type as Type
 import Unison.Symbol (Symbol, symbol)
-import Unison.Builtin
+import qualified Unison.Builtin
 import Unison.Parser (Ann(..))
 import qualified Unison.Util.Pretty as PP
 import qualified Unison.PrettyPrintEnv as PPE
 import qualified Unison.Util.ColorText as CT
+import Unison.Test.Common (t, tm)
+import qualified Unison.Test.Common as Common
 
 get_names :: PPE.PrettyPrintEnv
-get_names = PPE.fromNames Unison.Builtin.names
+get_names = PPE.fromNames Common.hqLength Unison.Builtin.names
 
 -- Test the result of the pretty-printer.  Expect the pretty-printer to
 -- produce output that differs cosmetically from the original code we parsed.
@@ -26,12 +28,12 @@ get_names = PPE.fromNames Unison.Builtin.names
 -- Note that this does not verify the position of the PrettyPrint Break elements.
 tc_diff_rtt :: Bool -> String -> String -> Int -> Test ()
 tc_diff_rtt rtt s expected width =
-   let input_term = Unison.Builtin.tm s :: Unison.Term.AnnotatedTerm Symbol Ann
-       prettied = fmap (CT.toPlain) $ prettyTop get_names input_term
+   let input_term = tm s :: Unison.Term.AnnotatedTerm Symbol Ann
+       prettied = fmap (CT.toPlain) $ pretty get_names input_term
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
-       actual_reparsed = Unison.Builtin.tm actual
+       actual_reparsed = tm actual
    in scope s $ tests [(
        if actual == expected then ok
        else do note $ "expected:\n" ++ expected
@@ -66,13 +68,13 @@ tc_breaks width s = tc_diff_rtt True s s width
 
 tc_binding :: Int -> String -> Maybe String -> String -> String -> Test ()
 tc_binding width v mtp tm expected =
-   let base_term = Unison.Builtin.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
-       input_type = (fmap Unison.Builtin.t mtp) :: Maybe (Type.AnnotatedType Symbol Ann)
+   let base_term = Unison.Test.Common.tm tm :: Unison.Term.AnnotatedTerm Symbol Ann
+       input_type = (fmap Unison.Test.Common.t mtp) :: Maybe (Type.Type Symbol Ann)
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = fmap (CT.toPlain) $
-        prettyBinding get_names (HQ.fromVar var_v) (input_term input_type)
+       prettied = fmap (CT.toPlain) $ PP.syntaxToColor $ 
+        prettyBinding get_names (HQ.unsafeFromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
                 else PP.render width   $ prettied
@@ -94,7 +96,7 @@ test = scope "termprinter" . tests $
   , tc "and true false"
   , tc "or false false"
   , tc "g (and (or true false) (f x y))"
-  , tc "if _something then _foo else _"
+  , tc "if _something then _foo else _blah"
   , tc "3.14159"
   , tc "+0"
   , tc "\"some text\""
@@ -107,7 +109,7 @@ test = scope "termprinter" . tests $
   , tc "()"
   , tc "Pair"
   , tc "foo"
-  , tc "Sequence.empty"
+  , tc "List.empty"
   , tc "None"
   , tc "Optional.None"
   , tc "handle foo in bar"
@@ -217,7 +219,6 @@ test = scope "termprinter" . tests $
               \    else c"
   , tc_diff_rtt True "if foo\n\
             \then\n\
-            \  use bar\n\
             \  and true true\n\
             \  12\n\
             \else\n\
@@ -325,7 +326,7 @@ test = scope "termprinter" . tests $
   , tc_binding 50 "+" Nothing "a b c -> foo a b c" "(+) a b c = foo a b c"
   , tc_breaks 32 "let\n\
                  \  go acc a b =\n\
-                 \    case Sequence.at 0 a of\n\
+                 \    case List.at 0 a of\n\
                  \      Optional.None -> 0\n\
                  \      Optional.Some hd1 -> 0\n\
                  \  go [] a b"
@@ -353,6 +354,16 @@ test = scope "termprinter" . tests $
   , tc_breaks 80 "Stream.foldLeft 0 (+) t"
   , tc_breaks 80 "foo?"
   , tc_breaks 80 "(foo a b)?"
+  , tc_diff_rtt False "let\n\
+                      \  delay = 'isEven"
+                      "let\n\
+                      \  delay () = isEven\n\
+                      \  _" 80 -- TODO the latter doesn't parse - can't handle the () on the LHS
+  , tc_breaks 80 "let\n\
+                 \  a = ()\n\
+                 \  b = ()\n\
+                 \  c = (1, 2)\n\
+                 \  ()"
 
 -- FQN elision tests
   , tc_breaks 12 "if foo then\n\
@@ -373,8 +384,8 @@ test = scope "termprinter" . tests $
                  \    if foo then f x x else g x x\n\
                  \  bar"
   , tc_breaks 80 "if foo then f A.x B.x else f A.x B.x"
-  , tc_breaks 80 "if foo then f A.x A.x B.x else y"   
-  , tc_breaks 80 "if foo then A.f x else y"              
+  , tc_breaks 80 "if foo then f A.x A.x B.x else y"
+  , tc_breaks 80 "if foo then A.f x else y"
   , tc_breaks 13 "if foo then\n\
                  \  use A +\n\
                  \  x + y\n\
@@ -409,11 +420,17 @@ test = scope "termprinter" . tests $
                  \  f (x : (∀ t. Pair t t))\n\
                  \else\n\
                  \  f (x : (∀ t. Pair t t))"
-  , tc_breaks 12 "if\n\
-                 \  use A x\n\
-                 \  f x x then\n\
-                 \  x\n\
-                 \else y"  -- missing break before 'then', issue #518
+  , tc_diff_rtt False "handle foo in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)"  -- missing break before 'then', issue #518; surplus parentheses #517
+                      "handle foo\n\
+                      \in\n\
+                      \  use A x\n\
+                      \  (if f x x then\n\
+                      \    x\n\
+                      \  else y)" 15  -- parser doesn't like 'in' beginning a line
   , tc_breaks 20 "case x of\n\
                  \  () ->\n\
                  \    use A y\n\
@@ -430,7 +447,7 @@ test = scope "termprinter" . tests $
                  \  c =\n\
                  \    use A x\n\
                  \    f x x\n\
-                 \  g c" 
+                 \  g c"
   , tc_breaks 20 "if foo then\n\
                  \  f x x A.x A.x\n\
                  \else g"
@@ -462,7 +479,7 @@ test = scope "termprinter" . tests $
                  \      use A x\n\
                  \      f x x\n\
                  \    foo\n\
-                 \  bar" 
+                 \  bar"
   , tc_breaks 20 "let\n\
                  \  a =\n\
                  \    case x of\n\
@@ -487,7 +504,7 @@ test = scope "termprinter" . tests $
   -- The following behaviour is possibly not ideal.  Note how the `use A B.x`
   -- would have the same effect if it was under the `c =`.  It doesn't actually
   -- need to be above the `b =`, because all the usages of A.B.X in that tree are
-  -- covered by another use statement, the `use A.B x`.  Fixing this would 
+  -- covered by another use statement, the `use A.B x`.  Fixing this would
   -- probably require another annotation pass over the AST, to place 'candidate'
   -- use statements, to then push some of them down on the next pass.
   -- Not worth it!

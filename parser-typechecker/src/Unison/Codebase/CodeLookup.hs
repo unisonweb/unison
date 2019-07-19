@@ -9,9 +9,7 @@ import qualified Unison.Term                    as Term
 import           Unison.Term                    ( AnnotatedTerm )
 import           Unison.Var                     ( Var )
 import qualified Unison.Reference as Reference
-import qualified Unison.Typechecker.TypeLookup as TL
-
-type Decl v a = TL.Decl v a
+import           Unison.DataDeclaration (Decl)
 
 fromUnisonFile :: (Var v, Monad m) => UnisonFile v a -> CodeLookup v m a
 fromUnisonFile uf = CodeLookup tm ty where

@@ -2,20 +2,17 @@ module Unison.Typechecker.TypeLookup where
 
 import Control.Applicative ((<|>))
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Type (AnnotatedType)
-import Unison.Var (Var)
+import Unison.Type (Type)
 import qualified Data.Map as Map
 import qualified Unison.ConstructorType as CT
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Referent as Referent
 
-type Type v a = AnnotatedType v a
 type DataDeclaration v a = DD.DataDeclaration' v a
 type EffectDeclaration v a = DD.EffectDeclaration' v a
--- todo: move to DataDeclaration.hs
-type Decl v a = Either (EffectDeclaration v a) (DataDeclaration v a)
 
 -- Used for typechecking.
 data TypeLookup v a =
@@ -24,18 +21,20 @@ data TypeLookup v a =
              , effectDecls :: Map Reference (EffectDeclaration v a) }
   deriving Show
 
-asDataDecl :: Decl v a -> DataDeclaration v a
+asDataDecl :: DD.Decl v a -> DataDeclaration v a
 asDataDecl = either DD.toDataDecl id
-
-builtinTypeLookup :: Var v => TypeLookup v ()
-builtinTypeLookup = TypeLookup mempty decls mempty where
-  decls = Map.fromList [ (r, dd) | (_, r, dd) <- DD.builtinDataDecls ]
 
 typeOfReferent :: TypeLookup v a -> Referent -> Maybe (Type v a)
 typeOfReferent tl r = case r of
   Referent.Ref r -> typeOfTerm tl r
-  Referent.Con r cid -> typeOfDataConstructor tl r cid <|>
-                        typeOfEffectConstructor tl r cid
+  Referent.Con r cid CT.Data   -> typeOfDataConstructor   tl r cid
+  Referent.Con r cid CT.Effect -> typeOfEffectConstructor tl r cid
+
+-- bombs if not found
+unsafeConstructorType :: TypeLookup v a -> Reference -> CT.ConstructorType
+unsafeConstructorType tl r = fromMaybe
+  (error $ "no constructor type for " <> show r)
+  (constructorType tl r)
 
 constructorType :: TypeLookup v a -> Reference -> Maybe CT.ConstructorType
 constructorType tl r =

@@ -17,6 +17,7 @@ import qualified Unison.Typechecker.Context    as C
 import qualified Unison.Typechecker.Extractor  as Ex
 import           Unison.Util.Monoid            (whenM)
 import           Unison.Var                    (Var)
+import Unison.Type (Type)
 
 data BooleanMismatch = CondMismatch | AndMismatch | OrMismatch | GuardMismatch
   deriving Show
@@ -29,11 +30,11 @@ data TypeError v loc
              , expectedType :: C.Type v loc -- overallType2
              , foundLeaf    :: C.Type v loc -- leaf1
              , expectedLeaf :: C.Type v loc -- leaf2
-             , mismatchSite :: loc
+             , mismatchSite :: C.Term v loc
              , note         :: C.ErrorNote v loc
              }
   | BooleanMismatch { getBooleanMismatch :: BooleanMismatch
-                    , mismatchSite       :: loc
+                    , mismatchSite       :: C.Term v loc
                     , foundType          :: C.Type v loc
                     , note               :: C.ErrorNote v loc
                     }
@@ -41,7 +42,7 @@ data TypeError v loc
                         , expectedType           :: C.Type v loc
                         , expectedLoc            :: loc
                         , foundType              :: C.Type v loc
-                        , mismatchSite           :: loc
+                        , mismatchSite           :: C.Term v loc
                         , note                   :: C.ErrorNote v loc
                         }
   | FunctionApplication { f            :: C.Term v loc
@@ -83,7 +84,7 @@ type RedundantTypeAnnotation = Bool
 
 data TypeInfo v loc =
   TopLevelComponent
-    { definitions :: [(v, Type.AnnotatedType v loc, RedundantTypeAnnotation)] }
+    { definitions :: [(v, Type v loc, RedundantTypeAnnotation)] }
     deriving (Show)
 
 type TypeNote v loc = Either (TypeError v loc) (TypeInfo v loc)
@@ -163,7 +164,7 @@ generalMismatch = do
   ((foundLeaf, expectedLeaf), (foundType, expectedType)) <- firstLastSubtype
   let [ft, et, fl, el] = Type.cleanups [sub foundType, sub expectedType,
                                         sub foundLeaf, sub expectedLeaf]
-  pure $ Mismatch ft et fl el (ABT.annotation mismatchSite) n
+  pure $ Mismatch ft et fl el mismatchSite n
 
 
 and,or,cond,matchGuard
@@ -191,14 +192,13 @@ booleanMismatch0 b ex = do
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
-  let mismatchLoc = ABT.annotation mismatchSite
   foundType <- Ex.unique $ do
     Ex.pathStart
     (foundType, _, _) <- inSubtypes
     void $ Ex.some Ex.inCheck
     ex
     pure $ Type.cleanup foundType
-  pure (BooleanMismatch b mismatchLoc (sub foundType) n)
+  pure (BooleanMismatch b mismatchSite (sub foundType) n)
 
 existentialMismatch0
   :: (Var v, Ord loc)
@@ -210,7 +210,6 @@ existentialMismatch0 em getExpectedLoc = do
   ctx <- Ex.typeMismatch
   let sub t = C.apply ctx t
   mismatchSite <- Ex.innermostTerm
-  let mismatchLoc = ABT.annotation mismatchSite
   ([foundType, expectedType], expectedLoc) <- Ex.unique $ do
     Ex.pathStart
     subtypes@(_:_) <- Ex.some Ex.inSubtype
@@ -219,7 +218,7 @@ existentialMismatch0 em getExpectedLoc = do
     expectedLoc <- getExpectedLoc
     pure (Type.cleanups [foundType, expectedType], expectedLoc)
   pure $ ExistentialMismatch em (sub expectedType) expectedLoc
-                                (sub foundType) mismatchLoc
+                                (sub foundType) mismatchSite
                                 -- todo : save type leaves too
                                 n
 

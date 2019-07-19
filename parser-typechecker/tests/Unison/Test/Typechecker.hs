@@ -28,21 +28,26 @@ import qualified Unison.Runtime.Rt1IO   as RT
 import           Unison.Symbol          (Symbol)
 import qualified Unison.Term            as Term
 import           Unison.Term            ( amap )
-import           Unison.Test.Common     (parseAndSynthesizeAsFile)
+import           Unison.Test.Common     (parseAndSynthesizeAsFile, parsingEnv)
 import qualified Unison.UnisonFile      as UF
 import           Unison.Util.Monoid     (intercalateMap)
+import qualified Unison.Var as Var
+import qualified Unison.Type as Type
+import qualified Unison.Test.Common as Common
+import qualified Unison.Names3
 
 type Note = Result.Note Symbol Parser.Ann
 
 type TFile = UF.TypecheckedUnisonFile Symbol Ann
 type SynthResult =
   Result (Seq Note)
-         (PrintError.Env, Maybe TFile)
+         (Either Unison.Names3.Names0 TFile)
 
 type EitherResult = Either String TFile
 
+
 ppEnv :: PPE.PrettyPrintEnv
-ppEnv = PPE.fromNames Builtin.names
+ppEnv = PPE.fromNames Common.hqLength Builtin.names
 
 expectRight' :: Either String a -> Test a
 expectRight' (Left  e) = crash e
@@ -63,6 +68,30 @@ test = do
       , go rt shouldFailNow   bad
       , go rt shouldPassLater (pending . bad)
       , go rt shouldFailLater (pending . good)
+      , scope "Term.substTypeVar" $ do
+          -- check that capture avoidance works in substTypeVar
+          let v s = Var.nameds s :: Symbol
+              tv s = Type.var() (v s)
+              v1 s = Var.freshenId 1 (v s)
+              tm :: Term.Term Symbol
+              tm = Term.ann() (Term.ann()
+                                 (Term.nat() 42)
+                                 (Type.introOuter() (v "a") $
+                                   Type.arrow() (tv "a") (tv "x")))
+                              (Type.forall() (v "a") (tv "a"))
+              tm' = Term.substTypeVar (v "x") (tv "a") tm
+              expected =
+                Term.ann() (Term.ann()
+                              (Term.nat() 42)
+                              (Type.introOuter() (v1 "a") $
+                                Type.arrow() (Type.var() $ v1 "a") (tv "a")))
+                           (Type.forall() (v1 "a") (Type.var() $ v1 "a"))
+          note $ show tm'
+          note $ show expected
+          expect $ tm == tm
+          expect $ tm' == tm'
+          expect $ tm' == expected
+          ok
       ]
 
 shouldPassPath, shouldFailPath :: String
@@ -87,16 +116,20 @@ go rt files how = do
   tests (makePassingTest rt how <$> files')
 
 showNotes :: Foldable f => String -> PrintError.Env -> f Note -> String
-showNotes source env notes =
-  intercalateMap "\n\n" (PrintError.renderNoteAsANSI env source) notes
+showNotes source env =
+  intercalateMap "\n\n" $ PrintError.renderNoteAsANSI 60 env source
 
 decodeResult
   :: String -> SynthResult -> EitherResult--  String (UF.TypecheckedUnisonFile Symbol Ann)
 decodeResult source (Result notes Nothing) =
   Left $ showNotes source ppEnv notes
-decodeResult source (Result notes (Just (env, Nothing))) =
-  Left $ showNotes source env notes
-decodeResult _source (Result _notes (Just (_env, Just uf))) =
+decodeResult source (Result notes (Just (Left errNames))) =
+  Left $ showNotes
+          source
+          (PPE.fromNames Common.hqLength
+            (Unison.Names3.shadowing errNames Builtin.names))
+          notes
+decodeResult _source (Result _notes (Just (Right uf))) =
   Right uf
 
 makePassingTest
@@ -110,11 +143,13 @@ makePassingTest rt how filepath = scope shortName $ do
     (True, Right file) -> do
       values <- io $ unpack <$> Data.Text.IO.readFile valueFile
       let untypedFile = UF.discardTypes file
-      let term        = Parsers.parseTerm values $ (mempty, UF.toNames untypedFile)
-      (bindings, watches) <- io $ evaluateWatches Builtin.codeLookup
-                                      (const $ pure Nothing)
-                                      rt
-                                      untypedFile
+      let term        = Parsers.parseTerm values parsingEnv
+      (bindings, watches) <- io $ either undefined id <$>
+        evaluateWatches Builtin.codeLookup
+                        mempty
+                        (const $ pure Nothing)
+                        rt
+                        untypedFile
       case term of
         Right tm -> do
           -- compare the the watch expression from the .u with the expr in .ur

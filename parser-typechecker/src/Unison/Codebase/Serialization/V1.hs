@@ -1,12 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE FlexibleContexts, RankNTypes, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes #-}
 
 module Unison.Codebase.Serialization.V1 where
 
 -- import qualified Data.Text as Text
 import qualified Unison.PatternP               as Pattern
-import           Unison.PatternP                ( Pattern )
+import           Unison.PatternP                ( Pattern
+                                                , SeqOp
+                                                )
 import           Control.Applicative            ( liftA2
                                                 , liftA3
                                                 )
@@ -33,15 +34,18 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
 import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch2        ( Branch0(..) )
-import qualified Unison.Codebase.Branch2        as Branch
-import           Unison.Codebase.Causal2        ( Causal0(..)
-                                                , C0Hash(..)
-                                                , unc0hash
+import           Unison.Codebase.Branch         ( Branch0(..) )
+import qualified Unison.Codebase.Branch         as Branch
+import           Unison.Codebase.Causal         ( Raw(..)
+                                                , RawHash(..)
+                                                , unRawHash
                                                 )
-import           Unison.Codebase.Path           ( NameSegment )
-import           Unison.Codebase.Path           as Path
-import           Unison.Codebase.Path           as NameSegment
+import qualified Unison.Codebase.Causal         as Causal
+import qualified Unison.Codebase.Metadata       as Metadata
+import           Unison.Codebase.NameSegment    ( NameSegment )
+import           Unison.Codebase.NameSegment    as NameSegment
+import           Unison.Codebase.Patch          ( Patch(..) )
+import qualified Unison.Codebase.Patch          as Patch
 import           Unison.Codebase.TermEdit       ( TermEdit )
 import           Unison.Codebase.TypeEdit       ( TypeEdit )
 import           Unison.Hash                    ( Hash )
@@ -65,6 +69,8 @@ import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
+import           Unison.Util.Star3             ( Star3 )
+import qualified Unison.Util.Star3             as Star3
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Relation          as Relation
 import qualified Unison.DataDeclaration        as DataDeclaration
@@ -72,6 +78,8 @@ import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
                                                 )
 import qualified Unison.Var                    as Var
+import qualified Unison.ConstructorType        as CT
+import Unison.Type (Type)
 
 -- ABOUT THIS FORMAT:
 --
@@ -89,17 +97,18 @@ unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++
          " while deserializing: " ++ msg
 
-putCausal0 :: MonadPut m => (a -> m ()) -> Causal0 h a -> m ()
-putCausal0 putA = \case
-  One0 a -> putWord8 0 >> putA a
-  Cons0 a t -> putWord8 1 >> (putHash.unc0hash) t >> putA a
-  Merge0 a ts -> putWord8 2 >> putFoldable (putHash.unc0hash) ts >> putA a
+putRawCausal :: MonadPut m => (a -> m ()) -> Causal.Raw h a -> m ()
+putRawCausal putA = \case
+  RawOne a -> putWord8 0 >> putA a
+  RawCons a t -> putWord8 1 >> (putHash . unRawHash) t >> putA a
+  RawMerge a ts ->
+    putWord8 2 >> putFoldable (putHash . unRawHash) ts >> putA a
 
-getCausal0 :: MonadGet m => m a -> m (Causal0 h a)
+getCausal0 :: MonadGet m => m a -> m (Causal.Raw h a)
 getCausal0 getA = getWord8 >>= \case
-  0 -> One0 <$> getA
-  1 -> flip Cons0 <$> (C0Hash <$> getHash) <*> getA
-  2 -> flip Merge0 . Set.fromList <$> getList (C0Hash <$> getHash) <*> getA
+  0 -> RawOne <$> getA
+  1 -> flip RawCons <$> (RawHash <$> getHash) <*> getA
+  2 -> flip RawMerge . Set.fromList <$> getList (RawHash <$> getHash) <*> getA
   x -> unknownTag "Causal0" x
 
 -- Like getCausal, but doesn't bother to read the actual value in the causal,
@@ -196,7 +205,7 @@ getNat :: MonadGet m => m Word64
 getNat = getWord64be
 
 putInt :: MonadPut m => Int64 -> m ()
-putInt n = serializeBE n
+putInt = serializeBE
 
 getInt :: MonadGet m => m Int64
 getInt = deserializeBE
@@ -244,22 +253,34 @@ getReference = do
     _ -> unknownTag "Reference" tag
 
 putReferent :: MonadPut m => Referent -> m ()
-putReferent r = case r of
+putReferent = \case
   Referent.Ref r -> do
     putWord8 0
     putReference r
-  Referent.Con r i -> do
+  Referent.Con r i ct -> do
     putWord8 1
     putReference r
     putLength i
+    putConstructorType ct
+
+putConstructorType :: MonadPut m => CT.ConstructorType -> m ()
+putConstructorType = \case
+  CT.Data -> putWord8 0
+  CT.Effect -> putWord8 1
 
 getReferent :: MonadGet m => m Referent
 getReferent = do
   tag <- getWord8
   case tag of
     0 -> Referent.Ref <$> getReference
-    1 -> Referent.Con <$> getReference <*> getLength
+    1 -> Referent.Con <$> getReference <*> getLength <*> getConstructorType
     _ -> unknownTag "getReferent" tag
+
+getConstructorType :: MonadGet m => m CT.ConstructorType
+getConstructorType = getWord8 >>= \case
+  0 -> pure CT.Data
+  1 -> pure CT.Effect
+  t -> unknownTag "getConstructorType" t
 
 putMaybe :: MonadPut m => Maybe a -> (a -> m ()) -> m ()
 putMaybe Nothing _ = putWord8 0
@@ -315,7 +336,7 @@ putABT putVar putA putF abt =
       Just i  -> putWord8 0 *> putLength i
       Nothing -> case v `elemIndex` fvs of
         Just i -> putWord8 1 *> putLength i
-        Nothing -> error $ "impossible: var not free or bound"
+        Nothing -> error "impossible: var not free or bound"
 
 getABT
   :: (MonadGet m, Foldable f, Functor f, Ord v)
@@ -355,9 +376,9 @@ getKind = getWord8 >>= \tag -> case tag of
 
 putType :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
-        -> Type.AnnotatedType v a
+        -> Type v a
         -> m ()
-putType putVar putA typ = putABT putVar putA go typ where
+putType putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Type.Ref r       -> putWord8 0 *> putReference r
     Type.Arrow i o   -> putWord8 1 *> putChild i *> putChild o
@@ -366,9 +387,10 @@ putType putVar putA typ = putABT putVar putA go typ where
     Type.Effect e t  -> putWord8 4 *> putChild e *> putChild t
     Type.Effects es  -> putWord8 5 *> putFoldable putChild es
     Type.Forall body -> putWord8 6 *> putChild body
+    Type.IntroOuter body -> putWord8 7 *> putChild body
 
 getType :: (MonadGet m, Ord v)
-        => m v -> m a -> m (Type.AnnotatedType v a)
+        => m v -> m a -> m (Type v a)
 getType getVar getA = getABT getVar getA go where
   go getChild = getWord8 >>= \tag -> case tag of
     0 -> Type.Ref <$> getReference
@@ -378,6 +400,7 @@ getType getVar getA = getABT getVar getA go where
     4 -> Type.Effect <$> getChild <*> getChild
     5 -> Type.Effects <$> getList getChild
     6 -> Type.Forall <$> getChild
+    7 -> Type.IntroOuter <$> getChild
     _ -> unknownTag "getType" tag
 
 putSymbol :: MonadPut m => Symbol -> m ()
@@ -388,29 +411,49 @@ getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of
-  Pattern.Unbound a
-    -> putWord8 0 *> putA a
-  Pattern.Var a
-    -> putWord8 1 *> putA a
-  Pattern.Boolean a b
-    -> putWord8 2 *> putA a *> putBoolean b
-  Pattern.Int a n
-    -> putWord8 3 *> putA a *> putInt n
-  Pattern.Nat a n
-    -> putWord8 4 *> putA a *> putNat n
-  Pattern.Float a n
-    -> putWord8 5 *> putA a *> putFloat n
-  Pattern.Constructor a r cid ps
-    -> putWord8 6 *> putA a *> putReference r *> putLength cid
-                  *> putFoldable (putPattern putA) ps
-  Pattern.As a p
-    -> putWord8 7 *> putA a *> putPattern putA p
-  Pattern.EffectPure a p
-    -> putWord8 8 *> putA a *> putPattern putA p
-  Pattern.EffectBind a r cid args k
-    -> putWord8 9 *> putA a *> putReference r *> putLength cid
-                  *> putFoldable (putPattern putA) args *> putPattern putA k
+  Pattern.Unbound a   -> putWord8 0 *> putA a
+  Pattern.Var     a   -> putWord8 1 *> putA a
+  Pattern.Boolean a b -> putWord8 2 *> putA a *> putBoolean b
+  Pattern.Int     a n -> putWord8 3 *> putA a *> putInt n
+  Pattern.Nat     a n -> putWord8 4 *> putA a *> putNat n
+  Pattern.Float   a n -> putWord8 5 *> putA a *> putFloat n
+  Pattern.Constructor a r cid ps ->
+    putWord8 6
+      *> putA a
+      *> putReference r
+      *> putLength cid
+      *> putFoldable (putPattern putA) ps
+  Pattern.As         a p -> putWord8 7 *> putA a *> putPattern putA p
+  Pattern.EffectPure a p -> putWord8 8 *> putA a *> putPattern putA p
+  Pattern.EffectBind a r cid args k ->
+    putWord8 9
+      *> putA a
+      *> putReference r
+      *> putLength cid
+      *> putFoldable (putPattern putA) args
+      *> putPattern putA k
+  Pattern.SequenceLiteral a ps ->
+    putWord8 10 *> putA a *> putFoldable (putPattern putA) ps
+  Pattern.SequenceOp a l op r ->
+    putWord8 11
+      *> putA a
+      *> putPattern putA l
+      *> putSeqOp op
+      *> putPattern putA r
   _ -> error $ "unknown pattern: " ++ show p
+
+putSeqOp :: MonadPut m => SeqOp -> m ()
+putSeqOp Pattern.Cons   = putWord8 0
+putSeqOp Pattern.Snoc   = putWord8 1
+putSeqOp Pattern.Concat = putWord8 2
+putSeqOp seqop          = error $ "unknown tag: " ++ show seqop
+
+getSeqOp :: MonadGet m => m SeqOp
+getSeqOp = getWord8 >>= \case
+  0   -> pure Pattern.Cons
+  1   -> pure Pattern.Snoc
+  2   -> pure Pattern.Concat
+  tag -> unknownTag "SeqOp" tag
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
 getPattern getA = getWord8 >>= \tag -> case tag of
@@ -420,17 +463,31 @@ getPattern getA = getWord8 >>= \tag -> case tag of
   3 -> Pattern.Int <$> getA <*> getInt
   4 -> Pattern.Nat <$> getA <*> getNat
   5 -> Pattern.Float <$> getA <*> getFloat
-  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList (getPattern getA)
+  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList
+    (getPattern getA)
   7 -> Pattern.As <$> getA <*> getPattern getA
   8 -> Pattern.EffectPure <$> getA <*> getPattern getA
-  9 -> Pattern.EffectBind <$> getA <*> getReference <*> getLength <*> getList (getPattern getA) <*> getPattern getA
+  9 ->
+    Pattern.EffectBind
+      <$> getA
+      <*> getReference
+      <*> getLength
+      <*> getList (getPattern getA)
+      <*> getPattern getA
+  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  11 ->
+    Pattern.SequenceOp
+      <$> getA
+      <*> getPattern getA
+      <*> getSeqOp
+      <*> getPattern getA
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
         => (v -> m ()) -> (a -> m ())
         -> AnnotatedTerm v a
         -> m ()
-putTerm putVar putA typ = putABT putVar putA go typ where
+putTerm putVar putA = putABT putVar putA go where
   go putChild t = case t of
     Term.Int n
       -> putWord8 0 *> putInt n
@@ -443,7 +500,7 @@ putTerm putVar putA typ = putABT putVar putA go typ where
     Term.Text t
       -> putWord8 4 *> putText t
     Term.Blank _
-      -> error $ "can't serialize term with blanks"
+      -> error "can't serialize term with blanks"
     Term.Ref r
       -> putWord8 5 *> putReference r
     Term.Constructor r cid
@@ -512,8 +569,7 @@ putPair''
   -> (b -> n (m ()))
   -> (a, b)
   -> n (m ())
-putPair'' putA putBn (a, b) = do
-  pure (putA a) *> putBn b
+putPair'' putA putBn (a, b) = pure (putA a) *> putBn b
 
 getPair :: MonadGet m => m a -> m b -> m (a,b)
 getPair = liftA2 (,)
@@ -571,12 +627,47 @@ getTypeEdit = getWord8 >>= \case
   2 -> pure TypeEdit.Deprecate
   t -> unknownTag "TypeEdit" t
 
+putStar3
+  :: MonadPut m
+  => (f -> m ())
+  -> (d1 -> m ())
+  -> (d2 -> m ())
+  -> (d3 -> m ())
+  -> Star3 f d1 d2 d3
+  -> m ()
+putStar3 putF putD1 putD2 putD3 s = do
+  putFoldable putF (Star3.fact s)
+  putRelation putF putD1 (Star3.d1 s)
+  putRelation putF putD2 (Star3.d2 s)
+  putRelation putF putD3 (Star3.d3 s)
+
+getStar3
+  :: (MonadGet m, Ord fact, Ord d1, Ord d2, Ord d3)
+  => m fact
+  -> m d1
+  -> m d2
+  -> m d3
+  -> m (Star3 fact d1 d2 d3)
+getStar3 getF getD1 getD2 getD3 =
+  Star3.Star3
+    <$> (Set.fromList <$> getList getF)
+    <*> getRelation getF getD1
+    <*> getRelation getF getD2
+    <*> getRelation getF getD3
+
 putBranch0 :: MonadPut m => Branch0 n -> m ()
 putBranch0 b = do
-  putRelation putNameSegment putReferent (Branch._terms b)
-  putRelation putNameSegment putReference (Branch._types b)
-  putFoldable (putPair putNameSegment (putHash . unc0hash . fst))
+  putBranchStar putReferent putNameSegment (Branch._terms b)
+  putBranchStar putReference putNameSegment (Branch._types b)
+  putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
               (Map.toList (Branch._children b))
+
+putBranchStar :: MonadPut m => (a -> m ()) -> (n -> m ()) -> Branch.Star a n -> m ()
+putBranchStar putA putN =
+  putStar3 putA putN putMetadataType (putPair putMetadataType putMetadataValue)
+
+getBranchStar :: (Ord a, Ord n, MonadGet m) => m a -> m n -> m (Branch.Star a n)
+getBranchStar getA getN = getStar3 getA getN getMetadataType (getPair getMetadataType getMetadataValue)
 
 -- getBranch0 :: MonadGet m => m (Branch00)
 
@@ -599,17 +690,31 @@ getNameSegment :: MonadGet m => m NameSegment
 getNameSegment = NameSegment <$> getText
 
 putRawBranch :: MonadPut m => Branch.Raw -> m ()
-putRawBranch (Branch.Raw terms types children) =
-  putRelation putNameSegment putReferent terms >>
-  putRelation putNameSegment putReference types >>
-  putMap putNameSegment (putHash . unc0hash) children
+putRawBranch (Branch.Raw terms types children edits) = do
+  putBranchStar putReferent putNameSegment terms
+  putBranchStar putReference putNameSegment types
+  putMap putNameSegment (putHash . unRawHash) children
+  putMap putNameSegment putHash edits
+
+getMetadataType :: MonadGet m => m Metadata.Type
+getMetadataType = getReference
+
+putMetadataType :: MonadPut m => Metadata.Type -> m ()
+putMetadataType = putReference
+
+getMetadataValue :: MonadGet m => m Metadata.Value
+getMetadataValue = getReference
+
+putMetadataValue :: MonadPut m => Metadata.Value -> m ()
+putMetadataValue = putReference
 
 getRawBranch :: MonadGet m => m Branch.Raw
 getRawBranch =
   Branch.Raw
-    <$> getRelation getNameSegment getReferent
-    <*> getRelation getNameSegment getReference
-    <*> getMap getNameSegment (C0Hash <$> getHash)
+    <$> getBranchStar getReferent getNameSegment
+    <*> getBranchStar getReference getNameSegment
+    <*> getMap getNameSegment (RawHash <$> getHash)
+    <*> getMap getNameSegment getHash
 
 putDataDeclaration :: (MonadPut m, Ord v)
                    => (v -> m ()) -> (a -> m ())
@@ -659,3 +764,12 @@ getEither getL getR = getWord8 >>= \case
 
 formatSymbol :: S.Format Symbol
 formatSymbol = S.Format getSymbol putSymbol
+
+putEdits :: MonadPut m => Patch -> m ()
+putEdits edits =
+  putRelation putReference putTermEdit (Patch._termEdits edits) >>
+  putRelation putReference putTypeEdit (Patch._typeEdits edits)
+
+getEdits :: MonadGet m => m Patch
+getEdits = Patch <$> getRelation getReference getTermEdit
+                 <*> getRelation getReference getTypeEdit

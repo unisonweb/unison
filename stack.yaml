@@ -10,13 +10,15 @@ packages:
 - parser-typechecker
 
 #compiler-check: match-exact
-resolver: lts-12.5
+resolver: lts-12.14
 
 extra-deps:
 - base58-bytestring-0.1.0
 - strings-1.1
 - relation-0.2.1
 - guid-0.1.0
+- shellmet-0.0.1
+- fsutils-0.1.2
 
 ghc-options:
  # All packages

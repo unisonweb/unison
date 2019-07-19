@@ -14,6 +14,7 @@ cabal-dev
 **/cache/**
 **/build/**
 tags
+ctags
 unison-src/.loaded
 **/cabal.sandbox.config
 .cabal-sandbox/**
@@ -23,6 +24,7 @@ target
 htags
 scala-tags
 haskell-tags
+out
 
 # Stack
 .stack-work
@@ -37,3 +39,6 @@ haskell-tags
 .virtualenv
 .vagrant
 .bloop
+.floo
+.flooignore
+tmp/

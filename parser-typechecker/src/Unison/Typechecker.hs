@@ -22,7 +22,6 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Control.Monad.Writer
 import           Data.Foldable              (for_, toList, traverse_)
-import           Data.List                  (nub)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
@@ -31,28 +30,24 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
-import qualified Unison.ConstructorType     as CT
--- import           Unison.Name                (Name)
--- import qualified Unison.Name                as Name
-import           Unison.Reference           (Reference)
 import           Unison.Referent            (Referent)
 import           Unison.Result              (pattern Result, Result,
                                              ResultT, runResultT)
 import           Unison.Term                (AnnotatedTerm)
 import qualified Unison.Term                as Term
-import           Unison.Type                (AnnotatedType)
+import           Unison.Type                (Type)
 import qualified Unison.Type                as Type
 import qualified Unison.Typechecker.Context as Context
 import qualified Unison.TypeVar             as TypeVar
 import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
+import           Unison.Util.List           ( uniqueBy )
 -- import           Debug.Trace
 
 type Name = Text
 
 type Term v loc = AnnotatedTerm v loc
-type Type v loc = AnnotatedType v loc
 
 data Notes v loc = Notes {
   errors :: Seq (Context.ErrorNote v loc),
@@ -69,13 +64,12 @@ convertResult :: Context.Result v loc a -> Result (Notes v loc) a
 convertResult (Context.Result es is ma) = Result (Notes es is) ma
 
 data NamedReference v loc =
-  NamedReference { fqn :: Name, fqnType :: AnnotatedType v loc
+  NamedReference { fqn :: Name, fqnType :: Type v loc
                  , replacement :: Either v Referent }
   deriving Show
 
 data Env v loc = Env
-  { _builtinLoc        :: loc
-  , _ambientAbilities  :: [Type v loc]
+  { _ambientAbilities  :: [Type v loc]
   , _typeLookup        :: TL.TypeLookup v loc
   , _unqualifiedTerms  :: Map Name [NamedReference v loc]
   }
@@ -156,17 +150,17 @@ synthesize
   -> ResultT (Notes v loc) f (Type v loc)
 synthesize env t = let
   (Context.Result es is ot) = Context.synthesizeClosed
-    (view builtinLoc env)
     (ABT.vmap TypeVar.Universal <$> view ambientAbilities env)
     (view typeLookup env)
     (Term.vtmap TypeVar.Universal t)
   in tell (Notes es is) *> MaybeT (pure $ fmap lowerType ot)
 
 isSubtype :: Var v => Type v loc -> Type v loc -> Bool
-isSubtype t1 t2 = case Context.isSubtype () (tvar $ void t1) (tvar $ void t2) of
-  Context.Result es _ ob -> case ob of
-    Nothing -> error $ "some errors occurred during subtype checking " ++ show es
-    Just b -> b
+isSubtype t1 t2 =
+  case Context.isSubtype (tvar $ void t1) (tvar $ void t2) of
+    Context.Result es _ ob -> fromMaybe
+      (error $ "some errors occurred during subtype checking " ++ show es)
+      ob
   where tvar = ABT.vmap TypeVar.Universal
 
 isEqual :: Var v => Type v loc -> Type v loc -> Bool
@@ -231,8 +225,9 @@ typeDirectedNameResolution oldNotes oldType env = do
   case catMaybes resolutions of
     [] -> pure oldType
     rs ->
-      let goAgain =
-            any ((== 1) . length . filter Context.isExact . suggestions) rs
+      let
+        goAgain =
+          any ((== 1) . length . dedupe . filter Context.isExact . suggestions) rs
       in  if goAgain
             then do
               traverse_ substSuggestion rs
@@ -244,34 +239,31 @@ typeDirectedNameResolution oldNotes oldType env = do
  where
   addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
   addTypedComponent (Context.TopLevelComponent vtts)
-    = for_ vtts $ \(v, typ, _) -> do
+    = for_ vtts $ \(v, typ, _) ->
       unqualifiedTerms %= Map.insertWith (<>)
                               (Var.unqualifiedName v)
-                              ([NamedReference (Var.name v) typ (Left v)])
+                              [NamedReference (Var.name v) typ (Left v)]
   addTypedComponent _ = pure ()
+
   suggest :: [Resolution v loc] -> Result (Notes v loc) ()
   suggest = traverse_
     (\(Resolution name inferredType loc suggestions) ->
       typeError $ Context.ErrorNote
-        (Context.UnknownTerm loc (Var.named name) (nub suggestions) inferredType)
+        (Context.UnknownTerm loc (Var.named name) (dedupe suggestions) inferredType)
         []
     )
   guard x a = if x then Just a else Nothing
+
   substSuggestion :: Resolution v loc -> TDNR f v loc ()
   substSuggestion (Resolution name _ loc (filter Context.isExact ->
-                                        [Context.Suggestion _ _ replacement])) =
-    do
+      [Context.Suggestion _ _ replacement Context.Exact]))
+    = do
       modify (substBlank (Text.unpack name) loc solved)
       lift . btw $ Context.Decision (Var.named name) loc solved
-        where solved = either (Term.var loc)
-                              (Term.fromReferent constructorType loc)
-                              replacement
-              constructorType :: Reference -> CT.ConstructorType
-              constructorType =
-                fromMaybe (error "no constructor type in substSuggestion")
-                  . TL.constructorType (view typeLookup env)
-
+   where
+    solved = either (Term.var loc) (Term.fromReferent loc) replacement
   substSuggestion _ = pure ()
+
   -- Resolve a `Blank` to a term
   substBlank :: String -> loc -> Term v loc -> Term v loc -> Term v loc
   substBlank s a r = ABT.visitPure go
@@ -280,37 +272,41 @@ typeDirectedNameResolution oldNotes oldType env = do
       resolve (Term.Blank' (B.Recorded (B.Resolve loc name))) | name == s =
         Just (const loc <$> r)
       resolve _ = Nothing
+
   --  Returns Nothing for irrelevant notes
   resolveNote
     :: Env v loc
     -> Context.InfoNote v loc
     -> Result (Notes v loc) (Maybe (Resolution v loc))
   resolveNote env (Context.SolvedBlank (B.Resolve loc n) _ it)
-    = fmap (Just . Resolution (Text.pack n) it loc . join)
-      . traverse (resolve env it)
+    = fmap (Just . Resolution (Text.pack n) it loc . dedupe . join)
+      . traverse (resolve it)
       . join
       . maybeToList
       . Map.lookup (Text.pack n)
       $ view unqualifiedTerms env
   resolveNote _ n = btw n >> pure Nothing
+  dedupe :: [Context.Suggestion v loc] -> [Context.Suggestion v loc]
+  dedupe = uniqueBy Context.suggestionReplacement
   resolve
-    :: Env v loc
-    -> Context.Type v loc
+    :: Context.Type v loc
     -> NamedReference v loc
     -> Result (Notes v loc) [Context.Suggestion v loc]
-  resolve env inferredType (NamedReference fqn foundType replace) =
+  resolve inferredType (NamedReference fqn foundType replace) =
     -- We found a name that matches. See if the type matches too.
     let Result subNotes subResult = convertResult
-          $ Context.isSubtype (view builtinLoc env) (Type.toTypeVar foundType) inferredType
+          $ Context.isSubtype (Type.toTypeVar foundType) inferredType
     in  case subResult of
-          -- Something unexpected went wrong with the subtype check
+                  -- Something unexpected went wrong with the subtype check
           Nothing -> const [] <$> traverse_ typeError (errors subNotes)
           -- Suggest the import if the type matches.
-          Just b  -> pure [ if b then
-                              Context.Suggestion fqn (Type.toTypeVar foundType) replace
-                            else
-                              Context.WrongType fqn (Type.toTypeVar foundType)
-                          ]
+          Just b  -> pure
+            [ Context.Suggestion
+                fqn
+                (Type.toTypeVar foundType)
+                replace
+                (if b then Context.Exact else Context.WrongType)
+            ]
 
 -- | Check whether a term matches a type, using a
 -- function to resolve the type of @Ref@ constructors

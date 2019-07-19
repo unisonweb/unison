@@ -39,24 +39,34 @@ library
     Unison.Builtin
     Unison.Codecs
     Unison.Codebase
-    Unison.Codebase2
     Unison.Codebase.Branch
-    Unison.Codebase.Branch2
+    Unison.Codebase.BranchUtil
     Unison.Codebase.Causal
-    Unison.Codebase.Causal2
     Unison.Codebase.Classes
     Unison.Codebase.CodeLookup
-    Unison.Codebase.Editor
-    Unison.Codebase.Editor.Actions
+    Unison.Codebase.Editor.Command
+    Unison.Codebase.Editor.DisplayThing
+    Unison.Codebase.Editor.Git
+    Unison.Codebase.Editor.HandleInput
+    Unison.Codebase.Editor.HandleCommand
+    Unison.Codebase.Editor.Input
+    Unison.Codebase.Editor.Output
+    Unison.Codebase.Editor.RemoteRepo
+    Unison.Codebase.Editor.SearchResult'
+    Unison.Codebase.Editor.SlurpResult
+    Unison.Codebase.Editor.SlurpComponent
+    Unison.Codebase.Editor.TodoOutput
     Unison.Codebase.FileCodebase
-    Unison.Codebase.FileCodebase2
+    Unison.Codebase.GitError
+    Unison.Codebase.Metadata
     Unison.Codebase.NameEdit
+    Unison.Codebase.NameSegment
     Unison.Codebase.Path
+    Unison.Codebase.Patch
     Unison.Codebase.Runtime
     Unison.Codebase.SearchResult
     Unison.Codebase.Serialization
     Unison.Codebase.Serialization.PutT
-    Unison.Codebase.Serialization.V0
     Unison.Codebase.Serialization.V1
     Unison.Codebase.TermEdit
     Unison.Codebase.TypeEdit
@@ -74,10 +84,13 @@ library
     Unison.Hash
     Unison.Hashable
     Unison.HashQualified
+    Unison.HashQualified'
     Unison.Kind
+    Unison.LabeledDependency
     Unison.Lexer
     Unison.Name
-    Unison.Names
+    Unison.Names2
+    Unison.Names3
     Unison.NamePrinter
     Unison.Parser
     Unison.Parsers
@@ -86,8 +99,10 @@ library
     Unison.Pattern
     Unison.PatternP
     Unison.PrettyPrintEnv
+    Unison.PrettyTerminal
     Unison.PrintError
     Unison.Reference
+    Unison.Reference.Util
     Unison.Referent
     Unison.Result
     Unison.Runtime.ANF
@@ -122,12 +137,13 @@ library
     Unison.Util.Find
     Unison.Util.Logger
     Unison.Util.List
-    Unison.Util.Histogram
     Unison.Util.Menu
     Unison.Util.Monoid
     Unison.Util.Pretty
     Unison.Util.Range
     Unison.Util.Relation
+    Unison.Util.Star3
+    Unison.Util.SyntaxText
     Unison.Util.TQueue
     Unison.Util.TransitiveClosure
     Unison.Util.CycleTable
@@ -147,17 +163,20 @@ library
     containers,
     comonad,
     concurrent-supply,
+    configurator,
     cryptonite,
+    directory,
     guid,
     data-memocombinators,
-    directory,
     errors,
     edit-distance,
+    either,
     extra,
     filepath,
     fingertree,
     free,
     fsnotify,
+    fsutils,
     hashable,
     hashtables,
     haskeline,
@@ -180,6 +199,7 @@ library
     regex-base,
     regex-tdfa,
     safe,
+    shellmet,
     split,
     stm,
     strings,
@@ -187,10 +207,25 @@ library
     text,
     time,
     transformers,
+    unliftio,
+    util,
     vector
 
   ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  extensions: LambdaCase
+  default-extensions:
+    ApplicativeDo,
+    DeriveFunctor,
+    DoAndIfThenElse,
+    FlexibleContexts,
+    FlexibleInstances,
+    LambdaCase,
+    MultiParamTypeClasses,
+    -- OverloadedStrings,
+    -- RecordWildCards,
+    ScopedTypeVariables,
+    TupleSections
+    TypeApplications
+    -- ViewPatterns
 
   if flag(optimized)
     ghc-options: -funbox-strict-fields
@@ -198,13 +233,14 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable unison
+executable unison2
   main-is: Main.hs
-  hs-source-dirs: unison
+  hs-source-dirs: unison2
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
     containers,
+    directory,
     safe,
     unison-parser-typechecker
 
@@ -223,13 +259,15 @@ executable tests
   ghc-options:    -W -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -threaded -rtsopts -with-rtsopts=-N -v0
   hs-source-dirs: tests
   other-modules:
+    Unison.Test.Codebase.Causal
+    Unison.Test.Codebase.Path
     Unison.Test.ColorText
     Unison.Test.Common
     Unison.Test.DataDeclaration
     Unison.Test.FileParser
     Unison.Test.Lexer
     Unison.Test.Range
-    Unison.Test.RemainingWork
+    Unison.Test.Referent
     Unison.Test.TermParser
     Unison.Test.TermPrinter
     Unison.Test.Type
@@ -246,6 +284,7 @@ executable tests
     directory,
     easytest,
     errors,
+    extra,
     filepath,
     filemanip,
     lens,

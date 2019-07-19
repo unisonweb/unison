@@ -11,19 +11,22 @@ module Unison.Reference
    derivedBase58,
    Component, members,
    components,
-   hashComponents,
    groupByComponent,
    componentFor,
    unsafeFromText,
+   idFromText,
+   isPrefixOf,
+   fromText,
    readSuffix,
    showShort,
+   showSuffix,
    toText,
    unsafeId,
    toShortHash) where
 
 import           Control.Monad   (join)
 import           Data.Foldable   (toList)
-import           Data.List
+import           Data.List hiding (isPrefixOf)
 import qualified Data.Map        as Map
 import           Data.Maybe      (fromJust, maybe)
 import           Data.Set        (Set)
@@ -32,12 +35,10 @@ import           Data.Text       (Text)
 import qualified Data.Text       as Text
 import           Data.Word       (Word64)
 import           GHC.Generics
-import qualified Unison.ABT      as ABT
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import qualified Unison.Var      as Var
 import           Data.Bytes.Get
 import           Data.Bytes.Put
 import           Data.Bytes.Serial              ( serialize
@@ -58,6 +59,9 @@ data Reference
 
 pattern Derived h i n = DerivedId (Id h i n)
 
+-- A good idea, but causes a weird problem with view patterns in PatternP.hs in ghc 8.4.3
+--{-# COMPLETE Builtin, Derived #-}
+
 data Id = Id H.Hash Pos Size deriving (Eq,Ord,Generic)
 
 unsafeId :: Reference -> Id
@@ -69,17 +73,21 @@ unsafeId (DerivedId x) = x
 -- but Show Reference currently depends on SH
 toShortHash :: Reference -> ShortHash
 toShortHash (Builtin b) = SH.Builtin b
-toShortHash (Derived h 0 _) = SH.ShortHash (H.base58 h) Nothing Nothing
+toShortHash (Derived h _ 1) = SH.ShortHash (H.base58 h) Nothing Nothing
 toShortHash (Derived h i n) = SH.ShortHash (H.base58 h) index Nothing
   where
     -- todo: remove `n` parameter; must also update readSuffix
     index = Just $ showSuffix i n
-    showSuffix :: Pos -> Size -> Text
-    showSuffix i n = encode58 . runPutS $ put where
-      encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
-      put = putLength i >> putLength n
-      putLength = serialize . VarInt
 toShortHash (DerivedId _) = error "this should be covered above"
+
+showSuffix :: Pos -> Size -> Text
+showSuffix i n = encode58 . runPutS $ put where
+  encode58 = decodeUtf8 . Base58.encodeBase58 Base58.bitcoinAlphabet
+  put = putLength i >> putLength n
+  putLength = serialize . VarInt
+
+isPrefixOf :: ShortHash -> Reference -> Bool
+isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
 
 toText :: Reference -> Text
 toText = SH.toText . toShortHash
@@ -118,6 +126,12 @@ derivedBase58 b58 i n = DerivedId (Id (fromJust h) i n)
 unsafeFromText :: Text -> Reference
 unsafeFromText = either error id . fromText
 
+idFromText :: Text -> Maybe Id
+idFromText s = case fromText s of
+  Left _ -> Nothing
+  Right (Builtin _) -> Nothing
+  Right (DerivedId id) -> pure id
+
 -- examples:
 -- `##Text.take` — builtins don’t have cycles
 -- `#2tWjVAuc7` — derived, no cycle
@@ -132,16 +146,6 @@ fromText t = case Text.split (=='#') t of
     _ -> bail
   _ -> bail
   where bail = Left $ "couldn't parse a Reference from " <> Text.unpack t
-
-hashComponents ::
-     (Functor f, Hashable1 f, Foldable f, Eq v, Var.Var v)
-  => (Reference -> ABT.Term f v ())
-  -> Map.Map v (ABT.Term f v a)
-  -> Map.Map v (Reference, ABT.Term f v a)
-hashComponents embedRef tms =
-  Map.fromList [ (v, (r,e)) | ((v,e), r) <- cs ]
-  where cs = components $ ABT.hashComponents ref tms
-        ref h i n = embedRef (DerivedId (Id h i n))
 
 component :: H.Hash -> [k] -> [(k, Reference)]
 component h ks = let
@@ -162,9 +166,6 @@ groupByComponent refs = done $ foldl' insert Map.empty refs
 
 instance Show Id where show = show . SH.take 5 . toShortHash . DerivedId
 instance Show Reference where show = show . SH.take 5 . toShortHash
--- instance Show Reference where
---   show (Builtin t)         = "##" <> Text.unpack t
---   show (DerivedId id) = "#"  <> show id
 
 instance Hashable.Hashable Reference where
   tokens (Builtin txt) = [Hashable.Tag 0, Hashable.Text txt]

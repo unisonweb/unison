@@ -12,12 +12,9 @@ import           Text.RawString.QQ
 import           Unison.Parser
 import qualified Unison.Parsers as Ps
 import           Unison.PrintError (renderParseErrorAsANSI)
-import qualified Unison.Reference as R
-import qualified Unison.Referent as Referent
 import           Unison.Symbol (Symbol)
 import qualified Unison.TermParser as TP
-import qualified Unison.Names as Names
-import Unison.Names (Names)
+import qualified Unison.Test.Common as Common
 
 test1 :: Test ()
 test1 = scope "termparser" . tests . map parses $
@@ -32,10 +29,6 @@ test1 = scope "termparser" . tests . map parses $
   , "forty"
   , "forty two"
   , "\"forty two\""
-  , "( one ; two )"
-  , "( one ; two )"
-  , "( one ; two ; three )"
-  , "( one ; two ; 42 )"
   , "[1,2,3]"
   , "\"abc\""
   , "x + 1"
@@ -85,11 +78,11 @@ test1 = scope "termparser" . tests . map parses $
     "  x -> 1\n" ++
     "  2 -> 7\n" ++
     "  _ -> 3\n" ++
-    "  Pair x y -> x + y\n" ++
-    "  Pair (Pair x y) _ -> x + y \n"
+    "  Pair.Pair x y -> x + y\n" ++
+    "  Pair.Pair (Pair.Pair x y) _ -> x + y \n"
   , "case x of\n" ++
-    "  {Pair x y} -> 1\n" ++
-    "  {State.set 42 -> k} -> k 42\n"
+    "  {Pair.Pair x y} -> 1\n" ++
+    "  {Optional.Some 42 -> k} -> k 42\n"
   , "case x of\n" ++
     "  0 ->\n" ++
     "    z = 0\n" ++
@@ -159,7 +152,7 @@ test1 = scope "termparser" . tests . map parses $
   ]
 
 test2 :: Test ()
-test2 = (scope "fiddle" . tests $ unitTests)
+test2 = scope "fiddle" . tests $ unitTests
 
 test :: Test ()
 test = test1 <|> test2
@@ -184,21 +177,16 @@ unitTests =
    -- type TermP v = P v (AnnotatedTerm v Ann)
    t :: P Symbol a -> String -> Test ()
    t = parseWith
-   w = wordyId
-   s = symbolyId
-
-builtins :: Names
-builtins = Names.fromTerms
-  [("Pair", Referent.Con (R.Builtin "Pair") 0),
-   ("State.set", Referent.Con (R.Builtin "State") 0)]
+   w = wordyDefinitionName
+   s = symbolyDefinitionName
 
 parses :: String -> Test ()
 parses = parseWith TP.term
 
 parseWith :: P Symbol a -> String -> Test ()
 parseWith p s = scope (join . take 1 $ lines s) $
-  case Ps.parse @ Symbol p s (mempty, builtins) of
+  case Ps.parse @ Symbol p s Common.parsingEnv of
     Left e -> do
-      note $ renderParseErrorAsANSI s e
-      crash $ renderParseErrorAsANSI s e
+      note $ renderParseErrorAsANSI 60 s e
+      crash $ renderParseErrorAsANSI 60 s e
     Right _ -> ok

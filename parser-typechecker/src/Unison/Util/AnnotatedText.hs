@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveFunctor              #-}
--- {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -9,6 +8,7 @@
 
 module Unison.Util.AnnotatedText where
 
+import           Control.Monad      (join)
 import qualified Data.List as L
 import           Data.Foldable      (foldl')
 import qualified Data.Foldable      as Foldable
@@ -17,6 +17,7 @@ import qualified Data.Map           as Map
 import           Data.Sequence      (Seq ((:|>), (:<|)))
 import qualified Data.Sequence      as Seq
 import           Data.String        (IsString (..))
+import           Data.Tuple.Extra   (second)
 import           Safe               (headMay, lastMay)
 import           Unison.Lexer       (Line, Pos (..))
 import           Unison.Util.Monoid (intercalateMap)
@@ -26,7 +27,7 @@ import qualified Data.ListLike      as LL
 -- type AnnotatedText a = AnnotatedText (Maybe a)
 
 newtype AnnotatedText a = AnnotatedText (Seq (String, Maybe a))
-  deriving (Functor, Foldable, Show)
+  deriving (Eq, Functor, Foldable, Show)
 
 instance Semigroup (AnnotatedText a) where
   AnnotatedText (as :|> ("", _)) <> bs = AnnotatedText as <> bs
@@ -39,7 +40,7 @@ instance Monoid (AnnotatedText a) where
 instance LL.FoldableLL (AnnotatedText a) Char where
   foldl' f z (AnnotatedText at) = Foldable.foldl' f' z at where
     f' z (str, _) = L.foldl' f z str
-  foldl f z at = LL.foldl f z at
+  foldl = LL.foldl
   foldr f z (AnnotatedText at) = Foldable.foldr f' z at where
     f' (str, _) z = L.foldr f z str
 
@@ -88,11 +89,14 @@ annotate' a (AnnotatedText at) =
   AnnotatedText $ (\(s,_) -> (s, a)) <$> at
 
 deannotate :: AnnotatedText a -> AnnotatedText b
-deannotate at = annotate' Nothing at
+deannotate = annotate' Nothing
 
 annotate :: a -> AnnotatedText a -> AnnotatedText a
 annotate a (AnnotatedText at) =
   AnnotatedText $ (\(s,_) -> (s,Just a)) <$> at
+
+annotateMaybe :: AnnotatedText (Maybe a) -> AnnotatedText a
+annotateMaybe (AnnotatedText s) = AnnotatedText (fmap (second join) s)
 
 trailingNewLine :: AnnotatedText a -> Bool
 trailingNewLine (AnnotatedText (init :|> (s,_))) =

@@ -1,8 +1,10 @@
-{-# Language PatternSynonyms, ViewPatterns #-}
+{-# Language PatternSynonyms #-}
 
 module Unison.PatternP where
 
 import qualified Unison.Pattern as P
+import Data.Set.Internal (Set)
+import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern loc = P.PatternP loc
 
@@ -30,3 +32,6 @@ loc = P.loc
 
 setLoc :: P.PatternP loc -> loc -> P.PatternP loc
 setLoc = P.setLoc
+
+labeledDependencies :: P.PatternP loc -> Set LabeledDependency
+labeledDependencies = P.labeledDependencies

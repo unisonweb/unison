@@ -2,6 +2,7 @@
 
 module Unison.Test.DataDeclaration where
 
+import qualified Unison.Test.Common as Common
 import EasyTest
 import Text.RawString.QQ
 import Unison.UnisonFile (UnisonFile(..))
@@ -14,7 +15,7 @@ import Unison.DataDeclaration (hashDecls)
 
 test :: Test ()
 test = scope "datadeclaration" $
-  let hashes = hashDecls . (snd <$>) . dataDeclarations $ file
+  let Right hashes = hashDecls . (snd <$>) . dataDeclarations $ file
       hashMap = Map.fromList $ fmap (\(a,b,_) -> (a,b)) hashes
       hashOf k = Map.lookup (Var.named k) hashMap
   in tests [
@@ -29,7 +30,7 @@ test = scope "datadeclaration" $
   ]
 
 file :: UnisonFile Symbol Ann
-file = snd . flip unsafeParseFile mempty $ [r|
+file = flip unsafeParseFile Common.parsingEnv $ [r|
 
 type Bool = True | False
 type Bool' = False | True

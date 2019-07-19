@@ -16,17 +16,17 @@ import qualified Unison.DataDeclaration        as DD
 import           Unison.HashQualified           ( HashQualified )
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.Name                   as Name
-import           Unison.NamePrinter             ( prettyHashQualified )
+import           Unison.NamePrinter             ( styleHashQualified'' )
 import           Unison.PrettyPrintEnv          ( PrettyPrintEnv )
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Referent               as Referent
 import           Unison.Reference               ( Reference )
+import qualified Unison.Util.SyntaxText        as S
+import           Unison.Util.SyntaxText         ( SyntaxText )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
-import           Unison.Util.Pretty             ( Pretty
-                                                , ColorText
-                                                )
+import           Unison.Util.Pretty             ( Pretty )
 import qualified Unison.Util.Pretty            as P
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
@@ -37,7 +37,7 @@ prettyEffectDecl
   -> Reference
   -> HashQualified
   -> EffectDeclaration' v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyEffectDecl ppe r name = prettyGADT ppe r name . toDataDecl
 
 prettyGADT
@@ -46,20 +46,20 @@ prettyGADT
   -> Reference
   -> HashQualified
   -> DataDeclaration' v a
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   [0 ..]
   (DD.constructors' dd)
  where
-  constructor (n, (_, _, t)) =
+  constructor (n, (_, _, t)) = 
     prettyPattern env r name n
-      <>       " :"
-      `P.hang` TypePrinter.pretty env Map.empty (-1) t
-  header = prettyEffectHeader name (DD.EffectDeclaration dd) <> " where"
+      <>       (fmt S.TypeAscriptionColon " :")
+      `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
+  header = prettyEffectHeader name (DD.EffectDeclaration dd) <> (fmt S.ControlKeyword " where")
 
 prettyPattern
-  :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty ColorText
-prettyPattern env r namespace n = prettyHashQualified
+  :: PrettyPrintEnv -> Reference -> HashQualified -> Int -> Pretty SyntaxText
+prettyPattern env r namespace n = styleHashQualified'' (fmt S.Constructor)
   ( HQ.stripNamespace (fromMaybe "" $ Name.toText <$> HQ.toName namespace)
   $ PPE.patternName env r n
   )
@@ -70,9 +70,9 @@ prettyDataDecl
   -> Reference
   -> HashQualified
   -> DataDeclaration' v a
-  -> Pretty ColorText
-prettyDataDecl env r name dd =
-  (header <>) . P.sep (" | " `P.orElse` "\n  | ") $ constructor <$> zip
+  -> Pretty SyntaxText
+prettyDataDecl env r name dd = 
+  (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $ constructor <$> zip
     [0 ..]
     (DD.constructors' dd)
  where
@@ -82,14 +82,14 @@ prettyDataDecl env r name dd =
     Nothing -> prettyPattern env r name n
     Just ts -> case fieldNames env r name dd of
       Nothing -> P.group . P.hang' (prettyPattern env r name n) "      "
-               $ P.spaced (TypePrinter.pretty0 env Map.empty 10 <$> init ts)
-      Just fs -> P.group $ "{ "
-                        <> P.sep ("," <> " " `P.orElse` "\n      ")
+               $ P.spaced (TypePrinter.prettyRaw env Map.empty 10 <$> init ts)
+      Just fs -> P.group $ (fmt S.DelimiterChar "{ ")
+                        <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
-                        <> " }"
-  field (fname, typ) = P.group $
-    prettyHashQualified fname <> " :" `P.hang` TypePrinter.pretty0 env Map.empty (-1) typ
-  header = prettyDataHeader name dd <> (" = " `P.orElse` "\n  = ")
+                        <> (fmt S.DelimiterChar " }")
+  field (fname, typ) = P.group $ styleHashQualified'' (fmt S.Constructor) fname <> 
+    (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw env Map.empty (-1) typ
+  header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 
 -- Comes up with field names for a data declaration which has the form of a
 -- record, like `type Pt = { x : Int, y : Int }`. Works by generating the
@@ -128,37 +128,40 @@ fieldNames env r name dd = case DD.constructors dd of
                , (f, rest) <- pure $ span (/= '.') rest
                , rest `elem` ["",".set",".modify"] ]
     in if Map.size fieldNames == length names then
-         Just [ HQ.fromString name
+         Just [ HQ.unsafeFromString name
               | v <- vars
               , Just (ref, _) <- [Map.lookup (Var.namespaced [HQ.toVar name, v]) hashes]
               , Just name <- [Map.lookup ref fieldNames] ]
        else Nothing
   _ -> Nothing
 
-prettyModifier :: DD.Modifier -> Pretty ColorText
+prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = mempty
-prettyModifier (DD.Unique _uid) =
-  P.hiBlack "unique" -- <> P.hiBlack ("[" <> P.text uid <> "] ")
+prettyModifier (DD.Unique _uid) = 
+  fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
-prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty ColorText
-prettyDataHeader name dd =
+prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty SyntaxText
+prettyDataHeader name dd = 
   P.sepNonEmpty " " [
     prettyModifier (DD.modifier dd),
-    P.hiBlue "type",
-    P.blue (prettyHashQualified name),
-    P.sep " " (P.text . Var.name <$> DD.bound dd) ]
+    fmt S.DataTypeKeyword "type",
+    styleHashQualified'' (fmt S.DataType) name,
+    P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound dd) ]
 
-prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty ColorText
+prettyEffectHeader :: Var v => HashQualified -> DD.EffectDeclaration' v a -> Pretty SyntaxText
 prettyEffectHeader name ed = P.sepNonEmpty " " [
   prettyModifier (DD.modifier (DD.toDataDecl ed)),
-  P.hiBlue "ability",
-  P.blue (prettyHashQualified name),
-  P.sep " " (P.text . Var.name <$> DD.bound (DD.toDataDecl ed)) ]
+  fmt S.DataTypeKeyword "ability",
+  styleHashQualified'' (fmt S.DataType) name,
+  P.sep " " (fmt S.DataTypeParams . P.text . Var.name <$> DD.bound (DD.toDataDecl ed)) ]
 
 prettyDeclHeader
   :: Var v
   => HashQualified
   -> Either (DD.EffectDeclaration' v a) (DD.DataDeclaration' v a)
-  -> Pretty ColorText
+  -> Pretty SyntaxText
 prettyDeclHeader name (Left e) = prettyEffectHeader name e
 prettyDeclHeader name (Right d) = prettyDataHeader name d
+
+fmt :: S.Element -> Pretty S.SyntaxText -> Pretty S.SyntaxText
+fmt = P.withSyntax
