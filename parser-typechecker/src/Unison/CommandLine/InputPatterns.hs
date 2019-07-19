@@ -94,7 +94,7 @@ add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
   Just ws -> pure $ Input.AddI ws
   Nothing -> Left . warn . P.lines . fmap fromString
             . ("I don't know what these refer to:\n" :)
-            $ (collectNothings HQ'.fromString ws)
+            $ collectNothings HQ'.fromString ws
 
 update :: InputPattern
 update = InputPattern "update"
@@ -110,7 +110,7 @@ update = InputPattern "update"
         Nothing ->
           Left . warn . P.lines . fmap fromString .
                 ("I don't know what these refer to:\n" :) $
-                (collectNothings HQ'.fromString ws)
+                collectNothings HQ'.fromString ws
     [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
 
 patch :: InputPattern
@@ -264,7 +264,7 @@ deleteBranch :: InputPattern
 deleteBranch = InputPattern "delete.path" [] [(Required, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
-        ["."] -> first fromString $ do
+        ["."] -> first fromString .
           pure $ Input.DeleteBranchI Nothing
         [p] -> first fromString $ do
           p <- Path.parseSplit' Path.wordyNameSegment p
@@ -282,16 +282,19 @@ deletePatch = InputPattern "delete.patch" [] [(Required, patchArg)]
         _ -> Left (I.help deletePatch)
       )
 
+movePatch :: String -> String -> Either (P.Pretty CT.ColorText) Input
+movePatch src dest = first fromString $ do
+  src <- Path.parseSplit' Path.wordyNameSegment src
+  dest <- Path.parseSplit' Path.wordyNameSegment dest
+  pure $ Input.MovePatchI src dest
+
 copyPatch :: InputPattern
 copyPatch = InputPattern "copy.patch"
    []
    [(Required, patchArg), (Required, patchArg)]
    "`copy.patch foo bar` copies the patch `bar` to `foo`."
     (\case
-      [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.wordyNameSegment src
-        dest <- Path.parseSplit' Path.wordyNameSegment dest
-        pure $ Input.MovePatchI src dest
+      [src, dest] -> movePatch src dest
       _ -> Left (I.help copyPatch)
     )
 
@@ -301,10 +304,7 @@ renamePatch = InputPattern "move.patch"
    [(Required, patchArg), (Required, patchArg)]
    "`move.path foo bar` renames the patch `bar` to `foo`."
     (\case
-      [src, dest] -> first fromString $ do
-        src <- Path.parseSplit' Path.wordyNameSegment src
-        dest <- Path.parseSplit' Path.wordyNameSegment dest
-        pure $ Input.MovePatchI src dest
+      [src, dest] -> movePatch src dest
       _ -> Left (I.help renamePatch)
     )
 

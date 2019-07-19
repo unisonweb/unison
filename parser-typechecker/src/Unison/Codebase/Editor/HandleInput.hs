@@ -66,6 +66,7 @@ import qualified Data.Text                     as Text
 import           Data.Traversable               ( for )
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set )
+import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch         ( Branch
                                                 , Branch0(..)
@@ -78,6 +79,7 @@ import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
                                                 , Path' )
 import qualified Unison.Codebase.Path          as Path
+import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.Codebase.SearchResult   ( SearchResult )
 import qualified Unison.Codebase.SearchResult  as SR
 import qualified Unison.DataDeclaration        as DD
@@ -982,7 +984,7 @@ loop = do
             case repoUrl of
               Just url -> loadRemoteBranchAt (GitRepo url "master") p
               Nothing ->
-                eval . Notify $ NoConfiguredGitUrl path
+                eval . Notify $ NoConfiguredGitUrl Pull path
         success
       PushRemoteBranchI mayRepo path -> do
         let p = Path.toAbsolutePath currentPath' path
@@ -990,16 +992,30 @@ loop = do
         case mayRepo of
           Just repo -> syncRemoteRootBranch repo b
           Nothing -> do
-            repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
+            repoUrl <-
+              eval . ConfigLookup $ gitUrlKey p
             case repoUrl of
               Just url -> syncRemoteRootBranch (GitRepo url "master") b
               Nothing ->
-                eval . Notify $ NoConfiguredGitUrl path
+                eval . Notify $ NoConfiguredGitUrl Push path
         success
+      DeprecateTermI {} -> notImplemented
+      DeprecateTypeI {} -> notImplemented
+      AddTermReplacementI {} -> notImplemented
+      AddTypeReplacementI {} -> notImplemented
+      RemoveTermReplacementI {} -> notImplemented
+      RemoveTypeReplacementI {} -> notImplemented
+      ExecuteI {} -> notImplemented
+      UndoRootI -> notImplemented
+      ShowDefinitionByPrefixI {} -> notImplemented
+      UpdateBuiltinsI -> notImplemented
       QuitI -> MaybeT $ pure Nothing
-      _ -> error $ "todo: " <> show input
      where
+      notImplemented = eval $ Notify NotImplemented
       success = respond $ Success input
+      gitUrlKey p = Text.intercalate "." . toList $ "GitUrl" :<| fmap
+        NameSegment.toText
+        (Path.toSeq $ Path.unabsolute p)
   case e of
     Right input -> lastInput .= Just input
     _ -> pure ()
@@ -1847,7 +1863,7 @@ findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
 findHistoricalHQs lexedHQs = do
   root <- use root
   currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval. Eval $ Branch.findHistoricalHQs lexedHQs root
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names

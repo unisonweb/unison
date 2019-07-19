@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.Output
   , ListDetailed
   , TestReportStats(..)
   , UndoFailureReason(..)
+  , PushPull(..)
   ) where
 
 import Data.Map (Map)
@@ -42,6 +43,8 @@ import qualified Unison.Names3 as Names
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
 type SourceName = Text
+
+data PushPull = Push | Pull deriving (Eq, Ord, Show)
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -116,7 +119,7 @@ data Output v
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
   | GitError GitError
-  | NoConfiguredGitUrl Path'
+  | NoConfiguredGitUrl PushPull Path'
   | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
                (Map Reference (DisplayThing (Term v Ann)))
@@ -125,6 +128,7 @@ data Output v
   | NothingToPatch PatchPath Path'
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
+  | NotImplemented
   deriving (Show)
 
 data TestReportStats
