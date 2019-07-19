@@ -4,7 +4,7 @@
 
 module Unison.Var where
 
-import Data.Char (toLower)
+import Data.Char (toLower, isLower)
 import Data.Set (Set)
 import Data.String (fromString)
 import Data.Text (Text, pack)
@@ -150,3 +150,8 @@ freshInBoth vs1 vs2 = freshIn vs1 . freshIn vs2
 
 freshNamed :: Var v => Set v -> Text -> v
 freshNamed used n = freshIn used (named n)
+
+isLowercase :: Var v => v -> Bool
+isLowercase v =
+  (all isLower . take 1 . Text.unpack . name) v
+  && unqualified v == v
