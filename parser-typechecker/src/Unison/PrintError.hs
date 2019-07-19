@@ -25,6 +25,7 @@ import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P
 import qualified Unison.ABT                   as ABT
+import Unison.DataDeclaration (pattern TupleType')
 import qualified Unison.HashQualified         as HQ
 import           Unison.Kind                  (Kind)
 import qualified Unison.Kind                  as Kind
@@ -39,7 +40,6 @@ import qualified Unison.Term                  as Term
 import qualified Unison.Type                  as Type
 import qualified Unison.Typechecker.Context   as C
 import           Unison.Typechecker.TypeError
-import qualified Unison.TypePrinter           as TypePrinter
 import qualified Unison.TypeVar               as TypeVar
 import qualified Unison.UnisonFile            as UF
 import           Unison.Util.AnnotatedText    (AnnotatedText)
@@ -714,11 +714,37 @@ renderType' env typ =
 renderType
   :: Var v
   => Env
-  -> (loc -> Pretty ColorText -> Pretty ColorText)
+  -> (loc -> Pretty (AnnotatedText a) -> Pretty (AnnotatedText a))
   -> Type v loc
-  -> Pretty ColorText
-renderType env f t = renderType0 env f (Type.removePureEffects t)
-  where renderType0 env f t = f (ABT.annotation t) $ TypePrinter.pretty env t
+  -> Pretty (AnnotatedText a)
+renderType env f t = renderType0 env f (0 :: Int) (Type.removePureEffects t)
+ where
+  wrap :: (IsString a, Semigroup a) => a -> a -> Bool -> a -> a
+  wrap start end test s = if test then start <> s <> end else s
+  paren = wrap "(" ")"
+  curly = wrap "{" "}"
+  renderType0 env f p t = f (ABT.annotation t) $ case t of
+    Type.Ref' r -> showTypeRef env r
+    Type.Arrow' i (Type.Effect1' e o) ->
+      paren (p >= 2) $ go 2 i <> " ->{" <> go 1 e <> "} " <> go 1 o
+    Type.Arrow' i o -> paren (p >= 2) $ go 2 i <> " -> " <> go 1 o
+    Type.Ann'   t k -> paren True $ go 1 t <> " : " <> renderKind k
+    TupleType' ts   -> paren True $ commas (go 0) ts
+    Type.Apps' (Type.Ref' (R.Builtin "Sequence")) [arg] ->
+      "[" <> go 0 arg <> "]"
+    Type.Apps' f' args -> paren (p >= 3) $ spaces (go 3) (f' : args)
+    Type.Effects' es   -> curly (p >= 3) $ commas (go 0) es
+    Type.Effect' es t  -> case es of
+      [] -> go p t
+      _  -> "{" <> commas (go 0) es <> "} " <> go 3 t
+    Type.Effect1' e t -> paren (p >= 3) $ "{" <> go 0 e <> "}" <> go 3 t
+    Type.ForallsNamed' vs body ->
+      paren (p >= 1) $ if not Settings.debugRevealForalls
+        then go 0 body
+        else "forall " <> spaces renderVar vs <> " . " <> go 1 body
+    Type.Var' v -> renderVar v
+    _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
+    where go = renderType0 env f
 
 renderSuggestion
   :: (IsString s, Semigroup s, Var v) => Env -> C.Suggestion v loc -> s
