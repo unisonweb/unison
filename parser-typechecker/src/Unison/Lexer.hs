@@ -147,6 +147,10 @@ topBlockName :: Layout -> Maybe BlockName
 topBlockName [] = Nothing
 topBlockName ((name,_):_) = Just name
 
+topHasClosePair :: Layout -> Bool
+topHasClosePair [] = False
+topHasClosePair ((name,_):_) = name == "{" || name == "("
+
 pop :: [a] -> [a]
 pop = drop 1
 
@@ -270,7 +274,7 @@ lexer0 scope rem =
     popLayout0 l p [] = replicate (length l) $ Token Close p p
     popLayout0 l p@(Pos _ c2) rem
       | top l == c2 = Token (Semi True) p p : go l p rem
-      | top l <  c2 = go l p rem
+      | top l <  c2 || topHasClosePair l = go l p rem
       | top l >  c2 = Token Close p p : popLayout0 (pop l) p rem
       | otherwise   = error "impossible"
 
