@@ -29,7 +29,6 @@ import           Data.Foldable                  ( traverse_
                                                 , for_
                                                 )
 import           Data.List                      ( isSuffixOf )
-import           Data.List.Split                ( splitOn )
 import           Data.Maybe                     ( fromMaybe )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
@@ -59,7 +58,6 @@ import           System.Path                    ( replaceRoot
                                                 , files
                                                 , dirPath
                                                 )
-import           Text.Read                      ( readMaybe )
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase(Codebase)
                                                 , BuiltinAnnotation
@@ -200,7 +198,7 @@ touchReferentFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  let n = Referent.toText id
+  let n = referentToText id
   writeFile (fp </> encodeFileName n) (Text.unpack n)
 
 -- checks if `path` looks like a unison codebase
@@ -289,18 +287,10 @@ updateCausalHead headDir c = do
   -- write new head
   exists <- doesDirectoryExist headDir
   unless exists $ createDirectory headDir
-  liftIO $ writeFile (headDir </> hs) ""
+  liftIO $ writeFile (headDir </> hs) hs
   -- delete existing heads
   liftIO $ fmap (filter (/= hs)) (listDirectory headDir)
        >>= traverse_ (removeFile . (headDir </>))
-
--- decodeBuiltinName :: FilePath -> Maybe Text
--- decodeBuiltinName p =
---   decodeUtf8 . Hash.toBytes <$> Hash.fromBase32Hex (Text.pack p)
-
--- here
-componentIdToText :: Reference.Id -> Text
-componentIdToText = Reference.toText . Reference.DerivedId
 
 -- here
 hashFromText :: Text -> Maybe Hash.Hash
@@ -310,8 +300,8 @@ hashFromText = Hash.fromBase32Hex
 hashToString :: Hash.Hash -> String
 hashToString = Hash.base32Hexs
 
-componentIdToString :: Reference.Id -> String
-componentIdToString = Text.unpack . componentIdToText
+hashToText :: Hash.Hash -> Text
+hashToText = Hash.base32Hex
 
 hashFromString :: String -> Maybe Hash.Hash
 hashFromString = hashFromText . Text.pack
@@ -319,18 +309,23 @@ hashFromString = hashFromText . Text.pack
 hashFromFilePath :: FilePath -> Maybe Hash.Hash
 hashFromFilePath = hashFromString . takeBaseName
 
--- here
--- todo: this is base58-i-n ?  don't we use '.'s?
+componentIdToString :: Reference.Id -> String
+componentIdToString = Text.unpack . componentIdToText
+
+componentIdToText :: Reference.Id -> Text
+componentIdToText = Reference.toText . Reference.DerivedId
+
+componentIdFromText :: Text -> Maybe Reference.Id
+componentIdFromText = Reference.idFromText
+
 componentIdFromString :: String -> Maybe Reference.Id
-componentIdFromString s = case splitOn "-" s of
-  [h]       -> makeId h 0 1
-  [h, i, n] -> do
-    x <- readMaybe i
-    y <- readMaybe n
-    makeId h x y
-  _ -> Nothing
- where
-  makeId h i n = (\x -> Reference.Id x i n) <$> hashFromString h
+componentIdFromString = componentIdFromText . Text.pack
+
+referentFromText :: Text -> Maybe Referent
+referentFromText = Referent.fromText
+
+referentToText :: Referent -> Text
+referentToText = Referent.toText
 
 -- Adapted from
 -- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
@@ -521,7 +516,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
     if e
       then do
         ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . Reference.idFromText)
+        pure . Set.fromList $ ls >>= (toList . componentIdFromText)
       else pure Set.empty
 
   listDirAsReferents :: FilePath -> m (Set Referent)
@@ -530,7 +525,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
     if e
       then do
         ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . Referent.fromText)
+        pure . Set.fromList $ ls >>= (toList . referentFromText)
       else pure Set.empty
 
   watches :: UF.WatchKind -> m [Reference.Id]

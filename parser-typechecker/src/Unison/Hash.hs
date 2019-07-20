@@ -59,11 +59,26 @@ base32Hex (Hash h) =
   Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
   Base32Hex.encode h
 
+hashLength :: Int
+hashLength = 512
+
 -- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
 fromBase32Hex :: Text -> Maybe Hash
-fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> "=") of
+fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> paddingChars) of
   Left (_, _rem) -> Nothing
   Right h -> pure $ Hash h
+  where
+  -- The decoder we're using is a base32 uppercase decoder that expects padding,
+  -- so we provide it with the appropriate number of padding characters for the
+  -- expected hash length. See https://tools.ietf.org/html/rfc4648#page-8
+  paddingChars :: Text
+  paddingChars = case hashLength `mod` 40 of
+    0  -> ""
+    8  -> "======"
+    16 -> "===="
+    24 -> "==="
+    32 -> "="
+    i  -> error $ "impossible hash length `mod` 40 not in {0,8,16,24,32}: " <> show i
 
 base32Hexs :: Hash -> String
 base32Hexs = Text.unpack . base32Hex
