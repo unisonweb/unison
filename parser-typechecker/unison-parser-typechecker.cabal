@@ -179,6 +179,7 @@ library
     hashable,
     hashtables,
     haskeline,
+    hex,
     io-streams,
     lens,
     ListLike,
@@ -260,6 +261,7 @@ executable tests
   hs-source-dirs: tests
   other-modules:
     Unison.Test.Codebase.Causal
+    Unison.Test.Codebase.FileCodebase
     Unison.Test.Codebase.Path
     Unison.Test.ColorText
     Unison.Test.Common

@@ -20,6 +20,7 @@ import qualified Unison.Test.TypePrinter as TypePrinter
 import qualified Unison.Test.Typechecker as Typechecker
 import qualified Unison.Test.Typechecker.TypeError as TypeError
 import qualified Unison.Test.Util.Bytes as Bytes
+import qualified Unison.Test.Codebase.FileCodebase as FileCodebase
 
 test :: Test ()
 test = tests
@@ -38,6 +39,7 @@ test = tests
   , Path.test
   , Causal.test
   , Referent.test
+  , FileCodebase.test
  ]
 
 main :: IO ()

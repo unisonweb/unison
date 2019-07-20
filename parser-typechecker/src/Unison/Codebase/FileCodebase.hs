@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
+--{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
 
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -10,6 +10,8 @@ module Unison.Codebase.FileCodebase
 , codebase1 -- used by Main
 , exists -- used by Main
 , initialize -- used by Main
+, decodeFileName
+, encodeFileName
 ) where
 
 -- import Debug.Trace
@@ -28,6 +30,7 @@ import           Data.Foldable                  ( traverse_
                                                 , forM_
                                                 , for_
                                                 )
+import qualified Data.Hex                      as Hex
 import           Data.List                      ( isSuffixOf )
 import           Data.Maybe                     ( fromMaybe )
 import           Data.Set                       ( Set )
@@ -142,15 +145,15 @@ decodeFileName p = Text.pack $ go p where
     ("less-than", _:tl) -> '<' : go tl
     ("greater-than", _:tl) -> '>' : go tl
     ("pipe", _:tl) -> '|' : go tl
-    ('b':'3':'2':b32, _:tl) -> unB32hex b32 ++ go tl
+    ('x':hex, _:tl) -> decodeHex hex ++ go tl
     ("",_:tl) -> '$' : go tl
     (s,_:tl) -> s ++ go tl
     (s,[]) -> s
   go (hd:tl) = hd : tl
   go [] = []
-  unB32hex s = case Hash.fromBase32Hex (Text.pack s) of
-    Nothing -> s
-    Just h -> Text.unpack . decodeUtf8 . Hash.toBytes $ h
+  decodeHex :: String -> String
+  decodeHex s = maybe s (Text.unpack . decodeUtf8)
+              . Hex.unhex . encodeUtf8 . Text.pack $ s
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
 encodeFileName :: Text -> FilePath
@@ -166,10 +169,10 @@ encodeFileName t = let
   go ('|' : rem) = "$pipe$" <> go rem
   go ('$' : rem) = "$$" <> go rem
   go (c : rem) | not (Char.isPrint c && Char.isAscii c)
-                 = "$b32" <> b58 [c] <> "$" <> go rem
+                 = "$x" <> encodeHex [c] <> "$" <> go rem
                | otherwise = c : go rem
   go [] = []
-  b58 = Hash.base32Hexs . Hash.fromBytes . encodeUtf8 . Text.pack
+  encodeHex = Text.unpack . decodeUtf8 . Hex.hex . encodeUtf8 . Text.pack
   in if t == "." then "$dot$"
      else if t == ".." then "$dotdot$"
      else go (Text.unpack t)
