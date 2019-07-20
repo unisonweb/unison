@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE ViewPatterns   #-}
 
 module Unison.Reference
   (Reference,
@@ -39,15 +40,7 @@ import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
-import           Data.Bytes.Get
-import           Data.Bytes.Put
-import           Data.Bytes.Serial              ( serialize
-                                                , deserialize
-                                                )
-import           Data.Bytes.VarInt              ( VarInt(..) )
-import qualified Codec.Binary.Base32Hex as Base32Hex
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.ByteString (ByteString)
+import Data.Char (isDigit)
 
 data Reference
   = Builtin Text.Text
@@ -80,11 +73,17 @@ toShortHash (Derived h i n) = SH.ShortHash (H.base32Hex h) index Nothing
     index = Just $ showSuffix i n
 toShortHash (DerivedId _) = error "this should be covered above"
 
+-- (3,10) encoded as "3c10"
+-- (0,93) encoded as "0c93"
 showSuffix :: Pos -> Size -> Text
-showSuffix i n = encode . runPutS $ put where
-  encode = decodeUtf8 . Base32Hex.encode
-  put = putLength i >> putLength n
-  putLength = serialize . VarInt
+showSuffix i n = Text.pack $ show i <> "c" <> show n
+
+-- todo: don't read or return size; must also update showSuffix and fromText
+readSuffix :: Text -> Either String (Pos, Size)
+readSuffix t = case Text.breakOn "c" t of
+  (pos, Text.drop 1 -> size) | Text.all isDigit pos && Text.all isDigit size ->
+    Right (read (Text.unpack pos), read (Text.unpack size))
+  _ -> Left "suffix decoding error"
 
 isPrefixOf :: ShortHash -> Reference -> Bool
 isPrefixOf sh r = SH.isPrefixOf sh (toShortHash r)
@@ -94,18 +93,6 @@ toText = SH.toText . toShortHash
 
 showShort :: Int -> Reference -> Text
 showShort numHashChars = SH.toText . SH.take numHashChars . toShortHash
-
--- todo: don't read or return size; must also update showSuffix and fromText
-readSuffix :: Text -> Either String (Pos, Size)
-readSuffix t =
-  runGetS get =<< (tagError . decode) t where
-  tagError e = case e of
-    Left _ -> Left "base32Hex decoding error"
-    Right a -> Right a
-  decode :: Text -> Either (ByteString, ByteString) ByteString
-  decode = Base32Hex.decode . encodeUtf8
-  get = (,) <$> getLength <*> getLength
-  getLength = unVarInt <$> deserialize
 
 type Pos = Word64
 type Size = Word64

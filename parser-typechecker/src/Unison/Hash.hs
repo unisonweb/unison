@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex) where
 
@@ -51,21 +52,21 @@ instance H.Accumulate Hash where
   fromBytes = fromBytesImpl
   toBytes = toBytesImpl
 
--- | Return the base32Hex encoding of this 'Hash'
+-- | Return the lowercase unpadded base32Hex encoding of this 'Hash'.
+-- Multibase prefix would be 'v', see https://github.com/multiformats/multibase
 base32Hex :: Hash -> Text
-base32Hex (Hash h) = decodeUtf8 (Base32Hex.encode h)
+base32Hex (Hash h) =
+  Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
+  Base32Hex.encode h
+
+-- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
+fromBase32Hex :: Text -> Maybe Hash
+fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> "=") of
+  Left (_, _rem) -> Nothing
+  Right h -> pure $ Hash h
 
 base32Hexs :: Hash -> String
 base32Hexs = Text.unpack . base32Hex
-
--- alphabet :: String
--- alphabet = Text.unpack . decodeUtf8 $ Base32Hex.unAlphabet Base32Hex.bitcoinAlphabet
-
--- | Produce a 'Hash' from a base58-encoded version of its binary representation
-fromBase32Hex :: Text -> Maybe Hash
-fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 txt) of
-  Left _ -> Nothing
-  Right h -> pure $ Hash h
 
 unsafeFromBase32Hex :: Text -> Hash
 unsafeFromBase32Hex txt =

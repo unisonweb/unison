@@ -60,7 +60,7 @@ test = scope "hashparsing" . tests $
     ]
   ]
   where
-  h = "#zNRtcQJ2LpPxdtU8jDT7jrbR7JLC65o3GtPJXAw4Pz963kdBWB6FYNx8tatkzWj8HEA8eKZohsercgKDn9uYhbB"
+  h = "#1tdqrgl90qnmqvrff0j76kg2rnajq7n8j54e9cbk4p8pdi41q343bnh8h2rv6nadhlin8teg8371d445pvo0as7j2sav8k401d2s3no"
   suffix1 = Rf.showSuffix 0 10
   suffix2 = Rf.showSuffix 3 6
   ref txt = scope (Text.unpack txt) $ case Rf.fromText txt of
