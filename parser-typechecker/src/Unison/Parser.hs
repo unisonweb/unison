@@ -66,26 +66,26 @@ instance Monoid UniqueName where
 uniqueBase58Namegen :: IO UniqueName
 uniqueBase58Namegen = do
   rng <- Random.getSystemDRG
-  pure . UniqueName $ \pos lenInBase58 -> go pos lenInBase58 rng
+  pure . UniqueName $ \pos lenInBase32Hex -> go pos lenInBase32Hex rng
   where
   -- if the identifier starts with a number, try again, since
   -- we want the name to work as a valid wordyId
-  go pos lenInBase58 rng0 = let
+  go pos lenInBase32Hex rng0 = let
     (bytes,rng) = Random.randomBytesGenerate 32 rng0
     posBytes = runPutS $ do
       serialize $ VarInt (L.line pos)
       serialize $ VarInt (L.column pos)
     h = Hashable.accumulate' $ bytes <> posBytes
-    b58 = Hash.base58 h
-    in if Char.isDigit (Text.head b58) then go pos lenInBase58 rng
-       else Just . Text.take lenInBase58 $ b58
+    b58 = Hash.base32Hex h
+    in if Char.isDigit (Text.head b58) then go pos lenInBase32Hex rng
+       else Just . Text.take lenInBase32Hex $ b58
 
 uniqueName :: Var v => Int -> P v Text
-uniqueName lenInBase58 = do
+uniqueName lenInBase32Hex = do
   UniqueName mkName <- asks uniqueNames
   pos <- L.start <$> P.lookAhead anyToken
-  let none = Hash.base58 . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
-  pure . fromMaybe none $ mkName pos lenInBase58
+  let none = Hash.base32Hex . Hash.fromBytes . encodeUtf8 . Text.pack $ show pos
+  pure . fromMaybe none $ mkName pos lenInBase32Hex
 
 data Error v
   = SignatureNeedsAccompanyingBody (L.Token v)

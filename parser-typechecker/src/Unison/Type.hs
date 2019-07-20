@@ -213,11 +213,11 @@ isArrow _ = False
 ref :: Ord v => a -> Reference -> Type v a
 ref a = ABT.tm' a . Ref
 
-derivedBase58 :: Ord v => Reference -> a -> Type v a
-derivedBase58 r a = ref a r
+derivedBase32Hex :: Ord v => Reference -> a -> Type v a
+derivedBase32Hex r a = ref a r
 
-derivedBase58' :: Text -> Reference
-derivedBase58' base58 = Reference.derivedBase58 base58 0 1
+-- derivedBase58' :: Text -> Reference
+-- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
 intRef, natRef, floatRef, booleanRef, textRef, vectorRef, bytesRef, effectRef :: Reference
 intRef = Reference.Builtin "Int"

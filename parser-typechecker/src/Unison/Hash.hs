@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Unison.Hash (Hash, toBytes, base58, base58s, fromBase58, fromBytes, unsafeFromBase58, showBase58, alphabet) where
+module Unison.Hash (Hash, toBytes, base32Hex, base32Hexs, fromBase32Hex, fromBytes, unsafeFromBase32Hex, showBase32Hex) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (doubleBE, word64BE, int64BE, toLazyByteString)
@@ -15,14 +16,14 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 
 import qualified Unison.Hashable as H
-import qualified Data.ByteString.Base58 as Base58
+import qualified Codec.Binary.Base32Hex as Base32Hex
 import qualified Data.Text as Text
 
 -- | Hash which uniquely identifies a Unison type or term
 newtype Hash = Hash { toBytes :: ByteString } deriving (Eq,Ord,Generic)
 
 instance Show Hash where
-  show h = take 999 $ Text.unpack (base58 h)
+  show h = take 999 $ Text.unpack (base32Hex h)
 
 instance H.Hashable Hash where
   tokens h = [H.Bytes (toBytes h)]
@@ -51,27 +52,46 @@ instance H.Accumulate Hash where
   fromBytes = fromBytesImpl
   toBytes = toBytesImpl
 
--- | Return the base58 encoding of this 'Hash'
-base58 :: Hash -> Text
-base58 (Hash h) = decodeUtf8 (Base58.encodeBase58 Base58.bitcoinAlphabet h)
+-- | Return the lowercase unpadded base32Hex encoding of this 'Hash'.
+-- Multibase prefix would be 'v', see https://github.com/multiformats/multibase
+base32Hex :: Hash -> Text
+base32Hex (Hash h) =
+  -- we're using an uppercase encoder that adds padding, so we drop the
+  -- padding and convert it to lowercase
+  Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
+  Base32Hex.encode h
 
-base58s :: Hash -> String
-base58s = Text.unpack . base58
+hashLength :: Int
+hashLength = 512
 
-alphabet :: String
-alphabet = Text.unpack . decodeUtf8 $ Base58.unAlphabet Base58.bitcoinAlphabet
+-- | Produce a 'Hash' from a base32hex-encoded version of its binary representation
+fromBase32Hex :: Text -> Maybe Hash
+fromBase32Hex txt = case Base32Hex.decode (encodeUtf8 $ Text.toUpper txt <> paddingChars) of
+  Left (_, _rem) -> Nothing
+  Right h -> pure $ Hash h
+  where
+  -- The decoder we're using is a base32 uppercase decoder that expects padding,
+  -- so we provide it with the appropriate number of padding characters for the
+  -- expected hash length. See https://tools.ietf.org/html/rfc4648#page-8
+  paddingChars :: Text
+  paddingChars = case hashLength `mod` 40 of
+    0  -> ""
+    8  -> "======"
+    16 -> "===="
+    24 -> "==="
+    32 -> "="
+    i  -> error $ "impossible hash length `mod` 40 not in {0,8,16,24,32}: " <> show i
 
--- | Produce a 'Hash' from a base58-encoded version of its binary representation
-fromBase58 :: Text -> Maybe Hash
-fromBase58 txt = Hash <$> Base58.decodeBase58 Base58.bitcoinAlphabet (encodeUtf8 txt)
+base32Hexs :: Hash -> String
+base32Hexs = Text.unpack . base32Hex
 
-unsafeFromBase58 :: Text -> Hash
-unsafeFromBase58 txt =
-  fromMaybe (error $ "invalid base58: " ++ Text.unpack txt) $ fromBase58 txt
+unsafeFromBase32Hex :: Text -> Hash
+unsafeFromBase32Hex txt =
+  fromMaybe (error $ "invalid base32Hex value: " ++ Text.unpack txt) $ fromBase32Hex txt
 
 fromBytes :: ByteString -> Hash
 fromBytes = Hash
 
-showBase58 :: H.Hashable t => t -> String
-showBase58 = base58s . H.accumulate'
+showBase32Hex :: H.Hashable t => t -> String
+showBase32Hex = base32Hexs . H.accumulate'
 
