@@ -1,9 +1,16 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- todo: delete
+
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Unison.Codebase.FileCodebase where
+module Unison.Codebase.FileCodebase
+( getRootBranch -- used by Git module
+, codebase1 -- used by Main
+, exists -- used by Main
+, initialize -- used by Main
+) where
 
 -- import Debug.Trace
 import           Control.Monad                  ( forever, foldM, unless, when)
@@ -103,13 +110,13 @@ branchHeadDir root = branchesDir root </> "_head"
 editsDir root = root </> "patches"
 
 termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
-termDir root r = termsDir root </> componentId r
-declDir root r = typesDir root </> componentId r
+termDir root r = termsDir root </> componentIdToString r
+declDir root r = typesDir root </> componentIdToString r
 
 referenceToDir :: Reference -> FilePath
 referenceToDir r = case r of
   Reference.Builtin name -> "_builtin" </> encodeFileName name
-  Reference.DerivedId hash -> componentId hash
+  Reference.DerivedId hash -> componentIdToString hash
 
 dependentsDir :: CodebasePath -> Reference -> FilePath
 dependentsDir root r = root </> "dependents" </> referenceToDir r
@@ -124,6 +131,7 @@ typeIndexDir root r = root </> "type-index" </> referenceToDir r
 typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
 
+-- todo: decodeFileName & encodeFileName shouldn't use base58; recommend $xFF$
 decodeFileName :: FilePath -> Text
 decodeFileName p = Text.pack $ go p where
   go ('$':tl) = case span (/= '$') tl of
@@ -174,17 +182,17 @@ typePath path r = termDir path r </> "type.ub"
 declPath path r = declDir path r </> "compiled.ub"
 
 branchPath :: CodebasePath -> Hash.Hash -> FilePath
-branchPath root h = branchesDir root </> Hash.base32Hexs h ++ ".ub"
+branchPath root h = branchesDir root </> hashToString h ++ ".ub"
 
 editsPath :: CodebasePath -> Hash.Hash -> FilePath
-editsPath root h = editsDir root </> Hash.base32Hexs h ++ ".up"
+editsPath root h = editsDir root </> hashToString h ++ ".up"
 
 touchIdFile :: Reference.Id -> FilePath -> IO ()
 touchIdFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  let n = Reference.toText $ Reference.DerivedId id
+  let n = componentIdToText id
   writeFile (fp </> encodeFileName n) (Text.unpack n)
 
 touchReferentFile :: Referent -> FilePath -> IO ()
@@ -244,7 +252,7 @@ getRootBranch root = do
       x : xs -> foldM Branch.merge x xs
       []     -> failWith . NoBranchHead $ branchHeadDir root
  where
-  go single = case Hash.fromBase32Hex (Text.pack single) of
+  go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
     Just h  -> branchFromFiles root (RawHash h)
 
@@ -277,7 +285,7 @@ serializeEdits root h medits = do
 updateCausalHead :: MonadIO m => FilePath -> Causal n h e -> m ()
 updateCausalHead headDir c = do
   let (RawHash h) = Causal.currentHash c
-      hs = Hash.base32Hexs h
+      hs = hashToString h
   -- write new head
   exists <- doesDirectoryExist headDir
   unless exists $ createDirectory headDir
@@ -290,12 +298,31 @@ updateCausalHead headDir c = do
 -- decodeBuiltinName p =
 --   decodeUtf8 . Hash.toBytes <$> Hash.fromBase32Hex (Text.pack p)
 
-componentId :: Reference.Id -> String
-componentId = Text.unpack . Reference.toText . Reference.DerivedId
+-- here
+componentIdToText :: Reference.Id -> Text
+componentIdToText = Reference.toText . Reference.DerivedId
 
--- todo: this is base58-i-n ?
-parseHash :: String -> Maybe Reference.Id
-parseHash s = case splitOn "-" s of
+-- here
+hashFromText :: Text -> Maybe Hash.Hash
+hashFromText = Hash.fromBase32Hex
+
+-- here
+hashToString :: Hash.Hash -> String
+hashToString = Hash.base32Hexs
+
+componentIdToString :: Reference.Id -> String
+componentIdToString = Text.unpack . componentIdToText
+
+hashFromString :: String -> Maybe Hash.Hash
+hashFromString = hashFromText . Text.pack
+
+hashFromFilePath :: FilePath -> Maybe Hash.Hash
+hashFromFilePath = hashFromString . takeBaseName
+
+-- here
+-- todo: this is base58-i-n ?  don't we use '.'s?
+componentIdFromString :: String -> Maybe Reference.Id
+componentIdFromString s = case splitOn "-" s of
   [h]       -> makeId h 0 1
   [h, i, n] -> do
     x <- readMaybe i
@@ -303,7 +330,7 @@ parseHash s = case splitOn "-" s of
     makeId h x y
   _ -> Nothing
  where
-  makeId h i n = (\x -> Reference.Id x i n) <$> Hash.fromBase32Hex (Text.pack h)
+  makeId h i n = (\x -> Reference.Id x i n) <$> hashFromString h
 
 -- Adapted from
 -- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
@@ -436,7 +463,7 @@ putWatch
   -> m ()
 putWatch putV putA path k id e = liftIO $ S.putWithParentDirs
   (V1.putTerm putV putA)
-  (watchesDir path (Text.pack k) </> componentId id <> ".ub")
+  (watchesDir path (Text.pack k) </> componentIdToString id <> ".ub")
   e
 
 -- builds a `Codebase IO v a`, given serializers for `v` and `a`
@@ -511,13 +538,13 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
     let wp = watchesDir path (Text.pack k)
     createDirectoryIfMissing True wp
     ls <- listDirectory wp
-    pure $ ls >>= (toList . parseHash . takeFileName)
+    pure $ ls >>= (toList . componentIdFromString . takeFileName)
 
   getWatch :: UF.WatchKind -> Reference.Id -> m (Maybe (Codebase.Term v a))
   getWatch k id = liftIO $ do
     let wp = watchesDir path (Text.pack k)
     createDirectoryIfMissing True wp
-    S.getFromFile (V1.getTerm getV getA) (wp </> componentId id <> ".ub")
+    S.getFromFile (V1.getTerm getV getA) (wp </> componentIdToString id <> ".ub")
 
 -- watches in `branchHeadDir root` for externally deposited heads;
 -- parse them, and return them
@@ -543,9 +570,6 @@ branchHeadUpdates root = do
     ( cancelWatch >> killThread watcher1
     , Set.fromList <$> Watch.collectUntilPause branchHeadChanges 400000
     )
-
-hashFromFilePath :: FilePath -> Maybe Hash.Hash
-hashFromFilePath = Hash.fromBase32Hex . Text.pack . takeBaseName
 
 failWith :: MonadIO m => Err -> m a
 failWith = fail . show

@@ -64,10 +64,10 @@ data Input
     | ResolveTypeNameI Path.HQSplit'
   -- edits stuff:
     | AddI [HQ'.HashQualified]
-    | UpdateI PatchPath [HQ'.HashQualified]
-    | TodoI PatchPath Path'
+    | UpdateI (Maybe PatchPath) [HQ'.HashQualified]
+    | TodoI (Maybe PatchPath) Path'
     | PatchI PatchPath Path'
-    | ListEditsI PatchPath
+    | ListEditsI (Maybe PatchPath)
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
     | DeprecateTypeI PatchPath Path.HQSplit'
