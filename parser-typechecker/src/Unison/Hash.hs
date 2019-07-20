@@ -56,6 +56,8 @@ instance H.Accumulate Hash where
 -- Multibase prefix would be 'v', see https://github.com/multiformats/multibase
 base32Hex :: Hash -> Text
 base32Hex (Hash h) =
+  -- we're using an uppercase encoder that adds padding, so we drop the
+  -- padding and convert it to lowercase
   Text.toLower . Text.dropWhileEnd (== '=') . decodeUtf8 $
   Base32Hex.encode h
 
