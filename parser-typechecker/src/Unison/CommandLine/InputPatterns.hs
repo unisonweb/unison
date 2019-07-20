@@ -22,6 +22,7 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
+import Data.Either.Combinators (mapLeft)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -75,16 +76,25 @@ todo :: InputPattern
 todo = InputPattern
   "todo"
   []
-  [(Required, patchArg), (Optional, pathArg)]
-  "`todo` lists the work remaining in the current branch to complete an ongoing refactoring."
+  [(Optional, patchArg), (Optional, pathArg)]
+  (P.wrapColumn2
+    [ (makeExample' todo
+      , "lists the refactor work remaining in the default patch for the current path.")
+    , (makeExample todo ["<patch>"]
+      , "lists the refactor work remaining in the given patch in the current path.")
+    , (makeExample todo ["<patch>", "[path]"]
+      , "lists the refactor work remaining in the given patch in given path.")
+    ]
+  )
   (\case
-    patchStr : ws -> first fromString $ do
+    patchStr : ws -> mapLeft (warn . fromString) $ do
       patch  <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
+        []        -> pure Path.relativeEmpty'
         [pathStr] -> Path.parsePath' pathStr
-        _         -> pure Path.relativeEmpty'
-      pure $ Input.TodoI patch branch
-    [] -> Left $ warn "`todo` takes a patch and an optional path"
+        _         -> Left "`todo` just takes a patch and one optional path"
+      Right $ Input.TodoI (Just patch) branch
+    [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
   )
 
 add :: InputPattern
@@ -99,19 +109,37 @@ add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
 update :: InputPattern
 update = InputPattern "update"
   []
-  [(Required, patchArg)
+  [(Optional, patchArg)
   ,(ZeroPlus, noCompletions)]
-  "`update` works like `add`, except if a definition in the file has the same name as an existing definition, the name gets updated to point to the new definition. If the old definition has any dependents, `update` will add those dependents to a refactoring session."
+  (P.wrap (makeExample' update <> "works like"
+      <> (P.group $ makeExample' add <> ",")
+      <> "except that if a definition in the file has the same name as an"
+      <> "existing definition, the name gets updated to point to the new"
+      <> "definition. If the old definition has any dependents, `update` will"
+      <> "add those dependents to a refactoring session, specified by an"
+      <> "optional patch.")
+   <> P.wrapColumn2
+    [ (makeExample' update
+      , "adds all definitions in the .u file, noting replacements in the"
+       <> "default patch for the current path.")
+    , (makeExample update ["<patch>"]
+      , "adds all definitions in the .u file, noting replacements in the"
+       <> "specified patch.")
+    , (makeExample update ["<patch>", "foo", "bar"]
+      , "adds `foo`, `bar`, and their dependents from the .u file, noting"
+       <> "any replacements into the specified patch.")
+    ]
+  )
   (\case
     patchStr : ws -> do
       patch <- first fromString $ Path.parseSplit' Path.wordyNameSegment patchStr
       case traverse HQ'.fromString ws of
-        Just ws -> pure $ Input.UpdateI patch ws
+        Just ws -> Right $ Input.UpdateI (Just patch) ws
         Nothing ->
           Left . warn . P.lines . fmap fromString .
                 ("I don't know what these refer to:\n" :) $
                 collectNothings HQ'.fromString ws
-    [] -> Left $ warn "`update` takes a patch and an optional list of definitions")
+    [] -> Right $ Input.UpdateI Nothing [] )
 
 patch :: InputPattern
 patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
@@ -124,7 +152,6 @@ patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
         _ -> pure Path.relativeEmpty'
       pure $ Input.PatchI patch branch
     [] -> Left $ warn "`todo` takes a patch and an optional path")
-
 
 view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
@@ -542,11 +569,20 @@ quit = InputPattern "quit" ["exit", ":q"] []
 
 viewPatch :: InputPattern
 viewPatch = InputPattern "view.patch" [] [(Required, patchArg)]
-  "Lists all the edits in the given patch."
+    (P.wrapColumn2
+      [ ( makeExample' viewPatch
+        , "Lists all the edits in the default patch."
+        )
+      , ( makeExample viewPatch ["<patch>"]
+        , "Lists all the edits in the given patch."
+        )
+      ]
+    )
   (\case
-    [patchStr] -> first fromString $ do
+    []         -> Right $ Input.ListEditsI Nothing
+    [patchStr] -> mapLeft fromString $ do
       patch <- Path.parseSplit' Path.wordyNameSegment patchStr
-      Right $ Input.ListEditsI patch
+      Right $ Input.ListEditsI (Just patch)
     _ -> Left $ warn "`view.patch` takes a patch and that's it."
    )
 

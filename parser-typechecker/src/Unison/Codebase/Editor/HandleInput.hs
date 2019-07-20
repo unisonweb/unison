@@ -77,7 +77,7 @@ import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Path           ( Path
-                                                , Path' )
+                                                , Path'(..) )
 import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import           Unison.Codebase.SearchResult   ( SearchResult )
@@ -132,6 +132,7 @@ import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
 import Debug.Trace (traceShowM, traceM)
 import qualified Unison.Builtin as Builtin
+import Unison.Codebase.NameSegment (NameSegment(..))
 
 --import Debug.Trace
 
@@ -190,6 +191,8 @@ loop = do
   let
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
+      defaultPatchPath :: PatchPath
+      defaultPatchPath = (Path' $ Left currentPath', NameSegment "patch")
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -770,9 +773,13 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
-      UpdateI (Path.toAbsoluteSplit currentPath' -> (p,seg)) hqs -> case uf of
+      UpdateI maybePath hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
+          let (p, seg) =
+                  maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
+                        (Path.toAbsoluteSplit currentPath')
+                        maybePath
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
@@ -865,7 +872,7 @@ loop = do
           respond $ SlurpOutput input ppe sr
 
       TodoI patchPath branchPath' -> do
-        patch <- getPatchAt patchPath
+        patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
         ppe <- prettyPrintEnv =<<
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
@@ -963,7 +970,11 @@ loop = do
                  eval . Eval $ Branch.merge srcb destb
           success
 
-      ListEditsI (Path.toAbsoluteSplit currentPath' -> (p,seg)) -> do
+      ListEditsI maybePath -> do
+        let (p, seg) =
+              maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
+                    (Path.toAbsoluteSplit currentPath')
+                    maybePath
         patch <- eval . Eval . Branch.getPatch seg . Branch.head =<< getAt p
         ppe <- prettyPrintEnv =<<
           makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
