@@ -352,7 +352,7 @@ renameBranch = InputPattern "move.path"
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" [] [(Required, pathArg)
+forkLocal = InputPattern "fork" ["copy.path"] [(Required, pathArg)
                                    ,(Required, pathArg)]
     "`fork foo bar` creates the path `bar` as a fork of `foo`."
     (\case
