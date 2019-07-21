@@ -13,6 +13,8 @@ import qualified Unison.Codebase.Serialization as S
 import qualified Unison.CommandLine.Main as CommandLine
 import qualified Unison.Runtime.Rt1IO as Rt1
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Util.Pretty as P
+import qualified Unison.PrettyTerminal as PT
 
 main :: IO ()
 main = do
@@ -30,9 +32,8 @@ main = do
                               theCodebase
   exists <- FileCodebase.exists codebasePath
   unless exists $ do
-    putStrLn
-      $  "☝️  No codebase exists here so I'm initializing one in: "
-      <> codebasePath
+    PT.putPrettyLn' . P.callout "☝️" . P.wrap $
+      "No codebase exists here so I'm initializing one in: " <> P.string codebasePath
     FileCodebase.initialize codebasePath
     Codebase.initializeCodebase theCodebase
   launch
