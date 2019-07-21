@@ -116,7 +116,7 @@ declDir root r = typesDir root </> componentIdToString r
 
 referenceToDir :: Reference -> FilePath
 referenceToDir r = case r of
-  Reference.Builtin name -> "_builtin" </> encodeFileName name
+  Reference.Builtin name -> "_builtin" </> encodeFileName (Text.unpack name)
   Reference.DerivedId hash -> componentIdToString hash
 
 dependentsDir :: CodebasePath -> Reference -> FilePath
@@ -124,7 +124,7 @@ dependentsDir root r = root </> "dependents" </> referenceToDir r
 
 watchesDir :: CodebasePath -> Text -> FilePath
 watchesDir root UF.RegularWatch = root </> "watches" </> "_cache"
-watchesDir root kind = root </> "watches" </> encodeFileName kind
+watchesDir root kind = root </> "watches" </> encodeFileName (Text.unpack kind)
 
 typeIndexDir :: CodebasePath -> Reference -> FilePath
 typeIndexDir root r = root </> "type-index" </> referenceToDir r
@@ -133,8 +133,8 @@ typeMentionsIndexDir :: CodebasePath -> Reference -> FilePath
 typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir r
 
 -- todo: decodeFileName & encodeFileName shouldn't use base58; recommend $xFF$
-decodeFileName :: FilePath -> Text
-decodeFileName p = Text.pack $ go p where
+decodeFileName :: FilePath -> String
+decodeFileName p = go p where
   go ('$':tl) = case span (/= '$') tl of
     ("forward-slash", _:tl) -> '/' : go tl
     ("back-slash", _:tl) ->  '\\' : go tl
@@ -156,7 +156,7 @@ decodeFileName p = Text.pack $ go p where
               . Hex.unhex . encodeUtf8 . Text.pack $ s
 
 -- https://superuser.com/questions/358855/what-characters-are-safe-in-cross-platform-file-names-for-linux-windows-and-os
-encodeFileName :: Text -> FilePath
+encodeFileName :: String -> FilePath
 encodeFileName t = let
   go ('/' : rem) = "$forward-slash$" <> go rem
   go ('\\' : rem) = "$back-slash$" <> go rem
@@ -175,7 +175,7 @@ encodeFileName t = let
   encodeHex = Text.unpack . decodeUtf8 . Hex.hex . encodeUtf8 . Text.pack
   in if t == "." then "$dot$"
      else if t == ".." then "$dotdot$"
-     else go (Text.unpack t)
+     else go t
 
 termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
 termPath path r = termDir path r </> "compiled.ub"
@@ -193,16 +193,16 @@ touchIdFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  let n = componentIdToText id
-  writeFile (fp </> encodeFileName n) (Text.unpack n)
+  let n = componentIdToString id
+  writeFile (fp </> encodeFileName n) n
 
 touchReferentFile :: Referent -> FilePath -> IO ()
 touchReferentFile id fp = do
   createDirectoryIfMissing True fp
   -- note: contents of the file are equal to the name, rather than empty, to
   -- hopefully avoid git getting clever about treating deletions as renames
-  let n = referentToText id
-  writeFile (fp </> encodeFileName n) (Text.unpack n)
+  let n = referentToString id
+  writeFile (fp </> encodeFileName n) n
 
 -- checks if `path` looks like a unison codebase
 minimalCodebaseStructure :: CodebasePath -> [FilePath]
@@ -296,39 +296,31 @@ updateCausalHead headDir c = do
        >>= traverse_ (removeFile . (headDir </>))
 
 -- here
-hashFromText :: Text -> Maybe Hash.Hash
-hashFromText = Hash.fromBase32Hex
+hashFromString :: String -> Maybe Hash.Hash
+hashFromString = Hash.fromBase32Hex . Text.pack
 
 -- here
 hashToString :: Hash.Hash -> String
 hashToString = Hash.base32Hexs
 
-hashToText :: Hash.Hash -> Text
-hashToText = Hash.base32Hex
-
-hashFromString :: String -> Maybe Hash.Hash
-hashFromString = hashFromText . Text.pack
-
 hashFromFilePath :: FilePath -> Maybe Hash.Hash
 hashFromFilePath = hashFromString . takeBaseName
 
+-- here
 componentIdToString :: Reference.Id -> String
-componentIdToString = Text.unpack . componentIdToText
+componentIdToString = Text.unpack . Reference.toText . Reference.DerivedId
 
-componentIdToText :: Reference.Id -> Text
-componentIdToText = Reference.toText . Reference.DerivedId
-
-componentIdFromText :: Text -> Maybe Reference.Id
-componentIdFromText = Reference.idFromText
-
+-- here
 componentIdFromString :: String -> Maybe Reference.Id
-componentIdFromString = componentIdFromText . Text.pack
+componentIdFromString = Reference.idFromText . Text.pack
 
-referentFromText :: Text -> Maybe Referent
-referentFromText = Referent.fromText
+-- here
+referentFromString :: String -> Maybe Referent
+referentFromString = Referent.fromText . Text.pack
 
-referentToText :: Referent -> Text
-referentToText = Referent.toText
+-- here
+referentToString :: Referent -> String
+referentToString = Text.unpack . Referent.toText
 
 -- Adapted from
 -- http://hackage.haskell.org/package/fsutils-0.1.2/docs/src/System-Path.html
@@ -519,7 +511,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
     if e
       then do
         ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . componentIdFromText)
+        pure . Set.fromList $ ls >>= (toList . componentIdFromString)
       else pure Set.empty
 
   listDirAsReferents :: FilePath -> m (Set Referent)
@@ -528,7 +520,7 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
     if e
       then do
         ls <- fmap decodeFileName <$> listDirectory d
-        pure . Set.fromList $ ls >>= (toList . referentFromText)
+        pure . Set.fromList $ ls >>= (toList . referentFromString)
       else pure Set.empty
 
   watches :: UF.WatchKind -> m [Reference.Id]

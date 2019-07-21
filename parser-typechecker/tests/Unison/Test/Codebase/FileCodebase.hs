@@ -15,10 +15,12 @@ test = scope "FileCodebase" . tests $
     ]
   ]
 
+encodeDecode :: String -> Test ()
 encodeDecode s =
   let e = encodeFileName s
       d = decodeFileName e
   in scope s $ expect $ d == s && all (`Set.member` safeChars) e
 
+safeChars :: Set.Set Char
 safeChars = Set.fromList $
   ['0'..'9'] ++ ['a'..'z'] ++ ['A'..'Z'] ++ "-._$"
