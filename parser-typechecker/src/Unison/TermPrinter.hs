@@ -208,7 +208,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
-                   in uses $ [pretty0 n (ac 2 Block im') tm]
+                   in uses $ [pretty0 n (ac 0 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         fmt S.ControlKeyword "and", 
@@ -634,6 +634,11 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> Pr
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    -- Don't do `use ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
+    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
+    -- then they'll miss out on FQN elision for that.
+    Constructor' r _ | r == DD.pairRef || r == DD.unitRef -> mempty
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
     Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
     Ann' _ t -> countTypeUsages n t
@@ -644,6 +649,10 @@ suffixCounterTerm n = \case
 suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
     Type.Var' v -> countHQ $ HQ.unsafeFromVar v
+    -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
+    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
+    -- then they'll miss out on FQN elision for that.
+    Type.Ref' r | r == DD.pairRef || r == DD.unitRef || r == Type.vectorRef -> mempty
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
@@ -722,7 +731,6 @@ calcImports im tm = (im', render $ getUses result)
              |> longestPrefix
              |> avoidRepeatsAndClashes
              |> narrowestPossible
-             |> exclusions
     usages' :: Map Suffix (Map Prefix Int)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
@@ -765,11 +773,6 @@ calcImports im tm = (im', render $ getUses result)
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
-    -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair 
-    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly, 
-    -- then they'll miss out on FQN elision for that.  
-    exclusions :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
-    exclusions m = m |> Map.filterWithKey (\n _ -> notElem (Name.toString n) ["().()", "Pair.Pair"])
     -- `union` is left-biased, so this can replace existing imports.                      
     im' = getImportMapAdditions result `Map.union` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix

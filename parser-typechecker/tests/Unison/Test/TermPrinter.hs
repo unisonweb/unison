@@ -151,7 +151,7 @@ test = scope "termprinter" . tests $
   , tc "case e of { a } -> z"
   , pending $ tc "case e of { () -> k } -> z" -- TODO doesn't parse since 'many leaf' expected before the "-> k"
                                               -- need an actual effect constructor to test this with
-  , tc "if a then (if b then c else d) else e"
+  , tc "if a then if b then c else d else e"
   , tc "handle foo in (handle bar in baz)"
   , tc_breaks 16 "case (if a then\n\
                  \  b\n\
@@ -332,8 +332,8 @@ test = scope "termprinter" . tests $
                  \  go [] a b"
   , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
-  , tc_breaks 50 "if true then (case x of 12 -> x) else x"  -- re parens around case note #517
-  , tc_breaks 50 "if true then x else (case x of 12 -> x)"  -- re parens around case note #517
+  , tc_breaks 50 "if true then case x of 12 -> x else x"  -- re parens around case note #517
+  , tc_breaks 50 "if true then x else case x of 12 -> x"  -- re parens around case note #517
   , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
