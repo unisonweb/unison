@@ -679,7 +679,9 @@ countPatternUsages n p = Pattern.foldMap' f p where
     Pattern.SequenceOpP _ _ _ _   -> mempty
     Pattern.EffectPureP _ _       -> mempty
     Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.ConstructorP _ r i _  -> countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.ConstructorP _ r i _  -> 
+      if r == DD.unitRef || r == DD.pairRef then mempty
+      else countHQ $ PrettyPrintEnv.patternName n r i
 
 countHQ :: HQ.HashQualified -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
