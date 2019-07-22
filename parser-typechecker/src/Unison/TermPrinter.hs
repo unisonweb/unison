@@ -35,6 +35,7 @@ import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
+import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
@@ -119,7 +120,7 @@ data InfixContext
        3x + 3y + ... 3z
 
      >=2
-       if 2a then 2b else 2c
+       if 0a then 0b else 0c
        handle 2h in 2b
        case 2x of
          a | 2g -> 0b

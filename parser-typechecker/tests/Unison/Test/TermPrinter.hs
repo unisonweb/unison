@@ -332,8 +332,8 @@ test = scope "termprinter" . tests $
                  \  go [] a b"
   , tc_breaks 30 "case x of\n\
                  \  (Optional.None, _) -> foo"
-  , tc_breaks 50 "if true then case x of 12 -> x else x"  -- re parens around case note #517
-  , tc_breaks 50 "if true then x else case x of 12 -> x"  -- re parens around case note #517
+  , tc_breaks 50 "if true then case x of 12 -> x else x"
+  , tc_breaks 50 "if true then x else case x of 12 -> x"
   , pending $ tc_breaks 80 "x -> (if c then t else f)"  -- TODO 'unexpected )', surplus parens
   , tc_breaks 80 "'let\n\
                  \  foo = bar\n\
