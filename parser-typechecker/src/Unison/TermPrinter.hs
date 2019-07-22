@@ -635,10 +635,7 @@ suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
-    -- Don't do `use ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
-    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
-    -- then they'll miss out on FQN elision for that.
-    Constructor' r _ | r == DD.pairRef || r == DD.unitRef -> mempty
+    Constructor' r _ | noImportRefs r -> mempty
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
     Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
     Ann' _ t -> countTypeUsages n t
@@ -649,10 +646,7 @@ suffixCounterTerm n = \case
 suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
     Type.Var' v -> countHQ $ HQ.unsafeFromVar v
-    -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
-    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
-    -- then they'll miss out on FQN elision for that.
-    Type.Ref' r | r == DD.pairRef || r == DD.unitRef || r == Type.vectorRef -> mempty
+    Type.Ref' r | noImportRefs r || r == Type.vectorRef -> mempty
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
@@ -680,7 +674,7 @@ countPatternUsages n p = Pattern.foldMap' f p where
     Pattern.EffectPureP _ _       -> mempty
     Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
     Pattern.ConstructorP _ r i _  -> 
-      if r == DD.unitRef || r == DD.pairRef then mempty
+      if noImportRefs r then mempty
       else countHQ $ PrettyPrintEnv.patternName n r i
 
 countHQ :: HQ.HashQualified -> PrintAnnotation
@@ -702,6 +696,15 @@ joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
 
 dotConcat :: [Text] -> Text
 dotConcat = Text.concat . (intersperse ".")
+
+-- This predicate is used to keep certain refs out of the FQN elision annotations,
+-- so that we don't get `use` statements for them.
+--
+-- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
+-- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
+-- then they'll miss out on FQN elision for that.  
+noImportRefs :: Reference -> Bool
+noImportRefs r = r == DD.pairRef || r == DD.unitRef
 
 infixl 0 |>
 (|>) :: a -> (a -> b) -> b
