@@ -35,6 +35,7 @@ import           Unison.NamePrinter             ( styleHashQualified'' )
 import qualified Unison.Pattern                as Pattern
 import           Unison.PatternP                ( Pattern )
 import qualified Unison.PatternP               as PatternP
+import           Unison.Reference               ( Reference )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
@@ -119,7 +120,7 @@ data InfixContext
        3x + 3y + ... 3z
 
      >=2
-       if 2a then 2b else 2c
+       if 0a then 0b else 0c
        handle 2h in 2b
        case 2x of
          a | 2g -> 0b
@@ -208,7 +209,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
        pt     = branch t
        pf     = branch f
        branch tm = let (im', uses) = calcImports im tm
-                   in uses $ [pretty0 n (ac 2 Block im') tm]
+                   in uses $ [pretty0 n (ac 0 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
         fmt S.ControlKeyword "and", 
@@ -634,6 +635,8 @@ suffixCounterTerm :: Var v => PrettyPrintEnv -> AnnotatedTerm2 v at ap v a -> Pr
 suffixCounterTerm n = \case
     Var' v -> countHQ $ HQ.unsafeFromVar v
     Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Ref' r -> countHQ $ PrettyPrintEnv.termName n (Referent.Ref r)
+    Constructor' r _ | noImportRefs r -> mempty
     Constructor' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Data)
     Request' r i -> countHQ $ PrettyPrintEnv.termName n (Referent.Con r i CT.Effect)
     Ann' _ t -> countTypeUsages n t
@@ -644,6 +647,7 @@ suffixCounterTerm n = \case
 suffixCounterType :: Var v => PrettyPrintEnv -> Type v a -> PrintAnnotation
 suffixCounterType n = \case
     Type.Var' v -> countHQ $ HQ.unsafeFromVar v
+    Type.Ref' r | noImportRefs r || r == Type.vectorRef -> mempty
     Type.Ref' r -> countHQ $ PrettyPrintEnv.typeName n r
     _ -> mempty
 
@@ -670,7 +674,9 @@ countPatternUsages n p = Pattern.foldMap' f p where
     Pattern.SequenceOpP _ _ _ _   -> mempty
     Pattern.EffectPureP _ _       -> mempty
     Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.ConstructorP _ r i _  -> countHQ $ PrettyPrintEnv.patternName n r i
+    Pattern.ConstructorP _ r i _  -> 
+      if noImportRefs r then mempty
+      else countHQ $ PrettyPrintEnv.patternName n r i
 
 countHQ :: HQ.HashQualified -> PrintAnnotation
 countHQ hq = fold $ fmap countName (HQ.toName $ hq)
@@ -691,6 +697,15 @@ joinName p s = Name.unsafeFromText $ dotConcat $ p ++ [s]
 
 dotConcat :: [Text] -> Text
 dotConcat = Text.concat . (intersperse ".")
+
+-- This predicate is used to keep certain refs out of the FQN elision annotations,
+-- so that we don't get `use` statements for them.
+--
+-- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
+-- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
+-- then they'll miss out on FQN elision for that.  
+noImportRefs :: Reference -> Bool
+noImportRefs r = r == DD.pairRef || r == DD.unitRef
 
 infixl 0 |>
 (|>) :: a -> (a -> b) -> b
@@ -722,7 +737,6 @@ calcImports im tm = (im', render $ getUses result)
              |> longestPrefix
              |> avoidRepeatsAndClashes
              |> narrowestPossible
-             |> exclusions
     usages' :: Map Suffix (Map Prefix Int)
     usages' = usages $ annotation tm
     -- Keep only names P.S where there is no other Q with Q.S also used in this scope.
@@ -765,11 +779,6 @@ calcImports im tm = (im', render $ getUses result)
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
-    -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair 
-    -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly, 
-    -- then they'll miss out on FQN elision for that.  
-    exclusions :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
-    exclusions m = m |> Map.filterWithKey (\n _ -> notElem (Name.toString n) ["().()", "Pair.Pair"])
     -- `union` is left-biased, so this can replace existing imports.                      
     im' = getImportMapAdditions result `Map.union` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
