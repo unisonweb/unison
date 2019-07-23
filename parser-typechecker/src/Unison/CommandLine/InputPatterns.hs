@@ -278,7 +278,7 @@ cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
       [ ("`path foo.bar`",
           "descends into foo.bar from the current path.")
-      , ("`path .cat.dog",
+      , ("`path .cat.dog`",
           "sets the current path to the abolute path .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
