@@ -26,7 +26,7 @@ empty :: Bytes
 empty = Bytes mempty
 
 fromByteString :: B.ByteString -> Bytes
-fromByteString b = snoc empty b
+fromByteString = snoc empty
 
 toByteString :: Bytes -> B.ByteString
 toByteString b = B.concat (chunks b)

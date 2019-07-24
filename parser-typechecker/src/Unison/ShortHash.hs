@@ -80,7 +80,7 @@ take i s@ShortHash{..} = s { prefix = Text.take i prefix }
 isPrefixOf :: ShortHash -> ShortHash -> Bool
 isPrefixOf (Builtin t) (Builtin t2) = t `Text.isPrefixOf` t2
 isPrefixOf (ShortHash h n cid) (ShortHash h2 n2 cid2) =
-  (Text.isPrefixOf h h2) && (maybePrefixOf n n2) && (maybePrefixOf cid cid2)
+  Text.isPrefixOf h h2 && maybePrefixOf n n2 && maybePrefixOf cid cid2
   where
   Nothing `maybePrefixOf` Nothing = True
   Nothing `maybePrefixOf` Just _ = False
