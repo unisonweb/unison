@@ -170,6 +170,7 @@ library
     errors,
     edit-distance,
     either,
+    exceptions,
     extra,
     filepath,
     fingertree,

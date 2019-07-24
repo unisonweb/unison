@@ -8,6 +8,7 @@ module Unison.CommandLine.Main where
 
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
+import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State (runStateT)
 import Control.Monad.Trans (lift)
@@ -44,7 +45,7 @@ import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.TQueue as Q
 
 getUserInput
-  :: (MonadIO m, Line.MonadException m)
+  :: (MonadIO m, MonadMask m)
   => Map String InputPattern
   -> Codebase m v a
   -> Branch m
