@@ -143,7 +143,9 @@ update = InputPattern "update"
 
 patch :: InputPattern
 patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
-  "`propagate` rewrites any definitions that depend on definitions with type-preserving edits to use the updated versions of these dependencies."
+  (P.wrap $ makeExample' patch <> "rewrites any definitions that depend on "
+      <> "definitions with type-preserving edits to use the updated versions of"
+      <> "these dependencies.")
   (\case
     patchStr : ws -> first fromString $ do
       patch <- Path.parseSplit' Path.wordyNameSegment patchStr
@@ -151,7 +153,7 @@ patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
       pure $ Input.PatchI patch branch
-    [] -> Left $ warn "`todo` takes a patch and an optional path")
+    [] -> Left $ warn $ makeExample' patch <> "takes a patch and an optional path")
 
 view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
