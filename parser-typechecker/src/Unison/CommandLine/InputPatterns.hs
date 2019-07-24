@@ -153,7 +153,7 @@ patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
       pure $ Input.PatchI patch branch
-    [] -> Left $ warn $ makeExample' patch <> "takes a patch and an optional path")
+    [] -> Left $ warn $ makeExample' patch <> "takes a patch and an optional path.")
 
 view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
