@@ -536,7 +536,7 @@ wordyIdChar ch =
   isAlphaNum ch || isEmoji ch || ch `elem` "_!'"
 
 isEmoji :: Char -> Bool
-isEmoji c = c >= '\x1F600' && c <= '\x1F64F'
+isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
 splitOn :: Char -> String -> [String]
 splitOn c = unfoldr step where

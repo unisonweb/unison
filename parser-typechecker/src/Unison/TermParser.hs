@@ -149,7 +149,7 @@ parsePattern =
         | otherwise      -> -- matched ctor name, consume the token
                             do anyToken; pure (Set.findMin s <$ tok)
     where
-    isLower n = Text.all Char.isLower . Text.take 1 . Name.toText $ n
+    isLower = Text.all Char.isLower . Text.take 1 . Name.toText
     die hq s = case L.payload hq of
       -- if token not hash qualified or uppercase,
       -- fail w/out consuming it to allow backtracking
@@ -387,8 +387,8 @@ importp = do
   -- we allow symbolyId here and parse the suffix optionaly, so we can generate
   -- a nicer error message if the suffixes are empty
   prefix   <- optional
-            $ (fmap Right $ importWordyId <|> importDotId) -- use . Nat
-          <|> (fmap Left $ importSymbolyId)
+            $ fmap Right (importWordyId <|> importDotId) -- use . Nat
+          <|> fmap Left importSymbolyId
   suffixes <- optional (some (importWordyId <|> importSymbolyId))
   case (prefix, suffixes) of
     (Nothing, _) -> P.customFailure $ UseEmpty kw
