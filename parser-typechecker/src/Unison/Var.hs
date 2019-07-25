@@ -1,6 +1,7 @@
 {-# Language OverloadedStrings #-}
 {-# Language ViewPatterns #-}
 {-# Language PatternSynonyms #-}
+{-# Language ScopedTypeVariables #-}
 
 module Unison.Var where
 
@@ -13,6 +14,7 @@ import qualified Data.Set as Set
 import Data.Word (Word64)
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
+import qualified Unison.Reference as R
 
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
@@ -46,7 +48,7 @@ name v = case typeOf v of
   Inference PatternBindV -> "𝕧" <> showid v
   Inference TypeConstructor -> "𝕗" <> showid v
   Inference TypeConstructorArg -> "𝕦" <> showid v
-  RefNamed r -> "ℍ" <> pack (show r) <> showid v
+  RefNamed r -> "ℍ" <> R.toText r <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
   UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
@@ -120,7 +122,9 @@ reset :: Var v => v -> v
 reset v = typed (typeOf v)
 
 unqualified :: Var v => v -> v
-unqualified = named . unqualifiedName
+unqualified v = case typeOf v of
+  User _ -> named . unqualifiedName $ v
+  _ -> v
 
 unqualifiedName :: Var v => v -> Text
 unqualifiedName = last . Text.splitOn "." . name
@@ -151,7 +155,23 @@ freshInBoth vs1 vs2 = freshIn vs1 . freshIn vs2
 freshNamed :: Var v => Set v -> Text -> v
 freshNamed used n = freshIn used (named n)
 
-isLowercase :: Var v => v -> Bool
-isLowercase v =
-  (all isLower . take 1 . Text.unpack . name) v
-  && unqualified v == v
+syntheticVars :: Var v => Set v
+syntheticVars = Set.fromList . fmap typed $ [
+  Inference Ability,
+  Inference Input,
+  Inference Output,
+  Inference PatternPureE,
+  Inference PatternPureV,
+  Inference PatternBindE,
+  Inference PatternBindV,
+  Inference TypeConstructor,
+  Inference TypeConstructorArg ]
+
+isLowercase :: forall v . Var v => v -> Bool
+isLowercase v = 
+  ok (name $ reset v) && unqualified v == v
+  where
+  ok n = (all isLower . take 1 . Text.unpack) n ||
+         Set.member n syntheticVarNames
+  syntheticVarNames :: Set Text 
+  syntheticVarNames = Set.map name (syntheticVars @v)
