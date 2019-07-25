@@ -4,7 +4,7 @@ module Main where
 import Control.Monad ( unless )
 import Safe ( headMay )
 import System.Environment ( getArgs )
-import System.FilePath.Posix ((</>))
+import System.FilePath ((</>))
 import System.Directory ( getCurrentDirectory )
 import Unison.Codebase.Serialization.V1 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
