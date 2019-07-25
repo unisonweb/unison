@@ -18,7 +18,7 @@ import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
-import System.FilePath.Posix ((</>))
+import System.FilePath ((</>))
 import Safe
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
