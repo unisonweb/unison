@@ -586,13 +586,13 @@ displayTestResults showTip ppe oks fails = let
   name r = P.text (HQ.toText $ PPE.termName ppe (Referent.Ref r))
   okMsg =
     if null oks then mempty
-    else P.column2 [ (P.green "◉ " <> name r, ": " <> P.green (P.text msg)) | (r, msg) <- oks ]
+    else P.column2 [ (P.green "◉ " <> name r, "  " <> P.green (P.text msg)) | (r, msg) <- oks ]
   okSummary =
     if null oks then mempty
     else "✅ " <> P.bold (P.num (length oks)) <> P.green " test(s) passing"
   failMsg =
     if null fails then mempty
-    else P.column2 [ (P.red "✗ " <> name r, ": " <> P.red (P.text msg)) | (r, msg) <- fails ]
+    else P.column2 [ (P.red "✗ " <> name r, "  " <> P.red (P.text msg)) | (r, msg) <- fails ]
   failSummary =
     if null fails then mempty
     else "🚫 " <> P.bold (P.num (length fails)) <> P.red " test(s) failing"
@@ -860,11 +860,15 @@ watchPrinter src ppe ann kind term isHit =
         renderTest (Term.App' (Term.Constructor' _ id) (Term.Text' msg)) =
           "\n" <> if id == DD.okConstructorId
             then addCache
-              (P.green "✅ " <> P.bold "Passed - " <> P.green (P.text msg))
+              (P.green "✅ " <> P.bold "Passed" <> P.green (P.text msg'))
             else if id == DD.failConstructorId
               then addCache
-                (P.red "🚫 " <> P.bold "FAILED - " <> P.red (P.text msg))
+                (P.red "🚫 " <> P.bold "FAILED" <> P.red (P.text msg'))
               else P.red "❓ " <> TermPrinter.pretty ppe term
+            where
+              msg' = if Text.take 1 msg == " " then msg
+                     else " " <> msg
+
         renderTest x =
           fromString $ "\n Unison bug: " <> show x <> " is not a test."
       in
