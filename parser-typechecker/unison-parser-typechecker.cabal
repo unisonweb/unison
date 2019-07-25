@@ -243,6 +243,7 @@ executable unison2
     base,
     containers,
     directory,
+    filepath,
     safe,
     unison-parser-typechecker
 

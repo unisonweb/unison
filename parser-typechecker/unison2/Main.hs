@@ -4,6 +4,7 @@ module Main where
 import Control.Monad ( unless )
 import Safe ( headMay )
 import System.Environment ( getArgs )
+import System.FilePath.Posix ((</>))
 import System.Directory ( getCurrentDirectory )
 import Unison.Codebase.Serialization.V1 ( formatSymbol )
 import Unison.Parser ( Ann(External) )
@@ -16,13 +17,14 @@ import qualified Unison.Codebase.Path as Path
 import qualified Unison.Util.Pretty as P
 import qualified Unison.PrettyTerminal as PT
 
+
 main :: IO ()
 main = do
   args <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
   dir  <- getCurrentDirectory
   let
-    codebasePath = ".unison/v1"
+    codebasePath = ".unison" </> "v1"
     initialPath  = Path.absoluteEmpty
     theCodebase = FileCodebase.codebase1 formatSymbol formatAnn codebasePath
     launch = CommandLine.main dir
