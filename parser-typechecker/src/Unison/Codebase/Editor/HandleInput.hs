@@ -116,7 +116,8 @@ import Unison.Codebase.TermEdit (TermEdit)
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
-import           Unison.Runtime.IOSource       ( isTest )
+import           Unison.Runtime.IOSource       ( isTest, ioReference )
+import qualified Unison.Runtime.IOSource as IOSource
 import qualified Unison.Util.Star3             as Star3
 import qualified Unison.Util.Pretty            as P
 import           Unison.Util.Monoid (foldMapM)
@@ -951,19 +952,26 @@ loop = do
           respond . TodoOutput ppe =<< checkTodo patch names0
         else respond $ NothingToPatch patchPath scopePath
 
-      -- ExecuteI input ->
-      --   withFile [Type.ref External $ IOSource.ioReference]
-      --            "execute command"
-      --            ("main_ = " <> Text.pack input) $
-      --              \_ unisonFile ->
-      --                 eval . Execute (view currentBranch s) $
-      --                   UF.discardTypes unisonFile
+      ExecuteI input ->
+        withFile [Type.ref External ioReference]
+                 "execute command"
+                 ("main_ = " <> Text.pack input,
+                  L.lexer "execute command" input) $
+                   \unisonFile -> do
+                     -- Begin voodoo
+                     ppe <- prettyPrintEnv =<<
+                       makeShadowedPrintNamesFromLabeled
+                         (UF.labeledDependencies unisonFile)
+                         (UF.typecheckedToNames0 unisonFile)
+                     -- End voodoo
+                     eval $ Execute ppe unisonFile
       -- UpdateBuiltinsI -> do
       --   stepAt updateBuiltins
       --   checkTodo
 
       MergeBuiltinsI -> do
-          let names0 = Builtin.names0 -- <> UF.typecheckedToNames0 IOSource.typecheckedFile
+          let names0 = Builtin.names0
+                       <> UF.typecheckedToNames0 IOSource.typecheckedFile
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
           _ <- updateAtM currentPath' $ \destb ->
@@ -1011,7 +1019,6 @@ loop = do
       AddTypeReplacementI {} -> notImplemented
       RemoveTermReplacementI {} -> notImplemented
       RemoveTypeReplacementI {} -> notImplemented
-      ExecuteI {} -> notImplemented
       UndoRootI -> notImplemented
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
