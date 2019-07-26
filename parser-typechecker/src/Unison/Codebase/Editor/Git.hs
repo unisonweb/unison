@@ -5,6 +5,7 @@ module Unison.Codebase.Editor.Git where
 import           Control.Monad                  ( when
                                                 , unless
                                                 )
+import           Control.Monad.Extra            ( whenM )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
@@ -21,6 +22,7 @@ import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
+                                                , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( (</>) )
 import           Unison.Codebase.GitError
@@ -49,9 +51,10 @@ prepGitPull
   :: MonadIO m => MonadError GitError m => FilePath -> Text -> m FilePath
 prepGitPull localPath uri = do
   checkForGit
-  wd     <- liftIO getCurrentDirectory
-  exists <- liftIO . doesDirectoryExist $ localPath
-  unless exists $ clone uri localPath
+  wd <- liftIO getCurrentDirectory
+  liftIO . whenM (doesDirectoryExist localPath) $ removeDirectoryRecursive
+    localPath
+  clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
   unless isGitDir . throwError $ NoLocalRepoAt localPath
