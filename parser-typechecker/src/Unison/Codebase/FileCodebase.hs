@@ -16,7 +16,6 @@ module Unison.Codebase.FileCodebase
 , ensureCodebaseInitialized
 ) where
 
--- import Debug.Trace
 import           Control.Monad                  ( forever, foldM, unless, when)
 import           Control.Monad.Extra            ( unlessM )
 import           UnliftIO                       ( MonadIO
@@ -376,15 +375,16 @@ writeAllTermsAndTypes
   -> Branch m
   -> m (Branch m)
 writeAllTermsAndTypes fmtV fmtA codebase localPath branch = do
-  Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
-  b <- doesDirectoryExist (localPath </> codebasePath) 
+  b <- doesDirectoryExist localPath
   if b then do 
     code <- pure $ codebase1 fmtV fmtA localPath 
     remoteRoot <- Codebase.getRootBranch code
+    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     merged <- Branch.merge branch remoteRoot 
     Codebase.putRootBranch code merged 
     pure merged
   else do 
+    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
     updateCausalHead (branchHeadDir localPath) $ Branch._history branch
     pure branch
  where

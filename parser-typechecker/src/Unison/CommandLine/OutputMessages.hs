@@ -106,6 +106,7 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinTh
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -379,37 +380,50 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
-  GitError e -> case e of
-                  NoGit -> putPrettyLn' . P.wrap $ "I couldn't find git. "
-                           <> "Make sure it's installed and on your path."
-                  NoRemoteRepoAt p ->
-                    putPrettyLn' . P.wrap $ "I couldn't access a git "
-                      <> "repository at " <> P.text p
-                      <> ". Make sure the repo exists "
-                      <> "and that you have access to it."
-                  NoLocalRepoAt p ->
-                    putPrettyLn' . P.wrap $ "The directory at " <> P.string p
-                    <> "doesn't seem to contain a git repository."
-                  CheckoutFailed t ->
-                    putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
-                    <> P.text t <> ". Make sure there's a branch or commit "
-                    <> "with that name."
-                  PushSourceNotBeforeDestination url treeish diff -> 
-                    putPrettyLn' . P.callout "⏸" . P.lines $ [
-                      P.wrap $ "The repository at" <> P.blue (P.text url)
-                            <> (if Text.null treeish then "" 
-                                else "as of commit" <> P.text treeish)
-                            <> "has some changes I don't know about here:",
-                      "", P.indentN 2 (prettyDiff diff), "",
-                      tip $ "You can do " <> IP.makeExample IP.pull [P.text url, P.text treeish]
-                         <> "to merge these changes into your current namespace." 
-                         <> "Then try " <> IP.makeExampleEOS IP.push [P.text url, P.text treeish]
-                      ]
-                  SomeOtherError msg -> putPrettyLn' . P.callout "‼" . P.lines $ [
-                    P.wrap "I ran into an error:", "",
-                    P.indentN 2 (P.text msg), "",
-                    P.wrap $ "Check the logging messages above for more info."
-                    ]
+  GitError input e -> putPrettyLn $ case e of
+    NoGit -> P.wrap $ 
+      "I couldn't find git. Make sure it's installed and on your path."
+    NoRemoteRepoAt p -> P.wrap
+       $ "I couldn't access a git "
+      <> "repository at " <> P.group (P.text p <> ".")
+      <> "Make sure the repo exists "
+      <> "and that you have access to it."
+    NoLocalRepoAt p -> P.wrap 
+       $ "The directory at " <> P.string p
+      <> "doesn't seem to contain a git repository."
+    CheckoutFailed t -> P.wrap
+       $ "I couldn't do a git checkout of "
+      <> P.group (P.text t <> ".") 
+      <> "Make sure there's a branch or commit with that name."
+    PushSourceNotBeforeDestination url treeish diff -> P.callout "⏸" . P.lines $ [
+      P.wrap $ "The repository at" <> P.blue (P.text url)
+            <> (if Text.null treeish then "" 
+                else "at revision" <> P.blue (P.text treeish))
+            <> "has some changes I don't know about:",
+      "", P.indentN 2 (prettyDiff diff), "",
+      P.wrap "If you want to " <> push <> "you can do:", "",
+       P.indentN 2 pull, "", 
+       P.wrap $ 
+         "to merge these changes locally." <>
+         "Then try your" <> push <> "again."
+      ]
+      where
+      push = P.group . P.backticked $ IP.patternName IP.push
+      pull = case input of 
+        Input.PushRemoteBranchI Nothing p -> 
+          P.sep " " [IP.patternName IP.pull, P.shown p ]
+        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [ 
+          IP.patternName IP.pull,
+          P.text (RemoteRepo.url r),
+          P.shown p,
+          if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
+          else "" ] 
+        _ -> "⁉️ Unison bug - push command expected"
+    SomeOtherError msg -> P.callout "‼" . P.lines $ [
+      P.wrap "I ran into an error:", "",
+      P.indentN 2 (P.text msg), "",
+      P.wrap $ "Check the logging messages above for more info."
+      ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch

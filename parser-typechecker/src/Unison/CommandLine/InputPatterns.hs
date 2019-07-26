@@ -46,6 +46,9 @@ showPatternHelp i = P.lines [
      else ""),
   P.wrap $ I.help i ]
 
+patternName :: InputPattern -> P.Pretty P.ColorText 
+patternName = fromString . I.patternName
+
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
 makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
 makeExample p args = P.group $

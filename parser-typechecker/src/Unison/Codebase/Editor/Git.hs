@@ -143,10 +143,10 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Stick our changes in the checked-out copy
   merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
   isBefore <- lift $ Branch.before merged branch
-  when (not $ isBefore) $ do
-    let mergednames = Branch.toNames0 (Branch.head merged) 
-        localnames  = Branch.toNames0 (Branch.head branch) 
-        diff = Names.diff0 localnames mergednames
+  let mergednames = Branch.toNames0 (Branch.head merged) 
+      localnames  = Branch.toNames0 (Branch.head branch) 
+      diff = Names.diff0 localnames mergednames
+  when (not isBefore) $ 
     throwError (PushSourceNotBeforeDestination url treeish diff)
   let
     push = do

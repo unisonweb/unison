@@ -119,7 +119,7 @@ data Output v
   -- and a nicer render.
   | BustedBuiltins (Set Reference) (Set Reference)
   | BranchDiff Names Names
-  | GitError GitError
+  | GitError Input GitError
   | NoConfiguredGitUrl PushPull Path'
   | DisplayLinks PPE.PrettyPrintEnv Metadata.Metadata
                (Map Reference (DisplayThing (Decl v Ann)))
