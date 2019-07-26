@@ -36,6 +36,7 @@ import           Unison.Codebase.FileCodebase   ( getRootBranch
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
+import qualified Unison.Util.Exception         as Ex
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- pulls the HEAD of that remote repo into the local path.
@@ -52,8 +53,11 @@ prepGitPull
 prepGitPull localPath uri = do
   checkForGit
   wd <- liftIO getCurrentDirectory
-  liftIO . whenM (doesDirectoryExist localPath) $ removeDirectoryRecursive
-    localPath
+  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $ 
+    removeDirectoryRecursive localPath
+  case e of
+    Left e -> throwError (SomeOtherError (Text.pack (show e)))
+    Right a -> pure a 
   clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
@@ -132,7 +136,7 @@ pushGitRootBranch localPath codebase branch url treeish = do
   shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
   lift $ syncToDirectory codebase (localPath </> codebasePath) branch
-  liftIO $ do
+  e <- liftIO . Ex.tryAny $ do
     setCurrentDirectory localPath
     -- Commit our changes
     status <- "git" $| ["status", "--short"]
@@ -144,4 +148,6 @@ pushGitRootBranch localPath codebase branch url treeish = do
       then "git" ["push", "--all", url]
       else "git" ["push", url, treeish]
     setCurrentDirectory wd
-
+  case e of
+    Left err -> throwError (SomeOtherError (Text.pack $ show err))
+    Right a -> pure a
