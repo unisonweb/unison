@@ -9,7 +9,7 @@ data GitError = NoGit
               | NoLocalRepoAt FilePath
               | CheckoutFailed Text
               -- url commit Diff of what would change on merge with remote
-              | PushSourceNotBeforeDestination Text Text Names.Diff
+              | PushDestinationHasNewStuff Text Text Names.Diff
               | SomeOtherError Text
               deriving Show
 

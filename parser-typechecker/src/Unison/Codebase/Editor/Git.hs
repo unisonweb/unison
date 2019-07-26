@@ -147,7 +147,7 @@ pushGitRootBranch localPath codebase branch url treeish = do
       localnames  = Branch.toNames0 (Branch.head branch) 
       diff = Names.diff0 localnames mergednames
   when (not isBefore) $ 
-    throwError (PushSourceNotBeforeDestination url treeish diff)
+    throwError (PushDestinationHasNewStuff url treeish diff)
   let
     push = do
       setCurrentDirectory localPath

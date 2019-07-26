@@ -395,13 +395,13 @@ notifyUser dir o = case o of
        $ "I couldn't do a git checkout of "
       <> P.group (P.text t <> ".") 
       <> "Make sure there's a branch or commit with that name."
-    PushSourceNotBeforeDestination url treeish diff -> P.callout "⏸" . P.lines $ [
+    PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
             <> (if Text.null treeish then "" 
                 else "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
-      P.wrap "If you want to " <> push <> "you can do:", "",
+      P.wrap $ "If you want to " <> push <> "you can do:", "",
        P.indentN 2 pull, "", 
        P.wrap $ 
          "to merge these changes locally." <>
