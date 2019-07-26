@@ -234,9 +234,9 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable unison2
+executable unison
   main-is: Main.hs
-  hs-source-dirs: unison2
+  hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
