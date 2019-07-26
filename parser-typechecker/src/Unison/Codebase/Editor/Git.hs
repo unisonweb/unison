@@ -6,6 +6,9 @@ import           Control.Monad                  ( when
                                                 , unless
                                                 )
 import           Control.Monad.Extra            ( whenM )
+import           Control.Monad.Catch            ( MonadCatch
+                                                , onException
+                                                )
 import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
@@ -126,6 +129,7 @@ pull uri treeish = do
 -- dependencies to the path, then commit and push to the remote repo.
 pushGitRootBranch
   :: MonadIO m
+  => MonadCatch m
   => FilePath
   -> Codebase m v a
   -> Branch m
@@ -144,18 +148,18 @@ pushGitRootBranch localPath codebase branch url treeish = do
         localnames  = Branch.toNames0 (Branch.head branch) 
         diff = Names.diff0 localnames mergednames
     throwError (PushSourceNotBeforeDestination url treeish diff)
-  e <- liftIO . Ex.tryAny $ do
-    setCurrentDirectory localPath
-    -- Commit our changes
-    status <- "git" $| ["status", "--short"]
-    unless (Text.null status) $ do
-      "git" ["add", "--all", "."]
-      "git" ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
-    -- Push our changes to the repo
-    if Text.null treeish
-      then "git" ["push", "--all", url]
-      else "git" ["push", url, treeish]
-    setCurrentDirectory wd
-  case e of
-    Left err -> throwError (SomeOtherError (Text.pack $ show err))
-    Right a -> pure a
+  let
+    push = do
+      setCurrentDirectory localPath
+      -- Commit our changes
+      status <- "git" $| ["status", "--short"]
+      unless (Text.null status) $ do
+        "git" ["add", "--all", "."]
+        "git"
+          ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
+      -- Push our changes to the repo
+      if Text.null treeish
+        then "git" ["push", "--all", url]
+        else "git" ["push", url, treeish]
+      setCurrentDirectory wd
+  liftIO push `onException` throwError (NoRemoteRepoAt url)
