@@ -37,6 +37,8 @@ import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
 import qualified Unison.Util.Exception         as Ex
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Names3                 as Names
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- pulls the HEAD of that remote repo into the local path.
@@ -135,7 +137,13 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Clone and pull the remote repo
   shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
-  lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  isBefore <- lift $ Branch.before merged branch
+  when (not $ isBefore) $ do
+    let mergednames = Branch.toNames0 (Branch.head merged) 
+        localnames  = Branch.toNames0 (Branch.head branch) 
+        diff = Names.diff0 localnames mergednames
+    throwError (PushSourceNotBeforeDestination url treeish diff)
   e <- liftIO . Ex.tryAny $ do
     setCurrentDirectory localPath
     -- Commit our changes

@@ -394,14 +394,16 @@ notifyUser dir o = case o of
                     putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
                     <> P.text t <> ". Make sure there's a branch or commit "
                     <> "with that name."
-                  PushSourceNotBeforeDestination remote diff -> 
+                  PushSourceNotBeforeDestination url treeish diff -> 
                     putPrettyLn' . P.callout "⏸" . P.lines $ [
-                      P.wrap $ "The repository at" <> P.blue (P.text remote) <> "has some changes"
-                            <> "I don't know about here:",
+                      P.wrap $ "The repository at" <> P.blue (P.text url)
+                            <> (if Text.null treeish then "" 
+                                else "as of commit" <> P.text treeish)
+                            <> "has some changes I don't know about here:",
                       "", P.indentN 2 (prettyDiff diff), "",
-                      tip $ "You can do " <> IP.makeExample IP.pull [P.text remote]
+                      tip $ "You can do " <> IP.makeExample IP.pull [P.text url, P.text treeish]
                          <> "to merge these changes into your current namespace." 
-                         <> "Then try " <> IP.makeExampleEOS IP.push [P.text remote]
+                         <> "Then try " <> IP.makeExampleEOS IP.push [P.text url, P.text treeish]
                       ]
                   SomeOtherError msg -> putPrettyLn' . P.callout "‼" . P.lines $ [
                     P.wrap "I ran into an error:", "",

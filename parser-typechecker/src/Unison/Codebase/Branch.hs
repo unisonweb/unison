@@ -197,6 +197,10 @@ headHash (Branch c) = Causal.currentHash c
 merge :: Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
 
+-- `before b1 b2` is true if `b2` incorporates all of `b1`
+before :: Monad m => Branch m -> Branch m -> m Bool
+before (Branch x) (Branch y) = Causal.before x y
+
 -- todo: use 3-way merge for terms, types, and edits
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
 merge0 b1 b2 = do

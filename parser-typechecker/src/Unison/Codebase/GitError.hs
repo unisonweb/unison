@@ -8,8 +8,8 @@ data GitError = NoGit
               | NoRemoteRepoAt Text
               | NoLocalRepoAt FilePath
               | CheckoutFailed Text
-              -- Gives Diff of what's new at the remote
-              | PushSourceNotBeforeDestination Text Names.Diff
+              -- url treeish Diff of what would change on merge with remote
+              | PushSourceNotBeforeDestination Text Text Names.Diff
               | SomeOtherError Text
               deriving Show
 

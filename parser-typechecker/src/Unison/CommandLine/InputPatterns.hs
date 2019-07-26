@@ -48,8 +48,8 @@ showPatternHelp i = P.lines [
 
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
 makeExample :: InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
-makeExample p args =
-  backtick (intercalateMap " " id (fromString (I.patternName p) : args))
+makeExample p args = P.group $
+  backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args))
 
 makeExample' :: InputPattern -> P.Pretty CT.ColorText
 makeExample' p = makeExample p []
@@ -57,7 +57,7 @@ makeExample' p = makeExample p []
 makeExampleEOS ::
   InputPattern -> [P.Pretty CT.ColorText] -> P.Pretty CT.ColorText
 makeExampleEOS p args = P.group $
-  backtick (intercalateMap " " id (fromString (I.patternName p) : args)) <> "."
+  backtick (intercalateMap " " id (P.nonEmpty $ fromString (I.patternName p) : args)) <> "."
 
 helpFor :: InputPattern -> Either (P.Pretty CT.ColorText) Input
 helpFor p = I.parse help [I.patternName p]

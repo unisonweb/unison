@@ -58,7 +58,10 @@ data Codebase m v a =
 
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
-           , syncToDirectory    :: FilePath -> Branch m -> m ()
+           -- This returns the merged branch that results from
+           -- merging the input branch with the root branch at the 
+           -- given file path
+           , syncToDirectory    :: FilePath -> Branch m -> m (Branch m)
 
            -- Watch expressions are part of the codebase, the `Reference.Id` is
            -- the hash of the source of the watch expression, and the `Term v a`
