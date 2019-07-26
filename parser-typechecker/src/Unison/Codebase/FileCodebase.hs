@@ -115,7 +115,7 @@ codebasePath = ".unison" </> "v1"
 ensureCodebaseInitialized :: IO (FilePath, Codebase IO Symbol Ann)
 ensureCodebaseInitialized = do
   dir <- getCurrentDirectory
-  let theCodebase = codebase1 V1.formatSymbol formatAnn codebasePath
+  let theCodebase = codebase1 V1.formatSymbol formatAnn (dir </> codebasePath)
   unlessM (exists codebasePath) $ do
     PT.putPrettyLn'
       .  P.callout "☝️"
