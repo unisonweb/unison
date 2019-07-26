@@ -74,6 +74,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 styleHashQualified', prettyHashQualified')
 import           Unison.Names2                 (Names'(..), Names, Names0)
 import qualified Unison.Names2                 as Names
+import qualified Unison.Names3                 as Names
 import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
@@ -393,6 +394,20 @@ notifyUser dir o = case o of
                     putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
                     <> P.text t <> ". Make sure there's a branch or commit "
                     <> "with that name."
+                  PushSourceNotBeforeDestination remote diff -> 
+                    putPrettyLn' . P.callout "⏸" . P.lines $ [
+                      P.wrap $ "The repository at" <> P.blue (P.text remote) <> "has some changes"
+                            <> "I don't know about here:",
+                      "", P.indentN 2 (prettyDiff diff), "",
+                      tip $ "You can do " <> IP.makeExample IP.pull [P.text remote]
+                         <> "to merge these changes into your current namespace." 
+                         <> "Then try " <> IP.makeExampleEOS IP.push [P.text remote]
+                      ]
+                  SomeOtherError msg -> putPrettyLn' . P.callout "‼" . P.lines $ [
+                    P.wrap "I ran into an error:", "",
+                    P.indentN 2 (P.text msg), "",
+                    P.wrap $ "Check the logging messages above for more info."
+                    ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch
@@ -888,6 +903,11 @@ watchPrinter src ppe ann kind term isHit =
 
 filestatusTip :: P.Pretty CT.ColorText
 filestatusTip = tip "Use `help filestatus` to learn more."
+
+prettyDiff :: Names.Diff -> P.Pretty P.ColorText
+prettyDiff _diff = P.callout "🏗" . P.wrap $ 
+  "I'm sorry! This message is currently under construction." <>
+  "Check back later."
 
 isTestOk :: Codebase.Term v Ann -> Bool
 isTestOk tm = case tm of

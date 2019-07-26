@@ -38,6 +38,22 @@ type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
 
+-- Simple 2 way diff, has the property that:
+--  addedNames (diff0 n1 n2) == removedNames (diff0 n2 n1)
+-- 
+-- `addedNames` are names in `n2` but not `n1`
+-- `removedNames` are names in `n1` but not `n2`
+diff0 :: Names0 -> Names0 -> Diff
+diff0 n1 n2 = Diff added removed where
+  added = Names0 (terms0 n2 `R.difference` terms0 n1)  
+                 (types0 n2 `R.difference` types0 n1)
+  removed = Names0 (terms0 n1 `R.difference` terms0 n2)
+                   (types0 n1 `R.difference` types0 n2)
+
+data Diff = 
+  Diff { addedNames   :: Names0
+       , removedNames :: Names0 } deriving Show
+
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
 -- referenced hash qualified.
