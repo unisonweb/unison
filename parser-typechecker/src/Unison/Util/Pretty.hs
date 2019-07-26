@@ -16,6 +16,8 @@ module Unison.Util.Pretty (
    callout,
    excerptSep,
    excerptSep',
+   excerptColumn2,
+   excerptColumn2Headed,
    warnCallout, blockedCallout, fatalCallout, okCallout,
    column2,
    column3,
@@ -335,6 +337,24 @@ leftPad n p =
 rightPad n p =
   let rem = n - preferredWidth p
   in  if rem > 0 then p <> fromString (replicate rem ' ') else p
+
+excerptColumn2Headed
+  :: (LL.ListLike s Char, IsString s)
+  => Int
+  -> (Pretty s, Pretty s)
+  -> [(Pretty s, Pretty s)]
+  -> Pretty s
+excerptColumn2Headed max hd cols = 
+  let len = length cols 
+  in if len <= max then column2 cols 
+     else lines [column2 (hd:take max cols), "... " <> shown (len - max) <> " more"]
+
+excerptColumn2 
+  :: (LL.ListLike s Char, IsString s) => Int -> [(Pretty s, Pretty s)] -> Pretty s
+excerptColumn2 max cols = 
+  let len = length cols 
+  in if len <= max then column2 cols 
+     else lines [column2 cols, "... " <> shown (len - max)]
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s

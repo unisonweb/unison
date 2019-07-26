@@ -44,15 +44,17 @@ filterTypes = Unison.Names2.filterTypes
 -- `addedNames` are names in `n2` but not `n1`
 -- `removedNames` are names in `n1` but not `n2`
 diff0 :: Names0 -> Names0 -> Diff
-diff0 n1 n2 = Diff added removed where
+diff0 n1 n2 = Diff n1 added removed where
   added = Names0 (terms0 n2 `R.difference` terms0 n1)  
                  (types0 n2 `R.difference` types0 n1)
   removed = Names0 (terms0 n1 `R.difference` terms0 n2)
                    (types0 n1 `R.difference` types0 n2)
 
 data Diff = 
-  Diff { addedNames   :: Names0
-       , removedNames :: Names0 } deriving Show
+  Diff { originalNames :: Names0 
+       , addedNames    :: Names0
+       , removedNames  :: Names0
+       } deriving Show
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be

@@ -27,7 +27,7 @@ import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn, stripPrefix)
-import           Data.List.Extra               (nubOrdOn)
+import           Data.List.Extra               (nubOrdOn, nubOrd)
 import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
 import           Data.Maybe                    (fromMaybe)
@@ -107,6 +107,7 @@ import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import qualified Unison.Util.List              as List
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -921,9 +922,72 @@ filestatusTip :: P.Pretty CT.ColorText
 filestatusTip = tip "Use `help filestatus` to learn more."
 
 prettyDiff :: Names.Diff -> P.Pretty P.ColorText
-prettyDiff _diff = P.callout "🏗" . P.wrap $ 
-  "I'm sorry! This message is currently under construction." <>
-  "Check back later."
+prettyDiff diff = let
+  orig = Names.originalNames diff
+  adds = Names.addedNames diff
+  removes = Names.removedNames diff
+  addedTerms = [ n | (n,r) <- R.toList (Names.terms0 adds)
+                   , not $ R.memberRan r (Names.terms0 removes) ] 
+  addedTypes = [ n | (n,r) <- R.toList (Names.types0 adds)
+                   , not $ R.memberRan r (Names.types0 removes) ] 
+  added = Name.sortNames . nubOrd $ (addedTerms <> addedTypes) 
+
+  removedTerms = [ n | (n,r) <- R.toList (Names.terms0 removes)
+                     , not $ R.memberRan r (Names.terms0 adds) ]
+  removedTypes = [ n | (n,r) <- R.toList (Names.types0 removes)
+                     , not $ R.memberRan r (Names.types0 adds) ]
+  removed = Name.sortNames . nubOrd $ (removedTerms <> removedTypes)
+
+  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
+                        , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
+  movedTypes = [ (n,n2) | (n,r) <- R.toList (Names.types removes)
+                        , n2 <- toList (R.lookupRan r (Names.types adds)) ]
+  moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
+
+  copiedTerms = List.multimap [ 
+    (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
+           , n <- toList (R.lookupRan r (Names.terms0 orig)) ] 
+  copiedTypes = List.multimap [ 
+    (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
+           , n <- toList (R.lookupRan r (Names.types0 orig)) ] 
+  copied = Name.sortNamed fst $ 
+    Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
+  
+  in P.sepNonEmpty "\n\n" [
+       if not $ null added then 
+         P.lines [
+           -- todo: split out updates
+           P.green "+ Adds / updates:", "",
+           P.indentN 2 . P.wrap $ 
+             P.excerptSep 10 " " (prettyName <$> added) 
+         ]
+       else mempty,
+       if not $ null removed then 
+         P.lines [
+           P.hiBlack "- Deletes:", "",
+           P.indentN 2 . P.wrap $ 
+             P.excerptSep 10 " " (prettyName <$> removed) 
+         ]
+       else mempty,
+       if not $ null moved then 
+         P.lines [
+           P.purple "> Moves:", "",
+           P.indentN 2 $ 
+             P.excerptColumn2Headed 10
+               (P.hiBlack "Original name", P.hiBlack "New name")
+               [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
+         ]
+       else mempty,
+       if not $ null copied then 
+         P.lines [
+           P.yellow "= Copies:", "",
+           P.indentN 2 $ 
+             P.excerptColumn2Headed 10
+               (P.hiBlack "Original name", P.hiBlack "New name(s)")
+               [ (prettyName n, P.sep " " (prettyName <$> ns)) | (n, ns) <- copied ]
+         ]
+       else mempty 
+     ]
 
 isTestOk :: Codebase.Term v Ann -> Bool
 isTestOk tm = case tm of

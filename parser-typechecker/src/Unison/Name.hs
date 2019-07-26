@@ -7,6 +7,8 @@ module Unison.Name
   , joinDot
   , makeAbsolute
   , parent
+  , sortNames
+  , sortNamed
   , stripNamePrefix
   , stripPrefixes
   , toString
@@ -28,8 +30,19 @@ import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
+import qualified Data.RFC5051                  as RFC5051
+import Data.List (sortBy)
 
 newtype Name = Name { toText :: Text } deriving (Eq, Ord)
+
+sortNames :: [Name] -> [Name]
+sortNames = sortNamed id
+
+sortNamed :: (a -> Name) -> [a] -> [a]
+sortNamed by as = let
+  as' = [ (a, Text.unpack (toText (by a))) | a <- as ]
+  comp (_,s) (_,s2) = RFC5051.compareUnicode s s2
+  in fst <$> sortBy comp as'
 
 unsafeFromText :: Text -> Name
 unsafeFromText t =

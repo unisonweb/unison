@@ -198,6 +198,7 @@ library
     prelude-extras,
     random,
     raw-strings-qq,
+    rfc5051,
     regex-base,
     regex-tdfa,
     safe,
