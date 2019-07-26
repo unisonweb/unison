@@ -12,6 +12,8 @@ module Unison.Codebase.FileCodebase
 , initialize -- used by Main
 , decodeFileName
 , encodeFileName
+, codebasePath
+, ensureCodebaseInitialized
 ) where
 
 -- import Debug.Trace
@@ -47,6 +49,7 @@ import           UnliftIO.Directory             ( createDirectoryIfMissing
                                                 , createDirectory
                                                 , removeFile
                                                 , doesPathExist
+                                                , getCurrentDirectory
                                                 -- , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( FilePath
@@ -79,17 +82,21 @@ import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Watch         as Watch
 import qualified Unison.DataDeclaration        as DD
 import qualified Unison.Hash                   as Hash
+import           Unison.Parser                  ( Ann(External) )
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import           Unison.Referent                ( Referent(..) )
 import qualified Unison.Referent               as Referent
 import qualified Unison.Term                   as Term
-import Unison.Type (Type)
+import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.Util.TQueue            as TQueue
 import           Unison.Var                     ( Var )
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Star3             as Star3
+import qualified Unison.Util.Pretty            as P
+import qualified Unison.PrettyTerminal         as PT
+import           Unison.Symbol                  ( Symbol )
 
 type CodebasePath = FilePath
 
@@ -101,6 +108,24 @@ data Err
   | AmbiguouslyTypeAndTerm Reference.Id
   | UnknownTypeOrTerm Reference
   deriving Show
+
+codebasePath :: FilePath
+codebasePath = ".unison" </> "v1"
+
+ensureCodebaseInitialized :: IO (FilePath, Codebase IO Symbol Ann)
+ensureCodebaseInitialized = do
+  dir <- getCurrentDirectory
+  let theCodebase = codebase1 V1.formatSymbol formatAnn (dir </> codebasePath)
+  unlessM (exists codebasePath) $ do
+    PT.putPrettyLn'
+      .  P.callout "☝️"
+      .  P.wrap
+      $  "No codebase exists here so I'm initializing one in: "
+      <> P.string codebasePath
+    initialize codebasePath
+    Codebase.initializeCodebase theCodebase
+  pure (dir, theCodebase)
+  where formatAnn = S.Format (pure External) (\_ -> pure ())
 
 termsDir, typesDir, branchesDir, branchHeadDir, editsDir
   :: CodebasePath -> FilePath
@@ -134,7 +159,7 @@ typeMentionsIndexDir root r = root </> "type-mentions-index" </> referenceToDir 
 
 -- todo: decodeFileName & encodeFileName shouldn't use base58; recommend $xFF$
 decodeFileName :: FilePath -> String
-decodeFileName p = go p where
+decodeFileName = go where
   go ('$':tl) = case span (/= '$') tl of
     ("forward-slash", _:tl) -> '/' : go tl
     ("back-slash", _:tl) ->  '\\' : go tl

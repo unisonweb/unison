@@ -22,12 +22,15 @@ import           System.Directory               ( getCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
                                                 )
+import           System.FilePath                ( (</>) )
 import           Unison.Codebase.GitError
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase                ( Codebase
                                                 , syncToDirectory
                                                 )
-import           Unison.Codebase.FileCodebase   ( getRootBranch)
+import           Unison.Codebase.FileCodebase   ( getRootBranch
+                                                , codebasePath
+                                                )
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
@@ -78,8 +81,8 @@ pullGitRootBranch
   -> ExceptT GitError m (Branch m)
 pullGitRootBranch localPath codebase url treeish = do
   pullFromGit localPath url treeish
-  branch <- lift $ getRootBranch localPath
-  lift $ Codebase.syncFromDirectory codebase localPath
+  branch <- lift $ getRootBranch (localPath </> codebasePath)
+  lift $ Codebase.syncFromDirectory codebase (localPath </> codebasePath)
   lift $ Codebase.getBranchForHash codebase (headHash branch)
 
 checkForGit :: MonadIO m => MonadError GitError m => m ()
@@ -109,7 +112,7 @@ pull uri treeish = do
   "git" ["fetch", uri, treeish] `onError` throwError (NoRemoteRepoAt uri)
   liftIO $ "git" ["checkout", treeish]
 
--- Clone the given remote repo and commit to the given a local path.
+-- Clone the given remote repo and commit to the given local path.
 -- Then given a codebase and a branch, write the branch and all its
 -- dependencies to the path, then commit and push to the remote repo.
 pushGitRootBranch
@@ -125,7 +128,7 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Clone and pull the remote repo
   shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
-  lift $ syncToDirectory codebase localPath branch
+  lift $ syncToDirectory codebase (localPath </> codebasePath) branch
   liftIO $ do
     setCurrentDirectory localPath
     -- Commit our changes
