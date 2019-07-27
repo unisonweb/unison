@@ -1,9 +1,9 @@
 
-type Any = Any (∀ r . (∀ a . a -> r) -> r) 
-  
+type Any = Any (∀ r . (∀ a . a -> r) -> r)
+
 -- also typechecks as expected
--- any : a -> Any
--- any a = Any.Any (k -> k a) 
+any : a -> Any
+any a = Any.Any (k -> k a)
 
 ---
 This typechecks fine, as expected, but try to `add` to codebase, get:
