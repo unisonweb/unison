@@ -27,7 +27,7 @@ import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
 import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn, stripPrefix)
-import           Data.List.Extra               (nubOrdOn)
+import           Data.List.Extra               (nubOrdOn, nubOrd)
 import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
 import           Data.Maybe                    (fromMaybe)
@@ -74,6 +74,7 @@ import           Unison.NamePrinter            (prettyHashQualified,
                                                 styleHashQualified', prettyHashQualified')
 import           Unison.Names2                 (Names'(..), Names, Names0)
 import qualified Unison.Names2                 as Names
+import qualified Unison.Names3                 as Names
 import           Unison.Parser                 (Ann, startingLine)
 import qualified Unison.PrettyPrintEnv         as PPE
 import qualified Unison.Codebase.Runtime       as Runtime
@@ -105,6 +106,8 @@ import Unison.Codebase.Editor.DisplayThing (DisplayThing(MissingThing, BuiltinTh
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
+import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
+import qualified Unison.Util.List              as List
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -378,21 +381,50 @@ notifyUser dir o = case o of
     else when (null $ UF.watchComponents uf) $ putPrettyLn' . P.wrap $
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
-  GitError e -> case e of
-                  NoGit -> putPrettyLn' . P.wrap $ "I couldn't find git. "
-                           <> "Make sure it's installed and on your path."
-                  NoRemoteRepoAt p ->
-                    putPrettyLn' . P.wrap $ "I couldn't access a git "
-                      <> "repository at " <> P.text p
-                      <> ". Make sure the repo exists "
-                      <> "and that you have access to it."
-                  NoLocalRepoAt p ->
-                    putPrettyLn' . P.wrap $ "The directory at " <> P.string p
-                    <> "doesn't seem to contain a git repository."
-                  CheckoutFailed t ->
-                    putPrettyLn' . P.wrap $ "I couldn't do a git checkout of "
-                    <> P.text t <> ". Make sure there's a branch or commit "
-                    <> "with that name."
+  GitError input e -> putPrettyLn $ case e of
+    NoGit -> P.wrap $ 
+      "I couldn't find git. Make sure it's installed and on your path."
+    NoRemoteRepoAt p -> P.wrap
+       $ "I couldn't access a git "
+      <> "repository at " <> P.group (P.text p <> ".")
+      <> "Make sure the repo exists "
+      <> "and that you have access to it."
+    NoLocalRepoAt p -> P.wrap 
+       $ "The directory at " <> P.string p
+      <> "doesn't seem to contain a git repository."
+    CheckoutFailed t -> P.wrap
+       $ "I couldn't do a git checkout of "
+      <> P.group (P.text t <> ".") 
+      <> "Make sure there's a branch or commit with that name."
+    PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
+      P.wrap $ "The repository at" <> P.blue (P.text url)
+            <> (if Text.null treeish then "" 
+                else "at revision" <> P.blue (P.text treeish))
+            <> "has some changes I don't know about:",
+      "", P.indentN 2 (prettyDiff diff), "",
+      P.wrap $ "If you want to " <> push <> "you can do:", "",
+       P.indentN 2 pull, "", 
+       P.wrap $ 
+         "to merge these changes locally." <>
+         "Then try your" <> push <> "again."
+      ]
+      where
+      push = P.group . P.backticked $ IP.patternName IP.push
+      pull = case input of 
+        Input.PushRemoteBranchI Nothing p -> 
+          P.sep " " [IP.patternName IP.pull, P.shown p ]
+        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [ 
+          IP.patternName IP.pull,
+          P.text (RemoteRepo.url r),
+          P.shown p,
+          if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
+          else "" ] 
+        _ -> "⁉️ Unison bug - push command expected"
+    SomeOtherError msg -> P.callout "‼" . P.lines $ [
+      P.wrap "I ran into an error:", "",
+      P.indentN 2 (P.text msg), "",
+      P.wrap $ "Check the logging messages above for more info."
+      ]
   ListEdits patch ppe -> do
     let
       types = Patch._typeEdits patch
@@ -888,6 +920,76 @@ watchPrinter src ppe ann kind term isHit =
 
 filestatusTip :: P.Pretty CT.ColorText
 filestatusTip = tip "Use `help filestatus` to learn more."
+
+prettyDiff :: Names.Diff -> P.Pretty P.ColorText
+prettyDiff diff = let
+  orig = Names.originalNames diff
+  adds = Names.addedNames diff
+  removes = Names.removedNames diff
+  addedTerms = [ n | (n,r) <- R.toList (Names.terms0 adds)
+                   , not $ R.memberRan r (Names.terms0 removes) ] 
+  addedTypes = [ n | (n,r) <- R.toList (Names.types0 adds)
+                   , not $ R.memberRan r (Names.types0 removes) ] 
+  added = Name.sortNames . nubOrd $ (addedTerms <> addedTypes) 
+
+  removedTerms = [ n | (n,r) <- R.toList (Names.terms0 removes)
+                     , not $ R.memberRan r (Names.terms0 adds) ]
+  removedTypes = [ n | (n,r) <- R.toList (Names.types0 removes)
+                     , not $ R.memberRan r (Names.types0 adds) ]
+  removed = Name.sortNames . nubOrd $ (removedTerms <> removedTypes)
+
+  movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
+                        , n2 <- toList (R.lookupRan r (Names.terms adds)) ]
+  movedTypes = [ (n,n2) | (n,r) <- R.toList (Names.types removes)
+                        , n2 <- toList (R.lookupRan r (Names.types adds)) ]
+  moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
+
+  copiedTerms = List.multimap [ 
+    (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
+           , not (R.memberRan r (Names.terms0 removes))
+           , n <- toList (R.lookupRan r (Names.terms0 orig)) ] 
+  copiedTypes = List.multimap [ 
+    (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
+           , not (R.memberRan r (Names.types0 removes))
+           , n <- toList (R.lookupRan r (Names.types0 orig)) ] 
+  copied = Name.sortNamed fst $ 
+    Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
+  
+  in P.sepNonEmpty "\n\n" [
+       if not $ null added then 
+         P.lines [
+           -- todo: split out updates
+           P.green "+ Adds / updates:", "",
+           P.indentN 2 . P.wrap $ 
+             P.excerptSep 10 " " (prettyName <$> added) 
+         ]
+       else mempty,
+       if not $ null removed then 
+         P.lines [
+           P.hiBlack "- Deletes:", "",
+           P.indentN 2 . P.wrap $ 
+             P.excerptSep 10 " " (prettyName <$> removed) 
+         ]
+       else mempty,
+       if not $ null moved then 
+         P.lines [
+           P.purple "> Moves:", "",
+           P.indentN 2 $ 
+             P.excerptColumn2Headed 10
+               (P.hiBlack "Original name", P.hiBlack "New name")
+               [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
+         ]
+       else mempty,
+       if not $ null copied then 
+         P.lines [
+           P.yellow "= Copies:", "",
+           P.indentN 2 $ 
+             P.excerptColumn2Headed 10
+               (P.hiBlack "Original name", P.hiBlack "New name(s)")
+               [ (prettyName n, P.sep " " (prettyName <$> ns)) | (n, ns) <- copied ]
+         ]
+       else mempty 
+     ]
 
 isTestOk :: Codebase.Term v Ann -> Bool
 isTestOk tm = case tm of

@@ -133,6 +133,7 @@ library
     Unison.Util.Bytes
     Unison.Util.ColorText
     Unison.Util.Components
+    Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
     Unison.Util.Logger
@@ -197,6 +198,7 @@ library
     prelude-extras,
     random,
     raw-strings-qq,
+    rfc5051,
     regex-base,
     regex-tdfa,
     safe,

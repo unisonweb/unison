@@ -39,6 +39,9 @@ import           Unison.Codebase.FileCodebase   ( getRootBranch
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
+import qualified Unison.Util.Exception         as Ex
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Names3                 as Names
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- pulls the HEAD of that remote repo into the local path.
@@ -55,8 +58,11 @@ prepGitPull
 prepGitPull localPath uri = do
   checkForGit
   wd <- liftIO getCurrentDirectory
-  liftIO . whenM (doesDirectoryExist localPath) $ removeDirectoryRecursive
-    localPath
+  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $ 
+    removeDirectoryRecursive localPath
+  case e of
+    Left e -> throwError (SomeOtherError (Text.pack (show e)))
+    Right a -> pure a 
   clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
@@ -135,7 +141,13 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Clone and pull the remote repo
   shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
-  lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  isBefore <- lift $ Branch.before merged branch
+  let mergednames = Branch.toNames0 (Branch.head merged) 
+      localnames  = Branch.toNames0 (Branch.head branch) 
+      diff = Names.diff0 localnames mergednames
+  when (not isBefore) $ 
+    throwError (PushDestinationHasNewStuff url treeish diff)
   let
     push = do
       setCurrentDirectory localPath

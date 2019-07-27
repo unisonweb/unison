@@ -992,11 +992,11 @@ loop = do
         let p = Path.toAbsolutePath currentPath' path
         case mayRepo of
           Just repo ->
-            loadRemoteBranchAt repo p
+            loadRemoteBranchAt input repo p
           Nothing -> do
             repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
             case repoUrl of
-              Just url -> loadRemoteBranchAt (GitRepo url "master") p
+              Just url -> loadRemoteBranchAt input (GitRepo url "master") p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
         success
@@ -1004,15 +1004,14 @@ loop = do
         let p = Path.toAbsolutePath currentPath' path
         b <- getAt p
         case mayRepo of
-          Just repo -> syncRemoteRootBranch repo b
+          Just repo -> syncRemoteRootBranch input repo b
           Nothing -> do
             repoUrl <-
               eval . ConfigLookup $ gitUrlKey p
             case repoUrl of
-              Just url -> syncRemoteRootBranch (GitRepo url "master") b
+              Just url -> syncRemoteRootBranch input (GitRepo url "master") b
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Push path
-        success
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       AddTermReplacementI {} -> notImplemented
@@ -1265,19 +1264,19 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => RemoteRepo -> Path.Absolute -> Action m i v ()
-loadRemoteBranchAt repo p = do
+  :: Monad m => Input -> RemoteRepo -> Path.Absolute -> Action m i v ()
+loadRemoteBranchAt input repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
-    Left  e -> eval . Notify $ GitError e
+    Left  e -> eval . Notify $ GitError input e
     Right b -> void $ updateAtM p (doMerge b)
   where doMerge b b0 = eval . Eval $ Branch.merge b b0
 
 
-syncRemoteRootBranch :: Monad m => RemoteRepo -> Branch m -> Action m i v ()
-syncRemoteRootBranch repo b = do
+syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
-  either (eval . Notify . GitError) pure e
+  either (eval . Notify . GitError input) (const . respond $ Success input) e
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =
