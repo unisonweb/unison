@@ -946,9 +946,11 @@ prettyDiff diff = let
 
   copiedTerms = List.multimap [ 
     (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
+           , not (R.memberRan r (Names.terms0 removes))
            , n <- toList (R.lookupRan r (Names.terms0 orig)) ] 
   copiedTypes = List.multimap [ 
     (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
+           , not (R.memberRan r (Names.types0 removes))
            , n <- toList (R.lookupRan r (Names.types0 orig)) ] 
   copied = Name.sortNamed fst $ 
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
