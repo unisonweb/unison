@@ -560,9 +560,10 @@ notifyUser dir o = case o of
 --        map (fromString . Names.renderNameTarget) (toList targets)
 
 prettyPath' :: Path.Path' -> P.Pretty P.ColorText
-prettyPath' p' = case show p' of
-  [] -> "the current path"
-  s  -> P.shown s
+prettyPath' p' = 
+  if Path.isCurrentPath p'
+  then "the current path"
+  else P.shown p'
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> P.Pretty P.ColorText
