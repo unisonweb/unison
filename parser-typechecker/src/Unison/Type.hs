@@ -604,7 +604,8 @@ toReference t = Reference.Derived (ABT.hash t) 0 1
 toReferenceMentions :: Var v => Type v a -> Set Reference
 toReferenceMentions ty =
   let (vs, _) = unforall' ty
-  in Set.fromList $ toReference . generalize vs <$> ABT.subterms ty
+      gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
+  in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
 instance Hashable1 F where
   hash1 hashCycle hash e =
