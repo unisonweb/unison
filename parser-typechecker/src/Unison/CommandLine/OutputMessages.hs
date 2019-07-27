@@ -47,6 +47,7 @@ import qualified Unison.ABT                    as ABT
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Codebase               as Codebase
 import           Unison.Codebase.GitError
+import qualified Unison.Codebase.Path          as Path
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch         (Patch(..))
 import qualified Unison.Codebase.TermEdit      as TermEdit
@@ -498,6 +499,37 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
+  ShowDiff input diff -> putPrettyLn $ case input of
+    Input.UndoI -> P.callout "⏪" . P.lines $ [
+      "Here's the changes I undid:", "",
+      prettyDiff diff
+      ]
+    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $ [
+      P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the merge:", "",
+      prettyDiff diff, "",
+      tip "You can always `undo` if this wasn't what you wanted." ]
+    Input.PullRemoteBranchI _ dest -> 
+      if Names.isEmptyDiff diff then
+        "✅  Looks like " <> prettyPath' dest <> " is up to date."
+      else P.callout "🆕" . P.lines $ [
+        P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
+        prettyDiff diff, "",
+        tip "You can always `undo` if this wasn't what you wanted." ]
+    Input.PreviewMergeLocalBranchI src dest -> P.callout "🔎" . P.lines $ [
+      P.wrap $ "Here's what would change in " <> prettyPath' dest <> "after the merge:", "",
+      prettyDiff diff
+      ]
+    _ -> prettyDiff diff
+  NothingTodo input -> putPrettyLn . P.callout "😶" $ case input of
+    Input.MergeLocalBranchI src dest -> 
+      P.wrap $ "The merge had no effect, since the destination"
+            <> P.shown dest <> "is at or ahead of the source"
+            <> P.group (P.shown src <> ".")
+    Input.PreviewMergeLocalBranchI src dest -> 
+      P.wrap $ "The merge will have no effect, since the destination"
+            <> P.shown dest <> "is at or ahead of the source"
+            <> P.group (P.shown src <> ".")
+    _ -> "Nothing to do."
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do
@@ -526,6 +558,12 @@ notifyUser dir o = case o of
 --    where
 --      ns targets = P.oxfordCommas $
 --        map (fromString . Names.renderNameTarget) (toList targets)
+
+prettyPath' :: Path.Path' -> P.Pretty P.ColorText
+prettyPath' p' = 
+  if Path.isCurrentPath p'
+  then "the current path"
+  else P.shown p'
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> P.Pretty P.ColorText

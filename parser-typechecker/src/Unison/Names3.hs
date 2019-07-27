@@ -56,6 +56,12 @@ data Diff =
        , removedNames  :: Names0
        } deriving Show
 
+isEmptyDiff :: Diff -> Bool
+isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
+
+isEmpty0 :: Names0 -> Bool
+isEmpty0 n = R.null (terms0 n) && R.null (types0 n) 
+
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
 -- referenced hash qualified.

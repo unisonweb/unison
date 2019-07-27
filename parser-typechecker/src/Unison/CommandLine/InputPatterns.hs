@@ -456,7 +456,9 @@ push = InputPattern
 mergeLocal :: InputPattern
 mergeLocal = InputPattern "merge" [] [(Required, pathArg)
                                      ,(Optional, pathArg)]
- "`merge foo` merges the path 'foo' into the current branch."
+ (P.column2 [
+   ("`merge src`", "merges `src` namespace into the current namespace"),
+   ("`merge src dest`", "merges `src` namespace into the `dest` namespace")])
  (\case
       [src] -> first fromString $ do
         src <- Path.parsePath' src
@@ -466,6 +468,23 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
         dest <- Path.parsePath' dest
         pure $ Input.MergeLocalBranchI src dest
       _ -> Left (I.help mergeLocal)
+ )
+
+previewMergeLocal :: InputPattern
+previewMergeLocal = InputPattern "merge.preview" [] [(Required, pathArg)
+                                     ,(Optional, pathArg)]
+ (P.column2 [
+   ("`merge.preview src`", "shows how the current namespace will change after a `merge src`."),
+   ("`merge.preview src dest`", "shows how `dest` namespace will change after a `merge src dest`.") ])
+ (\case
+      [src] -> first fromString $ do
+        src <- Path.parsePath' src
+        pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
+      [src, dest] -> first fromString $ do
+        src <- Path.parsePath' src
+        dest <- Path.parsePath' dest
+        pure $ Input.PreviewMergeLocalBranchI src dest
+      _ -> Left (I.help previewMergeLocal)
  )
 
 -- replace,resolve :: InputPattern
@@ -652,6 +671,7 @@ validInputs =
   , update
   , forkLocal
   , mergeLocal
+  , previewMergeLocal
   , names
   , push
   , pull

@@ -276,7 +276,7 @@ sepNonEmpty between ps = sep between (nonEmpty ps)
 
 -- if list is too long, adds `... 22 more` to the end
 excerptSep :: IsString s => Int -> Pretty s -> [Pretty s] -> Pretty s
-excerptSep maxCount = excerptSep' maxCount (\i -> "... " <> shown i <> " more")
+excerptSep maxCount = excerptSep' maxCount (\i -> group ("... " <> shown i <> " more"))
 
 excerptSep' :: IsString s => Int -> (Int -> Pretty s) -> Pretty s -> [Pretty s] -> Pretty s
 excerptSep' maxCount summarize s ps =
@@ -346,7 +346,7 @@ excerptColumn2Headed
   -> Pretty s
 excerptColumn2Headed max hd cols = 
   let len = length cols 
-  in if len <= max then column2 cols 
+  in if len <= max then column2 (hd:cols)
      else lines [column2 (hd:take max cols), "... " <> shown (len - max) <> " more"]
 
 excerptColumn2 
@@ -389,7 +389,7 @@ align'
   -> [(Pretty s, Pretty s)]
 align' rows = alignedRows
  where
-  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
   alignedRows =
     [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
     | (col0, col1) <- rows

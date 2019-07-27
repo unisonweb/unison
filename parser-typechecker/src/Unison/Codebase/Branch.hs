@@ -42,6 +42,7 @@ import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name(..) )
 import qualified Unison.Name                   as Name
 import qualified Unison.Names2                 as Names
+import qualified Unison.Names3                 as Names
 import           Unison.Names2                  ( Names'(Names), Names0 )
 import           Unison.Reference               ( Reference )
 import           Unison.Referent                ( Referent )
@@ -613,6 +614,9 @@ deleteTypeName :: Reference -> NameSegment -> Branch0 m -> Branch0 m
 deleteTypeName r n b | Star3.memberD1 (r,n) (view types b)
                      = over types (Star3.deletePrimaryD1 (r,n)) b
 deleteTypeName _ _ b = b
+
+namesDiff :: Branch m -> Branch m -> Names.Diff
+namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name

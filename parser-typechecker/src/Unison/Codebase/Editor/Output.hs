@@ -130,6 +130,8 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set Branch.Hash)
+  | ShowDiff Input Names.Diff 
+  | NothingTodo Input 
   | NotImplemented
   deriving (Show)
 

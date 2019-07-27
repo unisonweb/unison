@@ -300,8 +300,21 @@ loop = do
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
-          _ <- updateAtM dest $ \destb -> eval . Eval $ Branch.merge srcb destb
-          success
+          destb <- getAt dest
+          merged <- eval . Eval $ Branch.merge srcb destb
+          b <- updateAtM dest $ const (pure merged)
+          if b then respond (ShowDiff input (Branch.namesDiff destb merged))  
+          else respond (NothingTodo input)  
+
+      PreviewMergeLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          destb <- getAt dest
+          merged <- eval . Eval $ Branch.merge srcb destb
+          if merged == destb then respond (NothingTodo input)
+          else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -392,7 +405,7 @@ loop = do
           Just (_, prev) -> do
             root .= prev
             eval $ SyncLocalRootBranch prev
-            success
+            respond $ ShowDiff input (Branch.namesDiff prev root')  
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
         ([r],       []) -> do
@@ -999,7 +1012,7 @@ loop = do
               Just url -> loadRemoteBranchAt input (GitRepo url "master") p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
-        success
+
       PushRemoteBranchI mayRepo path -> do
         let p = Path.toAbsolutePath currentPath' path
         b <- getAt p
@@ -1270,8 +1283,11 @@ loadRemoteBranchAt input repo p = do
   case b of
     Left  e -> eval . Notify $ GitError input e
     Right b -> void $ updateAtM p (doMerge b)
-  where doMerge b b0 = eval . Eval $ Branch.merge b b0
-
+  where 
+  doMerge b b0 = do
+    merged <- eval . Eval $ Branch.merge b b0
+    respond $ ShowDiff input (Branch.namesDiff b0 merged)
+    pure merged
 
 syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
 syncRemoteRootBranch input repo b = do
