@@ -31,6 +31,7 @@ data Input
     = ForkLocalBranchI Path' Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
+    | PreviewMergeLocalBranchI Path' Path'
     | PullRemoteBranchI (Maybe RemoteRepo) Path'
     | PushRemoteBranchI (Maybe RemoteRepo) Path'
     -- todo: Q: Does it make sense to publish to not-the-root of a Github repo?
