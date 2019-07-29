@@ -155,7 +155,7 @@ fixupCompletion q cs@(h:t) = let
   commonPrefix _ _             = ""
   overallCommonPrefix =
     foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-  in if length overallCommonPrefix < length q
+  in if not (q `isPrefixOf` overallCommonPrefix)
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 

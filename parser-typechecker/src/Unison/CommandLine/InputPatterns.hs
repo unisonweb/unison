@@ -10,11 +10,12 @@ module Unison.CommandLine.InputPatterns where
 import Data.Bifunctor (first)
 import Data.Foldable (toList)
 import Data.List (intercalate, sortOn, isPrefixOf)
-import Data.List.Extra (nubOrd)
+import Data.List.Extra (nubOrdOn)
 import Data.Map (Map)
 import Data.Set (Set)
 import Data.String (fromString)
 import Data.Text (Text)
+import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
@@ -766,14 +767,16 @@ patchArg = ArgumentType "patch" $
   pathCompletor exactComplete (Set.map Name.toText . Branch.deepEdits)
 
 bothCompletors
-  :: (Monad m, Ord a)
-  => (t1 -> t2 -> t3 -> t4 -> m [a])
-  -> (t1 -> t2 -> t3 -> t4 -> m [a])
-  -> t1 -> t2 -> t3 -> t4 -> m [a]
-bothCompletors c1 c2 q0 code b currentPath = do
-  suggestions1 <- c1 q0 code b currentPath
-  suggestions2 <- c2 q0 code b currentPath
-  pure . nubOrd $ suggestions1 ++ suggestions2
+  :: (Monad m)
+  => (String -> t2 -> t3 -> t4 -> m [Completion])
+  -> (String -> t2 -> t3 -> t4 -> m [Completion])
+  -> String -> t2 -> t3 -> t4 -> m [Completion]
+bothCompletors c1 c2 q code b currentPath = do
+  suggestions1 <- c1 q code b currentPath
+  suggestions2 <- c2 q code b currentPath
+  pure . fixupCompletion q
+       . nubOrdOn Completion.display
+       $ suggestions1 ++ suggestions2
 
 pathCompletor
   :: Applicative f
