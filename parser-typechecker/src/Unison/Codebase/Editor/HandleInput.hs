@@ -1146,10 +1146,8 @@ searchResultToHQString = \case
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-  case Find.fuzzyFindMatchArray q [n] id of
-    [] -> Nothing
-    (m, _) : _ -> Just m
+fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) = 
+  Find.simpleFuzzyScore q n
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
