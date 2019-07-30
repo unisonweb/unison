@@ -461,7 +461,7 @@ A unary tuple type `(A)` is identical with the type `A`.
 
 The nullary tuple type `()` is the type of the unique value also written `()` and is pronouced “unit”.
 
-In the standard Unison syntax, tuples of arity 2 and higher are actually of a type `Pair a b` for some types `a` and `b`. For example, `(X,Y)` is syntactic shorthand for the type `Tuple A (Tuple B ())`.
+In the standard Unison syntax, tuples of arity 2 and higher are actually of a type `Tuple a b` for some types `a` and `b`. For example, `(X,Y)` is syntactic shorthand for the type `Tuple A (Tuple B ())`.
 
 ### Built-in types
 Unison provides the following built-in types:
