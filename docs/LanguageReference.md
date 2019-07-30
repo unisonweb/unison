@@ -1,4 +1,7 @@
 # Unison Language Reference
+
+## (Unison version 1.0.M1)
+
 This document is an informal reference for the Unison language, meant as an aid for Unison programmers as well as authors of implementations of the language.
 
 * This language reference, like the language it describes, is a work in progress and will be improved over time [GitHub link](https://github.com/unisonweb/unison/blob/master/docs/LanguageReference.md). Contributions and corrections are welcome!
@@ -70,9 +73,9 @@ The `=` sign splits the definition into a _left-hand side_ and a _right-hand sid
 
 The left-hand side is the data type being defined. It gives a name for the data type and declares a new _type constructor_ with that name (here it’s named `Optional`), followed by names for any type arguments (here there is one and it’s called `a`). These names are bound as type variables in the right-hand side. The right-hand side may also refer to the name given to the type in the left-hand side, in which case it is a recursive type declaration. Note that the fully saturated type construction `Optional Nat` is a type, whereas `Optional` by itself is a type constructor, not a type (it requires a type argument in order to construct a type).
 
-The left-hand side consists of zero or more data constructors separated by `|`. These are _data constructors_ for the type, or ways in which values of the type can be constructed. Each case declares a name for a data constructor (here the data constructors are `None` and `Some`), followed by the **types** of the arguments to the constructor.
+The right-hand side consists of zero or more data constructors separated by `|`. These are _data constructors_ for the type, or ways in which values of the type can be constructed. Each case declares a name for a data constructor (here the data constructors are `None` and `Some`), followed by the **types** of the arguments to the constructor.
 
-When Unison compiles a type definition, it generates a term for each data constructor. Here they are the terms `Some : a -> -> Optional a`, and `None : Optional a`. It also generates _patterns_ for matching on data 
+When Unison compiles a type definition, it generates a term for each data constructor. Here they are the terms `Some : a -> Optional a`, and `None : Optional a`. It also generates _patterns_ for matching on data 
 (see [Pattern Matching](#pattern-matching)).
 
 The general form of a type declaration is as follows:
@@ -159,7 +162,7 @@ A literal expression is a basic form of Unison expression. Unison has the follow
 
 * A _natural number_ or _64-bit unsigned integer_ of type `.base.Nat` consists of digits from 0 to 9. The smallest `Nat` is `0` and the largest is `18446744073709551615`.
 * A _64-bit signed integer_ of type `.base.Int` consists of a natural number immediately preceded by either `+` or `-`. For example, `4` is a `Nat`, whereas `+4` is an `Int`. The smallest `Int` is `-9223372036854775808` and the largest is `+9223372036854775807`.
-* A _64-bit floating point number_ of type `.base.Float` consists of an optional sign (`+`/`-`), followed by two natural numbers separated by `.`, followed by an optional exponent. The exponent is the character `e` or `E`, an optional sign (`+`/`-`), and a natural number. Floating point literals in Unison should follow the specification for [IEEE 754-1985](https://en.wikipedia.org/wiki/IEEE_754-1985) double-precision numbers. For example `1.6777216e7` is a valid floating point literal.
+* A _64-bit floating point number_ of type `.base.Float` consists of an optional sign (`+`/`-`), followed by two natural numbers separated by `.`. Floating point literals in Unison are [IEEE 754-1985](https://en.wikipedia.org/wiki/IEEE_754-1985) double-precision numbers. For example `1.6777216` is a valid floating point literal.
 * A _text literal_ of type `.base.Text` is any sequence of characters between pairs of `"`. The escape character is `\`, so a `"` can be included in a text literal with the escape sequence `\"`. The full list of escape sequences is given in the Escape Sequences section below. For example, `"Hello, World!"` is a text literal. A text literal can span multiple lines, and newlines do not terminate text literals.
 * There are two _Boolean literals_: `true` and `false`, and they have type `Boolean`.
 * A _hash literal_ begins with the character `#`. See the section **Hashes** for details on the lexical form of hash literals. A hash literal is a reference to a term or type. The type or term that it references must have a definition whose hash digest matches the hash in the literal. The type of a hash literal is the same as the type of its referent. `#abc123e` is an example of a hash literal.
@@ -260,7 +263,7 @@ The evaluation semantics of case expressions are as follows:
 2. The first pattern is evaluated and matched against the value of the scrutinee.
 3. If the pattern matches, any variables in the pattern are subsituted into the block to the right of its `->` (called the _match body_) and the block is evaluated. Other patterns remain unevaluated. If the pattern doesn’t match then the next pattern is tried and so on.
 
-It is an error if none of the patterns match.
+It is an error if none of the patterns match. In this version of Unison, this error occurs at runtime. In a future version, this should be a compile-time error.
 
 #### Pattern matching
 A _pattern_ has one of the following forms:
