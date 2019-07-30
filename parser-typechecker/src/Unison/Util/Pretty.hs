@@ -389,7 +389,7 @@ align'
   -> [(Pretty s, Pretty s)]
 align' rows = alignedRows
  where
-  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
+  maxWidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
   alignedRows =
     [ (rightPad maxWidth col0, indentNAfterNewline maxWidth col1)
     | (col0, col1) <- rows

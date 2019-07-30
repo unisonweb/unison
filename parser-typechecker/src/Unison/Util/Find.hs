@@ -10,7 +10,6 @@ module Unison.Util.Find (
 import qualified Data.Char as Char
 import           Data.Foldable                (toList)
 import qualified Data.List                    as List
-import           Data.List.Extra              ( takeWhileEnd, spanEnd )
 import           Data.Maybe                   (catMaybes)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
@@ -57,29 +56,26 @@ simpleFuzzyFinder query items render =
 -- highlights `query` if it is a prefix of `s`, or if it
 -- appears in the final segement of s (after the final `.`)
 highlightSimple :: String -> String -> P.Pretty P.ColorText  
-highlightSimple query s 
-  | query `List.isPrefixOf` s = hiQuery <> P.string (drop len s)
-  | otherwise = case spanEnd (/= '.') s of 
-    (other, s) -> P.string other <> go s 
-      where
-      go [] = mempty
-      go s@(h:t) | query `List.isPrefixOf` s = hiQuery <> go (drop len s)
-                 | otherwise = P.string [h] <> go t  
-  where
+highlightSimple query = go where
+  go [] = mempty
+  go s@(h:t) | query `List.isPrefixOf` s = hiQuery <> go (drop len s)
+             | otherwise = P.string [h] <> go t
   len = length query
   hiQuery = P.hiBlack (P.string query)
 
 simpleFuzzyScore :: String -> String -> Maybe Int
 simpleFuzzyScore query s 
-  | query `List.isPrefixOf` s = Just 1
-  | query `List.isSuffixOf` s = Just 0
-  | query `List.isInfixOf` lastSegment = Just 2 
-  | lowerquery `List.isInfixOf` lowerlast = Just 3
+  | query `List.isPrefixOf` s = Just (bonus s 2)
+  | query `List.isSuffixOf` s = Just (bonus s 1)
+  | query `List.isInfixOf` s = Just (bonus s 3)
+  | lowerquery `List.isInfixOf` lowers = Just (bonus s 4)
   | otherwise = Nothing
   where
+  -- prefer relative names
+  bonus ('.':_) n = n*10 
+  bonus _ n = n
   lowerquery = Char.toLower <$> query
-  lowerlast = Char.toLower <$> lastSegment
-  lastSegment = takeWhileEnd (/= '.') s
+  lowers = Char.toLower <$> s
 
 -- This logic was split out of fuzzyFinder because the `RE.MatchArray` has an
 -- `Ord` instance that helps us sort the fuzzy matches in a nice way. (see

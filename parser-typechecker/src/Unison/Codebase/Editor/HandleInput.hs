@@ -723,9 +723,9 @@ loop = do
 
           -- type query
           ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
-            let locals = Branch.deepReferents (Branch.head currentBranch')
+            let named = Branch.deepReferents (Branch.head root')
             matches <- fmap toList . eval $ GetTermsOfType typ
-            matches <- filter (`Set.member` locals) <$>
+            matches <- filter (`Set.member` named) <$>
               if null matches then do
                 respond NoExactTypeMatches
                 fmap toList . eval $ GetTermsMentioningType typ
@@ -739,10 +739,10 @@ loop = do
             pure . pure $ results
 
           -- name query
-          (map HQ.unsafeFromString -> qs) -> pure $
-            let b0 = Branch.toNames0 . Branch.head $ currentBranch'
-                srs = searchBranchScored b0 fuzzyNameDistance qs
-            in uniqueBy SR.toReferent srs
+          (map HQ.unsafeFromString -> qs) -> do
+            ns <- lift $ basicPrettyPrintNames0
+            let srs = searchBranchScored ns fuzzyNameDistance qs
+            pure $ uniqueBy SR.toReferent srs
 
         case results of
           Left error -> respond error

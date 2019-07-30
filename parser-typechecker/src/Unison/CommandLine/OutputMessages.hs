@@ -879,7 +879,8 @@ listOfDefinitions' :: Var v
 listOfDefinitions' ppe detailed results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [formatMissingStuff termsWithMissingTypes missingTypes
+    [ if len <= cap then "" else "... " <> P.shown (len - cap) <> " more" 
+    ,formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
@@ -888,8 +889,11 @@ listOfDefinitions' ppe detailed results =
                                 (P.text . Referent.toText)) missingBuiltins)
     ]
   where
+  cap = 15
+  len = length results
   prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") 
+               (take cap prettyResults)
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)
