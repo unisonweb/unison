@@ -227,7 +227,7 @@ notifyUser dir o = case o of
   BranchNotFound _ b ->
     putPrettyLn . P.warnCallout $ "The branch " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> putPrettyLn $
-    "☝️  The branch " <> P.blue (P.shown path) <> " is empty."
+    "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
  -- RenameOutput rootPath oldName newName r -> do
   --   nameChange "rename" "renamed" oldName newName r
   -- AliasOutput rootPath existingName newName r -> do
@@ -733,6 +733,11 @@ prettyDeclTriple (name, _, displayDecl) = case displayDecl of
      Left ed -> P.syntaxToColor $ DeclPrinter.prettyEffectHeader name ed
      Right dd   -> P.syntaxToColor $ DeclPrinter.prettyDataHeader name dd
 
+prettyDeclPair :: Var v =>
+  PPE.PrettyPrintEnv -> (Reference, DisplayThing (DD.Decl v a))
+  -> P.Pretty P.ColorText
+prettyDeclPair ppe (r, dt) = prettyDeclTriple (PPE.typeName ppe r, r, dt)
+
 renderNameConflicts :: Set.Set Name -> Set.Set Name -> P.Pretty CT.ColorText
 renderNameConflicts conflictedTypeNames conflictedTermNames =
   unlessM (null allNames) $ P.callout "❓" . P.sep "\n\n" . P.nonEmpty $ [
@@ -796,9 +801,12 @@ todoOutput ppe todo =
   noEdits = TO.todoScore todo == 0
   (frontierTerms, frontierTypes) = TO.todoFrontier todo
   (dirtyTerms, dirtyTypes) = TO.todoFrontierDependents todo
-  corruptTerms = [ (HQ'.toHQ name, r) | (name, r, Nothing) <- frontierTerms ]
-  corruptTypes = [ (HQ'.toHQ name, r) | (name, r, MissingThing _) <- frontierTypes ]
-  goodTerms ts = [ (HQ'.toHQ name, typ) | (name, _, Just typ) <- ts ]
+  corruptTerms =
+    [ (PPE.termName ppe (Referent.Ref r), r) | (r, Nothing) <- frontierTerms ]
+  corruptTypes =
+    [ (PPE.typeName ppe r, r) | (r, MissingThing _) <- frontierTypes ]
+  goodTerms ts =
+    [ (PPE.termName ppe (Referent.Ref r), typ) | (r, Just typ) <- ts ]
   todoConflicts = if noConflicts then mempty else P.lines . P.nonEmpty $
     [ renderEditConflicts ppe (TO.editConflicts todo)
     , renderNameConflicts conflictedTypeNames conflictedTermNames ]
@@ -840,13 +848,13 @@ todoOutput ppe todo =
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (
-          (prettyDeclTriple . over _1 HQ'.toHQ <$> toList frontierTypes) ++
+          (prettyDeclPair ppe <$> toList frontierTypes) ++
           TypePrinter.prettySignatures' ppe (goodTerms frontierTerms)
           )
       , P.wrap "I recommend working on them in the following order:"
       , P.indentN 2 . P.lines $
-          let unscore (_score,a,b,c) = (a,b,c)
-          in (prettyDeclTriple . over _1 HQ'.toHQ . unscore <$> toList dirtyTypes) ++
+          let unscore (_score,a,b) = (a,b)
+          in (prettyDeclPair ppe . unscore <$> toList dirtyTypes) ++
              TypePrinter.prettySignatures'
                 ppe
                 (goodTerms $ unscore <$> dirtyTerms)

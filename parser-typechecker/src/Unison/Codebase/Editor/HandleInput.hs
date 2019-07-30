@@ -887,12 +887,11 @@ loop = do
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        ppe <- prettyPrintEnv =<<
-          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
         -- checkTodo only needs the local references to check for obsolete defs
-        let names0 = (Branch.toNames0 . Branch.head) branch
-        respond . TodoOutput ppe =<< checkTodo patch names0
+        respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
 
       TestI showOk showFail -> do
         let
@@ -955,14 +954,13 @@ loop = do
 
       PatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        ppe <- prettyPrintEnv =<<
-          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        ppe <- prettyPrintEnv names
         changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
         if changed then do
           branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
           -- checkTodo only needs the local names
-          let names0 = (Branch.toNames0 . Branch.head) branch
-          respond . TodoOutput ppe =<< checkTodo patch names0
+          respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
         else respond $ NothingToPatch patchPath scopePath
 
       ExecuteI input ->
@@ -1068,26 +1066,22 @@ checkTodo patch names0 = do
   f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
       frontier = R.ran f
-      names = Names.names0ToNames names0
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   -- todo: something more intelligent here?
   let scoreFn = const 1
-  remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) names0 frontier
+  remainingTransitive <-
+    frontierTransitiveDependents (eval . GetDependents) names0 frontier
   let
-    addTermNames terms = [(Names.termName names (Referent.Ref r), r, t) | (r,t) <- terms ]
-    addTypeNames types = [(Names.typeName names r, r, d) | (r,d) <- types ]
-    frontierTermsNamed = addTermNames frontierTerms
-    frontierTypesNamed = addTypeNames frontierTypes
-    dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s)
-      [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-    dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s)
-      [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+    scoredDirtyTerms =
+      List.sortOn (view _1) [ (scoreFn r, r, t) | (r,t) <- dirtyTerms ]
+    scoredDirtyTypes =
+      List.sortOn (view _1) [ (scoreFn r, r, t) | (r,t) <- dirtyTypes ]
   pure $
     TO.TodoOutput
       (Set.size remainingTransitive)
-      (frontierTermsNamed, frontierTypesNamed)
-      (dirtyTermsNamed, dirtyTypesNamed)
+      (frontierTerms, frontierTypes)
+      (scoredDirtyTerms, scoredDirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where

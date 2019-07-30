@@ -96,7 +96,7 @@ todo = InputPattern
       branch <- case ws of
         []        -> pure Path.relativeEmpty'
         [pathStr] -> Path.parsePath' pathStr
-        _         -> Left "`todo` just takes a patch and one optional path"
+        _         -> Left "`todo` just takes a patch and one optional namespace"
       Right $ Input.TodoI (Just patch) branch
     [] -> Right $ Input.TodoI Nothing Path.relativeEmpty'
   )
@@ -280,7 +280,7 @@ aliasType = InputPattern "alias.type" []
     )
 
 cd :: InputPattern
-cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
+cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
       [ ("`path foo.bar`",
           "descends into foo.bar from the current path.")
@@ -294,7 +294,7 @@ cd = InputPattern "path" ["cd", "j"] [(Required, pathArg)]
     )
 
 deleteBranch :: InputPattern
-deleteBranch = InputPattern "delete.path" [] [(Required, pathArg)]
+deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
   "`delete.path <foo>` deletes the path `foo`"
    (\case
         ["."] -> first fromString .
@@ -342,8 +342,8 @@ renamePatch = InputPattern "move.patch"
     )
 
 renameBranch :: InputPattern
-renameBranch = InputPattern "move.path"
-   ["rename.path"]
+renameBranch = InputPattern "move.namespace"
+   ["rename.namespace"]
    [(Required, pathArg), (Required, pathArg)]
    "`move.path foo bar` renames the path `bar` to `foo`."
     (\case
@@ -358,7 +358,7 @@ renameBranch = InputPattern "move.path"
     )
 
 forkLocal :: InputPattern
-forkLocal = InputPattern "fork" ["copy.path"] [(Required, pathArg)
+forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
                                    ,(Required, pathArg)]
     "`fork foo bar` creates the path `bar` as a fork of `foo`."
     (\case
@@ -799,7 +799,7 @@ pathCompletor filterQuery getNames query _code b p = let
          []
 
 pathArg :: ArgumentType
-pathArg = ArgumentType "path" $
+pathArg = ArgumentType "namespace" $
   pathCompletor exactComplete (Set.map Path.toText . Branch.deepPaths)
 
 noCompletions :: ArgumentType
