@@ -217,3 +217,8 @@ expandWildcardImport prefix ns =
   go (full, _) = case Name.stripNamePrefix prefix full of
     Nothing -> Nothing
     Just suffix -> Just (suffix, full)
+
+deleteTerms0 :: [Name] -> Names0 -> Names0
+deleteTerms0 ns n0 = names0 terms' (types0 n0)
+  where
+  terms' = R.subtractDom (Set.fromList ns) (terms0 n0)
