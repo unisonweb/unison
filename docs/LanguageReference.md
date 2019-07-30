@@ -2,11 +2,73 @@
 
 ## (Unison version 1.0.M1)
 
+
 This document is an informal reference for the Unison language, meant as an aid for Unison programmers as well as authors of implementations of the language.
 
 * This language reference, like the language it describes, is a work in progress and will be improved over time ([GitHub link](https://github.com/unisonweb/unison/blob/master/docs/LanguageReference.md)). Contributions and corrections are welcome!
 
 A formal specification of Unison is outside the scope of this document, but links are provided to resources that describe the language’s formal semantics.
+
+## Table of contents
+
+  * [A note on syntax](#a-note-on-syntax)
+  * [Top-Level declarations](#top-level-declarations)
+    + [Term Bindings](#term-bindings)
+      - [Type signature](#type-signature)
+      - [Term definition](#term-definition)
+    + [User-defined data types](#user-defined-data-types)
+    + [User-defined abilities](#user-defined-abilities)
+  * [Unison expressions](#unison-expressions)
+    + [Identifiers](#identifiers)
+      - [Namespace-qualified identifiers](#namespace-qualified-identifiers)
+      - [Absolutely qualified identifiers](#absolutely-qualified-identifiers)
+      - [Hash-qualified identifiers](#hash-qualified-identifiers)
+    + [Reserved words](#reserved-words)
+    + [Blocks and statements](#blocks-and-statements)
+      - [The Lexical Syntax of Blocks](#the-lexical-syntax-of-blocks)
+    + [Literals](#literals)
+      - [Escape sequences](#escape-sequences)
+    + [Comments](#comments)
+    + [Type annotations](#type-annotations)
+    + [Parenthesized expressions](#parenthesized-expressions)
+    + [Function application](#function-application)
+    + [Boolean expressions](#boolean-expressions)
+      - [Conditional expressions](#conditional-expressions)
+      - [Boolean conjunction and disjunction](#boolean-conjunction-and-disjunction)
+    + [Quoted computations](#quoted-computations)
+    + [Case expressions and pattern matching](#case-expressions-and-pattern-matching)
+      - [Pattern matching](#pattern-matching)
+        * [Literal patterns](#literal-patterns)
+        * [Variable patterns](#variable-patterns)
+        * [Blank patterns](#blank-patterns)
+        * [As-patterns](#as-patterns)
+        * [Constructor patterns](#constructor-patterns)
+        * [List patterns](#list-patterns)
+        * [Tuple patterns](#tuple-patterns)
+        * [Ability patterns](#ability-patterns)
+        * [Guard patterns](#guard-patterns)
+  * [Hashes](#hashes)
+    + [Literal hash references](#literal-hash-references)
+    + [Short hashes](#short-hashes)
+  * [Unison types](#unison-types)
+    + [Type variables](#type-variables)
+    + [Universally quantified types](#universally-quantified-types)
+    + [Scoped type variables](#scoped-type-variables)
+    + [Type constructors](#type-constructors)
+      - [Kinds of Types](#kinds-of-types)
+    + [Type application](#type-application)
+    + [Function types](#function-types)
+    + [Tuple types](#tuple-types)
+    + [Built-in types](#built-in-types)
+    + [Built-in type constructors](#built-in-type-constructors)
+  * [Abilities and ability handlers](#abilities-and-ability-handlers)
+    + [Abilities in function types](#abilities-in-function-types)
+    + [User-defined abilities](#user-defined-abilities-1)
+    + [Ability handlers](#ability-handlers)
+      - [Pattern matching on ability constructors](#pattern-matching-on-ability-constructors)
+  * [Name resolution and the environment](#name-resolution-and-the-environment)
+    + [Type-directed name resolution](#type-directed-name-resolution)
+
 
 ## A note on syntax
 Unison is a language in which _programs are not text_. That is, the source of truth for a program is not its textual representation as source code, but its structured representation as an abstract syntax tree.
