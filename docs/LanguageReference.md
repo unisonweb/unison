@@ -4,7 +4,7 @@
 
 This document is an informal reference for the Unison language, meant as an aid for Unison programmers as well as authors of implementations of the language.
 
-* This language reference, like the language it describes, is a work in progress and will be improved over time [GitHub link](https://github.com/unisonweb/unison/blob/master/docs/LanguageReference.md). Contributions and corrections are welcome!
+* This language reference, like the language it describes, is a work in progress and will be improved over time ([GitHub link](https://github.com/unisonweb/unison/blob/master/docs/LanguageReference.md)). Contributions and corrections are welcome!
 
 A formal specification of Unison is outside the scope of this document, but links are provided to resources that describe the language’s formal semantics.
 
