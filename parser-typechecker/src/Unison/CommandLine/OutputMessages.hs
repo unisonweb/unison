@@ -202,10 +202,10 @@ notifyUser dir o = case o of
   CantDelete input ppe failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
-      "", P.indentN 2 $ listOfDefinitions' ppe False failed,
+      "", P.indentN 2 $ listOfDefinitions' ppe False True failed,
       "",
       "because it's still being used by these definitions:",
-      "", P.indentN 2 $ listOfDefinitions' ppe False failedDependents
+      "", P.indentN 2 $ listOfDefinitions' ppe False True failedDependents
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
@@ -258,8 +258,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed results ->
-     listOfDefinitions ppe detailed results
+  ListOfDefinitions ppe detailed showAll results ->
+     listOfDefinitions ppe detailed showAll results
   ListNames [] [] -> putPrettyLn . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
@@ -862,9 +862,9 @@ todoOutput ppe todo =
       ]
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO ()
-listOfDefinitions ppe detailed results =
-  putPrettyLn $ listOfDefinitions' ppe detailed results
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> E.ShowAll -> [SR'.SearchResult' v a] -> IO ()
+listOfDefinitions ppe detailed showAll results =
+  putPrettyLn $ listOfDefinitions' ppe detailed showAll results
 
 noResults :: P.Pretty P.ColorText
 noResults = P.callout "😶" $
@@ -874,12 +874,19 @@ noResults = P.callout "😶" $
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
+                   -> E.ShowAll 
                    -> [SR'.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' ppe detailed results =
+listOfDefinitions' ppe detailed showAll results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [formatMissingStuff termsWithMissingTypes missingTypes
+    [ if len <= cap then mempty 
+      else P.lines [ "... " <> P.shown (len - cap) <> " more"
+                   , ""
+                   , P.wrap $ 
+                       "The" <> makeExample IP.findAll [] <> 
+                       "command shows all results." ]
+    ,formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
@@ -888,8 +895,11 @@ listOfDefinitions' ppe detailed results =
                                 (P.text . Referent.toText)) missingBuiltins)
     ]
   where
+  len = length results
+  cap = if detailed || showAll then len else 15
   prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") 
+               (take cap prettyResults)
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)

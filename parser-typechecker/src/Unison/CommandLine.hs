@@ -132,11 +132,11 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
       makeCompletion <$> Find.fuzzyFindInBranch b query
   where
   makeCompletion (sr, p) =
-    prettyCompletion (HQ.toString . SR.name $ sr, p)
+    prettyCompletion' (HQ.toString . SR.name $ sr, p)
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion' <$> Find.fuzzyFinder q ss id)
+  fixupCompletion q (prettyCompletion' <$> Find.simpleFuzzyFinder q ss id)
 
 exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss where

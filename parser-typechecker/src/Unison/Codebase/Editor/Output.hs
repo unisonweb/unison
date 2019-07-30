@@ -3,6 +3,7 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
+  , ShowAll
   , TestReportStats(..)
   , UndoFailureReason(..)
   , PushPull(..)
@@ -43,6 +44,7 @@ import qualified Unison.Names3 as Names
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
+type ShowAll = Bool
 type SourceName = Text
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
@@ -85,7 +87,7 @@ data Output v
   | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
+  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed ShowAll [SearchResult' v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
