@@ -156,7 +156,7 @@ patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
         _ -> pure Path.relativeEmpty'
-      pure $ Input.PatchI patch branch
+      pure $ Input.PropagatePatchI patch branch
     [] -> Left $ warn $ makeExample' patch <> "takes a patch and an optional path.")
 
 view :: InputPattern

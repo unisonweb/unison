@@ -787,13 +787,13 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
-      UpdateI maybePath hqs -> case uf of
+      UpdateI maybePatch hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
           let (p, seg) =
                   maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
                         (Path.toAbsoluteSplit currentPath')
-                        maybePath
+                        maybePatch
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
@@ -884,6 +884,8 @@ loop = do
               (UF.labeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
+          -- propagatePatch prints TodoOutput
+          void $ propagatePatch (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
@@ -952,16 +954,10 @@ loop = do
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
-      PatchI patchPath scopePath -> do
+      PropagatePatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        ppe <- prettyPrintEnv names
-        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
-        if changed then do
-          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
-          -- checkTodo only needs the local names
-          respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
-        else respond $ NothingToPatch patchPath scopePath
+        updated <- propagatePatch patch (resolveToAbsolute scopePath)
+        unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI input ->
         withFile [Type.ref External ioReference]
@@ -1060,6 +1056,20 @@ loop = do
       <> " disappeared from storage. "
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
+
+-- Returns True if the operation changed the namespace, False otherwise.
+propagatePatch :: (Monad m, Var v) => Patch -> Path.Absolute -> Action' m v Bool
+propagatePatch patch scopePath = do
+  names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  ppe <- prettyPrintEnv names
+  -- arya: wait, what is this `ppe` here for again exactly?
+  changed <- updateAtM scopePath (propagate ppe patch)
+  -- updated names/ppe after propagation
+  names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+  ppe <- prettyPrintEnv names
+  when changed $
+    respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
+  pure changed
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do

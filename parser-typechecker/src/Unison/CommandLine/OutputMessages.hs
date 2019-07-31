@@ -125,23 +125,25 @@ notifyUser dir o = case o of
   -- Success (MergeBranchI _ _) ->
   --   putPrettyLn $ P.bold "Merged. " <> "Here's what's " <> makeExample' IP.todo <> " after the merge:"
   Success _    -> putPrettyLn $ P.bold "Done."
-  WarnIncomingRootBranch hashes -> putPrettyLn $
-    if null hashes then P.wrap $
-      "Please let someone know I generated an empty IncomingRootBranch"
-                 <> " event, which shouldn't be possible!"
-    else P.lines
-      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
-         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
-         <> "with" <> P.group (P.plural hashes "hash" <> ":")
-      , ""
-      , (P.indentN 2 . P.oxfordCommas)
-                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
-      , ""
-      , P.wrap $ "but I'm not sure what to do about it."
-          <> "If you're feeling lucky, you can try deleting one of the heads"
-          <> "from `.unison/v1/branches/head/`, but please make a backup first."
-          <> "There will be a better way of handling this in the future. 😅"
-      ]
+  WarnIncomingRootBranch hashes -> pure ()
+  -- todo: resurrect this code once it's not triggered by update+propagate
+--  WarnIncomingRootBranch hashes -> putPrettyLn $
+--    if null hashes then P.wrap $
+--      "Please let someone know I generated an empty IncomingRootBranch"
+--                 <> " event, which shouldn't be possible!"
+--    else P.lines
+--      [ P.wrap $ (if length hashes == 1 then "A" else "Some")
+--         <> "codebase" <> P.plural hashes "root" <> "appeared unexpectedly"
+--         <> "with" <> P.group (P.plural hashes "hash" <> ":")
+--      , ""
+--      , (P.indentN 2 . P.oxfordCommas)
+--                (map (P.text . Hash.base32Hex . Causal.unRawHash) $ toList hashes)
+--      , ""
+--      , P.wrap $ "but I'm not sure what to do about it."
+--          <> "If you're feeling lucky, you can try deleting one of the heads"
+--          <> "from `.unison/v1/branches/head/`, but please make a backup first."
+--          <> "There will be a better way of handling this in the future. 😅"
+--      ]
 
   DisplayDefinitions outputLoc ppe types terms ->
     displayDefinitions outputLoc ppe types terms
@@ -225,7 +227,7 @@ notifyUser dir o = case o of
       <> makeExample' IP.add <> "or" <> makeExample' IP.update
       <> "commands."
   BranchNotFound _ b ->
-    putPrettyLn . P.warnCallout $ "The branch " <> P.blue (P.shown b) <> " doesn't exist."
+    putPrettyLn . P.warnCallout $ "The namespace " <> P.blue (P.shown b) <> " doesn't exist."
   CreatedNewBranch path -> putPrettyLn $
     "☝️  The namespace " <> P.blue (P.shown path) <> " is empty."
  -- RenameOutput rootPath oldName newName r -> do
@@ -243,7 +245,7 @@ notifyUser dir o = case o of
     putPrettyLn . P.warnCallout . P.lines $
       ["Are you sure you want to clear away everything?"
       ,"You could use " <> IP.makeExample' IP.cd
-        <> " to switch to a new branch instead."]
+        <> " to switch to a new namespace instead."]
   DeleteBranchConfirmation _uniqueDeletions -> error "todo"
     -- let
     --   pretty (branchName, (ppe, results)) =
@@ -253,7 +255,7 @@ notifyUser dir o = case o of
     --
     -- in putPrettyLn . P.warnCallout
     --   $ P.wrap ("The"
-    --   <> plural uniqueDeletions "branch contains" "branches contain"
+    --   <> plural uniqueDeletions "namespace contains" "namespaces contain"
     --   <> "definitions that don't exist in any other branches:")
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
@@ -464,14 +466,14 @@ notifyUser dir o = case o of
       case (new, old) of
         ([],[]) -> error "BustedBuiltins busted, as there were no busted builtins."
         ([], old) ->
-          P.wrap ("This branch includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your branch:")
+          P.wrap ("This codebase includes some builtins that are considered deprecated. Use the " <> makeExample' IP.updateBuiltins <> " command when you're ready to work on eliminating them from your codebase:")
             : ""
             : fmap (P.text . Reference.toText) old
-        (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your branch. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
+        (new, []) -> P.wrap ("This version of Unison provides builtins that are not part of your codebase. Use " <> makeExample' IP.updateBuiltins <> " to add them:")
           : "" : fmap (P.text . Reference.toText) new
         (new@(_:_), old@(_:_)) ->
           [ P.wrap
-            ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this branch uses.  You can use "
+            ("Sorry and/or good news!  This version of Unison supports a different set of builtins than this codebase uses.  You can use "
             <> makeExample' IP.updateBuiltins
             <> " to add the ones you're missing and deprecate the ones I'm missing. 😉"
             )
@@ -489,10 +491,10 @@ notifyUser dir o = case o of
          ) <> " to! " <>
       "Use `track <giturl>` to set up this path to push and pull from <giturl>."
   NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
-  BranchAlreadyExists _ _ -> putPrettyLn "That branch already exists."
+  BranchAlreadyExists _ _ -> putPrettyLn "That namespace already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."
   TermAmbiguous _ _ _ -> putPrettyLn "That term is ambiguous."
-  BadDestinationBranch _ _ -> putPrettyLn "That destination branch is bad."
+  BadDestinationBranch _ _ -> putPrettyLn "That destination namespace is bad."
   TermNotFound' _ _ -> putPrettyLn "That term was not found."
   BranchDiff _ _ -> putPrettyLn "Those branches are different."
   NothingToPatch _ _ -> putPrettyLn "There's nothing to patch."
@@ -643,7 +645,7 @@ displayDefinitions outputLoc ppe types terms =
         "",
         P.wrap $
           "You can edit them there, then do" <> makeExample' IP.update <>
-          "to replace the definitions currently in this branch."
+          "to replace the definitions currently in this namespace."
       ]
   code = displayDefinitions' ppe types terms
 
@@ -762,7 +764,7 @@ renderEditConflicts ::
 renderEditConflicts ppe Patch{..} =
   unlessM (null editConflicts) . P.callout "❓" . P.sep "\n\n" $ [
     P.wrap $ "These" <> P.bold "definitions were edited differently"
-          <> "in branches that have been merged into this branch."
+          <> "in namespaces that have been merged into this one."
           <> "You'll have to tell me what to use as the new definition:",
     P.indentN 2 (P.lines (formatConflict <$> editConflicts))
 --    , tip $ "Use " <> makeExample IP.resolve [name (head editConflicts), " <replacement>"] <> " to pick a replacement." -- todo: eventually something with `edit`
@@ -844,7 +846,7 @@ todoOutput ppe todo =
 
 
   todoEdits = unlessM noEdits . P.callout "🚧" . P.sep "\n\n" . P.nonEmpty $
-      [ P.wrap ("The branch has" <> fromString (show (TO.todoScore todo))
+      [ P.wrap ("The namespace has" <> fromString (show (TO.todoScore todo))
               <> "transitive dependent(s) left to upgrade."
               <> "Your edit frontier is the dependents of these definitions:")
       , P.indentN 2 . P.lines $ (

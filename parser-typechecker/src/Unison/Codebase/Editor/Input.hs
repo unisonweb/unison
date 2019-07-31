@@ -67,7 +67,7 @@ data Input
     | AddI [HQ'.HashQualified]
     | UpdateI (Maybe PatchPath) [HQ'.HashQualified]
     | TodoI (Maybe PatchPath) Path'
-    | PatchI PatchPath Path'
+    | PropagatePatchI PatchPath Path'
     | ListEditsI (Maybe PatchPath)
     -- -- create and remove update directives
     | DeprecateTermI PatchPath Path.HQSplit'
