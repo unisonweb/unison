@@ -437,7 +437,7 @@ case 42 of
 ```
 
 ##### Literal patterns
-A _literal pattern_ is a literal `Boolean`, `Nat`, `Int`, `Float`, or `Text`. A literal pattern matches if the scrutinee has that exact value. For example, the pattern `42` matches `Nat` expressions that evaluate to `42`.
+A _literal pattern_ is a literal `Boolean`, `Nat`, `Int`, `Float`, or `Text`. A literal pattern matches if the scrutinee has that exact value.
 
 For example:
 
