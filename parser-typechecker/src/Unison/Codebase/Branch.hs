@@ -324,18 +324,27 @@ sync :: forall m. Monad m
      -> (EditHash -> m Patch -> m ())
      -> Branch m
      -> m ()
-sync exists serializeRaw serializeEdits b = do
-  for_ (view children (head b)) (sync exists serializeRaw serializeEdits . snd)
-  for_ (view edits (head b)) (uncurry serializeEdits)
+sync exists serializeRaw serializeEdits b =
   Causal.sync exists serialize0 (view history b)
   where
   toRaw :: Branch0 m -> Raw
   toRaw Branch0{..} = Raw _terms _types (fst <$> _children) (fst <$> _edits)
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
-  serialize0 h = \case
-    RawOne b0 -> serializeRaw h $ RawOne (toRaw b0)
-    RawCons b0 ht -> serializeRaw h $ RawCons (toRaw b0) ht
-    RawMerge b0 hs -> serializeRaw h $ RawMerge (toRaw b0) hs
+  serialize0 h b0 = do
+    case b0 of
+      RawOne b0 -> do
+        writeB0 b0
+        serializeRaw h $ RawOne (toRaw b0)
+      RawCons b0 ht -> do
+        writeB0 b0
+        serializeRaw h $ RawCons (toRaw b0) ht
+      RawMerge b0 hs -> do
+        writeB0 b0
+        serializeRaw h $ RawMerge (toRaw b0) hs
+    where
+      writeB0 b0 = do
+        for_ (view children b0) (sync exists serializeRaw serializeEdits . snd)
+        for_ (view edits b0) (uncurry serializeEdits)
 
   -- this has to serialize the branch0 and its descendants in the tree,
   -- and then serialize the rest of the history of the branch as well
