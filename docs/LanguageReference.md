@@ -18,6 +18,7 @@ A formal specification of Unison is outside the scope of this document, but link
       - [Term definition](#term-definition)
     + [User-defined data types](#user-defined-data-types)
     + [User-defined abilities](#user-defined-abilities)
+    + [Use clauses](#use-clauses)
   * [Unison expressions](#unison-expressions)
     + [Identifiers](#identifiers)
       - [Namespace-qualified identifiers](#namespace-qualified-identifiers)
@@ -38,9 +39,9 @@ A formal specification of Unison is outside the scope of this document, but link
     + [Delayed computations](#delayed-computations)
     + [Case expressions and pattern matching](#case-expressions-and-pattern-matching)
       - [Pattern matching](#pattern-matching)
+        * [Blank patterns](#blank-patterns)
         * [Literal patterns](#literal-patterns)
         * [Variable patterns](#variable-patterns)
-        * [Blank patterns](#blank-patterns)
         * [As-patterns](#as-patterns)
         * [Constructor patterns](#constructor-patterns)
         * [List patterns](#list-patterns)
@@ -195,6 +196,28 @@ ability A p_1 p_2 … p_n where
 This declares an _ability type constructor_ `A` with type parameters `p_1` through `p_n`, and _request constructors_ `Request_1` through `Request_n`.
 
 See [Abilities and Ability Handlers](#abilities-and-ability-handlers) for more on user-defined abilities.
+
+### Use clauses
+
+A _use clause_ tells Unison to allow [identifiers](#identifiers) from a given [namespace](#namespace-qualified-identifiers) to be used [unqualified](#namespace-qualified-identifiers) in the code after the use clause.
+
+In this example, the `use .base.List` clause allows the definition that follows it to refer to `.base.List.take` as simply `take`:
+
+```
+use .base.List
+
+oneTwo = take 2 [1,2,3]
+```
+
+The general form of `use` clauses is as follows:
+
+```
+use namespace name_1 name_2 .. name_n
+```
+
+Where `namespace` is the namespace from which we want to use names unqualified, and `name_1` through `name_n` are the names we want to use. If no names are given in the `use` clause, Unison brings all the names from the namespace into scope.
+
+See the section on [identifiers](#identifiers) for more on namespaces as well as qualified and unqualified names.
 
 ## Unison expressions
 This section describes the syntax and informal semantics of Unison expressions.
