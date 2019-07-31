@@ -426,6 +426,16 @@ It is an error if none of the patterns match. In this version of Unison, the  er
 #### Pattern matching
 A _pattern_ has one of the following forms:
 
+##### Blank patterns
+A _blank pattern_ has the form `_`. It matches any expression without creating a variable binding.
+
+For example:
+
+``` haskell
+case 42 of
+  _ -> "Always matches"
+```
+
 ##### Literal patterns
 A _literal pattern_ is a literal `Boolean`, `Nat`, `Int`, `Float`, or `Text`. A literal pattern matches if the scrutinee has that exact value. For example, the pattern `42` matches `Nat` expressions that evaluate to `42`.
 
@@ -445,20 +455,6 @@ For example, this expression evaluates to `3`:
 ``` haskell
 case 1 + 1 of
   x -> x + 1
-```
-
-##### Blank patterns
-A _blank pattern_ has the form `_`. It matches any expression without creating a variable binding.
-
-For example:
-
-``` haskell
-case 42 of
-  _ -> "Always matches"
-
-case x of
-  3 -> "It's three"
-  _ -> "It's not three"
 ```
 
 ##### As-patterns
