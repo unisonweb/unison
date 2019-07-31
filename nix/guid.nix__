@@ -1,0 +1,6 @@
+{ callCabal2nix, fetchgit }:
+callCabal2nix "guid" (fetchgit {
+  	url = "https://github.com/tippenein/guid.git";
+    sha256 = "0fimqwq3a50qn66i3wjxai93nl9glyash4zq2r4h50pf9bmykxlj";
+    rev = "af5c29cdded0779d5961138d56f4a9ff2d16af58";
+  }) { }
