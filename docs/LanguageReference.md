@@ -223,7 +223,7 @@ Note that [operator identifiers](#identifiers) may contain the character `.`. In
 if `.` is followed by whitespace or another operator character, the `.` is treated like an operator character. If it's followed by a [regular identifier](#identifiers) character, it's treated as a namespace separator.
 
 #### Hash-qualified identifiers
-Any identifier, including a namespace-qualified one, can appear _hash-qualified_. A hash-qualified identifier has the form `x#h` where `x` is an identifier and `#h` is a _hash literal_. The hash disambiguates names that may refer to more than one thing.
+Any identifier, including a namespace-qualified one, can appear _hash-qualified_. A hash-qualified identifier has the form `x#h` where `x` is an identifier and `#h` is a [hash literal](#hashes). The hash disambiguates names that may refer to more than one thing.
 
 ### Reserved words
 The following names are reserved by Unison and cannot be used as identifiers: `=`, `:`, `->`, `if`, `then`, `else`, `forall`, `handle`, `in`, `unique`, `where`, `use`, `and`, `or`, `true`, `false`, `type`, `ability`, `alias`, `let`, `namespace`, `case`, `of`, `with`.
@@ -241,7 +241,7 @@ expression
 
 A block can have zero or more statements, and the value of the whole block is the value of the final `expression`. A statement is either: 
 
-1. A [term definition](#term-definition) which defines a term within the scope of the block. The definition is not visible outside this scope, and is bound to a local name. Unlike top-level definitions, a block-level definition does not result in a hash, and cannot be referenced with a hash literal.
+1. A [term definition](#term-definition) which defines a term within the scope of the block. The definition is not visible outside this scope, and is bound to a local name. Unlike top-level definitions, a block-level definition does not result in a hash, and cannot be referenced with a [hash literal](#hashes).
 2. A [Unison expression](#unison-expressions). In particular, blocks often contain _action expressions_, which are expressions evaluated solely for their effects. An action expression has type `{A} T` for some ability `A` (see [Abilities and Ability Handlers](#abilities-and-ability-handlers)) and some type `T`.
 
 An example of a block (this evaluates to `16`):
@@ -747,18 +747,18 @@ storeHandler storedValue s = case s of
 Note that the `storeHandler` has a `handle` clause that uses `storeHandler` itself to handle the `Requests`s made by the continuation. So it’s a recursive definition.
 
 ## Name resolution and the environment
-During typechecking, Unison substitutes free variables in an expression by looking them up in a _codebase_. A Unison codebase is a database of term and type definitions, indexed by _hashes_ and names.
+During typechecking, Unison substitutes free variables in an expression by looking them up in an environment populated from a _codebase_ of available definitions. A Unison codebase is a database of term and type definitions, indexed by [hashes](#hashes) and names.
 
-A name in the codebase can refer to either terms or types, or both. If a name is unambiguous (refers to only one term or type in the codebase), Unison substitutes that name in the expression with a reference to the definition from the codebase.
+A name in the environment can refer to either terms or types, or both. If a name is unambiguous (refers to only one term or type in the environment), Unison substitutes that name in the expression with a reference to the definition.
 
-A definition in the codebase always refers to other definitions _by hash_, and never by name. Names are stored in the codebase as metadata on the hash, which may have any number of names.
+[Hash literals](#hashes) in the program are substituted with references to the definitions in the environment whose hashes they match.
 
-If a free variable in the program cannot be found in the codebase and is not the name of another term in scope in the program itself, or if an free variable matches more than one name (it’s ambiguous), Unison tries _type-directed name resolution_.
+If a free variable in the program cannot be found in the environment and is not the name of another term in scope in the program itself, or if an free variable matches more than one name (it’s ambiguous), Unison tries _type-directed name resolution_.
 
 ### Type-directed name resolution
-During typechecking, if Unison encounters a free variable that is not a name in the codebase, Unison attempts _type-directed name resolution_, which:
+During typechecking, if Unison encounters a free variable that is not a name in the environment, Unison attempts _type-directed name resolution_, which:
 
-1. Finds term definitions in the codebase whose _unqualified_ name is the same as the free variable.
+1. Finds term definitions in the environment whose _unqualified_ name is the same as the free variable.
 2. If exactly one of those terms would make the program typecheck when substituted for the free variable, perform that substitution and resume typechecking.
 
 If name resolution is unable to find the definition of a name, or is unable to disambiguate an ambiguous name, Unison reports an error.
