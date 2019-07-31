@@ -303,7 +303,10 @@ loop = do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
           b <- updateAtM dest $ const (pure merged)
-          if b then respond (ShowDiff input (Branch.namesDiff destb merged))  
+          if b then do
+            respond (ShowDiff input (Branch.namesDiff destb merged))
+            patch <- getPatchAt defaultPatchPath
+            void $ propagatePatch patch dest
           else respond (NothingTodo input)  
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -787,13 +790,10 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
-      UpdateI maybePatch hqs -> case uf of
+      UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
-          let (p, seg) =
-                  maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
-                        (Path.toAbsoluteSplit currentPath')
-                        maybePatch
+          let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
@@ -827,9 +827,7 @@ loop = do
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
                          , (n, r) <- Names3.constructorsForType0 oldTypeRef currentPathNames0 ]
 
-          ye'ol'Patch <- do
-            b <- getAt p
-            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          ye'ol'Patch <- getPatchAt patchPath
           -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
           -- with (a0 -> a') in patch'.
           -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
@@ -865,6 +863,7 @@ loop = do
                 p' = foldl' step1 p typeEdits
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+              (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
               updatePatches :: Branch0 m -> m (Branch0 m)
               updatePatches = Branch.modifyPatches seg updatePatch
 
