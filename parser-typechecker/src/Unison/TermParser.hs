@@ -16,7 +16,6 @@ import           Control.Monad.Reader (asks, local)
 import           Data.Foldable (asum)
 import           Data.Functor
 import           Data.Int (Int64)
-import           Data.List (elem)
 import           Data.Maybe (isJust, fromMaybe)
 import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
@@ -525,10 +524,11 @@ number'
   -> P v a
 number' i u f = fmap go numeric
  where
-  go num@(L.payload -> p) | '.' `elem` p    = f (read <$> num)
-                          | take 1 p == "+" = i (read . drop 1 <$> num)
-                          | take 1 p == "-" = i (read <$> num)
-                          | otherwise       = u (read <$> num)
+  go num@(L.payload -> p) | any (\c -> c == '.' || c == 'e') p && take 1 p == "+" = f (read . drop 1 <$> num)
+                          | any (\c -> c == '.' || c == 'e') p                    = f (read <$> num)
+                          | take 1 p == "+"                                       = i (read . drop 1 <$> num)
+                          | take 1 p == "-"                                       = i (read <$> num)
+                          | otherwise                                             = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair
