@@ -543,8 +543,8 @@ case (1,2,3) of
 ##### Ability patterns
 An _ability pattern_ only appears in an _ability handler_ and has one of two forms (see [Abilities and ability handlers](#abilities-and-ability-handlers) for details):
 
-1. `{C p1 p2 ... pn -> k}` where `C` is the name of an ability constructor in scope, and `p1` through `pn` are patterns such that `n` is the arity of `C`. Note that `n` may be zero. This pattern matches if the scrutinee reduces to a fully applied invocation of the ability constructor `C` and the patterns `p1` through `pn` match the arguments to the constructor.  The scrutinee must be of type `Effect A T` for some ability `{A}` and type `T`. The variable `k` will be bound to the continuation of the program. If the scrutinee has type `Effect A T` and `C` has type `X ->{A} Y`, then `k` has type `Y -> {A} T`.
-2. `{p}` where `p` is a pattern. This matches the case where the computation is _pure_ (the value of type `Effect A T` calls none of the constructors of the ability `{A}`). A pattern match on an `Effect` is not complete unless this case is handled.
+1. `{C p1 p2 ... pn -> k}` where `C` is the name of an ability constructor in scope, and `p1` through `pn` are patterns such that `n` is the arity of `C`. Note that `n` may be zero. This pattern matches if the scrutinee reduces to a fully applied invocation of the ability constructor `C` and the patterns `p1` through `pn` match the arguments to the constructor.  The scrutinee must be of type `Request A T` for some ability `{A}` and type `T`. The variable `k` will be bound to the continuation of the program. If the scrutinee has type `Request A T` and `C` has type `X ->{A} Y`, then `k` has type `Y -> {A} T`.
+2. `{p}` where `p` is a pattern. This matches the case where the computation is _pure_ (the value of type `Request A T` calls none of the constructors of the ability `{A}`). A pattern match on an `Request` is not complete unless this case is handled.
 
 See the section on [abilities and ability handlers](#abilities-and-ability-handlers) for examples of ability patterns.
 
@@ -729,7 +729,7 @@ ability Abort where
   aborting : ()
 
 -- Returns `a` immediately if the program `e` calls `abort`
-abortHandler : a -> Effect Abort a -> a
+abortHandler : a -> Request Abort a -> a
 abortHandler a e = case e of 
    { Abort.aborting -> _ } -> a
    { x } -> x
@@ -748,13 +748,13 @@ The pattern `{ x }` matches the case where the computation is pure (makes no fur
 When a handler calls the continuation, it needs describe how the ability is provided in the rest of the program, usually with a recursive call, like this:
 
 ``` haskell
-use .base Effect
+use .base Request
  
 ability Stored v where
   get : v
   put : v -> ()
 
-storeHandler : v -> Effect (Stored v) a -> a
+storeHandler : v -> Request (Stored v) a -> a
 storeHandler storedValue s = case s of 
   {Stored.get -> k} ->
     handle storeHandler storedValue in k storedValue
