@@ -79,7 +79,7 @@ This document describes Unison in terms of its default (and currently, only) tex
 ## Top-Level declarations
 This section describes the syntactic structure and informal semantics of Unison declarations.
 
-A top-level declaration can appear at the _top level_ or outermost scope of a Unison File. It can be a [term binding](#term-bindings), a [user-defined data type](#user-defined-data-types), or a [user-defined ability](#user-defined-abilities).
+A top-level declaration can appear at the _top level_ or outermost scope of a Unison File. It can be a [term binding](#term-bindings), a [user-defined data type](#user-defined-data-types), a [user-defined ability](#user-defined-abilities), or a [use clause](#use-clauses).
 
 ### Term Bindings
 
