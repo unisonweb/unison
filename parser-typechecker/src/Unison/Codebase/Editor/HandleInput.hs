@@ -180,6 +180,9 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
+defaultPatchNameSegment :: NameSegment
+defaultPatchNameSegment = NameSegment "patch"
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf           <- use latestTypecheckedFile
@@ -193,7 +196,7 @@ loop = do
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
-      defaultPatchPath = (Path' $ Left currentPath', NameSegment "patch")
+      defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -1278,13 +1281,19 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Input -> RemoteRepo -> Path.Absolute -> Action m i v ()
+  :: Monad m => Var v => Input -> RemoteRepo -> Path.Absolute -> Action' m v ()
 loadRemoteBranchAt input repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
     Left  e -> eval . Notify $ GitError input e
-    Right b -> void $ updateAtM p (doMerge b)
-  where 
+    Right b -> do
+      changed <- updateAtM p (doMerge b)
+      when changed $ do
+        merged <- getAt p
+        patch <- eval . Eval $
+          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
+        void $ propagatePatch patch p
+  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
