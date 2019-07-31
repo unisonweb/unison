@@ -30,6 +30,7 @@ data Err
   | InvalidShortHash String
   | Both Err Err
   | MissingFractional String -- ex `1.` rather than `1.04`
+  | MissingExponent String -- ex `1e` rather than `1e3`
   | UnknownLexeme
   | TextLiteralMissingClosingQuote String
   | InvalidEscapeCharacter Char
@@ -507,11 +508,24 @@ numericLit = go
       (fractional@(_:_), []) ->
         pure $ pure (sign ++ num ++ "." ++ fractional, [])
       (fractional@(_:_), c:rem)
+        | c `elem` "eE" -> goExp (sign ++ num ++ "." ++ fractional) rem
         | isSep c -> pure $ pure (sign ++ num ++ "." ++ fractional, c:rem)
         | otherwise -> pure Nothing
       ([], _) -> Left (MissingFractional (sign ++ num ++ "."))
+    (num@(_:_), c:rem) | c `elem` "eE" -> goExp (sign ++ num) rem
     (num@(_:_), c:rem) -> pure $ pure (sign ++ num, c:rem)
     ([], _) -> pure Nothing
+  goExp signNum rem = case rem of
+    ('+':s) -> goExp' signNum "+" s
+    ('-':s) -> goExp' signNum "-" s
+    s       -> goExp' signNum ""  s 
+  goExp' signNum expSign exp = case span isDigit exp of
+    ((_:_), []) ->
+      pure $ pure (signNum ++ "e" ++ expSign ++ exp, [])
+    (exp'@(_:_), c:rem)
+      | isSep c -> pure $ pure (signNum ++ "e" ++ expSign ++ exp', c:rem)
+      | otherwise -> pure Nothing
+    ([], _) -> Left (MissingExponent (signNum ++ "e" ++ expSign))
 
 isSep :: Char -> Bool
 isSep c = isSpace c || Set.member c delimiters
