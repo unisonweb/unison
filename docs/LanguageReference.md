@@ -35,7 +35,7 @@ A formal specification of Unison is outside the scope of this document, but link
     + [Boolean expressions](#boolean-expressions)
       - [Conditional expressions](#conditional-expressions)
       - [Boolean conjunction and disjunction](#boolean-conjunction-and-disjunction)
-    + [Quoted computations](#quoted-computations)
+    + [Delayed computations](#delayed-computations)
     + [Case expressions and pattern matching](#case-expressions-and-pattern-matching)
       - [Pattern matching](#pattern-matching)
         * [Literal patterns](#literal-patterns)
@@ -89,7 +89,9 @@ timesTwo : Nat -> Nat
 timesTwo x = x * 2
 ```
 
-The first line in the above is a type signature. The second line is the term definition. The `=` sign splits the definition into a _left-hand side_, which is the term being defined, and the _right-hand side_, which is the definition of the term.
+The first line in the above is a type signature. The type signature `timesTwo : Nat -> Nat` declares that the term named `timesTwo` is a function accepting an argument of type `Nat` and computes a value of type `Nat`. The type `Nat` is the type of 64-bit natural numbers starting from zero. See [Unison types](#unison-types) for details.
+
+The second line is the term definition. The `=` sign splits the definition into a _left-hand side_, which is the term being defined, and the _right-hand side_, which is the definition of the term.
 
 The general form of a term binding is:
 
@@ -98,17 +100,19 @@ name : Type
 name p_1 p_2 … p_n = expression
 ```
 
-`name : Type` is the type signature, where `name` is the name of the term being defined and `Type` is a [type](#unison-types) for that term. The `name` given in the type signature and the `name` given in the definition must be the same.
-
-The parameters `p_1` through `p_n` are the parameters of the function, if any, separated by spaces. The right-hand side of the `=` sign is any [Unison expression](#unison-expressions).
-
 #### Type signature
-The type signature `timesTwo : Nat -> Nat` declares that the term named `timesTwo` is a function accepting an argument of type `Nat`  and computes a value of type `Nat`. Type signatures are optional. In the absence of a type signature, Unison will automatically infer the type of a term declaration. If a type signature is present, Unison will verify that the term meets the type given in the signature.
+`name : Type` is a type signature, where `name` is the name of the term being defined and `Type` is a [type](#unison-types) for that term. The `name` given in the type signature and the `name` given in the definition must be the same.
+
+Type signatures are optional. In the absence of a type signature, Unison will automatically infer the type of a term declaration. If a type signature is present, Unison will verify that the term has the type given in the signature.
 
 #### Term definition
-The left-hand side of the definition consists of the name of the term, followed by argument names (parameters) if the definition is a function. The names of the arguments as well as the name of the term are bound as local variables in the expression on the right-hand side. If the term takes no arguments, the term has the value of the fully evaluated expression on the right-hand side.
+A term definition has the form `f p_1 p_2 … p_n = e` where `f` is the name of the term being defined. The parameters `p_1` through `p_n` are the names of parameters, if any (if the term is a function), separated by spaces. The right-hand side of the `=` sign is any [Unison expression](#unison-expressions).
 
-The right-hand side of the definition (also known as the _body_) is a [Unison expression](#unison-expressions). The names of the arguments are local variables in this expression, and they are bound to any values passed as arguments to the function when it’s called. The expression in the right-hand side can also refer to the name given to the definition in the left-hand side. In that case, it’s a recursive definition. For example:
+The names of the parameters as well as the name of the term are bound as local variables in the expression on the right-hand side (also known as the _body_ of the function). When the function is called, the parameter names are bound to any arguments passed in the call. See [function application](#function-application) for details on the call semantics of functions.
+
+If the term takes no arguments, the term has the value of the fully evaluated expression on the right-hand side and is not a function.
+
+The expression comprising the right-hand side can refer to the name given to the definition in the left-hand side. In that case, it’s a recursive definition. For example:
 
 ``` Haskell
 sumUpTo : Nat -> Nat
@@ -117,9 +121,36 @@ sumUpTo n =
   else n + sumUpto (drop n 1)
 ```
 
-The above defines a function `sumUpTo` that recursively sums all the natural numbers (of type `Nat`) less than some number `n`. As an example,  `sumUpTo 3` is `1 + 2 + 3`, which is `6`.
+The above defines a function `sumUpTo` that recursively sums all the natural numbers less than some number `n`. As an example, `sumUpTo 3` is `1 + 2 + 3`, which is `6`.
 
-The expression `drop n 1` on line 4 above subtracts one from the natural number `n`.
+Note: The expression `drop n 1` on line 4 above subtracts one from the natural number `n`. Since the natural numbers are not closed under subtraction (`n - 1` is an `Int`), we use the operation `drop` which has the convention that `drop n 0 = 0` for all natural numbers `n`. Unison's type system saves us from having to deal with negative numbers here.
+
+#### Operator definitions
+[Operator identifiers](#identifiers) are valid names for Unison definitions, but the syntax for defining them is slightly different. For example, we could define a binary operator `?`:
+
+``` Haskell
+(?) x y = if x == 0 then y else x 
+```
+
+Or we could define it using infix notation:
+
+``` haskell
+x ? y = if x == 0 then y else x
+```
+
+If we want to give the operator a qualified name, we put the qualifier inside the parentheses:
+
+``` Haskell
+(MyNamespace.?) x y = if x == 0 then y else x 
+```
+
+Or if defining it infix:
+
+``` haskell
+x MyNamespace.? y = if x == 0 then y else x
+```
+
+The operator can be applied using either notation, no matter which way it's defined. See [function application](#function-application) for details.
 
 ### User-defined data types
 
@@ -155,20 +186,20 @@ type TypeConstructor p1 p2 … pn
 A user-defined _ability_ declaration has the following general form:
 
 ``` haskell
-ability A where
-  Constructor_1 : Type_1
-  Constructor_2 : Type_2
-  Constructor_n : Type_n
+ability A p_1 p_2 … p_n where
+  Request_1 : Type_1
+  Request_2 : Type_2
+  Request_n : Type_n
 ```
 
-This declares an _ability type constructor_ `A` with data constructors `Constructor_1` through `Constructor_n`.
+This declares an _ability type constructor_ `A` with type parameters `p_1` through `p_n`, and _request constructors_ `Request_1` through `Request_n`.
 
 See [Abilities and Ability Handlers](#abilities-and-ability-handlers) for more on user-defined abilities.
 
 ## Unison expressions
 This section describes the syntax and informal semantics of Unison expressions.
 
-Unison’s evaluation strategy for expressions is [Applicative Order Call-by-Value](https://en.wikipedia.org/wiki/Evaluation_strategy#Applicative_order). Arguments to functions are evaluated strictly from left to right.
+Unison’s evaluation strategy for expressions is [Applicative Order Call-by-Value](https://en.wikipedia.org/wiki/Evaluation_strategy#Applicative_order). See [Function application](#function-application) for details.
 
 ### Identifiers
 Unison identifiers come in two flavors:
@@ -181,6 +212,15 @@ The above describes _unqualified_ identifiers. An identifier can also be _qualif
 
 #### Absolutely qualified identifiers
 Namespace-qualified identifiers described above are relative to a “current” namespace, which the programmer can set (and defaults to the root of the global namespace). To ignore the current namespace, an identifier can have an _absolute qualifier_. An absolutely qualified name begins with a `.`. For example, the name `.base.List` always refers to the name `.base.List`, regardless of the current namespace, whereas the name `base.List` will refer to `foo.base.List` if the current namespace is `foo`.
+
+Note that [operator identifiers](#identifiers) may contain the character `.`. In order for this to not create ambiguity, the rule is as follows:
+
+1. `.` by itself is always an operator.
+2. Any other identifier beginning with `.` is an absolutely qualified identifier.
+3. A `.` immediately following a namespace is always a namespace separator.
+4. Otherwise a `.` is treated as part of an operator identifier.
+
+if `.` is followed by whitespace or another operator character, the `.` is treated like an operator character. If it's followed by a [regular identifier](#identifiers) character, it's treated as a namespace separator.
 
 #### Hash-qualified identifiers
 Any identifier, including a namespace-qualified one, can appear _hash-qualified_. A hash-qualified identifier has the form `x#h` where `x` is an identifier and `#h` is a _hash literal_. The hash disambiguates names that may refer to more than one thing.
@@ -201,8 +241,17 @@ expression
 
 A block can have zero or more statements, and the value of the whole block is the value of the final `expression`. A statement is either: 
 
-1. A _variable binding_ of the form `x = e` where `e` is an expression. This binds the variable `x` to the value of `e` within the scope of the block.
-2. An _action_, which is an expression of type `{A} T` for some ability `A` (see [Abilities and Ability Handlers](#abilities-and-ability-handlers)) and some type `T`.
+1. A [term definition](#term-definition) which defines a term within the scope of the block. The definition is not visible outside this scope, and is bound to a local name. Unlike top-level definitions, a block-level definition does not result in a hash, and cannot be referenced with a hash literal.
+2. A [Unison expression](#unison-expressions). In particular, blocks often contain _action expressions_, which are expressions evaluated solely for their effects. An action expression has type `{A} T` for some ability `A` (see [Abilities and Ability Handlers](#abilities-and-ability-handlers)) and some type `T`.
+
+An example of a block (this evaluates to `16`):
+
+```
+x = 4
+y = x + 2
+f a = a + y
+f 10
+```
 
 A number of language constructs introduce blocks. These are detailed in the relevant sections of this reference. Wherever Unison expects an expression, a block can be introduced with the  `let` keyword:
 
@@ -215,22 +264,48 @@ Where `<block>` denotes a block as described above.
 #### The Lexical Syntax of Blocks
 The standard syntax expects statements to appear in a line-oriented layout, where whitespace is significant.
 
-The opening keyword (`let`, `if`, `then`, or `else`, for example) introduces the block, and the position of the first character of the first statement in the block determines the top-left corner of the block. Each statement in the block must be indented to line up with the left edge of the block. The first non-whitespace character that appears to the left of that edge (i.e. outdented) ends the block. Certain keywords also end blocks. For example, `then` ends the block introduced by `if`.
+The opening keyword (`let`, `if`, `then`, or `else`, for example) introduces the block, and the position of the first character of the first statement in the block determines the top-left corner of the block. The beginning of each statement in the block must be lined up exactly with the left edge of the block. The first non-whitespace character that appears to the left of that edge (i.e. outdented) ends the block. Certain keywords also end blocks. For example, `then` ends the block introduced by `if`.
 
 A statement or expression in a block can continue for more than one line as long as each line of the statement is indented further than the first character of the statement or expression.
+
+For example, these are valid indentations for a block:
+
+```
+let 
+  x = 1
+  y = 2
+  x + y
+
+
+let x = 1
+    y = 2
+    x + y
+```
+
+Whereas these are incorrect:
+
+```
+let x = 1
+  y = 2
+  x + y
+
+let x = 1
+     y = 2
+       x + y
+```
 
 ### Literals
 A literal expression is a basic form of Unison expression. Unison has the following types of literals:
 
-* A _natural number_ or _64-bit unsigned integer_ of type `.base.Nat` consists of digits from 0 to 9. The smallest `Nat` is `0` and the largest is `18446744073709551615`.
+* A _64-bit unsigned integer_ of type `.base.Nat` (which stands for _natural number_) consists of digits from 0 to 9. The smallest `Nat` is `0` and the largest is `18446744073709551615`.
 * A _64-bit signed integer_ of type `.base.Int` consists of a natural number immediately preceded by either `+` or `-`. For example, `4` is a `Nat`, whereas `+4` is an `Int`. The smallest `Int` is `-9223372036854775808` and the largest is `+9223372036854775807`.
 * A _64-bit floating point number_ of type `.base.Float` consists of an optional sign (`+`/`-`), followed by two natural numbers separated by `.`. Floating point literals in Unison are [IEEE 754-1985](https://en.wikipedia.org/wiki/IEEE_754-1985) double-precision numbers. For example `1.6777216` is a valid floating point literal.
-* A _text literal_ of type `.base.Text` is any sequence of characters between pairs of `"`. The escape character is `\`, so a `"` can be included in a text literal with the escape sequence `\"`. The full list of escape sequences is given in the Escape Sequences section below. For example, `"Hello, World!"` is a text literal. A text literal can span multiple lines, and newlines do not terminate text literals.
+* A _text literal_ of type `.base.Text` is any sequence of Unicode characters between pairs of `"`. The escape character is `\`, so a `"` can be included in a text literal with the escape sequence `\"`. The full list of escape sequences is given in the [Escape Sequences](#escape-sequences) section below. For example, `"Hello, World!"` is a text literal. A text literal can span multiple lines. Newlines do not terminate text literals, but become part of the literal text.
 * There are two _Boolean literals_: `true` and `false`, and they have type `Boolean`.
 * A _hash literal_ begins with the character `#`. See the section **Hashes** for details on the lexical form of hash literals. A hash literal is a reference to a term or type. The type or term that it references must have a definition whose hash digest matches the hash in the literal. The type of a hash literal is the same as the type of its referent. `#abc123e` is an example of a hash literal.
 * A _literal list_ has the general form `[v1, v2, ... vn]` where `v1` through `vn` are expressions. A literal list may be empty. For example, `[]`, `[x]`, and `[1,2,3]` are list literals. The expressions that form the elements of the list all must have the same type. If that type is `T`, then the type of the list literal is `.base.List T` or `[T]`.
-* A _function literal_ or _lambda_ has the form `p1 p2 ... pn -> e`, where `p1` through `pn` are [regular identifiers](#identifiers) and `e` is a Unison expression (the _body_ of the lambda). The variables `p1` trough `pn` are local variables in `e`, and they are bound to any values passed as arguments to the function when it’s called (see the section [Function Application](#function-application) for details on call semantics). For example `x -> x + 2` is a function literal.
-* A _tuple literal_ has the form `(v1,v2, ..., vn)` where `v1` through `vn` are expressions. A value `(a,b)` has type `(A,B)` if `a` has type `A` and `b` has type `B`. A unary tuple `(a)` is identical with the expression `a`. The nullary tuple `()` (pronounced “unit”) is of the trivial type `()` (also pronounced “unit”).
+* A _function literal_ or _lambda_ has the form `p1 p2 ... pn -> e`, where `p1` through `pn` are [regular identifiers](#identifiers) and `e` is a Unison expression (the _body_ of the lambda). The variables `p1` through `pn` are local variables in `e`, and they are bound to any values passed as arguments to the function when it’s called (see the section [Function Application](#function-application) for details on call semantics). For example `x -> x + 2` is a function literal.
+* A _tuple literal_ has the form `(v1,v2, ..., vn)` where `v1` through `vn` are expressions. A value `(a,b)` has type `(A,B)` if `a` has type `A` and `b` has type `B`. The expression `(a)` is the same as the expression `a`. The nullary tuple `()` (pronounced “unit”) is of the trivial type `()`. See [tuple types](#tuple-types) for details on these types and more ways of constructing tuples.
 
 #### Escape sequences
 Text literals can include the following escape sequences:
@@ -252,24 +327,26 @@ A line comment starts with `--` and is followed by any sequence of characters. A
 
 A line starting with `---` and containing no other characters is a _fold_. Any text below the fold is ignored by Unison.
 
+Unison does not currently support block comments. A comment can span multiple lines by adding `--` to the front of each line of the comment.
+
 ### Type annotations
-A type annotation has the form `e:T` where `e` is an expression and `T` is a type. This tells Unison that `e` is of type `T` (or a subtype of type `T`), and Unison will check that it does. It is a type error for the actual type of `e` to be anything other than a type that conforms to `T`.
+A type annotation has the form `e:T` where `e` is an expression and `T` is a type. This tells Unison that `e` should be of type `T` (or a subtype of type `T`), and Unison will check whether this is true. It's a type error for the actual type of `e` to be anything other than a type that conforms to `T`.
 
 ### Parenthesized expressions
-Any expression can appear in parentheses, and an expression `(e)` is identical with the expression `e`. Parentheses can be used to delimit where an expression begins and ends. For example `(f : P -> Q) y` is an application of the function `f` of type `P -> Q` to the argument `y`. The parentheses are needed to tell Unison that `y` is an argument to `f`, not a part of the type annotation expression.
+Any expression can appear in parentheses, and an expression `(e)` is the same as the expression `e`. Parentheses can be used to delimit where an expression begins and ends. For example `(f : P -> Q) y` is an application of the function `f` of type `P -> Q` to the argument `y`. The parentheses are needed to tell Unison that `y` is an argument to `f`, not a part of the type annotation expression.
 
 ### Function application
 A function application `f a1 a2 an` applies the function `f` to the arguments `a1` through `an`.
 
-The above syntax is valid where `f` is a [regular identifier](#identifiers). If the function name is an operator such as `*`, then the syntax for application isinfix :  `a1 * a2`. Any operator can be used in prefix position by surrounding it in parenthese: `(*) a1 a2`. Any [regular identifier](#identifiers) can be used infix by surrounding it in backticks: ``a1 `f` a2``
+The above syntax is valid where `f` is a [regular identifier](#identifiers). If the function name is an operator such as `*`, then the syntax for application is infix :  `a1 * a2`. Any operator can be used in prefix position by surrounding it in parentheses: `(*) a1 a2`. Any [regular identifier](#identifiers) can be used infix by surrounding it in backticks: ``a1 `f` a2``
 
 All Unison functions are of arity 1. That is, they take exactly one argument. An n-ary function is modeled either as a unary function that returns a further function (a partially applied function) which accepts the rest of the arguments, or as a unary function that accepts a tuple.
 
-Function application associates to the left, so the expression `f a b` is the same as `(f a) b`. If `f` has type `T1 -> T2 -> Tn` then `f a` is well typed only if `a` has type `T1`. The type of `f a` is then `T2 -> Tn`. The type constructor of function types, `->`, associates to the right. So `T1 -> T2 -> Tn` paranthesizes as `T1 -> (T2 -> TN)`. 
+Function application associates to the left, so the expression `f a b` is the same as `(f a) b`. If `f` has type `T1 -> T2 -> Tn` then `f a` is well typed only if `a` has type `T1`. The type of `f a` is then `T2 -> Tn`. The type constructor of function types, `->`, associates to the right. So `T1 -> T2 -> Tn` parenthesizes as `T1 -> (T2 -> TN)`. 
 
-The evaluation semantics of function application is applicative order [Call-by-Value](https://en.wikipedia.org/wiki/Evaluation_strategy#Call_by_value). In the expression `f x y`, generally `x` and `y` are fully evaluated in left-to-right order, then `f` is fully evaluated, then `x` and `y` are substituted into the body of `f`, and lastly the body is evaluated. 
+The evaluation semantics of function application is applicative order [Call-by-Value](https://en.wikipedia.org/wiki/Evaluation_strategy#Call_by_value). In the expression `f x y`, `x` and `y` are fully evaluated in left-to-right order, then `f` is fully evaluated, then `x` and `y` are substituted into the body of `f`, and lastly the body is evaluated. 
 
-An exception to the evaluation semantics is Boolean expressions, which have non-strict semantics.
+An exception to the evaluation semantics is [Boolean expressions](#boolean-expressions), which have non-strict semantics.
 
 ### Boolean expressions
 A Boolean expression has type `Boolean` which has two values, `true` and `false`.
@@ -282,7 +359,7 @@ Evaluation of conditional expressions is non-strict. The evaluation semantics of
 * If `c` evaluates to `true`, the expression `t`  is evaluated and `f` remains unevaluated. The whole expression reduces to the value of `t`.
 * If `c` evaluates to `false`, the expression `f` is evaluated and `t` remains unevaluated. The whole expression reduces to the value of `f`.
 
-The keywords `if`, `then`, and `else` each introduce a [Block](bear://x-callback-url/open-note?id=F413131E-1C06-4918-A60E-91F70B3DEFEC-73971-000448D034C2F1CB&header=Blocks%20and%20statements)  as follows:
+The keywords `if`, `then`, and `else` each introduce a [Block](#blocks-and-statements)  as follows:
 
 ```
 if 
@@ -302,12 +379,29 @@ A _Boolean disjunction expression_ is a `Boolean` expression of the form `or a b
 
 The evaluation semantics of `or a b` are equivalent to `if a then true else b`.
 
-### Quoted computations
-An expression can appear _quoted_ as `'e`, which is identical with `_ -> e`. If `e` has type `T`, then `'e` has type `() -> T`.
+### Delayed computations
+An expression can appear _delayed_ as `'e`, which is the same as `_ -> e`. If `e` has type `T`, then `'e` has type `() -> T`.
 
-If `c` is a quoted computation, it can be _forced_ with `!c`, which is identical with `c ()`. The expression `c` must have a type `() -> t` for some type `t`, in which case `!c` has type `t`.
+If `c` is a delayed computation, it can be _forced_ with `!c`, which is the same as `c ()`. The expression `c` must have a type `() -> t` for some type `t`, in which case `!c` has type `t`.
+
+Delayed computations are important for writing expressions that require [abilities](#abilities-and-ability-handlers). For example:
+
+``` haskell
+use io
+
+program : '{IO} ()
+program = 'let
+  printLine "What is your name?"
+  name = !readLine
+  printLine ("Hello, " ++ name)
+```
+
+This example defines a small I/O program. The type `{IO} ()` by itself is not allowed as the type of a top-level definition, since the `IO` ability must be provided by a handler, see [abilities and ability handlers](#abilities-and-ability-handlers)). Instead, `program` has the type `'{IO} ()` (note the `'` indicating a delayed computation). Inside a handler for `IO`, this computation can be forced with `!program`.
+
+Inside the program, `!readLine` has to be forced, as the type of `io.readLine` is `'{IO} Text`, a delayed computation which, when forced, reads a line from standard input.
 
 ### Case expressions and pattern matching
+
 A _case expression_ has the general form:
 
 ```
@@ -318,27 +412,29 @@ case e of
   pattern_n -> block_n
 ```
 
-Where `e` is an expression, called the _scrutinee_ of the case expression.
+Where `e` is an expression, called the _scrutinee_ of the case expression, and each _case_ has a [pattern to match against the value of the scrutinee](#pattern-matching) and a [block](#blocks-and-statements) to evaluate in case it matches.
 
 The evaluation semantics of case expressions are as follows:
 1. The scrutinee is evaluated.
 2. The first pattern is evaluated and matched against the value of the scrutinee.
-3. If the pattern matches, any variables in the pattern are subsituted into the block to the right of its `->` (called the _match body_) and the block is evaluated. Other patterns remain unevaluated. If the pattern doesn’t match then the next pattern is tried and so on.
+3. If the pattern matches, any variables in the pattern are substituted into the block to the right of its `->` (called the _match body_) and the block is evaluated. If the pattern doesn’t match then the next pattern is tried and so on.
 
-It is an error if none of the patterns match. In this version of Unison, this error occurs at runtime. In a future version, this should be a compile-time error.
+It's possible for Unison to actually evaluate cases in a different order, but such evaluation should always have the same observable behavior as trying the patterns in sequence.
+
+It is an error if none of the patterns match. In this version of Unison, the  error occurs at runtime. In a future version, this should be a compile-time error.
 
 #### Pattern matching
 A _pattern_ has one of the following forms:
 
 ##### Literal patterns
-A _literal pattern_ is a literal `Boolean`, `Nat`, `Int`, `Float`, or `Text`. A literal pattern matches if the scrutinee has that exact value. For example, the pattern `42` matches `Nat` expressions that reduce to `42`.
+A _literal pattern_ is a literal `Boolean`, `Nat`, `Int`, `Float`, or `Text`. A literal pattern matches if the scrutinee has that exact value. For example, the pattern `42` matches `Nat` expressions that evaluate to `42`.
 
 For example:
 
 ``` haskell
 case 2 + 2 of
   4 -> "Matches"
-  6 -> "Doesn't match"
+  _ -> "Doesn't match"
 ```
 
 ##### Variable patterns
@@ -352,13 +448,17 @@ case 1 + 1 of
 ```
 
 ##### Blank patterns
- A _blank pattern_ has the form `_x` where `x` is a [regular identifier](#identifiers). It matches any expression without creating a variable binding.
+A _blank pattern_ has the form `_`, or  `_x` where `x` is a [regular identifier](#identifiers). It matches any expression without creating a variable binding. A name like `_x` is treated the same as `_`, but can serve to communicate intent by the programmer.
 
 For example:
 
 ``` haskell
 case 42 of
   _ -> "Always matches"
+
+case x of
+  3 -> "It's three"
+  _otherwise -> "It's not three"
 ```
 
 ##### As-patterns
@@ -370,6 +470,7 @@ For example, this expression evaluates to `3`:
 case 1 + 1 of
   x@4 -> x * 2
   y@2 -> y + 1
+  _   -> 22
 ```
 
 ##### Constructor patterns
@@ -384,10 +485,12 @@ case List.at 3 xs of
 ```
 
 ##### List patterns
+
 A _list pattern_ matches a `List t` for some type `t` and has one of three forms:
-	1. `head +: tail` matches a list with at least one element. The pattern `head` is matched against the first element of the list and `tail` is matched against the suffix of the list with the first element removed.
-	2. `init :+ last` matches a list with at least one element. The pattern `init` is matched against the prefix of the list with the last element removed, and `last` is matched against the last element of the list.
-	3. A _literal list pattern_ has the form `[p1, p2, ... pn]` where `p1` through `pn` are patterns. The patterns `p1` through `pn` are  matched against the elements of the list. This pattern only matches if the length of the scrutinee is the same as the number of elements in the pattern. The pattern `[]` matches the empty list.
+
+1. `head +: tail` matches a list with at least one element. The pattern `head` is matched against the first element of the list and `tail` is matched against the suffix of the list with the first element removed.
+2. `init :+ last` matches a list with at least one element. The pattern `init` is matched against the prefix of the list with the last element removed, and `last` is matched against the last element of the list.
+3. A _literal list pattern_ has the form `[p1, p2, ... pn]` where `p1` through `pn` are patterns. The patterns `p1` through `pn` are  matched against the elements of the list. This pattern only matches if the length of the scrutinee is the same as the number of elements in the pattern. The pattern `[]` matches the empty list.
 
 Examples:
 
@@ -409,7 +512,7 @@ exactlyOne a = case a of
 ```
 
 ##### Tuple patterns
- A _tuple pattern_ has the form `(p1, p2, ... pn)` where `p1` through `pn` are patterns. The pattern matches if the scrutinee is a tuple of the same arity as the pattern and `p1` through `pn` match against the elements of the tuple. The pattern `(p)` is identical with the pattern `p`, and the pattern `()` matches the literal value `()` of the trivial type `()` (both pronounced “unit”).
+ A _tuple pattern_ has the form `(p1, p2, ... pn)` where `p1` through `pn` are patterns. The pattern matches if the scrutinee is a tuple of the same arity as the pattern and `p1` through `pn` match against the elements of the tuple. The pattern `(p)` is the same as the pattern `p`, and the pattern `()` matches the literal value `()` of the trivial type `()` (both pronounced “unit”).
 
 For example, this expression evaluates to `4`:
 
@@ -420,7 +523,7 @@ case (1,2,3) of
 
 ##### Ability patterns
 An _ability pattern_ only appears in an _ability handler_ and has one of two forms (see [Abilities and ability handlers](#abilities-and-ability-handlers) for details):
-	1. `{C p1 p2 ... pn -> k}` where `C` is the name of an ability constructor in scope, and `p1` through `pn` are patterns such that `n` is the arity of `C`. Note that `n` may be zero. This pattern matches if the scrutinee reduces to a fully applied invocation of the ability constructor `C` and the patterns `p1` through `pn` match the arguments to the constructor.  The scrutinee must be of type `Effect A T` for some ablity `{A}` and type `T`. The variable `k` will be bound to the continuation of the program. If the scrutinee has type `Effect A T` and `C` has type `X ->{A} Y`, then `k` has type `Y -> {A} T`.
+	1. `{C p1 p2 ... pn -> k}` where `C` is the name of an ability constructor in scope, and `p1` through `pn` are patterns such that `n` is the arity of `C`. Note that `n` may be zero. This pattern matches if the scrutinee reduces to a fully applied invocation of the ability constructor `C` and the patterns `p1` through `pn` match the arguments to the constructor.  The scrutinee must be of type `Effect A T` for some ability `{A}` and type `T`. The variable `k` will be bound to the continuation of the program. If the scrutinee has type `Effect A T` and `C` has type `X ->{A} Y`, then `k` has type `Y -> {A} T`.
 	2. `{p}` where `p` is a pattern. This matches the case where the computation is _pure_ (the value of type `Effect A T` calls none of the constructors of the ability `{A}`). A pattern match on an `Effect` is not complete unless this case is handled.
 
 See the section on [abilities and ability handlers](#abilities-and-ability-handlers) for examples of ability patterns.
@@ -514,19 +617,21 @@ Types are to values as _kinds_ are to type constructors. Unison attributes a kin
 For example `List`, a unary type constructor, has kind `Type -> Type` (it takes a type and yields a type), a binary type constructor like `Tuple` has kind `Type -> Type -> Type` (it takes a type and yields a partially applied unary type constructor). A type constructor of kind `(Type -> Type) -> Type` is a _higher-order_ type constructor (it takes a type constructor and yields a type). 
 
 ### Type application
-A type constructor is applied to a type or another type constructor, depending on its kind, similarly to how functions are applied to arguments at the term level. `C T` applies the type constructor `C` to the type `T`. Type application associates to the left, so the type `A B C` is identical with the type `(A B) C`.
+A type constructor is applied to a type or another type constructor, depending on its kind, similarly to how functions are applied to arguments at the term level. `C T` applies the type constructor `C` to the type `T`. Type application associates to the left, so the type `A B C` is the same as the type `(A B) C`.
 
 ### Function types
-The type `X -> Y` is a type for functions that take arguments of type `X` and yield results of type `Y`. Application of the binary type constructor `->` associates to the right, so the type `X -> Y -> Z` is identical with the type `X -> (Y -> Z)`.
+The type `X -> Y` is a type for functions that take arguments of type `X` and yield results of type `Y`. Application of the binary type constructor `->` associates to the right, so the type `X -> Y -> Z` is the same as the type `X -> (Y -> Z)`.
 
 ### Tuple types
 The type `(A,B)` is a type for binary tuples (pairs) of values, one of type `A` and another of type `B`.  The type `(A,B,C)` is a triple, and so on.
 
-A unary tuple type `(A)` is identical with the type `A`.
+The type `(A)` is the same as the type `A` and is not considered a tuple.
 
 The nullary tuple type `()` is the type of the unique value also written `()` and is pronouced “unit”.
 
-In the standard Unison syntax, tuples of arity 2 and higher are actually of a type `Tuple a b` for some types `a` and `b`. For example, `(X,Y)` is syntactic shorthand for the type `Tuple A (Tuple B ())`.
+In the standard Unison syntax, tuples of arity 2 and higher are actually of a type `Tuple a b` for some types `a` and `b`. For example, `(X,Y)` is syntactic shorthand for the type `Tuple X (Tuple Y ())`.
+
+Tuples are either constructed with the syntactic shorthand `(a,b)` (see [tuple literals](#tuple-literals)) or with the built-in `Tuple.Cons` data constructor: `Tuple.Cons a (Tuple.Cons b ())`.
 
 ### Built-in types
 Unison provides the following built-in types:
@@ -656,3 +761,4 @@ During typechecking, if Unison encounters a free variable that is not a name in 
 2. If exactly one of those terms would make the program typecheck when substituted for the free variable, perform that substitution and resume typechecking.
 
 If name resolution is unable to find the definition of a name, or is unable to disambiguate an ambiguous name, Unison reports an error.
+
