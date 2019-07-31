@@ -448,7 +448,7 @@ case 1 + 1 of
 ```
 
 ##### Blank patterns
-A _blank pattern_ has the form `_`, or  `_x` where `x` is a [regular identifier](#identifiers). It matches any expression without creating a variable binding. A name like `_x` is treated the same as `_`, but can serve to communicate intent by the programmer.
+A _blank pattern_ has the form `_`. It matches any expression without creating a variable binding.
 
 For example:
 
@@ -458,7 +458,7 @@ case 42 of
 
 case x of
   3 -> "It's three"
-  _otherwise -> "It's not three"
+  _ -> "It's not three"
 ```
 
 ##### As-patterns
