@@ -174,7 +174,7 @@ When Unison compiles a type definition, it generates a term for each data constr
 
 The general form of a type declaration is as follows:
 
-```
+``` haskell
 type TypeConstructor p1 p2 … pn 
   = DataConstructor_1
   | DataConstructor_2
@@ -203,7 +203,7 @@ A _use clause_ tells Unison to allow [identifiers](#identifiers) from a given [n
 
 In this example, the `use .base.List` clause allows the definition that follows it to refer to `.base.List.take` as simply `take`:
 
-```
+``` haskell
 use .base.List
 
 oneTwo = take 2 [1,2,3]
@@ -211,7 +211,7 @@ oneTwo = take 2 [1,2,3]
 
 The general form of `use` clauses is as follows:
 
-```
+``` haskell
 use namespace name_1 name_2 .. name_n
 ```
 
@@ -254,7 +254,7 @@ The following names are reserved by Unison and cannot be used as identifiers: `=
 ### Blocks and statements
 A block is an expression that has the general form:
 
-```
+``` haskell
 statement_1
 statement_2
 ...
@@ -270,7 +270,7 @@ A block can have zero or more statements, and the value of the whole block is th
 
 An example of a block (this evaluates to `16`):
 
-```
+``` haskell
 x = 4
 y = x + 2
 f a = a + y
@@ -279,7 +279,7 @@ f 10
 
 A number of language constructs introduce blocks. These are detailed in the relevant sections of this reference. Wherever Unison expects an expression, a block can be introduced with the  `let` keyword:
 
-```
+``` haskell
 let <block>
 ```
 
@@ -294,7 +294,7 @@ A statement or expression in a block can continue for more than one line as long
 
 For example, these are valid indentations for a block:
 
-```
+``` haskell
 let 
   x = 1
   y = 2
@@ -308,7 +308,7 @@ let x = 1
 
 Whereas these are incorrect:
 
-```
+``` haskell
 let x = 1
   y = 2
   x + y
@@ -387,7 +387,7 @@ Evaluation of conditional expressions is non-strict. The evaluation semantics of
 
 The keywords `if`, `then`, and `else` each introduce a [Block](#blocks-and-statements)  as follows:
 
-```
+``` haskell
 if 
   <block>
 then
@@ -430,7 +430,7 @@ Inside the program, `!readLine` has to be forced, as the type of `io.readLine` i
 
 A _case expression_ has the general form:
 
-```
+``` Haskell
 case e of 
   pattern_1 -> block_1
   pattern_2 -> block_2
@@ -600,7 +600,7 @@ Unison attributes a type to every valid expression. For example:
 
 The meanings of these types and more are explained in the sections below.
 
-A full treatise on types is beyond the scope of this document. In short, types help enforce that Unison programs make logical sense. Every expression must we well typed, or Unison will give a compile-time type error. For example:
+A full treatise on types is beyond the scope of this document. In short, types help enforce that Unison programs make logical sense. Every expression must be well typed, or Unison will give a compile-time type error. For example:
 
 * `[1,2,3]` is well typed, since lists require all elements to be of the same type.
 * `42 + "hello"` is not well typed, since the type of `+` disallows adding numbers and text together.
@@ -787,7 +787,7 @@ The program `p` evaluates to `0`. If we remove the `Abort.aborting` call, it eva
 
 Note that although the ability constructor is given the signature `aborting : ()`, its actual type is `{Abort} ()`.
 
-The pattern `{ Abort.aborting -> _ }` will matches when the `Abort.aborting` call in `p` occurs. This pattern ignores its continuation since it will not invoke it (which is how it aborts the program). The continuation at this point is the expression `_ -> x + 2`.
+The pattern `{ Abort.aborting -> _ }` matches when the `Abort.aborting` call in `p` occurs. This pattern ignores its continuation since it will not invoke it (which is how it aborts the program). The continuation at this point is the expression `_ -> x + 2`.
 
 The pattern `{ x }` matches the case where the computation is pure (makes no further requests for the `Abort` ability and the continuation is empty). A pattern match on a `Request` is not complete unless this case is handled.
 
@@ -817,9 +817,9 @@ It's worth noting that this is a mutual recursion between `storeHandler` and the
 
 An example use of the above handler:
 
-```
+``` haskell
 modifyStore : (v -> v) ->{Store v} ()
-mofifyStore f = 
+modifyStore f = 
   v = Store.get
   Store.put (f v)
 ```
@@ -842,4 +842,7 @@ During typechecking, if Unison encounters a free term variable that is not a ter
 2. If exactly one of those terms has a type that conforms to the expected type of the variable (the type system has always inferred this type already at this point), perform that substitution and resume typechecking.
 
 If name resolution is unable to find the definition of a name, or is unable to disambiguate an ambiguous name, Unison reports an error.
+
+
+
 
