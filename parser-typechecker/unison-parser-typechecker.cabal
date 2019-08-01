@@ -215,7 +215,7 @@ library
     util,
     vector
 
-  ghc-options: -Wall -O0 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O2 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   default-extensions:
     ApplicativeDo,
     DeriveFunctor,
@@ -240,7 +240,7 @@ library
 executable unison
   main-is: Main.hs
   hs-source-dirs: unison
-  ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  ghc-options: -Wall -O2 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
   build-depends:
     base,
     containers,
