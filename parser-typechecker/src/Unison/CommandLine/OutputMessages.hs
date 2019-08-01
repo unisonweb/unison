@@ -385,43 +385,43 @@ notifyUser dir o = case o of
       "I loaded " <> P.text sourceName <> " and didn't find anything."
   TodoOutput names todo -> todoOutput names todo
   GitError input e -> putPrettyLn $ case e of
-    NoGit -> P.wrap $ 
+    NoGit -> P.wrap $
       "I couldn't find git. Make sure it's installed and on your path."
     NoRemoteRepoAt p -> P.wrap
        $ "I couldn't access a git "
       <> "repository at " <> P.group (P.text p <> ".")
       <> "Make sure the repo exists "
       <> "and that you have access to it."
-    NoLocalRepoAt p -> P.wrap 
+    NoLocalRepoAt p -> P.wrap
        $ "The directory at " <> P.string p
       <> "doesn't seem to contain a git repository."
     CheckoutFailed t -> P.wrap
        $ "I couldn't do a git checkout of "
-      <> P.group (P.text t <> ".") 
+      <> P.group (P.text t <> ".")
       <> "Make sure there's a branch or commit with that name."
     PushDestinationHasNewStuff url treeish diff -> P.callout "⏸" . P.lines $ [
       P.wrap $ "The repository at" <> P.blue (P.text url)
-            <> (if Text.null treeish then "" 
+            <> (if Text.null treeish then ""
                 else "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
       "", P.indentN 2 (prettyDiff diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
-       P.indentN 2 pull, "", 
-       P.wrap $ 
+       P.indentN 2 pull, "",
+       P.wrap $
          "to merge these changes locally." <>
          "Then try your" <> push <> "again."
       ]
       where
       push = P.group . P.backticked $ IP.patternName IP.push
-      pull = case input of 
-        Input.PushRemoteBranchI Nothing p -> 
+      pull = case input of
+        Input.PushRemoteBranchI Nothing p ->
           P.sep " " [IP.patternName IP.pull, P.shown p ]
-        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [ 
+        Input.PushRemoteBranchI (Just r) p -> P.sepNonEmpty " " [
           IP.patternName IP.pull,
           P.text (RemoteRepo.url r),
           P.shown p,
           if RemoteRepo.commit r /= "master" then P.text (RemoteRepo.commit r)
-          else "" ] 
+          else "" ]
         _ -> "⁉️ Unison bug - push command expected"
     SomeOtherError msg -> P.callout "‼" . P.lines $ [
       P.wrap "I ran into an error:", "",
@@ -510,7 +510,7 @@ notifyUser dir o = case o of
       P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the merge:", "",
       prettyDiff diff, "",
       tip "You can always `undo` if this wasn't what you wanted." ]
-    Input.PullRemoteBranchI _ dest -> 
+    Input.PullRemoteBranchI _ dest ->
       if Names.isEmptyDiff diff then
         "✅  Looks like " <> prettyPath' dest <> " is up to date."
       else P.callout "🆕" . P.lines $ [
@@ -523,11 +523,11 @@ notifyUser dir o = case o of
       ]
     _ -> prettyDiff diff
   NothingTodo input -> putPrettyLn . P.callout "😶" $ case input of
-    Input.MergeLocalBranchI src dest -> 
+    Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
-    Input.PreviewMergeLocalBranchI src dest -> 
+    Input.PreviewMergeLocalBranchI src dest ->
       P.wrap $ "The merge will have no effect, since the destination"
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
@@ -562,7 +562,7 @@ notifyUser dir o = case o of
 --        map (fromString . Names.renderNameTarget) (toList targets)
 
 prettyPath' :: Path.Path' -> P.Pretty P.ColorText
-prettyPath' p' = 
+prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current path"
   else P.shown p'
@@ -876,17 +876,17 @@ noResults = P.callout "😶" $
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
-                   -> E.ShowAll 
+                   -> E.ShowAll
                    -> [SR'.SearchResult' v a]
                    -> P.Pretty P.ColorText
 listOfDefinitions' ppe detailed showAll results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [ if len <= cap then mempty 
+    [ if len <= cap then mempty
       else P.lines [ "... " <> P.shown (len - cap) <> " more"
                    , ""
-                   , P.wrap $ 
-                       "The" <> makeExample IP.findAll [] <> 
+                   , P.wrap $
+                       "The" <> makeExample IP.findAll [] <>
                        "command shows all results." ]
     ,formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
@@ -900,7 +900,7 @@ listOfDefinitions' ppe detailed showAll results =
   len = length results
   cap = if detailed || showAll then len else 15
   prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") 
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
                (take cap prettyResults)
   -- todo: group this by namespace
   prettyResults =
@@ -985,15 +985,19 @@ prettyDiff diff = let
   adds = Names.addedNames diff
   removes = Names.removedNames diff
   addedTerms = [ n | (n,r) <- R.toList (Names.terms0 adds)
-                   , not $ R.memberRan r (Names.terms0 removes) ] 
+                   , not $ R.memberRan r (Names.terms0 removes) ]
   addedTypes = [ n | (n,r) <- R.toList (Names.types0 adds)
-                   , not $ R.memberRan r (Names.types0 removes) ] 
-  added = Name.sortNames . nubOrd $ (addedTerms <> addedTypes) 
+                   , not $ R.memberRan r (Names.types0 removes) ]
+  added = Name.sortNames . nubOrd $ (addedTerms <> addedTypes)
 
   removedTerms = [ n | (n,r) <- R.toList (Names.terms0 removes)
-                     , not $ R.memberRan r (Names.terms0 adds) ]
+                     , not $ R.memberRan r (Names.terms0 adds)
+                     , Set.notMember n addedTermsSet ] where
+    addedTermsSet = Set.fromList addedTerms
   removedTypes = [ n | (n,r) <- R.toList (Names.types0 removes)
-                     , not $ R.memberRan r (Names.types0 adds) ]
+                     , not $ R.memberRan r (Names.types0 adds)
+                     , Set.notMember n addedTypesSet ] where
+    addedTypesSet = Set.fromList addedTypes
   removed = Name.sortNames . nubOrd $ (removedTerms <> removedTypes)
 
   movedTerms = [ (n,n2) | (n,r) <- R.toList (Names.terms0 removes)
@@ -1002,51 +1006,51 @@ prettyDiff diff = let
                         , n2 <- toList (R.lookupRan r (Names.types adds)) ]
   moved = Name.sortNamed fst . nubOrd $ (movedTerms <> movedTypes)
 
-  copiedTerms = List.multimap [ 
+  copiedTerms = List.multimap [
     (n,n2) | (n2,r) <- R.toList (Names.terms0 adds)
            , not (R.memberRan r (Names.terms0 removes))
-           , n <- toList (R.lookupRan r (Names.terms0 orig)) ] 
-  copiedTypes = List.multimap [ 
+           , n <- toList (R.lookupRan r (Names.terms0 orig)) ]
+  copiedTypes = List.multimap [
     (n,n2) | (n2,r) <- R.toList (Names.types0 adds)
            , not (R.memberRan r (Names.types0 removes))
-           , n <- toList (R.lookupRan r (Names.types0 orig)) ] 
-  copied = Name.sortNamed fst $ 
+           , n <- toList (R.lookupRan r (Names.types0 orig)) ]
+  copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
-  
+
   in P.sepNonEmpty "\n\n" [
-       if not $ null added then 
+       if not $ null added then
          P.lines [
            -- todo: split out updates
            P.green "+ Adds / updates:", "",
-           P.indentN 2 . P.wrap $ 
-             P.excerptSep 10 " " (prettyName <$> added) 
+           P.indentN 2 . P.wrap $
+             P.excerptSep 10 " " (prettyName <$> added)
          ]
        else mempty,
-       if not $ null removed then 
+       if not $ null removed then
          P.lines [
            P.hiBlack "- Deletes:", "",
-           P.indentN 2 . P.wrap $ 
-             P.excerptSep 10 " " (prettyName <$> removed) 
+           P.indentN 2 . P.wrap $
+             P.excerptSep 10 " " (prettyName <$> removed)
          ]
        else mempty,
-       if not $ null moved then 
+       if not $ null moved then
          P.lines [
            P.purple "> Moves:", "",
-           P.indentN 2 $ 
+           P.indentN 2 $
              P.excerptColumn2Headed 10
                (P.hiBlack "Original name", P.hiBlack "New name")
                [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
          ]
        else mempty,
-       if not $ null copied then 
+       if not $ null copied then
          P.lines [
            P.yellow "= Copies:", "",
-           P.indentN 2 $ 
+           P.indentN 2 $
              P.excerptColumn2Headed 10
                (P.hiBlack "Original name", P.hiBlack "New name(s)")
                [ (prettyName n, P.sep " " (prettyName <$> ns)) | (n, ns) <- copied ]
          ]
-       else mempty 
+       else mempty
      ]
 
 isTestOk :: Codebase.Term v Ann -> Bool
