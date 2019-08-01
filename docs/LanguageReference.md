@@ -187,7 +187,7 @@ The optional `unique` keyword introduces a [unique type](#unique-types), explain
 
 #### Unique types
 
-A type declaration gives a name to a type, but Unison does not uniquely identify a type by its name. Rather, the #[hash](#hashes) of a type's definition identifies the type. The hash is based on the _structure_ of the type definition, with all identifiers removed.
+A type declaration gives a name to a type, but Unison does not uniquely identify a type by its name. Rather, the [hash](#hashes) of a type's definition identifies the type. The hash is based on the _structure_ of the type definition, with all identifiers removed.
 
 For example, Unison considers these type declarations to declare _the exact same type_, even though they give different names to both the type constructor and the data constructors:
 
