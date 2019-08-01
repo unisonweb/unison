@@ -18,6 +18,7 @@ A formal specification of Unison is outside the scope of this document, but link
       - [Term definition](#term-definition)
     + [User-defined data types](#user-defined-data-types)
     + [User-defined abilities](#user-defined-abilities)
+    + [Unique types](#unique-types)
     + [Use clauses](#use-clauses)
   * [Unison expressions](#unison-expressions)
     + [Identifiers](#identifiers)
@@ -175,12 +176,60 @@ When Unison compiles a type definition, it generates a term for each data constr
 The general form of a type declaration is as follows:
 
 ``` haskell
-type TypeConstructor p1 p2 … pn 
+<unique<[<regular-identifier>]?>?> type TypeConstructor p1 p2 … pn 
   = DataConstructor_1
   | DataConstructor_2
   ..
   | DataConstructor_n
 ```
+
+The optional `unique` keyword introduces a [unique type](#unique-types), explained in the next section.
+
+#### Unique types
+
+A type declaration gives a name to a type, but Unison does not uniquely identify a type by its name. Rather, the #[hash](#hashes) of a type's definition identifies the type. The hash is based on the _structure_ of the type definition, with all identifiers removed.
+
+For example, Unison considers these type declarations to declare _the exact same type_, even though they give different names to both the type constructor and the data constructors:
+
+``` haskell
+type Optional a = Some a | None
+
+type Maybe a = Just a | Nothing
+```
+
+So a value `Some 10` and a value `Just 10` are in fact the same value and these two expressions have the same type. Even though one nominally has the type `Optional Nat` and the other `Maybe Nat`, Unison understands that as the type `#5isltsdct9fhcrvu ##Nat`.
+
+This is not always what you want. Sometimes you want to give meaning to a type that is more than just its structure. For example, it might be confusing that these two types are identical:
+
+``` haskell
+type Suit = Hearts | Spades | Diamonds | Clubs
+
+type Direction = North | South | East | West
+```
+
+Unison will consider every unary type constructor with four nullary data constructors as identical to these declarations. So Unison will not stop us providing a `Direction` where a `Suit` is expected.
+
+The `unique` keyword solves this problem:
+
+``` haskell
+unique type Suit = Hearts | Spades | Diamonds | Clubs
+
+unique type Direction = North | South | East | West
+```
+
+When compiling these declarations, Unison will generate a [universally unique identifier](https://en.wikipedia.org/wiki/Universally_unique_identifier) for the type and use that identifier when generating the hash for the type. As a result, the type gets a hash that is universally unique.
+
+You can supply a unique identifier yourself if you want the hash to be completely determined by the source code. The optional identifier goes in square brackets after the `unique` keyword:
+
+``` haskell
+unique[suit_CBtSxLszHECvjClJpNtxYw] type
+  Suit = Hearts | Spades | Diamonds | Clubs
+
+unique[direction_PWOxXSDnUkKOJttYCZTQ3Q] type
+  Direction = North | South | East | West
+```
+
+The unique identifier must be a valid [regular identifier](#identifiers). It's a good idea to use a UUID generator to generate these for you to ensure that they are unique.
 
 ### User-defined abilities
 
