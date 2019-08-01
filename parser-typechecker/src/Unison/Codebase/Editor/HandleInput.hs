@@ -310,7 +310,7 @@ loop = do
             respond (ShowDiff input (Branch.namesDiff destb merged))
             patch <- getPatchAt defaultPatchPath
             void $ propagatePatch patch dest
-          else respond (NothingTodo input)  
+          else respond (NothingTodo input)
 
       PreviewMergeLocalBranchI src0 dest0 -> do
         let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
@@ -411,7 +411,7 @@ loop = do
           Just (_, prev) -> do
             root .= prev
             eval $ SyncLocalRootBranch prev
-            respond $ ShowDiff input (Branch.namesDiff prev root')  
+            respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
         ([r],       []) -> do
@@ -894,8 +894,9 @@ loop = do
         names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
         ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+        let names0 = Branch.toNames0 (Branch.head branch)
         -- checkTodo only needs the local references to check for obsolete defs
-        respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
+        respond . TodoOutput ppe =<< checkTodo patch names0
 
       TestI showOk showFail -> do
         let
@@ -1062,15 +1063,20 @@ loop = do
 -- Returns True if the operation changed the namespace, False otherwise.
 propagatePatch :: (Monad m, Var v) => Patch -> Path.Absolute -> Action' m v Bool
 propagatePatch patch scopePath = do
-  names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-  ppe <- prettyPrintEnv names
-  -- arya: wait, what is this `ppe` here for again exactly?
-  changed <- updateAtM scopePath (propagate ppe patch)
-  -- updated names/ppe after propagation
-  names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-  ppe <- prettyPrintEnv names
-  when changed $
-    respond . TodoOutput ppe =<< checkTodo patch (Names3.currentNames names)
+  changed <- do
+    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+    ppe <- prettyPrintEnv names
+    -- arya: wait, what is this `ppe` here for again exactly?
+    -- ppe is used for some output message that propagate can issue in error
+    -- condition PatchInvolvesExternalDependencies
+    updateAtM scopePath (propagate ppe patch)
+  when changed $ do
+    scope <- getAt scopePath
+    let names0 = Branch.toNames0 (Branch.head scope)
+    -- this will be different AFTER the update succeeds
+    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+    ppe <- prettyPrintEnv names
+    respond . TodoOutput ppe =<< checkTodo patch names0
   pure changed
 
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
@@ -1152,7 +1158,7 @@ searchResultToHQString = \case
 
 -- Return a list of definitions whose names fuzzy match the given queries.
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
-fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) = 
+fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
   Find.simpleFuzzyScore q n
 
 -- return `name` and `name.<everything>...`
