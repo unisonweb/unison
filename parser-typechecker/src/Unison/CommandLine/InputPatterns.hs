@@ -38,6 +38,7 @@ import qualified Unison.Names2 as Names
 import qualified Unison.Util.ColorText as CT
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Util.Relation as R
+import qualified Unison.Codebase.Editor.SlurpResult as SR
 
 showPatternHelp :: InputPattern -> P.Pretty CT.ColorText
 showPatternHelp i = P.lines [
@@ -47,7 +48,7 @@ showPatternHelp i = P.lines [
      else ""),
   P.wrap $ I.help i ]
 
-patternName :: InputPattern -> P.Pretty P.ColorText 
+patternName :: InputPattern -> P.Pretty P.ColorText
 patternName = fromString . I.patternName
 
 -- `example list ["foo", "bar"]` (haskell) becomes `list foo bar` (pretty)
@@ -525,7 +526,45 @@ helpTopics = Map.fromList [
     "",
     aside "Example" "use `help filestatus` to learn more about that topic."
     ]
-  fileStatusMsg = "🚧  Under construction!! Todo: docs here."
+  blankline = ("","")
+  fileStatusMsg = P.callout "📓" . P.lines $ [
+    P.wrap $ "Here's a list of possible status messages you might see"
+          <> "for definitions in a .u file.", "",
+    P.wrapColumn2 [
+      (P.bold $ SR.prettyStatus SR.Collision,
+       "A definition with the same name as an existing definition. Doing" <>
+       "`update` instead of `add` will turn this failure into a successful" <>
+       "update."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.Conflicted,
+       "A definition with the same name as an existing definition." <>
+       "Resolving the conflict and then trying an `update` again will" <>
+       "turn this into a successful update."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.TermExistingConstructorCollision,
+       "A definition with the same name as an existing constructor for " <>
+       "some data type. Rename your definition or the data type before" <>
+       "trying again to `add` or `update`."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.ConstructorExistingTermCollision,
+       "A type defined in the file has a constructor that's named the" <>
+       "same as an existing term. Rename that term or your constructor" <>
+       "before trying again to `add` or `update`."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.Alias,
+       "A definition in the file already has another name." <>
+       "You can use the `alias.term` or `alias.type` commands" <>
+       "to create new names for existing definitions."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.BlockedDependency,
+       "This definition was blocked because it dependended on " <>
+       "a definition with a failed status."),
+      blankline,
+      (P.bold $ SR.prettyStatus SR.ExtraDefinition,
+       "This definition was added because it was a dependency of" <>
+       "a definition explicitly selected.")
+      ]
+   ]
   testCacheMsg = P.callout "🎈" . P.lines $ [
     P.wrap $ "Unison caches the results of " <> P.blue "test>"
           <> "watch expressions. Since these expressions are pure and"

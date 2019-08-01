@@ -496,8 +496,12 @@ notifyUser dir o = case o of
   TermAmbiguous _ _ _ -> putPrettyLn "That term is ambiguous."
   BadDestinationBranch _ _ -> putPrettyLn "That destination namespace is bad."
   TermNotFound' _ _ -> putPrettyLn "That term was not found."
-  BranchDiff _ _ -> putPrettyLn "Those branches are different."
-  NothingToPatch _ _ -> putPrettyLn "There's nothing to patch."
+  BranchDiff _ _ -> putPrettyLn "Those namespaces are different."
+  NothingToPatch _patchPath dest -> putPrettyLn $
+    P.callout "😶" . P.wrap
+       $ "This had no effect. Perhaps the patch has already been applied"
+      <> "to" <> prettyPath' dest <> "or it doesn't intersect"
+      <> "with the definitions in" <> P.group (prettyPath' dest <> ".")
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
@@ -564,7 +568,7 @@ notifyUser dir o = case o of
 prettyPath' :: Path.Path' -> P.Pretty P.ColorText
 prettyPath' p' =
   if Path.isCurrentPath p'
-  then "the current path"
+  then "the current namespace"
   else P.shown p'
 
 formatMissingStuff :: (Show tm, Show typ) =>
