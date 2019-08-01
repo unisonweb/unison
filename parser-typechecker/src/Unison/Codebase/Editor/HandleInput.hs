@@ -180,6 +180,9 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
+defaultPatchNameSegment :: NameSegment
+defaultPatchNameSegment = NameSegment "patch"
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf           <- use latestTypecheckedFile
@@ -193,7 +196,7 @@ loop = do
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
-      defaultPatchPath = (Path' $ Left currentPath', NameSegment "patch")
+      defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -303,7 +306,10 @@ loop = do
           destb <- getAt dest
           merged <- eval . Eval $ Branch.merge srcb destb
           b <- updateAtM dest $ const (pure merged)
-          if b then respond (ShowDiff input (Branch.namesDiff destb merged))  
+          if b then do
+            respond (ShowDiff input (Branch.namesDiff destb merged))
+            patch <- getPatchAt defaultPatchPath
+            void $ propagatePatch patch dest
           else respond (NothingTodo input)  
 
       PreviewMergeLocalBranchI src0 dest0 -> do
@@ -787,13 +793,10 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
-      UpdateI maybePatch hqs -> case uf of
+      UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
-          let (p, seg) =
-                  maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
-                        (Path.toAbsoluteSplit currentPath')
-                        maybePatch
+          let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
@@ -827,9 +830,7 @@ loop = do
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
                          , (n, r) <- Names3.constructorsForType0 oldTypeRef currentPathNames0 ]
 
-          ye'ol'Patch <- do
-            b <- getAt p
-            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          ye'ol'Patch <- getPatchAt patchPath
           -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
           -- with (a0 -> a') in patch'.
           -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
@@ -865,6 +866,7 @@ loop = do
                 p' = foldl' step1 p typeEdits
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+              (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
               updatePatches :: Branch0 m -> m (Branch0 m)
               updatePatches = Branch.modifyPatches seg updatePatch
 
@@ -1279,13 +1281,19 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => Input -> RemoteRepo -> Path.Absolute -> Action m i v ()
+  :: Monad m => Var v => Input -> RemoteRepo -> Path.Absolute -> Action' m v ()
 loadRemoteBranchAt input repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
     Left  e -> eval . Notify $ GitError input e
-    Right b -> void $ updateAtM p (doMerge b)
-  where 
+    Right b -> do
+      changed <- updateAtM p (doMerge b)
+      when changed $ do
+        merged <- getAt p
+        patch <- eval . Eval $
+          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
+        void $ propagatePatch patch p
+  where
   doMerge b b0 = do
     merged <- eval . Eval $ Branch.merge b b0
     respond $ ShowDiff input (Branch.namesDiff b0 merged)
