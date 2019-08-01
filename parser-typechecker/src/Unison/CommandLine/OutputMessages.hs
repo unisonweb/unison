@@ -500,8 +500,8 @@ notifyUser dir o = case o of
   NothingToPatch _patchPath dest -> putPrettyLn $
     P.callout "😶" . P.wrap
        $ "This had no effect. Perhaps the patch has already been applied"
-      <> "to" <> prettyPath' dest <> "or it doesn't intersect"
-      <> "with the definitions in" <> P.group (prettyPath' dest <> ".")
+      <> "or it doesn't intersect with the definitions in"
+      <> P.group (prettyPath' dest <> ".")
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
@@ -569,7 +569,7 @@ prettyPath' :: Path.Path' -> P.Pretty P.ColorText
 prettyPath' p' =
   if Path.isCurrentPath p'
   then "the current namespace"
-  else P.shown p'
+  else P.blue (P.shown p')
 
 formatMissingStuff :: (Show tm, Show typ) =>
   [(HQ.HashQualified, tm)] -> [(HQ.HashQualified, typ)] -> P.Pretty P.ColorText
