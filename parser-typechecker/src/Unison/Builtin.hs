@@ -304,8 +304,6 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
-  , B "Effect.pure" $ forall2 "e" "a" (\e a -> a --> effect e a) -- Effect ambient e a
-  , B "Effect.bind" $ forall4 "e" "a" "ambient" "b" (\e a ambient b -> delayed (effectful e a) --> (a --> effectful ambient b) --> effect e a) -- Effect ambient e a
   ]
   where
     int = Type.int ()
@@ -326,12 +324,6 @@ builtinsSrc =
         a = Var.named name
       in Type.forall () a (body $ Type.var () a)
 
-    forall2 :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
-    forall2 name1 name2 body = forall1 name1 (forall1 name2 . body)
-
-    forall4 :: Var v => Text -> Text -> Text -> Text -> (Type v -> Type v -> Type v -> Type v -> Type v) -> Type v
-    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (body tv1 tv2))
-
     app :: Ord v => Type v -> Type v -> Type v
     app = Type.app ()
 
@@ -341,11 +333,3 @@ builtinsSrc =
     optional :: Ord v => Type v -> Type v
     optional arg = DD.optionalType () `app` arg
 
-    effect :: Ord v => Type v -> Type v -> Type v
-    effect e a = Type.effectType () `app` e `app` a
-
-    effectful :: Ord v => Type v -> Type v -> Type v
-    effectful = Type.effect1 ()
-
-    delayed :: Ord v => Type v -> Type v
-    delayed a = DD.unitType () --> a

@@ -95,9 +95,9 @@ getTypeMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
-  [] -> snd <$> Map.lookup seg (Branch._children b)
+  [] -> Map.lookup seg (Branch._children b)
   h : p ->
-    (Branch.head . snd <$> Map.lookup h (Branch._children b)) >>=
+    (Branch.head <$> Map.lookup h (Branch._children b)) >>=
       getBranch (Path.fromList p, seg)
 
 

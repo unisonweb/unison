@@ -344,16 +344,16 @@ excerptColumn2Headed
   -> (Pretty s, Pretty s)
   -> [(Pretty s, Pretty s)]
   -> Pretty s
-excerptColumn2Headed max hd cols = 
-  let len = length cols 
+excerptColumn2Headed max hd cols =
+  let len = length cols
   in if len <= max then column2 (hd:cols)
      else lines [column2 (hd:take max cols), "... " <> shown (len - max) <> " more"]
 
-excerptColumn2 
+excerptColumn2
   :: (LL.ListLike s Char, IsString s) => Int -> [(Pretty s, Pretty s)] -> Pretty s
-excerptColumn2 max cols = 
-  let len = length cols 
-  in if len <= max then column2 cols 
+excerptColumn2 max cols =
+  let len = length cols
+  in if len <= max then column2 cols
      else lines [column2 cols, "... " <> shown (len - max)]
 
 column2
@@ -374,7 +374,7 @@ column3sep sep rows = let
 wrapColumn2 ::
   (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
 wrapColumn2 rows = lines (align rows) where
-  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 1
+  align rows = let lwidth = foldl' max 0 (preferredWidth . fst <$> rows) + 2
     in [ group (rightPad lwidth l <> indentNAfterNewline lwidth (wrap r))
        | (l, r) <- rows]
 
