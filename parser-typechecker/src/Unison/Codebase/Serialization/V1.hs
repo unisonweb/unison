@@ -34,7 +34,6 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
 import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch         ( Branch0(..) )
 import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
@@ -655,21 +654,12 @@ getStar3 getF getD1 getD2 getD3 =
     <*> getRelation getF getD2
     <*> getRelation getF getD3
 
-putBranch0 :: MonadPut m => Branch0 n -> m ()
-putBranch0 b = do
-  putBranchStar putReferent putNameSegment (Branch._terms b)
-  putBranchStar putReference putNameSegment (Branch._types b)
-  putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
-              (Map.toList (Branch._children b))
-
 putBranchStar :: MonadPut m => (a -> m ()) -> (n -> m ()) -> Branch.Star a n -> m ()
 putBranchStar putA putN =
   putStar3 putA putN putMetadataType (putPair putMetadataType putMetadataValue)
 
 getBranchStar :: (Ord a, Ord n, MonadGet m) => m a -> m n -> m (Branch.Star a n)
 getBranchStar getA getN = getStar3 getA getN getMetadataType (getPair getMetadataType getMetadataValue)
-
--- getBranch0 :: MonadGet m => m (Branch00)
 
 putLink :: MonadPut m => (Hash, mb) -> m ()
 putLink (h, _) = do
