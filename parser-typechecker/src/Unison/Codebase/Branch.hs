@@ -475,7 +475,7 @@ stepManyAtM actions = stepM (stepManyAt0M actions)
 -- starting at the leaves, apply `f` to every level of the branch.
 stepEverywhere :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
 stepEverywhere f Branch0{..} = f (branch0 _terms _types children _edits) where
-  children = fmap (step f) _children -- fixme - need some recursion here
+  children = fmap (step $ stepEverywhere f) _children
 
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
