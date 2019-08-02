@@ -48,6 +48,20 @@ let
         );
       };
     };
+
+    unison-parser-typechecker-static = pkgsOld.haskell.lib.justStaticExecutables pkgsNew.haskell.packages."${compiler}".unison-parser-typechecker;
+
+    unison-parser-typechecker-image = pkgsOld.dockerTools.buildImage {
+      name = "unison";
+      fromImage = pkgsOld.dockerTools.pullImage {
+        imageName = "alpine";
+        imageDigest = "sha256:6a92cd1fcdc8d8cdec60f33dda4db2cb1fcdcacf3410a8e05b3741f44a9b5998";
+        sha256 = "03pnhggr478cp7hap0z9daccq1k1xglna2zm2gw0ynq8qjp6w9dl";
+      };
+      config.Cmd = [
+        "${pkgsNew.unison-parser-typechecker-static}/bin/ucm"
+      ];
+    };
   };
 
   bootstrap = import <nixpkgs> { };
@@ -65,8 +79,17 @@ let
     overlays = [ overlayShared ];
   };
 
+  pkgs-linux = pkgs // {
+    system = "x86_64-linux";
+  };
+
 in
   rec {
+    inherit (pkgs-linux)
+      unison-parser-typechecker-static
+      unison-parser-typechecker-image
+    ;
+
     inherit (pkgs.haskell.packages."${compiler}")
       easytest
       haskeline
