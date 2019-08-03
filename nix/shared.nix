@@ -58,9 +58,24 @@ let
         imageDigest = "sha256:6a92cd1fcdc8d8cdec60f33dda4db2cb1fcdcacf3410a8e05b3741f44a9b5998";
         sha256 = "03pnhggr478cp7hap0z9daccq1k1xglna2zm2gw0ynq8qjp6w9dl";
       };
-      config.Cmd = [
-        "${pkgsNew.unison-parser-typechecker-static}/bin/ucm"
+      extraCommands = ''
+        mkdir ./unison
+      '';
+      contents = [
+        pkgsNew.git
       ];
+      config = {
+        Cmd = [
+          "${pkgsNew.unison-parser-typechecker-static}/bin/unison"
+        ];
+        Env = [
+          "LC_ALL=C.UTF-8"
+        ];
+        WorkingDir = "/unison";
+        Volumes = {
+          "/unison" = {};
+        };
+      };
     };
   };
 
