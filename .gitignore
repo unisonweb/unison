@@ -33,6 +33,11 @@ out
 .idea
 *.iml
 
+# Nix
+result*
+**/hie.log
+**/hie.err
+
 # Misc
 *~
 .DS_Store
