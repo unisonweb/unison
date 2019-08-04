@@ -120,8 +120,7 @@ builtinTermsByTypeMention =
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 
--- WARNING:
--- As with the terms, we should avoid changing these references, even
+-- As with the terms, we should try to avoid changing these references, even
 -- if we decide to change their names.
 builtinTypes :: [(Name, R.Reference)]
 builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>

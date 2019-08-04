@@ -81,7 +81,7 @@ prettyRaw n im p tp = go n im p tp
     Cycle' _ _ -> fromString "error: TypeParser does not currently emit Cycle"
     Abs' _     -> fromString "error: TypeParser does not currently emit Abs"
     Ann' _ _   -> fromString "error: TypeParser does not currently emit Ann"
-    App' (Ref' (Builtin "List")) x ->
+    App' (Ref' (Builtin "Sequence")) x ->
       PP.group $ (fmt S.DelimiterChar "[") <> go n im 0 x <> (fmt S.DelimiterChar "]")
     DD.TupleType' [x] -> PP.parenthesizeIf (p >= 10) $ (fmt S.DataType "Pair") `PP.hang` PP.spaced
       [go n im 10 x, (fmt S.DataType "()")]
