@@ -24,9 +24,9 @@ Documentation of the Unison codebase repo format. DRAFT, still evolving. We'll f
 
 `dependents` is updated in the following way:
 
-* When a definition `d` is added, we compute its hash, `h`, and the dependencies of `d`. For each `dep` in the dependencies of `d`, we `h` to the `dependents` directory, under `dependents/dep/h`. `h` is just an empty file, a link to a definition.
-* Note: the dependencies of a term `d` includes the dependencies of `d`'s _type_.
-* Note: git merge of `dependents` does the right thing
+* When a definition `d` is added, we compute its hash, `h`, and the dependencies of `d`. For each `dep` in the dependencies of `d`, we add `h` to the `dependents` directory, under `dependents/dep/h`. `h` is just an empty file, a link to a definition.
+* Note: the dependencies of a term `d` include the dependencies of `d`'s _type_.
+* Note: git merge of `dependents` does the right thing.
 
 ### A sample repository structure:
 

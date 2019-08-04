@@ -4,7 +4,7 @@
 module Unison.Codebase.Serialization.V1 where
 
 -- import qualified Data.Text as Text
-import qualified Unison.PatternP               as Pattern
+import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
                                                 , SeqOp
                                                 )
@@ -410,42 +410,41 @@ getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of
-  Pattern.Unbound a   -> putWord8 0 *> putA a
-  Pattern.Var     a   -> putWord8 1 *> putA a
-  Pattern.Boolean a b -> putWord8 2 *> putA a *> putBoolean b
-  Pattern.Int     a n -> putWord8 3 *> putA a *> putInt n
-  Pattern.Nat     a n -> putWord8 4 *> putA a *> putNat n
-  Pattern.Float   a n -> putWord8 5 *> putA a *> putFloat n
-  Pattern.Constructor a r cid ps ->
+  Pattern.UnboundP a   -> putWord8 0 *> putA a
+  Pattern.VarP     a   -> putWord8 1 *> putA a
+  Pattern.BooleanP a b -> putWord8 2 *> putA a *> putBoolean b
+  Pattern.IntP     a n -> putWord8 3 *> putA a *> putInt n
+  Pattern.NatP     a n -> putWord8 4 *> putA a *> putNat n
+  Pattern.FloatP   a n -> putWord8 5 *> putA a *> putFloat n
+  Pattern.ConstructorP a r cid ps ->
     putWord8 6
       *> putA a
       *> putReference r
       *> putLength cid
       *> putFoldable (putPattern putA) ps
-  Pattern.As         a p -> putWord8 7 *> putA a *> putPattern putA p
-  Pattern.EffectPure a p -> putWord8 8 *> putA a *> putPattern putA p
-  Pattern.EffectBind a r cid args k ->
+  Pattern.AsP         a p -> putWord8 7 *> putA a *> putPattern putA p
+  Pattern.EffectPureP a p -> putWord8 8 *> putA a *> putPattern putA p
+  Pattern.EffectBindP a r cid args k ->
     putWord8 9
       *> putA a
       *> putReference r
       *> putLength cid
       *> putFoldable (putPattern putA) args
       *> putPattern putA k
-  Pattern.SequenceLiteral a ps ->
+  Pattern.SequenceLiteralP a ps ->
     putWord8 10 *> putA a *> putFoldable (putPattern putA) ps
-  Pattern.SequenceOp a l op r ->
+  Pattern.SequenceOpP a l op r ->
     putWord8 11
       *> putA a
       *> putPattern putA l
       *> putSeqOp op
       *> putPattern putA r
-  _ -> error $ "unknown pattern: " ++ show p
+  Pattern.TextP a t -> putWord8 12 *> putA a *> putText t
 
 putSeqOp :: MonadPut m => SeqOp -> m ()
 putSeqOp Pattern.Cons   = putWord8 0
 putSeqOp Pattern.Snoc   = putWord8 1
 putSeqOp Pattern.Concat = putWord8 2
-putSeqOp seqop          = error $ "unknown tag: " ++ show seqop
 
 getSeqOp :: MonadGet m => m SeqOp
 getSeqOp = getWord8 >>= \case
@@ -456,30 +455,31 @@ getSeqOp = getWord8 >>= \case
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
 getPattern getA = getWord8 >>= \tag -> case tag of
-  0 -> Pattern.Unbound <$> getA
-  1 -> Pattern.Var <$> getA
-  2 -> Pattern.Boolean <$> getA <*> getBoolean
-  3 -> Pattern.Int <$> getA <*> getInt
-  4 -> Pattern.Nat <$> getA <*> getNat
-  5 -> Pattern.Float <$> getA <*> getFloat
-  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList
+  0 -> Pattern.UnboundP <$> getA
+  1 -> Pattern.VarP <$> getA
+  2 -> Pattern.BooleanP <$> getA <*> getBoolean
+  3 -> Pattern.IntP <$> getA <*> getInt
+  4 -> Pattern.NatP <$> getA <*> getNat
+  5 -> Pattern.FloatP <$> getA <*> getFloat
+  6 -> Pattern.ConstructorP <$> getA <*> getReference <*> getLength <*> getList
     (getPattern getA)
-  7 -> Pattern.As <$> getA <*> getPattern getA
-  8 -> Pattern.EffectPure <$> getA <*> getPattern getA
+  7 -> Pattern.AsP <$> getA <*> getPattern getA
+  8 -> Pattern.EffectPureP <$> getA <*> getPattern getA
   9 ->
-    Pattern.EffectBind
+    Pattern.EffectBindP
       <$> getA
       <*> getReference
       <*> getLength
       <*> getList (getPattern getA)
       <*> getPattern getA
-  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  10 -> Pattern.SequenceLiteralP <$> getA <*> getList (getPattern getA)
   11 ->
-    Pattern.SequenceOp
+    Pattern.SequenceOpP
       <$> getA
       <*> getPattern getA
       <*> getSeqOp
       <*> getPattern getA
+  12 -> Pattern.TextP <$> getA <*> getText 
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
