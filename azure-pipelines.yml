@@ -32,7 +32,7 @@ steps:
     git submodule init
     git submodule update
     stack query
-    stack build unison
+    stack build
     cp .stack-work/install/*/*/*/bin/unison ucm
 
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files?view=azure-devops
