@@ -21,9 +21,32 @@ pool:
 
 steps:
 - script: |
+    mkdir -p ~/.local/bin
+    curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  condition: eq( variables['Agent.OS'], 'Linux' )  
+  displayName: 'Install stack'
+
+- script: |
+    mkdir -p ~/.local/bin
+    curl -L https://get.haskellstack.org/stable/osx-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  condition: eq( variables['Agent.OS'], 'Darwin' )  
+  displayName: 'Install stack'
+
+# - bash: |
+#     export STACK_ROOT="$(Build.SourcesDirectory)"/.stack-root;
+#     curl -sSkL http://www.stackage.org/stack/windows-i386 -o /usr/bin/stack.zip
+#     unzip -o /usr/bin/stack.zip -d /usr/bin/
+#     stack --install-ghc $ARGS test --bench --only-dependencies
+#     stack $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+#   condition: eq( variables['Agent.OS'], 'Windows_NT' )  
+#   displayName: 'Install stack'
+
+- script: |
     echo Build.ArtifactStagingDirectory = $(Build.ArtifactStagingDirectory)
     echo System.DefaultWorkingDirectory = $(System.DefaultWorkingDirectory)
     pwd
+    export PATH=$HOME/.local/bin:$PATH
+    export STACK_ROOT="$(Build.SourcesDirectory)"/.stack-root;
     stack build unison
     cp .stack-work/install/*/*/*/bin/unison ucm
 
