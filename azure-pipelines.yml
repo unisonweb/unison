@@ -39,5 +39,5 @@ steps:
 # Create, edit, or delete a GitHub release
 - task: GitHubRelease@0
   inputs:
-    gitHubConnection: aryairani
+    gitHubConnection: aryairani2
     assets: '$(Build.ArtifactStagingDirectory)/ucm'
