@@ -1,4 +1,4 @@
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers?view=azure-devops&tabs=yaml
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers
 trigger:
   tags:
     include:
@@ -16,35 +16,64 @@ strategy:
 #      imageName: 'vs2017-win2016'
 #      archiveName: 'unison-win2016'
 
+variables:
+  archiveFile: $(Build.ArtifactStagingDirectory)/$(archiveName).tar.gz
+
 pool:
   vmImage: $(imageName)
 
 steps:
+- checkout: self
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
+  submodules: true
+
 - script: curl -sSL https://get.haskellstack.org/ | sh
   displayName: 'Install stack'
+  continueOnError: false
+
+- task: CacheBeta@0
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
+  inputs:
+    # cache is write-once, keyed on `key`
+    # glob-style patterns in keys not yet supported as of 07/04/2019
+    key: |
+      $(Agent.OS)
+      $(Build.SourcesDirectory)/stack.yaml
+      $(Build.SourcesDirectory)/parser-typechecker/unison-parser-typechecker.cabal
+      $(Build.SourcesDirectory)/yaks/haskeline/haskeline.cabal
+      $(Build.SourcesDirectory)/yaks/easytest/easytest.cabal
+    path: $(Build.SourcesDirectory)/.stack-root
 
 - script: |
     echo Build.ArtifactStagingDirectory = $(Build.ArtifactStagingDirectory)
     echo System.DefaultWorkingDirectory = $(System.DefaultWorkingDirectory)
     pwd
     export PATH=$HOME/.local/bin:$PATH
-    export STACK_ROOT="$(Build.SourcesDirectory)"/.stack-root;
-    git submodule init
-    git submodule update
+    export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
     stack build
-    cp .stack-work/install/*/*/*/bin/unison ucm
+    cp .stack-work/install/*/*/*/bin/unison $(Build.ArtifactStagingDirectory)/ucm
+  continueOnError: false
 
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files?view=azure-devops
 - task: ArchiveFiles@2
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
   inputs:
-    rootFolderOrFile: '$(System.DefaultWorkingDirectory)/ucm'
+    rootFolderOrFile: '$(System.ArtifactStagingDirectory)/ucm'
     archiveType: 'tar'
     tarCompression: 'gz'
     includeRootFolder: false
+    archiveFile: $(archiveFile)
+  continueOnError: false
 
-# GitHub Release
-# Create, edit, or delete a GitHub release
 - task: GitHubRelease@0
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
+  displayName: 'Create release'
   inputs:
     gitHubConnection: aryairani2
-    assets: '$(Build.ArtifactStagingDirectory)/ucm'
+  continueOnError: true
+
+- task: GitHubRelease@0
+  displayName: 'Attach release artifact'
+  inputs:
+    gitHubConnection: aryairani2
+    action: 'edit'
+    assets: $(archiveFile)
