@@ -699,7 +699,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     abilityCheck es
     o <$ check arg i
   go (Type.Existential' b a) = do -- a^App
-    [i,e,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "synthsizeApp-refined-effect", ABT.v' "o"]
+    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthsizeApp-refined-effect", Var.named "o"]
     let it = Type.existential' (loc ft) B.Blank i
         ot = Type.existential' (loc ft) B.Blank o
         et = Type.existential' (loc ft) B.Blank e
@@ -830,7 +830,7 @@ synthesize e = scope (InSynthesize e) $
     pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
-    (t, ctx2) <- markThenRetract (ABT.v' "let-rec-marker") $ do
+    (t, ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       synthesize e
     pure $ generalizeExistentials ctx2 t
@@ -1247,7 +1247,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       check (ABT.bindInheritAnnotation e (Term.var () v)) t
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t =
-    markThenRetract0 (ABT.v' "let-rec-marker") $ do
+    markThenRetract0 (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       check e t
   go block@(Term.Handle' h body) t = do

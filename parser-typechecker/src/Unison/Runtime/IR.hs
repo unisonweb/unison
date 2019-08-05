@@ -921,14 +921,16 @@ instance Eq SymbolC where
 instance Ord SymbolC where
   SymbolC _ s `compare` SymbolC _ s2 = s `compare` s2
 
+instance ABT.Var SymbolC where
+  freshIn vs (SymbolC i s) =
+    SymbolC i (ABT.freshIn (Set.map underlyingSymbol vs) s)
+
 instance Var SymbolC where
   typed s = SymbolC False (Var.typed s)
   typeOf (SymbolC _ s) = Var.typeOf s
   retype t (SymbolC b s) = SymbolC b (Var.retype t s)
   freshId (SymbolC _ s) = Var.freshId s
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
-  freshIn vs (SymbolC i s) =
-    SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
 
 instance (Show e, Show cont) => Show (Value e cont) where
   show (I n) = show n
