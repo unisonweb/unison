@@ -31,7 +31,6 @@ steps:
     export STACK_ROOT="$(Build.SourcesDirectory)"/.stack-root;
     git submodule init
     git submodule update
-    stack query
     stack build
     cp .stack-work/install/*/*/*/bin/unison ucm
 
