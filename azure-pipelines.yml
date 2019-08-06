@@ -4,85 +4,87 @@ trigger:
     include:
     - release/*
 
-strategy:
-  matrix:
-    linux:
-      imageName: ubuntu-16.04
-      archiveName: unison-linux64
-    mac:
-      imageName: macos-10.13
-      archiveName: unison-osx
-#    windows:
-#      imageName: vs2017-win2016
-#      archiveName: unison-win2016
+jobs:
+- job: multi_build
+  displayName: multi build
 
-variables:
-  ucmArtifact: $(Build.ArtifactStagingDirectory)/ucm
-  archiveFile: $(Build.ArtifactStagingDirectory)/$(archiveName).tar.gz
+  strategy:
+    matrix:
+      linux:
+        imageName: ubuntu-16.04
+        archiveName: unison-linux64
+      mac:
+        imageName: macos-10.13
+        archiveName: unison-osx
+  #    windows:
+  #      imageName: vs2017-win2016
+  #      archiveName: unison-win2016
 
-pool:
-  vmImage: $(imageName)
+  variables:
+    ucmDir: $(Build.ArtifactStagingDirectory)/$(archiveName)
+    ucmFile: $(ucmDir)/ucm
+    archiveFile: $(Build.ArtifactStagingDirectory)/$(archiveName).tar.gz
 
-steps:
-- checkout: self
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
-  submodules: true
+  pool:
+    vmImage: $(imageName)
 
-- script: curl -sSL https://get.haskellstack.org/ | sh
-  displayName: Install stack
+  steps:
+  - checkout: self
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
+    submodules: true
 
-- task: CacheBeta@0
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
-  inputs:
-    # cache is write-once, keyed on `key`
-    # glob-style patterns in keys not yet supported as of 07/04/2019
-    key: |
-      $(Agent.OS)
-      $(Build.SourcesDirectory)/stack.yaml
-      $(Build.SourcesDirectory)/parser-typechecker/unison-parser-typechecker.cabal
-      $(Build.SourcesDirectory)/yaks/haskeline/haskeline.cabal
-      $(Build.SourcesDirectory)/yaks/easytest/easytest.cabal
-    path: $(Build.SourcesDirectory)/.stack-root
+  - script: curl -sSL https://get.haskellstack.org/ | sh
+    displayName: Install stack
 
-- script: |
-    echo Build.ArtifactStagingDirectory = $(Build.ArtifactStagingDirectory)
-    echo System.DefaultWorkingDirectory = $(System.DefaultWorkingDirectory)
-    echo ucmStagingTarget = $(ucmStagingTarget)
-    pwd
-    export PATH=$HOME/.local/bin:$PATH
-    export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
-    stack build
-    cp .stack-work/install/*/*/*/bin/unison $(ucmArtifact)
+  - task: CacheBeta@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
+    inputs:
+      # cache is write-once, keyed on `key`
+      # glob-style patterns in keys not yet supported as of 07/04/2019
+      key: |
+        $(Agent.OS)
+        $(Build.SourcesDirectory)/stack.yaml
+        $(Build.SourcesDirectory)/parser-typechecker/unison-parser-typechecker.cabal
+        $(Build.SourcesDirectory)/yaks/haskeline/haskeline.cabal
+        $(Build.SourcesDirectory)/yaks/easytest/easytest.cabal
+      path: $(Build.SourcesDirectory)/.stack-root
 
-- task: ArchiveFiles@2
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
-  inputs:
-    rootFolderOrFile: $(ucmArtifact)
-    archiveType: tar
-    tarCompression: gz
-    includeRootFolder: false
-    archiveFile: $(archiveFile)
+  - script: |
+      echo Build.ArtifactStagingDirectory = $(Build.ArtifactStagingDirectory)
+      echo System.DefaultWorkingDirectory = $(System.DefaultWorkingDirectory)
+      export PATH=$HOME/.local/bin:$PATH
+      export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
+      stack build
+      mkdir -p $(ucmDir)
+      cp .stack-work/install/*/*/*/bin/unison $(ucmFile)
 
-- script: ls -l $(Build.ArtifactStagingDirectory)
-  displayName: Is there any chance we share a staging directory across the matrix
+  - task: ArchiveFiles@2
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
+    inputs:
+      rootFolderOrFile: $(ucmFile)
+      archiveType: tar
+      tarCompression: gz
+      includeRootFolder: false
+      archiveFile: $(archiveFile)
 
-- task: PublishBuildArtifacts@1
-  inputs:
-    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-    ArtifactName: $(archiveName)
-  continueOnError: true
-  
-- task: GitHubRelease@0
-# https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
-  displayName: Create release
-  inputs:
-    gitHubConnection: aryairani2
-    isDraft: true
-  continueOnError: true
+  - script: ls -l $(Build.ArtifactStagingDirectory)
+    displayName: Is there any chance we share a staging directory across the matrix
 
-- task: GitHubRelease@0
-  displayName: Attach release artifact
-  inputs:
-    gitHubConnection: aryairani2
-    action: edit
-    assets: $(archiveFile)
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+      ArtifactName: $(archiveName)
+    continueOnError: true
+
+- job: github_release
+  steps:
+  - script: find $(Build.ArtifactStagingDirectory)
+    displayName: Is there any chance we share a staging directory across the matrix
+
+  - task: GitHubRelease@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
+    displayName: Create release
+    inputs:
+      gitHubConnection: aryairani2
+      isDraft: true
+      assets: $(Build.ArtifactStagingDirectory)/*.tar.gz
