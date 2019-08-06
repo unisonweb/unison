@@ -72,8 +72,7 @@ jobs:
 
   - task: PublishBuildArtifacts@1
     inputs:
-      PathtoPublish: '$(archiveFile)'
-      ArtifactName: '$(archiveName)'
+      pathtoPublish: '$(archiveFile)'
 
 - job: github_release
   dependsOn: multi_build
@@ -85,9 +84,8 @@ jobs:
   - task: DownloadBuildArtifacts@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
     inputs:
-      buildType: 'current'
-      downloadType: 'all'
-      # artifactName: 'drop'
+      buildType: current
+      downloadType: specific
       downloadPath: '$(System.ArtifactsDirectory)'
 
   - script: find $(System.ArtifactsDirectory)
@@ -99,4 +97,7 @@ jobs:
     inputs:
       gitHubConnection: aryairani2
       isDraft: true
-      assets: '$(System.ArtifactsDirectory)/*'
+      assets: '$(System.ArtifactsDirectory)/**'
+
+- job: homebrew_template
+# dependsOn: github_release
