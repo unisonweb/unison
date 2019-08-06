@@ -1,0 +1,160 @@
+# https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers
+trigger:
+  tags:
+    include:
+    - release/*
+
+jobs:
+- job: multi_build
+  displayName: multi build
+
+  strategy:
+    matrix:
+      linux:
+        imageName: ubuntu-16.04
+        archiveName: unison-linux64
+      mac:
+        imageName: macos-10.13
+        archiveName: unison-osx
+  #    windows:
+  #      imageName: vs2017-win2016
+  #      archiveName: unison-win2016
+
+  variables:
+    ucmFile: $(Build.ArtifactStagingDirectory)/ucm
+    archiveFile: $(Build.ArtifactStagingDirectory)/$(archiveName).tar.gz
+
+  pool:
+    vmImage: $(imageName)
+
+  steps:
+  - checkout: self
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
+    submodules: true
+
+  - script: curl -sSL https://get.haskellstack.org/ | sh
+    displayName: Install stack
+
+  # - task: CacheBeta@0
+  # # https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
+  #   inputs:
+  #     # cache is write-once, keyed on `key`
+  #     # glob-style patterns in keys not yet supported as of 07/04/2019
+  #     key: |
+  #       $(Agent.OS)
+  #       $(Build.SourcesDirectory)/stack.yaml
+  #       $(Build.SourcesDirectory)/parser-typechecker/unison-parser-typechecker.cabal
+  #       $(Build.SourcesDirectory)/yaks/haskeline/haskeline.cabal
+  #       $(Build.SourcesDirectory)/yaks/easytest/easytest.cabal
+  #     path: $(Build.SourcesDirectory)/.stack-root
+
+  - script: |
+      export PATH=$HOME/.local/bin:$PATH
+      export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
+      stack build
+      cp .stack-work/install/*/*/*/bin/unison $(ucmFile)
+    displayName: stack build
+
+  - task: ArchiveFiles@2
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
+    inputs:
+      rootFolderOrFile: $(ucmFile)
+      archiveType: tar
+      tarCompression: gz
+      includeRootFolder: false
+      archiveFile: $(archiveFile)
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathtoPublish: '$(archiveFile)'
+
+- job: github_release
+  dependsOn: multi_build
+
+  steps:
+  - task: DownloadBuildArtifacts@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
+    inputs:
+      buildType: current
+      downloadType: specific
+
+  - script: find $(System.ArtifactsDirectory)
+    displayName: What did DownloadBuildArtifacts give us
+
+  - task: GitHubRelease@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
+    displayName: Create release
+    inputs:
+      gitHubConnection: aryairani2
+      isPreRelease: false
+      addChangeLog: false
+      # compareWith: lastRelease
+      assets: '$(System.ArtifactsDirectory)/**'
+
+- job: homebrew_template
+  dependsOn: multi_build
+  steps:
+  - task: DownloadBuildArtifacts@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
+    inputs:
+      buildType: current
+      downloadType: specific
+  - script: |
+      linuxhash=`shasum -a 256 $linuxpkg | cut -d " " -f 1`
+      osxhash=`shasum -a 256 $osxpkg | cut -d " " -f 1`
+      cat <<EOF >unison-language.rb
+      class UnisonLanguage < Formula
+        desc "The Unison Language and Codebase Manager."
+        homepage "https://unisonweb.org"
+
+        version "1.0.$version"
+
+        if OS.mac?
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$version/unison-osx.tar.gz"
+          sha256 "$osxhash"
+        elsif OS.linux?
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$version/unison-linux64.tar.gz"
+          sha256 "$linuxhash"
+        end
+
+        def install
+          bin.install "ucm"
+        end
+
+        test do
+          system "ucm"
+        end
+      end
+      EOF
+      cat unison-language.rb
+    displayName: generate unison-language.rb
+    env:
+      version:  $(Build.SourceBranchName)
+      linuxpkg: $(System.ArtifactsDirectory)/drop/unison-linux64.tar.gz
+      osxpkg:   $(System.ArtifactsDirectory)/drop/unison-osx.tar.gz
+  - script: |
+      git clone https://github.com/unisonweb/homebrew-unison.git
+      pushd homebrew-unison
+      cp ../unison-language.rb .
+      git add unison-language.rb
+      git checkout -b release/$(Build.SourceBranchName)
+      git config user.email "azure@azure.com"
+      git config user.name "azure pipeline"
+      git commit -m"update to $(Build.SourceBranchName)"
+      git push https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git release/$(Build.SourceBranchName)
+    displayName: commit unison-language.rb
+
+# steps:
+# - script: |
+#     myvar=x
+#     cat << EOF > foo.txt
+#     abc
+#       $(Build.SourceBranchName)
+#       $(ghtoken)
+#       $myvar
+#     123
+#     EOF
+#     cat foo.txt
+#   displayName: heredoc stuff
+# - script: cat foo.txt $(ghtoken)
+#   displayName: cat the thing!
