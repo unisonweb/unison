@@ -35,8 +35,8 @@ jobs:
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#checkout
     submodules: true
 
-  - displayName: Install stack
-    script: curl -sSL https://get.haskellstack.org/ | sh
+  - script: curl -sSL https://get.haskellstack.org/ | sh
+    displayName: Install stack
 
   # - task: CacheBeta@0
   # # https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
@@ -51,12 +51,12 @@ jobs:
   #       $(Build.SourcesDirectory)/yaks/easytest/easytest.cabal
   #     path: $(Build.SourcesDirectory)/.stack-root
 
-  - displayName: stack build
-    script: |
+  - script: |
       export PATH=$HOME/.local/bin:$PATH
       export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
       stack build
       cp .stack-work/install/*/*/*/bin/unison $(ucmFile)
+    displayName: stack build
 
   - task: ArchiveFiles@2
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
@@ -81,8 +81,8 @@ jobs:
       buildType: current
       downloadType: specific
 
-  - displayName: What did DownloadBuildArtifacts give us
-    script: find $(System.ArtifactsDirectory)
+  - script: find $(System.ArtifactsDirectory)
+    displayName: What did DownloadBuildArtifacts give us
 
   - task: GitHubRelease@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
@@ -104,8 +104,7 @@ jobs:
     inputs:
       buildType: current
       downloadType: specific
-  - displayName: generate unison-language.rb
-    script: |
+  - script: |
       linuxhash=`shasum -a 256 $linuxpkg | cut -d " " -f 1`
       osxhash=`shasum -a 256 $osxpkg | cut -d " " -f 1`
       cat <<EOF >unison-language.rb
@@ -137,8 +136,9 @@ jobs:
       version:  $(Build.SourceBranchName)
       linuxpkg: $(System.ArtifactsDirectory)/drop/unison-linux64.tar.gz
       osxpkg:   $(System.ArtifactsDirectory)/drop/unison-osx.tar.gz
-  - displayName: commit unison-language.rb
-    script: |
+    displayName: generate unison-language.rb
+
+  - script: |
       git clone https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git
       pushd homebrew-unison
       tag=release/$(Build.SourceBranchName)
@@ -150,8 +150,7 @@ jobs:
       git push origin HEAD:master || \
         (git push origin HEAD:$tag && \
          echo "##vso[task.logissue type=warning;]couldn't push to master; pushed to $tag instead.")
-
-
+    displayName: commit unison-language.rb
 # steps:
 # - script: |
 #     myvar=x
