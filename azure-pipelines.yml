@@ -93,5 +93,9 @@ jobs:
 - job: homebrew_template
 # dependsOn: github_release
   steps:
-  - script: echo abc '$(Agent.OS)'
+  - script: echo $(Agent.OS)
     displayName: print agent.os
+  - script: |
+      IFS=":" read -ra paths <<< "$PATH"
+      find "${paths[@]}" -type f -executable -name 'sha*'
+    displayName: find 'sha'
