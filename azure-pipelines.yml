@@ -95,7 +95,9 @@ jobs:
   steps:
   - script: echo $(Agent.OS)
     displayName: print agent.os
-  - script: |
-      IFS=":" read -ra paths <<< "$PATH"
-      find "${paths[@]}" -type f -executable -name 'sha*'
-    displayName: find 'sha'
+  # - script: |
+  #     IFS=":" read -ra paths <<< "$PATH"
+  #     find "${paths[@]}" -type f -executable -name 'sha*'
+  #   displayName: find 'sha'
+  - script: shasum -h
+    displayName: shasum help
