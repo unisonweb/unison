@@ -139,10 +139,12 @@ trigger:
 
 steps:
 - script: |
+    myvar=x
     echo >foo.txt <<EOF
     abc
       $(Build.SourceBranchName) 
       $GHTOKEN
+      $myvar
     123
     EOF
     cat foo.txt
