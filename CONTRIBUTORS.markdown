@@ -20,3 +20,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Tomas Mikula (@TomasMikula)
 * William Carroll (@wpcarro)
 * Scott Christopher (@scott-christopher)
+* Alex Zolotko (@azolotko)

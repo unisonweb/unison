@@ -23,7 +23,7 @@ namespace Stream where
   run' s = case s of Stream s -> s
 
   (++) : Stream {e} a r -> Stream {e} a r -> Stream {e} a r
-  s1 ++ s2 = Stream '(run' s1 !! run' s2)
+  s1 ++ s2 = Stream '(forceBoth (run' s1) (run' s2))
 
   from : Nat -> Stream e Nat ()
   from n = unfold n (n -> Some (n, n + 1))
@@ -67,7 +67,7 @@ namespace Stream where
 -- > toSeq (Stream.take 20 (from 0))
 
 -- run two thunks in sequence
-a !! b =
+forceBoth a b =
   !a
   !b
 

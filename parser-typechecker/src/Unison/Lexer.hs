@@ -344,8 +344,9 @@ lexer0 scope rem =
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
       op : rem@(c : _)
-        | (op == '\'' || op == '!')
-        && (isSpace c || isAlphaNum c || Set.member c delimiters) ->
+        | isDelayOrForce op
+        && (isSpace c || isAlphaNum c
+            || Set.member c delimiters || isDelayOrForce c) ->
           Token (Reserved [op]) pos (inc pos) : goWhitespace l (inc pos) rem
       ':' : rem@(c : _) | isSpace c || isAlphaNum c ->
         Token (Reserved ":") pos (inc pos) : goWhitespace l (inc pos) rem
@@ -456,6 +457,9 @@ lexer0 scope rem =
 
     recover _l _pos _rem = []
 
+isDelayOrForce :: Char -> Bool
+isDelayOrForce op = op == '\''|| op == '!'
+
 matchKeyword :: String -> Maybe (String,String)
 matchKeyword = matchKeyword' keywords
 
@@ -518,9 +522,9 @@ numericLit = go
   goExp signNum rem = case rem of
     ('+':s) -> goExp' signNum "+" s
     ('-':s) -> goExp' signNum "-" s
-    s       -> goExp' signNum ""  s 
+    s       -> goExp' signNum ""  s
   goExp' signNum expSign exp = case span isDigit exp of
-    ((_:_), []) ->
+    (_:_, []) ->
       pure $ pure (signNum ++ "e" ++ expSign ++ exp, [])
     (exp'@(_:_), c:rem)
       | isSep c -> pure $ pure (signNum ++ "e" ++ expSign ++ exp', c:rem)

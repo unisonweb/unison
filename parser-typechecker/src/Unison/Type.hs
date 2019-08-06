@@ -225,7 +225,7 @@ natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
-vectorRef = Reference.Builtin "List"
+vectorRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
 

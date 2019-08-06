@@ -19,9 +19,7 @@ module Unison.Builtin
   ,termRefTypes
   ) where
 
-import           Control.Applicative            ( liftA2
-                                                 , (<|>)
-                                                )
+import           Control.Applicative            ( (<|>) )
 import           Data.Bifunctor                 ( second )
 import           Data.Foldable                  ( foldl', toList )
 import           Data.Map                       ( Map )
@@ -124,8 +122,45 @@ builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 -- As with the terms, we should avoid changing these references, even
 -- if we decide to change their names.
 builtinTypes :: [(Name, R.Reference)]
-builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "List", "Text", "Effect", "Bytes"]
+builtinTypes = Map.toList . Map.mapKeys Name.unsafeFromText
+                          $ foldl' go mempty builtinTypesSrc where
+  go m = \case
+    B' r -> Map.insert r (R.Builtin r) m
+    D' r -> Map.insert r (R.Builtin r) m
+    Rename' r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to rename `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
+      Nothing -> case Map.lookup r m of
+        Nothing -> error . Text.unpack $
+                "tried to rename `" <> r <> "` before it was declared."
+        Just t -> Map.insert name t . Map.delete r $ m
+    Alias' r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to alias `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
+      Nothing -> case Map.lookup r m of
+        Nothing -> error . Text.unpack $
+                  "tried to alias `" <> r <> "` before it was declared."
+        Just t -> Map.insert name t m
+
+-- WARNING: Don't delete any of these lines, only add corrections.
+builtinTypesSrc :: [BuiltinTypeDSL]
+builtinTypesSrc =
+  [ B' "Int"
+  , B' "Nat"
+  , B' "Float"
+  , B' "Boolean"
+  , B' "Sequence"
+  , Rename' "Sequence" "List"
+  , B' "Text"
+  , B' "Effect"
+  , B' "Bytes"
+  ]
+
+
+data BuiltinTypeDSL = B' Text | D' Text | Rename' Text Text | Alias' Text Text
+
 
 data BuiltinDSL v
   -- simple builtin: name=ref, type
