@@ -1,3 +1,6 @@
+# Azure output-parsed commands
+# https://github.com/microsoft/azure-pipelines-tasks/blob/master/docs/authoring/commands.md
+
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers
 trigger:
   tags:
@@ -70,7 +73,7 @@ jobs:
 
 - job: github_release
   dependsOn: multi_build
-  
+
   steps:
   - task: DownloadBuildArtifacts@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
@@ -83,13 +86,24 @@ jobs:
 
   - task: GitHubRelease@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
-    displayName: Create release
+    displayName: Create Github release
+    continueOnError: true
     inputs:
       gitHubConnection: aryairani2
-      isPreRelease: false
+      title: '$(Build.SourceBranchName)'
+      isPreRelease: true
+      # releaseNotesFile: '$(Build.SourceBranchName)-notes.md'
       addChangeLog: false
-      # compareWith: lastRelease
+
+  - task: GitHubRelease@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
+    displayName: Attach artifacts to Github release
+    inputs:
+      action: edit
+      tag: 'release/$(Build.SourceBranchName)'
+      assetUploadMode: replace
       assets: '$(System.ArtifactsDirectory)/**'
+      gitHubConnection: aryairani2
 
 - job: homebrew_template
   dependsOn: multi_build
@@ -101,7 +115,7 @@ jobs:
       downloadType: specific
   - script: |
       linuxhash=`shasum -a 256 $linuxpkg | cut -d " " -f 1`
-      osxhash=`shasum -a 256 $osxpkg | cut -d " " -f 1`      
+      osxhash=`shasum -a 256 $osxpkg | cut -d " " -f 1`
       cat <<EOF >unison-language.rb
       class UnisonLanguage < Formula
         desc "The Unison Language and Codebase Manager."
@@ -127,34 +141,22 @@ jobs:
       end
       EOF
       cat unison-language.rb
-    displayName: generate unison-language.rb
     env:
       version:  $(Build.SourceBranchName)
       linuxpkg: $(System.ArtifactsDirectory)/drop/unison-linux64.tar.gz
       osxpkg:   $(System.ArtifactsDirectory)/drop/unison-osx.tar.gz
+    displayName: generate unison-language.rb
+
   - script: |
       git clone https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git
       pushd homebrew-unison
+      tag=release/$(Build.SourceBranchName)
       cp ../unison-language.rb .
       git add unison-language.rb
-      git checkout -b release/$(Build.SourceBranchName)
       git config user.email "azure@azure.com"
       git config user.name "azure pipeline"
-      git commit -m"update to $(Build.SourceBranchName)"
-      git push https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git release/$(Build.SourceBranchName)
-    displayName: commit unison-language.rb    
-
-# steps:
-# - script: |
-#     myvar=x
-#     cat << EOF > foo.txt 
-#     abc
-#       $(Build.SourceBranchName) 
-#       $(ghtoken)
-#       $myvar
-#     123
-#     EOF
-#     cat foo.txt
-#   displayName: heredoc stuff
-# - script: cat foo.txt $(ghtoken)
-#   displayName: cat the thing!
+      git commit -m"update to $tag"
+      git push origin HEAD:master || \
+        (git push origin HEAD:$tag && \
+         echo "##vso[task.logissue type=warning;]couldn't push to master; pushed to $tag instead.")
+    displayName: commit unison-language.rb
