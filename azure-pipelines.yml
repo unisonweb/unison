@@ -101,7 +101,7 @@ jobs:
       linuxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-linux64.tar.gz | cut -d " " -f 1`
       osxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-osx.tar.gz | cut -d " " -f 1`
       version="$(Build.SourceBranchName)"
-      cat - >unison-language.rb<<<EOF
+      cat - >unison-language.rb<<EOF
       class UnisonLanguage < Formula
         desc "The Unison Language and Codebase Manager."
         homepage "https://unisonweb.org"
