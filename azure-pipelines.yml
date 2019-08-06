@@ -77,6 +77,7 @@ jobs:
     continueOnError: true
 
 - job: github_release
+  dependsOn: multi_build
   steps:
   - script: find $(Build.ArtifactStagingDirectory)
     displayName: Is there any chance we share a staging directory across the matrix
