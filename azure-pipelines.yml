@@ -63,21 +63,14 @@ jobs:
       tarCompression: gz
       includeRootFolder: false
       archiveFile: $(archiveFile)
-
-  - task: PublishBuildArtifacts@1
-    inputs:
-      pathtoPublish: '$(archiveFile)'
+  
+  - publish: $(archiveFile)
 
 - job: github_release
   dependsOn: multi_build
   
   steps:
-  - task: DownloadBuildArtifacts@0
-  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
-    inputs:
-      buildType: current
-      downloadType: specific
-
+  - download: current
   - script: find $(System.ArtifactsDirectory)
     displayName: What did DownloadBuildArtifacts give us
 
@@ -92,11 +85,7 @@ jobs:
 - job: homebrew_template
   dependsOn: multi_build
   steps:
-  - task: DownloadBuildArtifacts@0
-  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
-    inputs:
-      buildType: current
-      downloadType: specific
+  - download: current
   - script: |
       linuxhash=`shasum -a 256 $linuxpkg | cut -d " " -f 1`
       osxhash=`shasum -a 256 $osxpkg | cut -d " " -f 1`      
