@@ -79,8 +79,9 @@ jobs:
     displayName: Create release
     inputs:
       gitHubConnection: aryairani2
-      isPreRelease: true
-      compareWith: lastRelease
+      isPreRelease: false
+      addChangeLog: false
+      # compareWith: lastRelease
       assets: '$(System.ArtifactsDirectory)/**'
 
 - job: homebrew_template
