@@ -93,4 +93,5 @@ jobs:
 - job: homebrew_template
 # dependsOn: github_release
   steps:
-  - script: echo $(Agent.OS)
+  - script: echo abc '$(Agent.OS)'
+    displayName: print agent.os
