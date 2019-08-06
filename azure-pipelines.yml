@@ -77,7 +77,6 @@ jobs:
     inputs:
       buildType: current
       downloadType: specific
-      downloadPath: '$(System.ArtifactsDirectory)'
 
   - script: find $(System.ArtifactsDirectory)
     displayName: What did DownloadBuildArtifacts give us
@@ -91,17 +90,39 @@ jobs:
       assets: '$(System.ArtifactsDirectory)/**'
 
 - job: homebrew_template
-# dependsOn: github_release
+  dependsOn: multi_build
   steps:
-  - script: echo $(Agent.OS)
-    displayName: print agent.os
-  # - script: |
-  #     IFS=":" read -ra paths <<< "$PATH"
-  #     find "${paths[@]}" -type f -executable -name 'sha*'
-  #   displayName: find 'sha'
-  # - script: shasum -h
-  #   displayName: shasum help
-  # - script: echo $() | sed 's/.*\/release\/\(.*\)$/\1/'
-  #   displayName: show release name
-  - script: echo $(Build.SourceBranchName)
-    displayName: show SourceBranchName
+  - task: DownloadBuildArtifacts@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
+    inputs:
+      buildType: current
+      downloadType: specific
+  - script: |
+      linuxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-linux64.tar.gz | cut -d " " -f 1`
+      osxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-osx.tar.gz | cut -d " " -f 1`
+      cat - >unison-language.rb<<<EOF
+      class UnisonLanguage < Formula
+        desc "The Unison Language and Codebase Manager."
+        homepage "https://unisonweb.org"
+
+        version "1.0.M1a"
+
+        if OS.mac?
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$(Build.SourceBranchName)/unison-osx.tar.gz"
+          sha256 "$osxhash"
+        elsif OS.linux?
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$(Build.SourceBranchName)/unison-linux64.tar.gz"
+          sha256 "$linuxhash"
+        end
+
+        def install
+          bin.install "ucm"
+        end
+
+        test do
+          system "ucm"
+        end
+      end
+      EOF
+      cat unison-language.rb
+    displayName: generate unison-language.rb
