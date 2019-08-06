@@ -21,8 +21,7 @@ jobs:
   #      archiveName: unison-win2016
 
   variables:
-    ucmDir: $(Build.ArtifactStagingDirectory)/$(archiveName)
-    ucmFile: $(ucmDir)/ucm
+    ucmFile: $(Build.ArtifactStagingDirectory)/ucm
     archiveFile: $(Build.ArtifactStagingDirectory)/$(archiveName).tar.gz
 
   pool:
@@ -50,13 +49,11 @@ jobs:
       path: $(Build.SourcesDirectory)/.stack-root
 
   - script: |
-      echo Build.ArtifactStagingDirectory = $(Build.ArtifactStagingDirectory)
-      echo System.DefaultWorkingDirectory = $(System.DefaultWorkingDirectory)
       export PATH=$HOME/.local/bin:$PATH
       export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
       stack build
-      mkdir -p $(ucmDir)
       cp .stack-work/install/*/*/*/bin/unison $(ucmFile)
+    displayName: stack build
 
   - task: ArchiveFiles@2
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
@@ -67,9 +64,6 @@ jobs:
       includeRootFolder: false
       archiveFile: $(archiveFile)
 
-  - script: find $(Build.ArtifactStagingDirectory)
-    displayName: View Build.ArtifactStagingDirectory
-
   - task: PublishBuildArtifacts@1
     inputs:
       pathtoPublish: '$(archiveFile)'
@@ -78,9 +72,6 @@ jobs:
   dependsOn: multi_build
   
   steps:
-  - script: find $(Build.ArtifactStagingDirectory)
-    displayName: Is there any chance we share a staging directory across the matrix
-
   - task: DownloadBuildArtifacts@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
     inputs:
@@ -99,5 +90,5 @@ jobs:
       isDraft: true
       assets: '$(System.ArtifactsDirectory)/**'
 
-- job: homebrew_template
+# - job: homebrew_template
 # dependsOn: github_release
