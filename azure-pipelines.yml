@@ -67,7 +67,7 @@ jobs:
       includeRootFolder: false
       archiveFile: $(archiveFile)
 
-  - script: ls -l $(Build.ArtifactStagingDirectory)
+  - script: find $(Build.ArtifactStagingDirectory)
     displayName: Is there any chance we share a staging directory across the matrix
 
   - task: PublishBuildArtifacts@1
