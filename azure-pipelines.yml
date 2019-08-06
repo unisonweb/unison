@@ -100,18 +100,19 @@ jobs:
   - script: |
       linuxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-linux64.tar.gz | cut -d " " -f 1`
       osxhash=`shasum -a 256 $(System.ArtifactsDirectory)/unison-osx.tar.gz | cut -d " " -f 1`
+      version="$(Build.SourceBranchName)"
       cat - >unison-language.rb<<<EOF
       class UnisonLanguage < Formula
         desc "The Unison Language and Codebase Manager."
         homepage "https://unisonweb.org"
 
-        version "1.0.M1a"
+        version "1.0.$(Build.SourceBranchName)" #update me
 
         if OS.mac?
-          url "https://github.com/unisonweb/unison/releases/download/release%2F$(Build.SourceBranchName)/unison-osx.tar.gz"
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$version/unison-osx.tar.gz"
           sha256 "$osxhash"
         elsif OS.linux?
-          url "https://github.com/unisonweb/unison/releases/download/release%2F$(Build.SourceBranchName)/unison-linux64.tar.gz"
+          url "https://github.com/unisonweb/unison/releases/download/release%2F$version/unison-linux64.tar.gz"
           sha256 "$linuxhash"
         end
 
@@ -126,3 +127,12 @@ jobs:
       EOF
       cat unison-language.rb
     displayName: generate unison-language.rb
+  - script: |
+      git clone https://aryairani:$GHTOKEN@github.com/unisonweb/homebrew-unison.git
+      pushd homebrew-unison
+      cp ../unison-language.rb .
+      git add unison-language.rb
+      git checkout -b release/$(Build.SourceBranchName)
+      git commit -m"update to $(Build.SourceBranchName)"
+      git push --set-upstream origin
+    displayName: commit unison-language.rb
