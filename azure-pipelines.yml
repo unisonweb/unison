@@ -90,5 +90,7 @@ jobs:
       isDraft: true
       assets: '$(System.ArtifactsDirectory)/**'
 
-# - job: homebrew_template
+- job: homebrew_template
 # dependsOn: github_release
+  steps:
+  - script: echo $(Agent.OS)
