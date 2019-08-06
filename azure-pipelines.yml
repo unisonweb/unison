@@ -30,7 +30,6 @@ steps:
 
 - script: curl -sSL https://get.haskellstack.org/ | sh
   displayName: Install stack
-  continueOnError: false
 
 - task: CacheBeta@0
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/caching/
@@ -54,7 +53,6 @@ steps:
     export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
     stack build
     cp .stack-work/install/*/*/*/bin/unison $(ucmArtifact)
-  continueOnError: false
 
 - task: ArchiveFiles@2
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/archive-files
@@ -64,13 +62,13 @@ steps:
     tarCompression: gz
     includeRootFolder: false
     archiveFile: $(archiveFile)
-  continueOnError: false
 
 - task: GitHubRelease@0
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
   displayName: Create release
   inputs:
     gitHubConnection: aryairani2
+  continueOnError: true
 
 - task: GitHubRelease@0
   displayName: Attach release artifact
