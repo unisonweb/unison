@@ -140,7 +140,7 @@ trigger:
 steps:
 - script: |
     myvar=x
-    echo << EOF > foo.txt 
+    cat << EOF > foo.txt 
     abc
       $(Build.SourceBranchName) 
       $(ghtoken)
