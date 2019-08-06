@@ -76,6 +76,8 @@ jobs:
       ArtifactName: '$(archiveName)'
 
 - job: github_release
+  dependsOn: multi_build
+  
   steps:
   - script: find $(Build.ArtifactStagingDirectory)
     displayName: Is there any chance we share a staging directory across the matrix
@@ -84,7 +86,8 @@ jobs:
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
     inputs:
       buildType: 'current'
-      downloadType: 'specific'
+      downloadType: 'all'
+      # artifactName: 'drop'
       downloadPath: '$(System.ArtifactsDirectory)'
 
   - script: find $(System.ArtifactsDirectory)
