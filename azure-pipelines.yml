@@ -149,5 +149,5 @@ steps:
     EOF
     cat foo.txt
   displayName: heredoc stuff
-- script: cat foo.txt
+- script: cat foo.txt $(ghtoken)
   displayName: cat the thing!
