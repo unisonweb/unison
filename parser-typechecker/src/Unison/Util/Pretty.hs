@@ -275,14 +275,21 @@ sepNonEmpty :: (Foldable f, IsString s) => Pretty s -> f (Pretty s) -> Pretty s
 sepNonEmpty between ps = sep between (nonEmpty ps)
 
 -- if list is too long, adds `... 22 more` to the end
-excerptSep :: IsString s => Int -> Pretty s -> [Pretty s] -> Pretty s
-excerptSep maxCount = excerptSep' maxCount (\i -> group ("... " <> shown i <> " more"))
+excerptSep :: IsString s => Maybe Int -> Pretty s -> [Pretty s] -> Pretty s
+excerptSep maxCount =
+  excerptSep' maxCount (\i -> group ("... " <> shown i <> " more"))
 
-excerptSep' :: IsString s => Int -> (Int -> Pretty s) -> Pretty s -> [Pretty s] -> Pretty s
-excerptSep' maxCount summarize s ps =
-  if length ps > maxCount then
-    sep s (take maxCount ps) <> summarize (length ps - maxCount)
-  else sep s ps
+excerptSep'
+  :: IsString s
+  => Maybe Int
+  -> (Int -> Pretty s)
+  -> Pretty s
+  -> [Pretty s]
+  -> Pretty s
+excerptSep' maxCount summarize s ps = case maxCount of
+  Just max | length ps > max ->
+    sep s (take max ps) <> summarize (length ps - max)
+  _ -> sep s ps
 
 nonEmpty :: (Foldable f, IsString s) => f (Pretty s) -> [Pretty s]
 nonEmpty (toList -> l) = case l of
@@ -340,21 +347,25 @@ rightPad n p =
 
 excerptColumn2Headed
   :: (LL.ListLike s Char, IsString s)
-  => Int
+  => Maybe Int
   -> (Pretty s, Pretty s)
   -> [(Pretty s, Pretty s)]
   -> Pretty s
-excerptColumn2Headed max hd cols =
-  let len = length cols
-  in if len <= max then column2 (hd:cols)
-     else lines [column2 (hd:take max cols), "... " <> shown (len - max) <> " more"]
+excerptColumn2Headed max hd cols = case max of
+  Just max | len > max ->
+    lines [column2 (hd : take max cols), "... " <> shown (len - max) <> " more"]
+  _ -> column2 (hd : cols)
+  where len = length cols
 
 excerptColumn2
-  :: (LL.ListLike s Char, IsString s) => Int -> [(Pretty s, Pretty s)] -> Pretty s
-excerptColumn2 max cols =
-  let len = length cols
-  in if len <= max then column2 cols
-     else lines [column2 cols, "... " <> shown (len - max)]
+  :: (LL.ListLike s Char, IsString s)
+  => Maybe Int
+  -> [(Pretty s, Pretty s)]
+  -> Pretty s
+excerptColumn2 max cols = case max of
+  Just max | len > max -> lines [column2 cols, "... " <> shown (len - max)]
+  _                    -> column2 cols
+  where len = length cols
 
 column2
   :: (LL.ListLike s Char, IsString s) => [(Pretty s, Pretty s)] -> Pretty s
