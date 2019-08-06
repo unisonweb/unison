@@ -126,9 +126,9 @@ jobs:
       cp ../unison-language.rb .
       git add unison-language.rb
       git checkout -b release/$(Build.SourceBranchName)
-      git commit -m"update to $(Build.SourceBranchName)"
       git config user.email "azure@azure.com"
       git config user.name "azure pipeline"
+      git commit -m"update to $(Build.SourceBranchName)"
       git push --set-upstream origin release/$(Build.SourceBranchName)
     displayName: commit unison-language.rb    
 
