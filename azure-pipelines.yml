@@ -130,7 +130,7 @@ jobs:
       git config user.email "azure@azure.com"
       git config user.name "azure pipeline"
       git commit -m"update to $(Build.SourceBranchName)"
-      git push --set-upstream origin release/$(Build.SourceBranchName)
+      git push https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git release/$(Build.SourceBranchName)
     displayName: commit unison-language.rb    
 
 # steps:
