@@ -86,7 +86,7 @@ jobs:
     displayName: Create release
     inputs:
       gitHubConnection: aryairani2
-      isDraft: true
+      isPreRelease: true
       assets: '$(System.ArtifactsDirectory)/**'
 
 - job: homebrew_template
