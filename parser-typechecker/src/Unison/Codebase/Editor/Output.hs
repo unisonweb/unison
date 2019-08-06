@@ -7,6 +7,7 @@ module Unison.Codebase.Editor.Output
   , TestReportStats(..)
   , UndoFailureReason(..)
   , PushPull(..)
+  , pushPull
   ) where
 
 import Data.Map (Map)
@@ -48,6 +49,11 @@ type ShowAll = Bool
 type SourceName = Text
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
+
+pushPull :: a -> a -> PushPull -> a
+pushPull push pull p = case p of
+  Push -> push
+  Pull -> pull
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -132,8 +138,8 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set Branch.Hash)
-  | ShowDiff Input Names.Diff 
-  | NothingTodo Input 
+  | ShowDiff Input Names.Diff
+  | NothingTodo Input
   | NotImplemented
   deriving (Show)
 

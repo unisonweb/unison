@@ -29,11 +29,18 @@ newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
 newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
-newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord)
+newtype Path' = Path' { unPath' :: Either Absolute Relative }
+  deriving (Eq,Ord)
 
 isCurrentPath :: Path' -> Bool
 isCurrentPath (Path' (Right (Relative (Path e)))) | e == mempty = True
 isCurrentPath _ = False
+
+isRoot' :: Path' -> Bool
+isRoot' = either isRoot (const False) . unPath'
+
+isRoot :: Absolute -> Bool
+isRoot = Seq.null . toSeq . unabsolute
 
 instance Show Path' where
   show (Path' (Left abs)) = show abs

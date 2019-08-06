@@ -69,12 +69,17 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to the current path."
+  "Adds all the builtins to the current namespace."
   (const . pure $ Input.MergeBuiltinsI)
 
 updateBuiltins :: InputPattern
-updateBuiltins = InputPattern "builtins.update" [] []
-  "Adds all the builtins that are missing from this branch, and deprecate the ones that don't exist in this version of Unison."
+updateBuiltins = InputPattern
+  "builtins.update"
+  []
+  []
+  (  "Adds all the builtins that are missing from this namespace, "
+  <> "and deprecate the ones that don't exist in this version of Unison."
+  )
   (const . pure $ Input.UpdateBuiltinsI)
 
 todo :: InputPattern
@@ -83,12 +88,17 @@ todo = InputPattern
   []
   [(Optional, patchArg), (Optional, pathArg)]
   (P.wrapColumn2
-    [ (makeExample' todo
-      , "lists the refactor work remaining in the default patch for the current path.")
-    , (makeExample todo ["<patch>"]
-      , "lists the refactor work remaining in the given patch in the current path.")
-    , (makeExample todo ["<patch>", "[path]"]
-      , "lists the refactor work remaining in the given patch in given path.")
+    [ ( makeExample' todo
+      , "lists the refactor work remaining in the default patch for the current"
+        <> " namespace."
+      )
+    , ( makeExample todo ["<patch>"]
+      , "lists the refactor work remaining in the given patch in the current "
+        <> "namespace."
+      )
+    , ( makeExample todo ["<patch>", "[path]"]
+      , "lists the refactor work remaining in the given patch in given namespace."
+      )
     ]
   )
   (\case
@@ -103,11 +113,21 @@ todo = InputPattern
   )
 
 add :: InputPattern
-add = InputPattern "add" [] [(ZeroPlus, noCompletions)]
- "`add` adds to the codebase all the definitions from the most recently typechecked file."
- $ \ws -> case traverse HQ'.fromString ws of
-  Just ws -> pure $ Input.AddI ws
-  Nothing -> Left . warn . P.lines . fmap fromString
+add =
+  InputPattern
+      "add"
+      []
+      [(ZeroPlus, noCompletions)]
+      ("`add` adds to the codebase all the definitions from the most recently "
+      <> "typechecked file."
+      )
+    $ \ws -> case traverse HQ'.fromString ws of
+        Just ws -> pure $ Input.AddI ws
+        Nothing ->
+          Left
+            . warn
+            . P.lines
+            . fmap fromString
             . ("I don't know what these refer to:\n" :)
             $ collectNothings HQ'.fromString ws
 
@@ -117,7 +137,7 @@ update = InputPattern "update"
   [(Optional, patchArg)
   ,(ZeroPlus, noCompletions)]
   (P.wrap (makeExample' update <> "works like"
-      <> (P.group $ makeExample' add <> ",")
+      <> P.group (makeExample' add <> ",")
       <> "except that if a definition in the file has the same name as an"
       <> "existing definition, the name gets updated to point to the new"
       <> "definition. If the old definition has any dependents, `update` will"
@@ -126,7 +146,7 @@ update = InputPattern "update"
    <> P.wrapColumn2
     [ (makeExample' update
       , "adds all definitions in the .u file, noting replacements in the"
-       <> "default patch for the current path.")
+       <> "default patch for the current namespace.")
     , (makeExample update ["<patch>"]
       , "adds all definitions in the .u file, noting replacements in the"
        <> "specified patch.")
@@ -147,18 +167,29 @@ update = InputPattern "update"
     [] -> Right $ Input.UpdateI Nothing [] )
 
 patch :: InputPattern
-patch = InputPattern "patch" [] [(Required, patchArg), (Optional, pathArg)]
-  (P.wrap $ makeExample' patch <> "rewrites any definitions that depend on "
-      <> "definitions with type-preserving edits to use the updated versions of"
-      <> "these dependencies.")
+patch = InputPattern
+  "patch"
+  []
+  [(Required, patchArg), (Optional, pathArg)]
+  (  P.wrap
+  $  makeExample' patch
+  <> "rewrites any definitions that depend on "
+  <> "definitions with type-preserving edits to use the updated versions of"
+  <> "these dependencies."
+  )
   (\case
     patchStr : ws -> first fromString $ do
-      patch <- Path.parseSplit' Path.wordyNameSegment patchStr
+      patch  <- Path.parseSplit' Path.wordyNameSegment patchStr
       branch <- case ws of
         [pathStr] -> Path.parsePath' pathStr
-        _ -> pure Path.relativeEmpty'
+        _         -> pure Path.relativeEmpty'
       pure $ Input.PropagatePatchI patch branch
-    [] -> Left $ warn $ makeExample' patch <> "takes a patch and an optional path.")
+    [] ->
+      Left
+        $  warn
+        $  makeExample' patch
+        <> "takes a patch and an optional namespace."
+  )
 
 view :: InputPattern
 view = InputPattern "view" [] [(OnePlus, exactDefinitionQueryArg)]
@@ -177,37 +208,54 @@ viewByPrefix
     (pure . Input.ShowDefinitionByPrefixI Input.ConsoleLocation)
 
 find :: InputPattern
-find = InputPattern "find" ["list", "ls"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
-    (P.wrapColumn2
-      [ ("`find`"
-        , "lists all definitions in the current branch.")
-      , ( "`find foo`"
-        , "lists all definitions with a name similar to 'foo' in the current branch.")
-      , ( "`find foo bar`"
-        , "lists all definitions with a name similar to 'foo' or 'bar' in the current branch.")
-      ]
-    )
-    (pure . Input.SearchByNameI False False)
+find = InputPattern
+  "find"
+  ["list", "ls"]
+  [(ZeroPlus, fuzzyDefinitionQueryArg)]
+  (P.wrapColumn2
+    [ ("`find`", "lists all definitions in the current namespace.")
+    , ( "`find foo`"
+      , "lists all definitions with a name similar to 'foo' in the current "
+        <> "namespace."
+      )
+    , ( "`find foo bar`"
+      , "lists all definitions with a name similar to 'foo' or 'bar' in the "
+        <> "current namespace."
+      )
+    ]
+  )
+  (pure . Input.SearchByNameI False False)
 
 findVerbose :: InputPattern
-findVerbose = InputPattern "find.verbose" ["list.verbose", "ls.verbose"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
-  "`find.verbose` searches for definitions like `find`, but includes hashes and aliases in the results."
+findVerbose = InputPattern
+  "find.verbose"
+  ["list.verbose", "ls.verbose"]
+  [(ZeroPlus, fuzzyDefinitionQueryArg)]
+  (  "`find.verbose` searches for definitions like `find`, but includes hashes "
+  <> "and aliases in the results."
+  )
   (pure . Input.SearchByNameI True False)
 
 findAll :: InputPattern
-findAll = InputPattern "find.all" ["list.all", "ls.all"] [(ZeroPlus, fuzzyDefinitionQueryArg)]
-  "`find.all` searches for definitions like `find` and shows the full result list."
+findAll = InputPattern
+  "find.all"
+  ["list.all", "ls.all"]
+  [(ZeroPlus, fuzzyDefinitionQueryArg)]
+  ("`find.all` searches for definitions like `find` and shows the full result "
+  <> "list."
+  )
   (pure . Input.SearchByNameI False True)
 
 
 findPatch :: InputPattern
-findPatch = InputPattern "find.patch" ["list.patch", "ls.patch"] []
-    (P.wrapColumn2
-      [ ("`find.patch`"
-        , "lists all patches in the current branch.")
-      ]
-    )
-    (pure . const Input.FindPatchI)
+findPatch = InputPattern
+  "find.patch"
+  ["list.patch", "ls.patch"]
+  []
+  (P.wrapColumn2
+    [("`find.patch`", "lists all patches in the current namespace.")]
+  )
+  (pure . const Input.FindPatchI)
 
 renameTerm :: InputPattern
 renameTerm = InputPattern "move.term" ["rename.term"]
@@ -289,9 +337,9 @@ cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
       [ ("`path foo.bar`",
-          "descends into foo.bar from the current path.")
+          "descends into foo.bar from the current namespace.")
       , ("`path .cat.dog`",
-          "sets the current path to the abolute path .cat.dog.") ])
+          "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
         p <- Path.parsePath' p
@@ -301,7 +349,7 @@ cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
 
 deleteBranch :: InputPattern
 deleteBranch = InputPattern "delete.namespace" [] [(Required, pathArg)]
-  "`delete.path <foo>` deletes the path `foo`"
+  "`delete.namespace <foo>` deletes the namespace `foo`"
    (\case
         ["."] -> first fromString .
           pure $ Input.DeleteBranchI Nothing
@@ -341,7 +389,7 @@ renamePatch :: InputPattern
 renamePatch = InputPattern "move.patch"
    ["rename.patch"]
    [(Required, patchArg), (Required, patchArg)]
-   "`move.path foo bar` renames the patch `bar` to `foo`."
+   "`move.patch foo bar` renames the patch `bar` to `foo`."
     (\case
       [src, dest] -> movePatch src dest
       _ -> Left (I.help renamePatch)
@@ -351,7 +399,7 @@ renameBranch :: InputPattern
 renameBranch = InputPattern "move.namespace"
    ["rename.namespace"]
    [(Required, pathArg), (Required, pathArg)]
-   "`move.path foo bar` renames the path `bar` to `foo`."
+   "`move.namespace foo bar` renames the path `bar` to `foo`."
     (\case
       [".", dest] -> first fromString $ do
         dest <- Path.parseSplit' Path.wordyNameSegment dest
@@ -366,7 +414,7 @@ renameBranch = InputPattern "move.namespace"
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
                                    ,(Required, pathArg)]
-    "`fork foo bar` creates the path `bar` as a fork of `foo`."
+    "`fork foo bar` creates the namespace `bar` as a fork of `foo`."
     (\case
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
@@ -382,22 +430,24 @@ pull = InputPattern
   [(Optional, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`pull`"
-      , "pulls the contents of the git url configured for the current path."
+      , "pulls the contents of the git url specified by `GitUrl.ns` in "
+      <> ".unisonConfig, where `ns` is the current namespace. "
+      <> "Not allowed for the root namespace."
       )
     , ( "`pull url`"
-      , "pulls the contents of the git url `url` into the current path."
+      , "pulls the contents of the git url `url` into the current namespace."
       )
     , ( "`pull url foo.bar`"
       , "pulls the contents of the git url `url` into `foo.bar` relative "
-        <> "to the current path."
+        <> "to the current namespace."
       )
     , ( "`pull url .foo.bar`"
-      , "pulls the contents of the git url `url` into into the absolute path "
-        <> "`.foo.bar`."
+      , "pulls the contents of the git url `url` into into the absolute "
+        <> "namespace `.foo.bar`."
       )
     , ( "`pull url foo bar`"
       , "pulls the contents of the git branch or commit named `bar` from the "
-        <> " git url `url` into the path `bar`."
+        <> " git url `url` into the namespace `foo`."
       )
     ]
   )
@@ -424,28 +474,29 @@ push = InputPattern
   [(Optional, gitUrlArg), (Optional, pathArg)]
   (P.wrapColumn2
     [ ( "`push`"
-      , "pushes the contents of the current path to the configured git url " <>
-        "for that path."
+      , "pushes the contents of the current namespaceto the git url specified by "
+        <> "for that namespace."
       )
     , ( "`push url`"
-      , "pushes the contents of the current path to the git url given by `url`."
+      , "pushes the contents of the current namespace to the git url given by "
+        <> "`url`."
       )
     , ( "`push url foo.bar`"
-      , "pushes the contents of `foo.bar` relative to the current path "
+      , "pushes the contents of `foo.bar` relative to the current namespace "
         <> "to the git url given by `url`."
       )
     , ( "`push url .foo.bar`"
-      , "pushes the contents of the absolute path `.foo.bar` "
+      , "pushes the contents of the absolute namespace `.foo.bar` "
         <> "to the git url given by `url`."
       )
     , ( "`push url foo bar`"
-      , "pushes the contents of the path `foo` "
+      , "pushes the contents of the namespace `foo` "
         <> "to the git branch `bar` at the git url `url`."
       )
     ]
   )
   (\case
-    [] -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
+    []    -> pure $ Input.PushRemoteBranchI Nothing Path.relativeEmpty'
     [url] -> first fromString . pure $ Input.PushRemoteBranchI
       (Just $ GitRepo (Text.pack url) "master")
       Path.relativeEmpty'
@@ -478,21 +529,29 @@ mergeLocal = InputPattern "merge" [] [(Required, pathArg)
  )
 
 previewMergeLocal :: InputPattern
-previewMergeLocal = InputPattern "merge.preview" [] [(Required, pathArg)
-                                     ,(Optional, pathArg)]
- (P.column2 [
-   ("`merge.preview src`", "shows how the current namespace will change after a `merge src`."),
-   ("`merge.preview src dest`", "shows how `dest` namespace will change after a `merge src dest`.") ])
- (\case
-      [src] -> first fromString $ do
-        src <- Path.parsePath' src
-        pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
-      [src, dest] -> first fromString $ do
-        src <- Path.parsePath' src
-        dest <- Path.parsePath' dest
-        pure $ Input.PreviewMergeLocalBranchI src dest
-      _ -> Left (I.help previewMergeLocal)
- )
+previewMergeLocal = InputPattern
+  "merge.preview"
+  []
+  [(Required, pathArg), (Optional, pathArg)]
+  (P.column2
+    [ ( "`merge.preview src`"
+      , "shows how the current namespace will change after a `merge src`."
+      )
+    , ( "`merge.preview src dest`"
+      , "shows how `dest` namespace will change after a `merge src dest`."
+      )
+    ]
+  )
+  (\case
+    [src] -> first fromString $ do
+      src <- Path.parsePath' src
+      pure $ Input.PreviewMergeLocalBranchI src Path.relativeEmpty'
+    [src, dest] -> first fromString $ do
+      src  <- Path.parsePath' src
+      dest <- Path.parsePath' dest
+      pure $ Input.PreviewMergeLocalBranchI src dest
+    _ -> Left (I.help previewMergeLocal)
+  )
 
 -- replace,resolve :: InputPattern
 --replace = InputPattern "replace" []
@@ -506,8 +565,13 @@ previewMergeLocal = InputPattern "merge.preview" [] [(Required, pathArg)
 --  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
 
 edit :: InputPattern
-edit = InputPattern "edit" [] [(OnePlus, exactDefinitionQueryArg)]
-  "`edit foo` prepends the definition of `foo` to the top of the most recently saved file."
+edit = InputPattern
+  "edit"
+  []
+  [(OnePlus, exactDefinitionQueryArg)]
+  (  "`edit foo` prepends the definition of `foo` to the top of the most "
+  <> "recently saved file."
+  )
   (pure . Input.ShowDefinitionI Input.LatestFileLocation)
 
 helpTopics :: Map String (P.Pretty P.ColorText)
@@ -516,7 +580,7 @@ helpTopics = Map.fromList [
   ("filestatus", fileStatusMsg),
   ("topics", topics),
   ("messages.disallowedAbsolute", disallowedAbsoluteMsg),
-  ("pathnames", pathnamesMsg)
+  ("namespaces", pathnamesMsg)
   ]
   where
   topics = P.callout "🌻" $ P.lines [
@@ -575,14 +639,14 @@ helpTopics = Map.fromList [
           <> "of the definitions it depends on has changed."
     ]
   pathnamesMsg = P.callout "\129488" . P.lines $ [
-    P.wrap $ "There are two kinds of path names," <> P.group (P.blue "absolute" <> ",")
+    P.wrap $ "There are two kinds of namespaces," <> P.group (P.blue "absolute" <> ",")
           <> "such as" <> P.group ("(" <> P.blue ".foo.bar")
           <> "or" <> P.group (P.blue ".base.math.+" <> ")")
           <> "and" <> P.group (P.green "relative" <> ",")
           <> "such as" <> P.group ("(" <> P.green "math.sqrt")
           <> "or" <> P.group (P.green "util.List.++" <> ")."),
     "",
-    P.wrap $ "Relative names are converted to absolute names by prepending the current path."
+    P.wrap $ "Relative names are converted to absolute names by prepending the current namespace."
           <> "For example, if your Unison prompt reads:", "",
       P.indentN 2 $ P.blue ".foo.bar>", "",
     "and your .u file looks like:", "",
@@ -603,7 +667,7 @@ helpTopics = Map.fromList [
     P.wrap $
       "Although I can understand absolute (ex: .foo.bar) or" <>
       "relative (ex: util.math.sqrt) references to existing definitions" <>
-      P.group ("(" <> P.blue "help pathnames") <> "to learn more)," <>
+      P.group ("(" <> P.blue "help namespaces") <> "to learn more)," <>
       "I can't yet handle giving new definitions with absolute names in a .u file.",
     "",
     P.wrap $ "As a workaround, you can give definitions with a relative name"

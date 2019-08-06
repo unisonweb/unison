@@ -18,6 +18,8 @@ import Data.Maybe (fromMaybe)
 import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import System.FilePath ((</>))
+import System.IO.Error (catchIOError)
+import System.Exit (die)
 import Safe
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
@@ -134,7 +136,9 @@ main dir initialPath _initialFile startRuntime codebase = do
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
-    (config, cancelConfig)   <- watchConfig $ dir </> ".unisonConfig"
+    (config, cancelConfig)   <-
+      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
                                                       readIORef rootRef)
