@@ -147,5 +147,6 @@ steps:
       $myvar
     123
     EOF
-    cat foo.txt
   displayName: heredoc stuff
+- script: cat foo.txt
+  displayName: cat the thing!
