@@ -72,15 +72,23 @@ jobs:
 
   - task: PublishBuildArtifacts@1
     inputs:
-      PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-      ArtifactName: $(archiveName)
-    continueOnError: true
+      PathtoPublish: '$(archiveFile)'
+      ArtifactName: '$(archiveName)'
 
 - job: github_release
-  dependsOn: multi_build
   steps:
   - script: find $(Build.ArtifactStagingDirectory)
     displayName: Is there any chance we share a staging directory across the matrix
+
+  - task: DownloadBuildArtifacts@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/download-build-artifacts
+    inputs:
+      buildType: 'current'
+      downloadType: 'specific'
+      downloadPath: '$(System.ArtifactsDirectory)'
+
+  - script: find $(System.ArtifactsDirectory)
+    displayName: What did DownloadBuildArtifacts give us
 
   - task: GitHubRelease@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
@@ -88,4 +96,4 @@ jobs:
     inputs:
       gitHubConnection: aryairani2
       isDraft: true
-      assets: $(Build.ArtifactStagingDirectory)/*.tar.gz
+      assets: '$(System.ArtifactsDirectory)/*'
