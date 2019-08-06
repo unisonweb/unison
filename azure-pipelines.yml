@@ -99,5 +99,9 @@ jobs:
   #     IFS=":" read -ra paths <<< "$PATH"
   #     find "${paths[@]}" -type f -executable -name 'sha*'
   #   displayName: find 'sha'
-  - script: shasum -h
-    displayName: shasum help
+  # - script: shasum -h
+  #   displayName: shasum help
+  # - script: echo $() | sed 's/.*\/release\/\(.*\)$/\1/'
+  #   displayName: show release name
+  - script: echo $(Build.SourceBranchName)
+    displayName: show SourceBranchName
