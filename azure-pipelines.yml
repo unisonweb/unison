@@ -101,6 +101,7 @@ jobs:
     inputs:
       action: edit
       tag: 'release/$(Build.SourceBranchName)'
+      isPreRelease: true
       addChangeLog: false
       assetUploadMode: replace
       assets: '$(System.ArtifactsDirectory)/**'
@@ -149,7 +150,7 @@ jobs:
     displayName: generate unison-language.rb
 
   - script: |
-      git clone https://$(ghuser):$(ghtoken)@$(homebrewRepo)
+      git clone https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git
       pushd homebrew-unison
       tag=release/$(Build.SourceBranchName)
       cp ../unison-language.rb .
