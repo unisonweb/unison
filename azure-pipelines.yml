@@ -101,6 +101,7 @@ jobs:
     inputs:
       action: edit
       tag: 'release/$(Build.SourceBranchName)'
+      addChangeLog: false
       assetUploadMode: replace
       assets: '$(System.ArtifactsDirectory)/**'
       gitHubConnection: aryairani2
