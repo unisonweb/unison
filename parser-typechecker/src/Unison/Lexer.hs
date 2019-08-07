@@ -336,6 +336,16 @@ lexer0 scope rem =
     go :: Layout -> Pos -> String -> [Token Lexeme]
     go l pos rem = case rem of
       [] -> popLayout0 l pos []
+      '?' : '\\' : c : rem ->
+        case parseEscapeChar c of
+          Just c ->
+            let end = inc $ inc $ inc pos in
+            Token (Character c) pos end : goWhitespace l end rem
+          Nothing ->
+            [Token (Err $ InvalidEscapeCharacter c) pos pos]
+      '?' : c : rem ->
+        let end = inc $ inc pos in
+        Token (Character c) pos end : goWhitespace l end rem
       -- '{' and '(' both introduce a block, which is closed by '}' and ')'
       -- The lexer doesn't distinguish among closing blocks: all the ways of
       -- closing a block emit the same sort of token, `Close`.
@@ -349,16 +359,6 @@ lexer0 scope rem =
       ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
-      '?' : '\\' : c : rem ->
-        case parseEscapeChar c of
-          Just c ->
-            let end = inc $ inc $ inc pos in
-            Token (Character c) pos end : goWhitespace l end rem
-          Nothing ->
-            [Token (Err $ InvalidEscapeCharacter c) pos pos]
-      '?' : c : rem ->
-        let end = inc $ inc pos in
-        Token (Character c) pos end : goWhitespace l end rem
       op : rem@(c : _)
         | isDelayOrForce op
         && (isSpace c || isAlphaNum c
