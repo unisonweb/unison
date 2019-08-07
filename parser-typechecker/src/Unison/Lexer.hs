@@ -18,6 +18,7 @@ import           Data.List
 import qualified Data.List.NonEmpty as Nel
 import           Data.Set (Set)
 import Unison.Util.Monoid (intercalateMap)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           GHC.Exts (sortWith)
 import           Text.Megaparsec.Error (ShowToken(..))
@@ -48,7 +49,7 @@ data Lexeme
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
-  | Character Char   -- character literals, `'X'`
+  | Character Char   -- character literals, `$X`
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String   (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
@@ -93,8 +94,10 @@ instance ShowToken (Token Lexeme) where
       pretty (Open s) = s
       pretty (Reserved w) = w
       pretty (Textual t) = '"' : t ++ ['"']
-      -- TODO(zenhack): escape things?
-      pretty (Character c) = "'" ++ [c] ++ "'"
+      pretty (Character c) =
+        case showEscapeChar c of
+          Just c -> "$\\" ++ [c]
+          Nothing -> '$' : [c]
       pretty (Backticks n h) =
         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
@@ -346,16 +349,15 @@ lexer0 scope rem =
       ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
-      '\'' : '\\' : c : '\'' : rem ->
+      '$' : '\\' : c : rem ->
         case parseEscapeChar c of
           Just c ->
-            -- XXX(zenhack): can we do better than inc $ inc $ ... ?
-            let end = inc $ inc $ inc $ inc pos in
+            let end = inc $ inc $ inc pos in
             Token (Character c) pos end : goWhitespace l end rem
           Nothing ->
             [Token (Err $ InvalidEscapeCharacter c) pos pos]
-      '\'' : c : '\'' : rem ->
-        let end = inc $ inc $ inc pos in
+      '$' : c : rem ->
+        let end = inc $ inc pos in
         Token (Character c) pos end : goWhitespace l end rem
       op : rem@(c : _)
         | isDelayOrForce op
@@ -498,21 +500,32 @@ splitStringLit = go (inc mempty) "" where
 appendFst :: Char -> (String, a) -> (String, a)
 appendFst c (s, r) = (c : s, r)
 
+-- Mapping between characters and their escape codes. Use parse/showEscapeChar
+-- to convert.
+escapeChars :: [(Char, Char)]
+escapeChars =
+  [ ('0', '\0')
+  , ('a', '\a')
+  , ('b', '\b')
+  , ('f', '\f')
+  , ('n', '\n')
+  , ('r', '\r')
+  , ('t', '\t')
+  , ('v', '\v')
+  , ('\'', '\'')
+  , ('"', '"')
+  , ('\\', '\\')
+  ]
+
 -- Map a escape symbol to it's character literal
 parseEscapeChar :: Char -> Maybe Char
-parseEscapeChar '0'  = Just '\0'
-parseEscapeChar 'a'  = Just '\a'
-parseEscapeChar 'b'  = Just '\b'
-parseEscapeChar 'f'  = Just '\f'
-parseEscapeChar 'n'  = Just '\n'
-parseEscapeChar 'r'  = Just '\r'
-parseEscapeChar 't'  = Just '\t'
-parseEscapeChar 'v'  = Just '\v'
-parseEscapeChar '\'' = Just '\''
-parseEscapeChar '"'  = Just '"'
-parseEscapeChar '\\' = Just '\\'
-parseEscapeChar _    = Nothing
+parseEscapeChar c =
+  Map.lookup c (Map.fromList escapeChars)
 
+-- Inverse of parseEscapeChar; map a character to its escaped version:
+showEscapeChar :: Char -> Maybe Char
+showEscapeChar c =
+  Map.lookup c (Map.fromList [(x, y) | (y, x) <- escapeChars])
 
 numericLit :: String -> Either Err (Maybe (String,String))
 numericLit = go
