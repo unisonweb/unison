@@ -86,15 +86,25 @@ jobs:
 
   - task: GitHubRelease@0
   # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
-    displayName: Create release
+    displayName: Create Github release
+    continueOnError: true
     inputs:
       gitHubConnection: aryairani2
       title: '$(Build.SourceBranchName)'
       isPreRelease: true
       # releaseNotesFile: '$(Build.SourceBranchName)-notes.md'
       addChangeLog: false
-      # compareWith: lastRelease
+
+  - task: GitHubRelease@0
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/github-release
+    displayName: Attach artifacts to Github release
+    inputs:
+      action: edit
+      tag: 'release/$(Build.SourceBranchName)'
+      addChangeLog: false
+      assetUploadMode: replace
       assets: '$(System.ArtifactsDirectory)/**'
+      gitHubConnection: aryairani2
 
 - job: homebrew_template
   dependsOn: multi_build
@@ -139,7 +149,7 @@ jobs:
     displayName: generate unison-language.rb
 
   - script: |
-      git clone https://aryairani:$(ghtoken)@github.com/unisonweb/homebrew-unison.git
+      git clone https://$(ghuser):$(ghtoken)@$(homebrewRepo)
       pushd homebrew-unison
       tag=release/$(Build.SourceBranchName)
       cp ../unison-language.rb .
@@ -151,17 +161,3 @@ jobs:
         (git push origin HEAD:$tag && \
          echo "##vso[task.logissue type=warning;]couldn't push to master; pushed to $tag instead.")
     displayName: commit unison-language.rb
-# steps:
-# - script: |
-#     myvar=x
-#     cat << EOF > foo.txt
-#     abc
-#       $(Build.SourceBranchName)
-#       $(ghtoken)
-#       $myvar
-#     123
-#     EOF
-#     cat foo.txt
-#   displayName: heredoc stuff
-# - script: cat foo.txt $(ghtoken)
-#   displayName: cat the thing!
