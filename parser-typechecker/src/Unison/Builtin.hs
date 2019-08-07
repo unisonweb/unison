@@ -221,6 +221,7 @@ builtinsSrc =
   , B "Int.isOdd" $ int --> boolean
   , B "Int.signum" $ int --> int
   , B "Int.negate" $ int --> int
+  , B "Int.mod" $ int --> int --> int
   , B "Int.truncate0" $ int --> nat
 
   , B "Nat.+" $ nat --> nat --> nat
