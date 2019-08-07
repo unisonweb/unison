@@ -404,7 +404,7 @@ notifyUser dir o = case o of
             <> (if Text.null treeish then ""
                 else "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
-      "", P.indentN 2 (prettyDiff diff), "",
+      "", P.indentN 2 (prettyDiff Nothing diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
        P.indentN 2 pull, "",
        P.wrap $
@@ -511,24 +511,34 @@ notifyUser dir o = case o of
   ShowDiff input diff -> putPrettyLn $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
-      prettyDiff diff
+      prettyDiff (Just 10) diff
       ]
-    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $ [
-      P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the merge:", "",
-      prettyDiff diff, "",
-      tip "You can always `undo` if this wasn't what you wanted." ]
+    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $
+      [ P.wrap $
+          "Here's what's changed in " <> prettyPath' dest <> "after the merge:"
+      , ""
+      , prettyDiff (Just 10) diff
+      , ""
+      , tip "You can always `undo` if this wasn't what you wanted."
+      ]
     Input.PullRemoteBranchI _ dest ->
       if Names.isEmptyDiff diff then
         "✅  Looks like " <> prettyPath' dest <> " is up to date."
       else P.callout "🆕" . P.lines $ [
         P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
-        prettyDiff diff, "",
+        prettyDiff (Just 10) diff, "",
         tip "You can always `undo` if this wasn't what you wanted." ]
-    Input.PreviewMergeLocalBranchI src dest -> P.callout "🔎" . P.lines $ [
-      P.wrap $ "Here's what would change in " <> prettyPath' dest <> "after the merge:", "",
-      prettyDiff diff
-      ]
-    _ -> prettyDiff diff
+    Input.PreviewMergeLocalBranchI src dest ->
+      P.callout "🔎"
+        . P.lines
+        $ [ P.wrap
+          $  "Here's what would change in "
+          <> prettyPath' dest
+          <> "after the merge:"
+          , ""
+          , prettyDiff Nothing diff
+          ]
+    _ -> prettyDiff Nothing diff
   NothingTodo input -> putPrettyLn . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"
@@ -986,8 +996,8 @@ watchPrinter src ppe ann kind term isHit =
 filestatusTip :: P.Pretty CT.ColorText
 filestatusTip = tip "Use `help filestatus` to learn more."
 
-prettyDiff :: Names.Diff -> P.Pretty P.ColorText
-prettyDiff diff = let
+prettyDiff :: Maybe Int -> Names.Diff -> P.Pretty P.ColorText
+prettyDiff cap diff = let
   orig = Names.originalNames diff
   adds = Names.addedNames diff
   removes = Names.removedNames diff
@@ -1023,42 +1033,43 @@ prettyDiff diff = let
            , n <- toList (R.lookupRan r (Names.types0 orig)) ]
   copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
-
-  in P.sepNonEmpty "\n\n" [
-       if not $ null added then
-         P.lines [
-           -- todo: split out updates
-           P.green "+ Adds / updates:", "",
-           P.indentN 2 . P.wrap $
-             P.excerptSep 10 " " (prettyName <$> added)
-         ]
-       else mempty,
-       if not $ null removed then
-         P.lines [
-           P.hiBlack "- Deletes:", "",
-           P.indentN 2 . P.wrap $
-             P.excerptSep 10 " " (prettyName <$> removed)
-         ]
-       else mempty,
-       if not $ null moved then
-         P.lines [
-           P.purple "> Moves:", "",
-           P.indentN 2 $
-             P.excerptColumn2Headed 10
-               (P.hiBlack "Original name", P.hiBlack "New name")
-               [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
-         ]
-       else mempty,
-       if not $ null copied then
-         P.lines [
-           P.yellow "= Copies:", "",
-           P.indentN 2 $
-             P.excerptColumn2Headed 10
-               (P.hiBlack "Original name", P.hiBlack "New name(s)")
-               [ (prettyName n, P.sep " " (prettyName <$> ns)) | (n, ns) <- copied ]
-         ]
-       else mempty
-     ]
+  in
+  P.sepNonEmpty "\n\n" [
+     if not $ null added then
+       P.lines [
+         -- todo: split out updates
+         P.green "+ Adds / updates:", "",
+         P.indentN 2 . P.wrap $
+           P.excerptSep cap " " (prettyName <$> added)
+       ]
+     else mempty,
+     if not $ null removed then
+       P.lines [
+         P.hiBlack "- Deletes:", "",
+         P.indentN 2 . P.wrap $
+           P.excerptSep cap " " (prettyName <$> removed)
+       ]
+     else mempty,
+     if not $ null moved then
+       P.lines [
+         P.purple "> Moves:", "",
+         P.indentN 2 $
+           P.excerptColumn2Headed cap
+             (P.hiBlack "Original name", P.hiBlack "New name")
+             [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
+       ]
+     else mempty,
+     if not $ null copied then
+       P.lines [
+         P.yellow "= Copies:", "",
+         P.indentN 2 $
+           P.excerptColumn2Headed cap
+             (P.hiBlack "Original name", P.hiBlack "New name(s)")
+             [ (prettyName n, P.sep " " (prettyName <$> ns))
+             | (n, ns) <- copied ]
+       ]
+     else mempty
+   ]
 
 isTestOk :: Codebase.Term v Ann -> Bool
 isTestOk tm = case tm of

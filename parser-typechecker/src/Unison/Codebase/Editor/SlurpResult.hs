@@ -180,8 +180,7 @@ pretty isPast ppe sr = let
       (plus <> lhs, ": " <> P.indentNAfterNewline 2 (TP.pretty ppe ty)) where
       lhs = case Map.lookup v (termAlias sr) of
         Nothing -> P.bold (prettyVar v)
-        Just ns -> P.sep ", " $
-          (P.bold (prettyVar v) : (P.shown <$> toList ns))
+        Just ns -> P.sep ", " $ P.bold (prettyVar v) : (P.shown <$> toList ns)
   oks _past _present sc | SC.isEmpty sc = mempty
   oks past present sc = let
     header = goodIcon <> P.indentNAfterNewline 2 (P.wrap (if isPast then past else present))
@@ -232,26 +231,37 @@ pretty isPast ppe sr = let
   more i = "... " <> P.bold (P.shown i) <> P.hiBlack " more." <>
           "Try moving these below the `---` \"fold\" in your file."
   in
-    P.sepNonEmpty "\n\n" [
-      if SC.isEmpty (duplicates sr) then mempty
-      else (if isPast then "⊡ Ignored previously added definitions: "
-            else "⊡ Previously added definitions will be ignored: ") <>
-            (P.indentNAfterNewline 2 $
-             (P.wrap $ P.excerptSep' 7 more " " (P.hiBlack . prettyVar <$> dups))),
-      oks (P.green "I've added these definitions:")
+  P.sepNonEmpty
+    "\n\n"
+    [ if SC.isEmpty (duplicates sr)
+      then mempty
+      else
+        (if isPast
+            then "⊡ Ignored previously added definitions: "
+            else "⊡ Previously added definitions will be ignored: "
+          )
+          <>  P.indentNAfterNewline 2
+             (  P.wrap
+               $ P.excerptSep' (Just 7) more " " (P.hiBlack . prettyVar <$> dups)
+             )
+    , oks (P.green "I've added these definitions:")
           (P.green "These new definitions are ok to `add`:")
-          (adds sr),
-      oks (P.green "I've updated to these definitions:")
-          (P.green $ "These new definitions will replace existing ones of the same name and are"
-                  <> "ok to `update`:")
-          (updates sr),
-      notOks (P.red "These definitions failed:")
-             (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
-             sr
+          (adds sr)
+    , oks
+      (P.green "I've updated to these definitions:")
+      (P.green
+      $ "These new definitions will replace existing ones of the same name and "
+      <> "are ok to `update`:"
+      )
+      (updates sr)
+    , notOks
+      (P.red "These definitions failed:")
+      (P.wrap $ P.red "These definitions would fail on `add` or `update`:")
+      sr
     ]
 
 isOk :: Ord v => SlurpResult v -> Bool
-isOk (SlurpResult {..}) =
+isOk SlurpResult {..} =
   SC.isEmpty collisions &&
   SC.isEmpty conflicts &&
   Map.null termAlias && Map.null typeAlias &&
