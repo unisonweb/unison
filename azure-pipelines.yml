@@ -149,7 +149,7 @@ jobs:
     displayName: generate unison-language.rb
 
   - script: |
-      git clone https://aryairani:$(ghtoken)@$(homebrewRepo)
+      git clone https://$(ghuser):$(ghtoken)@$(homebrewRepo)
       pushd homebrew-unison
       tag=release/$(Build.SourceBranchName)
       cp ../unison-language.rb .
