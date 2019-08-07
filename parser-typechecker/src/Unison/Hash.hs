@@ -46,8 +46,6 @@ instance H.Accumulate Hash where
     toBS (H.Text txt) =
       let tbytes = encodeUtf8 txt
       in [encodeLength (B.length tbytes), tbytes]
-    toBS (H.Char c) =
-      BL.toChunks . toLazyByteString . word64BE . fromIntegral . fromEnum $ c
     toBS (H.Hashed h) = [toBytes h]
     encodeLength :: Integral n => n -> B.ByteString
     encodeLength = BL.toStrict . toLazyByteString . word64BE . fromIntegral
