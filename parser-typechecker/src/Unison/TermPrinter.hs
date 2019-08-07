@@ -173,8 +173,8 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
     Text'    s  -> fmt S.TextLiteral $ l $ show s
     Char'    c  -> fmt S.CharLiteral $ l $ case showEscapeChar c of
-                                            Just c -> "$\\" ++ [c]
-                                            Nothing -> '$': [c]
+                                            Just c -> "?\\" ++ [c]
+                                            Nothing -> '?': [c]
     Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
