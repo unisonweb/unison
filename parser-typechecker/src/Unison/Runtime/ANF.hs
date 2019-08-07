@@ -155,6 +155,7 @@ fromTerm liftVar t = ANF_ (go $ lambdaLift liftVar t) where
   go e@(Float' _) = e
   go e@(Boolean' _) = e
   go e@(Text' _) = e
+  go e@(Char' _) = e
   go e@(Blank' _) = e
   go e@(Ref' _) = e
   go e@(RequestOrCtor' _ _) = e

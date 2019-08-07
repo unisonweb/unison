@@ -85,7 +85,7 @@ toSymbolC = SymbolC False
 type RefID = Int
 
 data Value e cont
-  = I Int64 | F Double | N Word64 | B Bool | T Text | Bs Bytes.Bytes
+  = I Int64 | F Double | N Word64 | B Bool | T Text | C Char | Bs Bytes.Bytes
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
   | Sequence (Sequence.Seq (Value e cont))
@@ -101,6 +101,7 @@ instance (Eq cont, Eq e) => Eq (Value e cont) where
   N x == N y = x == y
   B x == B y = x == y
   T x == T y = x == y
+  C x == C y = x == y
   Bs x == Bs y = x == y
   Lam n us _ == Lam n2 us2 _ = n == n2 && us == us2
   Data r1 cid1 vs1 == Data r2 cid2 vs2 = r1 == r2 && cid1 == cid2 && vs1 == vs2
@@ -352,6 +353,7 @@ prettyValue ppe prettyE prettyCont = pv
     N n -> P.shown n
     B b -> if b then "true" else "false"
     T t -> P.shown t
+    C c -> P.shown c
     Bs bs -> P.shown bs
     Lam arity _u b -> P.parenthesize $
       ("Lambda " <> P.string (show arity)) `P.hang`
@@ -459,6 +461,7 @@ compile0 env bound t =
     Term.Float' n -> Leaf . Val . F $ n
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
+    Term.Char' n -> Leaf . Val . C $ n
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
@@ -584,6 +587,7 @@ decompileImpl v = case v of
   F n -> pure $ Term.float () n
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
+  C c -> pure $ Term.char () c
   Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
     bsv = Term.seq'() . Sequence.fromList $
             [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
@@ -936,6 +940,7 @@ instance (Show e, Show cont) => Show (Value e cont) where
   show (N n) = show n
   show (B b) = show b
   show (T t) = show t
+  show (C c) = show c
   show (Bs bs) = show bs
   show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " (" <> show ir <> "))"
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
@@ -981,6 +986,7 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq _ _ (N x) (N y) = pure (x == y)
   cyclicEq _ _ (B x) (B y) = pure (x == y)
   cyclicEq _ _ (T x) (T y) = pure (x == y)
+  cyclicEq _ _ (C x) (C y) = pure (x == y)
   cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
   cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     if arity1 == arity2 then cyclicEq h1 h2 us us2
@@ -1027,7 +1033,8 @@ constructorId v = case v of
   Requested _ -> 10
   Ref{} -> 11
   Cont _ -> 12
-  UninitializedLetRecSlot{} -> 13
+  C _ -> 13
+  UninitializedLetRecSlot{} -> 14
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
   cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =

@@ -3,6 +3,8 @@
 
 module Unison.Codebase.Serialization.V1 where
 
+import Prelude hiding (getChar, putChar)
+
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
@@ -440,6 +442,7 @@ putPattern putA p = case p of
       *> putSeqOp op
       *> putPattern putA r
   Pattern.TextP a t -> putWord8 12 *> putA a *> putText t
+  Pattern.CharP a c -> putWord8 13 *> putA a *> putChar c
 
 putSeqOp :: MonadPut m => SeqOp -> m ()
 putSeqOp Pattern.Cons   = putWord8 0
@@ -479,7 +482,8 @@ getPattern getA = getWord8 >>= \tag -> case tag of
       <*> getPattern getA
       <*> getSeqOp
       <*> getPattern getA
-  12 -> Pattern.TextP <$> getA <*> getText 
+  12 -> Pattern.TextP <$> getA <*> getText
+  13 -> Pattern.CharP <$> getA <*> getChar
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
@@ -528,6 +532,8 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
       -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
+    Term.Char c
+      -> putWord8 19 *> putChar c
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -557,6 +563,7 @@ getTerm getVar getA = getABT getVar getA go where
     17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
+    19 -> Term.Char <$> getChar
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
@@ -666,6 +673,12 @@ putLink (h, _) = do
   -- 0 means local; later we may have remote links with other ids
   putWord8 0
   putHash h
+
+putChar :: MonadPut m => Char -> m ()
+putChar = serialize . VarInt . fromEnum
+
+getChar :: MonadGet m => m Char
+getChar = toEnum . unVarInt <$> deserialize
 
 putName :: MonadPut m => Name -> m ()
 putName = putText . Name.toText

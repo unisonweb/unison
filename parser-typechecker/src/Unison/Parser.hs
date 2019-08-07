@@ -408,6 +408,11 @@ sepBy sep pb = P.sepBy pb sep
 sepBy1 :: Ord v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
 
+character :: Ord v => P v (L.Token Char)
+character = queryToken getChar
+  where getChar (L.Character c) = Just c
+        getChar _ = Nothing
+
 string :: Ord v => P v (L.Token Text)
 string = queryToken getString
   where getString (L.Textual s) = Just (Text.pack s)

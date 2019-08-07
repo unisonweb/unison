@@ -172,6 +172,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     --      parser ought to be able to parse them, to maintain symmetry.)
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
     Text'    s  -> fmt S.TextLiteral $ l $ show s
+    Char'    c  -> fmt S.CharLiteral $ l $ show c
     Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
@@ -669,6 +670,7 @@ countPatternUsages n p = Pattern.foldMap' f p where
     Pattern.NatP _ _              -> mempty
     Pattern.FloatP _ _            -> mempty
     Pattern.TextP _ _             -> mempty
+    Pattern.CharP _ _             -> mempty
     Pattern.AsP _ _               -> mempty
     Pattern.SequenceLiteralP _ _  -> mempty
     Pattern.SequenceOpP _ _ _ _   -> mempty

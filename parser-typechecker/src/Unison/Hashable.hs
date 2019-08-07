@@ -14,6 +14,7 @@ data Token h
   | Bytes !ByteString
   | Int !Int64
   | Text !Text
+  | Char !Char
   | Double !Double
   | Hashed !h
   | Nat !Word64
@@ -81,6 +82,9 @@ instance Hashable Double where
 
 instance Hashable Text where
   tokens s = [Text s]
+
+instance Hashable Char where
+  tokens c = [Char c]
 
 instance Hashable ByteString where
   tokens bs = [Bytes bs]

@@ -72,6 +72,7 @@ data F typeVar typeAnn patternAnn a
   | Float Double
   | Boolean Bool
   | Text Text
+  | Char Char
   | Blank (B.Blank typeAnn)
   | Ref Reference
   -- First argument identifies the data type,
@@ -245,6 +246,7 @@ extraMap vtf atf apf = \case
   Float x -> Float x
   Boolean x -> Boolean x
   Text x -> Text x
+  Char x -> Char x
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x y -> Constructor x y
@@ -408,6 +410,7 @@ pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
+pattern Char' c <- (ABT.out -> ABT.Tm (Char c))
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
@@ -478,6 +481,9 @@ nat a d = ABT.tm' a (Nat d)
 
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
+
+char :: Ord v => a -> Char -> AnnotatedTerm2 vt at ap v a
+char a = ABT.tm' a . Char
 
 watch :: (Var v, Semigroup a) => a -> String -> AnnotatedTerm v a -> AnnotatedTerm v a
 watch a note e =
@@ -905,6 +911,7 @@ instance Var v => Hashable1 (F v a p) where
                   Float   n -> [tag 66, Hashable.Double n]
                   Boolean b -> [tag 67, accumulateToken b]
                   Text    t -> [tag 68, accumulateToken t]
+                  Char    c -> [tag 69, accumulateToken c]
                   Blank   b -> tag 1 : case b of
                     B.Blank -> [tag 0]
                     B.Recorded (B.Placeholder _ s) ->
@@ -1005,6 +1012,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
       True
       (s "case " <> shows scrutinee <> s " of " <> shows cases)
     go _ (Text s     ) = shows s
+    go _ (Char c     ) = shows c
     go _ (Request r n) = showConstructor r n
     go p (If c t f) =
       showParen (p > 0)

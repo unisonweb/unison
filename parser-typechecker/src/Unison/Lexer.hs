@@ -48,6 +48,7 @@ data Lexeme
   | Close            -- end of a block
   | Reserved String  -- reserved tokens such as `{`, `(`, `type`, `of`, etc
   | Textual String   -- text literals, `"foo bar"`
+  | Character Char   -- character literals, `'X'`
   | Backticks String (Maybe ShortHash) -- an identifier in backticks
   | WordyId String   (Maybe ShortHash) -- a (non-infix) identifier
   | SymbolyId String (Maybe ShortHash) -- an infix identifier
@@ -92,6 +93,8 @@ instance ShowToken (Token Lexeme) where
       pretty (Open s) = s
       pretty (Reserved w) = w
       pretty (Textual t) = '"' : t ++ ['"']
+      -- TODO(zenhack): escape things?
+      pretty (Character c) = "'" ++ [c] ++ "'"
       pretty (Backticks n h) =
         '`' : n ++ (toList h >>= SH.toString) ++ ['`']
       pretty (WordyId n h) = n ++ (toList h >>= SH.toString)
@@ -343,6 +346,17 @@ lexer0 scope rem =
       ';' : rem -> Token (Semi False) pos (inc pos) : goWhitespace l (inc pos) rem
       ch : rem | Set.member ch delimiters ->
         Token (Reserved [ch]) pos (inc pos) : goWhitespace l (inc pos) rem
+      '\'' : '\\' : c : '\'' : rem ->
+        case parseEscapeChar c of
+          Just c ->
+            -- XXX(zenhack): can we do better than inc $ inc $ ... ?
+            let end = inc $ inc $ inc $ inc pos in
+            Token (Character c) pos end : goWhitespace l end rem
+          Nothing ->
+            [Token (Err $ InvalidEscapeCharacter c) pos pos]
+      '\'' : c : '\'' : rem ->
+        let end = inc $ inc $ inc pos in
+        Token (Character c) pos end : goWhitespace l end rem
       op : rem@(c : _)
         | isDelayOrForce op
         && (isSpace c || isAlphaNum c

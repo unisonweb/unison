@@ -87,9 +87,10 @@ toANSI (AnnotatedText chunks) =
     Bold     -> [ANSI.SetConsoleIntensity ANSI.BoldIntensity]
 
 defaultColors :: ST.Element -> Maybe Color
-defaultColors = \case 
+defaultColors = \case
   ST.NumericLiteral      -> Nothing
   ST.TextLiteral         -> Nothing
+  ST.CharLiteral         -> Nothing
   ST.BooleanLiteral      -> Nothing
   ST.Blank               -> Nothing
   ST.Var                 -> Nothing

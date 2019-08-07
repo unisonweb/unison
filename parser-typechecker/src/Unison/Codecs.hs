@@ -190,6 +190,11 @@ serializeTerm x = do
         traverse_ putBackref positions
         putBackref pbody
         incPosition
+      Char c -> do
+        putTag
+        putWord8 20
+        putWord64be $ fromIntegral $ fromEnum c
+        incPosition
 
 serializePattern :: MonadPut m => Pattern a -> m ()
 serializePattern p = case p of
