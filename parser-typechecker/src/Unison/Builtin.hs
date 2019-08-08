@@ -320,6 +320,9 @@ builtinsSrc =
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
 
+  , B "Char.toNat" $ char --> nat
+  , B "Char.fromNat" $ nat --> char
+
   , B "Bytes.empty" bytes
   , B "Bytes.fromList" $ list nat --> bytes
   , B "Bytes.++" $ bytes --> bytes --> bytes
@@ -350,6 +353,7 @@ builtinsSrc =
     float = Type.float ()
     text = Type.text ()
     bytes = Type.bytes ()
+    char = Type.char ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b
