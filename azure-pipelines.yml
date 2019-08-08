@@ -2,6 +2,7 @@
 # https://github.com/microsoft/azure-pipelines-tasks/blob/master/docs/authoring/commands.md
 
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers
+pr: none
 trigger:
   tags:
     include:
