@@ -73,6 +73,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
@@ -1022,6 +1023,10 @@ loop = do
               Just url -> syncRemoteRootBranch input (GitRepo url "master") b
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Push path
+      DebugBranchHistoryI ->
+        eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
+          (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
+
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       AddTermReplacementI {} -> notImplemented

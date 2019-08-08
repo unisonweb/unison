@@ -709,6 +709,12 @@ names = InputPattern "names" []
     _ -> Left (I.help names)
   )
 
+debugBranchHistory :: InputPattern
+debugBranchHistory = InputPattern "debug.history" []
+  [(Optional, noCompletions)]
+  "Dump codebase history, compatible with bit-booster.com/graph.html"
+  (const $ Right Input.DebugBranchHistoryI)
+
 validInputs :: [InputPattern]
 validInputs =
   [ help
@@ -756,6 +762,7 @@ validInputs =
   , quit
   , updateBuiltins
   , mergeBuiltins
+  , debugBranchHistory
   ]
 
 commandNames :: [String]

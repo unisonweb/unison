@@ -135,6 +135,7 @@ data Output v
   | ShowDiff Input Names.Diff 
   | NothingTodo Input 
   | NotImplemented
+  | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
 data TestReportStats
