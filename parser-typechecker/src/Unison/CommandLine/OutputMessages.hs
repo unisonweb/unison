@@ -109,6 +109,7 @@ import qualified Unison.Hash as Hash
 import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.Codebase.Editor.RemoteRepo as RemoteRepo
 import qualified Unison.Util.List              as List
+import Data.Tuple (swap)
 
 shortenDirectory :: FilePath -> IO FilePath
 shortenDirectory dir = do
@@ -549,6 +550,33 @@ notifyUser dir o = case o of
             <> P.shown dest <> "is at or ahead of the source"
             <> P.group (P.shown src <> ".")
     _ -> "Nothing to do."
+  DumpBitBooster head map -> let
+    go output []          = output
+    go output (head : queue) = case Map.lookup head map of
+      Nothing -> go (renderLine head [] : output) queue
+      Just tails -> go (renderLine head tails : output) (queue ++ tails)
+      where
+      renderHash = take 10 . Text.unpack . Hash.base32Hex . Causal.unRawHash
+      renderLine head tail =
+        (renderHash head) ++ "|" ++ intercalateMap " " renderHash tail ++
+          case Map.lookup (Hash.base32Hex . Causal.unRawHash $ head) tags of
+            Just t -> "|tag: " ++ t
+            Nothing -> ""
+      -- some specific hashes that we want to label in the output
+      tags :: Map Text String
+      tags = Map.fromList . fmap swap $
+        [ ("unisonbase 2019/8/6",  "54s9qjhaonotuo4sp6ujanq7brngk32f30qt5uj61jb461h9fcca6vv5levnoo498bavne4p65lut6k6a7rekaruruh9fsl19agu8j8")
+        , ("unisonbase 2019/8/5",  "focmbmg7ca7ht7opvjaqen58fobu3lijfa9adqp7a1l1rlkactd7okoimpfmd0ftfmlch8gucleh54t3rd1e7f13fgei86hnsr6dt1g")
+        , ("unisonbase 2019/7/31", "jm2ltsg8hh2b3c3re7aru6e71oepkqlc3skr2v7bqm4h1qgl3srucnmjcl1nb8c9ltdv56dpsgpdur1jhpfs6n5h43kig5bs4vs50co")
+        , ("unisonbase 2019/7/25", "an1kuqsa9ca8tqll92m20tvrmdfk0eksplgjbda13evdlngbcn5q72h8u6nb86ojr7cvnemjp70h8cq1n95osgid1koraq3uk377g7g")
+        , ("ucm m1b", "o6qocrqcqht2djicb1gcmm5ct4nr45f8g10m86bidjt8meqablp0070qae2tvutnvk4m9l7o1bkakg49c74gduo9eati20ojf0bendo")
+        , ("ucm m1, m1a", "auheev8io1fns2pdcnpf85edsddj27crpo9ajdujum78dsncvfdcdu5o7qt186bob417dgmbd26m8idod86080bfivng1edminu3hug")
+        ]
+
+    in do
+      traverse_ putStrLn (reverse . nubOrd $ go [] [head])
+      putStrLn ""
+      putStrLn "Paste that output into http://bit-booster.com/graph.html"
   where
   _nameChange _cmd _pastTenseCmd _oldName _newName _r = error "todo"
   -- do

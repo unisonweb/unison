@@ -95,6 +95,7 @@ data Input
   | ShowDefinitionByPrefixI OutputLocation [String]
   | UpdateBuiltinsI
   | MergeBuiltinsI
+  | DebugBranchHistoryI
   | QuitI
   deriving (Eq, Show)
 
