@@ -318,7 +318,7 @@ substTypeVars subs e = foldl' go e subs where
 -- will replace that type variable wherever it appears in type signatures of
 -- the term, avoiding capture by renaming ∀-binders.
 substTypeVar
-  :: (Ord v, Var vt)
+  :: (Ord v, ABT.Var vt)
   => vt
   -> Type vt b
   -> AnnotatedTerm' vt v a
@@ -348,7 +348,7 @@ substTypeVar vt ty = go Set.empty where
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
     _ -> error "unpossible"
 
-renameTypeVar :: (Ord v, Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+renameTypeVar :: (Ord v, ABT.Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 renameTypeVar old new = go Set.empty where
   go bound tm | Set.member old bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
@@ -459,7 +459,7 @@ var :: a -> v -> AnnotatedTerm2 vt at ap v a
 var = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
-var' = var() . ABT.v'
+var' = var() . Var.named
 
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)

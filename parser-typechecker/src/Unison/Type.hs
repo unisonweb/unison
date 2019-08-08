@@ -291,19 +291,19 @@ introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
 iff :: Var v => Type v ()
 iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var () aa
         f x = ((), x)
 
 iff' :: Var v => a -> Type v a
 iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var loc aa
         f x = (loc, x)
 
 iff2 :: Var v => a -> Type v a
 iff2 loc = forall loc aa $ arrows (f <$> [a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var loc aa
         f x = (loc, x)
 
@@ -334,11 +334,11 @@ universal' :: Ord v => a -> v -> Type (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v ()
-v' s = ABT.var (ABT.v' s)
+v' s = ABT.var (Var.named s)
 
 -- Like `v'`, but creates an annotated variable given an annotation
 av' :: Var v => a -> Text -> Type v a
-av' a s = ABT.annotatedVar a (ABT.v' s)
+av' a s = ABT.annotatedVar a (Var.named s)
 
 forall' :: Var v => a -> [Text] -> Type v a -> Type v a
 forall' a vs body = foldr (forall a) body (Var.named <$> vs)
@@ -387,7 +387,7 @@ stripEffect t = ([], t)
 -- `(a -> (a -> b) -> b)`
 flipApply :: Var v => Type v () -> Type v ()
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
-  where b = ABT.fresh t (ABT.v' "b")
+  where b = ABT.fresh t (Var.named "b")
 
 generalize' :: Var v => Var.Type -> Type v a -> Type v a
 generalize' k t = generalize vsk t where
@@ -545,7 +545,7 @@ generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
     [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.isLowercase v ]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
-freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a
+freeVarsToOuters :: ABT.Var v => Set v -> Type v a -> Type v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
   where vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
 

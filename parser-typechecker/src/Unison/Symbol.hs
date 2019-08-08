@@ -8,18 +8,21 @@ import Data.Word (Word64)
 import GHC.Generics
 import Unison.Var (Var(..))
 import qualified Data.Set as Set
+import qualified Unison.ABT as ABT
 import qualified Unison.Var as Var
 
 data Symbol = Symbol !Word64 Var.Type deriving (Generic)
+
+instance ABT.Var Symbol where
+  freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
+  freshIn vs s@(Symbol i n) = case Set.elemAt (Set.size vs - 1) vs of
+    Symbol i2 _ -> if i > i2 then s else Symbol (i2+1) n
 
 instance Var Symbol where
   typed t = Symbol 0 t
   typeOf (Symbol _ t) = t
   retype t (Symbol id _) = Symbol id t
   freshId (Symbol id _) = id
-  freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
-  freshIn vs s@(Symbol i n) = case Set.elemAt (Set.size vs - 1) vs of
-    Symbol i2 _ -> if i > i2 then s else Symbol (i2+1) n
   freshenId id (Symbol _ n) = Symbol id n
 
 instance Eq Symbol where
