@@ -9,6 +9,7 @@ type SyntaxText = AnnotatedText Element
 -- The elements of the Unison grammar, for syntax highlighting purposes
 data Element = NumericLiteral
              | TextLiteral
+             | CharLiteral
              | BooleanLiteral
              | Blank
              | Var

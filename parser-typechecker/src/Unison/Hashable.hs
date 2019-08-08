@@ -82,6 +82,9 @@ instance Hashable Double where
 instance Hashable Text where
   tokens s = [Text s]
 
+instance Hashable Char where
+  tokens c = [Nat $ fromIntegral $ fromEnum c]
+
 instance Hashable ByteString where
   tokens bs = [Bytes bs]
 

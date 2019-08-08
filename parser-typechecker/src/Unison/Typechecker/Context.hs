@@ -643,7 +643,7 @@ notMember v s =
 
 -- | Replace any existentials with their solution in the context
 apply :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
-apply _ctx t | Set.null (Type.freeVars t) = t 
+apply _ctx t | Set.null (Type.freeVars t) = t
 apply ctx t = case t of
   Type.Universal' _ -> t
   Type.Ref' _ -> t
@@ -784,6 +784,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
+  go (Term.Char' _) = pure $ Type.char l
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext

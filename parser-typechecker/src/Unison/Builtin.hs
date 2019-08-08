@@ -154,6 +154,7 @@ builtinTypesSrc =
   , B' "Sequence"
   , Rename' "Sequence" "List"
   , B' "Text"
+  , B' "Char"
   , B' "Effect"
   , B' "Bytes"
   ]

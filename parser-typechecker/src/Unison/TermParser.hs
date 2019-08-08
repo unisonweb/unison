@@ -116,11 +116,12 @@ parsePattern =
 
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
-  literal = (,[]) <$> asum [true, false, number, text]
+  literal = (,[]) <$> asum [true, false, number, text, char]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
+  char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
   unit ann = (Pattern.Constructor ann DD.unitRef 0 [], [])
@@ -217,6 +218,9 @@ ifthen = label "if" $ do
 text :: Var v => TermP v
 text = tok Term.text <$> string
 
+char :: Var v => TermP v
+char = tok Term.char <$> character
+
 boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
@@ -248,6 +252,7 @@ termLeaf = do
   e <- asum
     [ hashQualifiedPrefixTerm
     , text
+    , char
     , number
     , boolean
     , tupleOrParenthesizedTerm
