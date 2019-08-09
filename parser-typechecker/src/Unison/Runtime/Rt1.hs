@@ -280,6 +280,18 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.>"    att att (pure . B) (>)
     , mk2 "Text.<"    att att (pure . B) (<)
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
+    , mk1 "Text.uncons" att
+        ( pure
+        . IR.maybeToOptional
+        . fmap (\(h, t) -> IR.pair (C h, T t))
+        )
+        $ Text.uncons
+    , mk1 "Text.unsnoc" att
+        ( pure
+        . IR.maybeToOptional
+        . fmap (\(i, l) -> IR.pair (T i, C l))
+        )
+        $ Text.unsnoc
 
     , mk1 "Char.toNat" atc (pure . N) (fromIntegral . fromEnum)
     , mk1 "Char.fromNat" atn (pure . C) (toEnum . fromIntegral)
