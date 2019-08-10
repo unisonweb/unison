@@ -177,7 +177,7 @@ pattern Concat = Pattern.Concat
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
 data Pattern
-  = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
+  = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text | PatternC Char
   | PatternData R.Reference ConstructorId [Pattern]
   | PatternSequenceLiteral [Pattern]
   | PatternSequenceCons Pattern Pattern
@@ -550,6 +550,7 @@ compile0 env bound t =
         Pattern.Nat n -> PatternN n
         Pattern.Float n -> PatternF n
         Pattern.Text t -> PatternT t
+        Pattern.Char c -> PatternC c
         Pattern.Constructor r cid args -> PatternData r cid (compilePattern <$> args)
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
@@ -777,6 +778,7 @@ decompileIR stack = \case
     PatternF f -> Pattern.Float f
     PatternB b -> Pattern.Boolean b
     PatternT t -> Pattern.Text t
+    PatternC c -> Pattern.Char c
     PatternData r cid pats ->
       Pattern.Constructor r cid (d <$> pats)
     PatternSequenceLiteral ps -> Pattern.SequenceLiteral $ decompilePattern <$> ps

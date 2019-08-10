@@ -963,6 +963,8 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.float loc) scrutineeType $> mempty
     Pattern.Text loc _ ->
       lift $ subtype (Type.text loc) scrutineeType $> mempty
+    Pattern.Char loc _  ->
+      lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
       udct <- lift $ ungeneralize dct

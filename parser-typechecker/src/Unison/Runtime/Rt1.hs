@@ -667,6 +667,7 @@ run ioHandler env ir = do
       (N x, PatternN x2) -> when' (x == x2) $ Just []
       (B x, PatternB x2) -> when' (x == x2) $ Just []
       (T x, PatternT x2) -> when' (x == x2) $ Just []
+      (C x, PatternC x2) -> when' (x == x2) $ Just []
       (Data r cid args, PatternData r2 cid2 pats)
         -> if r == r2 && cid == cid2
            then join <$> traverse tryCase (zip args pats)
