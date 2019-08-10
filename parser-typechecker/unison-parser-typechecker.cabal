@@ -185,7 +185,7 @@ library
     io-streams,
     lens,
     ListLike,
-    megaparsec,
+    megaparsec >= 5.0.0 && < 7.0.0,
     memory,
     mmorph,
     monad-loops,

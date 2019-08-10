@@ -241,6 +241,7 @@ builtinsSrc =
   , B "Nat.isOdd" $ nat --> boolean
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
+  , B "Nat.fromText" $ text --> optional nat
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float

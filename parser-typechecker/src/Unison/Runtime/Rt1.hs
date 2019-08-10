@@ -331,6 +331,8 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Float.truncate"      atf (pure . I) truncate
 
     , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
+    , mk1 "Nat.fromText" att (pure . IR.maybeToOptional . fmap N) (
+        (\x -> readMaybe x :: Maybe Word64) . Text.unpack)
 
     -- Float Utils
     , mk1 "Float.abs"           atf (pure . F) abs
