@@ -539,6 +539,14 @@ notifyUser dir o = case o of
           , ""
           , prettyDiff Nothing diff
           ]
+    Input.DeleteBranchI _ -> P.callout "🆕" . P.lines $
+      [ P.wrap $
+          "Here's what's changed after the delete:"
+      , ""
+      , prettyDiff (Just 10) diff
+      , ""
+      , tip "You can always `undo` if this wasn't what you wanted."
+      ]
     _ -> prettyDiff Nothing diff
   NothingTodo input -> putPrettyLn . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->

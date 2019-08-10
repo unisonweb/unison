@@ -259,6 +259,10 @@ fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText
 
+-- | Convert a Path' to a Name
+toName' :: Path' -> Name
+toName' = Name.unsafeFromText . toText'
+
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.
 relativeToAncestor :: Path -> Path -> (Path, Path, Path)
@@ -282,3 +286,8 @@ instance Show Path where
 
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
+
+toText' :: Path' -> Text
+toText' = \case
+  Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
+  Path' (Right (Relative path)) -> toText path
