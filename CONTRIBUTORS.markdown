@@ -22,3 +22,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Scott Christopher (@scott-christopher)
 * Alex Zolotko (@azolotko)
 * Ian Denhardt (@zenhack)
+* Mitchell Rosen (@mitchellwrosen)
