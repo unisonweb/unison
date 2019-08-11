@@ -126,6 +126,11 @@ at size i m = case i of
     MV.read m (size - i - 1)
   External (ExternalFunction _ e) -> e size m
 
+atc :: Size -> Z -> Stack -> IO Char
+atc size i m = at size i m >>= \case
+    C c -> pure c
+    v -> fail $ "type error, expecting C, got " <> show v
+
 ati :: Size -> Z -> Stack -> IO Int64
 ati size i m = at size i m >>= \case
   I i -> pure i
@@ -275,6 +280,21 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk2 "Text.>"    att att (pure . B) (>)
     , mk2 "Text.<"    att att (pure . B) (<)
     , mk1 "Text.size" att (pure . N) (fromIntegral . Text.length)
+    , mk1 "Text.uncons" att
+        ( pure
+        . IR.maybeToOptional
+        . fmap (\(h, t) -> IR.pair (C h, T t))
+        )
+        $ Text.uncons
+    , mk1 "Text.unsnoc" att
+        ( pure
+        . IR.maybeToOptional
+        . fmap (\(i, l) -> IR.pair (T i, C l))
+        )
+        $ Text.unsnoc
+
+    , mk1 "Char.toNat" atc (pure . N) (fromIntegral . fromEnum)
+    , mk1 "Char.fromNat" atn (pure . C) (toEnum . fromIntegral)
 
     , mk2 "List.at" atn ats (pure . IR.maybeToOptional)
       $ Sequence.lookup

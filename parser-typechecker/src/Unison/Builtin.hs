@@ -320,6 +320,11 @@ builtinsSrc =
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
+  , B "Text.uncons" $ text --> optional (pair char text)
+  , B "Text.unsnoc" $ text --> optional (pair text char)
+
+  , B "Char.toNat" $ char --> nat
+  , B "Char.fromNat" $ nat --> char
 
   , B "Bytes.empty" bytes
   , B "Bytes.fromList" $ list nat --> bytes
@@ -351,6 +356,7 @@ builtinsSrc =
     float = Type.float ()
     text = Type.text ()
     bytes = Type.bytes ()
+    char = Type.char ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b
@@ -371,4 +377,7 @@ builtinsSrc =
 
     optional :: Ord v => Type v -> Type v
     optional arg = DD.optionalType () `app` arg
+
+    pair :: Ord v => Type v -> Type v -> Type v
+    pair l r = DD.pairType () `app` l `app` r
 
