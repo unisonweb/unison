@@ -99,6 +99,7 @@ pattern Int n = IntP () n
 pattern Nat n = NatP () n
 pattern Float n = FloatP () n
 pattern Text t = TextP () t
+pattern Char c = CharP () c
 pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
