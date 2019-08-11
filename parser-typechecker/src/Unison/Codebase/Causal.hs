@@ -254,3 +254,18 @@ foldHistoryUntil f a c = step a mempty (pure c) where
         Cons{} -> Seq.singleton <$> snd (tail c)
         Merge{} -> Seq.fromList <$> (sequenceA . toList . tails) c
       step a (Set.insert (currentHash c) seen) (rest <> tails)
+
+hashToRaw ::
+  forall m h e. Monad m => Causal m h e -> m (Map (RawHash h) [RawHash h])
+hashToRaw c = go mempty [c] where
+  go :: Map (RawHash h) [RawHash h] -> [Causal m h e]
+                                    -> m (Map (RawHash h) [RawHash h])
+  go output [] = pure output
+  go output (c : queue) = case c of
+    One h _ -> go (Map.insert h [] output) queue
+    Cons h _ (htail, mctail) -> do
+      ctail <- mctail
+      go (Map.insert h [htail] output) (ctail : queue)
+    Merge h _ mtails -> do
+      tails <- sequence mtails
+      go (Map.insert h (Map.keys tails) output) (toList tails ++ queue)
