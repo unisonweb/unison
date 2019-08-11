@@ -7,9 +7,8 @@ module Unison.Util.ColorText (
   module Unison.Util.AnnotatedText)
 where
 
-import Control.Monad (join)
-import           Data.Foldable             (foldl', toList)
-import           Data.Sequence             (Seq)
+import Unison.Prelude
+
 import qualified System.Console.ANSI       as ANSI
 import           Unison.Util.AnnotatedText (AnnotatedText(..), annotate)
 import qualified Unison.Util.SyntaxText    as ST hiding (toPlain)

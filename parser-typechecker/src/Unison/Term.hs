@@ -12,23 +12,14 @@
 
 module Unison.Term where
 
--- import Debug.Trace
+import Unison.Prelude
+
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
-import           Data.Functor (void, ($>))
-import           Data.Foldable (traverse_, toList)
-import           Data.Int (Int64)
-import           Data.List (foldl')
-import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Sequence (Seq)
 import qualified Data.Sequence as Sequence
-import           Data.Word (Word64)
-import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
@@ -57,7 +48,6 @@ import qualified Unison.Var as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
-import Data.Maybe (mapMaybe)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 

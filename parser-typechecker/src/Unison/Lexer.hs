@@ -9,14 +9,13 @@
 
 module Unison.Lexer where
 
+import Unison.Prelude
+
 import           Control.Lens.TH (makePrisms)
-import           Control.Monad (join)
 import qualified Control.Monad.State as S
 import           Data.Char
-import           Data.Foldable (toList)
 import           Data.List
 import qualified Data.List.NonEmpty as Nel
-import           Data.Set (Set)
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set

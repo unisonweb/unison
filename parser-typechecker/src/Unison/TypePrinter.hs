@@ -5,9 +5,9 @@
 
 module Unison.TypePrinter where
 
+import Unison.Prelude
+
 import qualified Data.Map              as Map
-import           Data.Maybe            (isJust)
-import           Data.String           (fromString)
 import           Unison.HashQualified  (HashQualified)
 import           Unison.NamePrinter    (styleHashQualified'')
 import           Unison.PrettyPrintEnv (PrettyPrintEnv, Imports, elideFQN)

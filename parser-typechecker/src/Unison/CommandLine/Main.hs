@@ -6,21 +6,16 @@
 
 module Unison.CommandLine.Main where
 
+import Unison.Prelude
+
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State (runStateT)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.IORef
-import Data.Map (Map)
-import Data.Maybe (fromMaybe)
-import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import System.FilePath ((</>))
 import System.IO.Error (catchIOError)
 import System.Exit (die)
-import Safe
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..))

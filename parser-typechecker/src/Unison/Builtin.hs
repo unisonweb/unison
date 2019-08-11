@@ -19,13 +19,10 @@ module Unison.Builtin
   ,termRefTypes
   ) where
 
-import           Control.Applicative            ( (<|>) )
+import Unison.Prelude
+
 import           Data.Bifunctor                 ( second )
-import           Data.Foldable                  ( foldl', toList )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
