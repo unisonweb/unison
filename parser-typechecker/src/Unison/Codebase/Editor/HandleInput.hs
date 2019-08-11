@@ -387,8 +387,15 @@ loop = do
                   (Path.toName . Path.unsplit . resolveSplit' $ p)
                   (Branch.toNames0 b)
             in getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then
+          if failed == mempty then do
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
+            -- Looks similar to the 'toDelete' above... investigate me! ;)
+            let deletedNames =
+                  Names.prefix0
+                    (Path.toName' (Path.unsplit' p))
+                    (Branch.toNames0 b)
+                diff = Names3.diff0 deletedNames mempty
+            respond $ ShowDiff input diff
           else do
             failed <- loadSearchResults $ Names.asSearchResults failed
             failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
