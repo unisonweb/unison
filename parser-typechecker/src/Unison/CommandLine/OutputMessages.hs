@@ -310,11 +310,9 @@ notifyUser dir o = case o of
       P.wrap "The type uses these names, but I'm not sure what they are:",
       P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
     ]
-  ParseErrors src es -> do
-    Console.setTitle "Unison ☹︎"
+  ParseErrors src es ->
     traverse_ (putPrettyLn . prettyParseError (Text.unpack src)) es
   TypeErrors src ppenv notes -> do
-    Console.setTitle "Unison ☹︎"
     let showNote =
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
@@ -353,7 +351,6 @@ notifyUser dir o = case o of
     -- if we ever allow users to edit hashes directly.
   FileChangeEvent _sourceName _src -> putStrLn ""
   Typechecked sourceName ppe slurpResult uf -> do
-    Console.setTitle "Unison ✅"
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
