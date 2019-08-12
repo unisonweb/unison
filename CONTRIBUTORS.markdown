@@ -23,3 +23,4 @@ The format for this list: name, GitHub handle, and then optional blurb about wha
 * Alex Zolotko (@azolotko)
 * Ian Denhardt (@zenhack)
 * Mitchell Rosen (@mitchellwrosen)
+* Ian Jeffries (@seagreen)
