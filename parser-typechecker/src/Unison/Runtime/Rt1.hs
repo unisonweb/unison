@@ -19,6 +19,7 @@ import Data.Bifunctor (second)
 import Data.Foldable (for_, toList)
 import Data.IORef
 import Data.Int (Int64)
+import Data.List (isPrefixOf)
 import Data.Map (Map)
 import Data.Text (Text)
 import Data.Traversable (for)
@@ -47,10 +48,6 @@ import qualified Unison.Term as Term
 import qualified Unison.Util.CycleTable as CT
 import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
-
--- import qualified Unison.TermPrinter as TP
--- import qualified Unison.Util.Pretty as P
--- import Debug.Trace
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
 type IR = IR.IR ExternalFunction Continuation
@@ -353,6 +350,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
     , mk1 "Nat.fromText" att (pure . IR.maybeToOptional . fmap N) (
         (\x -> readMaybe x :: Maybe Word64) . Text.unpack)
+
+    , mk1 "Int.toText" ati (pure . T)
+          (Text.pack . (\x -> if x >= 0 then ("+" <> show x) else show x))
+    , mk1 "Int.fromText" att (pure . IR.maybeToOptional . fmap I) $
+        (\x -> readMaybe (if "+" `isPrefixOf` x then drop 1 x else x))
+        . Text.unpack
+    , mk1 "Int.toFloat" ati (pure . F) fromIntegral
 
     -- Float Utils
     , mk1 "Float.abs"           atf (pure . F) abs
