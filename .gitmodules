@@ -2,3 +2,6 @@
 	path = yaks/haskeline
 	url = https://github.com/aryairani/haskeline.git
 	branch = topic/align-ansi-completions
+[submodule "yaks/gitrev"]
+	path = yaks/gitrev
+	url = https://github.com/aryairani/gitrev.git

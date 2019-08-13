@@ -241,14 +241,13 @@ executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
-  other-modules:
-    Version
   build-depends:
     base,
     containers,
     directory,
     filepath,
     safe,
+    gitrev,
     shellmet,
     template-haskell,
     text,

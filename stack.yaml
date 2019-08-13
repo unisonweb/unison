@@ -7,6 +7,7 @@ allow-different-user: true
 packages:
 - yaks/easytest
 - yaks/haskeline
+- yaks/gitrev
 - parser-typechecker
 
 #compiler-check: match-exact
