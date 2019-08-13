@@ -2,6 +2,7 @@
 # https://github.com/microsoft/azure-pipelines-tasks/blob/master/docs/authoring/commands.md
 
 # https://docs.microsoft.com/en-us/azure/devops/pipelines/build/triggers
+pr: none
 trigger:
   tags:
     include:
@@ -54,7 +55,7 @@ jobs:
   - script: |
       export PATH=$HOME/.local/bin:$PATH
       export STACK_ROOT=$(Build.SourcesDirectory)/.stack-root;
-      stack build
+      stack build --ghc-options=-02
       cp .stack-work/install/*/*/*/bin/unison $(ucmFile)
     displayName: stack build
 
