@@ -410,6 +410,19 @@ loop = do
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
+      LogI _range from -> case from of
+        Left path' -> do
+          path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+          branch' <- getAt path 
+          if Branch.isEmpty branch' then respond $ CreatedNewBranch path
+          else doHistory branch' 
+        Right hash -> do
+          b <- eval $ LoadLocalBranch hash
+          if Branch.isEmpty b then respond $ NoBranchWithHash input hash
+          else doHistory b
+        where
+          doHistory _b = respond NotImplemented 
+
       UndoI -> do
         prev <- eval . Eval $ Branch.uncons root'
         case prev of
@@ -1040,7 +1053,6 @@ loop = do
       AddTypeReplacementI {} -> notImplemented
       RemoveTermReplacementI {} -> notImplemented
       RemoveTypeReplacementI {} -> notImplemented
-      UndoRootI -> notImplemented
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
       QuitI -> MaybeT $ pure Nothing

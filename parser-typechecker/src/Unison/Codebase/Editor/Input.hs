@@ -77,6 +77,9 @@ data Input
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
   | UndoI
+  -- Maybe (Int,Int) is a start and end index into the results,
+  -- can be used for paging
+  | LogI (Maybe (Int,Int)) (Either Path' Branch.Hash)
   -- execute an IO object with arguments
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures
@@ -88,7 +91,6 @@ data Input
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   -- other
-  | UndoRootI
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]

@@ -491,6 +491,8 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
+  NoBranchWithHash _ h -> putPrettyLn . P.callout "😶" $ 
+    P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> putPrettyLn "That namespace already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."

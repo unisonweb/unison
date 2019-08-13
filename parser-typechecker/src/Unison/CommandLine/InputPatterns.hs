@@ -30,7 +30,9 @@ import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
+import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.CommandLine.InputPattern as I
+import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
@@ -336,9 +338,9 @@ aliasType = InputPattern "alias.type" []
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
-      [ ("`path foo.bar`",
+      [ (makeExample cd ["foo.bar"],
           "descends into foo.bar from the current namespace.")
-      , ("`path .cat.dog`",
+      , (makeExample cd [".cat.dog"],
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
@@ -409,6 +411,28 @@ renameBranch = InputPattern "move.namespace"
         dest <- Path.parseSplit' Path.wordyNameSegment dest
         pure $ Input.MoveBranchI (Just src) dest
       _ -> Left (I.help renameBranch)
+    )
+
+history :: InputPattern
+history = InputPattern "log"
+   ["log", "history"]
+   [(Optional, pathArg)]
+   (P.wrapColumn2 [
+     (makeExample history [], "Shows the history of the current path."),
+     (makeExample history [".foo"], "Shows history of the path .foo."),
+     (makeExample history ["#9dndk3kbsk13nbpeu"], 
+       "Shows the history of the namespace with the given hash." <> 
+       "The full hash must be provided.")
+     ])
+    (\case
+      ['#':src] -> case Hash.fromBase32Hex (Text.pack src) of
+        Nothing -> Left ("Invalid hash, expected a base32hex string.") 
+        Just h -> pure $ Input.LogI Nothing (Right (Causal.RawHash h))
+      [src] -> first fromString $ do
+        p <- Path.parsePath' src
+        pure $ Input.LogI Nothing (Left p)
+      [] -> pure $ Input.LogI Nothing (Left Path.currentPath)
+      _ -> Left (I.help history)
     )
 
 forkLocal :: InputPattern
@@ -803,6 +827,7 @@ validInputs =
   , findPatch
   , viewPatch
   , undo
+  , history
   , edit
   , renameTerm
   , deleteTerm

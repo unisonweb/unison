@@ -33,8 +33,10 @@ newtype Path' = Path' { unPath' :: Either Absolute Relative }
   deriving (Eq,Ord)
 
 isCurrentPath :: Path' -> Bool
-isCurrentPath (Path' (Right (Relative (Path e)))) | e == mempty = True
-isCurrentPath _ = False
+isCurrentPath p = p == currentPath
+
+currentPath :: Path'
+currentPath = Path' (Right (Relative (Path mempty)))
 
 isRoot' :: Path' -> Bool
 isRoot' = either isRoot (const False) . unPath'

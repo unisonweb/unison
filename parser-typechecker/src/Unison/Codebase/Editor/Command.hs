@@ -19,6 +19,7 @@ import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Editor.RemoteRepo
 
 import           Unison.Codebase.Branch         ( Branch )
+import qualified Unison.Codebase.Branch        as Branch
 import           Unison.Codebase.GitError
 import           Unison.Names3                  ( Names, Names0 )
 import           Unison.Parser                  ( Ann )
@@ -108,6 +109,9 @@ data Command m i v a where
   -- Any definitions in the head of the requested root that aren't in the local
   -- codebase are copied there.
   LoadLocalRootBranch :: Command m i v (Branch m)
+
+  -- Like `LoadLocalRootBranch`.
+  LoadLocalBranch :: Branch.Hash -> Command m i v (Branch m) 
 
   LoadRemoteRootBranch ::
     RemoteRepo -> Command m i v (Either GitError (Branch m))
