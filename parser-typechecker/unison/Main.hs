@@ -16,11 +16,12 @@ main = do
   args               <- getArgs
   -- hSetBuffering stdout NoBuffering -- cool
   (dir, theCodebase) <- FileCodebase.ensureCodebaseInitialized
-  putStrLn $ "Version: " ++ $(GitRev.gitDescribe')
   let initialPath = Path.absoluteEmpty
       launch      = CommandLine.main dir
                                      initialPath
                                      (headMay args)
                                      (pure Rt1.runtime)
                                      theCodebase
-  launch
+  case args of
+    ["--version"] -> putStrLn $ "ucm version: " ++ $(GitRev.gitDescribe')
+    _ -> launch
