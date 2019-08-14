@@ -517,7 +517,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        "You've reached the beginning of recorded history.", "",
+        P.wrap "This is the start of history. Later versions are listed below.",
         "□ " <> phash h, ""
         ]
       E.MergeTail h hs -> P.lines [
@@ -528,7 +528,7 @@ notifyUser dir o = case o of
         "⊙ " <> phash h <> (if null history then mempty else "\n")
         ]
       E.PageEnd h n -> P.lines [
-        P.wrap $ "More history above here." <> ex, "",
+        P.wrap $ "There's more history before the versions shown here." <> ex, "",
         dots, "", 
         "⊙ " <> phash h,
         ""
