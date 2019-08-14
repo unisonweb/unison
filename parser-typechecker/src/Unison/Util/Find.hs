@@ -56,6 +56,7 @@ simpleFuzzyFinder query items render =
 -- highlights `query` if it is a prefix of `s`, or if it
 -- appears in the final segement of s (after the final `.`)
 highlightSimple :: String -> String -> P.Pretty P.ColorText  
+highlightSimple "" = P.string
 highlightSimple query = go where
   go [] = mempty
   go s@(h:t) | query `List.isPrefixOf` s = hiQuery <> go (drop len s)
