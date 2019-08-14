@@ -94,7 +94,8 @@ toNames0 b = Names (R.swap . Star3.d1 . deepTerms $ b)
 
 -- This stops searching for a given ShortHash once it encounters
 -- any term or type in any Branch0 that satisfies that ShortHash.
-findHistoricalSHs :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
+findHistoricalSHs
+  :: Monad m => Set ShortHash -> Branch m -> m (Set ShortHash, Names0)
 findHistoricalSHs = findInHistory
   (\sh r _n -> sh `SH.isPrefixOf` Referent.toShortHash r)
   (\sh r _n -> sh `SH.isPrefixOf` Reference.toShortHash r)
@@ -152,8 +153,10 @@ deepTypeReferences = Star3.fact . deepTypes
 
 terms :: Lens' (Branch0 m) (Star Referent NameSegment)
 terms = lens _terms (\Branch0{..} x -> branch0 x _types _children _edits)
+
 types :: Lens' (Branch0 m) (Star Reference NameSegment)
 types = lens _types (\Branch0{..} x -> branch0 _terms x _children _edits)
+
 children :: Lens' (Branch0 m) (Map NameSegment (Branch m))
 children = lens _children (\Branch0{..} x -> branch0 _terms _types x _edits)
 
@@ -301,7 +304,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     children <- traverse go _childrenR
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
     pure $ branch0 _termsR _typesR children edits
-  go h = read deserializeRaw deserializeEdits h
+  go = read deserializeRaw deserializeEdits
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
@@ -323,7 +326,7 @@ sync exists serializeRaw serializeEdits b =
   toRaw Branch0{..} =
     Raw _terms _types (headHash <$> _children) (fst <$> _edits)
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
-  serialize0 h b0 = do
+  serialize0 h b0 =
     case b0 of
       RawOne b0 -> do
         writeB0 b0
@@ -469,9 +472,10 @@ stepManyAtM :: (Monad m, Foldable f)
 stepManyAtM actions = stepM (stepManyAt0M actions)
 
 -- starting at the leaves, apply `f` to every level of the branch.
-stepEverywhere :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
-stepEverywhere f Branch0{..} = f (branch0 _terms _types children _edits) where
-  children = fmap (step $ stepEverywhere f) _children
+stepEverywhere
+  :: Applicative m => (Branch0 m -> Branch0 m) -> (Branch0 m -> Branch0 m)
+stepEverywhere f Branch0 {..} = f (branch0 _terms _types children _edits)
+  where children = fmap (step $ stepEverywhere f) _children
 
 -- Creates a function to fix up the children field._1
 -- If the action emptied a child, then remove the mapping,
@@ -493,11 +497,13 @@ getMaybePatch seg b = case Map.lookup seg (_edits b) of
   Nothing -> pure Nothing
   Just (_, p) -> Just <$> p
 
-modifyPatches :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
-modifyPatches seg f = mapMOf edits update where
+modifyPatches
+  :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
+modifyPatches seg f = mapMOf edits update
+ where
   update m = do
     p' <- case Map.lookup seg m of
-      Nothing -> pure $ f Patch.empty
+      Nothing     -> pure $ f Patch.empty
       Just (_, p) -> f <$> p
     let h = H.accumulate' p'
     pure $ Map.insert seg (h, pure p') m
@@ -596,13 +602,15 @@ instance Hashable (Branch0 m) where
 -- getLocalEdit :: GUID -> IO Patch
 
 -- todo: consider inlining these into Actions2
-addTermName :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
+addTermName
+  :: Referent -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
 addTermName r new md =
-  over terms (Metadata.insertWithMetadata (r,md) . Star3.insertD1 (r,new))
+  over terms (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
-addTypeName :: Reference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
+addTypeName
+  :: Reference -> NameSegment -> Metadata.Metadata -> Branch0 m -> Branch0 m
 addTypeName r new md =
-  over types (Metadata.insertWithMetadata (r,md) . Star3.insertD1 (r,new))
+  over types (Metadata.insertWithMetadata (r, md) . Star3.insertD1 (r, new))
 
 -- addTermNameAt :: Path.Split -> Referent -> Branch0 m -> Branch0 m
 -- addTypeNameAt :: Path.Split -> Reference -> Branch0 m -> Branch0 m
@@ -619,6 +627,9 @@ deleteTypeName _ _ b = b
 
 namesDiff :: Branch m -> Branch m -> Names.Diff
 namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
+
+lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
+lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name

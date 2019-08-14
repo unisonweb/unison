@@ -142,7 +142,7 @@ lca a b =
               -- Are these two previously unseen nodes the same?
               else if currentHash left == currentHash right
                 then pure $ Just left
--- Descend in to the children
+                -- Descend in to the children
                 else case (left, right) of
                   (One h _, _) ->
                     go (Set.insert h seenLeft) seenRight as remainingRight
