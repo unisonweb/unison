@@ -248,9 +248,15 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles rootDir = Branch.read (deserializeRawBranch rootDir)
-                                      (deserializeEdits rootDir)
+branchFromFiles :: MonadIO m => Bool -> FilePath -> Branch.Hash -> m (Branch m)
+branchFromFiles failIfMissing rootDir h@(RawHash h') = do 
+  fileExists <- doesFileExist (branchPath rootDir h')
+  if fileExists || failIfMissing then 
+    Branch.read (deserializeRawBranch rootDir)
+                (deserializeEdits rootDir)
+                h
+  else
+    pure $ Branch.empty
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -279,7 +285,7 @@ getRootBranch root = do
  where
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
-    Just h  -> branchFromFiles root (RawHash h)
+    Just h  -> branchFromFiles True root (RawHash h)
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -506,7 +512,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
                      (getRootBranch path)
                      (putRootBranch path)
                      (branchHeadUpdates path)
-                     (branchFromFiles path)
+                     (branchFromFiles False path)
                      dependents
                      (copyFromGit path)
                      -- This is fine as long as watat doesn't call
