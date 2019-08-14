@@ -410,18 +410,29 @@ loop = do
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
-      LogI _range from -> case from of
+      LogI resultsCap diffCap from -> case from of
         Left path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
           branch' <- getAt path 
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
-          else doHistory branch' 
+          else doHistory 0 branch' []
         Right hash -> do
           b <- eval $ LoadLocalBranch hash
           if Branch.isEmpty b then respond $ NoBranchWithHash input hash
-          else doHistory b
+          else doHistory 0 b []
         where
-          doHistory _b = respond NotImplemented 
+          doHistory !n b acc = 
+            if maybe False (n >=) resultsCap then 
+              respond $ Log diffCap acc (PageEnd n)
+            else case Branch._history b of
+              Causal.One{} -> 
+                respond $ Log diffCap acc EndOfLog 
+              Causal.Merge{..} -> 
+                respond $ Log diffCap acc (MergeTail $ Map.keys tails) 
+              Causal.Cons{..} -> do 
+                b' <- fmap Branch.Branch . eval . Eval $ snd tail
+                let elem = (Branch.headHash b, Branch.namesDiff b b')
+                doHistory (n+1) b' (elem : acc)
 
       UndoI -> do
         prev <- eval . Eval $ Branch.uncons root'

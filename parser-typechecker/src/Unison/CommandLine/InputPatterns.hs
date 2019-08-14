@@ -427,11 +427,11 @@ history = InputPattern "log"
     (\case
       ['#':src] -> case Hash.fromBase32Hex (Text.pack src) of
         Nothing -> Left ("Invalid hash, expected a base32hex string.") 
-        Just h -> pure $ Input.LogI Nothing (Right (Causal.RawHash h))
+        Just h -> pure $ Input.LogI (Just 10) (Just 10) (Right (Causal.RawHash h))
       [src] -> first fromString $ do
         p <- Path.parsePath' src
-        pure $ Input.LogI Nothing (Left p)
-      [] -> pure $ Input.LogI Nothing (Left Path.currentPath)
+        pure $ Input.LogI (Just 10) (Just 10) (Left p)
+      [] -> pure $ Input.LogI (Just 10) (Just 10) (Left Path.currentPath)
       _ -> Left (I.help history)
     )
 

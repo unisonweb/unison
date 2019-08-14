@@ -77,9 +77,9 @@ data Input
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
   | UndoI
-  -- Maybe (Int,Int) is a start and end index into the results,
-  -- can be used for paging
-  | LogI (Maybe (Int,Int)) (Either Path' Branch.Hash)
+  -- First `Maybe Int` is cap on number of results, if any
+  -- Second `Maybe Int` is cap on diff elements shown, if any
+  | LogI (Maybe Int) (Maybe Int) (Either Path' Branch.Hash)
   -- execute an IO object with arguments
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures

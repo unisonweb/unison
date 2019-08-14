@@ -508,6 +508,35 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
+  Log cap history tail -> putPrettyLn . P.callout "🌳" $ 
+    P.lines [
+      tailMsg,
+      P.sep "\n\n" [ go h diff | (h,diff) <- history ]
+      ]
+    where
+    tailMsg = case tail of
+      E.EndOfLog -> "□"
+      E.MergeTail hs -> P.lines [
+        P.wrap $ "This segment of history starts with a merge." <> ex,
+        "",
+        P.lines (phash <$> hs), 
+        dots,
+        ""
+        ]
+      E.PageEnd n -> P.lines [
+        P.wrap $ "More history above here." <> ex, "",
+        "⠇",
+        ""
+        ]
+    dots = "⠇"
+    go hash diff = P.lines [
+      "⊙ " <> phash hash,
+      "",
+      P.indentN 2 $ prettyDiff cap diff 
+      ]
+    ex = "Use" <> IP.makeExample IP.history ["#som3n8m3space"] 
+               <> "to view history starting from a given namespace hash."
+    phash hash = P.bold ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
