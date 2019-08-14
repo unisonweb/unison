@@ -10,9 +10,8 @@ module Unison.Codebase.Editor.Output
   , pushPull
   ) where
 
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.Text (Text)
+import Unison.Prelude
+
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError

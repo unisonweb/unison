@@ -2,23 +2,15 @@
 
 module Unison.Codebase.Editor.Git where
 
-import           Control.Monad                  ( when
-                                                , unless
-                                                )
-import           Control.Monad.Extra            ( whenM )
+import Unison.Prelude
+
 import           Control.Monad.Catch            ( MonadCatch
                                                 , onException
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
                                                 , ExceptT
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
-import           Data.Maybe                     ( isNothing )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Shellmet                       ( ($?), ($|) )
 import           System.Directory               ( getCurrentDirectory
@@ -58,11 +50,11 @@ prepGitPull
 prepGitPull localPath uri = do
   checkForGit
   wd <- liftIO getCurrentDirectory
-  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $ 
+  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $
     removeDirectoryRecursive localPath
   case e of
     Left e -> throwError (SomeOtherError (Text.pack (show e)))
-    Right a -> pure a 
+    Right a -> pure a
   clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
@@ -143,10 +135,10 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Stick our changes in the checked-out copy
   merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
   isBefore <- lift $ Branch.before merged branch
-  let mergednames = Branch.toNames0 (Branch.head merged) 
-      localnames  = Branch.toNames0 (Branch.head branch) 
+  let mergednames = Branch.toNames0 (Branch.head merged)
+      localnames  = Branch.toNames0 (Branch.head branch)
       diff = Names.diff0 localnames mergednames
-  when (not isBefore) $ 
+  when (not isBefore) $
     throwError (PushDestinationHasNewStuff url treeish diff)
   let
     push = do

@@ -1,7 +1,7 @@
 module Unison.Codebase.GitError where
 
-import Data.Text (Text)
-import System.IO (FilePath)
+import Unison.Prelude
+
 import qualified Unison.Names3 as Names
 
 data GitError = NoGit

@@ -12,19 +12,10 @@
 
 module Unison.Runtime.Rt1 where
 
-import Debug.Trace (traceM)
-import Control.Monad (foldM, join, when)
-import Control.Monad.IO.Class (liftIO)
+import Unison.Prelude
+
 import Data.Bifunctor (second)
-import Data.Foldable (for_, toList)
 import Data.IORef
-import Data.Int (Int64)
-import Data.Map (Map)
-import Data.Text (Text)
-import Data.Traversable (for)
-import Data.Sequence (Seq)
-import Data.Word (Word64)
-import Text.Read (readMaybe)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
@@ -50,7 +41,6 @@ import qualified Unison.Var as Var
 
 -- import qualified Unison.TermPrinter as TP
 -- import qualified Unison.Util.Pretty as P
--- import Debug.Trace
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
 type IR = IR.IR ExternalFunction Continuation
@@ -283,13 +273,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Text.uncons" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(h, t) -> IR.pair (C h, T t))
+        . fmap (\(h, t) -> IR.tuple [C h, T t])
         )
         $ Text.uncons
     , mk1 "Text.unsnoc" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(i, l) -> IR.pair (T i, C l))
+        . fmap (\(i, l) -> IR.tuple [T i, C l])
         )
         $ Text.unsnoc
 

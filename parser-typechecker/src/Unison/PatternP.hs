@@ -2,8 +2,9 @@
 
 module Unison.PatternP where
 
+import Unison.Prelude
+
 import qualified Unison.Pattern as P
-import Data.Set.Internal (Set)
 import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern loc = P.PatternP loc

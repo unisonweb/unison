@@ -1,9 +1,10 @@
 module Unison.Util.Components where
 
+import Unison.Prelude
+
 import qualified Data.Graph as Graph
 import qualified Data.Map as Map
-import           Data.Maybe
-import           Data.Set (Set)
+import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
 
 -- | Order bindings by dependencies and group into components.

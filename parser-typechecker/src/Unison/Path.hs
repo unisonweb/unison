@@ -6,7 +6,7 @@
 
 module Unison.Path where
 
-import Control.Applicative
+import Unison.Prelude
 
 -- | Satisfies:
 --   * `extend root p == p` and `extend p root == p`

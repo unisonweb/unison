@@ -2,8 +2,8 @@
 
 module Unison.Util.Star3 where
 
-import Data.List (foldl')
-import Data.Set (Set)
+import Unison.Prelude
+
 import Unison.Util.Relation (Relation)
 import qualified Data.Set as Set
 import qualified Unison.Hashable as H

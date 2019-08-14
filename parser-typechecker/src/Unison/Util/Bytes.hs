@@ -5,10 +5,9 @@
 
 module Unison.Util.Bytes where
 
-import Data.Maybe
-import Data.Foldable
+import Unison.Prelude hiding (empty)
+
 import Data.Monoid (Sum(..))
-import Data.Word (Word8)
 import Prelude hiding (drop)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL

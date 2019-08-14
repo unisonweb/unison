@@ -9,11 +9,9 @@ module Unison.Codebase.Editor.Command (
   TypecheckingResult
   ) where
 
+import Unison.Prelude
+
 import           Data.Configurator.Types        ( Configured )
-import           Data.Map                       ( Map )
-import           Data.Set                       ( Set )
-import           Data.Sequence                  ( Seq )
-import           Data.Text                      ( Text )
 
 import           Unison.Codebase.Editor.Output
 import           Unison.Codebase.Editor.RemoteRepo
