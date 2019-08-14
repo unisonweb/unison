@@ -291,9 +291,13 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src0 dest0 -> do
-        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
-        srcb <- getAt src
-        if Branch.isEmpty srcb then branchNotFound src0
+        let dest = Path.toAbsolutePath currentPath' $ dest0
+        srcb <- case src0 of
+          Left hash -> eval $ LoadLocalBranch hash
+          Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
+        if Branch.isEmpty srcb then 
+          let notfound = either (NoBranchWithHash input) (BranchNotFound input)
+          in respond $ notfound src0
         else do
           ok <- updateAtM dest $ \destb ->
             pure (if Branch.isEmpty destb then srcb else destb)

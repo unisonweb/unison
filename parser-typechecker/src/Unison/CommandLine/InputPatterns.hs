@@ -440,10 +440,15 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
                                    ,(Required, pathArg)]
     "`fork foo bar` creates the namespace `bar` as a fork of `foo`."
     (\case
+      ['#':src, dest] -> case Hash.fromBase32Hex (Text.pack src) of
+        Nothing -> Left "Invalid hash, expected a base32hex string." 
+        Just h -> first fromString $ do
+          dest <- Path.parsePath' dest
+          pure $ Input.ForkLocalBranchI (Left (Causal.RawHash h)) dest
       [src, dest] -> first fromString $ do
         src <- Path.parsePath' src
         dest <- Path.parsePath' dest
-        pure $ Input.ForkLocalBranchI src dest
+        pure $ Input.ForkLocalBranchI (Right src) dest
       _ -> Left (I.help forkLocal)
     )
 

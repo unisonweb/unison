@@ -28,7 +28,7 @@ data Input
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI Path' Path'
+    = ForkLocalBranchI (Either Branch.Hash Path') Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
