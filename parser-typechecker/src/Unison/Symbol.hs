@@ -3,9 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Unison.Symbol where
 
-import Data.Text (Text)
-import Data.Word (Word64)
-import GHC.Generics
+import Unison.Prelude
+
 import Unison.Var (Var(..))
 import qualified Data.Set as Set
 import qualified Unison.ABT as ABT

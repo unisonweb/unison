@@ -4,10 +4,11 @@
 
 module Unison.Codebase.Patch where
 
+import Unison.Prelude hiding (empty)
+
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Unison.Codebase.TermEdit       ( TermEdit, Typing(Same) )
 import qualified Unison.Codebase.TermEdit      as TermEdit

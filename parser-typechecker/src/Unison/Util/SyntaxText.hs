@@ -1,7 +1,7 @@
 module Unison.Util.SyntaxText where
 
-import Control.Monad                  ( join )
-import Data.Foldable                  ( toList )
+import Unison.Prelude
+
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
 
 type SyntaxText = AnnotatedText Element

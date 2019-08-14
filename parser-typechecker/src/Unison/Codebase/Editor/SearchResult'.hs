@@ -2,6 +2,8 @@
 
 module Unison.Codebase.Editor.SearchResult' where
 
+import Unison.Prelude
+
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 import qualified Unison.HashQualified' as HQ'
@@ -9,7 +11,6 @@ import qualified Data.Set as Set
 import qualified Unison.DataDeclaration as DD
 import qualified Unison.Codebase.Editor.DisplayThing as DT
 import qualified Unison.Type as Type
-import Data.Set (Set)
 import Unison.DataDeclaration (Decl)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing)
 import Unison.Type (Type)

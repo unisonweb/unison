@@ -12,19 +12,15 @@
 
 module Unison.Type where
 
+import Unison.Prelude
+
 import qualified Control.Monad.Writer.Strict as Writer
-import Control.Monad (join)
-import Data.Functor
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
-import           Data.List
 import           Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (Text)
-import           GHC.Generics
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
 import           Unison.Blank

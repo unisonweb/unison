@@ -6,15 +6,11 @@
 
 module Unison.CommandLine.InputPatterns where
 
--- import Debug.Trace
+import Unison.Prelude
+
 import Data.Bifunctor (first)
-import Data.Foldable (toList)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.String (fromString)
-import Data.Text (Text)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
@@ -23,7 +19,6 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
-import Data.Either.Combinators (mapLeft)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text

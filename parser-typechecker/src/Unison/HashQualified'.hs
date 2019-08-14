@@ -2,12 +2,10 @@
 
 module Unison.HashQualified' where
 
+import Unison.Prelude
+
 import           Data.Maybe                     ( fromJust )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.String                    ( IsString
-                                                , fromString
-                                                )
 import           Prelude                 hiding ( take )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name

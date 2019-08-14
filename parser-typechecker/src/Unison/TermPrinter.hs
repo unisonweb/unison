@@ -5,25 +5,17 @@
 
 module Unison.TermPrinter where
 
-import           Control.Monad                  ( join )
+import Unison.Prelude
+
 import           Data.List
 import           Data.List.Extra                ( dropEnd )
-import           Data.Either                    ( isRight )
-import           Data.Foldable                  ( fold
-                                                )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe
-                                                , isJust
-                                                , fromJust
+import           Data.Maybe                     ( fromJust
                                                 )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( Text, splitOn, unpack )
+import           Data.Text                      ( splitOn, unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
-import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as Blank
@@ -40,7 +32,6 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
-import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter

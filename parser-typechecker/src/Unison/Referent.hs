@@ -3,12 +3,10 @@
 
 module Unison.Referent where
 
--- import           Data.Maybe             (fromMaybe)
+import Unison.Prelude
+
 import qualified Data.Char              as Char
-import           Data.Maybe             ( fromMaybe )
-import           Data.Text              (Text)
 import qualified Data.Text              as Text
-import           Data.Word              (Word64)
 import           Unison.Hashable        (Hashable)
 import qualified Unison.Hashable        as H
 import           Unison.Reference       (Reference)
