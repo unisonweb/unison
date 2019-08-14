@@ -2,10 +2,8 @@
 
 module Unison.Hashable where
 
-import Data.Int (Int64)
-import Data.Word (Word8, Word64)
-import Data.ByteString (ByteString)
-import Data.Text (Text)
+import Unison.Prelude
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 

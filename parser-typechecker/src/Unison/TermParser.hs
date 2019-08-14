@@ -10,14 +10,9 @@
 
 module Unison.TermParser where
 
-import           Control.Applicative
-import           Control.Monad (join, when)
+import Unison.Prelude
+
 import           Control.Monad.Reader (asks, local)
-import           Data.Foldable (asum)
-import           Data.Functor
-import           Data.Int (Int64)
-import           Data.Maybe (isJust, fromMaybe)
-import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -43,7 +38,6 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
-import Debug.Trace
 import Unison.Reference (Reference)
 
 watch :: Show a => String -> a -> a

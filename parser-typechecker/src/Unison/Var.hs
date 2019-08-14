@@ -5,13 +5,12 @@
 
 module Unison.Var where
 
+import Unison.Prelude
+
 import Data.Char (toLower, isLower)
-import Data.Set (Set)
-import Data.String (fromString)
-import Data.Text (Text, pack)
+import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
-import Data.Word (Word64)
 import qualified Unison.ABT as ABT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
@@ -160,10 +159,10 @@ syntheticVars = Set.fromList . fmap typed $ [
   Inference TypeConstructorArg ]
 
 isLowercase :: forall v . Var v => v -> Bool
-isLowercase v = 
+isLowercase v =
   ok (name $ reset v) && unqualified v == v
   where
   ok n = (all isLower . take 1 . Text.unpack) n ||
          Set.member n syntheticVarNames
-  syntheticVarNames :: Set Text 
+  syntheticVarNames :: Set Text
   syntheticVarNames = Set.map name (syntheticVars @v)

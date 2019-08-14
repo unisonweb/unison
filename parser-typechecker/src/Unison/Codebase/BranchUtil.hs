@@ -1,6 +1,7 @@
 module Unison.Codebase.BranchUtil where
 
-import Data.Set (Set)
+import Unison.Prelude
+
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Unison.Codebase.Path (Path)

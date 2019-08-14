@@ -3,6 +3,8 @@
 
 module Unison.Codebase.Serialization.V1 where
 
+import Unison.Prelude
+
 import Prelude hiding (getChar, putChar)
 
 -- import qualified Data.Text as Text
@@ -10,10 +12,6 @@ import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
                                                 , SeqOp
                                                 )
-import           Control.Applicative            ( liftA2
-                                                , liftA3
-                                                )
-import           Control.Monad                  ( replicateM )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -24,18 +22,12 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Data.Foldable                  ( traverse_ )
-import           Data.Int                       ( Int64 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
-                                                , foldl'
                                                 )
-import           Data.Text                      ( Text )
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
-import           Data.Word                      ( Word64 )
 import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)

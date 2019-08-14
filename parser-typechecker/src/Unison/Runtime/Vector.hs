@@ -2,13 +2,10 @@
 
 module Unison.Runtime.Vector where
 
-import Data.Maybe (catMaybes)
-import Control.Applicative
--- import Data.Int (Int64)
-import Data.Word (Word64)
+import Unison.Prelude
+
 import qualified Data.MemoCombinators as Memo
 import qualified Data.Vector.Unboxed as UV
--- import qualified Data.Vector as V
 
 -- A `Vec a` denotes a `Nat -> Maybe a`
 data Vec a where

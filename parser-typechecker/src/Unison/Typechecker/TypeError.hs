@@ -4,12 +4,9 @@
 
 module Unison.Typechecker.TypeError where
 
--- import Debug.Trace
-import           Control.Applicative           (empty)
-import           Data.Foldable                 (asum, toList)
+import Unison.Prelude hiding (whenM)
+
 import           Data.Bifunctor                (second)
-import           Data.Functor                  (void)
-import           Data.Maybe                    (catMaybes)
 import           Prelude                       hiding (all, and, or)
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Type                   as Type

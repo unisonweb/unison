@@ -1,10 +1,11 @@
 module Unison.Reference.Util where
 
+import Unison.Prelude
+
 import Unison.Reference
 import Unison.Hashable (Hashable1)
 import Unison.ABT (Var)
 import qualified Unison.ABT as ABT
-import Data.Map (Map)
 import qualified Data.Map as Map
 
 hashComponents ::

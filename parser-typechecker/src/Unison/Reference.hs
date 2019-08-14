@@ -25,17 +25,13 @@ module Unison.Reference
    unsafeId,
    toShortHash) where
 
-import           Control.Monad   (join)
-import           Data.Foldable   (toList)
+import Unison.Prelude
+
 import           Data.List hiding (isPrefixOf)
 import qualified Data.Map        as Map
 import           Data.Maybe      (fromJust)
-import           Data.Set        (Set)
 import qualified Data.Set        as Set
-import           Data.Text       (Text)
 import qualified Data.Text       as Text
-import           Data.Word       (Word64)
-import           GHC.Generics
 import qualified Unison.Hash     as H
 import           Unison.Hashable as Hashable
 import Unison.ShortHash (ShortHash)

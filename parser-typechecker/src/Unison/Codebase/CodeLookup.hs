@@ -1,6 +1,7 @@
 module Unison.Codebase.CodeLookup where
 
-import Control.Applicative
+import Unison.Prelude
+
 import Control.Monad.Morph
 import qualified Data.Map                      as Map
 import           Unison.UnisonFile              ( UnisonFile )

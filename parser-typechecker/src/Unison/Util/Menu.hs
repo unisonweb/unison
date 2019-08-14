@@ -5,13 +5,11 @@
 
 module Unison.Util.Menu (menu1, menuN, groupMenuN) where
 
-import           Control.Monad             (when)
+import Unison.Prelude
+
 import           Data.List                 (find, isPrefixOf)
-import           Data.Set                  (Set)
 import qualified Data.Set                  as Set
-import           Data.String               (IsString, fromString)
 import           Data.Strings              (strPadLeft)
-import           Safe                      (atMay)
 import qualified Text.Read                 as Read
 import           Unison.Util.AnnotatedText (textEmpty)
 import           Unison.Util.ColorText     (ColorText, toANSI)

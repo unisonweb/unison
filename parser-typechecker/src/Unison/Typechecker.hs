@@ -13,20 +13,14 @@
 
 module Unison.Typechecker where
 
+import Unison.Prelude
+
 import           Control.Lens
-import           Control.Monad              (join)
 import           Control.Monad.Fail         (fail)
 import           Control.Monad.State        (State, StateT, execState, get,
                                              modify)
-import           Control.Monad.Trans        (lift)
-import           Control.Monad.Trans.Maybe (MaybeT(..))
 import           Control.Monad.Writer
-import           Data.Foldable              (for_, toList, traverse_)
-import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
-import           Data.Maybe                 (catMaybes, fromMaybe, isJust, maybeToList)
-import           Data.Sequence              (Seq)
-import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as B
@@ -43,7 +37,6 @@ import           Unison.Var                 (Var)
 import qualified Unison.Var                 as Var
 import qualified Unison.Typechecker.TypeLookup as TL
 import           Unison.Util.List           ( uniqueBy )
--- import           Debug.Trace
 
 type Name = Text
 

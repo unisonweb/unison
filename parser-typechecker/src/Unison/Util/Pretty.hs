@@ -85,12 +85,10 @@ module Unison.Util.Pretty (
    Width
   ) where
 
+import Unison.Prelude
+
 import           Data.Char                      ( isSpace )
-import           Data.Foldable                  ( toList )
-import           Data.List                      ( foldl' , foldr1, intersperse )
-import           Data.Sequence                  ( Seq )
-import           Data.String                    ( IsString , fromString )
-import           Data.Text                      ( Text )
+import           Data.List                      ( foldr1, intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
 import qualified Unison.Util.ColorText         as CT

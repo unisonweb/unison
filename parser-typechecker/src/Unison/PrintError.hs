@@ -9,18 +9,16 @@
 
 module Unison.PrintError where
 
+import Unison.Prelude
+
 import           Control.Lens                 ((%~))
 import           Control.Lens.Tuple           (_1, _2, _3)
-import           Data.Foldable
 import           Data.List                    (intersperse)
 import           Data.List.Extra              (nubOrd)
 import qualified Data.List.NonEmpty           as Nel
 import qualified Data.Map                     as Map
-import           Data.Maybe                   (catMaybes)
 import           Data.Sequence                (Seq (..))
 import qualified Data.Set                     as Set
-import           Data.String                  (IsString, fromString)
-import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
 import           Data.Void                    (Void)
 import qualified Text.Megaparsec              as P

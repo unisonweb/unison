@@ -5,16 +5,15 @@
 
 module Unison.Result where
 
+import Unison.Prelude
+
 import           Control.Monad.Except           ( ExceptT(..) )
 import           Data.Functor.Identity
 import qualified Control.Monad.Fail            as Fail
-import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Control.Monad.Writer           ( WriterT(..)
                                                 , runWriterT
                                                 , MonadWriter(..)
                                                 )
-import           Data.Maybe
-import           Data.Sequence                  ( Seq )
 import           Unison.Name                    ( Name )
 import qualified Unison.Parser                 as Parser
 import           Unison.Paths                   ( Path )

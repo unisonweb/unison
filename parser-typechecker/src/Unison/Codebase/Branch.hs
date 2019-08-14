@@ -10,18 +10,14 @@
 
 module Unison.Codebase.Branch where
 
+import Unison.Prelude hiding (empty)
+
 import           Prelude                  hiding (head,read,subtract)
 
 import           Control.Lens            hiding ( children, cons, transform )
 import qualified Control.Monad                 as Monad
-import           Data.List                      ( foldl' )
-import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
-import           Data.Map                       ( Map )
 import qualified Data.Set                      as Set
-import           Data.Set                       ( Set )
-import           Data.Foldable                  ( for_, toList )
-import           Data.Traversable               ( for )
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch          ( Patch )
 import qualified Unison.Codebase.Causal        as Causal
