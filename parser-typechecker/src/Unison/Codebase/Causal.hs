@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 module Unison.Codebase.Causal where
 
 import           Prelude                 hiding ( head
@@ -13,17 +12,20 @@ import           Control.Monad                  ( unless )
 import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
-import           Data.Sequence                  ( Seq )
+import           Data.Sequence                  ( Seq
+                                                , ViewL(..)
+                                                )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
--- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Foldable                  ( for_, toList )
+import           Data.Foldable                  ( for_
+                                                , toList
+                                                )
 import           Util                           ( bind2 )
 
 {-
@@ -125,6 +127,49 @@ instance Ord (Causal m h a) where
 
 instance Hashable (RawHash h) where
   tokens (RawHash h) = Hashable.tokens h
+
+-- Find the lowest common ancestor of two causals.
+lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
+lca a b =
+  go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
+ where
+  go seenLeft seenRight remainingLeft remainingRight =
+    case (Seq.viewl remainingLeft, Seq.viewl remainingRight) of
+      (Seq.EmptyL, _         ) -> pure Nothing
+      (_         , Seq.EmptyL) -> pure Nothing
+      (a :< as   , b :< bs   ) -> do
+        left <- a
+        -- Have we seen the left node before on the right?
+        if Set.member (currentHash left) seenRight
+          then pure $ Just left
+          else do
+            right <- b
+            -- Have we seen the right node before on the left?
+            if Set.member (currentHash right) seenLeft
+              then pure $ Just right
+              -- Are these two previously unseen nodes the same?
+              else if currentHash left == currentHash right
+                then pure $ Just left
+-- Descend in to the children
+                else case (left, right) of
+                  (One h _, _) ->
+                    go (Set.insert h seenLeft) seenRight as remainingRight
+                  (_, One h _) ->
+                    go seenLeft (Set.insert h seenRight) remainingLeft bs
+                  _ -> descend (currentHash left)
+                               (currentHash right)
+                               (children left)
+                               (children right)
+       where
+        descend h1 h2 r1 r2 = go (Set.insert h1 seenLeft)
+                                 (Set.insert h2 seenRight)
+                                 (as <> r1)
+                                 (bs <> r2)
+
+children :: Causal m h e -> Seq (m (Causal m h e))
+children (One _ _         ) = Seq.empty
+children (Cons  _ _ (_, t)) = Seq.singleton t
+children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
 merge :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
 a `merge` b =
