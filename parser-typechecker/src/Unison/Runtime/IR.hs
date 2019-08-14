@@ -129,6 +129,10 @@ unit = Data DD.unitRef 0 []
 pair :: (Value e cont, Value e cont) -> Value e cont
 pair (a, b) = Data DD.pairRef 0 [a, b]
 
+tuple :: [Value e cont] -> Value e cont
+tuple [v] = v
+tuple vs = foldr (curry pair) unit vs
+
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have
 -- been applied, in this example, creating the lambda `x -> 19`. This
