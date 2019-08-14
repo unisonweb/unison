@@ -11,9 +11,7 @@ import           Prelude                 hiding ( head
 import           Control.Lens                   ( (<&>) )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
-import           Data.Sequence                  ( Seq
-                                                , ViewL(..)
-                                                )
+import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 import qualified Unison.Hashable               as Hashable
