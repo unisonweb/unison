@@ -148,9 +148,9 @@ data Output v
   deriving (Show)
 
 data LogTail = 
-  EndOfLog | 
+  EndOfLog Branch.Hash | 
   MergeTail [Branch.Hash] | 
-  PageEnd Int -- PageEnd nextIndex 
+  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 
   deriving (Show)
   
 data TestReportStats

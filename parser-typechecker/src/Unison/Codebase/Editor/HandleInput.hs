@@ -423,15 +423,15 @@ loop = do
         where
           doHistory !n b acc = 
             if maybe False (n >=) resultsCap then 
-              respond $ Log diffCap acc (PageEnd n)
+              respond $ Log diffCap acc (PageEnd (Branch.headHash b) n)
             else case Branch._history b of
               Causal.One{} -> 
-                respond $ Log diffCap acc EndOfLog 
+                respond $ Log diffCap acc (EndOfLog $ Branch.headHash b)
               Causal.Merge{..} -> 
                 respond $ Log diffCap acc (MergeTail $ Map.keys tails) 
               Causal.Cons{..} -> do 
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
-                let elem = (Branch.headHash b, Branch.namesDiff b b')
+                let elem = (Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
 
       UndoI -> do
