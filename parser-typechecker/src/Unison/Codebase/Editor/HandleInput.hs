@@ -432,7 +432,7 @@ loop = do
               Causal.One{} -> 
                 respond $ Log diffCap acc (EndOfLog $ Branch.headHash b)
               Causal.Merge{..} -> 
-                respond $ Log diffCap acc (MergeTail $ Map.keys tails) 
+                respond $ Log diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails) 
               Causal.Cons{..} -> do 
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
                 let elem = (Branch.headHash b, Branch.namesDiff b' b)

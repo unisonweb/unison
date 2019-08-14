@@ -520,12 +520,12 @@ notifyUser dir o = case o of
         "You've reached the beginning of recorded history.", "",
         "□ " <> phash h, ""
         ]
-      E.MergeTail hs -> P.lines [
+      E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
         P.lines (phash <$> hs), 
-        dots,
-        ""
+        "⑂",
+        "⊙ " <> phash h <> (if null history then mempty else "\n")
         ]
       E.PageEnd h n -> P.lines [
         P.wrap $ "More history above here." <> ex, "",
@@ -541,7 +541,7 @@ notifyUser dir o = case o of
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n8m3space"] 
                <> "to view history starting from a given namespace hash."
-    phash hash = P.bold ("#" <> P.shown hash)
+    phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",

@@ -149,7 +149,7 @@ data Output v
 
 data LogTail = 
   EndOfLog Branch.Hash | 
-  MergeTail [Branch.Hash] | 
+  MergeTail Branch.Hash [Branch.Hash] | 
   PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 
   deriving (Show)
   
