@@ -283,13 +283,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Text.uncons" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(h, t) -> IR.pair (C h, T t))
+        . fmap (\(h, t) -> IR.tuple [C h, T t])
         )
         $ Text.uncons
     , mk1 "Text.unsnoc" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(i, l) -> IR.pair (T i, C l))
+        . fmap (\(i, l) -> IR.tuple [T i, C l])
         )
         $ Text.unsnoc
 
