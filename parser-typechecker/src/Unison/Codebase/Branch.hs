@@ -67,7 +67,7 @@ type Star r n = Metadata.Star r n
 data Branch0 m = Branch0
   { _terms :: Star Referent NameSegment
   , _types :: Star Reference NameSegment
-  , _children:: Map NameSegment (Branch m)
+  , _children :: Map NameSegment (Branch m)
   , _edits :: Map NameSegment (EditHash, m Patch)
   -- names and metadata for this branch and its children
   , deepTerms :: Star Referent Name

@@ -163,34 +163,46 @@ children (One _ _         ) = Seq.empty
 children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
-merge :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
-a `merge` b =
+mergeInternal
+  :: forall m h e
+   . Monad m
+  => (Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e))
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+mergeInternal f a b =
   ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
-    (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
-    (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-    (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
+    (Merge _ _ tls, Merge _ _ tls2) -> f $ Map.union tls tls2
+    (Merge _ _ tls, b) -> f $ Map.insert (currentHash b) (pure b) tls
+    (b, Merge _ _ tls) -> f $ Map.insert (currentHash b) (pure b) tls
     (a, b) ->
-      merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+      f $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+
+merge
+  :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
+merge = mergeInternal merge0
  where
  -- implementation detail, form a `Merge`
- merge0
-   :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
- merge0 m =
-   let e = if Map.null m
-         then error "Causal.merge0 empty map"
-         else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
-       h = hash (Map.keys m) -- sorted order
-   in  e <&> \e -> Merge (RawHash h) e m
+  merge0
+    :: (Applicative m, Semigroup e)
+    => Map (RawHash h) (m (Causal m h e))
+    -> m (Causal m h e)
+  merge0 m =
+    let e = if Map.null m
+          then error "Causal.merge0 empty map"
+          else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
+        h = hash (Map.keys m) -- sorted order
+    in  e <&> \e -> Merge (RawHash h) e m
 
-mergeWithM :: forall m h e. Monad m => (e -> e -> m e) -> Causal m h e -> Causal m h e -> m (Causal m h e)
-mergeWithM f a b =
-  ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
-  (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
-  (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-  (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-  (a, b) ->
-    merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
-  where
+mergeWithM
+  :: forall m h e
+   . Monad m
+  => (e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+mergeWithM f = mergeInternal merge0
+ where
   -- implementation detail, form a `Merge`
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
   merge0 m =
