@@ -25,6 +25,13 @@ toList s = [ (f, x, y, z) | f <- Set.toList (fact s)
                           , y <- Set.toList (R.lookupDom f (d2 s))
                           , z <- Set.toList (R.lookupDom f (d3 s)) ]
 
+difference :: (Ord fact, Ord d1, Ord d2, Ord d3)
+       => Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
+difference a b = Star3 (Set.difference (fact a) (fact b))
+                       (R.difference (d1 a) (d1 b))
+                       (R.difference (d2 a) (d2 b))
+                       (R.difference (d3 a) (d3 b))
+
 d23s :: (Ord fact, Ord d2, Ord d3)
      => Star3 fact d1 d2 d3
      -> [(fact, d2, d3)]
