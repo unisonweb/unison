@@ -221,6 +221,9 @@ builtinsSrc =
   , B "Int.negate" $ int --> int
   , B "Int.mod" $ int --> int --> int
   , B "Int.truncate0" $ int --> nat
+  , B "Int.toText" $ int --> text
+  , B "Int.fromText" $ text --> optional int
+  , B "Int.toFloat" $ int --> float
 
   , B "Nat.+" $ nat --> nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
@@ -239,6 +242,7 @@ builtinsSrc =
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
   , B "Nat.fromText" $ text --> optional nat
+  , B "Nat.toFloat" $ nat --> float
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
