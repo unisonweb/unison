@@ -55,10 +55,18 @@ instance Show e => Show (Causal m h e) where
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m h e
-  = One { currentHash :: RawHash h, head :: e }
-  | Cons { currentHash :: RawHash h, head :: e, tail :: (RawHash h, m (Causal m h e)) }
+  = One { currentHash :: RawHash h
+        , head :: e
+        }
+  | Cons { currentHash :: RawHash h
+         , head :: e
+         , tail :: (RawHash h, m (Causal m h e))
+         }
   -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: RawHash h, head :: e, tails :: Map (RawHash h) (m (Causal m h e)) }
+  | Merge { currentHash :: RawHash h
+          , head :: e
+          , tails :: Map (RawHash h) (m (Causal m h e))
+          }
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.

@@ -76,6 +76,15 @@ data Branch0 m = Branch0
   , deepEdits :: Set Name
   }
 
+data BranchDiff = BranchDiff
+  { addedTerms :: Star Referent Name
+  , removedTerms :: Star Referent Name
+  , addedTypes :: Star Reference Name
+  , removedTypes :: Star Reference Name
+  , addedEdits :: Set Name
+  , removedEdits :: Set Name
+  }
+
 -- The raw Branch
 data Raw = Raw
   { _termsR :: Star Referent NameSegment
@@ -630,6 +639,16 @@ namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
+
+diff :: Branch0 m  -> Branch0 m -> BranchDiff
+diff a b = BranchDiff
+  { addedTerms = Star3.difference (deepTerms b) (deepTerms a)
+  , removedTerms = Star3.difference (deepTerms a) (deepTerms b)
+  , addedTypes = Star3.difference (deepTypes b) (deepTypes a)
+  , removedTypes = Star3.difference (deepTypes a) (deepTypes b)
+  , addedEdits = Set.difference (deepEdits b) (deepEdits a)
+  , removedEdits = Set.difference (deepEdits a) (deepEdits b)
+  }
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name
