@@ -3,11 +3,8 @@
 
 module Unison.PrettyPrintEnv where
 
-import           Control.Applicative            ( (<|>) )
-import           Data.Map                       ( Map )
-import           Data.Maybe                     ( fromMaybe )
-import           Data.Text                      ( Text )
-import           Debug.Trace                    ( trace )
+import Unison.Prelude
+
 import           Unison.HashQualified           ( HashQualified )
 import           Unison.Name                    ( Name )
 import           Unison.Names3                  ( Names )

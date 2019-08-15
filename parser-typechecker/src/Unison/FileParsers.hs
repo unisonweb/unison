@@ -5,25 +5,19 @@
 
 module Unison.FileParsers where
 
--- import Debug.Trace
+import Unison.Prelude
+
 import Control.Lens (view, _3)
 import qualified Unison.Parser as Parser
-import           Control.Monad              (foldM)
-import           Control.Monad.Trans        (lift)
 import           Control.Monad.State        (evalStateT)
 import Control.Monad.Writer (tell)
 import           Data.Bifunctor             ( first )
-import           Data.Functor               ( ($>) )
-import           Data.Foldable              ( toList )
 import qualified Data.Foldable              as Foldable
-import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import Data.List (partition)
-import Data.Set (Set)
 import qualified Data.Set                   as Set
-import           Data.Sequence              (Seq)
 import qualified Data.Sequence              as Seq
-import           Data.Text                  (Text, unpack)
+import           Data.Text                  (unpack)
 import qualified Unison.ABT                 as ABT
 import qualified Unison.Blank               as Blank
 import           Unison.DataDeclaration     (DataDeclaration',

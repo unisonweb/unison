@@ -2,13 +2,9 @@
 
 module Unison.Codebase where
 
-import           Control.Monad                  ( foldM
-                                                , forM
-                                                )
-import           Data.Foldable                  ( toList, traverse_ )
+import Unison.Prelude
+
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes, isJust )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
@@ -59,7 +55,7 @@ data Codebase m v a =
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
            -- This returns the merged branch that results from
-           -- merging the input branch with the root branch at the 
+           -- merging the input branch with the root branch at the
            -- given file path
            , syncToDirectory    :: FilePath -> Branch m -> m (Branch m)
 

@@ -6,15 +6,12 @@
 
 module Unison.UnisonFile where
 
+import Unison.Prelude
+
 import Control.Lens
-import           Control.Applicative    ((<|>))
-import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
-import           Data.Foldable          (toList, foldl')
-import           Data.Map               (Map)
 import qualified Data.Map               as Map
 import qualified Data.Set               as Set
-import Data.Set (Set)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')

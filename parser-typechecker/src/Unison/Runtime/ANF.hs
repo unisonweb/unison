@@ -8,13 +8,13 @@
 
 module Unison.Runtime.ANF (optimize, fromTerm, fromTerm', term, minimizeCyclesOrCrash) where
 
+import Unison.Prelude
+
 import Data.Bifunctor (second)
-import Data.Foldable hiding (and,or)
 import Data.List hiding (and,or)
 import Prelude hiding (abs,and,or,seq)
 import Unison.Term
 import Unison.Var (Var)
-import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text

@@ -4,13 +4,12 @@
 
 module Unison.Codebase.Path where
 
---import Debug.Trace
+import Unison.Prelude hiding (empty, toList)
+
 import           Data.List.Extra                ( dropPrefix )
 import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
-import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq

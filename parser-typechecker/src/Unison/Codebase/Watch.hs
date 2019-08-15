@@ -4,27 +4,23 @@
 
 module Unison.Codebase.Watch where
 
-import           Control.Applicative
+import Unison.Prelude
+
 import           UnliftIO.Concurrent            ( forkIO
                                                 , threadDelay
                                                 , killThread
                                                 )
-import           UnliftIO                       ( MonadIO, MonadUnliftIO
-                                                , liftIO, withRunInIO )
+import           UnliftIO                       ( MonadUnliftIO
+                                                , withRunInIO )
 import           UnliftIO.MVar                  ( newEmptyMVar, takeMVar
                                                 , tryTakeMVar, putMVar )
 import           UnliftIO.STM                   ( atomically )
 import           UnliftIO.Exception             ( catch, IOException)
-import           Control.Monad                  ( forever
-                                                , void
-                                                , join
-                                                )
 import           UnliftIO.IORef                 ( newIORef
                                                 , readIORef
                                                 , writeIORef
                                                 )
 import qualified Data.Map                      as Map
-import           Data.Text                      ( Text )
 import qualified Data.Text.IO
 import           Data.Time.Clock                ( UTCTime
                                                 , diffUTCTime
@@ -35,7 +31,6 @@ import           System.FSNotify                ( Event(Added, Modified)
                                                 )
 import           Unison.Util.TQueue             ( TQueue )
 import qualified Unison.Util.TQueue            as TQueue
--- import Debug.Trace
 
 watchDirectory'
   :: forall m. MonadUnliftIO m => FilePath -> m (m (), m (FilePath, UTCTime))

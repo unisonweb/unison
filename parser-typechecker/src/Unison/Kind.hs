@@ -2,7 +2,8 @@
 
 module Unison.Kind where
 
-import GHC.Generics
+import Unison.Prelude
+
 import Unison.Hashable (Hashable)
 import qualified Unison.Hashable as Hashable
 

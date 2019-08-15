@@ -5,7 +5,8 @@
 
 module Unison.Util.CyclicEq where
 
-import Data.Foldable (toList)
+import Unison.Prelude
+
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Sequence as S

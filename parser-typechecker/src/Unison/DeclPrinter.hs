@@ -5,8 +5,9 @@
 
 module Unison.DeclPrinter where
 
+import Unison.Prelude
+
 import           Data.List                      ( isPrefixOf )
-import           Data.Maybe                     ( fromMaybe )
 import qualified Data.Map                      as Map
 import           Unison.DataDeclaration         ( DataDeclaration'
                                                 , EffectDeclaration'
@@ -51,7 +52,7 @@ prettyGADT env r name dd = P.hang header . P.lines $ constructor <$> zip
   [0 ..]
   (DD.constructors' dd)
  where
-  constructor (n, (_, _, t)) = 
+  constructor (n, (_, _, t)) =
     prettyPattern env r name n
       <>       (fmt S.TypeAscriptionColon " :")
       `P.hang` TypePrinter.pretty0 env Map.empty (-1) t
@@ -71,7 +72,7 @@ prettyDataDecl
   -> HashQualified
   -> DataDeclaration' v a
   -> Pretty SyntaxText
-prettyDataDecl env r name dd = 
+prettyDataDecl env r name dd =
   (header <>) . P.sep (fmt S.DelimiterChar (" | " `P.orElse` "\n  | ")) $ constructor <$> zip
     [0 ..]
     (DD.constructors' dd)
@@ -87,7 +88,7 @@ prettyDataDecl env r name dd =
                         <> P.sep ((fmt S.DelimiterChar ",") <> " " `P.orElse` "\n      ")
                                  (field <$> zip fs (init ts))
                         <> (fmt S.DelimiterChar " }")
-  field (fname, typ) = P.group $ styleHashQualified'' (fmt S.Constructor) fname <> 
+  field (fname, typ) = P.group $ styleHashQualified'' (fmt S.Constructor) fname <>
     (fmt S.TypeAscriptionColon " :") `P.hang` TypePrinter.prettyRaw env Map.empty (-1) typ
   header = prettyDataHeader name dd <> (fmt S.DelimiterChar (" = " `P.orElse` "\n  = "))
 
@@ -137,11 +138,11 @@ fieldNames env r name dd = case DD.constructors dd of
 
 prettyModifier :: DD.Modifier -> Pretty SyntaxText
 prettyModifier DD.Structural = mempty
-prettyModifier (DD.Unique _uid) = 
+prettyModifier (DD.Unique _uid) =
   fmt S.DataTypeModifier "unique" -- <> ("[" <> P.text uid <> "] ")
 
 prettyDataHeader :: Var v => HashQualified -> DD.DataDeclaration' v a -> Pretty SyntaxText
-prettyDataHeader name dd = 
+prettyDataHeader name dd =
   P.sepNonEmpty " " [
     prettyModifier (DD.modifier dd),
     fmt S.DataTypeKeyword "type",

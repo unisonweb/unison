@@ -12,20 +12,10 @@
 
 module Unison.Runtime.Rt1 where
 
-import Debug.Trace (traceM)
-import Control.Monad (foldM, join, when)
-import Control.Monad.IO.Class (liftIO)
+import Unison.Prelude
+
 import Data.Bifunctor (second)
-import Data.Foldable (for_, toList)
 import Data.IORef
-import Data.Int (Int64)
-import Data.List (isPrefixOf)
-import Data.Map (Map)
-import Data.Text (Text)
-import Data.Traversable (for)
-import Data.Sequence (Seq)
-import Data.Word (Word64)
-import Text.Read (readMaybe)
 import Unison.Runtime.IR (pattern CompilationEnv, pattern Req)
 import Unison.Runtime.IR hiding (CompilationEnv, IR, Req, Value, Z)
 import Unison.Symbol (Symbol)
@@ -34,6 +24,7 @@ import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import qualified System.Mem.StableName as S
 import qualified Data.ByteString as BS
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -280,13 +271,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Text.uncons" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(h, t) -> IR.pair (C h, T t))
+        . fmap (\(h, t) -> IR.tuple [C h, T t])
         )
         $ Text.uncons
     , mk1 "Text.unsnoc" att
         ( pure
         . IR.maybeToOptional
-        . fmap (\(i, l) -> IR.pair (T i, C l))
+        . fmap (\(i, l) -> IR.tuple [T i, C l])
         )
         $ Text.unsnoc
 
@@ -354,7 +345,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Int.toText" ati (pure . T)
           (Text.pack . (\x -> if x >= 0 then ("+" <> show x) else show x))
     , mk1 "Int.fromText" att (pure . IR.maybeToOptional . fmap I) $
-        (\x -> readMaybe (if "+" `isPrefixOf` x then drop 1 x else x))
+        (\x -> readMaybe (if "+" `List.isPrefixOf` x then drop 1 x else x))
         . Text.unpack
     , mk1 "Int.toFloat" ati (pure . F) fromIntegral
 

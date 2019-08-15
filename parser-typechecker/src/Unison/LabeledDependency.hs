@@ -1,7 +1,7 @@
 module Unison.LabeledDependency (derivedTerm, derivedType, termRef, typeRef, referent, dataConstructor, effectConstructor, fold, referents, LabeledDependency) where
 
-import Data.Foldable (toList)
-import Data.Set (Set)
+import Unison.Prelude hiding (fold)
+
 import Unison.ConstructorType (ConstructorType(Data, Effect))
 import Unison.Reference (Reference(DerivedId), Id)
 import Unison.Referent (Referent(Ref, Con))
