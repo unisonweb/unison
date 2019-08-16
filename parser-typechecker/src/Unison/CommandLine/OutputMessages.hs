@@ -14,6 +14,8 @@
 
 module Unison.CommandLine.OutputMessages where
 
+import Unison.Prelude hiding (unlessM)
+
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
@@ -21,22 +23,14 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
 
 
---import Debug.Trace
 import Control.Lens (over, _1)
-import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
-import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
-import           Data.Maybe                    (fromMaybe)
-import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Data.Set                      (Set)
-import           Data.String                   (IsString, fromString)
-import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)

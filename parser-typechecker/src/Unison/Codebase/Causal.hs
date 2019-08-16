@@ -3,27 +3,22 @@
 {-# LANGUAGE RecordWildCards #-}
 module Unison.Codebase.Causal where
 
+import Unison.Prelude
+
 import           Prelude                 hiding ( head
                                                 , tail
                                                 , read
                                                 )
-import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
-import           Control.Monad                  ( unless )
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
-import           Data.Sequence                  ( Seq )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 -- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Foldable                  ( for_, toList )
 import           Util                           ( bind2 )
 
 {-

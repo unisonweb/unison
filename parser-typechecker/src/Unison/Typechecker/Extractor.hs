@@ -3,24 +3,11 @@
 
 module Unison.Typechecker.Extractor where
 
-import           Control.Applicative            ( Alternative
-                                                , empty
-                                                , (<|>)
-                                                )
-import           Control.Monad                  ( MonadPlus
-                                                , ap
-                                                , join
-                                                , liftM
-                                                , mplus
-                                                , mzero
-                                                )
+import Unison.Prelude hiding (whenM)
+
 import           Control.Monad.Reader
-import           Control.Monad.Trans.Maybe
-import           Data.Foldable
 import qualified Data.List                     as List
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Debug.Trace
 import           Unison.Reference               ( Reference )
 import qualified Unison.Term                   as Term
 import qualified Unison.Type as Type

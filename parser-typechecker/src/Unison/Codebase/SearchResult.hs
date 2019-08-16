@@ -2,7 +2,8 @@
 
 module Unison.Codebase.SearchResult where
 
-import           Data.Set             (Set)
+import Unison.Prelude
+
 import qualified Data.Set             as Set
 import           Unison.HashQualified' (HashQualified)
 import qualified Unison.HashQualified' as HQ

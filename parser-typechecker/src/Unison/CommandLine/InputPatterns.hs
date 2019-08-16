@@ -6,15 +6,11 @@
 
 module Unison.CommandLine.InputPatterns where
 
--- import Debug.Trace
+import Unison.Prelude
+
 import Data.Bifunctor (first)
-import Data.Foldable (toList)
 import Data.List (intercalate, sortOn, isPrefixOf)
 import Data.List.Extra (nubOrdOn)
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.String (fromString)
-import Data.Text (Text)
 import qualified System.Console.Haskeline.Completion as Completion
 import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
@@ -23,7 +19,6 @@ import Unison.Codebase.Editor.RemoteRepo
 import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
-import Data.Either.Combinators (mapLeft)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -420,13 +415,13 @@ history = InputPattern "log"
    (P.wrapColumn2 [
      (makeExample history [], "Shows the history of the current path."),
      (makeExample history [".foo"], "Shows history of the path .foo."),
-     (makeExample history ["#9dndk3kbsk13nbpeu"], 
-       "Shows the history of the namespace with the given hash." <> 
+     (makeExample history ["#9dndk3kbsk13nbpeu"],
+       "Shows the history of the namespace with the given hash." <>
        "The full hash must be provided.")
      ])
     (\case
       ['#':src] -> case Hash.fromBase32Hex (Text.pack src) of
-        Nothing -> Left ("Invalid hash, expected a base32hex string.") 
+        Nothing -> Left ("Invalid hash, expected a base32hex string.")
         Just h -> pure $ Input.LogI (Just 10) (Just 10) (Right (Causal.RawHash h))
       [src] -> first fromString $ do
         p <- Path.parsePath' src
@@ -441,7 +436,7 @@ forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
     "`fork foo bar` creates the namespace `bar` as a fork of `foo`."
     (\case
       ['#':src, dest] -> case Hash.fromBase32Hex (Text.pack src) of
-        Nothing -> Left "Invalid hash, expected a base32hex string." 
+        Nothing -> Left "Invalid hash, expected a base32hex string."
         Just h -> first fromString $ do
           dest <- Path.parsePath' dest
           pure $ Input.ForkLocalBranchI (Left (Causal.RawHash h)) dest

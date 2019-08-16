@@ -5,8 +5,8 @@ module Unison.Codebase.Editor.Input
   , PatchPath
   ) where
 
-import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
+import Unison.Prelude
+
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'

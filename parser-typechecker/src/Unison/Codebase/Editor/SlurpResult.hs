@@ -4,9 +4,8 @@
 
 module Unison.Codebase.Editor.SlurpResult where
 
-import Data.Foldable (toList)
-import Data.Map (Map)
-import Data.Set (Set)
+import Unison.Prelude
+
 import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import Unison.Name ( Name )
 import Unison.Parser ( Ann )

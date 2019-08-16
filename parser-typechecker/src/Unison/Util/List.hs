@@ -1,11 +1,9 @@
 module Unison.Util.List where
 
-import Data.Foldable
-import Data.Map (Map)
+import Unison.Prelude
+
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Data.Either (partitionEithers)
-import Safe (headMay)
 
 multimap :: Foldable f => Ord k => f (k, v) -> Map k [v]
 multimap kvs =

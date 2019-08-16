@@ -98,6 +98,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.Prelude
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
@@ -241,12 +242,17 @@ executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  other-modules:
+    Version
   build-depends:
     base,
     containers,
     directory,
     filepath,
     safe,
+    shellmet,
+    template-haskell,
+    text,
     unison-parser-typechecker
 
 executable prettyprintdemo

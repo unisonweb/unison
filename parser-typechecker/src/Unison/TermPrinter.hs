@@ -5,25 +5,17 @@
 
 module Unison.TermPrinter where
 
-import           Control.Monad                  ( join )
+import Unison.Prelude
+
 import           Data.List
 import           Data.List.Extra                ( dropEnd )
-import           Data.Either                    ( isRight )
-import           Data.Foldable                  ( fold
-                                                )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe
-                                                , isJust
-                                                , fromJust
+import           Data.Maybe                     ( fromJust
                                                 )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( Text, splitOn, unpack )
+import           Data.Text                      ( splitOn, unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
-import           Text.Read                      ( readMaybe )
 import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as Blank
@@ -40,7 +32,6 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
-import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -151,16 +142,16 @@ pretty0
   -> Pretty SyntaxText
 pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
+    Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Reference) $ name
+    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty0 n (ac 10 Normal im) tm
         <> PP.hang (fmt S.TypeAscriptionColon " :" ) (TypePrinter.pretty0 n im 0 t)
-    Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i)
+    Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
     Nat'     u  -> fmt S.NumericLiteral $ l $ show u
     Float'   f  -> fmt S.NumericLiteral $ l $ show f
     -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
@@ -175,16 +166,16 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     Char'    c  -> fmt S.CharLiteral $ l $ case showEscapeChar c of
                                             Just c -> "?\\" ++ [c]
                                             Nothing -> '?': [c]
-    Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
+    Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
     Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
     Request' ref i -> styleHashQualified'' (fmt S.Request) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
-        $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty0 n (ac 2 Normal im) h)
+        $ (fmt S.ControlKeyword "handle" `PP.hang` pretty0 n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty0 n (ac 2 Block im') body]))
+        <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im') body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
     AskInfo' x -> paren (p >= 11) $ pretty0 n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
@@ -234,8 +225,8 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
  where
   specialCases term go = case (term, binaryOpsPred) of
     (TupleTerm' [x], _) ->
-      paren (p >= 10) $ (fmt S.Constructor "Pair") `PP.hang`
-        PP.spaced [pretty0 n (ac 10 Normal im) x, (fmt S.Constructor "()") ]
+      paren (p >= 10) $ fmt S.Constructor "Pair" `PP.hang`
+        PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
@@ -246,13 +237,13 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            PP.group (varList vs <> (fmt S.ControlKeyword " ->")) `PP.hang` pretty0 n (ac 2 Block im) body
+            PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im) body
         _ -> go term
 
-  sepList sep xs = sepList' (pretty0 n (ac 0 Normal im)) sep xs
+  sepList = sepList' (pretty0 n (ac 0 Normal im))
   sepList' f sep xs = fold $ intersperse sep (map f xs)
-  varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
-  commaList = sepList ((fmt S.DelimiterChar $ l ",") <> PP.softbreak)
+  varList = sepList' (PP.text . Var.name) PP.softbreak
+  commaList = sepList (fmt S.DelimiterChar (l ",") <> PP.softbreak)
 
   printLet :: Var v
            => BlockContext

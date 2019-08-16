@@ -10,15 +10,10 @@
 
 module Unison.ABT where
 
-import Control.Applicative
-import Control.Monad
-import Data.Word (Word64)
+import Unison.Prelude
+
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
-import Data.Map (Map)
-import Data.Maybe
-import Data.Set (Set)
-import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
