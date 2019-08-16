@@ -73,7 +73,7 @@ data Branch0 m = Branch0
   , deepTerms :: Star Referent Name
   , deepTypes :: Star Reference Name
   , deepPaths :: Set Path
-  , deepEdits :: Set Name
+  , deepEdits :: Map Name EditHash
   }
 
 data BranchDiff = BranchDiff
@@ -81,8 +81,9 @@ data BranchDiff = BranchDiff
   , removedTerms :: Star Referent Name
   , addedTypes :: Star Reference Name
   , removedTypes :: Star Reference Name
-  , addedEdits :: Set Name
-  , removedEdits :: Set Name
+  , addedPatches :: Set Name
+  , removedPatches :: Set Name
+  , changedPatches :: Set Name
   }
 
 -- The raw Branch
@@ -179,22 +180,25 @@ branch0 terms types children edits =
   Branch0 terms types children edits
           deepTerms' deepTypes' deepPaths' deepEdits'
   where
-  deepTerms' =
-    Star3.mapD1 nameSegToName terms <> foldMap go (Map.toList children)
-    where
-    go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTerms $ head b)
-  deepTypes' =
-    Star3.mapD1 nameSegToName types <> foldMap go (Map.toList children)
-    where
-    go (nameSegToName -> n, b) = Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
-  deepPaths' = Set.map Path.singleton (Map.keysSet children)
-            <> foldMap go (Map.toList children) where
-    go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
-  deepEdits' = Set.map nameSegToName (Map.keysSet edits)
-              <> foldMap go (Map.toList children) where
-    go (nameSeg, b) =
-      Set.map (nameSegToName nameSeg `Name.joinDot`) (deepEdits $ head b)
   nameSegToName = Name . NameSegment.toText
+  deepTerms' = Star3.mapD1 nameSegToName terms
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      Star3.mapD1 (Name.joinDot n) (deepTerms $ head b)
+  deepTypes' = Star3.mapD1 nameSegToName types
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSegToName -> n, b) =
+      Star3.mapD1 (Name.joinDot n) (deepTypes $ head b)
+  deepPaths' = Set.map Path.singleton (Map.keysSet children)
+    <> foldMap go (Map.toList children)
+    where go (nameSeg, b) = Set.map (Path.cons nameSeg) (deepPaths $ head b)
+  deepEdits' = Map.mapKeys nameSegToName (Map.map fst edits)
+    <> foldMap go (Map.toList children)
+   where
+    go (nameSeg, b) =
+      Map.mapKeys (nameSegToName nameSeg `Name.joinDot`) . deepEdits $ head b
 
 head :: Branch m -> Branch0 m
 head (Branch c) = Causal.head c
@@ -640,15 +644,49 @@ namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
-diff :: Branch0 m  -> Branch0 m -> BranchDiff
+-- "Added" are in `b` but not in `a`.
+-- "Removed" are in `a` but not in `b`.
+diff :: Branch0 m -> Branch0 m -> BranchDiff
 diff a b = BranchDiff
-  { addedTerms = Star3.difference (deepTerms b) (deepTerms a)
-  , removedTerms = Star3.difference (deepTerms a) (deepTerms b)
-  , addedTypes = Star3.difference (deepTypes b) (deepTypes a)
-  , removedTypes = Star3.difference (deepTypes a) (deepTypes b)
-  , addedEdits = Set.difference (deepEdits b) (deepEdits a)
-  , removedEdits = Set.difference (deepEdits a) (deepEdits b)
+  { addedTerms     = Star3.difference (deepTerms b) (deepTerms a)
+  , removedTerms   = Star3.difference (deepTerms a) (deepTerms b)
+  , addedTypes     = Star3.difference (deepTypes b) (deepTypes a)
+  , removedTypes   = Star3.difference (deepTypes a) (deepTypes b)
+  , addedPatches   = Set.difference bPatchNames aPatchNames
+  , removedPatches = Set.difference aPatchNames bPatchNames
+  , changedPatches = Map.keysSet
+    . Map.filterWithKey
+        (\k b -> case Map.lookup k (deepEdits a) of
+          Just x | x == b -> False
+          Nothing         -> False
+          _               -> True
+        )
+    $ deepEdits b
   }
+ where
+  aPatchNames = Map.keysSet $ deepEdits a
+  bPatchNames = Map.keysSet $ deepEdits b
+
+
+data BranchAttentions = BranchAttentions
+  { -- Patches that were edited on the right but entirely removed on the left.
+    removedPatchEdited :: [Name]
+  -- Patches that were edited on the left but entirely removed on the right.
+  , editedPatchRemoved :: [Name]
+  }
+
+-- instance Monoid BranchAttentions where
+--   mempty = BranchAttentions [] []
+--   mappend (BranchAttentions a1 b1) (BranchAttentions a2 b2) =
+--     BranchAttentions (a1 <> a2) (b1 <> b2)
+
+-- threeWayMerge
+--   :: Branch0 m -> Branch0 m -> Branch0 m -> Either BranchAttentions (Branch0 m)
+-- threeWayMerge ancestor left right = undefined
+--  where
+--   diffLeft  = diff ancestor left
+--   diffRight = diff ancestor right
+
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name

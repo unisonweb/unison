@@ -19,23 +19,41 @@ import qualified Unison.Hashable               as H
 import           Unison.Reference               ( Reference )
 import qualified Unison.Util.Relation          as R
 import           Unison.Util.Relation           ( Relation )
-import Data.Foldable (toList)
-import qualified Unison.LabeledDependency as LD
-import Unison.LabeledDependency (LabeledDependency)
+import           Data.Foldable                  ( toList )
+import qualified Unison.LabeledDependency      as LD
+import           Unison.LabeledDependency       ( LabeledDependency )
 
 data Patch = Patch
   { _termEdits :: Relation Reference TermEdit
   , _typeEdits :: Relation Reference TypeEdit
   } deriving (Eq, Ord, Show)
 
+data PatchDiff = PatchDiff
+  { _addedTermEdits :: Relation Reference TermEdit
+  , _addedTypeEdits :: Relation Reference TypeEdit
+  , _removedTermEdits :: Relation Reference TermEdit
+  , _removedTypeEdits :: Relation Reference TypeEdit
+  }
+
 makeLenses ''Patch
+makeLenses ''PatchDiff
+
+diff :: Patch -> Patch -> PatchDiff
+diff p1 p2 = PatchDiff
+  { _addedTermEdits   = R.difference (view termEdits p2) (view termEdits p1)
+  , _addedTypeEdits   = R.difference (view typeEdits p2) (view typeEdits p1)
+  , _removedTermEdits = R.difference (view termEdits p1) (view termEdits p2)
+  , _removedTypeEdits = R.difference (view typeEdits p1) (view typeEdits p2)
+  }
 
 labeledDependencies :: Patch -> Set LabeledDependency
-labeledDependencies Patch{..} =
-  Set.map LD.termRef (R.dom _termEdits) <>
-  (Set.fromList . fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits)) <>
-  Set.map LD.typeRef (R.dom _typeEdits) <>
-  (Set.fromList . fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
+labeledDependencies Patch {..} =
+  Set.map LD.termRef (R.dom _termEdits)
+    <> Set.fromList
+         (fmap LD.termRef $ TermEdit.references =<< toList (R.ran _termEdits))
+    <> Set.map LD.typeRef (R.dom _typeEdits)
+    <> Set.fromList
+         (fmap LD.typeRef $ TypeEdit.references =<< toList (R.ran _typeEdits))
 
 empty :: Patch
 empty = Patch mempty mempty
