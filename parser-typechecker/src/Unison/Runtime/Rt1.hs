@@ -24,6 +24,7 @@ import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import qualified System.Mem.StableName as S
 import qualified Data.ByteString as BS
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -38,9 +39,6 @@ import qualified Unison.Term as Term
 import qualified Unison.Util.CycleTable as CT
 import qualified Unison.Util.Bytes as Bytes
 import qualified Unison.Var as Var
-
--- import qualified Unison.TermPrinter as TP
--- import qualified Unison.Util.Pretty as P
 
 type CompilationEnv = IR.CompilationEnv ExternalFunction Continuation
 type IR = IR.IR ExternalFunction Continuation
@@ -343,6 +341,13 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
     , mk1 "Nat.toText" atn (pure . T) (Text.pack . show)
     , mk1 "Nat.fromText" att (pure . IR.maybeToOptional . fmap N) (
         (\x -> readMaybe x :: Maybe Word64) . Text.unpack)
+
+    , mk1 "Int.toText" ati (pure . T)
+          (Text.pack . (\x -> if x >= 0 then ("+" <> show x) else show x))
+    , mk1 "Int.fromText" att (pure . IR.maybeToOptional . fmap I) $
+        (\x -> readMaybe (if "+" `List.isPrefixOf` x then drop 1 x else x))
+        . Text.unpack
+    , mk1 "Int.toFloat" ati (pure . F) fromIntegral
 
     -- Float Utils
     , mk1 "Float.abs"           atf (pure . F) abs

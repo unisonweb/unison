@@ -55,8 +55,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
-import           Unison.Name                   (Name)
-import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -671,12 +669,6 @@ putChar = serialize . VarInt . fromEnum
 
 getChar :: MonadGet m => m Char
 getChar = toEnum . unVarInt <$> deserialize
-
-putName :: MonadPut m => Name -> m ()
-putName = putText . Name.toText
-
-getName :: MonadGet m => m Name
-getName = Name.unsafeFromText <$> getText
 
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText

@@ -331,9 +331,9 @@ aliasType = InputPattern "alias.type" []
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
-      [ ("`path foo.bar`",
+      [ ("`namespace foo.bar`",
           "descends into foo.bar from the current namespace.")
-      , ("`path .cat.dog`",
+      , ("`namespace .cat.dog`",
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
