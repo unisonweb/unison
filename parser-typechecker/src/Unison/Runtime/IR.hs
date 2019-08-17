@@ -12,19 +12,11 @@
 
 module Unison.Runtime.IR where
 
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class (liftIO)
+import Unison.Prelude
+
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
-import Data.Foldable
-import Data.Functor (void)
 import Data.IORef
-import Data.Int (Int64)
-import Data.Map (Map)
-import Data.Maybe (isJust,fromMaybe)
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Word (Word64)
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Symbol (Symbol)
@@ -50,7 +42,6 @@ import qualified Unison.Util.CycleTable as CyT
 import qualified Unison.Util.CyclicOrd as COrd
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
--- import Debug.Trace
 
 type Pos = Int
 type Arity = Int
@@ -128,6 +119,10 @@ unit = Data DD.unitRef 0 []
 
 pair :: (Value e cont, Value e cont) -> Value e cont
 pair (a, b) = Data DD.pairRef 0 [a, b]
+
+tuple :: [Value e cont] -> Value e cont
+tuple [v] = v
+tuple vs = foldr (curry pair) unit vs
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have

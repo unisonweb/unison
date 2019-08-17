@@ -85,12 +85,10 @@ module Unison.Util.Pretty (
    Width
   ) where
 
+import Unison.Prelude
+
 import           Data.Char                      ( isSpace )
-import           Data.Foldable                  ( toList )
-import           Data.List                      ( foldl' , foldr1, intersperse )
-import           Data.Sequence                  ( Seq )
-import           Data.String                    ( IsString , fromString )
-import           Data.Text                      ( Text )
+import           Data.List                      ( foldr1, intersperse )
 import           Prelude                 hiding ( lines , map )
 import           Unison.Util.AnnotatedText      ( annotateMaybe )
 import qualified Unison.Util.ColorText         as CT
@@ -174,7 +172,7 @@ toPlainUnbroken :: Pretty ColorText -> String
 toPlainUnbroken p = CT.toPlain (renderUnbroken p)
 
 syntaxToColor :: Pretty ST.SyntaxText -> Pretty ColorText
-syntaxToColor = fmap $ annotateMaybe . (fmap CT.defaultColors)
+syntaxToColor = fmap $ annotateMaybe . fmap CT.defaultColors
 
 withSyntax :: ST.Element -> Pretty ST.SyntaxText -> Pretty ST.SyntaxText
 withSyntax e = fmap $ ST.syntax e

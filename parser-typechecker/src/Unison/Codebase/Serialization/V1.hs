@@ -3,6 +3,8 @@
 
 module Unison.Codebase.Serialization.V1 where
 
+import Unison.Prelude
+
 import Prelude hiding (getChar, putChar)
 
 -- import qualified Data.Text as Text
@@ -10,10 +12,6 @@ import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
                                                 , SeqOp
                                                 )
-import           Control.Applicative            ( liftA2
-                                                , liftA3
-                                                )
-import           Control.Monad                  ( replicateM )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -24,18 +22,12 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Data.Foldable                  ( traverse_ )
-import           Data.Int                       ( Int64 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
-                                                , foldl'
                                                 )
-import           Data.Text                      ( Text )
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
-import           Data.Word                      ( Word64 )
 import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
@@ -63,8 +55,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
-import           Unison.Name                   (Name)
-import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -679,12 +669,6 @@ putChar = serialize . VarInt . fromEnum
 
 getChar :: MonadGet m => m Char
 getChar = toEnum . unVarInt <$> deserialize
-
-putName :: MonadPut m => Name -> m ()
-putName = putText . Name.toText
-
-getName :: MonadGet m => m Name
-getName = Name.unsafeFromText <$> getText
 
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText

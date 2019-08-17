@@ -20,6 +20,8 @@
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
 
+import Unison.Prelude
+
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -32,40 +34,23 @@ import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( filterM, foldM, forM,
-                                                  unless, join, when, void)
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
-import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Configurator.Types        ( Config )
 import           Data.Configurator              ()
-import           Data.Foldable                  ( toList
-                                                , fold
-                                                , foldl'
-                                                , traverse_
-                                                )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
 import           Data.List.Extra                (nubOrd, intercalate)
-import           Data.Maybe                     ( catMaybes
-                                                , fromMaybe
-                                                , fromJust
-                                                , mapMaybe
+import           Data.Maybe                     ( fromJust
                                                 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
-import           Data.Traversable               ( for )
 import qualified Data.Set                      as Set
-import           Data.Set                       ( Set )
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch         ( Branch
@@ -132,7 +117,6 @@ import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
-import Debug.Trace (traceShowM, traceM)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 

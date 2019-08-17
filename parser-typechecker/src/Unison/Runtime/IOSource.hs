@@ -3,12 +3,11 @@
 
 module Unison.Runtime.IOSource where
 
+import Unison.Prelude
+
 import Control.Lens (view, _1)
 import Control.Monad.Identity (runIdentity, Identity)
 import Data.List (elemIndex, genericIndex)
-import Data.Maybe (fromMaybe)
-import Data.String (fromString)
-import Data.Text (Text)
 import Text.RawString.QQ (r)
 import Unison.Codebase.CodeLookup (CodeLookup(..))
 import Unison.FileParsers (parseAndSynthesizeFile)

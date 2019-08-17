@@ -4,11 +4,9 @@
 
 module Unison.Codebase.Runtime where
 
-import           Data.Foldable
-import           Data.Traversable               ( for )
+import Unison.Prelude
+
 import qualified Unison.ABT                    as ABT
-import           Data.Functor                   ( void )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.CodeLookup    as CL

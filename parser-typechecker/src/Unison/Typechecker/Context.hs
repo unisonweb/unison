@@ -41,34 +41,24 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..), liftA2 )
-import           Control.Monad
+import Unison.Prelude
+
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Writer           ( MonadWriter(..) )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
-import           Data.Foldable                  ( for_ )
 import qualified Data.Foldable                 as Foldable
-import           Data.Functor
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe
-import           Data.Sequence                  ( Seq )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Word                      ( Word64 )
-import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
 import           Unison.DataDeclaration         ( DataDeclaration'

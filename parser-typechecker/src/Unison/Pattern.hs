@@ -2,17 +2,14 @@
 
 module Unison.Pattern where
 
+import Unison.Prelude
+
 import Data.List (intercalate)
-import Data.Int (Int64)
-import Data.Text (Text)
-import Data.Word (Word64)
 import Data.Foldable as Foldable
-import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
 import qualified Data.Set as Set
-import Data.Set (Set)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 

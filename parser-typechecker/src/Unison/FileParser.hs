@@ -7,19 +7,12 @@
 
 module Unison.FileParser where
 
+import Unison.Prelude
+
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
-import Data.Foldable (toList)
-import Data.String (fromString)
 import Control.Lens
-import           Control.Applicative
-import           Control.Monad (guard, msum, join)
 import           Control.Monad.Reader (local, asks)
-import           Data.Functor
-import           Data.Either (partitionEithers)
-import           Data.List (foldl')
-import           Data.Text (Text)
-import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
 import qualified Text.Megaparsec as P
@@ -76,7 +69,7 @@ file = do
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
     -- local term bindings shadow any same-named thing from the outer codebase scope
-    let locals = stanzas0 >>= getVars 
+    let locals = stanzas0 >>= getVars
     let curNames = Names.deleteTerms0 (Name.fromVar <$> locals) (Names.currentNames names)
     terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
       Left es -> resolutionFailures (toList es)
