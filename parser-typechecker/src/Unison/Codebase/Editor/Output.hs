@@ -3,7 +3,7 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
-  , LogTail(..)
+  , HistoryTail(..)
   , ShowAll
   , TestReportStats(..)
   , UndoFailureReason(..)
@@ -139,14 +139,14 @@ data Output v
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set Branch.Hash)
   | ShowDiff Input Names.Diff
-  | Log (Maybe Int) [(Branch.Hash, Names.Diff)] LogTail
+  | History (Maybe Int) [(Branch.Hash, Names.Diff)] HistoryTail
   | NothingTodo Input
   | NotImplemented
   | NoBranchWithHash Input Branch.Hash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
-data LogTail = 
+data HistoryTail = 
   EndOfLog Branch.Hash | 
   MergeTail Branch.Hash [Branch.Hash] | 
   PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 

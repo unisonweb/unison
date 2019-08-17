@@ -502,7 +502,7 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
-  Log cap history tail -> putPrettyLn $ 
+  History cap history tail -> putPrettyLn $ 
     P.lines [
       tailMsg,
       P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
@@ -533,7 +533,7 @@ notifyUser dir o = case o of
       "",
       "⊙ " <> phash hash
       ]
-    ex = "Use" <> IP.makeExample IP.history ["#som3n8m3space"] 
+    ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"] 
                <> "to view history starting from a given namespace hash."
     phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of

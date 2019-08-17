@@ -25,9 +25,7 @@ import qualified Data.Text as Text
 import qualified Unison.Codebase.Branch as Branch
 import qualified Unison.Codebase.Editor.Input as Input
 import qualified Unison.Codebase.Path as Path
-import qualified Unison.Codebase.Causal as Causal
 import qualified Unison.CommandLine.InputPattern as I
-import qualified Unison.Hash as Hash
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import qualified Unison.Name as Name
@@ -409,8 +407,7 @@ renameBranch = InputPattern "move.namespace"
     )
 
 history :: InputPattern
-history = InputPattern "log"
-   ["log", "history"]
+history = InputPattern "history" []
    [(Optional, pathArg)]
    (P.wrapColumn2 [
      (makeExample history [], "Shows the history of the current path."),
@@ -420,30 +417,22 @@ history = InputPattern "log"
        "The full hash must be provided.")
      ])
     (\case
-      ['#':src] -> case Hash.fromBase32Hex (Text.pack src) of
-        Nothing -> Left ("Invalid hash, expected a base32hex string.")
-        Just h -> pure $ Input.LogI (Just 10) (Just 10) (Right (Causal.RawHash h))
       [src] -> first fromString $ do
-        p <- Path.parsePath' src
-        pure $ Input.LogI (Just 10) (Just 10) (Left p)
-      [] -> pure $ Input.LogI (Just 10) (Just 10) (Left Path.currentPath)
+        p <- Input.parseBranchId src
+        pure $ Input.HistoryI (Just 10) (Just 10) p 
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
       _ -> Left (I.help history)
     )
 
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
                                    ,(Required, pathArg)]
-    "`fork foo bar` creates the namespace `bar` as a fork of `foo`."
+    (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
-      ['#':src, dest] -> case Hash.fromBase32Hex (Text.pack src) of
-        Nothing -> Left "Invalid hash, expected a base32hex string."
-        Just h -> first fromString $ do
-          dest <- Path.parsePath' dest
-          pure $ Input.ForkLocalBranchI (Left (Causal.RawHash h)) dest
       [src, dest] -> first fromString $ do
-        src <- Path.parsePath' src
+        src <- Input.parseBranchId src
         dest <- Path.parsePath' dest
-        pure $ Input.ForkLocalBranchI (Right src) dest
+        pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
     )
 
