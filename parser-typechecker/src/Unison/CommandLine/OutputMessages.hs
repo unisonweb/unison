@@ -485,6 +485,8 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
+  NoBranchWithHash _ h -> putPrettyLn . P.callout "😶" $ 
+    P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> putPrettyLn "That namespace already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."
@@ -500,6 +502,40 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
+  History cap history tail -> putPrettyLn $ 
+    P.lines [
+      tailMsg,
+      P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
+      note $ "The most recent namespace hash is immediately above this message."
+      ]
+    where
+    tailMsg = case tail of
+      E.EndOfLog h -> P.lines [
+        P.wrap "This is the start of history. Later versions are listed below.",
+        "□ " <> phash h, ""
+        ]
+      E.MergeTail h hs -> P.lines [
+        P.wrap $ "This segment of history starts with a merge." <> ex,
+        "",
+        P.lines (phash <$> hs), 
+        "⑂",
+        "⊙ " <> phash h <> (if null history then mempty else "\n")
+        ]
+      E.PageEnd h n -> P.lines [
+        P.wrap $ "There's more history before the versions shown here." <> ex, "",
+        dots, "", 
+        "⊙ " <> phash h,
+        ""
+        ]
+    dots = "⠇"
+    go hash diff = P.lines [
+      P.indentN 2 $ prettyDiff cap diff,
+      "",
+      "⊙ " <> phash hash
+      ]
+    ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"] 
+               <> "to view history starting from a given namespace hash."
+    phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",

@@ -275,9 +275,13 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src0 dest0 -> do
-        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
-        srcb <- getAt src
-        if Branch.isEmpty srcb then branchNotFound src0
+        let dest = Path.toAbsolutePath currentPath' $ dest0
+        srcb <- case src0 of
+          Left hash -> eval $ LoadLocalBranch hash
+          Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
+        if Branch.isEmpty srcb then 
+          let notfound = either (NoBranchWithHash input) (BranchNotFound input)
+          in respond $ notfound src0
         else do
           ok <- updateAtM dest $ \destb ->
             pure (if Branch.isEmpty destb then srcb else destb)
@@ -393,6 +397,30 @@ loop = do
         currentPath .= path
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
+
+      HistoryI resultsCap diffCap from -> case from of
+        Left hash -> do
+          b <- eval $ LoadLocalBranch hash
+          if Branch.isEmpty b then respond $ NoBranchWithHash input hash
+          else doHistory 0 b []
+        Right path' -> do
+          path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+          branch' <- getAt path 
+          if Branch.isEmpty branch' then respond $ CreatedNewBranch path
+          else doHistory 0 branch' []
+        where
+          doHistory !n b acc = 
+            if maybe False (n >=) resultsCap then 
+              respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
+            else case Branch._history b of
+              Causal.One{} -> 
+                respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
+              Causal.Merge{..} -> 
+                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails) 
+              Causal.Cons{..} -> do 
+                b' <- fmap Branch.Branch . eval . Eval $ snd tail
+                let elem = (Branch.headHash b, Branch.namesDiff b' b)
+                doHistory (n+1) b' (elem : acc)
 
       UndoI -> do
         prev <- eval . Eval $ Branch.uncons root'
@@ -1024,7 +1052,6 @@ loop = do
       AddTypeReplacementI {} -> notImplemented
       RemoveTermReplacementI {} -> notImplemented
       RemoveTypeReplacementI {} -> notImplemented
-      UndoRootI -> notImplemented
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
       QuitI -> MaybeT $ pure Nothing
