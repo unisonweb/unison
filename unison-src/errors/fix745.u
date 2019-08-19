@@ -1,0 +1,152 @@
+
+unique ability A where a : Nat
+unique ability B where b : Nat
+
+noGood : Nat ->{A} '{B} ()
+noGood n unit =
+  -- The A.a should be an ability check failure, since we are in the body
+  -- of an arrow which only has the {B} ability set.
+  A.a
+  B.b
+  ()
+
+ok : Nat ->{A} '{B} ()
+ok n =
+  -- This is okay, because the A.a is being evaluated in the body of an
+  -- arrow with {A}. The result of the body is another lambda which
+  -- is allowed {B} requests by type signature of `ok`.
+  A.a
+  'let B.b; ()
+
+---
+
+-- good code (correctly accepted) - each arrow gets its own lambda with
+-- access to the appropriate ability
+orderServer2 : ServerConfig ->{Log} '{IO} ()
+orderServer2 sc =
+  log (ServerConfig.toText sc)
+  '(startServer sc)
+
+-- boring stuff follows
+startServer : ServerConfig ->{IO} ()
+startServer sc = printLine "started, honest!"
+type ServerConfig =
+ServerConfig.toText : ServerConfig -> Text
+ServerConfig.toText sc = ""
+ability Log where
+  log : .base.Text -> ()
+
+
+---
+type Day = Mon | Tue | Wed
+
+---
+foo : a
+      -> b
+      -> c
+      -> a
+foo a b c = a
+
+---
+-- X filter
+--  -- maybe some tests with List.all and List.any
+--
+-- intersperse
+-- X head
+-- X isEmpty
+-- X tail
+-- X init
+-- X last
+
+use .base
+use .test.v1
+
+---
+
+filter : (a -> Boolean) -> [a] -> [a]
+filter f as =
+  step acc a = if f a then acc :+ a else acc
+  List.foldl step [] as
+
+test> tests.filter.constTrueIsIdentity = runs 100 ' let
+  xs = !(list nat)
+  filter (const true) xs == xs |> expect
+
+test> tests.filter.constFalseIsEmpty = runs 100 ' let
+  filter (const false) !(list nat) |> isEmpty |> expect
+
+---
+
+last : [a] -> Optional a
+last as = case as of
+  [] -> None
+  _ :+ a -> Some a
+
+> last [1,2,3]
+
+test> tests.last.lastOfEmpty = run (expect (last [] == None))
+test> tests.last.lastOfSnoc = runs 100 ' let
+  x = !nat
+  expect (last (!(list nat) :+ x) == Some x)
+
+---
+
+init : [a] -> Optional [a]
+init as = case as of
+  [] -> None
+  as :+ _ -> Some as
+
+> init [1,2,3]
+> init []
+
+test> tests.init.initOfEmpty = run (expect (init [] == None))
+test> tests.init.initOfSnoc = runs 100 ' let
+  xs = !(list nat)
+  expect (init (xs :+ !nat) == Some xs)
+
+---
+tail : [a] -> Optional [a]
+tail as = case as of
+  [] -> None
+  _ +: as -> Some as
+
+> tail [1,2,3]
+> tail []
+
+test> tests.tail.tailOfEmpty = run (expect (tail [] == None))
+test> tests.head.tailOfCons = runs 100 ' let
+  xs = !(list nat)
+  expect (tail (!nat +: xs) == Some xs)
+
+---
+
+isEmpty : [a] -> Boolean
+isEmpty as = size as Nat.== 0
+
+test> tests.isEmpty.emptyIsEmpty = run (expect (isEmpty []))
+
+tests.gens.nonEmpty : '{Gen} [Nat]
+tests.gens.nonEmpty = '(!nat +: !(list nat))
+
+test> tests.isEmpty.consIsNonempty = runs 100 ' let
+  expect (not (isEmpty !nonEmpty))
+
+---
+---
+
+head : [a] -> Optional a
+head a = List.at 0 a
+
+> head [1,2,3]
+> head []
+
+test> tests.head.headOfEmpty = run (expect (head [] == None))
+
+test> tests.head.headOfCons = runs 100 ' let
+  use .test
+  x = !nat
+  expect (head (x +: !(list nat)) == Some x)
+
+---- Anything below this line is ignored by Unison.
+
+pull git@github.com:unisonweb/unisonbase.git
