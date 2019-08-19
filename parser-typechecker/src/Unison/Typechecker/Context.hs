@@ -554,6 +554,11 @@ withoutAbilityCheckForExact skip m = M go
   where
   go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
 
+withoutAbilityCheckForExacts
+  :: (Ord loc, Var v) => [Type v loc] -> M v loc a -> M v loc a
+withoutAbilityCheckForExact skips m =
+  foldr withoutAbilityCheckForExact m skips
+
 shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
 shouldPerformAbilityCheck t = do
   skip <- fromMEnv skipAbilityCheck
@@ -843,13 +848,9 @@ synthesize e = scope (InSynthesize e) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go h@(Term.Handle' _ _) = do
-    o <- freshenVar Var.inferOther
-    appendContext $ context [existential o]
-    let ot = Type.existential' l B.Blank o
-    check h ot
-    ctx <- getContext
-    pure (apply ctx ot)
+  go h@(Term.Handle' h body) = do
+    ht <- synthesize h
+    error "todo"
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -1227,11 +1228,11 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       modifyContext' (extend (Ann x i))
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      if Term.isLam body' then do
-        withEffects0 [] $
-          foldr withoutAbilityCheckForExact (check body' ot) es
-      else
-        withEffects0 es $ check body' ot
+      -- if Term.isLam body' then do
+      --   withEffects0 [] $
+      --     foldr withoutAbilityCheckForExact (check body' ot) es
+      -- else
+      withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1243,26 +1244,6 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     markThenRetract0 (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       check e t
-  go block@(Term.Handle' h body) t = do
-    -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-    -- `body` should check against `i`
-    [e, i] <- sequence [freshenVar Var.inferAbility, freshenVar Var.inferOther ]
-    appendContext $ context [existential e, existential i]
-    let l = loc block
-    -- t <- applyM t
-    ambient <- getAbilities
-    let t' = Type.effect l ambient t
-    check h $ Type.arrow
-      l
-      (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i))
-      t'
-    ctx <- getContext
-    let et = apply ctx (Type.existentialp l e)
-    withoutAbilityCheckForExact et
-      . withEffects [et]
-      . check body
-      . apply ctx
-      $ Type.existentialp l i
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext
