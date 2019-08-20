@@ -86,6 +86,21 @@ data BranchDiff = BranchDiff
   , changedPatches :: Set Name
   }
 
+instance Semigroup BranchDiff where
+  left <> right = BranchDiff
+    { addedTerms     = addedTerms left <> addedTerms right
+    , removedTerms   = removedTerms left <> removedTerms right
+    , addedTypes     = addedTypes left <> addedTypes right
+    , removedTypes   = removedTypes left <> removedTypes right
+    , addedPatches   = addedPatches left <> addedPatches right
+    , removedPatches = removedPatches left <> removedPatches right
+    , changedPatches = changedPatches left <> changedPatches right
+    }
+
+instance Monoid BranchDiff where
+  mappend = (<>)
+  mempty = BranchDiff mempty mempty mempty mempty mempty mempty mempty
+
 -- The raw Branch
 data Raw = Raw
   { _termsR :: Star Referent NameSegment
@@ -206,6 +221,16 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
+threeWayMerge :: Monad m => Branch m -> Branch m -> m (Branch m)
+threeWayMerge (Branch x) (Branch y) =
+  Branch <$> Causal.threeWayMerge merge0 diff0 x y
+
+-- threeWayMerge
+--   :: Branch0 m -> Branch0 m -> Branch0 m -> Either BranchAttentions (Branch0 m)
+-- threeWayMerge ancestor left right = undefined
+--  where
+--    d = diff ancestor left <> diff ancestor right
+--    addedTerms d
 merge :: Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
 
@@ -230,7 +255,6 @@ merge0 b1 b2 = do
     e2 <- m2
     let e3 = e1 <> e2
     pure (H.accumulate' e3, pure e3)
-
 
 unionWithM :: forall m k a.
   (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
@@ -644,29 +668,16 @@ namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
--- "Added" are in `b` but not in `a`.
--- "Removed" are in `a` but not in `b`.
-diff :: Branch0 m -> Branch0 m -> BranchDiff
-diff a b = BranchDiff
-  { addedTerms     = Star3.difference (deepTerms b) (deepTerms a)
-  , removedTerms   = Star3.difference (deepTerms a) (deepTerms b)
-  , addedTypes     = Star3.difference (deepTypes b) (deepTypes a)
-  , removedTypes   = Star3.difference (deepTypes a) (deepTypes b)
-  , addedPatches   = Set.difference bPatchNames aPatchNames
-  , removedPatches = Set.difference aPatchNames bPatchNames
-  , changedPatches = Map.keysSet
-    . Map.filterWithKey
-        (\k b -> case Map.lookup k (deepEdits a) of
-          Just x | x == b -> False
-          Nothing         -> False
-          _               -> True
-        )
-    $ deepEdits b
+diff0 :: Branch0 m -> Branch0 m -> Branch0 m
+diff0 old new = Branch0
+  { _terms    = Star3.difference (_terms new) (_terms old)
+  , _types    = Star3.difference (_types new) (_types old)
+  , _children = Map.difference (_children new) (_children old)
+  , _edits    = Star3.difference (_edits new) (_edits old)
+  , deepTerms = Star3.difference (deepTerms new) (deepTerms old)
+  , deepTypes = Star3.difference (deepTypes new) (deepTypes old)
+  , deepEdits = Star3.difference (deepEdits new) (deepEdits old)
   }
- where
-  aPatchNames = Map.keysSet $ deepEdits a
-  bPatchNames = Map.keysSet $ deepEdits b
-
 
 data BranchAttentions = BranchAttentions
   { -- Patches that were edited on the right but entirely removed on the left.
@@ -675,18 +686,13 @@ data BranchAttentions = BranchAttentions
   , editedPatchRemoved :: [Name]
   }
 
--- instance Monoid BranchAttentions where
---   mempty = BranchAttentions [] []
---   mappend (BranchAttentions a1 b1) (BranchAttentions a2 b2) =
---     BranchAttentions (a1 <> a2) (b1 <> b2)
+instance Semigroup BranchAttentions where
+  BranchAttentions edited1 removed1 <> BranchAttentions edited2 removed2
+    = BranchAttentions (edited1 <> edited2) (removed1 <> removed2)
 
--- threeWayMerge
---   :: Branch0 m -> Branch0 m -> Branch0 m -> Either BranchAttentions (Branch0 m)
--- threeWayMerge ancestor left right = undefined
---  where
---   diffLeft  = diff ancestor left
---   diffRight = diff ancestor right
-
+instance Monoid BranchAttentions where
+  mempty = BranchAttentions [] []
+  mappend = (<>)
 
 data RefCollisions =
   RefCollisions { termCollisions :: Relation Name Name

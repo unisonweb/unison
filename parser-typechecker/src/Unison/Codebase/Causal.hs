@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Unison.Codebase.Causal where
 
 import Unison.Prelude
@@ -171,6 +172,35 @@ children (One _ _         ) = Seq.empty
 children (Cons  _ _ (_, t)) = Seq.singleton t
 children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
 
+threeWayMerge
+  :: forall m h e
+   . (Monad m, Hashable e)
+  => (e -> e -> m e)
+  -> (e -> e -> e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+threeWayMerge combine diff = mergeInternal merge0
+ where
+  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+  merge0 m =
+    let k left right = do
+          a           <- left
+          b           <- right
+          mayAncestor <- lca a b
+          case mayAncestor of
+            Nothing       -> mergeWithM combine a b
+            Just ancestor -> do
+              let da = diff (head ancestor) (head a)
+                  db = diff (head ancestor) (head b)
+              newHead <- head ancestor `combine` da >>= combine db
+              let h = hash (newHead, Map.keys m)
+              pure . Merge (RawHash h) newHead $ Map.fromList
+                [(currentHash a, pure a), (currentHash b, pure b)]
+    in  if Map.null m
+          then error "Causal.threeWayMerge empty map"
+          else foldl1' k $ Map.elems m
+
 mergeInternal
   :: forall m h e
    . Monad m
@@ -218,7 +248,6 @@ mergeWithM f = mergeInternal merge0
         e = if Map.null m
           then error "Causal.merge0 empty map"
           else foldl1' (bind2 f) (fmap head <$> Map.elems m)
-          -- else foldlM1 f <$> (fmap head <$> Map.elems m)
         h = hash (Map.keys m) -- sorted order
     in  e <&> \e -> Merge (RawHash h) e m
 

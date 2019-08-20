@@ -25,12 +25,19 @@ toList s = [ (f, x, y, z) | f <- Set.toList (fact s)
                           , y <- Set.toList (R.lookupDom f (d2 s))
                           , z <- Set.toList (R.lookupDom f (d3 s)) ]
 
-difference :: (Ord fact, Ord d1, Ord d2, Ord d3)
-       => Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3 -> Star3 fact d1 d2 d3
-difference a b = Star3 (Set.difference (fact a) (fact b))
-                       (R.difference (d1 a) (d1 b))
-                       (R.difference (d2 a) (d2 b))
-                       (R.difference (d3 a) (d3 b))
+-- `difference a b` contains only the facts from `a` that are absent from `b`
+-- or differ along any of the dimensions `d1..d3`.
+difference
+  :: (Ord fact, Ord d1, Ord d2, Ord d3)
+  => Star3 fact d1 d2 d3
+  -> Star3 fact d1 d2 d3
+  -> Star3 fact d1 d2 d3
+difference a b = Star3 facts d1s d2s d3s
+ where
+  d1s   = R.difference (d1 a) (d1 b)
+  d2s   = R.difference (d2 a) (d2 b)
+  d3s   = R.difference (d3 a) (d3 b)
+  facts = R.dom d1s <> R.dom d2s <> R.dom d3s
 
 d23s :: (Ord fact, Ord d2, Ord d3)
      => Star3 fact d1 d2 d3
