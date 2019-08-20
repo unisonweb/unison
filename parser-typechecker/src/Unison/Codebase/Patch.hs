@@ -38,12 +38,10 @@ data PatchDiff = PatchDiff
 makeLenses ''Patch
 makeLenses ''PatchDiff
 
-diff :: Patch -> Patch -> PatchDiff
-diff p1 p2 = PatchDiff
-  { _addedTermEdits   = R.difference (view termEdits p2) (view termEdits p1)
-  , _addedTypeEdits   = R.difference (view typeEdits p2) (view typeEdits p1)
-  , _removedTermEdits = R.difference (view termEdits p1) (view termEdits p2)
-  , _removedTypeEdits = R.difference (view typeEdits p1) (view typeEdits p2)
+diff :: Patch -> Patch -> Patch
+diff new old = Patch
+  { _termEdits   = R.difference (view termEdits new) (view termEdits old)
+  , _typeEdits = R.difference (view typeEdits new) (view typeEdits old)
   }
 
 labeledDependencies :: Patch -> Set LabeledDependency

@@ -176,7 +176,7 @@ threeWayMerge
   :: forall m h e
    . (Monad m, Hashable e)
   => (e -> e -> m e)
-  -> (e -> e -> e)
+  -> (e -> e -> m e)
   -> Causal m h e
   -> Causal m h e
   -> m (Causal m h e)
@@ -191,8 +191,8 @@ threeWayMerge combine diff = mergeInternal merge0
           case mayAncestor of
             Nothing       -> mergeWithM combine a b
             Just ancestor -> do
-              let da = diff (head ancestor) (head a)
-                  db = diff (head ancestor) (head b)
+              da      <- diff (head ancestor) (head a)
+              db      <- diff (head ancestor) (head b)
               newHead <- head ancestor `combine` da >>= combine db
               let h = hash (newHead, Map.keys m)
               pure . Merge (RawHash h) newHead $ Map.fromList
