@@ -673,10 +673,11 @@ diff0 old new = Branch0
   { _terms    = Star3.difference (_terms new) (_terms old)
   , _types    = Star3.difference (_types new) (_types old)
   , _children = Map.difference (_children new) (_children old)
-  , _edits    = Star3.difference (_edits new) (_edits old)
+  , _edits    = Map.difference (_edits new) (_edits old)
   , deepTerms = Star3.difference (deepTerms new) (deepTerms old)
   , deepTypes = Star3.difference (deepTypes new) (deepTypes old)
-  , deepEdits = Star3.difference (deepEdits new) (deepEdits old)
+  , deepEdits = Map.difference (deepEdits new) (deepEdits old)
+  , deepPaths = Set.difference (deepPaths new) (deepPaths old)
   }
 
 data BranchAttentions = BranchAttentions
