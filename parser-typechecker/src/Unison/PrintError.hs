@@ -591,6 +591,8 @@ renderTypeError e env src = case e of
   simpleCause = \case
     C.TypeMismatch c ->
       mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
+    C.HandlerOfUnexpectedType loc typ ->
+      mconcat ["HandlerOfUnexpectedType\n", Pr.shown loc, "type:\n", renderType' env typ ]
     C.IllFormedType c ->
       mconcat ["IllFormedType\n", "  context:\n", renderContext env c]
     C.UnguardedLetRecCycle vs _ts ->

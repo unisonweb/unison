@@ -249,6 +249,7 @@ data Cause v loc
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
+  | HandlerOfUnexpectedType loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -548,17 +549,6 @@ getEffectDeclarations = fromMEnv effectDecls
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
 
-withoutAbilityCheckForExact
-  :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckForExact skip m = M go
-  where
-  go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
-
-withoutAbilityCheckForExacts
-  :: (Ord loc, Var v) => [Type v loc] -> M v loc a -> M v loc a
-withoutAbilityCheckForExact skips m =
-  foldr withoutAbilityCheckForExact m skips
-
 shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
 shouldPerformAbilityCheck t = do
   skip <- fromMEnv skipAbilityCheck
@@ -848,9 +838,32 @@ synthesize e = scope (InSynthesize e) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go h@(Term.Handle' h body) = do
-    ht <- synthesize h
-    error "todo"
+  go (Term.Handle' h body) = do
+    -- To synthesize a handle block, we first synthesize the handler h,
+    -- then push its allowed abilities onto the current ambient set when
+    -- checking the body. Assuming that works, we also verify that the
+    -- handler only uses abilities in the current ambient set.
+    ht <- synthesize h >>= applyM >>= ungeneralize
+    ctx <- getContext
+    case ht of 
+      -- common case, like `h : Request {Remote} a -> b`, brings
+      -- `Remote` into ambient when checking `body`
+      Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
+        let es = Type.flattenEffects et
+        withEffects es $ check body i
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      -- degenerate case, like `handle x -> 10 in ...`
+      Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
+        e <- extendExistential v 
+        withEffects [Type.existentialp (loc i) e] $ check body i 
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
