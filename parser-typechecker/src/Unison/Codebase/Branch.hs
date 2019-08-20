@@ -221,12 +221,9 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
-threeWayMerge :: Monad m => Branch m -> Branch m -> m (Branch m)
-threeWayMerge (Branch x) (Branch y) =
-  Branch <$> Causal.threeWayMerge merge0 diff0 x y
-
 merge :: Monad m => Branch m -> Branch m -> m (Branch m)
-merge (Branch x) (Branch y) = Branch <$> Causal.mergeWithM merge0 x y
+merge (Branch x) (Branch y) =
+  Branch <$> Causal.threeWayMerge merge0 diff0 x y
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool

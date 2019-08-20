@@ -216,22 +216,6 @@ mergeInternal f a b =
     (a, b) ->
       f $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
 
-merge
-  :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
-merge = mergeInternal merge0
- where
- -- implementation detail, form a `Merge`
-  merge0
-    :: (Applicative m, Semigroup e)
-    => Map (RawHash h) (m (Causal m h e))
-    -> m (Causal m h e)
-  merge0 m =
-    let e = if Map.null m
-          then error "Causal.merge0 empty map"
-          else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
-        h = hash (Map.keys m) -- sorted order
-    in  e <&> \e -> Merge (RawHash h) e m
-
 mergeWithM
   :: forall m h e
    . Monad m
