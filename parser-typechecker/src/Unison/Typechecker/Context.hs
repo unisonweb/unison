@@ -1241,10 +1241,6 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       modifyContext' (extend (Ann x i))
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      -- if Term.isLam body' then do
-      --   withEffects0 [] $
-      --     foldr withoutAbilityCheckForExact (check body' ot) es
-      -- else
       withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
