@@ -76,14 +76,14 @@ data Branch0 m = Branch0
   , deepEdits :: Map Name EditHash
   }
 
+-- Each of these `Star`s contain metadata as well, so an entry in
+-- `added` or `removed` could be an update to the metadata.
 data BranchDiff = BranchDiff
-  { addedTerms :: Star Referent Name
-  , removedTerms :: Star Referent Name
-  , addedTypes :: Star Reference Name
-  , removedTypes :: Star Reference Name
-  , addedPatches :: Set Name
-  , removedPatches :: Set Name
-  , changedPatches :: Set Name
+  { addedTerms :: Star Referent NameSegment
+  , removedTerms :: Star Referent NameSegment
+  , addedTypes :: Star Reference NameSegment
+  , removedTypes :: Star Reference NameSegment
+  , changedPatches :: Map NameSegment Patch.PatchDiff
   }
 
 instance Semigroup BranchDiff where
@@ -92,14 +92,12 @@ instance Semigroup BranchDiff where
     , removedTerms   = removedTerms left <> removedTerms right
     , addedTypes     = addedTypes left <> addedTypes right
     , removedTypes   = removedTypes left <> removedTypes right
-    , addedPatches   = addedPatches left <> addedPatches right
-    , removedPatches = removedPatches left <> removedPatches right
     , changedPatches = changedPatches left <> changedPatches right
     }
 
 instance Monoid BranchDiff where
   mappend = (<>)
-  mempty = BranchDiff mempty mempty mempty mempty mempty mempty mempty
+  mempty = BranchDiff mempty mempty mempty mempty mempty
 
 -- The raw Branch
 data Raw = Raw
@@ -229,7 +227,6 @@ merge (Branch x) (Branch y) =
 before :: Monad m => Branch m -> Branch m -> m Bool
 before (Branch x) (Branch y) = Causal.before x y
 
--- todo: use 3-way merge for terms, types, and edits
 merge0 :: forall m. Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
 merge0 b1 b2 = do
   c3 <- unionWithM merge (_children b1) (_children b2)
@@ -659,20 +656,17 @@ namesDiff b1 b2 = Names.diff0 (toNames0 (head b1)) (toNames0 (head b2))
 lca :: Monad m => Branch m -> Branch m -> m (Maybe (Branch m))
 lca (Branch a) (Branch b) = fmap Branch <$> Causal.lca a b
 
-diff0 :: Monad m => Branch0 m -> Branch0 m -> m (Branch0 m)
+diff0 :: Monad m => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = do
   newEdits <- sequenceA $ snd <$> _edits new
   oldEdits <- sequenceA $ snd <$> _edits old
   let diffEdits = Map.differenceWith ((Just .) . Patch.diff) newEdits oldEdits
-  pure $ Branch0
-    { _terms    = Star3.difference (_terms new) (_terms old)
-    , _types    = Star3.difference (_types new) (_types old)
-    , _children = Map.difference (_children new) (_children old)
-    , _edits    = (\e -> (H.accumulate' e, pure e)) <$> diffEdits
-    , deepTerms = Star3.difference (deepTerms new) (deepTerms old)
-    , deepTypes = Star3.difference (deepTypes new) (deepTypes old)
-    , deepEdits = Map.difference (deepEdits new) (deepEdits old)
-    , deepPaths = Set.difference (deepPaths new) (deepPaths old)
+  pure $ BranchDiff
+    { addedTerms     = Star3.difference (_terms new) (_terms old)
+    , removedTerms   = Star3.difference (_terms old) (_terms new)
+    , addedTypes     = Star3.difference (_types new) (_types old)
+    , removedTypes   = Star3.difference (_types old) (_types new)
+    , changedPatches = diffEdits
     }
 
 data BranchAttentions = BranchAttentions
