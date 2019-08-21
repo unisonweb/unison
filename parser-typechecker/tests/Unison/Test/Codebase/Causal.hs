@@ -3,8 +3,12 @@
 module Unison.Test.Codebase.Causal where
 
 import EasyTest
-import Unison.Codebase.Causal (Causal(Cons, Merge), RawHash(..), one, currentHash, before)
---import Unison.Codebase.Causal (cons, merge)
+import Unison.Codebase.Causal ( Causal(Cons, Merge)
+                              , RawHash(..)
+                              , one
+                              , currentHash
+                              , before
+                              )
 import qualified Unison.Codebase.Causal as Causal
 import Control.Monad.Trans.State (State, state, put)
 import Data.Int (Int64)
@@ -16,7 +20,8 @@ import Data.List (foldl1')
 import Data.Functor ((<&>))
 import Unison.Hashable (Hashable)
 import Data.Set (Set)
---import Data.Functor.Identity (Identity)
+import Data.Functor.Identity
+import Unison.Hash (Hash)
 
 c :: M (Causal M Int64 [Int64])
 c = merge (foldr cons (one [1]) t1)
@@ -77,7 +82,38 @@ Satisfied (fromList [])
 -}
 
 test :: Test ()
-test = scope "causal" . tests $ []
+test =
+  scope "causal"
+    . tests
+    $ [ scope "threeWayMerge"
+        .  expect
+        $  Causal.head testThreeWay
+        == Set.fromList [3, 4]
+      ]
+
+oneRemoved :: Causal Identity Hash (Set Int64)
+oneRemoved = foldr Causal.cons
+                   (one (Set.singleton 1))
+                   (Set.fromList <$> [[2, 3, 4], [1, 2, 3, 4], [1, 2]])
+
+twoRemoved :: Causal Identity Hash (Set Int64)
+twoRemoved = foldr Causal.cons
+                   (one (Set.singleton 1))
+                   (Set.fromList <$> [[1, 3, 4], [1, 2, 3], [1, 2]])
+
+testThreeWay :: Causal Identity Hash (Set Int64)
+testThreeWay = runIdentity
+  $ Causal.threeWayMerge setCombine setDiff setPatch oneRemoved twoRemoved
+
+setCombine :: Applicative m => Ord a => Set a -> Set a -> m (Set a)
+setCombine a b = pure $ a <> b
+
+setDiff :: Applicative m => Ord a => Set a -> Set a -> m (Set a, Set a)
+setDiff old new = pure (Set.difference new old, Set.difference old new)
+
+setPatch :: Applicative m => Ord a => Set a -> (Set a, Set a) -> m (Set a)
+setPatch s (added, removed) = pure (added <> Set.difference s removed)
+
 --  [ scope "foldHistoryUntil" . expect $ execState c mempty == Set.fromList [3,2,1]]
 
 --result :: M (Causal.FoldHistoryResult (Set Int64))
@@ -89,8 +125,6 @@ result, result2 :: M (Causal.FoldHistoryResult (Set Int64))
   (Causal.foldHistoryUntil f (Set.fromList [10, 1]) =<< (do c' <- c; put mempty ; pure c')
   ,Causal.foldHistoryUntil f (Set.fromList [10, 1]) =<< (do c' <- c2; put mempty ; pure c'))
   where f s e = let s' = Set.difference s (Set.fromList e) in (s', Set.null s')
-
---type M = Identity
 
 ---- special cons and merge that mess with state monad for logging
 type M = State [[Int64]]
