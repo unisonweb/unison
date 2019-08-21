@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
@@ -17,6 +18,7 @@ import           Prelude                  hiding (head,read,subtract)
 import           Control.Lens            hiding ( children, cons, transform )
 import qualified Control.Monad                 as Monad
 import qualified Data.Map                      as Map
+import qualified Data.Map.Merge.Lazy           as Map
 import qualified Data.Set                      as Set
 import qualified Unison.Codebase.Patch         as Patch
 import           Unison.Codebase.Patch          ( Patch )
@@ -219,9 +221,28 @@ head (Branch c) = Causal.head c
 headHash :: Branch m -> Hash
 headHash (Branch c) = Causal.currentHash c
 
-merge :: Monad m => Branch m -> Branch m -> m (Branch m)
+merge :: forall m . Monad m => Branch m -> Branch m -> m (Branch m)
 merge (Branch x) (Branch y) =
-  Branch <$> Causal.threeWayMerge merge0 diff0 x y
+  Branch <$> Causal.threeWayMerge merge0 diff0 apply x y
+ where
+  apply :: Branch0 m -> BranchDiff -> m (Branch0 m)
+  apply b0 BranchDiff {..} = do
+    patches <- sequenceA
+      $ Map.differenceWith patchMerge (pure @m <$> _edits b0) changedPatches
+    pure $ branch0 (Star3.difference (_terms b0) removedTerms <> addedTerms)
+                   (Star3.difference (_types b0) removedTypes <> addedTypes)
+                   (_children b0)
+                   patches
+  patchMerge mhp Patch.PatchDiff {..} = Just $ do
+    (_, mp) <- mhp
+    p       <- mp
+    let np = Patch.Patch
+          { _termEdits = R.difference (Patch._termEdits p) _removedTermEdits
+            <> _addedTermEdits
+          , _typeEdits = R.difference (Patch._typeEdits p) _removedTypeEdits
+            <> _addedTypeEdits
+          }
+    pure (H.accumulate' np, pure np)
 
 -- `before b1 b2` is true if `b2` incorporates all of `b1`
 before :: Monad m => Branch m -> Branch m -> m Bool
@@ -660,7 +681,11 @@ diff0 :: Monad m => Branch0 m -> Branch0 m -> m BranchDiff
 diff0 old new = do
   newEdits <- sequenceA $ snd <$> _edits new
   oldEdits <- sequenceA $ snd <$> _edits old
-  let diffEdits = Map.differenceWith ((Just .) . Patch.diff) newEdits oldEdits
+  let diffEdits = Map.merge (Map.mapMissing $ \_ p -> Patch.diff p mempty)
+                            (Map.mapMissing $ \_ p -> Patch.diff mempty p)
+                            (Map.zipWithMatched (const Patch.diff))
+                            newEdits
+                            oldEdits
   pure $ BranchDiff
     { addedTerms     = Star3.difference (_terms new) (_terms old)
     , removedTerms   = Star3.difference (_terms old) (_terms new)
