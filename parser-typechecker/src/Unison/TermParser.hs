@@ -259,10 +259,7 @@ termLeaf = do
   q <- optional (reserved "?")
   case q of
     Nothing -> pure e
-    Just q  -> pure $ Term.app
-      (ann q <> ann e)
-      (Term.var (ann e) (positionalVar q Var.askInfo))
-      e
+    Just q  -> pure $ Term.askInfo (ann q <> ann e) e
 
 delayQuote :: Var v => TermP v
 delayQuote = P.label "quote" $ do

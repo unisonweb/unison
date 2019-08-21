@@ -94,6 +94,8 @@ data F typeVar typeAnn patternAnn a
   --     [ (Constructor 0 [Var], ABT.abs n rhs1)
   --     , (Constructor 1 [], rhs2) ]
   | Match a [MatchCase patternAnn a]
+  -- Instruction to query the typechecker for the type of subexpressions
+  | AskInfo a
   deriving (Foldable,Functor,Generic,Generic1,Traversable)
 
 type IsTop = Bool
@@ -252,6 +254,7 @@ extraMap vtf atf apf = \case
   LetRec x y z -> LetRec x y z
   Let x y z -> Let x y z
   Match tm l -> Match tm (map (matchCaseExtraMap apf) l)
+  AskInfo x -> AskInfo x
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
@@ -438,7 +441,7 @@ pattern LetRecTop' top subst <- (unLetRec -> Just (top, subst))
 pattern LetRecNamedAnnotated' ann bs e <- (unLetRecNamedAnnotated -> Just (_, ann, bs,e))
 pattern LetRecNamedAnnotatedTop' top ann bs e <-
           (unLetRecNamedAnnotated -> Just (top, ann, bs,e))
-pattern AskInfo' arg <- (unAskInfo -> Just arg)
+pattern AskInfo' arg <- (ABT.out -> ABT.Tm (AskInfo arg))
 
 fresh :: Var v => Term v -> v -> v
 fresh = ABT.fresh
@@ -763,15 +766,8 @@ unReqOrCtor (Constructor' r cid) = Just (r, cid)
 unReqOrCtor (Request' r cid)     = Just (r, cid)
 unReqOrCtor _                         = Nothing
 
-unAskInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Maybe (AnnotatedTerm2 vt at ap v a)
-unAskInfo tm = case tm of
-  App' t arg | isVarKindInfo t -> Just arg
-  _ -> Nothing
-
-isVarKindInfo :: Var v => AnnotatedTerm2 vt at ap v a -> Bool
-isVarKindInfo t = case t of
-  Var' v | Var.typeOf v == Var.AskInfo -> True
-  _ -> False
+askInfo :: Ord v => a -> AnnotatedTerm2 vt at ap v a -> AnnotatedTerm2 vt at ap v a
+askInfo a e = ABT.tm' a (AskInfo e)
 
 -- Dependencies including referenced data and effect decls
 dependencies :: (Ord v, Ord vt) => AnnotatedTerm2 vt at ap v a -> Set Reference
@@ -969,6 +965,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Let _ binding body == Let _ binding2 body2 =
     binding == binding2 && body == body2
   Match scrutinee cases == Match s2 cs2 = scrutinee == s2 && cases == cs2
+  AskInfo x == AskInfo y = x == y
   _ == _ = False
 
 
@@ -1017,6 +1014,7 @@ instance (Show v, Show a) => Show (F v a0 p a) where
       showParen (p > 0) $ s "and " <> shows x <> s " " <> shows y
     go p (Or x y) =
       showParen (p > 0) $ s "or " <> shows x <> s " " <> shows y
+    go p (AskInfo x) = showParen (p > 9) $ s "? " <> showsPrec 10 x
     (<>) = (.)
     s    = showString
 

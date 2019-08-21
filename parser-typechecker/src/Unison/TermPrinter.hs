@@ -233,7 +233,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
     _ -> case (term, nonForcePred) of
-      AppsPred' f args | not $ isVarKindInfo f ->
+      AppsPred' f args ->
         paren (p >= 10) $ pretty0 n (ac 10 Normal im) f `PP.hang`
           PP.spacedMap (pretty0 n (ac 10 Normal im)) args
       _ -> case (term, nonUnitArgPred) of

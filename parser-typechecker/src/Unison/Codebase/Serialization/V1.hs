@@ -494,6 +494,8 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 4 *> putText t
     Term.Blank _
       -> error "can't serialize term with blanks"
+    Term.AskInfo _
+      -> error "can't serialize term with AskInfo"
     Term.Ref r
       -> putWord8 5 *> putReference r
     Term.Constructor r cid
