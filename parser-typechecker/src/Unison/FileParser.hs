@@ -236,7 +236,7 @@ dataDeclaration mod = do
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
       record = do
         _ <- openBlockWith "{"
-        fields <- sepBy1 (reserved ",") $
+        fields <- sepBy1 (reserved "," <* optional semi) $
           liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
         pure ([go name (snd <$> fields)], [(name, fields)])
