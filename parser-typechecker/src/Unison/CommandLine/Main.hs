@@ -165,7 +165,7 @@ main dir initialPath _initialFile startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir)
+                                     (\out -> notifyUser dir out >>= putMsg)
                                      codebase
                                      free
         case o of
@@ -175,3 +175,7 @@ main dir initialPath _initialFile startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
+
+putMsg :: P.Pretty P.ColorText -> IO ()
+putMsg msg =
+  if msg == mempty then pure () else putPrettyLn msg
