@@ -30,3 +30,7 @@ putPretty' p = do
 getAvailableWidth :: IO Int
 getAvailableWidth =
   maybe 80 (\s -> 100 `min` Terminal.width s) <$> Terminal.size
+
+putPrettyNonempty :: P.Pretty P.ColorText -> IO ()
+putPrettyNonempty msg =
+  if msg == mempty then pure () else putPrettyLn msg
