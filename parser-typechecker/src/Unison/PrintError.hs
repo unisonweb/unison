@@ -481,6 +481,23 @@ renderTypeError e env src = case e of
               , intercalateMap "\n" formatSuggestion suggs
               ]
           ]
+  Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->   
+    Pr.lines [
+      Pr.wrap "The handler used here", "",
+      annotatedAsErrorSite src loc, 
+      Pr.wrap $
+        "has type " <> stylePretty ErrorSite (Pr.group (renderType' env typ))
+        <> "but I'm expecting a function of the form" 
+        <> Pr.group (Pr.blue (renderType' env exHandler) <> ".")
+     ] 
+    where
+    exHandler :: C.Type v loc
+    exHandler = fmap (const loc) $
+      Type.arrow () 
+        (Type.apps' (Type.ref () Type.effectRef) 
+           [Type.var () (Var.named "e"), Type.var () (Var.named "a") ])
+        (Type.var () (Var.named "o"))
+
   Other note -> mconcat
     [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n"
     , "Here is a summary of the Note:\n"
@@ -591,6 +608,8 @@ renderTypeError e env src = case e of
   simpleCause = \case
     C.TypeMismatch c ->
       mconcat ["TypeMismatch\n", "  context:\n", renderContext env c]
+    C.HandlerOfUnexpectedType loc typ ->
+      mconcat ["HandlerOfUnexpectedType\n", Pr.shown loc, "type:\n", renderType' env typ ]
     C.IllFormedType c ->
       mconcat ["IllFormedType\n", "  context:\n", renderContext env c]
     C.UnguardedLetRecCycle vs _ts ->

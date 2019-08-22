@@ -249,6 +249,7 @@ data Cause v loc
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
+  | HandlerOfUnexpectedType loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -548,12 +549,6 @@ getEffectDeclarations = fromMEnv effectDecls
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
 
-withoutAbilityCheckForExact
-  :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckForExact skip m = M go
-  where
-  go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
-
 shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
 shouldPerformAbilityCheck t = do
   skip <- fromMEnv skipAbilityCheck
@@ -843,13 +838,32 @@ synthesize e = scope (InSynthesize e) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go h@(Term.Handle' _ _) = do
-    o <- freshenVar Var.inferOther
-    appendContext $ context [existential o]
-    let ot = Type.existential' l B.Blank o
-    check h ot
+  go (Term.Handle' h body) = do
+    -- To synthesize a handle block, we first synthesize the handler h,
+    -- then push its allowed abilities onto the current ambient set when
+    -- checking the body. Assuming that works, we also verify that the
+    -- handler only uses abilities in the current ambient set.
+    ht <- synthesize h >>= applyM >>= ungeneralize
     ctx <- getContext
-    pure (apply ctx ot)
+    case ht of 
+      -- common case, like `h : Request {Remote} a -> b`, brings
+      -- `Remote` into ambient when checking `body`
+      Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
+        let es = Type.flattenEffects et
+        withEffects es $ check body i
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      -- degenerate case, like `handle x -> 10 in ...`
+      Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
+        e <- extendExistential v 
+        withEffects [Type.existentialp (loc i) e] $ check body i 
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -1227,11 +1241,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       modifyContext' (extend (Ann x i))
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      if Term.isLam body' then do
-        withEffects0 [] $
-          foldr withoutAbilityCheckForExact (check body' ot) es
-      else
-        withEffects0 es $ check body' ot
+      withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1243,26 +1253,6 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     markThenRetract0 (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       check e t
-  go block@(Term.Handle' h body) t = do
-    -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-    -- `body` should check against `i`
-    [e, i] <- sequence [freshenVar Var.inferAbility, freshenVar Var.inferOther ]
-    appendContext $ context [existential e, existential i]
-    let l = loc block
-    -- t <- applyM t
-    ambient <- getAbilities
-    let t' = Type.effect l ambient t
-    check h $ Type.arrow
-      l
-      (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i))
-      t'
-    ctx <- getContext
-    let et = apply ctx (Type.existentialp l e)
-    withoutAbilityCheckForExact et
-      . withEffects [et]
-      . check body
-      . apply ctx
-      $ Type.existentialp l i
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext

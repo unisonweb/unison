@@ -238,9 +238,23 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles rootDir = Branch.read (deserializeRawBranch rootDir)
-                                      (deserializeEdits rootDir)
+-- When loading a nonexistent branch, what should happen?
+-- Could bomb (`FailIfMissing`) or return the empty branch (`EmptyIfMissing`).
+--
+-- `EmptyIfMissing` mode is used when attempting to load a user-specified
+-- branch. `FailIfMissing` is used when loading the root branch - if the root
+-- does not exist, that's a serious problem.
+data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
+
+branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
+branchFromFiles loadMode rootDir h@(RawHash h') = do 
+  fileExists <- doesFileExist (branchPath rootDir h')
+  if fileExists || loadMode == FailIfMissing then 
+    Branch.read (deserializeRawBranch rootDir)
+                (deserializeEdits rootDir)
+                h
+  else
+    pure $ Branch.empty
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -269,7 +283,7 @@ getRootBranch root = do
  where
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
-    Just h  -> branchFromFiles root (RawHash h)
+    Just h  -> branchFromFiles FailIfMissing root (RawHash h)
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -496,7 +510,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
                      (getRootBranch path)
                      (putRootBranch path)
                      (branchHeadUpdates path)
-                     (branchFromFiles path)
+                     (branchFromFiles EmptyIfMissing path)
                      dependents
                      (copyFromGit path)
                      -- This is fine as long as watat doesn't call

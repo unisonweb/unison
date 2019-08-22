@@ -331,9 +331,9 @@ aliasType = InputPattern "alias.type" []
 cd :: InputPattern
 cd = InputPattern "namespace" ["cd", "j"] [(Required, pathArg)]
     (P.wrapColumn2
-      [ ("`namespace foo.bar`",
+      [ (makeExample cd ["foo.bar"],
           "descends into foo.bar from the current namespace.")
-      , ("`namespace .cat.dog`",
+      , (makeExample cd [".cat.dog"],
           "sets the current namespace to the abolute namespace .cat.dog.") ])
     (\case
       [p] -> first fromString $ do
@@ -406,13 +406,31 @@ renameBranch = InputPattern "move.namespace"
       _ -> Left (I.help renameBranch)
     )
 
+history :: InputPattern
+history = InputPattern "history" []
+   [(Optional, pathArg)]
+   (P.wrapColumn2 [
+     (makeExample history [], "Shows the history of the current path."),
+     (makeExample history [".foo"], "Shows history of the path .foo."),
+     (makeExample history ["#9dndk3kbsk13nbpeu"],
+       "Shows the history of the namespace with the given hash." <>
+       "The full hash must be provided.")
+     ])
+    (\case
+      [src] -> first fromString $ do
+        p <- Input.parseBranchId src
+        pure $ Input.HistoryI (Just 10) (Just 10) p 
+      [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
+      _ -> Left (I.help history)
+    )
+
 forkLocal :: InputPattern
 forkLocal = InputPattern "fork" ["copy.namespace"] [(Required, pathArg)
                                    ,(Required, pathArg)]
-    "`fork foo bar` creates the namespace `bar` as a fork of `foo`."
+    (makeExample forkLocal ["src", "dest"] <> "creates the namespace `dest` as a copy of `src`.")
     (\case
       [src, dest] -> first fromString $ do
-        src <- Path.parsePath' src
+        src <- Input.parseBranchId src
         dest <- Path.parsePath' dest
         pure $ Input.ForkLocalBranchI src dest
       _ -> Left (I.help forkLocal)
@@ -798,6 +816,7 @@ validInputs =
   , findPatch
   , viewPatch
   , undo
+  , history
   , edit
   , renameTerm
   , deleteTerm
