@@ -148,11 +148,10 @@ builtinTypesSrc =
   , B' "Nat"
   , B' "Float"
   , B' "Boolean"
-  , B' "Sequence"
-  , Rename' "Sequence" "List"
+  , B' "Sequence", Rename' "Sequence" "List"
   , B' "Text"
   , B' "Char"
-  , B' "Effect"
+  , B' "Effect", Rename' "Effect" "Request"
   , B' "Bytes"
   ]
 
@@ -316,7 +315,7 @@ builtinsSrc =
   , B "Text.drop" $ nat --> text --> text
   , B "Text.size" $ text --> nat
   , B "Text.==" $ text --> text --> boolean
-  , B "Text.!=" $ text --> text --> boolean
+  , D "Text.!=" $ text --> text --> boolean
   , B "Text.<=" $ text --> text --> boolean
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
@@ -349,6 +348,15 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  ] ++
+  -- avoid name conflicts with Universal == < > <= >=
+  [ Rename (t <> "." <> old) (t <> "." <> new)
+  | t <- ["Int", "Nat", "Float", "Text"]
+  , (old, new) <- [("==", "eq")
+                  ,("<" , "lt")
+                  ,("<=", "lteq")
+                  ,(">" , "gt")
+                  ,(">=", "gteq")]
   ]
   where
     int = Type.int ()

@@ -50,7 +50,7 @@ type UnitLoc e = UnitLoc
 
 -- Remote.runSequential : '{Remote UnitLoc, Error e} a -> Either e a
 -- Remote.runSequential r =
---   step : Effect {Remote UnitLoc} a -> a
+--   step : Request {Remote UnitLoc} a -> a
 --   step r = case r of
 --     {a} -> a
 --     {Remote.fork loc t -> k} ->
@@ -59,7 +59,7 @@ type UnitLoc e = UnitLoc
 --       status = Finished
 --       keepalive d = ()
 --       handle step in k (Future ('join, 'cancel, 'status, keepalive))
---   err : Effect {Error e} a -> Either e a
+--   err : Request {Error e} a -> Either e a
 --   err e = case e of
 --     {a} -> Right a
 --     {Error.error t -> k} ->handle err in k (Left t)

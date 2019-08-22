@@ -224,8 +224,10 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     t -> l "error: " <> l (show t)
  where
   specialCases term go = case (term, binaryOpsPred) of
-    (TupleTerm' [x], _) ->
-      paren (p >= 10) $ fmt S.Constructor "Pair" `PP.hang`
+    (TupleTerm' [x], _) -> let
+      pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
+        where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
+      paren (p >= 10) $ fmt S.Constructor pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
@@ -338,11 +340,7 @@ prettyPattern n c@(AmbientContext { imports = im }) p vs patt = case patt of
   PatternP.Nat     _ u -> (fmt S.NumericLiteral $ l $ show u, vs)
   PatternP.Float   _ f -> (fmt S.NumericLiteral $ l $ show f, vs)
   PatternP.Text    _ t -> (fmt S.TextLiteral $ l $ show t, vs)
-  TuplePattern [pp] ->
-    let (printed, tail_vs) = prettyPattern n c 10 vs pp
-    in  ( paren (p >= 10) $ PP.sep " " [fmt S.Constructor "Pair", printed, fmt S.Constructor "()"]
-        , tail_vs )
-  TuplePattern pats ->
+  TuplePattern pats | length pats /= 1 ->
     let (pats_printed, tail_vs) = patterns vs pats
     in  (PP.parenthesizeCommas pats_printed, tail_vs)
   PatternP.Constructor _ ref i [] ->

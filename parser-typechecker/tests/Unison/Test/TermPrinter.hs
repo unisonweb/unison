@@ -107,13 +107,13 @@ test = scope "termprinter" . tests $
   , tc "x y z -> and x y"
   , tc "x y y -> and x y"
   , tc "()"
-  , tc "Pair"
+  , tc "Cons"
   , tc "foo"
   , tc "List.empty"
   , tc "None"
   , tc "Optional.None"
   , tc "handle foo in bar"
-  , tc "Pair 1 1"
+  , tc "Cons 1 1"
   , tc "let\n\
        \  x = 1\n\
        \  x"
