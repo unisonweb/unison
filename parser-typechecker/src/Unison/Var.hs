@@ -37,22 +37,25 @@ uncapitalize v = nameds $ go (nameStr v) where
   go (c:rest) = toLower c : rest
   go n = n
 
-missingResult, blank, inferInput, inferOutput, inferAbility,
+missingResult, blank :: Var v => v
+missingResult = typed MissingResult
+blank = typed Blank
+
+-- Variables created during type inference
+inferInput, inferOutput, inferAbility,
   inferPatternPureE, inferPatternPureV, inferPatternBindE, inferPatternBindV,
   inferTypeConstructor, inferTypeConstructorArg,
   inferOther :: Var v => v
-missingResult = typed MissingResult
-blank = typed Blank
-inferInput = typed (Inference Input)
-inferOutput = typed (Inference Output)
-inferAbility = typed (Inference Ability)
-inferPatternPureE = typed (Inference PatternPureE)
-inferPatternPureV = typed (Inference PatternPureV)
-inferPatternBindE = typed (Inference PatternBindE)
-inferPatternBindV = typed (Inference PatternBindV)
-inferTypeConstructor = typed (Inference TypeConstructor)
-inferTypeConstructorArg = typed (Inference TypeConstructorArg)
-inferOther = typed (Inference Other)
+inferInput = named "𝕒"
+inferOutput = named "𝕣"
+inferAbility = named "𝕖"
+inferPatternPureE = named "𝕞"
+inferPatternPureV = named "𝕧"
+inferPatternBindE = named "𝕞"
+inferPatternBindV = named "𝕧"
+inferTypeConstructor = named "𝕗"
+inferTypeConstructorArg = named "𝕦"
+inferOther = named "𝕩"
 
 unnamedTest :: Var v => Text -> v
 unnamedTest guid = typed (UnnamedWatch TestWatch guid)
@@ -60,8 +63,6 @@ unnamedTest guid = typed (UnnamedWatch TestWatch guid)
 data Type
   -- User provided variables, these should generally be left alone
   = User Text
-  -- Variables created during type inference
-  | Inference InferenceType
   -- Variables created to finish a block that doesn't end with an expression
   | MissingResult
   -- Variables invented for placeholder values inserted by user or by TDNR
@@ -79,14 +80,6 @@ type WatchKind = String
 
 pattern RegularWatch = ""
 pattern TestWatch = "test"
-
-data InferenceType =
-  Ability | Input | Output |
-  PatternPureE | PatternPureV |
-  PatternBindE | PatternBindV |
-  TypeConstructor | TypeConstructorArg |
-  Other
-  deriving (Eq,Ord,Show)
 
 reset :: Var v => v -> v
 reset v = freshenId 0 v

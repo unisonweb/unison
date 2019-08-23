@@ -24,16 +24,6 @@ instance Var Symbol where
   freshenId id (Symbol _ n) = Symbol id n
   name (Symbol id t) = case t of
     Var.User n -> n <> showid id
-    Var.Inference Var.Ability -> "𝕖" <> showid id
-    Var.Inference Var.Input -> "𝕒" <> showid id
-    Var.Inference Var.Output -> "𝕣" <> showid id
-    Var.Inference Var.Other -> "𝕩" <> showid id
-    Var.Inference Var.PatternPureE -> "𝕞" <> showid id
-    Var.Inference Var.PatternPureV -> "𝕧" <> showid id
-    Var.Inference Var.PatternBindE -> "𝕞" <> showid id
-    Var.Inference Var.PatternBindV -> "𝕧" <> showid id
-    Var.Inference Var.TypeConstructor -> "𝕗" <> showid id
-    Var.Inference Var.TypeConstructorArg -> "𝕦" <> showid id
     Var.MissingResult -> "_" <> showid id
     Var.Blank -> "_" <> showid id
     Var.UnnamedWatch k guid -> fromString k <> "." <> guid <> showid id
