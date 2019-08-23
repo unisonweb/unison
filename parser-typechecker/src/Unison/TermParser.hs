@@ -510,14 +510,12 @@ block' isTop s openBlock closeBlock = do
               isTop
               (startAnnotation <> endAnnotation)
               (toBindings bs)
-              (Term.var endAnnotation
-                        (positionalVar endAnnotation Var.missingResult)
-              )
+              (Term.missingResult endAnnotation)
             Binding ((a, _v), _) : _ -> pure $ Term.letRec
               isTop
               (startAnnotation <> endAnnotation)
               (toBindings bs)
-              (Term.var a (positionalVar endAnnotation Var.missingResult))
+              (Term.missingResult a)
             Action e : bs -> pure $ Term.letRec
               isTop
               (startAnnotation <> ann e)
