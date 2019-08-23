@@ -10,7 +10,6 @@ import Unison.Prelude
 import Data.Char (toLower, isLower)
 import Data.Text (pack)
 import qualified Data.Text as Text
-import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
@@ -146,23 +145,8 @@ joinDot prefix v2 =
 freshNamed :: Var v => Set v -> Text -> v
 freshNamed used n = ABT.freshIn used (named n)
 
-syntheticVars :: Var v => Set v
-syntheticVars = Set.fromList . fmap typed $ [
-  Inference Ability,
-  Inference Input,
-  Inference Output,
-  Inference PatternPureE,
-  Inference PatternPureV,
-  Inference PatternBindE,
-  Inference PatternBindV,
-  Inference TypeConstructor,
-  Inference TypeConstructorArg ]
-
 isLowercase :: forall v . Var v => v -> Bool
 isLowercase v =
-  ok (name $ reset v) && unqualified v == v
+  ok (name v) && unqualified v == v
   where
-  ok n = (all isLower . take 1 . Text.unpack) n ||
-         Set.member n syntheticVarNames
-  syntheticVarNames :: Set Text
-  syntheticVarNames = Set.map name (syntheticVars @v)
+  ok n = (all isLower . take 1 . Text.unpack) n
