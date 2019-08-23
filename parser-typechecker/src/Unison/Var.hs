@@ -52,7 +52,6 @@ name v = case typeOf v of
   Inference TypeConstructorArg -> "𝕦" <> showid v
   MissingResult -> "_" <> showid v
   Blank -> "_" <> showid v
-  UnnamedWatch k guid -> fromString k <> "." <> guid <> showid v
   where
   showid (freshId -> 0) = ""
   showid (freshId -> n) = pack (show n)
@@ -79,9 +78,6 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferOther = typed (Inference Other)
 
-unnamedTest :: Var v => Text -> v
-unnamedTest guid = typed (UnnamedWatch TestWatch guid)
-
 data Type
   -- User provided variables, these should generally be left alone
   = User Text
@@ -91,19 +87,7 @@ data Type
   | MissingResult
   -- Variables invented for placeholder values inserted by user or by TDNR
   | Blank
-  -- An unnamed watch expression of the given kind, for instance:
-  --
-  --  test> Ok "oog"
-  --    has kind "test"
-  --  > 1 + 1
-  --    has kind ""
-  | UnnamedWatch WatchKind Text -- guid
   deriving (Eq,Ord,Show)
-
-type WatchKind = String
-
-pattern RegularWatch = ""
-pattern TestWatch = "test"
 
 data InferenceType =
   Ability | Input | Output |
