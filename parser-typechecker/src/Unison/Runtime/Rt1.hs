@@ -24,6 +24,7 @@ import Unison.Util.CyclicOrd (CyclicOrd, cyclicOrd)
 import Unison.Util.Monoid (intercalateMap)
 import qualified System.Mem.StableName as S
 import qualified Data.ByteString as BS
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -283,6 +284,7 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
 
     , mk1 "Char.toNat" atc (pure . N) (fromIntegral . fromEnum)
     , mk1 "Char.fromNat" atn (pure . C) (toEnum . fromIntegral)
+    , mk1 "Char.isSpace" atc (pure . B) Char.isSpace
 
     , mk2 "List.at" atn ats (pure . IR.maybeToOptional)
       $ Sequence.lookup

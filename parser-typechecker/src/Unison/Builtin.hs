@@ -326,6 +326,7 @@ builtinsSrc =
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
+  , B "Char.isSpace" $ char --> boolean
 
   , B "Bytes.empty" bytes
   , B "Bytes.fromList" $ list nat --> bytes
