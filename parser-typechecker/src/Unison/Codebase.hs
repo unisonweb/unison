@@ -6,7 +6,6 @@ import Unison.Prelude
 
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
 import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
@@ -23,7 +22,6 @@ import qualified Unison.Typechecker.TypeLookup as TL
 import qualified Unison.Parser                 as Parser
 import qualified Unison.UnisonFile             as UF
 import qualified Unison.Util.Relation          as Rel
-import qualified Unison.Var                    as Var
 import           Unison.Var                     ( Var )
 import qualified Unison.Runtime.IOSource       as IOSource
 import           Unison.Symbol                  ( Symbol )
@@ -164,52 +162,6 @@ transitiveDependencies code seen0 r = if Set.member r seen0
 
 toCodeLookup :: Codebase m v a -> CL.CodeLookup v m a
 toCodeLookup c = CL.CodeLookup (getTerm c) (getTypeDeclaration c)
-
--- Like the other `makeSelfContained`, but takes and returns a `UnisonFile`.
--- Any watches in the input `UnisonFile` will be watches in the returned
--- `UnisonFile`.
-makeSelfContained'
-  :: forall m v a . (Monad m, Monoid a, Var v)
-  => CL.CodeLookup v m a
-  -> UF.UnisonFile v a
-  -> m (UF.UnisonFile v a)
-makeSelfContained' code uf = do
-  let deps0 = Term.dependencies . snd <$> (UF.allWatches uf <> UF.terms uf)
-  deps <- foldM (transitiveDependencies code) Set.empty (Set.unions deps0)
-  let refVar r = Var.typed (Var.RefNamed r)
---  let termName r = PPE.termName pp (Referent.Ref r)
---      typeName r = PPE.typeName pp r
-  decls <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) -> fmap (r, ) <$> CL.getTypeDeclaration code rid
-    _                           -> pure Nothing
-  termsByRef <- fmap catMaybes . forM (toList deps) $ \case
-    r@(Reference.DerivedId rid) ->
-      fmap (r, refVar r, ) <$> CL.getTerm code rid
-    _ -> pure Nothing
-  let
-    unref :: Term v a -> Term v a
-    unref t = ABT.visitPure go t
-     where
-      go t@(Term.Ref' (r@(Reference.DerivedId _))) =
-        Just (Term.var (ABT.annotation t) (refVar r))
-      go _ = Nothing
-    datas1 = Map.fromList
-      [ (r, (v, dd)) | (r, Right dd) <- decls, v <- [refVar r] ]
-    effects1 = Map.fromList
-      [ (r, (v, ed)) | (r, Left ed) <- decls, v <- [refVar r] ]
-    ds0 = Map.fromList [ (r, (v, dd)) | (v, (r, dd)) <-
-            Map.toList $ UF.dataDeclarations uf ]
-    es0 = Map.fromList [ (r, (v, ed)) | (v, (r, ed)) <-
-            Map.toList $ UF.effectDeclarations uf ]
-    bindings = [ (v, unref t) | (_, v, t) <- termsByRef ]
-    (datas', effects') = (Map.union ds0 datas1, Map.union es0 effects1)
-    unrefb bs = [ (v, unref b) | (v, b) <- bs ]
-    uf' = UF.UnisonFile
-      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList datas' ])
-      (Map.fromList [ (v, (r,dd)) | (r, (v,dd)) <- Map.toList effects' ])
-      (bindings ++ unrefb (UF.terms uf))
-      (unrefb <$> UF.watches uf)
-  pure $ uf'
 
 getTypeOfTerm :: (Applicative m, Var v, BuiltinAnnotation a) =>
   Codebase m v a -> Reference -> m (Maybe (Type v a))

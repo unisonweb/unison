@@ -142,8 +142,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     let codeLookup = Codebase.toCodeLookup codebase
     let uf = UF.UnisonFile mempty mempty mempty
                (Map.singleton UF.RegularWatch [(Var.nameds "result", tm)])
-    selfContained <- Codebase.makeSelfContained' codeLookup uf
-    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt selfContained
+    r <- Runtime.evaluateWatches codeLookup ppe Runtime.noCache rt uf
     pure $ r <&> \(_,map) ->
       let [(_loc, _kind, _hash, _src, value, _isHit)] = Map.elems map
       in Term.amap (const Parser.External) value
@@ -151,13 +150,12 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
   evalUnisonFile :: PPE.PrettyPrintEnv -> UF.TypecheckedUnisonFile v Ann -> _
   evalUnisonFile ppe (UF.discardTypes -> unisonFile) = do
     let codeLookup = Codebase.toCodeLookup codebase
-    selfContained <- Codebase.makeSelfContained' codeLookup unisonFile
     let watchCache (Reference.DerivedId h) = do
           m1 <- Codebase.getWatch codebase UF.RegularWatch h
           m2 <- maybe (Codebase.getWatch codebase UF.TestWatch h) (pure . Just) m1
           pure $ Term.amap (const ()) <$> m2
         watchCache _ = pure Nothing
-    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt selfContained
+    r <- Runtime.evaluateWatches codeLookup ppe watchCache rt unisonFile
     case r of
       Left e -> pure (Left e)
       Right rs@(_,map) -> do
