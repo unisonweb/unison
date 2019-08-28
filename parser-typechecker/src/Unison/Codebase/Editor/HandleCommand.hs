@@ -101,7 +101,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
-    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h 
+    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch

@@ -146,12 +146,12 @@ data Output v
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
-data HistoryTail = 
-  EndOfLog Branch.Hash | 
-  MergeTail Branch.Hash [Branch.Hash] | 
-  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 
+data HistoryTail =
+  EndOfLog Branch.Hash |
+  MergeTail Branch.Hash [Branch.Hash] |
+  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex
   deriving (Show)
-  
+
 data TestReportStats
   = CachedTests TotalCount CachedCount
   | NewlyComputed deriving Show

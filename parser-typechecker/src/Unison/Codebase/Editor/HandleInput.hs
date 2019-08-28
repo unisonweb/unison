@@ -98,7 +98,7 @@ import           Unison.Util.TransitiveClosure  (transitiveClosure)
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.Codebase.TypeEdit as TypeEdit
-import Unison.Codebase.TermEdit (TermEdit)
+import Unison.Codebase.TermEdit (TermEdit(..))
 import qualified Unison.Codebase.TermEdit as TermEdit
 import qualified Unison.Typechecker as Typechecker
 import qualified Unison.PrettyPrintEnv as PPE
@@ -275,11 +275,11 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src0 dest0 -> do
-        let dest = Path.toAbsolutePath currentPath' $ dest0
+        let dest = Path.toAbsolutePath currentPath' dest0
         srcb <- case src0 of
           Left hash -> eval $ LoadLocalBranch hash
           Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
-        if Branch.isEmpty srcb then 
+        if Branch.isEmpty srcb then
           let notfound = either (NoBranchWithHash input) (BranchNotFound input)
           in respond $ notfound src0
         else do
@@ -405,19 +405,19 @@ loop = do
           else doHistory 0 b []
         Right path' -> do
           path <- use $ currentPath . to (`Path.toAbsolutePath` path')
-          branch' <- getAt path 
+          branch' <- getAt path
           if Branch.isEmpty branch' then respond $ CreatedNewBranch path
           else doHistory 0 branch' []
         where
-          doHistory !n b acc = 
-            if maybe False (n >=) resultsCap then 
+          doHistory !n b acc =
+            if maybe False (n >=) resultsCap then
               respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
             else case Branch._history b of
-              Causal.One{} -> 
+              Causal.One{} ->
                 respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
-              Causal.Merge{..} -> 
-                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails) 
-              Causal.Cons{..} -> do 
+              Causal.Merge{..} ->
+                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails)
+              Causal.Cons{..} -> do
                 b' <- fmap Branch.Branch . eval . Eval $ snd tail
                 let elem = (Branch.headHash b, Branch.namesDiff b' b)
                 doHistory (n+1) b' (elem : acc)
@@ -655,17 +655,6 @@ loop = do
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies $ failed <> failedDependents)
             respond $ CantDelete input ppe failed failedDependents
---        goMany rs = do
---          let rootNames, toDelete :: Names0
---              rootNames = Branch.toNames0 root0
---              toDelete = Names.fromTerms ((name,) <$> toList rs)
---                where name = Path.toName . Path.unsplit $ resolvedPath
---          (failed, failedDependents) <- getEndangeredDependents (eval . GetDependents) toDelete rootNames
---          if failed == mempty then stepManyAt . fmap makeDelete . toList $ rs
---          else do
---            failed <- loadSearchResults $ Names.asSearchResults failed
---            failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
---            respond $ CantDelete input rootNames failed failedDependents
 
       ShowDefinitionI outputLoc (fmap HQ.unsafeFromString -> hqs) -> do
         parseNames <- makeHistoricalParsingNames $ Set.fromList hqs
@@ -795,6 +784,45 @@ loop = do
         makeDelete =
           BranchUtil.makeDeleteTermName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
+
+      ResolveEditI from to patchPath -> do
+        let patchPath' = fromMaybe defaultPatchPath patchPath
+        patch <- getPatchAt patchPath'
+        let
+          toReference r =
+            maybe
+              (fail $ "The term "
+                      <> show r
+                      <> " is a data constructor, "
+                      <> "and I don't support patching those yet."
+              ) pure $ Referent.toTermReference r
+          go :: Referent -> Referent -> Action m (Either Event Input) v ()
+          go f t = do
+           fr <- toReference f
+           tr <- toReference t
+           mft <- eval $ LoadTypeOfTerm fr
+           mtt <- eval $ LoadTypeOfTerm tr
+           ft <- maybe (fail $ "Missing type for term " <> show f) pure mft
+           tt <- maybe (fail $ "Missing type for term " <> show t) pure mtt
+           let typing | Typechecker.isEqual ft tt = TermEdit.Same
+                      | Typechecker.isSubtype ft tt = TermEdit.Subtype
+                      | otherwise = TermEdit.Different
+           let patch' =
+                 over Patch.termEdits
+                      (R.deleteDom fr . R.insert fr ( Replace tr typing))
+                      patch
+               (patchPath'', patchName) = resolveSplit' patchPath'
+           _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+        zeroOneOrMore
+          (getHQ'Terms from)
+          (termNotFound from)
+          (\r -> zeroOneOrMore (getHQ'Terms to)
+                               (termNotFound to)
+                               (go r)
+                               (termConflicted to)
+          )
+          (termConflicted from)
+        success
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile
@@ -1472,7 +1500,7 @@ toSlurpResult uf existingNames =
 
   -- the set of typerefs that are being updated by this file
   typesToUpdate :: Set Reference
-  typesToUpdate = Set.fromList $
+  typesToUpdate = Set.fromList
     [ r | (n,r') <- R.toList (Names.types fileNames0)
         , r <- toList (Names.typesNamed existingNames n)
         , r /= r' ]

@@ -16,7 +16,11 @@ import System.Console.Haskeline.Completion (Completion)
 import Unison.Codebase (Codebase)
 import Unison.Codebase.Editor.Input (Input)
 import Unison.Codebase.Editor.RemoteRepo
-import Unison.CommandLine.InputPattern (ArgumentType (ArgumentType), InputPattern (InputPattern), IsOptional(Optional,Required,ZeroPlus,OnePlus))
+import Unison.CommandLine.InputPattern
+         ( ArgumentType(..)
+         , InputPattern(InputPattern)
+         , IsOptional(..)
+         )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
 import qualified Data.Map as Map
@@ -419,7 +423,7 @@ history = InputPattern "history" []
     (\case
       [src] -> first fromString $ do
         p <- Input.parseBranchId src
-        pure $ Input.HistoryI (Just 10) (Just 10) p 
+        pure $ Input.HistoryI (Just 10) (Just 10) p
       [] -> pure $ Input.HistoryI (Just 10) (Just 10) (Right Path.currentPath)
       _ -> Left (I.help history)
     )
@@ -566,16 +570,30 @@ previewMergeLocal = InputPattern
     _ -> Left (I.help previewMergeLocal)
   )
 
--- replace,resolve :: InputPattern
---replace = InputPattern "replace" []
---          [ (Required, exactDefinitionQueryArg)
---          , (Required, exactDefinitionQueryArg) ]
---  (makeExample replace ["foo#abc", "foo#def"] <> "begins a refactor to replace" <> "uses of `foo#abc` with `foo#def`")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
---
---resolve = InputPattern "resolve" [] [(Required, exactDefinitionQueryArg)]
---  (makeExample resolve ["foo#abc"] <> "sets `foo#abc` as the canonical `foo` in cases of conflict, and begins a refactor to replace references to all other `foo`s to `foo#abc`.")
---  (const . Left . warn . P.wrap $ "This command hasn't been implemented. 😞")
+resolveEdit :: InputPattern
+resolveEdit = InputPattern
+  "resolve.edit"
+  []
+  [ (Required, exactDefinitionQueryArg)
+  , (Required, exactDefinitionQueryArg)
+  , (Optional, patchArg)
+  ]
+  (P.wrapColumn2
+    [ (makeExample' viewPatch, "Lists all the edits in the default patch.")
+    , ( makeExample viewPatch ["<patch>"]
+      , "Lists all the edits in the given patch."
+      )
+    ]
+  )
+  (\case
+    source : target : patch -> first fromString $ do
+      src   <- Path.parseHQSplit' source
+      dest  <- Path.parseHQSplit' target
+      patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
+        $ listToMaybe patch
+      pure $ Input.ResolveEditI src dest patch
+    _ -> Left (I.help resolveEdit)
+  )
 
 edit :: InputPattern
 edit = InputPattern

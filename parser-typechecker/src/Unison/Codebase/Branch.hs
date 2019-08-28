@@ -301,7 +301,7 @@ read deserializeRaw deserializeEdits h = Branch <$> Causal.read d h
     children <- traverse go _childrenR
     edits <- for _editsR $ \hash -> (hash,) . pure <$> deserializeEdits hash
     pure $ branch0 _termsR _typesR children edits
-  go h = read deserializeRaw deserializeEdits h
+  go = read deserializeRaw deserializeEdits
   d :: Causal.Deserialize m Raw (Branch0 m)
   d h = deserializeRaw h >>= \case
     RawOne raw      -> RawOne <$> fromRaw raw
@@ -323,7 +323,7 @@ sync exists serializeRaw serializeEdits b =
   toRaw Branch0{..} =
     Raw _terms _types (headHash <$> _children) (fst <$> _edits)
   serialize0 :: Causal.Serialize m Raw (Branch0 m)
-  serialize0 h b0 = do
+  serialize0 h b0 =
     case b0 of
       RawOne b0 -> do
         writeB0 b0
@@ -493,11 +493,13 @@ getMaybePatch seg b = case Map.lookup seg (_edits b) of
   Nothing -> pure Nothing
   Just (_, p) -> Just <$> p
 
-modifyPatches :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
-modifyPatches seg f = mapMOf edits update where
+modifyPatches
+  :: Monad m => NameSegment -> (Patch -> Patch) -> Branch0 m -> m (Branch0 m)
+modifyPatches seg f = mapMOf edits update
+ where
   update m = do
     p' <- case Map.lookup seg m of
-      Nothing -> pure $ f Patch.empty
+      Nothing     -> pure $ f Patch.empty
       Just (_, p) -> f <$> p
     let h = H.accumulate' p'
     pure $ Map.insert seg (h, pure p') m
