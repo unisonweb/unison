@@ -27,7 +27,7 @@ This dynamic transfer / deployment of arbitrary computations is possible because
 
 If you'd like to learn more about the project, the talk [How to write a search engine in 15 lines of code](http://unisonweb.org/2016-10-12/search.html) has more of an introduction to the language. For a more complete overview of the syntax look at the [unison language reference](/unison-src/tests/language-reference.u).
 
-Since Unison isn't terribly useful in its current form, the rest of this README will focus on stuff that will be of interest for potential contributors, namely, how to build the code, and a brief tour of the (fairly small but action-packed) codebase. If you're just interested in the project and want to follow along with the progress, [unisonweb.org](http://unisonweb.org) is the place to go, or you can also say hello or lurk [in the Slack chat](tiny.cc/unisonslack).
+Since Unison isn't terribly useful in its current form, the rest of this README will focus on stuff that will be of interest for potential contributors, namely, how to build the code, and a brief tour of the (fairly small but action-packed) codebase. If you're just interested in the project and want to follow along with the progress, [unisonweb.org](http://unisonweb.org) is the place to go, or you can also say hello or lurk [in the Slack chat](http://tiny.cc/unisonslack).
 
 Still here? All right then! Let's get to it.
 
