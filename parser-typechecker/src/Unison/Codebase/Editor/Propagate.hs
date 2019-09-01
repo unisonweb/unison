@@ -318,7 +318,7 @@ propagate errorPPE patch b = case validatePatch patch of
       component = Reference.members $ Reference.componentFor ref
       termInfo
         :: Reference
-        -> F m i v (Maybe (v, (Reference, Term v Ann, Type v Ann)))
+        -> F m i v (Maybe (Reference, (Term v Ann, Type v Ann)))
       termInfo termRef = do
         tpm <- eval $ LoadTypeOfTerm termRef
         tp  <- maybe (fail $ "Missing type for term " <> show termRef) pure tpm
@@ -326,12 +326,12 @@ propagate errorPPE patch b = case validatePatch patch of
           Reference.DerivedId id -> do
             mtm <- eval $ LoadTerm id
             tm  <- maybe (fail $ "Missing term with id " <> show id) pure mtm
-            pure $ Just (Var.refNamed termRef, (termRef, tm, tp))
+            pure $ Just (termRef, (tm, tp))
           _ -> pure Nothing
       unhash m =
-        let f (ref, _oldTm, oldTyp) (_ref, newTm) = (ref, newTm, oldTyp)
-            dropType (r, tm, _tp) = (r, tm)
-        in  Map.intersectionWith f m (Term.unhashComponent (dropType <$> m))
+        let f (_oldTm,oldTyp) (v,newTm) = (v,newTm,oldTyp)
+            m' = Map.intersectionWith f m (Term.unhashComponent (fst <$> m))
+        in Map.fromList [ (v, (r, tm, tp)) | (r, (v, tm, tp)) <- Map.toList m' ]
     unhash . Map.fromList . catMaybes <$> traverse termInfo (toList component)
   unhashTypeComponent
     :: forall m v
