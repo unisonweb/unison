@@ -15,6 +15,7 @@ module Unison.Term where
 import Unison.Prelude
 
 import Prelude hiding (and,or)
+import           Control.Monad.State (evalState)
 import qualified Control.Monad.Writer.Strict as Writer
 import           Data.Bifunctor (second)
 import qualified Data.Map as Map
@@ -879,9 +880,10 @@ unhashComponent :: forall v a. Var v
                 => Map Reference (AnnotatedTerm v a)
                 -> Map Reference (v, AnnotatedTerm v a)
 unhashComponent m = let
+  usedVars = foldMap (Set.fromList . ABT.allVars) m
   m' :: Map Reference (v, AnnotatedTerm v a)
-  m' = Map.mapWithKey assignVar m where
-    assignVar r t = (Var.refNamed r, t)
+  m' = evalState (Map.traverseWithKey assignVar m) usedVars where
+    assignVar r t = (,t) <$> ABT.freshenS (Var.refNamed r)
   unhash1 = ABT.rebuildUp' go where
     go e@(Ref' r) = case Map.lookup r m' of
       Nothing -> e
