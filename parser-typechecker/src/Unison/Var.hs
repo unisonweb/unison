@@ -17,16 +17,13 @@ import qualified Unison.Reference as R
 -- | A class for variables. Variables may have auxiliary information which
 -- may not form part of their identity according to `Eq` / `Ord`.
 class (Show v, ABT.Var v) => Var v where
-  typed :: Type -> v
+  named :: Text -> v
   name :: v -> Text
   freshId :: v -> Word64
   freshenId :: Word64 -> v -> v
 
 freshIn :: ABT.Var v => Set v -> v -> v
 freshIn = ABT.freshIn
-
-named :: Var v => Text -> v
-named n = typed (User n)
 
 -- | Variable whose name is derived from the given reference.
 refNamed :: Var v => Reference -> v
@@ -52,12 +49,6 @@ inferPatternBindV = named "𝕧"
 inferTypeConstructor = named "𝕗"
 inferTypeConstructorArg = named "𝕦"
 inferOther = named "𝕩"
-
-data Type
-  -- User provided variables, these should generally be left alone
-  = User Text
-  deriving (Eq,Ord,Show)
-
 
 reset :: Var v => v -> v
 reset v = freshenId 0 v

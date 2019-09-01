@@ -32,7 +32,7 @@ instance ABT.Var v => ABT.Var (TypeVar b v) where
   freshIn s v = ABT.freshIn (Set.map underlying s) <$> v
 
 instance Var v => Var (TypeVar b v) where
-  typed t = Universal (Var.typed t)
+  named n = Universal (Var.named n)
   name v = Var.name (underlying v)
   freshId v = Var.freshId (underlying v)
   freshenId id v = Var.freshenId id <$> v

@@ -944,7 +944,7 @@ instance ABT.Var SymbolC where
     SymbolC i (ABT.freshIn (Set.map underlyingSymbol vs) s)
 
 instance Var SymbolC where
-  typed s = SymbolC False (Var.typed s)
+  named s = SymbolC False (Var.named s)
   name (SymbolC _ s) = Var.name s
   freshId (SymbolC _ s) = Var.freshId s
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)

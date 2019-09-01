@@ -11,7 +11,7 @@ import qualified Data.Set as Set
 import qualified Unison.ABT as ABT
 import qualified Unison.Var as Var
 
-data Symbol = Symbol !Word64 Var.Type deriving (Generic)
+data Symbol = Symbol !Word64 Text deriving (Generic)
 
 instance ABT.Var Symbol where
   freshIn vs s | Set.null vs || Set.notMember s vs = s -- already fresh!
@@ -19,12 +19,10 @@ instance ABT.Var Symbol where
     Symbol i2 _ -> if i > i2 then s else Symbol (i2+1) n
 
 instance Var Symbol where
-  typed t = Symbol 0 t
+  named n = Symbol 0 n
   freshId (Symbol id _) = id
   freshenId id (Symbol _ n) = Symbol id n
-  name (Symbol id t) = case t of
-    Var.User n -> n <> showid id
-    where
+  name (Symbol id n) = n <> showid id where
     showid 0 = ""
     showid n = pack (show n)
 

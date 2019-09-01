@@ -6,7 +6,6 @@ import           EasyTest
 import           Unison.Symbol       ( Symbol(..) )
 import qualified Unison.Type        as Type
 import qualified Unison.Typechecker as Typechecker
-import qualified Unison.Var         as Var
 
 test :: Test ()
 test = scope "typechecker" $ tests
@@ -16,12 +15,11 @@ test = scope "typechecker" $ tests
 isSubtypeTest :: Test ()
 isSubtypeTest =
   let
-    symbol i n = Symbol i (Var.User n)
     forall v t = Type.forall () v t
     var v = Type.var () v
 
-    a = symbol 0 "a"
-    a_ i = symbol i "a"
+    a = Symbol 0 "a"
+    a_ i = Symbol i "a"
     lhs = forall a (var a) -- ∀a. a
     rhs_ i = var (a_ i)    -- a_i
   in

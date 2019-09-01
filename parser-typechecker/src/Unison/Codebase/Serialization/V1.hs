@@ -398,7 +398,7 @@ putSymbol :: MonadPut m => Symbol -> m ()
 putSymbol v@(Symbol id _) = putLength id *> putText (Var.name v)
 
 getSymbol :: MonadGet m => m Symbol
-getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
+getSymbol = Symbol <$> getLength <*> getText
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of
