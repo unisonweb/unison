@@ -14,6 +14,7 @@ module Unison.Type where
 
 import Unison.Prelude
 
+import           Control.Monad.State            (State, evalState)
 import qualified Control.Monad.Writer.Strict as Writer
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
@@ -572,13 +573,15 @@ cleanupVars ts = let
 -- Compute a variable replacement map from a collection of types, which
 -- can be passed to `cleanupVars1'`. This is used to cleanup variable ids
 -- for multiple related types, like when reporting a type error.
-cleanupVarsMap :: Var v => [Type v a] -> Map.Map v v
+cleanupVarsMap :: forall v a. Var v => [Type v a] -> Map.Map v v
 cleanupVarsMap ts = let
   varsByName = foldl' step Map.empty (ts >>= ABT.allVars)
   step m v = Map.insertWith (++) (Var.name $ Var.reset v) [v] m
-  changedVars = Map.fromList [ (v, Var.freshenId i v)
+  refresh :: v -> State (Set v) (v, v)
+  refresh v = (v,) <$> ABT.freshenS (Var.reset v)
+  changedVars = Map.fromList [ (v, v')
                              | (_, vs) <- Map.toList varsByName
-                             , (v,i) <- nubOrd vs `zip` [0..]]
+                             , (v,v') <- evalState (traverse refresh (nubOrd vs)) Set.empty ]
   in changedVars
 
 cleanupVars1' :: Var v => Map.Map v v -> Type v a -> Type v a
