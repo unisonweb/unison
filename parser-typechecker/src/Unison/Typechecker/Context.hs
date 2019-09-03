@@ -107,7 +107,10 @@ instance (Ord loc, Var v) => Eq (Element v loc) where
   Marker v == Marker v2          = v == v2
   _ == _ = False
 
-data Env v loc = Env { freshId :: Word64, ctx :: Context v loc }
+data Env v loc = Env
+  { reservedVars :: Set v -- Guaranteed not to be returned as fresh from `freshenVar`. Superset of `usedVars ctx`.
+  , ctx :: Context v loc
+  }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration' v loc)
 type EffectDeclarations v loc = Map Reference (EffectDeclaration' v loc)
@@ -459,7 +462,7 @@ isReserved :: Var v => v -> M v loc Bool
 isReserved v = fromMEnv $ (v `isReservedIn`) . env
 
 isReservedIn :: Var v => v -> Env v loc -> Bool
-isReservedIn v e = freshId e > Var.freshId v
+isReservedIn v e = Set.member v (reservedVars e)
 
 universals :: Ord v => Context v loc -> Set v
 universals = universalVars . info
@@ -471,21 +474,17 @@ existentials = existentialVars . info
 -- i.e. ensures that they won't be returned from `freshenVar` as fresh.
 reserveAll :: (Var v, Foldable t) => t v -> M v loc ()
 reserveAll vs =
-  let maxId = foldr (max . Var.freshId) 0 vs
-  in modEnv (\e -> e { freshId = freshId e `max` maxId + 1})
+  modEnv (\e -> e { reservedVars = foldr Set.insert (reservedVars e) vs })
 
-freshenVar :: Var v => v -> M v0 loc v
+freshenVar :: Var v => v -> M v loc v
 freshenVar v = modEnv'
   (\e ->
-    let id = freshId e in (Var.freshenId id v, e { freshId = freshId e + 1 })
+    let v' = Var.freshIn (reservedVars e) v
+    in (v', e { reservedVars = Set.insert v' (reservedVars e) })
   )
 
 freshenTypeVar :: Var v => TypeVar v loc -> M v loc v
-freshenTypeVar v = modEnv'
-  (\e ->
-    let id = freshId e
-    in  (Var.freshenId id (TypeVar.underlying v), e { freshId = id + 1 })
-  )
+freshenTypeVar v = freshenVar (TypeVar.underlying v)
 
 isClosed :: Var v => Term v loc -> M v loc Bool
 isClosed e = Set.null <$> freeVars e
@@ -1664,7 +1663,7 @@ run
 run ambient datas effects m =
   fmap fst
     . runM m
-    $ MEnv (Env 1 context0) ambient datas effects []
+    $ MEnv (Env Set.empty context0) ambient datas effects []
 
 synthesizeClosed' :: (Var v, Ord loc)
                   => [Type v loc]
