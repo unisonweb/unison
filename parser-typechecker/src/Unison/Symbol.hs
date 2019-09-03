@@ -21,7 +21,7 @@ instance Var Symbol where
   typed t = Symbol 0 t
   typeOf (Symbol _ t) = t
   freshId (Symbol id _) = id
-  freshenId id (Symbol _ n) = Symbol id n
+  reset (Symbol _ n) = Symbol 0 n
 
 instance Eq Symbol where
   Symbol id1 name1 == Symbol id2 name2 = id1 == id2 && name1 == name2

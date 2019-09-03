@@ -25,7 +25,7 @@ class (Show v, ABT.Var v) => Var v where
   typed :: Type -> v
   typeOf :: v -> Type
   freshId :: v -> Word64
-  freshenId :: Word64 -> v -> v
+  reset :: v -> v
 
 freshIn :: ABT.Var v => Set v -> v -> v
 freshIn = ABT.freshIn
@@ -104,9 +104,6 @@ data InferenceType =
   TypeConstructor | TypeConstructorArg |
   Other
   deriving (Eq,Ord,Show)
-
-reset :: Var v => v -> v
-reset v = typed (typeOf v)
 
 unqualified :: Var v => v -> v
 unqualified v = case typeOf v of
