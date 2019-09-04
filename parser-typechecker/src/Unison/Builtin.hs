@@ -324,8 +324,8 @@ builtinsSrc =
   , B "Text.uncons" $ text --> optional (tuple [char, text])
   , B "Text.unsnoc" $ text --> optional (tuple [text, char])
 
-  , B "Text.toList" $ text --> list char
-  , B "Text.fromList" $ list char --> text
+  , B "Text.toCharList" $ text --> list char
+  , B "Text.fromCharList" $ list char --> text
 
   , B "Char.toNat" $ char --> nat
   , B "Char.fromNat" $ nat --> char
