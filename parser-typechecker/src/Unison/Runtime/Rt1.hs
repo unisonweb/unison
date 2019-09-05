@@ -281,6 +281,12 @@ builtinCompilationEnv = CompilationEnv (builtinsMap <> IR.builtins) mempty
         )
         $ Text.unsnoc
 
+    , mk1 "Text.toCharList" att (pure . Sequence)
+        (Sequence.fromList . map C . Text.unpack)
+
+    , mk1 "Text.fromCharList" ats (pure . T)
+        (\s -> Text.pack [ c | C c <- toList s ])
+
     , mk1 "Char.toNat" atc (pure . N) (fromIntegral . fromEnum)
     , mk1 "Char.fromNat" atn (pure . C) (toEnum . fromIntegral)
 
