@@ -7,6 +7,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Unison.Codebase.Branch where
 
@@ -32,6 +33,7 @@ import           Unison.Codebase.NameSegment    ( NameSegment )
 import qualified Unison.Codebase.NameSegment   as NameSegment
 import qualified Unison.Codebase.Metadata      as Metadata
 import qualified Unison.Hash                   as Hash
+import           Unison.Hash                    ( )
 import           Unison.Hashable                ( Hashable )
 import qualified Unison.Hashable               as H
 import           Unison.Name                    ( Name(..) )
@@ -47,7 +49,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.List              as List
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.HashQualified as HQ
@@ -75,6 +76,9 @@ data Branch0 m = Branch0
   , deepPaths :: Set Path
   , deepEdits :: Set Name
   }
+
+instance Show (Branch0 m) where
+  show = show . (H.accumulate' @Hash.Hash)
 
 -- The raw Branch
 data Raw = Raw
@@ -115,11 +119,12 @@ findHistoricalRefs = findInHistory
   (\query r _n -> LD.fold (const False) (==r) query)
   (\query r _n -> LD.fold (==r) (const False) query)
 
-findInHistory :: forall m q. (Monad m, Ord q)
+findInHistory :: forall m q. (Monad m, Ord q, Show q)
   => (q -> Referent -> Name -> Bool)
   -> (q -> Reference -> Name -> Bool)
   -> Set q -> Branch m -> m (Set q, Names0)
 findInHistory termMatches typeMatches queries b =
+  trace ("-- findInHistory " ++ (show . toList) queries) $
   (Causal.foldHistoryUntil f (queries, mempty) . _history) b <&> \case
     -- could do something more sophisticated here later to report that some SH
     -- couldn't be found anywhere in the history.  but for now, I assume that
@@ -131,6 +136,8 @@ findInHistory termMatches typeMatches queries b =
   -- for each `remainingQueries`, if we find a matching Referent or Reference,
   -- we remove `q` from the accumulated `remainingQueries`, and add the Ref* to
   -- the accumulated `names0`.
+  f :: (Set q, Names0) -> Branch0 m1 -> ((Set q, Names0), Bool)
+  f acc _b | trace ("acc=" ++ show acc) False = undefined
   f acc@(remainingQueries, _) b0 = (acc', null remainingQueries')
     where
     acc'@(remainingQueries', _) = foldl' findQ acc remainingQueries

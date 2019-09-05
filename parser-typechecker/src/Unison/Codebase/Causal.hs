@@ -235,11 +235,11 @@ transform nt c = case c of
 -- through others).  Returns Unsatisfied if the condition was never satisfied,
 -- otherwise Satisfied.
 data FoldHistoryResult a = Satisfied a | Unsatisfied a deriving (Eq,Ord,Show)
-foldHistoryUntil :: forall m h e a. (Monad m) => --(Show a, Show e) =>
+foldHistoryUntil :: forall m h e a. (Monad m) => (Show a, Show e) =>
   (a -> e -> (a, Bool)) -> a -> Causal m h e -> m (FoldHistoryResult a)
 foldHistoryUntil f a c = step a mempty (pure c) where
   step :: a -> Set (RawHash h) -> Seq (Causal m h e) -> m (FoldHistoryResult a)
-  --step a seen rest | trace ("step a=" ++ show a ++ " seen=" ++ (show . fmap (take 3 . show) . toList) seen ++ " rest=" ++ show rest) False = undefined
+  step a seen rest | trace ("\n\nstep a=" ++ show a ++ "\nseen=" ++ (show . fmap (take 3 . show) . toList) seen ++ "\nrest=" ++ show rest) False = undefined
   step a _seen Seq.Empty = pure (Unsatisfied a)
   step a seen (c Seq.:<| rest) = case f a (head c) of
     (a, True) -> pure (Satisfied a)
