@@ -1977,6 +1977,7 @@ fixupNamesRelative currentPath' = Names3.map0 fixName where
 
 makeHistoricalParsingNames ::
   Monad m => Set HQ.HashQualified -> Action' m v Names
+makeHistoricalParsingNames lexedHQs | traceShow ("-- makeHistoricalParsingNames " ++ (show . toList) lexedHQs) False = undefined
 makeHistoricalParsingNames lexedHQs = do
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicParseNames0
