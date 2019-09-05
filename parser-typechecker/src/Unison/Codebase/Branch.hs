@@ -554,24 +554,14 @@ stepAt0 p f = runIdentity . stepAt0M p (pure . f)
 stepManyAt0 :: (Applicative m, Foldable f)
            => f (Path, Branch0 m -> Branch0 m)
            -> Branch0 m -> Branch0 m
-stepManyAt0 actions b = let
-  -- paths are ordered lexicographically, so parents will appear before their children
-  -- we reverse this so children are stepped before their parents
-  actions' = reverse . Map.toList $ combine <$> List.multimap actions
-  combine = foldl' (flip (.)) id
-  in foldl' (\b (p, f) -> stepAt0 p f b) b actions'
+stepManyAt0 actions b = foldl' (\b (p, f) -> stepAt0 p f b) b actions
 
 -- todo: reimplement this using stepM, not stepAtM, to preserve the property
 -- that each path is only stepped once.
 stepManyAt0M :: (Monad m, Foldable f)
              => f (Path, Branch0 m -> m (Branch0 m))
              -> Branch0 m -> m (Branch0 m)
-stepManyAt0M actions b = let
-  -- paths are ordered lexicographically, so parents will appear before their children
-  -- we reverse this so children are stepped before their parents
-  actions' = reverse . Map.toList $ combine <$> List.multimap actions
-  combine = foldl' (\f g x -> f x >>= g) pure
-  in Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions'
+stepManyAt0M actions b = Monad.foldM (\b (p, f) -> stepAt0M p f b) b actions
 
 stepAt0M :: forall n m. (Functor n, Applicative m)
          => Path
