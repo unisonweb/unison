@@ -227,7 +227,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     (TupleTerm' [x], _) -> let
       pair = parenIfInfix name ic $ styleHashQualified'' (fmt S.Constructor) name
         where name = elideFQN im $ PrettyPrintEnv.termName n (DD.pairCtorRef) in
-      paren (p >= 10) $ fmt S.Constructor pair `PP.hang`
+      paren (p >= 10) $ pair `PP.hang`
         PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
