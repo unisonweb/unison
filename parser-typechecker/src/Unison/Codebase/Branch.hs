@@ -47,7 +47,6 @@ import qualified Unison.Reference              as Reference
 import qualified Unison.Util.Relation         as R
 import           Unison.Util.Relation           ( Relation )
 import qualified Unison.Util.Star3             as Star3
-import qualified Unison.Util.List              as List
 import Unison.ShortHash (ShortHash)
 import qualified Unison.ShortHash as SH
 import qualified Unison.HashQualified as HQ
