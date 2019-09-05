@@ -130,7 +130,7 @@ labeledDependencies :: Var v
                     => TypecheckedUnisonFile v a
                     -> Set LabeledDependency
 labeledDependencies TypecheckedUnisonFile{..} =
-  Set.map LD.termRef typeDeps <> termDeps
+  Set.map LD.typeRef typeDeps <> termDeps
   where
   typeDeps :: Set Reference
   typeDeps = foldMap DD.dependencies
