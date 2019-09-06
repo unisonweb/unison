@@ -127,13 +127,13 @@ library
     Unison.Type
     Unison.TypeParser
     Unison.TypePrinter
-    Unison.TypeVar
     Unison.Typechecker
     Unison.Typechecker.Components
     Unison.Typechecker.Context
     Unison.Typechecker.Extractor
     Unison.Typechecker.TypeError
     Unison.Typechecker.TypeLookup
+    Unison.Typechecker.TypeVar
     Unison.UnisonFile
     Unison.Util.AnnotatedText
     Unison.Util.Bytes

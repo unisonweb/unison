@@ -76,7 +76,7 @@ import qualified Unison.Term                   as Term
 import qualified Unison.Type                   as Type
 import           Unison.Typechecker.Components  ( minimize' )
 import qualified Unison.Typechecker.TypeLookup as TL
-import qualified Unison.TypeVar                as TypeVar
+import qualified Unison.Typechecker.TypeVar    as TypeVar
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Unison.TypePrinter            as TP
@@ -92,6 +92,15 @@ pattern Existential b v = Var (TypeVar.Existential b v)
 
 existential :: v -> Element v loc
 existential = Existential B.Blank
+
+existential' :: Ord v => a -> B.Blank loc -> v -> Type.Type (TypeVar v loc) a
+existential' a blank v = ABT.annotatedVar a (TypeVar.Existential blank v)
+
+existentialp :: Ord v => a -> v -> Type v a
+existentialp a = existential' a B.Blank
+
+universal' :: Ord v => a -> v -> Type.Type (TypeVar v loc) a
+universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 -- | Elements of an ordered algorithmic context
 data Element v loc
@@ -348,7 +357,7 @@ markThenRetract markerHint body = do
               | Solved (B.Recorded b) v sa <- discarded
               ]
             unsolved =
-              [ (b, v, inst $ Type.existential' (B.loc b) b' v)
+              [ (b, v, inst $ existential' (B.loc b) b' v)
               | Existential b'@(B.Recorded b) v <- discarded
               ]
             go (b, v, sa) = solveBlank b v sa
@@ -500,8 +509,8 @@ freeVars e = do
 -- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
 wellformedType :: Var v => Context v loc -> Type v loc -> Bool
 wellformedType c t = case t of
-  Type.Existential' _ v -> Set.member v (existentials c)
-  Type.Universal' v -> Set.member v (universals c)
+  Type.Var' (TypeVar.Existential _ v) -> Set.member v (existentials c)
+  Type.Var' (TypeVar.Universal v) -> Set.member v (universals c)
   Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
@@ -511,7 +520,7 @@ wellformedType c t = case t of
   Type.IntroOuterNamed' _ t -> wellformedType c t
   Type.Forall' t' ->
     let (v,ctx2) = extendUniversal c
-    in wellformedType ctx2 (ABT.bind t' (Type.universal' (ABT.annotation t) v))
+    in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
   -- | Extend this `Context` with a single variable, guaranteed fresh
@@ -687,9 +696,9 @@ apply' :: (Var v, Ord loc) => Map v (Monotype v loc) -> Type v loc -> Type v loc
 apply' _ t | Set.null (Type.freeVars t) = t
 apply' solvedExistentials t = go t where
   go t = case t of
-    Type.Universal' _ -> t
+    Type.Var' (TypeVar.Universal _) -> t
     Type.Ref' _ -> t
-    Type.Existential' _ v ->
+    Type.Var' (TypeVar.Existential _ v) ->
       maybe t (\(Type.Monotype t') -> go t') (Map.lookup v solvedExistentials)
     Type.Arrow' i o -> Type.arrow a (go i) (go o)
     Type.App' x y -> Type.app a (go x) (go y)
@@ -734,17 +743,17 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
   go (Type.Forall' body) = do -- Forall1App
     v <- ABT.freshen body freshenTypeVar
     appendContext [existential v]
-    let ft2 = ABT.bindInheritAnnotation body (Type.existential B.Blank v)
+    let ft2 = ABT.bindInheritAnnotation body (existential' () B.Blank v)
     synthesizeApp ft2 argp
   go (Type.Arrow' i o) = do -- ->App
     let (es, _) = Type.stripEffect o
     abilityCheck es
     o <$ check arg i
-  go (Type.Existential' b a) = do -- a^App
+  go (Type.Var' (TypeVar.Existential b a)) = do -- a^App
     [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthsizeApp-refined-effect", Var.named "o"]
-    let it = Type.existential' (loc ft) B.Blank i
-        ot = Type.existential' (loc ft) B.Blank o
-        et = Type.existential' (loc ft) B.Blank e
+    let it = existential' (loc ft) B.Blank i
+        ot = existential' (loc ft) B.Blank o
+        et = existential' (loc ft) B.Blank e
         soln = Type.Monotype (Type.arrow (loc ft)
                                          it
                                          (Type.effect (loc ft) [et] ot))
@@ -765,6 +774,18 @@ vectorConstructorOfArity loc arity = do
       vt = Type.forall loc elementVar (Type.arrows args resultType)
   pure vt
 
+generalizeAndUnTypeVar :: Var v => Type v a -> Type.Type v a
+generalizeAndUnTypeVar t =
+  Type.cleanup . ABT.vmap TypeVar.underlying . Type.generalize (Set.toList $ ABT.freeVars t) $ t
+
+generalizeExistentials'
+  :: Var v => Type v a -> Type v a
+generalizeExistentials' t =
+  Type.generalize (filter isExistential . Set.toList $ ABT.freeVars t) t
+  where
+  isExistential (TypeVar.Existential _ _) = True
+  isExistential _ = False
+
 noteTopLevelType
   :: (Ord loc, Var v)
   => ABT.Subst f v a
@@ -776,14 +797,14 @@ noteTopLevelType e binding typ = case binding of
     inferred <- (Just <$> synthesize strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing -> btw $ TopLevelComponent
-        [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, False)]
+        [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
       Just inferred -> do
         redundant <- isRedundant typ inferred
         btw $ TopLevelComponent
-          [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, redundant)]
+          [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
   -- The signature didn't exist, so was definitely redundant
   _ -> btw $ TopLevelComponent
-    [(Var.reset (ABT.variable e), Type.generalizeAndUnTypeVar typ, True)]
+    [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 -- | Synthesize the type of the given term, updating the context in the process.
 -- | Figure 11 from the paper
@@ -805,7 +826,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Blank' blank) = do
     v <- freshenVar Var.blank
     appendContext [Existential blank v]
-    pure $ Type.existential' l blank v -- forall (TypeVar.Universal v) (Type.universal v)
+    pure $ existential' l blank v -- forall (TypeVar.Universal v) (Type.universal v)
   go (Term.Ann' (Term.Ref' _) t) = case ABT.freeVars t of
     s | Set.null s ->
       -- innermost Ref annotation assumed to be correctly provided by `synthesizeClosed`
@@ -862,9 +883,9 @@ synthesize e = scope (InSynthesize e) $
                                , freshenVar (ABT.variable body)
                                , freshenVar Var.inferAbility
                                , freshenVar Var.inferOutput ]
-    let it = Type.existential' l B.Blank i
-        ot = Type.existential' l B.Blank o
-        et = Type.existential' l B.Blank e
+    let it = existential' l B.Blank i
+        ot = existential' l B.Blank o
+        et = existential' l B.Blank e
     appendContext $
       [existential i, existential e, existential o, Ann arg it]
     body' <- pure $ ABT.bindInheritAnnotation body (Term.var() arg)
@@ -889,7 +910,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Match' scrutinee cases) = do
     scrutineeType <- synthesize scrutinee
     outputTypev <- freshenVar (Var.named "match-output")
-    let outputType = Type.existential' l B.Blank outputTypev
+    let outputType = existential' l B.Blank outputTypev
     appendContext [existential outputTypev]
     case cases of -- only relevant with 2 or more cases, but 1 is safe too.
       [] -> pure ()
@@ -915,9 +936,9 @@ synthesize e = scope (InSynthesize e) $
         abilityCheck oes
         pure o'
       -- degenerate case, like `handle x -> 10 in ...`
-      Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
+      Type.Arrow' (i@(Type.Var' (TypeVar.Existential _ v@(lookupSolved ctx -> Nothing)))) o -> do
         e <- extendExistential v
-        withEffects [Type.existentialp (loc i) e] $ check body i
+        withEffects [existentialp (loc i) e] $ check body i
         o <- applyM o
         let (oes, o') = Type.stripEffect o
         abilityCheck oes
@@ -965,7 +986,7 @@ checkPattern scrutineeType0 p =
     Pattern.SequenceLiteral loc ps -> do
       vt <- lift $ do
         v <- freshenVar Var.inferOther
-        let vt = Type.existentialp loc v
+        let vt = existentialp loc v
         appendContext [existential v]
         subtype (Type.app loc (Type.vector loc) vt) scrutineeType
         applyM vt
@@ -974,7 +995,7 @@ checkPattern scrutineeType0 p =
       let (locL, locR) = (Pattern.loc l, Pattern.loc r)
       vt <- lift $ do
         v <- freshenVar Var.inferOther
-        let vt = Type.existentialp loc v
+        let vt = existentialp loc v
         appendContext [existential v]
         -- todo: `Type.vector loc` is super-probably wrong;
         -- I'm thinking it should be Ann.Intrinsic, but we don't
@@ -1052,8 +1073,8 @@ checkPattern scrutineeType0 p =
       vt <- lift $ do
         v <- freshenVar Var.inferPatternPureV
         e <- freshenVar Var.inferPatternPureE
-        let vt = Type.existentialp loc v
-        let et = Type.existentialp loc e
+        let vt = existentialp loc v
+        let et = existentialp loc e
         appendContext [existential v, existential e]
         subtype (Type.effectV loc (loc, et) (loc, vt)) scrutineeType
         applyM vt
@@ -1063,8 +1084,8 @@ checkPattern scrutineeType0 p =
       -- for fresh existentials `e` and `vt`
       e <- lift $ extendExistential Var.inferPatternBindE
       v <- lift $ extendExistential Var.inferPatternBindV
-      let evt = Type.effectV loc (loc, Type.existentialp loc e)
-                                 (loc, Type.existentialp loc v)
+      let evt = Type.effectV loc (loc, existentialp loc e)
+                                 (loc, existentialp loc v)
       lift $ subtype evt scrutineeType
       ect  <- lift $ getEffectConstructorType ref cid
       uect <- lift $ ungeneralize ect
@@ -1143,7 +1164,7 @@ annotateLetRecBindings isTop letrec =
     withoutAnnotations  <-
       resetContextAfter Nothing $ Just <$> annotateLetRecBindings' False
     -- convert from typechecker TypeVar back to regular `v` vars
-    let unTypeVar (v, t) = (v, Type.generalizeAndUnTypeVar t)
+    let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
     case withoutAnnotations of
       Just (_, vts') -> do
         r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
@@ -1178,7 +1199,7 @@ annotateLetRecBindings isTop letrec =
               -- Anything else, just make up a fresh existential
               -- which will be refined during typechecking of the binding
               vt <- extendExistential v
-              pure $ (e, Type.existential' (loc binding) B.Blank vt)
+              pure $ (e, existential' (loc binding) B.Blank vt)
       (bindings, bindingTypes) <- unzip <$> traverse f bindings
       appendContext (zipWith Ann vs bindingTypes)
       -- check each `bi` against its type
@@ -1215,11 +1236,11 @@ existentialFunctionTypeFor lam@(Term.LamNamed' v body) = do
   e <- extendExistential Var.inferAbility
   o <- existentialFunctionTypeFor body
   pure $ Type.arrow (loc lam)
-                    (Type.existentialp (loc lam) v)
-                    (Type.effect (loc lam) [Type.existentialp (loc lam) e] o)
+                    (existentialp (loc lam) v)
+                    (Type.effect (loc lam) [existentialp (loc lam) e] o)
 existentialFunctionTypeFor e = do
   v <- extendExistential Var.inferOutput
-  pure $ Type.existentialp (loc e) v
+  pure $ existentialp (loc e) v
 
 existentializeArrows :: Var v => Type v loc -> M v loc (Type v loc)
 existentializeArrows t = do
@@ -1233,7 +1254,7 @@ ungeneralize' :: (Var v, Ord loc) => Type v loc -> M v loc ([v], Type v loc)
 ungeneralize' (Type.Forall' t) = do
   v <- ABT.freshen t freshenTypeVar
   appendContext [existential v]
-  t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
+  t <- pure $ ABT.bindInheritAnnotation t (existential' () B.Blank v)
   first (v:) <$> ungeneralize' t
 ungeneralize' t = pure ([], t)
 
@@ -1253,7 +1274,7 @@ generalizeExistentials ctx t =
                        (TypeVar.Universal e)
                        (ABT.substInheritAnnotation
                            (TypeVar.Existential B.Blank e)
-                           (Type.universal e)
+                           (universal' () e)
                            t)
       else t -- don't bother introducing a forall if type variable is unused
 
@@ -1267,8 +1288,8 @@ checkScoped e t = case t of
     v <- ABT.freshen body freshenTypeVar
     markThenRetract0 v $ do
       x <- extendUniversal v
-      let e' = Term.substTypeVar (ABT.variable body) (Type.universal x) e
-      checkScoped e' (ABT.bindInheritAnnotation body (Type.universal x))
+      let e' = Term.substTypeVar (ABT.variable body) (universal' () x) e
+      checkScoped e' (ABT.bindInheritAnnotation body (universal' () x))
   _ -> check e t
 
 -- | Check that under the given context, `e` has type `t`,
@@ -1285,7 +1306,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       if wellformedType ctx t0
         then case t of
              -- expand existentials before checking
-          t@(Type.Existential' _ _) -> abilityCheck es >> go e (apply ctx t)
+          t@(Type.Var' (TypeVar.Existential _ _)) -> abilityCheck es >> go e (apply ctx t)
           t                         -> go e (Type.stripIntroOuters t)
         else failWith $ IllFormedType ctx
  where
@@ -1294,7 +1315,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
     v <- ABT.freshen body freshenTypeVar
     markThenRetract0 v $ do
       x <- extendUniversal v
-      check e (ABT.bindInheritAnnotation body (Type.universal x))
+      check e (ABT.bindInheritAnnotation body (universal' () x))
   go (Term.Lam' body) (Type.Arrow' i o) = do -- =>I
     x <- ABT.freshen body freshenVar
     markThenRetract0 x $ do
@@ -1328,10 +1349,10 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   where -- Rules from figure 9
   go :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
   go _ (Type.Ref' r) (Type.Ref' r2) | r == r2 = pure () -- `Unit`
-  go ctx t1@(Type.Universal' v1) t2@(Type.Universal' v2) -- `Var`
+  go ctx t1@(Type.Var' (TypeVar.Universal v1)) t2@(Type.Var' (TypeVar.Universal v2)) -- `Var`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
-  go ctx t1@(Type.Existential' _ v1) t2@(Type.Existential' _ v2) -- `Exvar`
+  go ctx t1@(Type.Var' (TypeVar.Existential _ v1)) t2@(Type.Var' (TypeVar.Existential _ v2)) -- `Exvar`
     | v1 == v2 && wellformedType ctx t1 && wellformedType ctx t2
     = pure ()
   go _ (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do -- `-->`
@@ -1351,13 +1372,13 @@ subtype tx ty = scope (InSubtype tx ty) $ do
     v <- ABT.freshen t2 freshenTypeVar
     markThenRetract0 v $ do
       v' <- extendUniversal v
-      t2 <- pure $ ABT.bindInheritAnnotation t2 (Type.universal v')
+      t2 <- pure $ ABT.bindInheritAnnotation t2 (universal' () v')
       subtype t t2
   go _ (Type.Forall' t) t2 = do
     v0 <- ABT.freshen t freshenTypeVar
     markThenRetract0 v0 $ do
       v <- extendExistential v0
-      t <- pure $ ABT.bindInheritAnnotation t (Type.existential B.Blank v)
+      t <- pure $ ABT.bindInheritAnnotation t (existential' () B.Blank v)
       t1 <- applyM t
       subtype t1 t2
   go _ (Type.Effect1' e1 a1) (Type.Effect1' e2 a2) = do
@@ -1368,10 +1389,10 @@ subtype tx ty = scope (InSubtype tx ty) $ do
   go _ (Type.Effect1' es a) a2 = do
      subtype es (Type.effects (loc es) [])
      subtype a a2
-  go ctx (Type.Existential' b v) t -- `InstantiateL`
+  go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateL b v t
-  go ctx t (Type.Existential' b v) -- `InstantiateR`
+  go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
     | Set.member v (existentials ctx) && notMember v (Type.freeVars t) =
     instantiateR t b v
   go _ (Type.Effects' es1) (Type.Effects' es2) = do
@@ -1385,7 +1406,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
 
   expand :: Type v loc -> Bool
   expand t = case t of
-    Type.Existential' _ _ -> True
+    Type.Var' (TypeVar.Existential _ _) -> True
     Type.App' _ _ -> True
     Type.Ref' _ -> True
     _ -> False
@@ -1404,14 +1425,14 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
     Nothing -> go ctx
   where
     go ctx = case t of
-      Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
-        solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v)) >>=
+      Type.Var' (TypeVar.Existential _ v2) | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
+        solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
           maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstLArr
         [i',o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype (Type.arrow (loc t)
-                                                 (Type.existentialp (loc i) i')
-                                                 (Type.existentialp (loc o) o')))
+                                                 (existentialp (loc i) i')
+                                                 (existentialp (loc o) o')))
         replaceContext (existential v)
                        [existential o', existential i', s]
         instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
@@ -1419,8 +1440,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
       Type.App' x y -> do -- analogue of InstLArr
         [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
         let s = Solved blank v (Type.Monotype (Type.app (loc t)
-                                                  (Type.existentialp (loc x) x')
-                                                  (Type.existentialp (loc y) y')))
+                                                  (existentialp (loc x) x')
+                                                  (existentialp (loc y) y')))
         replaceContext (existential v)
                        [existential y', existential x', s]
         applyM x >>= instantiateL B.Blank x'
@@ -1428,8 +1449,8 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
       Type.Effect1' es vt -> do
         es' <- freshenVar Var.inferAbility
         vt' <- freshenVar Var.inferOther
-        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                      (Type.existentialp (loc vt) vt')
+        let t' = Type.effect1 (loc t) (existentialp (loc es) es')
+                                      (existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
         replaceContext (existential v)
                        [existential es', existential vt', s]
@@ -1438,7 +1459,7 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
       Type.Effects' es -> do
         es' <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
         let locs = loc <$> es
-            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            t' = Type.effects (loc t) (uncurry existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
         replaceContext (existential v)
                        ((existential <$> es') ++ [s])
@@ -1448,7 +1469,7 @@ instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $
         v0 <- ABT.freshen body freshenTypeVar
         markThenRetract0 v0 $ do
           v <- extendUniversal v0
-          instantiateL B.Blank v (ABT.bindInheritAnnotation body (Type.universal v))
+          instantiateL B.Blank v (ABT.bindInheritAnnotation body (universal' () v))
       _ -> failWith $ TypeMismatch ctx
 
 nameFrom :: Var v => v -> Type v loc -> v
@@ -1468,15 +1489,15 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
     Nothing -> go ctx
   where
     go ctx = case t of
-      Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
-        solve ctx v2 (Type.Monotype (Type.existentialp (loc t) v)) >>=
+      Type.Var' (TypeVar.Existential _ v2) | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
+        solve ctx v2 (Type.Monotype (existentialp (loc t) v)) >>=
           maybe (failWith $ TypeMismatch ctx) setContext
       Type.Arrow' i o -> do -- InstRArrow
         [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
         let s = Solved blank v (Type.Monotype
                           (Type.arrow (loc t)
-                            (Type.existentialp (loc i) i')
-                            (Type.existentialp (loc o) o')))
+                            (existentialp (loc i) i')
+                            (existentialp (loc o) o')))
         replaceContext (existential v)
                        [existential o', existential i', s]
         ctx <- instantiateL B.Blank i' i >> getContext
@@ -1487,15 +1508,15 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         -- 2. add v' = foo' a' to the context
         -- 3. recurse to refine the types of foo' and a'
         [x', y'] <- traverse freshenVar [nameFrom Var.inferTypeConstructor x, nameFrom Var.inferTypeConstructorArg y]
-        let s = Solved blank v (Type.Monotype (Type.app (loc t) (Type.existentialp (loc x) x') (Type.existentialp (loc y) y')))
+        let s = Solved blank v (Type.Monotype (Type.app (loc t) (existentialp (loc x) x') (existentialp (loc y) y')))
         replaceContext (existential v) [existential y', existential x', s]
         applyM x >>= \x -> instantiateR x B.Blank x'
         applyM y >>= \y -> instantiateR y B.Blank y'
       Type.Effect1' es vt -> do
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)
-        let t' = Type.effect1 (loc t) (Type.existentialp (loc es) es')
-                                      (Type.existentialp (loc vt) vt')
+        let t' = Type.effect1 (loc t) (existentialp (loc es) es')
+                                      (existentialp (loc vt) vt')
             s = Solved blank v (Type.Monotype t')
         replaceContext (existential v)
                        [existential es', existential vt', s]
@@ -1504,7 +1525,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
       Type.Effects' es -> do
         es' <- traverse (\e -> freshenVar (nameFrom Var.inferAbility e)) es
         let locs = loc <$> es
-            t' = Type.effects (loc t) (uncurry Type.existentialp <$> locs `zip` es')
+            t' = Type.effects (loc t) (uncurry existentialp <$> locs `zip` es')
             s = Solved blank v $ Type.Monotype t'
         replaceContext (existential v)
                        ((existential <$> es') ++ [s])
@@ -1515,7 +1536,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
         x' <- ABT.freshen body freshenTypeVar
         markThenRetract0 x' $ do
           appendContext [existential x']
-          instantiateR (ABT.bindInheritAnnotation body (Type.existential B.Blank x')) B.Blank v
+          instantiateR (ABT.bindInheritAnnotation body (existential' () B.Blank x')) B.Blank v
       _ -> failWith $ TypeMismatch ctx
 
 -- | solve (ΓL,α^,ΓR) α τ = (ΓL,α^ = τ,ΓR)
@@ -1555,11 +1576,11 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
       -- 2b. If no:
       Nothing -> case r of
         -- It's an unsolved existential, instantiate it to all of ambient
-        Type.Existential' b v -> do
+        Type.Var' (TypeVar.Existential b v) -> do
           let et2 = Type.effects (loc r) ambient
           -- instantiate it to `{}` if can't cover all of ambient
-          instantiateR et2 b v 
-            `orElse` instantiateR (Type.effects (loc r) []) b v 
+          instantiateR et2 b v
+            `orElse` instantiateR (Type.effects (loc r) []) b v
             `orElse` die1
           go ambient rs
         _ -> -- find unsolved existential, 'e, that appears in ambient
@@ -1570,7 +1591,7 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
             Just (b, e') -> do
               -- introduce fresh existential 'e2 to context
               e2' <- extendExistential e'
-              let et2 = Type.effects (loc r) [r, Type.existentialp (loc r) e2']
+              let et2 = Type.effects (loc r) [r, existentialp (loc r) e2']
               instantiateR et2 b e' `orElse` die r
               go ambient rs
             _ -> die r
@@ -1583,7 +1604,7 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0 where
   -- no remaining unbound existentials left in ambient, we try to instantiate
   -- the request to the ambient effect list
   die r = case r of
-    Type.Existential' b v ->
+    Type.Var' (TypeVar.Existential b v) ->
       instantiateL b v (Type.effects (loc r) ambient0) `orElse` die1
       -- instantiateL b v (Type.effects (loc r) []) `orElse` die1
     _ -> die1 -- and if that doesn't work, then we're really toast
@@ -1722,7 +1743,7 @@ isRedundant userType0 inferredType0 = do
   -- to `∀ a . a -> a` before comparison to `Nat -> Nat`, otherwise the
   -- typechecker will solve `a = Nat` and call the types equal!
   userType <- existentializeArrows userType0
-  inferredType <- Type.generalizeExistentials <$> applyM inferredType0
+  inferredType <- generalizeExistentials' <$> applyM inferredType0
   -- We already know `inferred <: userType`, otherwise the user's given
   -- type would have caused the program not to typecheck! Ex: if user writes
   -- `: Nat -> Nat` when it has an inferred type of `a -> a`. So we only

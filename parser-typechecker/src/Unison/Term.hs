@@ -40,11 +40,9 @@ import           Unison.Referent (Referent)
 import qualified Unison.Referent as Referent
 import           Unison.Type (Type)
 import qualified Unison.Type as Type
-import qualified Unison.TypeVar as TypeVar
 import qualified Unison.Util.Relation as Rel
 import qualified Unison.ConstructorType as CT
 import Unison.Util.List (multimap, validate)
-import Unison.TypeVar (TypeVar)
 import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import           Unsafe.Coerce
@@ -263,9 +261,6 @@ extraMap vtf atf apf = \case
 
 matchCaseExtraMap :: (loc -> loc') -> MatchCase loc a -> MatchCase loc' a
 matchCaseExtraMap f (MatchCase p x y) = MatchCase (fmap f p) x y
-
-unTypeVar :: Ord v => AnnotatedTerm' (TypeVar b v) v a -> AnnotatedTerm v a
-unTypeVar = typeMap (ABT.vmap TypeVar.underlying)
 
 unannotate
   :: forall vt at ap v a . Ord v => AnnotatedTerm2 vt at ap v a -> Term' vt v
