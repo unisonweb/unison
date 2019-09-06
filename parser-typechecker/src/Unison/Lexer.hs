@@ -62,12 +62,6 @@ type IsVirtual = Bool -- is it a virtual semi or an actual semi?
 
 makePrisms ''Lexeme
 
-simpleWordyId :: String -> Lexeme
-simpleWordyId = flip WordyId Nothing
-
-simpleSymbolyId :: String -> Lexeme
-simpleSymbolyId = flip SymbolyId Nothing
-
 data Token a = Token {
   payload :: a,
   start :: Pos,
@@ -496,9 +490,6 @@ splitStringLit = go (inc mempty) "" where
   go !n !acc (x:rem)      = go (inc n) (x:acc) rem
   go _ _ []               = Left $ TextLiteralMissingClosingQuote ""
 
-appendFst :: Char -> (String, a) -> (String, a)
-appendFst c (s, r) = (c : s, r)
-
 -- Mapping between characters and their escape codes. Use parse/showEscapeChar
 -- to convert.
 escapeChars :: [(Char, Char)]
@@ -583,11 +574,6 @@ wordyIdChar ch =
 isEmoji :: Char -> Bool
 isEmoji c = c >= '\x1F300' && c <= '\x1FAFF'
 
-splitOn :: Char -> String -> [String]
-splitOn c = unfoldr step where
-  step [] = Nothing
-  step s = Just (case break (== c) s of (l,r) -> (l, drop 1 r))
-
 symbolyId :: String -> Either Err (String, String)
 symbolyId r@('.':ch:_) | isSpace ch || isDelimeter ch
                        = symbolyId0 r -- lone dot treated as an operator
@@ -622,18 +608,6 @@ shortHash s = case SH.fromString potentialHash of
   Nothing -> Left (InvalidShortHash potentialHash)
   Just x  -> Right (x, rem)
   where (potentialHash, rem) = break ((||) <$> isSpace <*> (== '`')) s
-
--- Strips off qualified name, ex: `Int.inc -> `(Int, inc)`
-splitWordy :: String -> (String, String)
-splitWordy s =
-  let qn = reverse . drop 1 . dropWhile wordyIdChar . reverse $ s
-  in (qn, if null qn then s else drop (length qn + 1) s)
-
--- Strips off qualified name, ex: `Int.+` -> `(Int, +)`
-splitSymboly :: String -> (String,String)
-splitSymboly s =
-  let qn = reverse . dropWhile symbolyIdChar . reverse $ s
-  in (qn, if null qn then s else drop (length qn + 1) s)
 
 -- Returns either an error or an id and a remainder
 symbolyId0 :: String -> Either Err (String, String)
@@ -682,9 +656,6 @@ delimiters = Set.fromList "()[]{},?;"
 isDelimeter :: Char -> Bool
 isDelimeter ch = Set.member ch delimiters
 
-reserved :: Set Char
-reserved = Set.fromList "=:`\""
-
 reservedOperators :: Set String
 reservedOperators = Set.fromList ["->", ":"]
 
@@ -700,9 +671,6 @@ incBy rem pos@(Pos line col) = case rem of
 
 debugLex'' :: [Token Lexeme] -> String
 debugLex'' = show . fmap payload . tree
-
-debugLex :: String -> String -> IO ()
-debugLex scope = putStrLn . debugLex'' . lexer scope
 
 debugLex' :: String -> String
 debugLex' =  debugLex'' . lexer "debugLex"

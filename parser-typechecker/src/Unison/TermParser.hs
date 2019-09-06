@@ -40,9 +40,6 @@ import qualified Unison.Var as Var
 
 import Unison.Reference (Reference)
 
-watch :: Show a => String -> a -> a
-watch msg a = let !_ = trace (msg ++ ": " ++ show a) () in a
-
 {-
 Precedence of language constructs is identical to Haskell, except that all
 operators (like +, <*>, or any sequence of non-alphanumeric characters) are
@@ -281,9 +278,6 @@ and = label "and" $ f <$> reserved "and" <*> termLeaf <*> termLeaf
 or = label "or" $ f <$> reserved "or" <*> termLeaf <*> termLeaf
   where f kw x y = Term.or (ann kw <> ann y) x y
 
-var :: Var v => L.Token v -> AnnotatedTerm v Ann
-var t = Term.var (ann t) (L.payload t)
-
 seqOp :: Ord v => P v Pattern.SeqOp
 seqOp =
   (Pattern.Snoc <$ matchToken (L.SymbolyId ":+" Nothing))
@@ -442,10 +436,6 @@ toBindings b = let
     sub = ABT.substsInheritAnnotation substs
     in [ ((a, v'), sub e) | (((a,_),e), v') <- bs `zip` vs' ]
   in finishBindings (expand =<< b)
-
-topLevelBlock
-  :: forall v b . Var v => String -> P v (L.Token ()) -> P v b -> TermP v
-topLevelBlock = block' True
 
 -- subst
 -- use Foo.Bar + blah
