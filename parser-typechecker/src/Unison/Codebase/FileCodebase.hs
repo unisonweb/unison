@@ -124,8 +124,10 @@ branchesDir root = root </> "paths"
 branchHeadDir root = branchesDir root </> "_head"
 editsDir root = root </> "patches"
 
-termDir, declDir :: CodebasePath -> Reference.Id -> FilePath
-termDir root r = termsDir root </> componentIdToString r
+termDir :: CodebasePath -> Reference -> FilePath
+termDir root r = termsDir root </> referenceToDir r
+
+declDir :: CodebasePath -> Reference.Id -> FilePath
 declDir root r = typesDir root </> componentIdToString r
 
 referenceToDir :: Reference -> FilePath
@@ -191,10 +193,12 @@ encodeFileName t = let
      else if t == ".." then "$dotdot$"
      else go t
 
-termPath, typePath, declPath :: CodebasePath -> Reference.Id -> FilePath
-termPath path r = termDir path r </> "compiled.ub"
-typePath path r = termDir path r </> "type.ub"
+termPath, declPath :: CodebasePath -> Reference.Id -> FilePath
+termPath path r = termDir path (Reference.DerivedId r) </> "compiled.ub"
 declPath path r = declDir path r </> "compiled.ub"
+
+typePath :: CodebasePath -> Reference -> FilePath
+typePath path r = termDir path r </> "type.ub"
 
 branchPath :: CodebasePath -> Hash.Hash -> FilePath
 branchPath root h = branchesDir root </> hashToString h ++ ".ub"
@@ -438,14 +442,31 @@ putTerm putV putA path h e typ = liftIO $ do
   let typeForIndexing = Type.removeAllEffectVars typ
       rootTypeHash = Type.toReference typeForIndexing
       typeMentions = Type.toReferenceMentions typeForIndexing
+      ref = Reference.DerivedId h
   S.putWithParentDirs (V1.putTerm putV putA) (termPath path h) e
-  S.putWithParentDirs (V1.putType putV putA) (typePath path h) typ
+  S.putWithParentDirs (V1.putType putV putA) (typePath path ref) typ
   -- Add the term as a dependent of its dependencies
-  let r = Referent.Ref (Reference.DerivedId h)
+  let r = Referent.Ref ref
   let deps = deleteComponent h $ Term.dependencies e <> Type.dependencies typ
   traverse_ (touchIdFile h . dependentsDir path) deps
   traverse_ (touchReferentFile r . typeMentionsIndexDir path) typeMentions
   touchReferentFile r (typeIndexDir path rootTypeHash)
+
+putBuiltinTerm
+  :: ( MonadIO m
+     , Var v
+     )
+  => S.Put v
+  -> S.Put a
+  -> FilePath
+  -> Text
+  -> Type v a
+  -> m ()
+putBuiltinTerm putV putA path name typ = liftIO $
+  S.putWithParentDirs
+    (V1.putType putV putA)
+    (typePath path (Reference.Builtin name))
+    typ
 
 putDecl
   :: MonadIO m
@@ -506,6 +527,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
                      getTypeOfTerm
                      getDecl
                      (putTerm putV putA path)
+                     (putBuiltinTerm putV putA path)
                      (putDecl putV putA path)
                      (getRootBranch path)
                      (putRootBranch path)
@@ -526,7 +548,7 @@ codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
     in  c
  where
   getTerm h = liftIO $ S.getFromFile (V1.getTerm getV getA) (termPath path h)
-  getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path h)
+  getTypeOfTerm h = liftIO $ S.getFromFile (V1.getType getV getA) (typePath path (Reference.DerivedId h))
   getDecl h = liftIO $ S.getFromFile
     (V1.getEither (V1.getEffectDeclaration getV getA)
                   (V1.getDataDeclaration getV getA)

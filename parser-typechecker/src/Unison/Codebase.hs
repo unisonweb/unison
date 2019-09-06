@@ -45,6 +45,9 @@ data Codebase m v a =
            , getTypeDeclaration :: Reference.Id -> m (Maybe (Decl v a))
 
            , putTerm            :: Reference.Id -> Term v a -> Type v a -> m ()
+             -- Like 'putTerm', but there's no term to put into the codebase,
+             -- just a type.
+           , putBuiltinTerm     :: Text -> Type v a -> m ()
            , putTypeDeclaration :: Reference.Id -> Decl v a -> m ()
 
            , getRootBranch      :: m (Branch m)
@@ -83,6 +86,15 @@ initializeCodebase c = do
                               (Map.fromList Builtin.builtinEffectDecls)
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
+
+  -- Add builtin terms
+  for_ (Map.toList Builtin.termRefTypes) $ \(reference, typ) ->
+    case reference of
+      Reference.Builtin name ->
+        putBuiltinTerm c name (Parser.Intrinsic <$ typ)
+      Reference.DerivedId{} ->
+        error "Derived builtin?"
+
   let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
   let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
   putRootBranch c (Branch.one b0)
