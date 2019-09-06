@@ -6,20 +6,18 @@
 
 module Unison.CommandLine.Main where
 
+import Unison.Prelude
+
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State (runStateT)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.IORef
-import Data.Map (Map)
-import Data.Maybe (fromMaybe)
-import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import System.FilePath ((</>))
-import Safe
+import System.IO.Error (catchIOError)
+import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..))
@@ -135,7 +133,9 @@ main dir initialPath _initialFile startRuntime codebase = do
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
-    (config, cancelConfig)   <- watchConfig $ dir </> ".unisonConfig"
+    (config, cancelConfig)   <-
+      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
                                                       readIORef rootRef)

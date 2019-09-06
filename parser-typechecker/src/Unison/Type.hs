@@ -12,19 +12,15 @@
 
 module Unison.Type where
 
+import Unison.Prelude
+
 import qualified Control.Monad.Writer.Strict as Writer
-import Control.Monad (join)
-import Data.Functor
 import Data.Functor.Identity (runIdentity)
 import Data.Functor.Const (Const(..), getConst)
 import Data.Monoid (Any(..))
-import           Data.List
 import           Data.List.Extra (nubOrd)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (Text)
-import           GHC.Generics
 import           Prelude.Extras (Eq1(..),Show1(..),Ord1(..))
 import qualified Unison.ABT as ABT
 import           Unison.Blank
@@ -219,12 +215,13 @@ derivedBase32Hex r a = ref a r
 -- derivedBase58' :: Text -> Reference
 -- derivedBase58' base58 = Reference.derivedBase58 base58 0 1
 
-intRef, natRef, floatRef, booleanRef, textRef, vectorRef, bytesRef, effectRef :: Reference
+intRef, natRef, floatRef, booleanRef, textRef, charRef, vectorRef, bytesRef, effectRef :: Reference
 intRef = Reference.Builtin "Int"
 natRef = Reference.Builtin "Nat"
 floatRef = Reference.Builtin "Float"
 booleanRef = Reference.Builtin "Boolean"
 textRef = Reference.Builtin "Text"
+charRef = Reference.Builtin "Char"
 vectorRef = Reference.Builtin "Sequence"
 bytesRef = Reference.Builtin "Bytes"
 effectRef = Reference.Builtin "Effect"
@@ -246,6 +243,9 @@ boolean a = ref a booleanRef
 
 text :: Ord v => a -> Type v a
 text a = ref a textRef
+
+char :: Ord v => a -> Type v a
+char a = ref a charRef
 
 vector :: Ord v => a -> Type v a
 vector a = ref a vectorRef
@@ -287,19 +287,19 @@ introOuter a v body = ABT.tm' a (IntroOuter (ABT.abs' a v body))
 
 iff :: Var v => Type v ()
 iff = forall () aa $ arrows (f <$> [boolean(), a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var () aa
         f x = ((), x)
 
 iff' :: Var v => a -> Type v a
 iff' loc = forall loc aa $ arrows (f <$> [boolean loc, a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var loc aa
         f x = (loc, x)
 
 iff2 :: Var v => a -> Type v a
 iff2 loc = forall loc aa $ arrows (f <$> [a, a]) a
-  where aa = ABT.v' "a"
+  where aa = Var.named "a"
         a = var loc aa
         f x = (loc, x)
 
@@ -330,11 +330,11 @@ universal' :: Ord v => a -> v -> Type (TypeVar b v) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 v' :: Var v => Text -> Type v ()
-v' s = ABT.var (ABT.v' s)
+v' s = ABT.var (Var.named s)
 
 -- Like `v'`, but creates an annotated variable given an annotation
 av' :: Var v => a -> Text -> Type v a
-av' a s = ABT.annotatedVar a (ABT.v' s)
+av' a s = ABT.annotatedVar a (Var.named s)
 
 forall' :: Var v => a -> [Text] -> Type v a -> Type v a
 forall' a vs body = foldr (forall a) body (Var.named <$> vs)
@@ -383,7 +383,7 @@ stripEffect t = ([], t)
 -- `(a -> (a -> b) -> b)`
 flipApply :: Var v => Type v () -> Type v ()
 flipApply t = forall() b $ arrow() (arrow() t (var() b)) (var() b)
-  where b = ABT.fresh t (ABT.v' "b")
+  where b = ABT.fresh t (Var.named "b")
 
 generalize' :: Var v => Var.Type -> Type v a -> Type v a
 generalize' k t = generalize vsk t where
@@ -541,7 +541,7 @@ generalizeLowercase except t = foldr (forall (ABT.annotation t)) t vars
     [ v | v <- Set.toList (ABT.freeVars t `Set.difference` except), Var.isLowercase v ]
 
 -- Convert all free variables in `allowed` to variables bound by an `introOuter`.
-freeVarsToOuters :: Var v => Set v -> Type v a -> Type v a
+freeVarsToOuters :: ABT.Var v => Set v -> Type v a -> Type v a
 freeVarsToOuters allowed t = foldr (introOuter (ABT.annotation t)) t vars
   where vars = Set.toList $ ABT.freeVars t `Set.intersection` allowed
 
@@ -604,7 +604,8 @@ toReference t = Reference.Derived (ABT.hash t) 0 1
 toReferenceMentions :: Var v => Type v a -> Set Reference
 toReferenceMentions ty =
   let (vs, _) = unforall' ty
-  in Set.fromList $ toReference . generalize vs <$> ABT.subterms ty
+      gen ty = generalize (Set.toList (freeVars ty)) $ generalize vs ty
+  in Set.fromList $ toReference . gen <$> ABT.subterms ty
 
 instance Hashable1 F where
   hash1 hashCycle hash e =

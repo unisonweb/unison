@@ -12,19 +12,11 @@
 
 module Unison.Runtime.IR where
 
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class (liftIO)
+import Unison.Prelude
+
 import Control.Monad.State.Strict (StateT, gets, modify, runStateT, lift)
 import Data.Bifunctor (first, second)
-import Data.Foldable
-import Data.Functor (void)
 import Data.IORef
-import Data.Int (Int64)
-import Data.Map (Map)
-import Data.Maybe (isJust,fromMaybe)
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Word (Word64)
 import Unison.Hash (Hash)
 import Unison.NamePrinter (prettyHashQualified0)
 import Unison.Symbol (Symbol)
@@ -50,7 +42,6 @@ import qualified Unison.Util.CycleTable as CyT
 import qualified Unison.Util.CyclicOrd as COrd
 import qualified Unison.Util.Pretty as P
 import qualified Unison.Var as Var
--- import Debug.Trace
 
 type Pos = Int
 type Arity = Int
@@ -85,7 +76,7 @@ toSymbolC = SymbolC False
 type RefID = Int
 
 data Value e cont
-  = I Int64 | F Double | N Word64 | B Bool | T Text | Bs Bytes.Bytes
+  = I Int64 | F Double | N Word64 | B Bool | T Text | C Char | Bs Bytes.Bytes
   | Lam Arity (UnderapplyStrategy e cont) (IR e cont)
   | Data R.Reference ConstructorId [Value e cont]
   | Sequence (Sequence.Seq (Value e cont))
@@ -101,6 +92,7 @@ instance (Eq cont, Eq e) => Eq (Value e cont) where
   N x == N y = x == y
   B x == B y = x == y
   T x == T y = x == y
+  C x == C y = x == y
   Bs x == Bs y = x == y
   Lam n us _ == Lam n2 us2 _ = n == n2 && us == us2
   Data r1 cid1 vs1 == Data r2 cid2 vs2 = r1 == r2 && cid1 == cid2 && vs1 == vs2
@@ -127,6 +119,10 @@ unit = Data DD.unitRef 0 []
 
 pair :: (Value e cont, Value e cont) -> Value e cont
 pair (a, b) = Data DD.pairRef 0 [a, b]
+
+tuple :: [Value e cont] -> Value e cont
+tuple [v] = v
+tuple vs = foldr (curry pair) unit vs
 
 -- When a lambda is underapplied, for instance, `(x y -> x) 19`, we can do
 -- one of two things: we can substitute away the arguments that have
@@ -176,7 +172,7 @@ pattern Concat = Pattern.Concat
 -- Patterns - for now this follows Unison.Pattern exactly, but
 -- we may switch to more efficient runtime representation of patterns
 data Pattern
-  = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text
+  = PatternI Int64 | PatternF Double | PatternN Word64 | PatternB Bool | PatternT Text | PatternC Char
   | PatternData R.Reference ConstructorId [Pattern]
   | PatternSequenceLiteral [Pattern]
   | PatternSequenceCons Pattern Pattern
@@ -352,6 +348,7 @@ prettyValue ppe prettyE prettyCont = pv
     N n -> P.shown n
     B b -> if b then "true" else "false"
     T t -> P.shown t
+    C c -> P.shown c
     Bs bs -> P.shown bs
     Lam arity _u b -> P.parenthesize $
       ("Lambda " <> P.string (show arity)) `P.hang`
@@ -459,6 +456,7 @@ compile0 env bound t =
     Term.Float' n -> Leaf . Val . F $ n
     Term.Boolean' n -> Leaf . Val . B $ n
     Term.Text' n -> Leaf . Val . T $ n
+    Term.Char' n -> Leaf . Val . C $ n
     Term.And' x y -> And (toZ "and" t x) (go y)
     Term.LamsNamed' vs body -> Leaf . Val $
       Lam (length vs)
@@ -547,6 +545,7 @@ compile0 env bound t =
         Pattern.Nat n -> PatternN n
         Pattern.Float n -> PatternF n
         Pattern.Text t -> PatternT t
+        Pattern.Char c -> PatternC c
         Pattern.Constructor r cid args -> PatternData r cid (compilePattern <$> args)
         Pattern.As pat -> PatternAs (compilePattern pat)
         Pattern.EffectPure p -> PatternPure (compilePattern p)
@@ -584,6 +583,7 @@ decompileImpl v = case v of
   F n -> pure $ Term.float () n
   B b -> pure $ Term.boolean () b
   T t -> pure $ Term.text () t
+  C c -> pure $ Term.char () c
   Bs bs -> pure $ Term.builtin() "Bytes.fromSequence" `Term.apps'` [bsv] where
     bsv = Term.seq'() . Sequence.fromList $
             [ Term.nat() (fromIntegral w8) | w8 <- Bytes.toWord8s bs ]
@@ -773,6 +773,7 @@ decompileIR stack = \case
     PatternF f -> Pattern.Float f
     PatternB b -> Pattern.Boolean b
     PatternT t -> Pattern.Text t
+    PatternC c -> Pattern.Char c
     PatternData r cid pats ->
       Pattern.Constructor r cid (d <$> pats)
     PatternSequenceLiteral ps -> Pattern.SequenceLiteral $ decompilePattern <$> ps
@@ -921,14 +922,16 @@ instance Eq SymbolC where
 instance Ord SymbolC where
   SymbolC _ s `compare` SymbolC _ s2 = s `compare` s2
 
+instance ABT.Var SymbolC where
+  freshIn vs (SymbolC i s) =
+    SymbolC i (ABT.freshIn (Set.map underlyingSymbol vs) s)
+
 instance Var SymbolC where
   typed s = SymbolC False (Var.typed s)
   typeOf (SymbolC _ s) = Var.typeOf s
   retype t (SymbolC b s) = SymbolC b (Var.retype t s)
   freshId (SymbolC _ s) = Var.freshId s
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
-  freshIn vs (SymbolC i s) =
-    SymbolC i (Var.freshIn (Set.map underlyingSymbol vs) s)
 
 instance (Show e, Show cont) => Show (Value e cont) where
   show (I n) = show n
@@ -936,6 +939,7 @@ instance (Show e, Show cont) => Show (Value e cont) where
   show (N n) = show n
   show (B b) = show b
   show (T t) = show t
+  show (C c) = show c
   show (Bs bs) = show bs
   show (Lam n e ir) = "(Lam " <> show n <> " " <> show e <> " (" <> show ir <> "))"
   show (Data r cid vs) = "(Data " <> show r <> " " <> show cid <> " " <> show vs <> ")"
@@ -981,6 +985,7 @@ instance (CyclicEq e, CyclicEq cont) => CyclicEq (Value e cont) where
   cyclicEq _ _ (N x) (N y) = pure (x == y)
   cyclicEq _ _ (B x) (B y) = pure (x == y)
   cyclicEq _ _ (T x) (T y) = pure (x == y)
+  cyclicEq _ _ (C x) (C y) = pure (x == y)
   cyclicEq _ _ (Bs x) (Bs y) = pure (x == y)
   cyclicEq h1 h2 (Lam arity1 us _) (Lam arity2 us2 _) =
     if arity1 == arity2 then cyclicEq h1 h2 us us2
@@ -1027,7 +1032,8 @@ constructorId v = case v of
   Requested _ -> 10
   Ref{} -> 11
   Cont _ -> 12
-  UninitializedLetRecSlot{} -> 13
+  C _ -> 13
+  UninitializedLetRecSlot{} -> 14
 
 instance (CyclicOrd e, CyclicOrd cont) => CyclicOrd (UnderapplyStrategy e cont) where
   cyclicOrd h1 h2 (FormClosure hash1 _ vs1) (FormClosure hash2 _ vs2) =

@@ -3,9 +3,9 @@
 
 module Unison.Paths where
 
+import Unison.Prelude
+
 import Data.List
-import Data.Maybe
-import GHC.Generics
 import Unison.ABT (V)
 import Unison.Term (Term)
 import Unison.Var (Var)

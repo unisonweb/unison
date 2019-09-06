@@ -1,16 +1,12 @@
 module Unison.Util.Relation where
 
+import Unison.Prelude hiding (empty, toList)
+
 import           Prelude                 hiding ( null, map, filter )
 import           Data.Bifunctor                 ( first, second )
-import           Data.Foldable                  ( foldl' )
 import qualified Data.List                     as List
 import qualified Data.Map                      as M
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as S
-import           Data.Maybe                     ( isJust
-                                                , fromMaybe
-                                                )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Unison.Hashable               as H
 

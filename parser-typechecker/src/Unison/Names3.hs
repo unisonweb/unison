@@ -3,10 +3,8 @@
 
 module Unison.Names3 where
 
-import Data.Foldable (toList)
-import Data.List (foldl')
-import Data.Sequence (Seq)
-import Data.Set (Set)
+import Unison.Prelude
+
 import Unison.HashQualified (HashQualified)
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
@@ -37,6 +35,30 @@ type ResolutionResult v a r = Either (Seq (ResolutionFailure v a)) r
 
 filterTypes :: (Name -> Bool) -> Names0 -> Names0
 filterTypes = Unison.Names2.filterTypes
+
+-- Simple 2 way diff, has the property that:
+--  addedNames (diff0 n1 n2) == removedNames (diff0 n2 n1)
+--
+-- `addedNames` are names in `n2` but not `n1`
+-- `removedNames` are names in `n1` but not `n2`
+diff0 :: Names0 -> Names0 -> Diff
+diff0 n1 n2 = Diff n1 added removed where
+  added = Names0 (terms0 n2 `R.difference` terms0 n1)
+                 (types0 n2 `R.difference` types0 n1)
+  removed = Names0 (terms0 n1 `R.difference` terms0 n2)
+                   (types0 n1 `R.difference` types0 n2)
+
+data Diff =
+  Diff { originalNames :: Names0
+       , addedNames    :: Names0
+       , removedNames  :: Names0
+       } deriving Show
+
+isEmptyDiff :: Diff -> Bool
+isEmptyDiff d = isEmpty0 (addedNames d) && isEmpty0 (removedNames d)
+
+isEmpty0 :: Names0 -> Bool
+isEmpty0 n = R.null (terms0 n) && R.null (types0 n)
 
 -- Add `n1` to `currentNames`, shadowing anything with the same name and
 -- moving shadowed definitions into `oldNames` so they can can still be
@@ -193,3 +215,8 @@ expandWildcardImport prefix ns =
   go (full, _) = case Name.stripNamePrefix prefix full of
     Nothing -> Nothing
     Just suffix -> Just (suffix, full)
+
+deleteTerms0 :: [Name] -> Names0 -> Names0
+deleteTerms0 ns n0 = names0 terms' (types0 n0)
+  where
+  terms' = R.subtractDom (Set.fromList ns) (terms0 n0)

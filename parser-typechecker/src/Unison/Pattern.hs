@@ -1,18 +1,15 @@
-{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms, ViewPatterns, OverloadedStrings #-}
+{-# Language DeriveFunctor, DeriveTraversable, DeriveGeneric, PatternSynonyms,  OverloadedStrings #-}
 
 module Unison.Pattern where
 
+import Unison.Prelude
+
 import Data.List (intercalate)
-import Data.Int (Int64)
-import Data.Text (Text)
-import Data.Word (Word64)
 import Data.Foldable as Foldable
-import GHC.Generics
 import Unison.Reference (Reference)
 import qualified Unison.Hashable as H
 import qualified Unison.Type as Type
 import qualified Data.Set as Set
-import Data.Set (Set)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
@@ -42,6 +39,7 @@ data PatternP loc
   | NatP loc !Word64
   | FloatP loc !Double
   | TextP loc !Text
+  | CharP loc !Char
   | ConstructorP loc !Reference !Int [PatternP loc]
   | AsP loc (PatternP loc)
   | EffectPureP loc (PatternP loc)
@@ -68,6 +66,7 @@ instance Show (PatternP loc) where
   show (NatP  _ x) = "Nat " <> show x
   show (FloatP   _ x) = "Float " <> show x
   show (TextP   _ t) = "Text " <> show t
+  show (CharP   _ c) = "Char " <> show c
   show (ConstructorP _ r i ps) =
     "Constructor " <> intercalate " " [show r, show i, show ps]
   show (AsP         _ p) = "As " <> show p
@@ -97,6 +96,7 @@ pattern Int n = IntP () n
 pattern Nat n = NatP () n
 pattern Float n = FloatP () n
 pattern Text t = TextP () t
+pattern Char c = CharP () c
 pattern Constructor r cid ps = ConstructorP () r cid ps
 pattern As p = AsP () p
 pattern EffectPure p = EffectPureP () p
@@ -120,6 +120,7 @@ instance H.Hashable (PatternP p) where
   tokens (TextP _ t) = H.Tag 10 : H.tokens t
   tokens (SequenceLiteralP _ ps) = H.Tag 11 : concatMap H.tokens ps
   tokens (SequenceOpP _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
+  tokens (CharP _ c) = H.Tag 13 : H.tokens c
 
 instance Eq (PatternP loc) where
   UnboundP _ == UnboundP _ = True
@@ -146,6 +147,7 @@ foldMap' f p = case p of
     NatP _ _                -> f p
     FloatP _ _              -> f p
     TextP _ _               -> f p
+    CharP _ _               -> f p
     ConstructorP _ _ _ ps   -> f p <> foldMap (foldMap' f) ps
     AsP _ p'                -> f p <> foldMap' f p'
     EffectPureP _ p'        -> f p <> foldMap' f p'
@@ -175,4 +177,5 @@ labeledDependencies = Set.fromList . foldMap' (\case
   NatP _ _                -> [LD.typeRef Type.natRef]
   FloatP _ _              -> [LD.typeRef Type.floatRef]
   TextP _ _               -> [LD.typeRef Type.textRef]
+  CharP _ _               -> [LD.typeRef Type.charRef]
  )

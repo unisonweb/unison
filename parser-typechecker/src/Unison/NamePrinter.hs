@@ -1,6 +1,7 @@
 module Unison.NamePrinter where
 
-import           Data.String          (IsString, fromString)
+import Unison.Prelude
+
 import qualified Unison.HashQualified as HQ
 import qualified Unison.HashQualified' as HQ'
 import           Unison.Name          (Name)

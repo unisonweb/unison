@@ -3,16 +3,14 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 module Unison.Util.Find (
-  fuzzyFinder, fuzzyFindInBranch, fuzzyFindMatchArray, prefixFindInBranch
+  fuzzyFinder, simpleFuzzyFinder, simpleFuzzyScore, fuzzyFindInBranch, fuzzyFindMatchArray, prefixFindInBranch
   ) where
 
--- import           Debug.Trace
-import           Data.Foldable                (toList)
+import Unison.Prelude
+
+import qualified Data.Char as Char
 import qualified Data.List                    as List
-import           Data.Maybe                   (catMaybes)
-import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
-import           Data.String                  (fromString)
 -- http://www.serpentine.com/blog/2007/02/27/a-haskell-regular-expression-tutorial/
 -- https://www.stackage.org/haddock/lts-13.9/regex-base-0.93.2/Text-Regex-Base-Context.html -- re-exported by TDFA
 -- https://www.stackage.org/haddock/lts-13.9/regex-tdfa-1.2.3.1/Text-Regex-TDFA.html
@@ -39,6 +37,43 @@ fuzzyFinder query items render =
   sortAndCleanup $ fuzzyFindMatchArray query items render
   where
   sortAndCleanup = List.map snd . List.sortOn fst
+
+simpleFuzzyFinder :: forall a.
+  String -> [a] -> (a -> String) -> [(a, P.Pretty P.ColorText)]
+simpleFuzzyFinder query items render =
+  sortAndCleanup $ do
+    a <- items
+    let s = render a
+    score <- toList (simpleFuzzyScore query s)
+    pure ((a, hi s), score)
+  where
+  hi = highlightSimple query
+  sortAndCleanup = List.map fst . List.sortOn snd
+
+-- highlights `query` if it is a prefix of `s`, or if it
+-- appears in the final segement of s (after the final `.`)
+highlightSimple :: String -> String -> P.Pretty P.ColorText
+highlightSimple "" = P.string
+highlightSimple query = go where
+  go [] = mempty
+  go s@(h:t) | query `List.isPrefixOf` s = hiQuery <> go (drop len s)
+             | otherwise = P.string [h] <> go t
+  len = length query
+  hiQuery = P.hiBlack (P.string query)
+
+simpleFuzzyScore :: String -> String -> Maybe Int
+simpleFuzzyScore query s
+  | query `List.isPrefixOf` s = Just (bonus s 2)
+  | query `List.isSuffixOf` s = Just (bonus s 1)
+  | query `List.isInfixOf` s = Just (bonus s 3)
+  | lowerquery `List.isInfixOf` lowers = Just (bonus s 4)
+  | otherwise = Nothing
+  where
+  -- prefer relative names
+  bonus ('.':_) n = n*10
+  bonus _ n = n
+  lowerquery = Char.toLower <$> query
+  lowers = Char.toLower <$> s
 
 -- This logic was split out of fuzzyFinder because the `RE.MatchArray` has an
 -- `Ord` instance that helps us sort the fuzzy matches in a nice way. (see
@@ -97,7 +132,7 @@ fuzzyFindInBranch :: Names0
 fuzzyFindInBranch b hq =
   case HQ.toName hq of
     (Name.toString -> n) ->
-      fuzzyFinder n (candidates b hq)
+      simpleFuzzyFinder n (candidates b hq)
         (Name.toString . HQ.toName . SR.name)
 
 getName :: SearchResult -> (SearchResult, P.Pretty P.ColorText)

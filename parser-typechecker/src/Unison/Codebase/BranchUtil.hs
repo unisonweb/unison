@@ -1,6 +1,7 @@
 module Unison.Codebase.BranchUtil where
 
-import Data.Set (Set)
+import Unison.Prelude
+
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Unison.Codebase.Path (Path)
@@ -95,9 +96,9 @@ getTypeMetadataUnder (path,_) r b = Set.fromList <$> List.multimap mdList
 
 getBranch :: Path.Split -> Branch0 m -> Maybe (Branch m)
 getBranch (p, seg) b = case Path.toList p of
-  [] -> snd <$> Map.lookup seg (Branch._children b)
+  [] -> Map.lookup seg (Branch._children b)
   h : p ->
-    (Branch.head . snd <$> Map.lookup h (Branch._children b)) >>=
+    (Branch.head <$> Map.lookup h (Branch._children b)) >>=
       getBranch (Path.fromList p, seg)
 
 

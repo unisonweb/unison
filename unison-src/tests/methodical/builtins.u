@@ -1,0 +1,14 @@
+use Optional Some None
+
+> natTextRoundTrip =
+  Nat.fromText (Nat.toText 123) Universal.== Some 123
+
+> intTextRoundTripPos =
+  Int.fromText (Int.toText +123) Universal.== Some +123
+
+> intTextRoundTripNeg =
+  Int.fromText (Int.toText -123) Universal.== Some -123
+
+> intFloatRoundTrip = 
+    Float.round (Int.toFloat +123) Universal.== +123
+

@@ -19,15 +19,10 @@ module Unison.Builtin
   ,termRefTypes
   ) where
 
-import           Control.Applicative            ( liftA2
-                                                 , (<|>)
-                                                )
+import Unison.Prelude
+
 import           Data.Bifunctor                 ( second )
-import           Data.Foldable                  ( foldl', toList )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
@@ -120,11 +115,50 @@ builtinTermsByTypeMention =
 builtinTypeDependents :: R.Reference -> Set R.Reference
 builtinTypeDependents r = Rel.lookupRan r builtinDependencies
 
--- As with the terms, we should try to avoid changing these references, even
+-- WARNING:
+-- As with the terms, we should avoid changing these references, even
 -- if we decide to change their names.
 builtinTypes :: [(Name, R.Reference)]
-builtinTypes = liftA2 (,) Name.unsafeFromText R.Builtin <$>
-  ["Int", "Nat", "Float", "Boolean", "List", "Text", "Effect", "Bytes"]
+builtinTypes = Map.toList . Map.mapKeys Name.unsafeFromText
+                          $ foldl' go mempty builtinTypesSrc where
+  go m = \case
+    B' r -> Map.insert r (R.Builtin r) m
+    D' r -> Map.insert r (R.Builtin r) m
+    Rename' r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to rename `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
+      Nothing -> case Map.lookup r m of
+        Nothing -> error . Text.unpack $
+                "tried to rename `" <> r <> "` before it was declared."
+        Just t -> Map.insert name t . Map.delete r $ m
+    Alias' r name -> case Map.lookup name m of
+      Just _ -> error . Text.unpack $
+                "tried to alias `" <> r <> "` to `" <> name <> "`, " <>
+                "which already exists."
+      Nothing -> case Map.lookup r m of
+        Nothing -> error . Text.unpack $
+                  "tried to alias `" <> r <> "` before it was declared."
+        Just t -> Map.insert name t m
+
+-- WARNING: Don't delete any of these lines, only add corrections.
+builtinTypesSrc :: [BuiltinTypeDSL]
+builtinTypesSrc =
+  [ B' "Int"
+  , B' "Nat"
+  , B' "Float"
+  , B' "Boolean"
+  , B' "Sequence"
+  , Rename' "Sequence" "List"
+  , B' "Text"
+  , B' "Char"
+  , B' "Effect"
+  , B' "Bytes"
+  ]
+
+
+data BuiltinTypeDSL = B' Text | D' Text | Rename' Text Text | Alias' Text Text
+
 
 data BuiltinDSL v
   -- simple builtin: name=ref, type
@@ -185,7 +219,11 @@ builtinsSrc =
   , B "Int.isOdd" $ int --> boolean
   , B "Int.signum" $ int --> int
   , B "Int.negate" $ int --> int
+  , B "Int.mod" $ int --> int --> int
   , B "Int.truncate0" $ int --> nat
+  , B "Int.toText" $ int --> text
+  , B "Int.fromText" $ text --> optional int
+  , B "Int.toFloat" $ int --> float
 
   , B "Nat.+" $ nat --> nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
@@ -203,6 +241,8 @@ builtinsSrc =
   , B "Nat.isOdd" $ nat --> boolean
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
+  , B "Nat.fromText" $ text --> optional nat
+  , B "Nat.toFloat" $ nat --> float
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
@@ -281,6 +321,14 @@ builtinsSrc =
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
+  , B "Text.uncons" $ text --> optional (tuple [char, text])
+  , B "Text.unsnoc" $ text --> optional (tuple [text, char])
+
+  , B "Text.toCharList" $ text --> list char
+  , B "Text.fromCharList" $ list char --> text
+
+  , B "Char.toNat" $ char --> nat
+  , B "Char.fromNat" $ nat --> char
 
   , B "Bytes.empty" bytes
   , B "Bytes.fromList" $ list nat --> bytes
@@ -304,8 +352,6 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
-  , B "Effect.pure" $ forall2 "e" "a" (\e a -> a --> effect e a) -- Effect ambient e a
-  , B "Effect.bind" $ forall4 "e" "a" "ambient" "b" (\e a ambient b -> delayed (effectful e a) --> (a --> effectful ambient b) --> effect e a) -- Effect ambient e a
   ]
   where
     int = Type.int ()
@@ -314,6 +360,7 @@ builtinsSrc =
     float = Type.float ()
     text = Type.text ()
     bytes = Type.bytes ()
+    char = Type.char ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b
@@ -326,12 +373,6 @@ builtinsSrc =
         a = Var.named name
       in Type.forall () a (body $ Type.var () a)
 
-    forall2 :: Var v => Text -> Text -> (Type v -> Type v -> Type v) -> Type v
-    forall2 name1 name2 body = forall1 name1 (forall1 name2 . body)
-
-    forall4 :: Var v => Text -> Text -> Text -> Text -> (Type v -> Type v -> Type v -> Type v -> Type v) -> Type v
-    forall4 name1 name2 name3 name4 body = forall2 name1 name2 (\tv1 tv2 -> forall2 name3 name4 (body tv1 tv2))
-
     app :: Ord v => Type v -> Type v -> Type v
     app = Type.app ()
 
@@ -341,11 +382,10 @@ builtinsSrc =
     optional :: Ord v => Type v -> Type v
     optional arg = DD.optionalType () `app` arg
 
-    effect :: Ord v => Type v -> Type v -> Type v
-    effect e a = Type.effectType () `app` e `app` a
+    tuple :: Ord v => [Type v] -> Type v
+    tuple [t] = t
+    tuple ts = foldr pair (DD.unitType ()) ts
 
-    effectful :: Ord v => Type v -> Type v -> Type v
-    effectful = Type.effect1 ()
+    pair :: Ord v => Type v -> Type v -> Type v
+    pair l r = DD.pairType () `app` l `app` r
 
-    delayed :: Ord v => Type v -> Type v
-    delayed a = DD.unitType () --> a

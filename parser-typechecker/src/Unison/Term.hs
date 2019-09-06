@@ -12,23 +12,14 @@
 
 module Unison.Term where
 
--- import Debug.Trace
+import Unison.Prelude
+
 import Prelude hiding (and,or)
 import qualified Control.Monad.Writer.Strict as Writer
-import           Data.Functor (void, ($>))
-import           Data.Foldable (traverse_, toList)
-import           Data.Int (Int64)
-import           Data.List (foldl')
-import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Text (Text)
 import qualified Data.Text as Text
-import           Data.Sequence (Seq)
 import qualified Data.Sequence as Sequence
-import           Data.Word (Word64)
-import           GHC.Generics
 import           Prelude.Extras (Eq1(..), Show1(..))
 import           Text.Show
 import qualified Unison.ABT as ABT
@@ -57,7 +48,6 @@ import qualified Unison.Var as Var
 import           Unsafe.Coerce
 import Unison.Symbol (Symbol)
 import qualified Unison.Name as Name
-import Data.Maybe (mapMaybe)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 
@@ -72,6 +62,7 @@ data F typeVar typeAnn patternAnn a
   | Float Double
   | Boolean Bool
   | Text Text
+  | Char Char
   | Blank (B.Blank typeAnn)
   | Ref Reference
   -- First argument identifies the data type,
@@ -245,6 +236,7 @@ extraMap vtf atf apf = \case
   Float x -> Float x
   Boolean x -> Boolean x
   Text x -> Text x
+  Char x -> Char x
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x y -> Constructor x y
@@ -316,7 +308,7 @@ substTypeVars subs e = foldl' go e subs where
 -- will replace that type variable wherever it appears in type signatures of
 -- the term, avoiding capture by renaming ∀-binders.
 substTypeVar
-  :: (Ord v, Var vt)
+  :: (Ord v, ABT.Var vt)
   => vt
   -> Type vt b
   -> AnnotatedTerm' vt v a
@@ -346,7 +338,7 @@ substTypeVar vt ty = go Set.empty where
     (ABT.out -> ABT.Cycle body) -> ABT.cycle' loc (go bound body)
     _ -> error "unpossible"
 
-renameTypeVar :: (Ord v, Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
+renameTypeVar :: (Ord v, ABT.Var vt) => vt -> vt -> AnnotatedTerm' vt v a -> AnnotatedTerm' vt v a
 renameTypeVar old new = go Set.empty where
   go bound tm | Set.member old bound = tm
   go bound tm = let loc = ABT.annotation tm in case tm of
@@ -408,6 +400,7 @@ pattern Nat' n <- (ABT.out -> ABT.Tm (Nat n))
 pattern Float' n <- (ABT.out -> ABT.Tm (Float n))
 pattern Boolean' b <- (ABT.out -> ABT.Tm (Boolean b))
 pattern Text' s <- (ABT.out -> ABT.Tm (Text s))
+pattern Char' c <- (ABT.out -> ABT.Tm (Char c))
 pattern Blank' b <- (ABT.out -> ABT.Tm (Blank b))
 pattern Ref' r <- (ABT.out -> ABT.Tm (Ref r))
 pattern Builtin' r <- (ABT.out -> ABT.Tm (Ref (Builtin r)))
@@ -456,7 +449,7 @@ var :: a -> v -> AnnotatedTerm2 vt at ap v a
 var = ABT.annotatedVar
 
 var' :: Var v => Text -> Term' vt v
-var' = var() . ABT.v'
+var' = var() . Var.named
 
 ref :: Ord v => a -> Reference -> AnnotatedTerm2 vt at ap v a
 ref a r = ABT.tm' a (Ref r)
@@ -478,6 +471,9 @@ nat a d = ABT.tm' a (Nat d)
 
 text :: Ord v => a -> Text -> AnnotatedTerm2 vt at ap v a
 text a = ABT.tm' a . Text
+
+char :: Ord v => a -> Char -> AnnotatedTerm2 vt at ap v a
+char a = ABT.tm' a . Char
 
 watch :: (Var v, Semigroup a) => a -> String -> AnnotatedTerm v a -> AnnotatedTerm v a
 watch a note e =
@@ -905,6 +901,7 @@ instance Var v => Hashable1 (F v a p) where
                   Float   n -> [tag 66, Hashable.Double n]
                   Boolean b -> [tag 67, accumulateToken b]
                   Text    t -> [tag 68, accumulateToken t]
+                  Char    c -> [tag 69, accumulateToken c]
                   Blank   b -> tag 1 : case b of
                     B.Blank -> [tag 0]
                     B.Recorded (B.Placeholder _ s) ->
@@ -1005,6 +1002,7 @@ instance (Var v, Show a) => Show (F v a0 p a) where
       True
       (s "case " <> shows scrutinee <> s " of " <> shows cases)
     go _ (Text s     ) = shows s
+    go _ (Char c     ) = shows c
     go _ (Request r n) = showConstructor r n
     go p (If c t f) =
       showParen (p > 0)

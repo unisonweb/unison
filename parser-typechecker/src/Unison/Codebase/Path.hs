@@ -4,13 +4,12 @@
 
 module Unison.Codebase.Path where
 
---import Debug.Trace
+import Unison.Prelude hiding (empty, toList)
+
 import           Data.List.Extra                ( dropPrefix )
 import Control.Lens hiding (unsnoc, cons, snoc)
 import qualified Control.Lens as Lens
-import Data.Either.Combinators (maybeToRight)
 import qualified Data.Foldable as Foldable
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Sequence                  (Seq((:<|),(:|>) ))
 import qualified Data.Sequence                 as Seq
@@ -29,7 +28,20 @@ newtype Path = Path { toSeq :: Seq NameSegment } deriving (Eq, Ord)
 
 newtype Absolute = Absolute { unabsolute :: Path } deriving (Eq,Ord)
 newtype Relative = Relative { unrelative :: Path } deriving (Eq,Ord)
-newtype Path' = Path' (Either Absolute Relative) deriving (Eq,Ord)
+newtype Path' = Path' { unPath' :: Either Absolute Relative }
+  deriving (Eq,Ord)
+
+isCurrentPath :: Path' -> Bool
+isCurrentPath p = p == currentPath
+
+currentPath :: Path'
+currentPath = Path' (Right (Relative (Path mempty)))
+
+isRoot' :: Path' -> Bool
+isRoot' = either isRoot (const False) . unPath'
+
+isRoot :: Absolute -> Bool
+isRoot = Seq.null . toSeq . unabsolute
 
 instance Show Path' where
   show (Path' (Left abs)) = show abs
@@ -248,6 +260,10 @@ fromName = fromList . fmap NameSegment . Text.splitOn "." . Name.toText
 toName :: Path -> Name
 toName = Name.unsafeFromText . toText
 
+-- | Convert a Path' to a Name
+toName' :: Path' -> Name
+toName' = Name.unsafeFromText . toText'
+
 -- Returns the nearest common ancestor, along with the
 -- two inputs relativized to that ancestor.
 relativeToAncestor :: Path -> Path -> (Path, Path, Path)
@@ -271,3 +287,8 @@ instance Show Path where
 
 toText :: Path -> Text
 toText (Path nss) = intercalateMap "." NameSegment.toText nss
+
+toText' :: Path' -> Text
+toText' = \case
+  Path' (Left (Absolute path)) -> Text.cons '.' (toText path)
+  Path' (Right (Relative path)) -> toText path

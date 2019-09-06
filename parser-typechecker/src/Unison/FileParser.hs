@@ -7,19 +7,12 @@
 
 module Unison.FileParser where
 
+import Unison.Prelude
+
 import qualified Unison.ABT as ABT
 import qualified Data.Set as Set
-import Data.Foldable (toList)
-import Data.String (fromString)
 import Control.Lens
-import           Control.Applicative
-import           Control.Monad (guard, msum, join)
 import           Control.Monad.Reader (local, asks)
-import           Data.Functor
-import           Data.Either (partitionEithers)
-import           Data.List (foldl')
-import           Data.Text (Text)
-import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Prelude hiding (readFile)
 import qualified Text.Megaparsec as P
@@ -63,8 +56,8 @@ file = do
   let locals = Names.importing0 importNames (UF.names env)
   local (\e -> e { names = Names.push locals namesStart }) $ do
     names <- asks names
-    stanzas00 <- local (\e -> e { names = names }) $ sepBy semi stanza
-    let stanzas = fmap (TermParser.substImports names imports) <$> stanzas00
+    stanzas0 <- local (\e -> e { names = names }) $ sepBy semi stanza
+    let stanzas = fmap (TermParser.substImports names imports) <$> stanzas0
     _ <- closeBlock
     let (termsr, watchesr) = foldl' go ([], []) stanzas
         go (terms, watches) s = case s of
@@ -75,7 +68,9 @@ file = do
           Binding ((_, v), at) -> ((v,Term.generalizeTypeSignatures at) : terms, watches)
           Bindings bs -> ([(v,Term.generalizeTypeSignatures at) | ((_,v), at) <- bs ] ++ terms, watches)
     let (terms, watches) = (reverse termsr, reverse watchesr)
-    let curNames = Names.currentNames names
+    -- local term bindings shadow any same-named thing from the outer codebase scope
+    let locals = stanzas0 >>= getVars
+    let curNames = Names.deleteTerms0 (Name.fromVar <$> locals) (Names.currentNames names)
     terms <- case List.validate (traverse $ Term.bindSomeNames curNames) terms of
       Left es -> resolutionFailures (toList es)
       Right terms -> pure terms
@@ -241,7 +236,7 @@ dataDeclaration mod = do
       dataConstructor = go <$> prefixVar <*> many TypeParser.valueTypeLeaf
       record = do
         _ <- openBlockWith "{"
-        fields <- sepBy1 (reserved ",") $
+        fields <- sepBy1 (reserved "," <* optional semi) $
           liftA2 (,) (prefixVar <* reserved ":") TypeParser.valueType
         _ <- closeBlock
         pure ([go name (snd <$> fields)], [(name, fields)])

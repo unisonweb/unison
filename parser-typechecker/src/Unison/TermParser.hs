@@ -10,15 +10,9 @@
 
 module Unison.TermParser where
 
-import           Control.Applicative
-import           Control.Monad (join, when)
+import Unison.Prelude
+
 import           Control.Monad.Reader (asks, local)
-import           Data.Foldable (asum)
-import           Data.Functor
-import           Data.Int (Int64)
-import           Data.List (elem)
-import           Data.Maybe (isJust, fromMaybe)
-import           Data.Word (Word64)
 import           Prelude hiding (and, or, seq)
 import           Unison.Name (Name)
 import           Unison.Names3 (Names)
@@ -44,7 +38,6 @@ import qualified Unison.Type as Type
 import qualified Unison.TypeParser as TypeParser
 import qualified Unison.Var as Var
 
-import Debug.Trace
 import Unison.Reference (Reference)
 
 watch :: Show a => String -> a -> a
@@ -117,11 +110,12 @@ parsePattern =
 
   leaf = literal <|> varOrAs <|> unbound <|>
          parenthesizedOrTuplePattern <|> effect
-  literal = (,[]) <$> asum [true, false, number, text]
+  literal = (,[]) <$> asum [true, false, number, text, char]
   true = (\t -> Pattern.Boolean (ann t) True) <$> reserved "true"
   false = (\t -> Pattern.Boolean (ann t) False) <$> reserved "false"
   number = number' (tok Pattern.Int) (tok Pattern.Nat) (tok Pattern.Float)
   text = (\t -> Pattern.Text (ann t) (L.payload t)) <$> string
+  char = (\c -> Pattern.Char (ann c) (L.payload c)) <$> character
   parenthesizedOrTuplePattern :: P v (Pattern Ann, [(Ann, v)])
   parenthesizedOrTuplePattern = tupleOrParenthesized parsePattern unit pair
   unit ann = (Pattern.Constructor ann DD.unitRef 0 [], [])
@@ -218,6 +212,9 @@ ifthen = label "if" $ do
 text :: Var v => TermP v
 text = tok Term.text <$> string
 
+char :: Var v => TermP v
+char = tok Term.char <$> character
+
 boolean :: Var v => TermP v
 boolean = ((\t -> Term.boolean (ann t) True) <$> reserved "true") <|>
           ((\t -> Term.boolean (ann t) False) <$> reserved "false")
@@ -249,6 +246,7 @@ termLeaf = do
   e <- asum
     [ hashQualifiedPrefixTerm
     , text
+    , char
     , number
     , boolean
     , tupleOrParenthesizedTerm
@@ -525,10 +523,11 @@ number'
   -> P v a
 number' i u f = fmap go numeric
  where
-  go num@(L.payload -> p) | '.' `elem` p    = f (read <$> num)
-                          | take 1 p == "+" = i (read . drop 1 <$> num)
-                          | take 1 p == "-" = i (read <$> num)
-                          | otherwise       = u (read <$> num)
+  go num@(L.payload -> p) | any (\c -> c == '.' || c == 'e') p && take 1 p == "+" = f (read . drop 1 <$> num)
+                          | any (\c -> c == '.' || c == 'e') p                    = f (read <$> num)
+                          | take 1 p == "+"                                       = i (read . drop 1 <$> num)
+                          | take 1 p == "-"                                       = i (read <$> num)
+                          | otherwise                                             = u (read <$> num)
 
 tupleOrParenthesizedTerm :: Var v => TermP v
 tupleOrParenthesizedTerm = label "tuple" $ tupleOrParenthesized term DD.unitTerm pair

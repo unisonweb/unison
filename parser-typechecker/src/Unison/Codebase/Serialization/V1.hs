@@ -3,15 +3,15 @@
 
 module Unison.Codebase.Serialization.V1 where
 
+import Unison.Prelude
+
+import Prelude hiding (getChar, putChar)
+
 -- import qualified Data.Text as Text
-import qualified Unison.PatternP               as Pattern
+import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
                                                 , SeqOp
                                                 )
-import           Control.Applicative            ( liftA2
-                                                , liftA3
-                                                )
-import           Control.Monad                  ( replicateM )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -22,19 +22,12 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Data.Foldable                  ( traverse_ )
-import           Data.Int                       ( Int64 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
-                                                , foldl'
                                                 )
-import           Data.Text                      ( Text )
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
-import           Data.Word                      ( Word64 )
-import           Unison.Codebase.Branch         ( Branch0(..) )
 import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
@@ -62,8 +55,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
-import           Unison.Name                   (Name)
-import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -411,42 +402,42 @@ getSymbol = Symbol <$> getLength <*> (Var.User <$> getText)
 
 putPattern :: MonadPut m => (a -> m ()) -> Pattern a -> m ()
 putPattern putA p = case p of
-  Pattern.Unbound a   -> putWord8 0 *> putA a
-  Pattern.Var     a   -> putWord8 1 *> putA a
-  Pattern.Boolean a b -> putWord8 2 *> putA a *> putBoolean b
-  Pattern.Int     a n -> putWord8 3 *> putA a *> putInt n
-  Pattern.Nat     a n -> putWord8 4 *> putA a *> putNat n
-  Pattern.Float   a n -> putWord8 5 *> putA a *> putFloat n
-  Pattern.Constructor a r cid ps ->
+  Pattern.UnboundP a   -> putWord8 0 *> putA a
+  Pattern.VarP     a   -> putWord8 1 *> putA a
+  Pattern.BooleanP a b -> putWord8 2 *> putA a *> putBoolean b
+  Pattern.IntP     a n -> putWord8 3 *> putA a *> putInt n
+  Pattern.NatP     a n -> putWord8 4 *> putA a *> putNat n
+  Pattern.FloatP   a n -> putWord8 5 *> putA a *> putFloat n
+  Pattern.ConstructorP a r cid ps ->
     putWord8 6
       *> putA a
       *> putReference r
       *> putLength cid
       *> putFoldable (putPattern putA) ps
-  Pattern.As         a p -> putWord8 7 *> putA a *> putPattern putA p
-  Pattern.EffectPure a p -> putWord8 8 *> putA a *> putPattern putA p
-  Pattern.EffectBind a r cid args k ->
+  Pattern.AsP         a p -> putWord8 7 *> putA a *> putPattern putA p
+  Pattern.EffectPureP a p -> putWord8 8 *> putA a *> putPattern putA p
+  Pattern.EffectBindP a r cid args k ->
     putWord8 9
       *> putA a
       *> putReference r
       *> putLength cid
       *> putFoldable (putPattern putA) args
       *> putPattern putA k
-  Pattern.SequenceLiteral a ps ->
+  Pattern.SequenceLiteralP a ps ->
     putWord8 10 *> putA a *> putFoldable (putPattern putA) ps
-  Pattern.SequenceOp a l op r ->
+  Pattern.SequenceOpP a l op r ->
     putWord8 11
       *> putA a
       *> putPattern putA l
       *> putSeqOp op
       *> putPattern putA r
-  _ -> error $ "unknown pattern: " ++ show p
+  Pattern.TextP a t -> putWord8 12 *> putA a *> putText t
+  Pattern.CharP a c -> putWord8 13 *> putA a *> putChar c
 
 putSeqOp :: MonadPut m => SeqOp -> m ()
 putSeqOp Pattern.Cons   = putWord8 0
 putSeqOp Pattern.Snoc   = putWord8 1
 putSeqOp Pattern.Concat = putWord8 2
-putSeqOp seqop          = error $ "unknown tag: " ++ show seqop
 
 getSeqOp :: MonadGet m => m SeqOp
 getSeqOp = getWord8 >>= \case
@@ -457,30 +448,32 @@ getSeqOp = getWord8 >>= \case
 
 getPattern :: MonadGet m => m a -> m (Pattern a)
 getPattern getA = getWord8 >>= \tag -> case tag of
-  0 -> Pattern.Unbound <$> getA
-  1 -> Pattern.Var <$> getA
-  2 -> Pattern.Boolean <$> getA <*> getBoolean
-  3 -> Pattern.Int <$> getA <*> getInt
-  4 -> Pattern.Nat <$> getA <*> getNat
-  5 -> Pattern.Float <$> getA <*> getFloat
-  6 -> Pattern.Constructor <$> getA <*> getReference <*> getLength <*> getList
+  0 -> Pattern.UnboundP <$> getA
+  1 -> Pattern.VarP <$> getA
+  2 -> Pattern.BooleanP <$> getA <*> getBoolean
+  3 -> Pattern.IntP <$> getA <*> getInt
+  4 -> Pattern.NatP <$> getA <*> getNat
+  5 -> Pattern.FloatP <$> getA <*> getFloat
+  6 -> Pattern.ConstructorP <$> getA <*> getReference <*> getLength <*> getList
     (getPattern getA)
-  7 -> Pattern.As <$> getA <*> getPattern getA
-  8 -> Pattern.EffectPure <$> getA <*> getPattern getA
+  7 -> Pattern.AsP <$> getA <*> getPattern getA
+  8 -> Pattern.EffectPureP <$> getA <*> getPattern getA
   9 ->
-    Pattern.EffectBind
+    Pattern.EffectBindP
       <$> getA
       <*> getReference
       <*> getLength
       <*> getList (getPattern getA)
       <*> getPattern getA
-  10 -> Pattern.SequenceLiteral <$> getA <*> getList (getPattern getA)
+  10 -> Pattern.SequenceLiteralP <$> getA <*> getList (getPattern getA)
   11 ->
-    Pattern.SequenceOp
+    Pattern.SequenceOpP
       <$> getA
       <*> getPattern getA
       <*> getSeqOp
       <*> getPattern getA
+  12 -> Pattern.TextP <$> getA <*> getText
+  13 -> Pattern.CharP <$> getA <*> getChar
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
@@ -529,6 +522,8 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
       -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
+    Term.Char c
+      -> putWord8 19 *> putChar c
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -558,6 +553,7 @@ getTerm getVar getA = getABT getVar getA go where
     17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
+    19 -> Term.Char <$> getChar
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
@@ -655,13 +651,6 @@ getStar3 getF getD1 getD2 getD3 =
     <*> getRelation getF getD2
     <*> getRelation getF getD3
 
-putBranch0 :: MonadPut m => Branch0 n -> m ()
-putBranch0 b = do
-  putBranchStar putReferent putNameSegment (Branch._terms b)
-  putBranchStar putReference putNameSegment (Branch._types b)
-  putFoldable (putPair putNameSegment (putHash . unRawHash . fst))
-              (Map.toList (Branch._children b))
-
 putBranchStar :: MonadPut m => (a -> m ()) -> (n -> m ()) -> Branch.Star a n -> m ()
 putBranchStar putA putN =
   putStar3 putA putN putMetadataType (putPair putMetadataType putMetadataValue)
@@ -669,19 +658,17 @@ putBranchStar putA putN =
 getBranchStar :: (Ord a, Ord n, MonadGet m) => m a -> m n -> m (Branch.Star a n)
 getBranchStar getA getN = getStar3 getA getN getMetadataType (getPair getMetadataType getMetadataValue)
 
--- getBranch0 :: MonadGet m => m (Branch00)
-
 putLink :: MonadPut m => (Hash, mb) -> m ()
 putLink (h, _) = do
   -- 0 means local; later we may have remote links with other ids
   putWord8 0
   putHash h
 
-putName :: MonadPut m => Name -> m ()
-putName = putText . Name.toText
+putChar :: MonadPut m => Char -> m ()
+putChar = serialize . VarInt . fromEnum
 
-getName :: MonadGet m => m Name
-getName = Name.unsafeFromText <$> getText
+getChar :: MonadGet m => m Char
+getChar = toEnum . unVarInt <$> deserialize
 
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText

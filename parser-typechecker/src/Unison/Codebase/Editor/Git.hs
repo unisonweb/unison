@@ -2,25 +2,22 @@
 
 module Unison.Codebase.Editor.Git where
 
-import           Control.Monad                  ( when
-                                                , unless
+import Unison.Prelude
+
+import           Control.Monad.Catch            ( MonadCatch
+                                                , onException
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Except           ( MonadError
                                                 , throwError
                                                 , ExceptT
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
-import           Data.Maybe                     ( isNothing )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Shellmet                       ( ($?), ($|) )
 import           System.Directory               ( getCurrentDirectory
                                                 , setCurrentDirectory
                                                 , doesDirectoryExist
                                                 , findExecutable
+                                                , removeDirectoryRecursive
                                                 )
 import           System.FilePath                ( (</>) )
 import           Unison.Codebase.GitError
@@ -34,6 +31,9 @@ import           Unison.Codebase.FileCodebase   ( getRootBranch
 import           Unison.Codebase.Branch         ( Branch
                                                 , headHash
                                                 )
+import qualified Unison.Util.Exception         as Ex
+import qualified Unison.Codebase.Branch        as Branch
+import qualified Unison.Names3                 as Names
 
 -- Given a local path, a remote git repo url, and branch/commit hash,
 -- pulls the HEAD of that remote repo into the local path.
@@ -49,9 +49,13 @@ prepGitPull
   :: MonadIO m => MonadError GitError m => FilePath -> Text -> m FilePath
 prepGitPull localPath uri = do
   checkForGit
-  wd     <- liftIO getCurrentDirectory
-  exists <- liftIO . doesDirectoryExist $ localPath
-  unless exists $ clone uri localPath
+  wd <- liftIO getCurrentDirectory
+  e <- liftIO . Ex.tryAny . whenM (doesDirectoryExist localPath) $
+    removeDirectoryRecursive localPath
+  case e of
+    Left e -> throwError (SomeOtherError (Text.pack (show e)))
+    Right a -> pure a
+  clone uri localPath
   liftIO $ setCurrentDirectory localPath
   isGitDir <- liftIO checkGitDir
   unless isGitDir . throwError $ NoLocalRepoAt localPath
@@ -117,6 +121,7 @@ pull uri treeish = do
 -- dependencies to the path, then commit and push to the remote repo.
 pushGitRootBranch
   :: MonadIO m
+  => MonadCatch m
   => FilePath
   -> Codebase m v a
   -> Branch m
@@ -128,17 +133,25 @@ pushGitRootBranch localPath codebase branch url treeish = do
   -- Clone and pull the remote repo
   shallowPullFromGit localPath url treeish
   -- Stick our changes in the checked-out copy
-  lift $ syncToDirectory codebase (localPath </> codebasePath) branch
-  liftIO $ do
-    setCurrentDirectory localPath
-    -- Commit our changes
-    status <- "git" $| ["status", "--short"]
-    unless (Text.null status) $ do
-      "git" ["add", "--all", "."]
-      "git" ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
-    -- Push our changes to the repo
-    if Text.null treeish
-      then "git" ["push", "--all", url]
-      else "git" ["push", url, treeish]
-    setCurrentDirectory wd
-
+  merged <- lift $ syncToDirectory codebase (localPath </> codebasePath) branch
+  isBefore <- lift $ Branch.before merged branch
+  let mergednames = Branch.toNames0 (Branch.head merged)
+      localnames  = Branch.toNames0 (Branch.head branch)
+      diff = Names.diff0 localnames mergednames
+  when (not isBefore) $
+    throwError (PushDestinationHasNewStuff url treeish diff)
+  let
+    push = do
+      setCurrentDirectory localPath
+      -- Commit our changes
+      status <- "git" $| ["status", "--short"]
+      unless (Text.null status) $ do
+        "git" ["add", "--all", "."]
+        "git"
+          ["commit", "-m", "Sync branch " <> Text.pack (show $ headHash branch)]
+      -- Push our changes to the repo
+      if Text.null treeish
+        then "git" ["push", "--all", url]
+        else "git" ["push", url, treeish]
+      setCurrentDirectory wd
+  liftIO push `onException` throwError (NoRemoteRepoAt url)

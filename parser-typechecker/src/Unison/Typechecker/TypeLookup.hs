@@ -1,8 +1,7 @@
 module Unison.Typechecker.TypeLookup where
 
-import Control.Applicative ((<|>))
-import Data.Map (Map)
-import Data.Maybe (fromMaybe)
+import Unison.Prelude
+
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
 import Unison.Type (Type)

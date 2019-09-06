@@ -5,7 +5,8 @@
 
 module Unison.Util.CyclicOrd where
 
-import Data.Foldable (toList)
+import Unison.Prelude
+
 import Data.Vector (Vector)
 import Unison.Util.CycleTable (CycleTable)
 import qualified Data.Vector as V

@@ -5,21 +5,19 @@
 
 module Unison.Parser where
 
+import Unison.Prelude
+
 import           Data.Bytes.Put                 (runPutS)
 import           Data.Bytes.Serial              ( serialize )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Control.Applicative
-import           Control.Monad        (join, when, void)
 import           Data.Bifunctor       (bimap)
 import qualified Data.Char            as Char
 import           Data.List.NonEmpty   (NonEmpty (..))
-import           Data.Maybe
+-- import           Data.Maybe
 import qualified Data.Set             as Set
-import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Data.Text.Encoding   (encodeUtf8)
 import           Data.Typeable        (Proxy (..))
-import           Debug.Trace
 import           Text.Megaparsec      (runParserT)
 import qualified Text.Megaparsec      as P
 import qualified Text.Megaparsec.Char as P
@@ -39,7 +37,6 @@ import qualified Unison.Names3 as Names
 import Control.Monad.Reader.Class (asks)
 import qualified Crypto.Random as Random
 import qualified Unison.Hashable as Hashable
-import Data.Set (Set)
 import Unison.Referent (Referent)
 import Unison.Reference (Reference)
 
@@ -407,6 +404,11 @@ sepBy sep pb = P.sepBy pb sep
 
 sepBy1 :: Ord v => P v a -> P v b -> P v [b]
 sepBy1 sep pb = P.sepBy1 pb sep
+
+character :: Ord v => P v (L.Token Char)
+character = queryToken getChar
+  where getChar (L.Character c) = Just c
+        getChar _ = Nothing
 
 string :: Ord v => P v (L.Token Text)
 string = queryToken getString

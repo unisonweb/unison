@@ -5,13 +5,13 @@
 
 module Unison.Var where
 
+import Unison.Prelude
+
 import Data.Char (toLower, isLower)
-import Data.Set (Set)
-import Data.String (fromString)
-import Data.Text (Text, pack)
+import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
-import Data.Word (Word64)
+import qualified Unison.ABT as ABT
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Reference (Reference)
 import qualified Unison.Reference as R
@@ -20,17 +20,17 @@ import qualified Unison.Reference as R
 -- may not form part of their identity according to `Eq` / `Ord`. Laws:
 --
 --   * `typeOf (typed n) == n`
---   * `Set.notMember (freshIn vs v) vs`:
---     `freshIn` returns a variable not used in the `Set`
---   * `typeOf (freshIn vs v) == typeOf v`:
---     `freshIn` does not alter the name
-class (Show v, Eq v, Ord v) => Var v where
+--   * `typeOf (ABT.freshIn vs v) == typeOf v`:
+--     `ABT.freshIn` does not alter the name
+class (Show v, ABT.Var v) => Var v where
   typed :: Type -> v
   retype :: Type -> v -> v
   typeOf :: v -> Type
   freshId :: v -> Word64
-  freshIn :: Set v -> v -> v
   freshenId :: Word64 -> v -> v
+
+freshIn :: ABT.Var v => Set v -> v -> v
+freshIn = ABT.freshIn
 
 named :: Var v => Text -> v
 named n = typed (User n)
@@ -143,17 +143,8 @@ joinDot prefix v2 =
   if name prefix == "." then named (name prefix `mappend` name v2)
   else named (name prefix `mappend` "." `mappend` name v2)
 
-freshes :: Var v => Set v -> [v] -> [v]
-freshes _ [] = []
-freshes used (h:t) =
-  let h' = freshIn used h
-  in h' : freshes (Set.insert h' used) t
-
-freshInBoth :: Var v => Set v -> Set v -> v -> v
-freshInBoth vs1 vs2 = freshIn vs1 . freshIn vs2
-
 freshNamed :: Var v => Set v -> Text -> v
-freshNamed used n = freshIn used (named n)
+freshNamed used n = ABT.freshIn used (named n)
 
 syntheticVars :: Var v => Set v
 syntheticVars = Set.fromList . fmap typed $ [
@@ -168,10 +159,10 @@ syntheticVars = Set.fromList . fmap typed $ [
   Inference TypeConstructorArg ]
 
 isLowercase :: forall v . Var v => v -> Bool
-isLowercase v = 
+isLowercase v =
   ok (name $ reset v) && unqualified v == v
   where
   ok n = (all isLower . take 1 . Text.unpack) n ||
          Set.member n syntheticVarNames
-  syntheticVarNames :: Set Text 
+  syntheticVarNames :: Set Text
   syntheticVarNames = Set.map name (syntheticVars @v)
