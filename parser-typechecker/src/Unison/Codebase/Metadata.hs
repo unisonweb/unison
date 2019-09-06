@@ -1,9 +1,7 @@
 module Unison.Codebase.Metadata where
 
-import Data.Foldable (toList)
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.List (foldl')
+import Unison.Prelude
+
 import Unison.Reference (Reference)
 import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map

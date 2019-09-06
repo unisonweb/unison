@@ -10,28 +10,19 @@
 
 module Unison.ABT where
 
-import Control.Applicative
-import Control.Monad
-import Data.Word (Word64)
+import Unison.Prelude
+
 import Data.Functor.Identity (runIdentity)
 import Data.List hiding (cycle)
-import Data.Map (Map)
-import Data.Maybe
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Traversable
 import Data.Vector ((!))
 import Prelude hiding (abs,cycle)
 import Prelude.Extras (Eq1(..), Show1(..), Ord1(..))
 import Unison.Hashable (Accumulate,Hashable1,hash1)
-import Unison.Var (Var)
 import qualified Data.Foldable as Foldable
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.Vector as Vector
 import qualified Unison.Hashable as Hashable
-import qualified Unison.Var as Var
 import qualified Unison.Util.Components as Components
 
 data ABT f v r
@@ -44,6 +35,13 @@ data ABT f v r
 -- a value of type `a`. Variables are of type `v`.
 data Term f v a = Term { freeVars :: Set v, annotation :: a, out :: ABT f v (Term f v a) }
 
+-- | A class for variables.
+--
+--   * `Set.notMember (freshIn vs v) vs`:
+--     `freshIn` returns a variable not used in the `Set`
+class Ord v => Var v where
+  freshIn :: Set v -> v -> v
+
 data V v = Free v | Bound v deriving (Eq,Ord,Show,Functor)
 
 unvar :: V v -> v
@@ -51,14 +49,7 @@ unvar (Free v) = v
 unvar (Bound v) = v
 
 instance Var v => Var (V v) where
-  typed t = Bound (Var.typed t)
-  retype t v = case v of
-    Free v -> Free (Var.retype t v)
-    Bound v -> Bound (Var.retype t v)
-  typeOf v = Var.typeOf (unvar v)
-  freshId v = Var.freshId (unvar v)
-  freshIn s v = Var.freshIn (Set.map unvar s) <$> v
-  freshenId id v = Var.freshenId id <$> v
+  freshIn s v = freshIn (Set.map unvar s) <$> v
 
 newtype Path s t a b m = Path { focus :: s -> Maybe (a, b -> Maybe t, m) }
 
@@ -192,14 +183,8 @@ unabs1A t = case unabsA t of
   ([], _) -> Nothing
   x -> Just x
 
-v' :: Var v => Text -> v
-v' = Var.named
-
 var :: v -> Term f v ()
 var = annotatedVar ()
-
-var' :: Var v => Text -> Term f v ()
-var' v = var (Var.named v)
 
 annotatedVar :: a -> v -> Term f v a
 annotatedVar a v = Term (Set.singleton v) a (Var v)
@@ -280,10 +265,10 @@ freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
 freshInBoth t1 t2 = fresh t2 . fresh t1
 
 fresh :: Var v => Term f v a -> v -> v
-fresh t = fresh' (freeVars t)
+fresh t = freshIn (freeVars t)
 
 freshEverywhere :: (Foldable f, Var v) => Term f v a -> v -> v
-freshEverywhere t = fresh' . Set.fromList $ allVars t
+freshEverywhere t = freshIn . Set.fromList $ allVars t
 
 allVars :: Foldable f => Term f v a -> [v]
 allVars t = case out t of
@@ -292,17 +277,14 @@ allVars t = case out t of
   Abs v body -> v : allVars body
   Tm v -> Foldable.toList v >>= allVars
 
-fresh' :: Var v => Set v -> v -> v
-fresh' = Var.freshIn
-
 freshes :: Var v => Term f v a -> [v] -> [v]
-freshes = Var.freshes . freeVars
+freshes = freshes' . freeVars
 
 freshes' :: Var v => Set v -> [v] -> [v]
-freshes' = Var.freshes
-
-freshNamed' :: Var v => Set v -> Text -> v
-freshNamed' used = fresh' used . v'
+freshes' _ [] = []
+freshes' used (h:t) =
+  let h' = freshIn used h
+  in h' : freshes' (Set.insert h' used) t
 
 -- | `subst v e body` substitutes `e` for `v` in `body`, avoiding capture by
 -- renaming abstractions in `body`
@@ -327,7 +309,7 @@ subst' replace v r t2@(Term fvs ann body)
     Cycle body -> cycle' ann (subst' replace v r body)
     Abs x _ | x == v -> t2 -- x shadows v; ignore subtree
     Abs x e -> abs' ann x' e'
-      where x' = fresh t2 (fresh' r x)
+      where x' = fresh t2 (freshIn r x)
             -- rename x to something that cannot be captured by `r`
             e' = if x /= x' then subst' replace v r (rename x x' e)
                  else subst' replace v r e
@@ -565,7 +547,7 @@ components = Components.components freeVars
 
 -- Hash a strongly connected component and sort its definitions into a canonical order.
 hashComponent ::
-  (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
   => Map.Map v (Term f v a) -> (h, [(v, Term f v a)])
 hashComponent byName = let
   ts = Map.toList byName
@@ -582,7 +564,7 @@ hashComponent byName = let
 -- components (using the `termFromHash` function). Requires that the
 -- overall component has no free variables.
 hashComponents
-  :: (Functor f, Hashable1 f, Foldable f, Eq v, Var v, Ord h, Accumulate h)
+  :: (Functor f, Hashable1 f, Foldable f, Eq v, Show v, Var v, Ord h, Accumulate h)
   => (h -> Word64 -> Word64 -> Term f v ())
   -> Map.Map v (Term f v a)
   -> [(h, [(v, Term f v a)])]
@@ -602,8 +584,8 @@ hashComponents termFromHash termsByName = let
     in (h, sortedComponent') : go newHashes rest
   in if Set.null escapedVars then go Map.empty sccs
      else error $ "can't hashComponents if bindings have free variables:\n  "
-               ++ show (map Var.name (Set.toList escapedVars))
-               ++ "\n  " ++ show (map Var.name (Map.keys termsByName))
+               ++ show (map show (Set.toList escapedVars))
+               ++ "\n  " ++ show (map show (Map.keys termsByName))
 
 -- Implementation detail of hashComponent
 data Component f a = Component [a] a | Embed (f a) deriving (Functor, Traversable, Foldable)
@@ -618,7 +600,7 @@ instance (Hashable1 f, Functor f) => Hashable1 (Component f) where
 
 -- | We ignore annotations in the `Term`, as these should never affect the
 -- meaning of the term.
-hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
+hash :: forall f v a h . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
      => Term f v a -> h
 hash = hash' [] where
   hash' :: [Either [v] v] -> Term f v a -> h
@@ -629,7 +611,7 @@ hash = hash' [] where
             ind = findIndex lookup env
             hashInt :: Int -> h
             hashInt i = Hashable.accumulate [Hashable.Nat $ fromIntegral i]
-            die = error $ "unknown var in environment: " ++ show (Var.name v)
+            die = error $ "unknown var in environment: " ++ show v
                         ++ " environment = " ++ show env
     Cycle (AbsN' vs t) -> hash' (Left vs : env) t
     Cycle t -> hash' env t
@@ -648,7 +630,7 @@ hash = hash' [] where
   hashCycle env ts = (map (hash' env) ts, hash' env)
 
 -- | Use the `hash` function to efficiently remove duplicates from the list, preserving order.
-distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
+distinct :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a]
 distinct _ ts = fst <$> sortOn snd m
@@ -656,17 +638,17 @@ distinct _ ts = fst <$> sortOn snd m
         hashes = map hash ts :: [h]
 
 -- | Use the `hash` function to remove elements from `t1s` that exist in `t2s`, preserving order.
-subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Var v, Ord h, Accumulate h)
+subtract :: forall f v h a proxy . (Functor f, Hashable1 f, Eq v, Show v, Var v, Ord h, Accumulate h)
          => proxy h
          -> [Term f v a] -> [Term f v a] -> [Term f v a]
 subtract _ t1s t2s =
   let skips = Set.fromList (map hash t2s :: [h])
   in filter (\t -> Set.notMember (hash t) skips) t1s
 
-instance (Show1 f, Var v) => Show (Term f v a) where
+instance (Show1 f, Show v) => Show (Term f v a) where
   -- annotations not shown
   showsPrec p (Term _ _ out) = case out of
     Var v -> \x -> "Var " ++ show v ++ x
     Cycle body -> ("Cycle " ++) . showsPrec p body
-    Abs v body -> showParen True $ (Text.unpack (Var.name v) ++) . showString ". " . showsPrec p body
+    Abs v body -> showParen True $ (show v ++) . showString ". " . showsPrec p body
     Tm f -> showsPrec1 p f

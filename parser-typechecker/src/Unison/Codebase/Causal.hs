@@ -3,27 +3,22 @@
 {-# LANGUAGE RecordWildCards #-}
 module Unison.Codebase.Causal where
 
+import Unison.Prelude
+
 import           Prelude                 hiding ( head
                                                 , tail
                                                 , read
                                                 )
-import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
-import           Control.Monad                  ( unless )
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
-import           Data.Sequence                  ( Seq )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
 -- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Foldable                  ( for_, toList )
 import           Util                           ( bind2 )
 
 {-
@@ -254,3 +249,18 @@ foldHistoryUntil f a c = step a mempty (pure c) where
         Cons{} -> Seq.singleton <$> snd (tail c)
         Merge{} -> Seq.fromList <$> (sequenceA . toList . tails) c
       step a (Set.insert (currentHash c) seen) (rest <> tails)
+
+hashToRaw ::
+  forall m h e. Monad m => Causal m h e -> m (Map (RawHash h) [RawHash h])
+hashToRaw c = go mempty [c] where
+  go :: Map (RawHash h) [RawHash h] -> [Causal m h e]
+                                    -> m (Map (RawHash h) [RawHash h])
+  go output [] = pure output
+  go output (c : queue) = case c of
+    One h _ -> go (Map.insert h [] output) queue
+    Cons h _ (htail, mctail) -> do
+      ctail <- mctail
+      go (Map.insert h [htail] output) (ctail : queue)
+    Merge h _ mtails -> do
+      tails <- sequence mtails
+      go (Map.insert h (Map.keys tails) output) (toList tails ++ queue)

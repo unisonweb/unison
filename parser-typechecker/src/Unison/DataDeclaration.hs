@@ -9,18 +9,14 @@
 
 module Unison.DataDeclaration where
 
+import Unison.Prelude
+
 import Control.Lens (_3, over)
 import Data.Bifunctor (first)
-import Data.Traversable (for)
 import qualified Unison.Util.Relation as Rel
-import           Safe                           ( atMay )
 import           Data.List                      ( sortOn, elemIndex, find )
 import           Unison.Hash                    ( Hash )
-import           Control.Monad                  ( join )
-import           Data.Functor
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Prelude                 hiding ( cycle )
 import           Prelude.Extras                 ( Show1 )
@@ -41,7 +37,6 @@ import           Unison.Term                    ( AnnotatedTerm
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import           Unison.Var                     ( Var )
-import           Data.Text                      ( Text )
 import qualified Unison.Var                    as Var
 import           Unison.Names3                 (Names0)
 import qualified Unison.Names3                 as Names

@@ -16,28 +16,17 @@ module Unison.Codebase.FileCodebase
 , ensureCodebaseInitialized
 ) where
 
--- import Debug.Trace
-import           Control.Monad                  ( forever, foldM, unless, when)
-import           Control.Monad.Extra            ( unlessM )
-import           UnliftIO                       ( MonadIO
-                                                , MonadUnliftIO
-                                                , liftIO )
+import Unison.Prelude
+
+import           UnliftIO                       ( MonadUnliftIO )
 import           UnliftIO.Concurrent            ( forkIO
                                                 , killThread
                                                 )
 import           UnliftIO.STM                   ( atomically )
 import qualified Data.Char                     as Char
-import           Data.Foldable                  ( traverse_
-                                                , toList
-                                                , forM_
-                                                , for_
-                                                )
 import qualified Data.Hex                      as Hex
 import           Data.List                      ( isSuffixOf )
-import           Data.Maybe                     ( fromMaybe )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
@@ -250,9 +239,23 @@ initialize :: CodebasePath -> IO ()
 initialize path =
   traverse_ (createDirectoryIfMissing True) (minimalCodebaseStructure path)
 
-branchFromFiles :: MonadIO m => FilePath -> Branch.Hash -> m (Branch m)
-branchFromFiles rootDir = Branch.read (deserializeRawBranch rootDir)
-                                      (deserializeEdits rootDir)
+-- When loading a nonexistent branch, what should happen?
+-- Could bomb (`FailIfMissing`) or return the empty branch (`EmptyIfMissing`).
+--
+-- `EmptyIfMissing` mode is used when attempting to load a user-specified
+-- branch. `FailIfMissing` is used when loading the root branch - if the root
+-- does not exist, that's a serious problem.
+data BranchLoadMode = FailIfMissing | EmptyIfMissing deriving Eq
+
+branchFromFiles :: MonadIO m => BranchLoadMode -> FilePath -> Branch.Hash -> m (Branch m)
+branchFromFiles loadMode rootDir h@(RawHash h') = do 
+  fileExists <- doesFileExist (branchPath rootDir h')
+  if fileExists || loadMode == FailIfMissing then 
+    Branch.read (deserializeRawBranch rootDir)
+                (deserializeEdits rootDir)
+                h
+  else
+    pure $ Branch.empty
  where
   deserializeRawBranch
     :: MonadIO m => CodebasePath -> Causal.Deserialize m Branch.Raw Branch.Raw
@@ -281,7 +284,7 @@ getRootBranch root = do
  where
   go single = case hashFromString single of
     Nothing -> failWith $ CantParseBranchHead single
-    Just h  -> branchFromFiles root (RawHash h)
+    Just h  -> branchFromFiles FailIfMissing root (RawHash h)
 
 putRootBranch :: MonadIO m => CodebasePath -> Branch m -> m ()
 putRootBranch root b = do
@@ -367,18 +370,28 @@ copyFromGit = (liftIO .) . flip
 
 writeAllTermsAndTypes
   :: forall m v a
-   . MonadIO m
+   . (MonadUnliftIO m)
   => Var v
   => Codebase.BuiltinAnnotation a
-  => S.Put v
-  -> S.Put a
+  => S.Format v
+  -> S.Format a
   -> Codebase m v a
   -> FilePath
   -> Branch m
-  -> m ()
-writeAllTermsAndTypes putV putA codebase localPath branch = do
-  Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
-  updateCausalHead (branchHeadDir localPath) $ Branch._history branch
+  -> m (Branch m)
+writeAllTermsAndTypes fmtV fmtA codebase localPath branch = do
+  b <- doesDirectoryExist localPath
+  if b then do
+    code <- pure $ codebase1 fmtV fmtA localPath
+    remoteRoot <- Codebase.getRootBranch code
+    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
+    merged <- Branch.merge branch remoteRoot
+    Codebase.putRootBranch code merged
+    pure merged
+  else do
+    Branch.sync (hashExists localPath) serialize (serializeEdits localPath) branch
+    updateCausalHead (branchHeadDir localPath) $ Branch._history branch
+    pure branch
  where
   serialize :: Causal.Serialize m Branch.Raw Branch.Raw
   serialize rh rawBranch = do
@@ -396,7 +409,7 @@ writeAllTermsAndTypes putV putA codebase localPath branch = do
         alreadyExists <- liftIO . doesPathExist $ termPath localPath i
         unless alreadyExists $ do
           mayDecl <- Codebase.getTypeDeclaration codebase i
-          maybe (calamity i) (putDecl putV putA localPath i) mayDecl
+          maybe (calamity i) (putDecl (S.put fmtV) (S.put fmtA) localPath i) mayDecl
       _ -> pure ()
     -- Write all terms
     for_ (toList $ Star3.fact terms) $ \case
@@ -406,10 +419,10 @@ writeAllTermsAndTypes putV putA codebase localPath branch = do
           mayTerm <- Codebase.getTerm codebase i
           mayType <- Codebase.getTypeOfTerm codebase r
           fromMaybe (calamity i)
-                    (putTerm putV putA localPath i <$> mayTerm <*> mayType)
+                    (putTerm (S.put fmtV) (S.put fmtA) localPath i <$> mayTerm <*> mayType)
           -- If the term is a test, write the cached value too.
           mayTest <- Codebase.getWatch codebase UF.TestWatch i
-          maybe (pure ()) (putWatch putV putA localPath UF.TestWatch i) mayTest
+          maybe (pure ()) (putWatch (S.put fmtV) (S.put fmtA) localPath UF.TestWatch i) mayTest
       _ -> pure ()
 
 putTerm
@@ -489,7 +502,7 @@ codebase1
   => Var v
   => BuiltinAnnotation a
   => S.Format v -> S.Format a -> CodebasePath -> Codebase m v a
-codebase1 (S.Format getV putV) (S.Format getA putA) path
+codebase1 fmtV@(S.Format getV putV) fmtA@(S.Format getA putA) path
   = let c = Codebase getTerm
                      getTypeOfTerm
                      getDecl
@@ -498,12 +511,12 @@ codebase1 (S.Format getV putV) (S.Format getA putA) path
                      (getRootBranch path)
                      (putRootBranch path)
                      (branchHeadUpdates path)
-                     (branchFromFiles path)
+                     (branchFromFiles EmptyIfMissing path)
                      dependents
                      (copyFromGit path)
                      -- This is fine as long as watat doesn't call
                      -- syncToDirectory c
-                     (writeAllTermsAndTypes putV putA c)
+                     (writeAllTermsAndTypes fmtV fmtA c)
                      watches
                      getWatch
                      (putWatch putV putA path)

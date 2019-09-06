@@ -1,5 +1,7 @@
 module Unison.Parsers where
 
+import Unison.Prelude
+
 import qualified Data.Text                     as Text
 import           Data.Text.IO                   ( readFile )
 import           Prelude                 hiding ( readFile )

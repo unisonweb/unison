@@ -5,30 +5,22 @@
 
 module Unison.TermPrinter where
 
-import           Control.Monad                  ( join )
+import Unison.Prelude
+
 import           Data.List
 import           Data.List.Extra                ( dropEnd )
-import           Data.Either                    ( isRight )
-import           Data.Foldable                  ( fold
-                                                )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( fromMaybe
-                                                , isJust
-                                                , fromJust
+import           Data.Maybe                     ( fromJust
                                                 )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.String                    ( IsString, fromString )
-import           Data.Text                      ( Text, splitOn, unpack )
+import           Data.Text                      ( splitOn, unpack )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( )
-import           Text.Read                      ( readMaybe )
-import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation ) 
+import           Unison.ABT                     ( pattern AbsN', reannotateUp, annotation )
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as Blank
 import qualified Unison.HashQualified          as HQ
-import           Unison.Lexer                   ( symbolyId )
+import           Unison.Lexer                   ( symbolyId, showEscapeChar )
 import           Unison.Name                    ( Name )
 import qualified Unison.Name                   as Name
 import           Unison.NamePrinter             ( styleHashQualified'' )
@@ -40,7 +32,6 @@ import qualified Unison.Referent               as Referent
 import qualified Unison.Util.SyntaxText        as S
 import           Unison.Util.SyntaxText         ( SyntaxText )
 import           Unison.Term
-import           Debug.Trace                    ( trace )
 import           Unison.Type                    ( Type )
 import qualified Unison.Type                   as Type
 import qualified Unison.TypePrinter            as TypePrinter
@@ -151,16 +142,16 @@ pretty0
   -> Pretty SyntaxText
 pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic, imports = im} term
   = specialCases term $ \case
-    Var' v -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Var) $ name
+    Var' v -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Var) name
       -- OK since all term vars are user specified, any freshening was just added during typechecking
       where name = elideFQN im $ HQ.unsafeFromVar (Var.reset v)
-    Ref' r -> parenIfInfix name ic . (styleHashQualified'' $ fmt S.Reference) $ name
+    Ref' r -> parenIfInfix name ic $ styleHashQualified'' (fmt S.Reference) name
       where name = elideFQN im $ PrettyPrintEnv.termName n (Referent.Ref r)
     Ann' tm t ->
       paren (p >= 0)
         $  pretty0 n (ac 10 Normal im) tm
         <> PP.hang (fmt S.TypeAscriptionColon " :" ) (TypePrinter.pretty0 n im 0 t)
-    Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> (l $ show i)
+    Int'     i  -> fmt S.NumericLiteral $ (if i >= 0 then l "+" else mempty) <> l (show i)
     Nat'     u  -> fmt S.NumericLiteral $ l $ show u
     Float'   f  -> fmt S.NumericLiteral $ l $ show f
     -- TODO How to handle Infinity, -Infinity and NaN?  Parser cannot parse
@@ -172,16 +163,19 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     --      parser ought to be able to parse them, to maintain symmetry.)
     Boolean' b  -> fmt S.BooleanLiteral $ if b then l "true" else l "false"
     Text'    s  -> fmt S.TextLiteral $ l $ show s
-    Blank'   id -> fmt S.Blank $ l "_" <> (l $ fromMaybe "" (Blank.nameb id))
-    Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $ 
+    Char'    c  -> fmt S.CharLiteral $ l $ case showEscapeChar c of
+                                            Just c -> "?\\" ++ [c]
+                                            Nothing -> '?': [c]
+    Blank'   id -> fmt S.Blank $ l "_" <> l (fromMaybe "" (Blank.nameb id))
+    Constructor' ref i -> styleHashQualified'' (fmt S.Constructor) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Data)
-    Request' ref i -> styleHashQualified'' (fmt S.Request) $ 
+    Request' ref i -> styleHashQualified'' (fmt S.Request) $
       elideFQN im $ PrettyPrintEnv.termName n (Referent.Con ref i CT.Effect)
     Handle' h body -> let (im', uses) = calcImports im body in
       paren (p >= 2)
-        $ ((fmt S.ControlKeyword "handle") `PP.hang` pretty0 n (ac 2 Normal im) h)
+        $ (fmt S.ControlKeyword "handle" `PP.hang` pretty0 n (ac 2 Normal im) h)
         <> PP.softbreak
-        <> ((fmt S.ControlKeyword "in") `PP.hang` (uses $ [pretty0 n (ac 2 Block im') body]))
+        <> (fmt S.ControlKeyword "in" `PP.hang` uses [pretty0 n (ac 2 Block im') body])
     App' x (Constructor' DD.UnitRef 0) ->
       paren (p >= 11) $ (fmt S.DelayForceChar $ l "!") <> pretty0 n (ac 11 Normal im) x
     AskInfo' x -> paren (p >= 11) $ pretty0 n (ac 11 Normal im) x <> (fmt S.DelimiterChar $ l "?")
@@ -212,13 +206,13 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
                    in uses $ [pretty0 n (ac 0 Block im') tm]
     And' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "and", 
+        fmt S.ControlKeyword "and",
         pretty0 n (ac 10 Normal im) x,
         pretty0 n (ac 10 Normal im) y
       ]
     Or' x y ->
       paren (p >= 10) $ PP.spaced [
-        fmt S.ControlKeyword "or", 
+        fmt S.ControlKeyword "or",
         pretty0 n (ac 10 Normal im) x,
         pretty0 n (ac 10 Normal im) y
       ]
@@ -231,8 +225,8 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
  where
   specialCases term go = case (term, binaryOpsPred) of
     (TupleTerm' [x], _) ->
-      paren (p >= 10) $ (fmt S.Constructor "Pair") `PP.hang`
-        PP.spaced [pretty0 n (ac 10 Normal im) x, (fmt S.Constructor "()") ]
+      paren (p >= 10) $ fmt S.Constructor "Pair" `PP.hang`
+        PP.spaced [pretty0 n (ac 10 Normal im) x, fmt S.Constructor "()" ]
     (TupleTerm' xs, _) -> paren True $ commaList xs
     BinaryAppsPred' apps lastArg -> paren (p >= 3) $
       binaryApps apps (pretty0 n (ac 3 Normal im) lastArg)
@@ -243,19 +237,19 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
       _ -> case (term, nonUnitArgPred) of
         LamsNamedPred' vs body ->
           paren (p >= 3) $
-            PP.group (varList vs <> (fmt S.ControlKeyword " ->")) `PP.hang` pretty0 n (ac 2 Block im) body
+            PP.group (varList vs <> fmt S.ControlKeyword " ->") `PP.hang` pretty0 n (ac 2 Block im) body
         _ -> go term
 
-  sepList sep xs = sepList' (pretty0 n (ac 0 Normal im)) sep xs
+  sepList = sepList' (pretty0 n (ac 0 Normal im))
   sepList' f sep xs = fold $ intersperse sep (map f xs)
-  varList vs = sepList' (PP.text . Var.name) PP.softbreak vs
-  commaList = sepList ((fmt S.DelimiterChar $ l ",") <> PP.softbreak)
+  varList = sepList' (PP.text . Var.name) PP.softbreak
+  commaList = sepList (fmt S.DelimiterChar (l ",") <> PP.softbreak)
 
-  printLet :: Var v 
-           => BlockContext 
-           -> [(v, AnnotatedTerm3 v PrintAnnotation)] 
-           -> AnnotatedTerm3 v PrintAnnotation 
-           -> Imports 
+  printLet :: Var v
+           => BlockContext
+           -> [(v, AnnotatedTerm3 v PrintAnnotation)]
+           -> AnnotatedTerm3 v PrintAnnotation
+           -> Imports
            -> ([Pretty SyntaxText] -> Pretty SyntaxText)
            -> Pretty SyntaxText
   printLet sc bs e im' uses =
@@ -270,7 +264,7 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     letIntro = case sc of
       Block  -> id
       Normal -> \x -> (fmt S.ControlKeyword "let") `PP.hang` x
-    
+
   printCase :: Var v => MatchCase () (AnnotatedTerm3 v PrintAnnotation) -> Pretty SyntaxText
   printCase (MatchCase pat guard (AbsN' vs body)) =
     PP.group $ lhs `PP.hang` (uses [pretty0 n (ac 0 Block im') body])
@@ -278,7 +272,13 @@ pretty0 n AmbientContext { precedence = p, blockContext = bc, infixContext = ic,
     lhs = PP.group (fst (prettyPattern n (ac 0 Block im) (-1) vs pat) <> " ")
        <> printGuard guard
        <> (fmt S.ControlKeyword "->")
-    printGuard (Just g) = PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
+    printGuard (Just g0) = let
+      -- strip off any Abs-chain around the guard, guard variables are rendered
+      -- like any other variable, ex: case Foo x y | x < y -> ...
+      g = case g0 of
+        AbsN' _ g' -> g'
+        _ -> g0
+      in PP.group $ PP.spaced [(fmt S.DelimiterChar "|"), pretty0 n (ac 2 Normal im) g, ""]
     printGuard Nothing  = mempty
     (im', uses) = calcImports im body
   printCase _ = l "error"
@@ -429,12 +429,12 @@ prettyBinding0 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
     Ann' tm tp -> PP.lines [
       PP.group (renderName v <> PP.hang (fmt S.TypeAscriptionColon " :") (TypePrinter.pretty0 env im (-1) tp)),
       PP.group (prettyBinding0 env a v tm) ]
-    LamsNamedOpt' vs body -> 
-      let 
+    LamsNamedOpt' vs body ->
+      let
         (im', uses) = calcImports im body'
-        -- In the case where we're being called from inside `pretty0`, this call to 
+        -- In the case where we're being called from inside `pretty0`, this call to
         -- printAnnotate is unfortunately repeating work we've already done.
-        body' = printAnnotate env body 
+        body' = printAnnotate env body
       in PP.group $
         PP.group (defnLhs v vs <> (fmt S.BindingEquals " =")) `PP.hang`
         (uses [pretty0 env (ac (-1) Block im') body'])
@@ -450,9 +450,9 @@ prettyBinding0 env a@(AmbientContext { imports = im }) v term = go (symbolic && 
       else if null vs then renderName v
       else renderName v `PP.hang` args vs
     args vs = PP.spacedMap ((fmt S.Var) . PP.text . Var.name) vs
-    renderName n = let n' = elideFQN im n 
+    renderName n = let n' = elideFQN im n
                    in parenIfInfix n' NonInfix $ styleHashQualified'' (fmt S.Reference) n'
-                   
+
   symbolic = isSymbolic v
   isBinary = \case
     Ann'          tm _ -> isBinary tm
@@ -494,66 +494,66 @@ fmt = PP.withSyntax
 {- # FQN elision
 
    The term pretty-printer inserts `use` statements in some circumstances, to
-   avoid the need for using fully-qualified names (FQNs) everywhere.  The 
-   following is an explanation and specification, as developed in issue #285.  
-  
-   As an example, instead of 
-  
+   avoid the need for using fully-qualified names (FQNs) everywhere.  The
+   following is an explanation and specification, as developed in issue #285.
+
+   As an example, instead of
+
      foo p q r =
        if p then Util.bar q else Util.bar r
-   
+
    we actually output the following.
-   
+
      foo p q r =
        use Util bar
        if p then bar q else bar r
-  
-   Here, the `use` statement `use Util bar` has been inserted at the start of 
+
+   Here, the `use` statement `use Util bar` has been inserted at the start of
    the block statement containing the `if`.  Within that scope, `Util.bar` can
-   be referred to just with `bar`.  We say `Util` is the prefix, and `bar` is 
-   the suffix.  
-  
+   be referred to just with `bar`.  We say `Util` is the prefix, and `bar` is
+   the suffix.
+
    When choosing where to place `use` statements, the pretty-printer tries to
    - float them down, deeper into the syntax tree, to keep them visually close
      to the use sites ('usages') of the names involved, but also tries to
    - minimize the number of repetitions of `use` statements for the same names
-     by floating them up, towards the top of the syntax tree, so that one 
+     by floating them up, towards the top of the syntax tree, so that one
      `use` statement takes effect over more name usages.
-  
+
    It avoids producing output like the following.
-   
-     foo p q r = 
+
+     foo p q r =
        use My bar
        if p then bar q else Your.bar r
-     
+
    Here `My.bar` is imported with a `use` statement, but `Your.bar` is not.
-   We avoid this because it would be easy to misread `bar` as meaning 
+   We avoid this because it would be easy to misread `bar` as meaning
    `Your.bar`.  Instead both names are output fully qualified.
-  
+
    This means that a `use` statement is only emitted for a name
    when the suffix is unique, across all the names referenced in the scope of
    the `use` statement.
-  
+
    We don't emit a `use` statement for a name if it only occurs once within
    the scope (unless it's an infix operator, since they look nicer without
    a namespace qualifier.)
-  
+
    The emitted code does not depend on Type-Driven Name Resolution (TDNR).
    For example, we emit
-     foo = 
+     foo =
        use Nat +
        1 + 2
    even though TDNR means that `foo = 1 + 2` would have had the same
    meaning.  That avoids the reader having to run typechecker logic in their
-   head in order to know what functions are being called.  
-  
+   head in order to know what functions are being called.
+
    Multi-level name qualification is allowed - like `Foo.Bar.baz`.  The
-   pretty-printer tries to strip off as many sections of the prefix as 
+   pretty-printer tries to strip off as many sections of the prefix as
    possible, without causing a clash with other names.  If more sections
-   can be stripped off, further down the tree, then it does this too.  
-  
+   can be stripped off, further down the tree, then it does this too.
+
    ## Specification
-  
+
    We output a `use` statement for prefix P and suffix S at a given scope if
      - the scope is a block statement (so the `use` is syntactically valid)
      - the number of usages of the thing referred to by P.S within the scope
@@ -569,62 +569,62 @@ fmt = PP.withSyntax
    Suffixes covered by a single use statement are sorted alphabetically.
    Note that each `use` line cannot be line-broken.  Ideally they would
    fit the available space by splitting into multiple separate `use` lines.
-  
+
    ## Algorithm
-  
+
    Bubbling up from the leaves of the syntax tree, we calculate for each
    node, a `Map Suffix (Map Prefix Int)` (the 'usages map'), where the `Int`
-   is the number of usages of Prefix.Suffix at/under that node.  (Note that 
+   is the number of usages of Prefix.Suffix at/under that node.  (Note that
    a usage of `A.B.c` corresponds to two entries in the outer map.)  See
    `printAnnotate`.
-   
+
    Once we have this decoration on all the terms, we start pretty-printing.
    As we recurse back down through the tree, we keep a `Map Name Suffix` (the
-   'imports map'), to record the effect of all the `use` statements we've added 
-   in the nodes above.  When outputting names, we check this map to work out 
-   how to render them, using any suffix we find, or else falling back to the 
+   'imports map'), to record the effect of all the `use` statements we've added
+   in the nodes above.  When outputting names, we check this map to work out
+   how to render them, using any suffix we find, or else falling back to the
    FQN.  At each block statement, each suffix in that term's usages map is a
-   candidate to be imported with a use statement, subject to the various 
+   candidate to be imported with a use statement, subject to the various
    rules in the specification.
-  
+
    # Debugging
-  
+
    Start by enabling the tracing in elideFQN in PrettyPrintEnv.hs.
 
    There's also tracing in allInSubBlock to help when the narrowness check
    is playing up.
-  
+
    # Semantics of imports
-  
-   Here is some background on how imports work.  
-  
-   `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More 
-   generally, `use` is followed by a FQN prefix, then the local suffix. 
+
+   Here is some background on how imports work.
+
+   `use XYZ blah` brings `XYZ.blah` into scope, bound to the name `blah`. More
+   generally, `use` is followed by a FQN prefix, then the local suffix.
    Concatenate the FQN prefix with the local suffix, with a dot between them,
    and you get the FQN, which is bound to the name equal to the local suffix.
-  
-   `use XYZ blah qux` is equivalent to the two statements (and this 
+
+   `use XYZ blah qux` is equivalent to the two statements (and this
    generalizes for any N symbols):
      use XYZ blah
      use XYZ qux
-  
+
    This syntax works the same even if XYZ or blah have dots in them, so:
-   `use Util.External My.Foo` brings `Util.External.My.Foo` into scope, bound 
+   `use Util.External My.Foo` brings `Util.External.My.Foo` into scope, bound
    to the name `My.Foo`.
-  
-   That's it. No wildcard imports, imports that do renaming, etc. We can 
+
+   That's it. No wildcard imports, imports that do renaming, etc. We can
    consider adding some features like this later.
 -}
 
 data PrintAnnotation = PrintAnnotation
   {
-    -- For each suffix that appears in/under this term, the set of prefixes 
-    -- used with that suffix, and how many times each occurs.  
+    -- For each suffix that appears in/under this term, the set of prefixes
+    -- used with that suffix, and how many times each occurs.
     usages :: Map Suffix (Map Prefix Int)
   } deriving (Show)
 
 instance Semigroup PrintAnnotation where
-  (PrintAnnotation { usages = a } ) <> (PrintAnnotation { usages = b } ) = 
+  (PrintAnnotation { usages = a } ) <> (PrintAnnotation { usages = b } ) =
     PrintAnnotation { usages = Map.unionWith f a b } where
       f a' b' = Map.unionWith (+) a' b'
 
@@ -657,11 +657,11 @@ printAnnotate n tm = fmap snd (go (reannotateUp (suffixCounterTerm n) tm)) where
   go = extraMap' id (const ()) (const ())
 
 countTypeUsages :: (Var v, Ord v) => PrettyPrintEnv -> Type v a -> PrintAnnotation
-countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t 
-                      
+countTypeUsages n t = snd $ annotation $ reannotateUp (suffixCounterType n) t
+
 countPatternUsages :: PrettyPrintEnv -> Pattern loc -> PrintAnnotation
 countPatternUsages n p = Pattern.foldMap' f p where
-  f = \case 
+  f = \case
     Pattern.UnboundP _            -> mempty
     Pattern.VarP _                -> mempty
     Pattern.BooleanP _ _          -> mempty
@@ -669,12 +669,13 @@ countPatternUsages n p = Pattern.foldMap' f p where
     Pattern.NatP _ _              -> mempty
     Pattern.FloatP _ _            -> mempty
     Pattern.TextP _ _             -> mempty
+    Pattern.CharP _ _             -> mempty
     Pattern.AsP _ _               -> mempty
     Pattern.SequenceLiteralP _ _  -> mempty
     Pattern.SequenceOpP _ _ _ _   -> mempty
     Pattern.EffectPureP _ _       -> mempty
     Pattern.EffectBindP _ r i _ _ -> countHQ $ PrettyPrintEnv.patternName n r i
-    Pattern.ConstructorP _ r i _  -> 
+    Pattern.ConstructorP _ r i _  ->
       if noImportRefs r then mempty
       else countHQ $ PrettyPrintEnv.patternName n r i
 
@@ -703,7 +704,7 @@ dotConcat = Text.concat . (intersperse ".")
 --
 -- Don't do `use () ()` or `use Pair Pair`.  Tuple syntax generates ().() and Pair.Pair
 -- under the covers anyway.  This does mean that if someone is using Pair.Pair directly,
--- then they'll miss out on FQN elision for that.  
+-- then they'll miss out on FQN elision for that.
 noImportRefs :: Reference -> Bool
 noImportRefs r = r == DD.pairRef || r == DD.unitRef
 
@@ -712,25 +713,25 @@ infixl 0 |>
 x |> f = f x
 
 -- This function gets used each time we start printing a new block statement.
--- It decides what extra imports to introduce (returning the full new set), and 
+-- It decides what extra imports to introduce (returning the full new set), and
 -- determines some pretty-printed lines that looks like
 --    use A x
 --    use B y
 -- providing a `[Pretty SyntaxText] -> Pretty SyntaxText` that prepends those
 -- lines to the list of lines provided, and then concatenates them.
-calcImports 
+calcImports
   :: (Var v, Ord v)
-  => Imports 
-  -> AnnotatedTerm3 v PrintAnnotation 
+  => Imports
+  -> AnnotatedTerm3 v PrintAnnotation
   -> (Imports, [Pretty SyntaxText] -> Pretty SyntaxText)
 calcImports im tm = (im', render $ getUses result)
-  where 
+  where
     -- The guts of this function is a pipeline of transformations and filters, starting from the
-    -- PrintAnnotation we built up in printAnnotate.  
-    -- In `result`, the Name matches Prefix ++ Suffix; and the Int is the number of usages in this scope. 
+    -- PrintAnnotation we built up in printAnnotate.
+    -- In `result`, the Name matches Prefix ++ Suffix; and the Int is the number of usages in this scope.
     -- `result` lists all the names we're going to import, and what Prefix we'll use for each.
     result :: Map Name (Prefix, Suffix, Int)
-    result =    usages' 
+    result =    usages'
              |> uniqueness
              |> enoughUsages
              |> groupAndCountLength
@@ -743,7 +744,7 @@ calcImports im tm = (im', render $ getUses result)
     uniqueness :: Map Suffix (Map Prefix Int) -> Map Suffix (Prefix, Int)
     uniqueness m = m |> Map.filter (\ps -> (Map.size ps) == 1)
                      |> Map.map (\ps -> head $ Map.toList ps)
-    -- Keep only names where the number of usages in this scope 
+    -- Keep only names where the number of usages in this scope
     --   - is > 1, or
     --   - is 1, and S is an infix operator.
     -- Also drop names with an empty prefix.
@@ -756,13 +757,13 @@ calcImports im tm = (im', render $ getUses result)
     -- Group by `Prefix ++ Suffix`, and then by `length Prefix`
     groupAndCountLength :: Map Suffix (Prefix, Int) -> Map (Name, Int) (Prefix, Suffix, Int)
     groupAndCountLength m = Map.toList m |> map (\(s, (p, i)) -> let n = joinName p s
-                                                                     l = length p 
+                                                                     l = length p
                                                                  in ((n, l), (p, s, i)))
                                          |> Map.fromList
-    -- For each k1, choose the v with the largest k2.    
+    -- For each k1, choose the v with the largest k2.
     longestPrefix :: (Ord k1, Ord k2) => Map (k1, k2) v -> Map k1 v
     longestPrefix m = let k1s = Set.map fst $ Map.keysSet m
-                          k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m 
+                          k2s = k1s |> Map.fromSet (\k1' -> Map.keysSet m
                                                               |> Set.filter (\(k1, _) -> k1 == k1')
                                                               |> Set.map snd)
                           maxk2s = Map.map maximum k2s
@@ -770,16 +771,16 @@ calcImports im tm = (im', render $ getUses result)
     -- Don't do another `use` for a name for which we've already done one, unless the
     -- new suffix is shorter.
     avoidRepeatsAndClashes :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
-    avoidRepeatsAndClashes = Map.filterWithKey $ 
+    avoidRepeatsAndClashes = Map.filterWithKey $
                                \n (_, s', _) -> case Map.lookup n im of
                                  Just s  -> (Text.length s') < (Text.length s)
                                  Nothing -> True
     -- Is there a strictly smaller block term underneath this one, containing all the usages
-    -- of some of the names?  Skip omitting `use` statements for those, so we can do it 
+    -- of some of the names?  Skip omitting `use` statements for those, so we can do it
     -- further down, closer to the use sites.
     narrowestPossible :: Map Name (Prefix, Suffix, Int) -> Map Name (Prefix, Suffix, Int)
     narrowestPossible m = m |> Map.filter (\(p, s, i) -> not $ allInSubBlock tm p s i)
-    -- `union` is left-biased, so this can replace existing imports.                      
+    -- `union` is left-biased, so this can replace existing imports.
     im' = getImportMapAdditions result `Map.union` im
     getImportMapAdditions :: Map Name (Prefix, Suffix, Int) -> Map Name Suffix
     getImportMapAdditions = Map.map (\(_, s, _) -> s)
@@ -787,7 +788,7 @@ calcImports im tm = (im', render $ getUses result)
     getUses m = Map.elems m |> map (\(p, s, _) -> (p, Set.singleton s))
                             |> Map.fromListWith Set.union
     render :: Map Prefix (Set Suffix) -> [Pretty SyntaxText] -> Pretty SyntaxText
-    render m rest = let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <> 
+    render m rest = let uses = Map.mapWithKey (\p ss -> (fmt S.UseKeyword $ l"use ") <>
                                    (fmt S.UsePrefix (intercalateMap (l".") (l . unpack) p)) <> l" " <>
                                    (fmt S.UseSuffix (intercalateMap (l" ") (l . unpack) (Set.toList ss)))) m
                                  |> Map.toList
@@ -798,16 +799,16 @@ calcImports im tm = (im', render $ getUses result)
 -- block term within it, containing all usages of that name?  ABT.find does the heavy lifting.
 -- Things are complicated by the fact that you can't always tell if a term is a blockterm just
 -- by looking at it: in some cases you can only tell when you can see it in the context of
--- the wider term that contains it.  Hence `immediateChildBlockTerms`.  
+-- the wider term that contains it.  Hence `immediateChildBlockTerms`.
 -- Cut out the occurrences of "const id $" to get tracing.
 allInSubBlock :: (Var v, Ord v) => AnnotatedTerm3 v PrintAnnotation -> Prefix -> Suffix -> Int -> Bool
-allInSubBlock tm p s i = let found = concat $ ABT.find finder tm 
+allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
                              result = any (/= tm) $ found
-                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++ 
-                                                    show s ++ ", " ++ show i ++ "): returns " ++ 
-                                                    show result ++ "\nInput:\n" ++ show tm ++ 
+                             tr = const id $ trace ("\nallInSubBlock(" ++ show p ++ ", " ++
+                                                    show s ++ ", " ++ show i ++ "): returns " ++
+                                                    show result ++ "\nInput:\n" ++ show tm ++
                                                     "\nFound: \n" ++ show found ++ "\n\n")
-                         in tr result where 
+                         in tr result where
   getUsages t =    annotation t
                 |> usages
                 |> Map.lookup s
@@ -815,16 +816,16 @@ allInSubBlock tm p s i = let found = concat $ ABT.find finder tm
                 |> join
                 |> fromMaybe 0
   finder t = let result = let i' = getUsages t
-                          in if i' < i 
-                             then ABT.Prune 
-                             else 
+                          in if i' < i
+                             then ABT.Prune
+                             else
                                let found = filter hit $ immediateChildBlockTerms t
                                in if (i' == i) && (not $ null found)
                                   then ABT.Found found
                                   else ABT.Continue
                  children = concat (map (\t -> "child: " ++ show t ++ "\n") $ immediateChildBlockTerms t)
-                 tr = const id $ trace ("\nfinder: returns " ++ show result ++ 
-                                        "\n  children:" ++ children ++ 
+                 tr = const id $ trace ("\nfinder: returns " ++ show result ++
+                                        "\n  children:" ++ children ++
                                         "\n  input: \n" ++ show t ++ "\n\n")
              in tr $ result
   hit t = (getUsages t) == i

@@ -1,0 +1,4 @@
+type MonoidRec a = {
+  combine : a -> a -> a,
+  empty   : a
+}

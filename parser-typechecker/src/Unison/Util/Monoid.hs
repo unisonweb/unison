@@ -1,8 +1,8 @@
 module Unison.Util.Monoid where
 
+import Unison.Prelude hiding (whenM)
+
 import Data.List (intersperse)
-import Data.Foldable (toList)
-import Control.Monad (foldM)
 
 -- List.intercalate extended to any monoid
 -- "The type that intercalate should have had to begin with."

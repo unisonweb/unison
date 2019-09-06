@@ -43,9 +43,8 @@ module Unison.Names2
   )
 where
 
-import           Data.Foldable                (toList)
-import           Data.List                    (foldl')
-import           Data.Set                     (Set)
+import Unison.Prelude
+
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
 import           Unison.Codebase.SearchResult (SearchResult)
@@ -230,7 +229,7 @@ hqTermName b n r = if Set.size (termsNamed b n) > 1
 
 hqTypeName :: Ord n => Names' n -> n -> Reference -> HQ.HashQualified' n
 hqTypeName b n r = if Set.size (typesNamed b n) > 1
-  then hqTypeName b n r
+  then hqTypeName' b n r
   else HQ.fromName n
 
 hqTypeAliases ::
@@ -245,6 +244,10 @@ hqTermAliases b n r = Set.map (flip (hqTermName b) r) (termAliases b n r)
 hqTermName' :: Names' n -> n -> Referent -> HQ.HashQualified' n
 hqTermName' b n r =
   HQ.take (numHashChars b) $ HQ.fromNamedReferent n r
+
+hqTypeName' :: Names' n -> n -> Reference -> HQ.HashQualified' n
+hqTypeName' b n r =
+  HQ.take (numHashChars b) $ HQ.fromNamedReference n r
 
 fromTerms :: Ord n => [(n, Referent)] -> Names' n
 fromTerms ts = Names (R.fromList ts) mempty

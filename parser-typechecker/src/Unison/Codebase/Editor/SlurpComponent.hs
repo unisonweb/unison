@@ -3,11 +3,8 @@
 
 module Unison.Codebase.Editor.SlurpComponent where
 
-import Control.Applicative ((<|>))
-import Data.List (foldl')
-import Data.Maybe (fromMaybe)
-import Data.Map (Map)
-import Data.Set (Set)
+import Unison.Prelude
+
 import Data.Tuple (swap)
 import Unison.Reference ( Reference )
 import Unison.UnisonFile (TypecheckedUnisonFile)

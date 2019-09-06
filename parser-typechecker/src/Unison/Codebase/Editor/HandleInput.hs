@@ -20,6 +20,8 @@
 
 module Unison.Codebase.Editor.HandleInput (loop, loopState0, LoopState(..), parseSearchType) where
 
+import Unison.Prelude
+
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.Output
@@ -32,40 +34,23 @@ import Unison.Codebase.Editor.SlurpComponent (SlurpComponent(..))
 import qualified Unison.Codebase.Editor.SlurpComponent as SC
 import Unison.Codebase.Editor.RemoteRepo
 
-import           Control.Applicative
 import           Control.Lens
 import           Control.Lens.TH                ( makeLenses )
-import           Control.Monad                  ( filterM, foldM, forM,
-                                                  unless, join, when, void)
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.State            ( StateT
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Trans.Except     ( ExceptT(..), runExceptT)
-import           Control.Monad.Trans.Maybe      ( MaybeT(..) )
 import           Data.Bifunctor                 ( second )
 import           Data.Configurator.Types        ( Config )
 import           Data.Configurator              ()
-import           Data.Foldable                  ( toList
-                                                , fold
-                                                , foldl'
-                                                , traverse_
-                                                )
 import qualified Data.Graph as Graph
 import qualified Data.List                      as List
 import           Data.List                      ( partition, sortOn )
 import           Data.List.Extra                (nubOrd, intercalate)
-import           Data.Maybe                     ( catMaybes
-                                                , fromMaybe
-                                                , fromJust
-                                                , mapMaybe
+import           Data.Maybe                     ( fromJust
                                                 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import qualified Data.Text                     as Text
-import           Data.Traversable               ( for )
 import qualified Data.Set                      as Set
-import           Data.Set                       ( Set )
 import           Data.Sequence                  ( Seq(..) )
 import qualified Unison.ABT                    as ABT
 import           Unison.Codebase.Branch         ( Branch
@@ -73,6 +58,7 @@ import           Unison.Codebase.Branch         ( Branch
                                                 )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.BranchUtil    as BranchUtil
+import qualified Unison.Codebase.Causal        as Causal
 import qualified Unison.Codebase.Metadata      as Metadata
 import           Unison.Codebase.Patch          ( Patch(..) )
 import qualified Unison.Codebase.Patch         as Patch
@@ -131,7 +117,6 @@ import qualified Unison.Codebase.Editor.SearchResult' as SR'
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 import Unison.Type (Type)
-import Debug.Trace (traceShowM, traceM)
 import qualified Unison.Builtin as Builtin
 import Unison.Codebase.NameSegment (NameSegment(..))
 
@@ -180,6 +165,9 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 
 type Action' m v = Action m (Either Event Input) v
 
+defaultPatchNameSegment :: NameSegment
+defaultPatchNameSegment = NameSegment "patch"
+
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
   uf           <- use latestTypecheckedFile
@@ -193,7 +181,7 @@ loop = do
       root0 = Branch.head root'
       currentBranch0 = Branch.head currentBranch'
       defaultPatchPath :: PatchPath
-      defaultPatchPath = (Path' $ Left currentPath', NameSegment "patch")
+      defaultPatchPath = (Path' $ Left currentPath', defaultPatchNameSegment)
       resolveSplit' :: (Path', a) -> (Path, a)
       resolveSplit' = Path.fromAbsoluteSplit . Path.toAbsoluteSplit currentPath'
       resolveToAbsolute :: Path' -> Path.Absolute
@@ -287,9 +275,13 @@ loop = do
         termExists dest = respond . TermAlreadyExists input dest
       in case input of
       ForkLocalBranchI src0 dest0 -> do
-        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
-        srcb <- getAt src
-        if Branch.isEmpty srcb then branchNotFound src0
+        let dest = Path.toAbsolutePath currentPath' $ dest0
+        srcb <- case src0 of
+          Left hash -> eval $ LoadLocalBranch hash
+          Right path' -> getAt $ Path.toAbsolutePath currentPath' path'
+        if Branch.isEmpty srcb then 
+          let notfound = either (NoBranchWithHash input) (BranchNotFound input)
+          in respond $ notfound src0
         else do
           ok <- updateAtM dest $ \destb ->
             pure (if Branch.isEmpty destb then srcb else destb)
@@ -300,8 +292,24 @@ loop = do
         srcb <- getAt src
         if Branch.isEmpty srcb then branchNotFound src0
         else do
-          _ <- updateAtM dest $ \destb -> eval . Eval $ Branch.merge srcb destb
-          success
+          destb <- getAt dest
+          merged <- eval . Eval $ Branch.merge srcb destb
+          b <- updateAtM dest $ const (pure merged)
+          if b then do
+            respond (ShowDiff input (Branch.namesDiff destb merged))
+            patch <- getPatchAt defaultPatchPath
+            void $ propagatePatch patch dest
+          else respond (NothingTodo input)
+
+      PreviewMergeLocalBranchI src0 dest0 -> do
+        let [src, dest] = Path.toAbsolutePath currentPath' <$> [src0, dest0]
+        srcb <- getAt src
+        if Branch.isEmpty srcb then branchNotFound src0
+        else do
+          destb <- getAt dest
+          merged <- eval . Eval $ Branch.merge srcb destb
+          if merged == destb then respond (NothingTodo input)
+          else respond $ ShowDiff input (Branch.namesDiff destb merged)
 
       -- move the root to a sub-branch
       MoveBranchI Nothing dest -> do
@@ -367,8 +375,15 @@ loop = do
                   (Path.toName . Path.unsplit . resolveSplit' $ p)
                   (Branch.toNames0 b)
             in getEndangeredDependents (eval . GetDependents) toDelete rootNames
-          if failed == mempty then
+          if failed == mempty then do
             stepAt $ BranchUtil.makeSetBranch (resolveSplit' p) Branch.empty
+            -- Looks similar to the 'toDelete' above... investigate me! ;)
+            let deletedNames =
+                  Names.prefix0
+                    (Path.toName' (Path.unsplit' p))
+                    (Branch.toNames0 b)
+                diff = Names3.diff0 deletedNames mempty
+            respond $ ShowDiff input diff
           else do
             failed <- loadSearchResults $ Names.asSearchResults failed
             failedDependents <- loadSearchResults $ Names.asSearchResults failedDependents
@@ -383,6 +398,30 @@ loop = do
         branch' <- getAt path
         when (Branch.isEmpty branch') (respond $ CreatedNewBranch path)
 
+      HistoryI resultsCap diffCap from -> case from of
+        Left hash -> do
+          b <- eval $ LoadLocalBranch hash
+          if Branch.isEmpty b then respond $ NoBranchWithHash input hash
+          else doHistory 0 b []
+        Right path' -> do
+          path <- use $ currentPath . to (`Path.toAbsolutePath` path')
+          branch' <- getAt path 
+          if Branch.isEmpty branch' then respond $ CreatedNewBranch path
+          else doHistory 0 branch' []
+        where
+          doHistory !n b acc = 
+            if maybe False (n >=) resultsCap then 
+              respond $ History diffCap acc (PageEnd (Branch.headHash b) n)
+            else case Branch._history b of
+              Causal.One{} -> 
+                respond $ History diffCap acc (EndOfLog $ Branch.headHash b)
+              Causal.Merge{..} -> 
+                respond $ History diffCap acc (MergeTail (Branch.headHash b) $ Map.keys tails) 
+              Causal.Cons{..} -> do 
+                b' <- fmap Branch.Branch . eval . Eval $ snd tail
+                let elem = (Branch.headHash b, Branch.namesDiff b' b)
+                doHistory (n+1) b' (elem : acc)
+
       UndoI -> do
         prev <- eval . Eval $ Branch.uncons root'
         case prev of
@@ -392,7 +431,7 @@ loop = do
           Just (_, prev) -> do
             root .= prev
             eval $ SyncLocalRootBranch prev
-            success
+            respond $ ShowDiff input (Branch.namesDiff prev root')
 
       AliasTermI src dest -> case (toList (getHQ'Terms src), toList (getTerms dest)) of
         ([r],       []) -> do
@@ -701,7 +740,7 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
-      SearchByNameI isVerbose ws -> do
+      SearchByNameI isVerbose showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         -- results became an Either to accommodate `parseSearchType` returning an error
         results <- runExceptT $ case ws of
@@ -710,9 +749,9 @@ loop = do
 
           -- type query
           ":" : ws -> ExceptT (parseSearchType input (unwords ws)) >>= \typ -> ExceptT $ do
-            let locals = Branch.deepReferents (Branch.head currentBranch')
+            let named = Branch.deepReferents (Branch.head root')
             matches <- fmap toList . eval $ GetTermsOfType typ
-            matches <- filter (`Set.member` locals) <$>
+            matches <- filter (`Set.member` named) <$>
               if null matches then do
                 respond NoExactTypeMatches
                 fmap toList . eval $ GetTermsMentioningType typ
@@ -726,10 +765,10 @@ loop = do
             pure . pure $ results
 
           -- name query
-          (map HQ.unsafeFromString -> qs) -> pure $
-            let b0 = Branch.toNames0 . Branch.head $ currentBranch'
-                srs = searchBranchScored b0 fuzzyNameDistance qs
-            in uniqueBy SR.toReferent srs
+          (map HQ.unsafeFromString -> qs) -> do
+            ns <- lift $ basicPrettyPrintNames0
+            let srs = searchBranchScored ns fuzzyNameDistance qs
+            pure $ uniqueBy SR.toReferent srs
 
         case results of
           Left error -> respond error
@@ -739,7 +778,7 @@ loop = do
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies results')
-            respond $ ListOfDefinitions ppe isVerbose results'
+            respond $ ListOfDefinitions ppe isVerbose showAll results'
 
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
@@ -774,13 +813,10 @@ loop = do
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
-      UpdateI maybePath hqs -> case uf of
+      UpdateI maybePatchPath hqs -> case uf of
         Nothing -> respond NoUnisonFile
         Just uf -> do
-          let (p, seg) =
-                  maybe (Path.toAbsoluteSplit currentPath' defaultPatchPath)
-                        (Path.toAbsoluteSplit currentPath')
-                        maybePath
+          let patchPath = fromMaybe defaultPatchPath maybePatchPath
           slurpCheckNames0 <- slurpResultNames0
           currentPathNames0 <- currentPathNames0
           let sr = applySelection hqs uf
@@ -814,9 +850,7 @@ loop = do
                 [ (n, r) | (oldTypeRef,_) <- Map.elems typeEdits
                          , (n, r) <- Names3.constructorsForType0 oldTypeRef currentPathNames0 ]
 
-          ye'ol'Patch <- do
-            b <- getAt p
-            eval . Eval $ Branch.getPatch seg (Branch.head b)
+          ye'ol'Patch <- getPatchAt patchPath
           -- If `uf` updates a -> a', we want to replace all (a0 -> a) in patch
           -- with (a0 -> a') in patch'.
           -- So for all (a0 -> a) in patch, for all (a -> a') in `uf`,
@@ -852,6 +886,7 @@ loop = do
                 p' = foldl' step1 p typeEdits
                 step1 p (r,r') = Patch.updateType r (TypeEdit.Replace r') p
                 step2 p (r,r') = Patch.updateTerm typing r (TermEdit.Replace r' (typing r r')) p
+              (p, seg) = Path.toAbsoluteSplit currentPath' patchPath
               updatePatches :: Branch0 m -> m (Branch0 m)
               updatePatches = Branch.modifyPatches seg updatePatch
 
@@ -871,14 +906,16 @@ loop = do
               (UF.labeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
+          -- propagatePatch prints TodoOutput
+          void $ propagatePatch (updatePatch ye'ol'Patch) currentPath'
 
       TodoI patchPath branchPath' -> do
         patch <- getPatchAt (fromMaybe defaultPatchPath patchPath)
-        ppe <- prettyPrintEnv =<<
-          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+        ppe <- prettyPrintEnv names
         branch <- getAt $ Path.toAbsolutePath currentPath' branchPath'
+        let names0 = Branch.toNames0 (Branch.head branch)
         -- checkTodo only needs the local references to check for obsolete defs
-        let names0 = (Branch.toNames0 . Branch.head) branch
         respond . TodoOutput ppe =<< checkTodo patch names0
 
       TestI showOk showFail -> do
@@ -940,17 +977,10 @@ loop = do
       --                (deleteBranches branchNames)
       --                (respond . DeleteBranchConfirmation $ uniqueToDelete)
 
-      PatchI patchPath scopePath -> do
+      PropagatePatchI patchPath scopePath -> do
         patch <- getPatchAt patchPath
-        ppe <- prettyPrintEnv =<<
-          makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
-        changed <- updateAtM (resolveToAbsolute scopePath) (propagate ppe patch)
-        if changed then do
-          branch <- getAt $ Path.toAbsolutePath currentPath' scopePath
-          -- checkTodo only needs the local names
-          let names0 = (Branch.toNames0 . Branch.head) branch
-          respond . TodoOutput ppe =<< checkTodo patch names0
-        else respond $ NothingToPatch patchPath scopePath
+        updated <- propagatePatch patch (resolveToAbsolute scopePath)
+        unless updated (respond $ NothingToPatch patchPath scopePath)
 
       ExecuteI input ->
         withFile [Type.ref External ioReference]
@@ -992,34 +1022,36 @@ loop = do
         let p = Path.toAbsolutePath currentPath' path
         case mayRepo of
           Just repo ->
-            loadRemoteBranchAt repo p
+            loadRemoteBranchAt input repo p
           Nothing -> do
             repoUrl <- eval . ConfigLookup $ "GitUrl" <> Text.pack (show p)
             case repoUrl of
-              Just url -> loadRemoteBranchAt (GitRepo url "master") p
+              Just url -> loadRemoteBranchAt input (GitRepo url "master") p
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Pull path
-        success
+
       PushRemoteBranchI mayRepo path -> do
         let p = Path.toAbsolutePath currentPath' path
         b <- getAt p
         case mayRepo of
-          Just repo -> syncRemoteRootBranch repo b
+          Just repo -> syncRemoteRootBranch input repo b
           Nothing -> do
             repoUrl <-
               eval . ConfigLookup $ gitUrlKey p
             case repoUrl of
-              Just url -> syncRemoteRootBranch (GitRepo url "master") b
+              Just url -> syncRemoteRootBranch input (GitRepo url "master") b
               Nothing ->
                 eval . Notify $ NoConfiguredGitUrl Push path
-        success
+      DebugBranchHistoryI ->
+        eval . Notify . DumpBitBooster (Branch.headHash currentBranch') =<<
+          (eval . Eval $ Causal.hashToRaw (Branch._history currentBranch'))
+
       DeprecateTermI {} -> notImplemented
       DeprecateTypeI {} -> notImplemented
       AddTermReplacementI {} -> notImplemented
       AddTypeReplacementI {} -> notImplemented
       RemoveTermReplacementI {} -> notImplemented
       RemoveTypeReplacementI {} -> notImplemented
-      UndoRootI -> notImplemented
       ShowDefinitionByPrefixI {} -> notImplemented
       UpdateBuiltinsI -> notImplemented
       QuitI -> MaybeT $ pure Nothing
@@ -1051,31 +1083,46 @@ loop = do
       <> "I tried to put it back, but couldn't. Everybody panic!"
   -}
 
+-- Returns True if the operation changed the namespace, False otherwise.
+propagatePatch :: (Monad m, Var v) => Patch -> Path.Absolute -> Action' m v Bool
+propagatePatch patch scopePath = do
+  changed <- do
+    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+    ppe <- prettyPrintEnv names
+    -- arya: wait, what is this `ppe` here for again exactly?
+    -- ppe is used for some output message that propagate can issue in error
+    -- condition PatchInvolvesExternalDependencies
+    updateAtM scopePath (propagate ppe patch)
+  when changed $ do
+    scope <- getAt scopePath
+    let names0 = Branch.toNames0 (Branch.head scope)
+    -- this will be different AFTER the update succeeds
+    names <- makePrintNamesFromLabeled' (Patch.labeledDependencies patch)
+    ppe <- prettyPrintEnv names
+    respond . TodoOutput ppe =<< checkTodo patch names0
+  pure changed
+
 checkTodo :: Patch -> Names0 -> Action m i v (TO.TodoOutput v Ann)
 checkTodo patch names0 = do
   f <- computeFrontier (eval . GetDependents) patch names0
   let dirty = R.dom f
       frontier = R.ran f
-      names = Names.names0ToNames names0
   (frontierTerms, frontierTypes) <- loadDisplayInfo frontier
   (dirtyTerms, dirtyTypes) <- loadDisplayInfo dirty
   -- todo: something more intelligent here?
   let scoreFn = const 1
-  remainingTransitive <- frontierTransitiveDependents (eval . GetDependents) names0 frontier
+  remainingTransitive <-
+    frontierTransitiveDependents (eval . GetDependents) names0 frontier
   let
-    addTermNames terms = [(Names.termName names (Referent.Ref r), r, t) | (r,t) <- terms ]
-    addTypeNames types = [(Names.typeName names r, r, d) | (r,d) <- types ]
-    frontierTermsNamed = addTermNames frontierTerms
-    frontierTypesNamed = addTypeNames frontierTypes
-    dirtyTermsNamed = List.sortOn (\(s,_,_,_) -> s)
-      [ (scoreFn r, n, r, t) | (n,r,t) <- addTermNames dirtyTerms ]
-    dirtyTypesNamed = List.sortOn (\(s,_,_,_) -> s)
-      [ (scoreFn r, n, r, t) | (n,r,t) <- addTypeNames dirtyTypes ]
+    scoredDirtyTerms =
+      List.sortOn (view _1) [ (scoreFn r, r, t) | (r,t) <- dirtyTerms ]
+    scoredDirtyTypes =
+      List.sortOn (view _1) [ (scoreFn r, r, t) | (r,t) <- dirtyTypes ]
   pure $
     TO.TodoOutput
       (Set.size remainingTransitive)
-      (frontierTermsNamed, frontierTypesNamed)
-      (dirtyTermsNamed, dirtyTypesNamed)
+      (frontierTerms, frontierTypes)
+      (scoredDirtyTerms, scoredDirtyTypes)
       (Names.conflicts names0)
       (Patch.conflicts patch)
   where
@@ -1135,9 +1182,7 @@ searchResultToHQString = \case
 -- Return a list of definitions whose names fuzzy match the given queries.
 fuzzyNameDistance :: Name -> Name -> Maybe _ -- MatchArray
 fuzzyNameDistance (Name.toString -> q) (Name.toString -> n) =
-  case Find.fuzzyFindMatchArray q [n] id of
-    [] -> Nothing
-    (m, _) : _ -> Just m
+  Find.simpleFuzzyScore q n
 
 -- return `name` and `name.<everything>...`
 _searchBranchPrefix :: Branch m -> Name -> [SearchResult]
@@ -1265,19 +1310,28 @@ respond :: Output v -> Action m i v ()
 respond output = eval $ Notify output
 
 loadRemoteBranchAt
-  :: Monad m => RemoteRepo -> Path.Absolute -> Action m i v ()
-loadRemoteBranchAt repo p = do
+  :: Monad m => Var v => Input -> RemoteRepo -> Path.Absolute -> Action' m v ()
+loadRemoteBranchAt input repo p = do
   b <- eval (LoadRemoteRootBranch repo)
   case b of
-    Left  e -> eval . Notify $ GitError e
-    Right b -> void $ updateAtM p (doMerge b)
-  where doMerge b b0 = eval . Eval $ Branch.merge b b0
+    Left  e -> eval . Notify $ GitError input e
+    Right b -> do
+      changed <- updateAtM p (doMerge b)
+      when changed $ do
+        merged <- getAt p
+        patch <- eval . Eval $
+          Branch.getPatch defaultPatchNameSegment (Branch.head merged)
+        void $ propagatePatch patch p
+  where
+  doMerge b b0 = do
+    merged <- eval . Eval $ Branch.merge b b0
+    respond $ ShowDiff input (Branch.namesDiff b0 merged)
+    pure merged
 
-
-syncRemoteRootBranch :: Monad m => RemoteRepo -> Branch m -> Action m i v ()
-syncRemoteRootBranch repo b = do
+syncRemoteRootBranch :: Monad m => Input -> RemoteRepo -> Branch m -> Action m i v ()
+syncRemoteRootBranch input repo b = do
   e <- eval $ SyncRemoteRootBranch repo b
-  either (eval . Notify . GitError) pure e
+  either (eval . Notify . GitError input) (const . respond $ Success input) e
 
 getAt :: Functor m => Path.Absolute -> Action m i v (Branch m)
 getAt (Path.Absolute p) =

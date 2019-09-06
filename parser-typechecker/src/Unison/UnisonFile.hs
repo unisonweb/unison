@@ -6,15 +6,12 @@
 
 module Unison.UnisonFile where
 
+import Unison.Prelude
+
 import Control.Lens
-import           Control.Applicative    ((<|>))
-import           Control.Monad          (join)
 import           Data.Bifunctor         (second)
-import           Data.Foldable          (toList, foldl')
-import           Data.Map               (Map)
 import qualified Data.Map               as Map
 import qualified Data.Set               as Set
-import Data.Set (Set)
 import qualified Unison.ABT as ABT
 import qualified Unison.ConstructorType as CT
 import           Unison.DataDeclaration (DataDeclaration')
@@ -133,7 +130,7 @@ labeledDependencies :: Var v
                     => TypecheckedUnisonFile v a
                     -> Set LabeledDependency
 labeledDependencies TypecheckedUnisonFile{..} =
-  Set.map LD.termRef typeDeps <> termDeps
+  Set.map LD.typeRef typeDeps <> termDeps
   where
   typeDeps :: Set Reference
   typeDeps = foldMap DD.dependencies

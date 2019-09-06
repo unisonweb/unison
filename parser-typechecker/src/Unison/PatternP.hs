@@ -2,8 +2,9 @@
 
 module Unison.PatternP where
 
+import Unison.Prelude
+
 import qualified Unison.Pattern as P
-import Data.Set.Internal (Set)
 import Unison.LabeledDependency (LabeledDependency)
 
 type Pattern loc = P.PatternP loc
@@ -15,6 +16,7 @@ pattern Int loc n = P.IntP loc n
 pattern Nat loc n = P.NatP loc n
 pattern Float loc n = P.FloatP loc n
 pattern Text loc t = P.TextP loc t
+pattern Char loc c = P.CharP loc c
 pattern Constructor loc r cid ps = P.ConstructorP loc r cid ps
 pattern As loc p = P.AsP loc p
 pattern EffectPure loc p = P.EffectPureP loc p

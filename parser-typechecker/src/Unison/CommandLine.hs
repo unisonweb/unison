@@ -8,18 +8,16 @@
 
 module Unison.CommandLine where
 
+import Unison.Prelude
+
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
-import           Control.Monad                   (forever, when)
 import           Data.Configurator               (autoReload, autoConfig)
 import           Data.Configurator.Types         (Config, Worth (..))
-import           Data.Foldable                   (toList)
 import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
-import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
 import qualified Data.Set                        as Set
-import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line
@@ -132,11 +130,11 @@ fuzzyCompleteHashQualified b q0@(HQ.fromString -> query) = case query of
       makeCompletion <$> Find.fuzzyFindInBranch b query
   where
   makeCompletion (sr, p) =
-    prettyCompletion (HQ.toString . SR.name $ sr, p)
+    prettyCompletion' (HQ.toString . SR.name $ sr, p)
 
 fuzzyComplete :: String -> [String] -> [Line.Completion]
 fuzzyComplete q ss =
-  fixupCompletion q (prettyCompletion' <$> Find.fuzzyFinder q ss id)
+  fixupCompletion q (prettyCompletion' <$> Find.simpleFuzzyFinder q ss id)
 
 exactComplete :: String -> [String] -> [Line.Completion]
 exactComplete q ss = go <$> filter (isPrefixOf q) ss where
@@ -155,7 +153,7 @@ fixupCompletion q cs@(h:t) = let
   commonPrefix _ _             = ""
   overallCommonPrefix =
     foldl commonPrefix (Line.replacement h) (Line.replacement <$> t)
-  in if length overallCommonPrefix < length q
+  in if not (q `isPrefixOf` overallCommonPrefix)
      then [ c { Line.replacement = q } | c <- cs ]
      else cs
 

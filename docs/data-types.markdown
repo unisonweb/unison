@@ -2,6 +2,8 @@
 
 This doc describes how data types are uniquely identified in Unison. There's been a bunch of discussion on this topic (todo - I can't seem to find the link to past discussions, help!) but for v1 we'll keep it simple. We may add other ways of generating data type identities if/when we decide we really need it.
 
+> 🚧 There's duplication between this doc and type-declarations.markdown ([github link](https://github.com/unisonweb/unison/blob/master/docs/type-declarations.markdown)).
+
 __Background:__ In most languages, a data type is uniquely identified by some named type within some package. If either the package name is changed (due to a new numbered release of the package) or the module name or name of the type is changed, this results in a type that the language type system considers to be different.
 
 In Unison, a type declaration (introduced by either the `type` or `ability` keyword) creates a type which is uniquely identified in one of two ways:
@@ -30,5 +32,3 @@ Other notes:
 
 * Want a nice story for refactoring: e.g. if I have a conversion from T1 to T2, that can be applied automatically everywhere T1 is in positive position. T2 -> T1 will cover where T1 is in negative position; isomorphism will cover both.
 * Want a nice story for discovery of existing types to limit fragmentation.
-
-TODO: link to past discussions w/ @atacratic.

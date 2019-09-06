@@ -41,34 +41,24 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..), liftA2 )
-import           Control.Monad
+import Unison.Prelude
+
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Writer           ( MonadWriter(..) )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
-import           Data.Foldable                  ( for_ )
 import qualified Data.Foldable                 as Foldable
-import           Data.Functor
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe
-import           Data.Sequence                  ( Seq )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Word                      ( Word64 )
-import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
 import           Unison.DataDeclaration         ( DataDeclaration'
@@ -259,6 +249,7 @@ data Cause v loc
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
+  | HandlerOfUnexpectedType loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -297,11 +288,14 @@ data MEnv v loc = MEnv {
   skipAbilityCheck :: [Type v loc]
 }
 
-newtype Context v loc = Context [(Element v loc, Info v)]
+newtype Context v loc = Context [(Element v loc, Info v loc)]
 
-data Info v =
+data Info v loc =
   Info { existentialVars :: Set v -- set of existentials seen so far
+       , solvedExistentials :: Map v (Monotype v loc) -- `v` is solved to some monotype
+       , unsolvedExistentials :: Set v
        , universalVars :: Set v -- set of universals seen so far
+       , termVarAnnotations :: Map v (Type v loc)
        , allVars :: Set v -- all variables seen so far
        , previouslyTypecheckedVars :: Set v -- term vars already typechecked
        , isWellformed :: Bool -- whether the context so far is well-formed
@@ -366,12 +360,6 @@ markThenRetract markerHint body = do
 markThenRetract0 :: (Var v, Ord loc) => v -> M v loc a -> M v loc ()
 markThenRetract0 markerHint body = () <$ markThenRetract markerHint body
 
-solved :: Context v loc -> [(v, Monotype v loc)]
-solved (Context ctx) = [(v, sa) | (Solved _ v sa, _) <- ctx]
-
-unsolved :: Context v loc -> [v]
-unsolved (Context ctx) = [v | (Existential _ v, _) <- ctx]
-
 -- unsolved' :: Context v loc -> [(B.Blank loc, v)]
 -- unsolved' (Context ctx) = [(b,v) | (Existential b v, _) <- ctx]
 
@@ -421,7 +409,7 @@ _logContext msg = when debugEnabled $ do
   let !_ = trace ("\n"++msg ++ ": " ++ show ctx) ()
   setContext ctx
 
-usedVars :: Context v loc -> Set v
+usedVars :: Ord v => Context v loc -> Set v
 usedVars = allVars . info
 
 fromMEnv :: (MEnv v loc -> a) -> M v loc a
@@ -445,10 +433,10 @@ modifyContext' f = modifyContext (pure . f)
 appendContext :: (Var v, Ord loc) => Context v loc -> M v loc ()
 appendContext tl = modifyContext' (<> tl)
 
-universals :: Context v loc -> Set v
+universals :: Ord v => Context v loc -> Set v
 universals = universalVars . info
 
-existentials :: Context v loc -> Set v
+existentials :: Ord v => Context v loc -> Set v
 existentials = existentialVars . info
 
 freshenVar :: Var v => v -> M v0 loc v
@@ -475,7 +463,7 @@ freeVars e = do
 -- | Check that the context is well formed, see Figure 7 of paper
 -- Since contexts are 'monotonic', we can compute an cache this efficiently
 -- as the context is built up, see implementation of `extend`.
-wellformed :: Context v loc -> Bool
+wellformed :: Ord v => Context v loc -> Bool
 wellformed ctx = isWellformed (info ctx)
 
 -- todo: do we want this to return a location for the aspect of the type that was not well formed
@@ -502,8 +490,8 @@ wellformedType c t = wellformed c && case t of
     v -> (v, extend (Universal v) ctx)
 
 -- | Return the `Info` associated with the last element of the context, or the zero `Info`.
-info :: Context v loc -> Info v
-info (Context []) = Info Set.empty Set.empty Set.empty Set.empty True
+info :: Ord v => Context v loc -> Info v loc
+info (Context []) = Info mempty mempty mempty mempty mempty mempty mempty True
 info (Context ((_,i):_)) = i
 
 -- | Add an element onto the end of this `Context`. Takes `O(log N)` time,
@@ -512,26 +500,26 @@ extend :: Var v => Element v loc -> Context v loc -> Context v loc
 extend e c@(Context ctx) = Context ((e,i'):ctx) where
   i' = addInfo e (info c)
   -- see figure 7
-  addInfo e (Info es us vs pvs ok) = case e of
+  addInfo e (Info es ses ues us uas vs pvs ok) = case e of
     Var v -> case v of
       -- UvarCtx - ensure no duplicates
       TypeVar.Universal v ->
-        Info es (Set.insert v us) (Set.insert v vs) pvs (ok && Set.notMember v us)
+        Info es ses ues (Set.insert v us) uas (Set.insert v vs) pvs (ok && Set.notMember v us)
       -- EvarCtx - ensure no duplicates, and that this existential is not solved earlier in context
       TypeVar.Existential _ v ->
-        Info (Set.insert v es) us (Set.insert v vs) pvs (ok && Set.notMember v es)
+        Info (Set.insert v es) (Map.delete v ses) (Set.insert v ues) us uas (Set.insert v vs) pvs (ok && Set.notMember v es)
     -- SolvedEvarCtx - ensure `v` is fresh, and the solution is well-formed wrt the context
     Solved _ v sa ->
-      Info (Set.insert v es) us (Set.insert v vs) pvs
+      Info (Set.insert v es) (Map.insert v sa ses) (Set.delete v ues) us uas (Set.insert v vs) pvs
            (ok && Set.notMember v es && wellformedType c (Type.getPolytype sa))
     -- VarCtx - ensure `v` is fresh, and annotation is well-formed wrt the context
     Ann v t ->
-      Info es us (Set.insert v vs)
+      Info es ses ues us (Map.insert v t uas) (Set.insert v vs)
                  ((if Set.null (Type.freeVars t) then Set.insert v else id) pvs)
                  (ok && Set.notMember v vs && wellformedType c t)
     -- MarkerCtx - note that since a Marker is always the first mention of a variable, suffices to
     -- just check that `v` is not previously mentioned
-    Marker v -> Info es us (Set.insert v vs) pvs (ok && Set.notMember v vs)
+    Marker v -> Info es ses ues us uas (Set.insert v vs) pvs (ok && Set.notMember v vs)
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
@@ -560,12 +548,6 @@ getEffectDeclarations = fromMEnv effectDecls
 
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
-
-withoutAbilityCheckForExact
-  :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckForExact skip m = M go
-  where
-  go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
 
 shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
 shouldPerformAbilityCheck t = do
@@ -646,11 +628,12 @@ notMember v s =
 
 -- | Replace any existentials with their solution in the context
 apply :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
+apply _ctx t | Set.null (Type.freeVars t) = t
 apply ctx t = case t of
   Type.Universal' _ -> t
   Type.Ref' _ -> t
   Type.Existential' _ v ->
-    maybe t (\(Type.Monotype t') -> apply ctx t') (lookup v (solved ctx))
+    maybe t (\(Type.Monotype t') -> apply ctx t') (lookupSolved ctx v)
   Type.Arrow' i o -> Type.arrow a (apply ctx i) (apply ctx o)
   Type.App' x y -> Type.app a (apply ctx x) (apply ctx y)
   Type.Ann' v k -> Type.ann a (apply ctx v) k
@@ -701,7 +684,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     abilityCheck es
     o <$ check arg i
   go (Type.Existential' b a) = do -- a^App
-    [i,e,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "synthsizeApp-refined-effect", ABT.v' "o"]
+    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthsizeApp-refined-effect", Var.named "o"]
     let it = Type.existential' (loc ft) B.Blank i
         ot = Type.existential' (loc ft) B.Blank o
         et = Type.existential' (loc ft) B.Blank e
@@ -786,6 +769,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
+  go (Term.Char' _) = pure $ Type.char l
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
@@ -832,7 +816,7 @@ synthesize e = scope (InSynthesize e) $
     pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
-    (t, ctx2) <- markThenRetract (ABT.v' "let-rec-marker") $ do
+    (t, ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       synthesize e
     pure $ generalizeExistentials ctx2 t
@@ -854,13 +838,32 @@ synthesize e = scope (InSynthesize e) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go h@(Term.Handle' _ _) = do
-    o <- freshenVar Var.inferOther
-    appendContext $ context [existential o]
-    let ot = Type.existential' l B.Blank o
-    check h ot
+  go (Term.Handle' h body) = do
+    -- To synthesize a handle block, we first synthesize the handler h,
+    -- then push its allowed abilities onto the current ambient set when
+    -- checking the body. Assuming that works, we also verify that the
+    -- handler only uses abilities in the current ambient set.
+    ht <- synthesize h >>= applyM >>= ungeneralize
     ctx <- getContext
-    pure (apply ctx ot)
+    case ht of 
+      -- common case, like `h : Request {Remote} a -> b`, brings
+      -- `Remote` into ambient when checking `body`
+      Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
+        let es = Type.flattenEffects et
+        withEffects es $ check body i
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      -- degenerate case, like `handle x -> 10 in ...`
+      Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
+        e <- extendExistential v 
+        withEffects [Type.existentialp (loc i) e] $ check body i 
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -964,6 +967,8 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.float loc) scrutineeType $> mempty
     Pattern.Text loc _ ->
       lift $ subtype (Type.text loc) scrutineeType $> mempty
+    Pattern.Char loc _  ->
+      lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
       udct <- lift $ ungeneralize dct
@@ -1043,14 +1048,11 @@ checkPattern scrutineeType0 p =
 applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 applyM t = (`apply` t) <$> getContext
 
-bindings :: Context v loc -> [(v, Type v loc)]
-bindings (Context ctx) = [(v,a) | (Ann v a,_) <- ctx]
+lookupAnn :: Ord v => Context v loc -> v -> Maybe (Type v loc)
+lookupAnn ctx v = Map.lookup v (termVarAnnotations . info $ ctx)
 
-lookupAnn :: Eq v => Context v loc -> v -> Maybe (Type v loc)
-lookupAnn ctx v = lookup v (bindings ctx)
-
-lookupSolved :: Eq v => Context v loc -> v -> Maybe (Monotype v loc)
-lookupSolved ctx v = lookup v (solved ctx)
+lookupSolved :: Ord v => Context v loc -> v -> Maybe (Monotype v loc)
+lookupSolved ctx v = Map.lookup v (solvedExistentials . info $ ctx)
 
 resetContextAfter :: a -> M v loc a -> M v loc a
 resetContextAfter x a = do
@@ -1180,7 +1182,7 @@ ungeneralize' t = pure ([], t)
 -- to universals.
 generalizeExistentials :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
 generalizeExistentials ctx t =
-  foldr gen (apply ctx t) (unsolved ctx)
+  foldr gen (apply ctx t) (unsolvedExistentials.info $ ctx)
   where
     gen e t =
       if TypeVar.Existential B.Blank e `ABT.isFreeIn` t
@@ -1239,11 +1241,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       modifyContext' (extend (Ann x i))
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      if Term.isLam body' then do
-        withEffects0 [] $
-          foldr withoutAbilityCheckForExact (check body' ot) es
-      else
-        withEffects0 es $ check body' ot
+      withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1252,29 +1250,9 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       check (ABT.bindInheritAnnotation e (Term.var () v)) t
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t =
-    markThenRetract0 (ABT.v' "let-rec-marker") $ do
+    markThenRetract0 (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       check e t
-  go block@(Term.Handle' h body) t = do
-    -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-    -- `body` should check against `i`
-    [e, i] <- sequence [freshenVar Var.inferAbility, freshenVar Var.inferOther ]
-    appendContext $ context [existential e, existential i]
-    let l = loc block
-    -- t <- applyM t
-    ambient <- getAbilities
-    let t' = Type.effect l ambient t
-    check h $ Type.arrow
-      l
-      (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i))
-      t'
-    ctx <- getContext
-    let et = apply ctx (Type.existentialp l e)
-    withoutAbilityCheckForExact et
-      . withEffects [et]
-      . check body
-      . apply ctx
-      $ Type.existentialp l i
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext
@@ -1361,7 +1339,7 @@ instantiateL _ v t | debugEnabled && traceShow ("instantiateL"::String, v, t) Fa
 instantiateL blank v (Type.stripIntroOuters -> t) = scope (InInstantiateL v t) $ do
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstLSolve
-    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
+    Nothing | not (Set.member v (unsolvedExistentials.info $ ctx)) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstLReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1422,7 +1400,7 @@ instantiateR t _ v | debugEnabled && traceShow ("instantiateR"::String, t, v) Fa
 instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
   getContext >>= \ctx -> case Type.monotype t >>= solve ctx v of
     Just ctx -> setContext ctx -- InstRSolve
-    Nothing | not (v `elem` unsolved ctx) -> failWith $ TypeMismatch ctx
+    Nothing | not (Set.member v (unsolvedExistentials.info $ ctx)) -> failWith $ TypeMismatch ctx
     Nothing -> case t of
       Type.Existential' _ v2 | ordered ctx v v2 -> -- InstRReach (both are existential, set v2 = v)
         maybe (failWith $ TypeMismatch ctx) setContext $
@@ -1480,7 +1458,7 @@ instantiateR (Type.stripIntroOuters -> t) blank v = scope (InInstantiateR t v) $
 solve :: (Var v, Ord loc) => Context v loc -> v -> Monotype v loc -> Maybe (Context v loc)
 solve ctx v t
   -- okay to solve something again if it's to an identical type
-  | v `elem` (map fst (solved ctx)) = same =<< lookup v (solved ctx)
+  | Map.member v (solvedExistentials.info $ ctx) = same =<< lookupSolved ctx v
   where same t2 | apply ctx (Type.getPolytype t) == apply ctx (Type.getPolytype t2) = Just ctx
                 | otherwise = Nothing
 solve ctx v t = case breakAt (existential v) ctx of

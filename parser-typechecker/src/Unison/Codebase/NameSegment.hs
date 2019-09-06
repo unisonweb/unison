@@ -2,7 +2,8 @@
 
 module Unison.Codebase.NameSegment where
 
-import           Data.Text                      ( Text )
+import Unison.Prelude
+
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 import qualified Unison.HashQualified'         as HQ'

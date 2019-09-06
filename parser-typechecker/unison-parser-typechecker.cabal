@@ -98,6 +98,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.Prelude
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
@@ -133,6 +134,7 @@ library
     Unison.Util.Bytes
     Unison.Util.ColorText
     Unison.Util.Components
+    Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
     Unison.Util.Logger
@@ -167,9 +169,10 @@ library
     directory,
     guid,
     data-memocombinators,
-    errors,
     edit-distance,
     either,
+    errors,
+    exceptions,
     extra,
     filepath,
     fingertree,
@@ -183,7 +186,7 @@ library
     io-streams,
     lens,
     ListLike,
-    megaparsec,
+    megaparsec >= 5.0.0 && < 7.0.0,
     memory,
     mmorph,
     monad-loops,
@@ -196,6 +199,7 @@ library
     prelude-extras,
     random,
     raw-strings-qq,
+    rfc5051,
     regex-base,
     regex-tdfa,
     safe,
@@ -234,16 +238,21 @@ library
   if flag(quiet)
     ghc-options: -v0
 
-executable unison2
+executable unison
   main-is: Main.hs
-  hs-source-dirs: unison2
+  hs-source-dirs: unison
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  other-modules:
+    Version
   build-depends:
     base,
     containers,
     directory,
     filepath,
     safe,
+    shellmet,
+    template-haskell,
+    text,
     unison-parser-typechecker
 
 executable prettyprintdemo

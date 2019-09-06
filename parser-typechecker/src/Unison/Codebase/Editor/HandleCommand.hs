@@ -8,22 +8,18 @@
 
 module Unison.Codebase.Editor.HandleCommand where
 
-import Data.Maybe (catMaybes)
+import Unison.Prelude
+
 import Unison.Codebase.Editor.Output
 import Unison.Codebase.Editor.Command
 import Unison.Codebase.Editor.RemoteRepo
 
 import qualified Unison.Builtin                as B
 
--- import Debug.Trace
-
 import           Control.Monad.Except           ( runExceptT )
 import qualified Data.Configurator             as Config
 import           Data.Configurator.Types        ( Config )
-import           Data.Functor
-import           Data.Foldable                  ( forM_, toList )
 import qualified Data.Map                      as Map
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           System.Directory               ( getXdgDirectory
                                                 , XdgDirectory(..)
@@ -105,6 +101,7 @@ commandLine config awaitInput setBranchRef rt notifyUser codebase =
     Evaluate ppe unisonFile        -> evalUnisonFile ppe unisonFile
     Evaluate1 ppe term             -> eval1 ppe term
     LoadLocalRootBranch        -> Codebase.getRootBranch codebase
+    LoadLocalBranch h          -> Codebase.getBranchForHash codebase h 
     SyncLocalRootBranch branch -> do
       setBranchRef branch
       Codebase.putRootBranch codebase branch

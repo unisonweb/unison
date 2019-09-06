@@ -2,8 +2,8 @@
 
 module Unison.TypeParser where
 
-import           Control.Applicative
-import           Data.List
+import Unison.Prelude
+
 import qualified Text.Megaparsec as P
 import qualified Unison.Lexer as L
 import           Unison.Parser
