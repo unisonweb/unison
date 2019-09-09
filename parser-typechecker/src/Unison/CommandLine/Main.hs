@@ -49,7 +49,7 @@ getUserInput
   -> [String]
   -> m Input
 getUserInput patterns codebase branch currentPath numberedArgs =
-  Line.runInputT settings $ go
+  Line.runInputT settings go
  where
   go = do
     line <- Line.getInputLine $
