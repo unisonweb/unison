@@ -166,7 +166,7 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 type Action' m v = Action m (Either Event Input) v
 
 defaultPatchNameSegment :: NameSegment
-defaultPatchNameSegment = NameSegment "patch"
+defaultPatchNameSegment = "patch"
 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
