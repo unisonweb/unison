@@ -64,7 +64,7 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to the current namespace."
+  "Adds all the builtins to `builtins.` in the current namespace."
   (const . pure $ Input.MergeBuiltinsI)
 
 updateBuiltins :: InputPattern
