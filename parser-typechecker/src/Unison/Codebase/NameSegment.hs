@@ -26,3 +26,6 @@ toString = Text.unpack . toText
 
 instance Show NameSegment where
   show = Text.unpack . toText
+
+instance IsString NameSegment where
+  fromString = NameSegment . Text.pack
