@@ -64,7 +64,7 @@ helpFor p = I.parse help [I.patternName p]
 
 mergeBuiltins :: InputPattern
 mergeBuiltins = InputPattern "builtins.merge" [] []
-  "Adds all the builtins to the current namespace."
+  "Adds all the builtins to `builtins.` in the current namespace."
   (const . pure $ Input.MergeBuiltinsI)
 
 updateBuiltins :: InputPattern
@@ -230,17 +230,6 @@ findVerbose = InputPattern
   <> "and aliases in the results."
   )
   (pure . Input.SearchByNameI True False)
-
-findAll :: InputPattern
-findAll = InputPattern
-  "find.all"
-  ["list.all", "ls.all"]
-  [(ZeroPlus, fuzzyDefinitionQueryArg)]
-  ("`find.all` searches for definitions like `find` and shows the full result "
-  <> "list."
-  )
-  (pure . Input.SearchByNameI False True)
-
 
 findPatch :: InputPattern
 findPatch = InputPattern
@@ -810,7 +799,6 @@ validInputs =
   , renamePatch
   , copyPatch
   , find
-  , findAll
   , findVerbose
   , view
   , findPatch
