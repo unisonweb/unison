@@ -137,7 +137,8 @@ findInHistory termMatches typeMatches queries b =
   -- we remove `q` from the accumulated `remainingQueries`, and add the Ref* to
   -- the accumulated `names0`.
   f :: (Set q, Names0) -> Branch0 m1 -> ((Set q, Names0), Bool)
-  f acc@(remainingQueries, _) _b | trace ("acc(" ++ (show . length) remainingQueries ++ ")=" ++ show acc) False = undefined
+--  f acc@(remainingQueries, _) _b | trace ("acc(" ++ (show . length) remainingQueries ++ ")=" ++ show acc) False = undefined
+  f (remainingQueries, _) _b | trace ("remainingQueries(" ++ (show . length) remainingQueries ++ ")=" ++ show remainingQueries) False = undefined
   f acc@(remainingQueries, _) b0 = (acc', null remainingQueries')
     where
     acc'@(remainingQueries', _) = foldl' findQ acc remainingQueries
