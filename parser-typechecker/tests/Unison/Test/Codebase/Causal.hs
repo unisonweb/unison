@@ -85,10 +85,27 @@ test :: Test ()
 test =
   scope "causal"
     . tests
-    $ [ scope "threeWayMerge"
+    $ [ scope "threeWayMerge.ex1"
         .  expect
         $  Causal.head testThreeWay
         == Set.fromList [3, 4]
+      , scope "threeWayMerge.idempotent"
+        .  expect
+        $  testIdempotent oneCausal -- == oneCausal
+        -- $  prop_mergeIdempotent
+
+      , scope "threeWayMerge.identity"
+        .  expect
+        $  testIdentity oneCausal emptyCausal
+        -- $  prop_mergeIdentity
+      , scope "threeWayMerge.commutative"
+        .  expect
+        $  testCommutative (Set.fromList [3,4]) oneRemoved
+        -- $  prop_mergeCommutative
+          {- , scope "threeWayMerge.commonAncestor"
+        .  expect
+        $  testCommonAncestor
+        -- $  prop_mergeCommonAncestor --}
       ]
 
 oneRemoved :: Causal Identity Hash (Set Int64)
@@ -113,6 +130,43 @@ setDiff old new = pure (Set.difference new old, Set.difference old new)
 
 setPatch :: Applicative m => Ord a => Set a -> (Set a, Set a) -> m (Set a)
 setPatch s (added, removed) = pure (added <> Set.difference s removed)
+
+-- merge x x == x, should not add a new head, and also the value at the head should be the same of course
+testIdempotent :: Causal Identity Hash (Set Int64) -> Bool -- Causal Identity Hash (Set Int64)
+testIdempotent causal = 
+     runIdentity (Causal.threeWayMerge setCombine setDiff setPatch causal causal) 
+  == causal
+
+-- prop_mergeIdempotent :: Bool
+-- prop_mergeIdempotent = and (map testIdempotent (take 1000 generateRandomCausals))
+
+oneCausal :: Causal Identity Hash (Set Int64)
+oneCausal = Causal.one (Set.fromList [1])
+
+-- generateRandomCausals :: Causal Identity Hash (Set Int64)
+-- generateRandomCausals = undefined
+
+-- merge x mempty == x, merge mempty x == x
+testIdentity :: Causal Identity Hash (Set Int64) -> Causal Identity Hash (Set Int64) -> Bool
+testIdentity causal mempty = 
+     (Causal.threeWayMerge setCombine setDiff setPatch causal mempty) 
+  == (Causal.threeWayMerge setCombine setDiff setPatch mempty causal)
+
+emptyCausal :: Causal Identity Hash (Set Int64)
+emptyCausal = one (Set.empty)
+
+-- merge (cons hd tl) tl == cons hd tl, merge tl (cons hd tl) == cons hd tl
+testCommutative :: Set Int64 -> Causal Identity Hash (Set Int64) -> Bool
+testCommutative hd tl = (Causal.threeWayMerge setCombine setDiff setPatch (Causal.cons hd tl) tl)
+  == (Causal.threeWayMerge setCombine setDiff setPatch tl (Causal.cons hd tl))
+
+
+{-
+testCommonAncestor :: 
+testCommonAncestor = 
+-}
+
+
 
 --  [ scope "foldHistoryUntil" . expect $ execState c mempty == Set.fromList [3,2,1]]
 
