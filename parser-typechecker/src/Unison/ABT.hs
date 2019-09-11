@@ -262,7 +262,7 @@ changeVars m t = case out t of
 
 -- | Produce a variable which is free in both terms
 freshInBoth :: Var v => Term f v a -> Term f v a -> v -> v
-freshInBoth t1 t2 = fresh t2 . fresh t1
+freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
 fresh :: Var v => Term f v a -> v -> v
 fresh t = freshIn (freeVars t)
