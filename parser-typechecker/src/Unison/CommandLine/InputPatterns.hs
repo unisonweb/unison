@@ -893,8 +893,9 @@ termCompletor filterQuery = pathCompletor filterQuery go where
   go = Set.map HQ'.toText . R.dom . Names.terms . Names.names0ToNames . Branch.toNames0
 
 patchArg :: ArgumentType
-patchArg = ArgumentType "patch" $
-  pathCompletor exactComplete (Set.map Name.toText . Branch.deepEdits)
+patchArg = ArgumentType "patch" $ pathCompletor
+  exactComplete
+  (Set.map Name.toText . Map.keysSet . Branch.deepEdits)
 
 bothCompletors
   :: (Monad m)
