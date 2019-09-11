@@ -929,7 +929,6 @@ instance ABT.Var SymbolC where
 instance Var SymbolC where
   typed s = SymbolC False (Var.typed s)
   typeOf (SymbolC _ s) = Var.typeOf s
-  retype t (SymbolC b s) = SymbolC b (Var.retype t s)
   freshId (SymbolC _ s) = Var.freshId s
   freshenId n (SymbolC i s) = SymbolC i (Var.freshenId n s)
 
