@@ -740,7 +740,7 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
-      SearchByNameI isVerbose showAll ws -> do
+      SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         -- results became an Either to accommodate `parseSearchType` returning an error
         results <- runExceptT $ case ws of
@@ -778,7 +778,7 @@ loop = do
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies results')
-            respond $ ListOfDefinitions ppe isVerbose showAll results'
+            respond $ ListOfDefinitions ppe isVerbose results'
 
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
