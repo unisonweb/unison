@@ -11,7 +11,7 @@ ability State s where
   put : s -> {State s} ()
   get : {State s} s
 
-state : s -> Effect (State s) a -> (s, a)
+state : s -> Request (State s) a -> (s, a)
 state woot eff = case eff of
   { State.get -> k } -> handle (state woot) in (k woot)
   { State.put snew -> k } -> handle (state snew) in (k ())

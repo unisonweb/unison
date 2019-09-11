@@ -282,6 +282,14 @@ empty = Path mempty
 cons :: NameSegment -> Path -> Path
 cons ns (Path p) = Path (ns :<| p)
 
+cons' :: NameSegment -> Path' -> Path'
+cons' n (Path' e) = case e of
+  Left abs -> Path' (Left . Absolute $ cons n (unabsolute abs))
+  Right rel -> Path' (Right . Relative $ cons n (unrelative rel))
+
+consAbsolute :: NameSegment -> Absolute -> Absolute
+consAbsolute n a = Absolute . cons n $ unabsolute a
+
 instance Show Path where
   show = Text.unpack . toText
 

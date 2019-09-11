@@ -1004,7 +1004,7 @@ loop = do
                        <> UF.typecheckedToNames0 IOSource.typecheckedFile
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
-          _ <- updateAtM currentPath' $ \destb ->
+          _ <- updateAtM (Path.consAbsolute "builtin" currentPath') $ \destb ->
                  eval . Eval $ Branch.merge srcb destb
           success
 
