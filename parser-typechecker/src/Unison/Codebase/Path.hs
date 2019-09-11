@@ -95,6 +95,7 @@ parsePath' p = case parsePath'Impl p of
 -- implementation detail of parsePath' and parseSplit'
 -- foo.bar.baz.34 becomes `Right (foo.bar.baz, "34")
 -- foo.bar.baz    becomes `Right (foo.bar, "baz")
+-- baz            becomes `Right (, "baz")
 -- foo.bar.baz#a8fj becomes `Left`; we don't hash-qualify paths.
 parsePath'Impl :: String -> Either String (Path', String)
 parsePath'Impl p = case p of
