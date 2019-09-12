@@ -1,9 +1,11 @@
 {-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Codebase.NameSegment where
 
 import Unison.Prelude
 
+import qualified Unison.Name                   as Name
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 import qualified Unison.HashQualified'         as HQ'
@@ -24,5 +26,11 @@ isPrefixOf n1 n2 = Text.isPrefixOf (toText n1) (toText n2)
 toString :: NameSegment -> String
 toString = Text.unpack . toText
 
+segments :: Name.Name -> [NameSegment]
+segments name = NameSegment <$> Text.splitOn "." (Name.toText name)
+
 instance Show NameSegment where
   show = Text.unpack . toText
+
+instance IsString NameSegment where
+  fromString = NameSegment . Text.pack

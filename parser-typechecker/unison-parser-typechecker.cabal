@@ -137,6 +137,7 @@ library
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
+    Unison.Util.Less
     Unison.Util.Logger
     Unison.Util.List
     Unison.Util.Menu

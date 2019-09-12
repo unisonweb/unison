@@ -78,7 +78,7 @@ parApply f a b = 'let
 -- this currently crashes the compiler
 Remote.runLocal : '{Remote Nat} a -> a
 Remote.runLocal r =
-  step : Nat -> Effect (Remote Nat) a -> a
+  step : Nat -> Request (Remote Nat) a -> a
   step nid r = case r of
     {a} -> a
     {Remote.fork t -> k} -> handle (step nid) in k t

@@ -12,6 +12,8 @@ import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
+import           Unison.Name                    ( Name(..) )
+import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
@@ -84,7 +86,9 @@ initializeCodebase c = do
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
   let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
-  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+  let b0 = BranchUtil.addFromNames0
+            (Names.prefix0 (Name "builtin") names0)
+            Branch.empty0
   putRootBranch c (Branch.one b0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile
