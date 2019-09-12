@@ -1938,7 +1938,7 @@ findHistoricalHQs lexedHQs0 = do
     -- by magical text combinations.
     -- Anyway, this function takes a name, tries to determine whether it is
     -- relative or absolute, and tries to return the corresponding name that is
-    -- /relative/ to the root.  Then we
+    -- /relative/ to the root.
     preprocess n@(Name (Text.unpack -> t)) = case t of
       -- some absolute name that isn't just "."
       '.' : t@(_:_)  -> Name . Text.pack $ t
