@@ -1926,10 +1926,27 @@ makeShadowedPrintNamesFromLabeled deps shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
+-- discards inputs that aren't hashqualified;
+-- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
-findHistoricalHQs lexedHQs = do
+findHistoricalHQs lexedHQs0 = do
   root <- use root
   currentPath <- use currentPath
+  let
+    -- omg this nightmare name-to-path parsing code is littered everywhere.
+    -- We need to refactor so that the absolute-ness of a name isn't represented
+    -- by magical text combinations.
+    -- Anyway, this function takes a name, tries to determine whether it is
+    -- relative or absolute, and tries to return the corresponding name that is
+    -- /relative/ to the root.  Then we
+    preprocess n@(Name (Text.unpack -> t)) = case t of
+      -- some absolute name that isn't just "."
+      '.' : t@(_:_)  -> Name . Text.pack $ t
+      -- something in current path
+      _ ->  if Path.isRoot currentPath then n
+            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
+
+    lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
