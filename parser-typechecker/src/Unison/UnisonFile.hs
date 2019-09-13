@@ -125,21 +125,20 @@ getDecl' uf v =
   (Right . snd <$> Map.lookup v (dataDeclarations' uf)) <|>
   (Left . snd <$> Map.lookup v (effectDeclarations' uf))
 
--- todo: consider dealing with two sets instead of set of Eithers
-labeledDependencies :: Var v
-                    => TypecheckedUnisonFile v a
-                    -> Set LabeledDependency
-labeledDependencies TypecheckedUnisonFile{..} =
-  Set.map LD.typeRef typeDeps <> termDeps
-  where
-  typeDeps :: Set Reference
-  typeDeps = foldMap DD.dependencies
-              (fmap snd (toList dataDeclarations')
-                <> fmap (DD.toDataDecl . snd) (toList effectDeclarations'))
-             <> foldMap (\(_, _e, t) -> Type.dependencies t) (toList hashTerms)
-  termDeps :: Set LabeledDependency
-  termDeps = foldMap Term.labeledDependencies
-              (fmap (\(_, e, _r) -> e) (toList hashTerms))
+-- External type references that appear in the types of the file's terms
+termSignatureExternalLabeledDependencies
+  :: Ord v => TypecheckedUnisonFile v a -> Set LabeledDependency
+termSignatureExternalLabeledDependencies TypecheckedUnisonFile{..} =
+  Set.difference
+    (Set.map LD.typeRef
+      . foldMap Type.dependencies
+      . fmap (\(_r, _e, t) -> t)
+      . toList
+      $ hashTerms)
+    -- exclude any references that are defined in this file
+    (Set.fromList $
+      (map (LD.typeRef . fst) . toList) dataDeclarations' <>
+      (map (LD.typeRef . fst) . toList) effectDeclarations')
 
 -- Returns a relation for the dependencies of this file. The domain is
 -- the dependent, and the range is its dependencies, thus:

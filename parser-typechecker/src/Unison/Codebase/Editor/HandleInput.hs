@@ -243,7 +243,7 @@ loop = do
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
             hnames <- makeShadowedPrintNamesFromLabeled
-                        (UF.labeledDependencies unisonFile)
+                        (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
             ppe <- prettyPrintEnv hnames
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
@@ -809,7 +809,7 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnv =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.labeledDependencies uf)
+              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
@@ -903,7 +903,7 @@ loop = do
           let fileNames0 = UF.typecheckedToNames0 uf
           ppe <- prettyPrintEnv =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.labeledDependencies uf)
+              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
@@ -991,7 +991,7 @@ loop = do
                      -- Begin voodoo
                      ppe <- prettyPrintEnv =<<
                        makeShadowedPrintNamesFromLabeled
-                         (UF.labeledDependencies unisonFile)
+                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                          (UF.typecheckedToNames0 unisonFile)
                      -- End voodoo
                      eval $ Execute ppe unisonFile
