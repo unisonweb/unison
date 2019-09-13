@@ -213,7 +213,7 @@ nonEmpty uf =
   any (not . null) (watchComponents uf)
 
 hashConstructors
-  :: forall v a. Var v => TypecheckedUnisonFile v a -> Map v Referent
+  :: forall v a. Ord v => TypecheckedUnisonFile v a -> Map v Referent
 hashConstructors file =
   let ctors1 = Map.elems (dataDeclarations' file) >>= \(ref, dd) ->
         [ (v, Referent.Con ref i CT.Data) | (v,i) <- DD.constructorVars dd `zip` [0 ..] ]
