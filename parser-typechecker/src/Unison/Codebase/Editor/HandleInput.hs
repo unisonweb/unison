@@ -1916,6 +1916,7 @@ makeShadowedPrintNamesFromLabeled ::
 makeShadowedPrintNamesFromLabeled deps shadowing = do
   root <- use root
   currentPath <- use currentPath
+  traceM $ "makeShadowedPrintNamesFromLabeled.deps = " ++ show deps
   (_missing, rawHistoricalNames) <-
     eval . Eval $ Branch.findHistoricalRefs deps root
   basicNames0 <- basicPrettyPrintNames0
@@ -1947,11 +1948,14 @@ findHistoricalHQs lexedHQs0 = do
             else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
 
     lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
+  traceM $ "findHistoricalHQs.lexedHQs0 = " ++ show lexedHQs0
+  traceM $ "findHistoricalHQs.lexedHQs = " ++ show lexedHQs
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names
 makeShadowedPrintNamesFromHQ lexedHQs shadowing = do
+  traceM $ "makeShadowedPrintNamesFromHQ.lexedHQs = " ++ show lexedHQs
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0
   currentPath <- use currentPath
@@ -1966,6 +1970,7 @@ makePrintNamesFromLabeled' :: Monad m => Set LabeledDependency -> Action' m v Na
 makePrintNamesFromLabeled' deps = do
   root <- use root
   currentPath <- use currentPath
+  traceM $ "makePrintNamesFromLabeled.deps = " ++ show deps
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalRefs deps root
   basicNames0 <- basicPrettyPrintNames0
   pure $ Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames)
@@ -1973,6 +1978,7 @@ makePrintNamesFromLabeled' deps = do
 -- a version of makeHistoricalPrintNames for printing errors for a file that didn't hash
 makePrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Action' m v Names
 makePrintNamesFromHQ lexedHQs = do
+  traceM $ "makePrintNamesFromHQ.lexedHQs = " ++ show lexedHQs
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicPrettyPrintNames0
   currentPath <- use currentPath
@@ -1996,6 +2002,7 @@ makeHistoricalParsingNames ::
   Monad m => Set HQ.HashQualified -> Action' m v Names
 makeHistoricalParsingNames lexedHQs | trace ("-- makeHistoricalParsingNames " ++ (show . toList) lexedHQs) False = undefined
 makeHistoricalParsingNames lexedHQs = do
+  traceM $ "makeHistoricalParsingNames.lexedHQs = " ++ show lexedHQs
   rawHistoricalNames <- findHistoricalHQs lexedHQs
   basicNames0 <- basicParseNames0
   currentPath <- use currentPath
