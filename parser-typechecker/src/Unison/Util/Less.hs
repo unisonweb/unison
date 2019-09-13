@@ -15,8 +15,8 @@ less str = do
   (Just stdin, _stdout, _stderr, pid)
     <- createProcess (proc "less" args) { std_in = CreatePipe }
 
-  -- print the thing to less!
-  hPutStr stdin str
+  -- If `less` exits before consuming all of stdin, `hPutStr` will crash.
+  ignore $ hPutStr stdin str
 
   -- If `less` has already exited, hClose throws an exception.
   ignore $ hClose stdin
