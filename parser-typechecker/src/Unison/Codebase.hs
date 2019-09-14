@@ -2,13 +2,9 @@
 
 module Unison.Codebase where
 
-import           Control.Monad                  ( foldM
-                                                , forM
-                                                )
-import           Data.Foldable                  ( toList, traverse_ )
+import Unison.Prelude
+
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( catMaybes, isJust )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Builtin                as Builtin
@@ -16,6 +12,8 @@ import           Unison.Codebase.Branch         ( Branch )
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.Codebase.CodeLookup    as CL
 import qualified Unison.DataDeclaration        as DD
+import           Unison.Name                    ( Name(..) )
+import qualified Unison.Names2                 as Names
 import           Unison.Reference               ( Reference )
 import qualified Unison.Reference              as Reference
 import qualified Unison.Referent as Referent
@@ -59,7 +57,7 @@ data Codebase m v a =
            , dependentsImpl     :: Reference -> m (Set Reference.Id)
            , syncFromDirectory  :: FilePath -> m ()
            -- This returns the merged branch that results from
-           -- merging the input branch with the root branch at the 
+           -- merging the input branch with the root branch at the
            -- given file path
            , syncToDirectory    :: FilePath -> Branch m -> m (Branch m)
 
@@ -88,7 +86,9 @@ initializeCodebase c = do
                               mempty mempty)
   addDefsToCodebase c IOSource.typecheckedFile
   let names0 = Builtin.names0 <> UF.typecheckedToNames0 IOSource.typecheckedFile
-  let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
+  let b0 = BranchUtil.addFromNames0
+            (Names.prefix0 (Name "builtin") names0)
+            Branch.empty0
   putRootBranch c (Branch.one b0)
 
 -- Feel free to refactor this to use some other type than TypecheckedUnisonFile

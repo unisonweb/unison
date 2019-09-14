@@ -3,15 +3,15 @@
 module Unison.Codebase.Editor.Output
   ( Output(..)
   , ListDetailed
-  , ShowAll
+  , HistoryTail(..)
   , TestReportStats(..)
   , UndoFailureReason(..)
   , PushPull(..)
+  , pushPull
   ) where
 
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.Text (Text)
+import Unison.Prelude
+
 import Unison.Codebase.Editor.Input
 import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import Unison.Codebase.GitError
@@ -44,10 +44,14 @@ import qualified Unison.Names3 as Names
 
 type Term v a = Term.AnnotatedTerm v a
 type ListDetailed = Bool
-type ShowAll = Bool
 type SourceName = Text
 
 data PushPull = Push | Pull deriving (Eq, Ord, Show)
+
+pushPull :: a -> a -> PushPull -> a
+pushPull push pull p = case p of
+  Push -> push
+  Pull -> pull
 
 data Output v
   -- Generic Success response; we might consider deleting this.
@@ -87,7 +91,7 @@ data Output v
   | ListNames [(Referent, Set HQ'.HashQualified)] -- term match, term names
               [(Reference, Set HQ'.HashQualified)] -- type match, type names
   -- list of all the definitions within this branch
-  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed ShowAll [SearchResult' v Ann]
+  | ListOfDefinitions PPE.PrettyPrintEnv ListDetailed [SearchResult' v Ann]
   | ListOfPatches (Set Name)
   -- show the result of add/update
   | SlurpOutput Input PPE.PrettyPrintEnv (SlurpResult v)
@@ -132,12 +136,20 @@ data Output v
   | PatchNeedsToBeConflictFree
   | PatchInvolvesExternalDependents PPE.PrettyPrintEnv (Set Reference)
   | WarnIncomingRootBranch (Set Branch.Hash)
-  | ShowDiff Input Names.Diff 
-  | NothingTodo Input 
+  | ShowDiff Input Names.Diff
+  | History (Maybe Int) [(Branch.Hash, Names.Diff)] HistoryTail
+  | NothingTodo Input
   | NotImplemented
+  | NoBranchWithHash Input Branch.Hash
   | DumpBitBooster Branch.Hash (Map Branch.Hash [Branch.Hash])
   deriving (Show)
 
+data HistoryTail = 
+  EndOfLog Branch.Hash | 
+  MergeTail Branch.Hash [Branch.Hash] | 
+  PageEnd Branch.Hash Int -- PageEnd nextHash nextIndex 
+  deriving (Show)
+  
 data TestReportStats
   = CachedTests TotalCount CachedCount
   | NewlyComputed deriving Show

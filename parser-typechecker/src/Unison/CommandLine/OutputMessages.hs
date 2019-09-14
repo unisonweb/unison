@@ -14,6 +14,8 @@
 
 module Unison.CommandLine.OutputMessages where
 
+import Unison.Prelude hiding (unlessM)
+
 import Unison.Codebase.Editor.Output
 import qualified Unison.Codebase.Editor.Output       as E
 import qualified Unison.Codebase.Editor.TodoOutput       as TO
@@ -21,22 +23,14 @@ import Unison.Codebase.Editor.SlurpResult (SlurpResult(..))
 import qualified Unison.Codebase.Editor.SearchResult' as SR'
 
 
---import Debug.Trace
 import Control.Lens (over, _1)
-import           Control.Monad                 (when, unless, join)
 import           Data.Bifunctor                (bimap, first)
-import           Data.Foldable                 (toList, traverse_)
 import           Data.List                     (sortOn, stripPrefix)
 import           Data.List.Extra               (nubOrdOn, nubOrd)
 import qualified Data.ListLike                 as LL
 import           Data.ListLike                 (ListLike)
-import           Data.Maybe                    (fromMaybe)
-import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
 import qualified Data.Set                      as Set
-import           Data.Set                      (Set)
-import           Data.String                   (IsString, fromString)
-import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 import           Data.Text.IO                  (readFile, writeFile)
 import           Data.Tuple.Extra              (dupe)
@@ -59,6 +53,7 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 , putPrettyLn
+                                                , putPrettyLnUnpaged
                                                 , putPrettyLn'
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
@@ -205,10 +200,10 @@ notifyUser dir o = case o of
   CantDelete input ppe failed failedDependents -> putPrettyLn . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
-      "", P.indentN 2 $ listOfDefinitions' ppe False True failed,
+      "", P.indentN 2 $ listOfDefinitions' ppe False failed,
       "",
       "because it's still being used by these definitions:",
-      "", P.indentN 2 $ listOfDefinitions' ppe False True failedDependents
+      "", P.indentN 2 $ listOfDefinitions' ppe False failedDependents
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> putPrettyLn . P.warnCallout $ "Nothing more to undo."
@@ -261,8 +256,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed showAll results ->
-     listOfDefinitions ppe detailed showAll results
+  ListOfDefinitions ppe detailed results ->
+     listOfDefinitions ppe detailed results
   ListNames [] [] -> putPrettyLn . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> putPrettyLn . P.sepNonEmpty "\n\n" $ [
@@ -310,11 +305,9 @@ notifyUser dir o = case o of
       P.wrap "The type uses these names, but I'm not sure what they are:",
       P.sep ", " (map (P.text . Var.name) . toList $ ABT.freeVars typ)
     ]
-  ParseErrors src es -> do
-    Console.setTitle "Unison ☹︎"
+  ParseErrors src es ->
     traverse_ (putPrettyLn . prettyParseError (Text.unpack src)) es
   TypeErrors src ppenv notes -> do
-    Console.setTitle "Unison ☹︎"
     let showNote =
           intercalateMap "\n\n" (printNoteWithSource ppenv (Text.unpack src))
             . map Result.TypeError
@@ -353,7 +346,6 @@ notifyUser dir o = case o of
     -- if we ever allow users to edit hashes directly.
   FileChangeEvent _sourceName _src -> putStrLn ""
   Typechecked sourceName ppe slurpResult uf -> do
-    Console.setTitle "Unison ✅"
     let fileStatusMsg = SlurpResult.pretty False ppe slurpResult
     if UF.nonEmpty uf then do
       fileName <- renderFileName $ Text.unpack sourceName
@@ -485,12 +477,17 @@ notifyUser dir o = case o of
     -- todo: make this prettier
     putPrettyLn . P.lines . fmap prettyName $ toList patches
   NoConfiguredGitUrl pp p ->
-    putPrettyLn . P.fatalCallout . P.wrap $ "I don't know where to " <>
-      (case pp of
-         Push -> "push"
-         Pull -> "pull"
-         ) <> " to! " <>
-      "Use `track <giturl>` to set up this path to push and pull from <giturl>."
+    putPrettyLn . P.fatalCallout . P.wrap $
+      "I don't know where to " <>
+        pushPull "push to!" "pull from!" pp <>
+          (if Path.isRoot' p then ""
+           else "Add a line like `GitUrl." <> prettyPath' p
+                <> " = <some-git-url>' to .unisonConfig. "
+          )
+          <> "Type `help " <> pushPull "push" "pull" pp <>
+          "` for more information."
+  NoBranchWithHash _ h -> putPrettyLn . P.callout "😶" $ 
+    P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> putPrettyLn "That namespace already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."
@@ -506,15 +503,53 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
+  History cap history tail -> putPrettyLnUnpaged $
+    P.lines [
+      tailMsg,
+      P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
+      note $ "The most recent namespace hash is immediately above this message."
+      ]
+    where
+    tailMsg = case tail of
+      E.EndOfLog h -> P.lines [
+        P.wrap "This is the start of history. Later versions are listed below.", "",
+        "□ " <> phash h, ""
+        ]
+      E.MergeTail h hs -> P.lines [
+        P.wrap $ "This segment of history starts with a merge." <> ex,
+        "",
+        P.lines (phash <$> hs), 
+        "⑂",
+        "⊙ " <> phash h <> (if null history then mempty else "\n")
+        ]
+      E.PageEnd h n -> P.lines [
+        P.wrap $ "There's more history before the versions shown here." <> ex, "",
+        dots, "", 
+        "⊙ " <> phash h,
+        ""
+        ]
+    dots = "⠇"
+    go hash diff = P.lines [
+      P.indentN 2 $ prettyDiff diff,
+      "",
+      "⊙ " <> phash hash
+      ]
+    ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"] 
+               <> "to view history starting from a given namespace hash."
+    phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
       prettyDiff diff
       ]
-    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $ [
-      P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the merge:", "",
-      prettyDiff diff, "",
-      tip "You can always `undo` if this wasn't what you wanted." ]
+    Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $
+      [ P.wrap $
+          "Here's what's changed in " <> prettyPath' dest <> "after the merge:"
+      , ""
+      , prettyDiff diff
+      , ""
+      , tip "You can always `undo` if this wasn't what you wanted."
+      ]
     Input.PullRemoteBranchI _ dest ->
       if Names.isEmptyDiff diff then
         "✅  Looks like " <> prettyPath' dest <> " is up to date."
@@ -522,9 +557,23 @@ notifyUser dir o = case o of
         P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
         prettyDiff diff, "",
         tip "You can always `undo` if this wasn't what you wanted." ]
-    Input.PreviewMergeLocalBranchI src dest -> P.callout "🔎" . P.lines $ [
-      P.wrap $ "Here's what would change in " <> prettyPath' dest <> "after the merge:", "",
-      prettyDiff diff
+    Input.PreviewMergeLocalBranchI src dest ->
+      P.callout "🔎"
+        . P.lines
+        $ [ P.wrap
+          $  "Here's what would change in "
+          <> prettyPath' dest
+          <> "after the merge:"
+          , ""
+          , prettyDiff diff
+          ]
+    Input.DeleteBranchI _ -> P.callout "🆕" . P.lines $
+      [ P.wrap $
+          "Here's what's changed after the delete:"
+      , ""
+      , prettyDiff diff
+      , ""
+      , tip "You can always `undo` if this wasn't what you wanted."
       ]
     _ -> prettyDiff diff
   NothingTodo input -> putPrettyLn . P.callout "😶" $ case input of
@@ -896,9 +945,9 @@ todoOutput ppe todo =
       ]
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> E.ShowAll -> [SR'.SearchResult' v a] -> IO ()
-listOfDefinitions ppe detailed showAll results =
-  putPrettyLn $ listOfDefinitions' ppe detailed showAll results
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO ()
+listOfDefinitions ppe detailed results =
+  putPrettyLn $ listOfDefinitions' ppe detailed results
 
 noResults :: P.Pretty P.ColorText
 noResults = P.callout "😶" $
@@ -908,19 +957,12 @@ noResults = P.callout "😶" $
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
-                   -> E.ShowAll
                    -> [SR'.SearchResult' v a]
                    -> P.Pretty P.ColorText
-listOfDefinitions' ppe detailed showAll results =
+listOfDefinitions' ppe detailed results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [ if len <= cap then mempty
-      else P.lines [ "... " <> P.shown (len - cap) <> " more"
-                   , ""
-                   , P.wrap $
-                       "The" <> makeExample IP.findAll [] <>
-                       "command shows all results." ]
-    ,formatMissingStuff termsWithMissingTypes missingTypes
+    [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
@@ -930,10 +972,8 @@ listOfDefinitions' ppe detailed showAll results =
     ]
   where
   len = length results
-  cap = if detailed || showAll then len else 15
   prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
-               (take cap prettyResults)
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)
@@ -1048,42 +1088,43 @@ prettyDiff diff = let
            , n <- toList (R.lookupRan r (Names.types0 orig)) ]
   copied = Name.sortNamed fst $
     Map.toList (Map.unionWith (<>) copiedTerms copiedTypes)
-
-  in P.sepNonEmpty "\n\n" [
-       if not $ null added then
-         P.lines [
-           -- todo: split out updates
-           P.green "+ Adds / updates:", "",
-           P.indentN 2 . P.wrap $
-             P.excerptSep 10 " " (prettyName <$> added)
-         ]
-       else mempty,
-       if not $ null removed then
-         P.lines [
-           P.hiBlack "- Deletes:", "",
-           P.indentN 2 . P.wrap $
-             P.excerptSep 10 " " (prettyName <$> removed)
-         ]
-       else mempty,
-       if not $ null moved then
-         P.lines [
-           P.purple "> Moves:", "",
-           P.indentN 2 $
-             P.excerptColumn2Headed 10
-               (P.hiBlack "Original name", P.hiBlack "New name")
-               [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
-         ]
-       else mempty,
-       if not $ null copied then
-         P.lines [
-           P.yellow "= Copies:", "",
-           P.indentN 2 $
-             P.excerptColumn2Headed 10
-               (P.hiBlack "Original name", P.hiBlack "New name(s)")
-               [ (prettyName n, P.sep " " (prettyName <$> ns)) | (n, ns) <- copied ]
-         ]
-       else mempty
-     ]
+  in
+  P.sepNonEmpty "\n\n" [
+     if not $ null added then
+       P.lines [
+         -- todo: split out updates
+         P.green "+ Adds / updates:", "",
+         P.indentN 2 . P.wrap $
+           P.sep " " (prettyName <$> added)
+       ]
+     else mempty,
+     if not $ null removed then
+       P.lines [
+         P.hiBlack "- Deletes:", "",
+         P.indentN 2 . P.wrap $
+           P.sep " " (prettyName <$> removed)
+       ]
+     else mempty,
+     if not $ null moved then
+       P.lines [
+         P.purple "> Moves:", "",
+         P.indentN 2 $
+           P.column2 $
+             (P.hiBlack "Original name", P.hiBlack "New name") :
+             [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
+       ]
+     else mempty,
+     if not $ null copied then
+       P.lines [
+         P.yellow "= Copies:", "",
+         P.indentN 2 $
+           P.column2 $
+             (P.hiBlack "Original name", P.hiBlack "New name(s)") :
+             [ (prettyName n, P.sep " " (prettyName <$> ns))
+             | (n, ns) <- copied ]
+       ]
+     else mempty
+   ]
 
 isTestOk :: Codebase.Term v Ann -> Bool
 isTestOk tm = case tm of

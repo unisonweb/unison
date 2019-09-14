@@ -41,34 +41,24 @@ module Unison.Typechecker.Context
   )
 where
 
-import           Control.Applicative            ( Alternative(..), liftA2 )
-import           Control.Monad
+import Unison.Prelude
+
 import           Control.Monad.Reader.Class
 import           Control.Monad.State            ( get
                                                 , put
                                                 , StateT
                                                 , runStateT
                                                 )
-import           Control.Monad.Trans            ( lift )
 import           Control.Monad.Writer           ( MonadWriter(..) )
 import           Data.Bifunctor                 ( first
                                                 , second
                                                 )
-import           Data.Foldable                  ( for_ )
 import qualified Data.Foldable                 as Foldable
-import           Data.Functor
 import           Data.List
 import           Data.List.NonEmpty             ( NonEmpty )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe
-import           Data.Sequence                  ( Seq )
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
-import           Data.Word                      ( Word64 )
-import           Debug.Trace
 import qualified Unison.ABT                    as ABT
 import qualified Unison.Blank                  as B
 import           Unison.DataDeclaration         ( DataDeclaration'
@@ -259,6 +249,7 @@ data Cause v loc
   -- A let rec where things that aren't guarded cyclicly depend on each other
   | UnguardedLetRecCycle [v] [(v, Term v loc)]
   | ConcatPatternWithoutConstantLength loc (Type v loc)
+  | HandlerOfUnexpectedType loc (Type v loc)
   deriving Show
 
 errorTerms :: ErrorNote v loc -> [Term v loc]
@@ -558,12 +549,6 @@ getEffectDeclarations = fromMEnv effectDecls
 getAbilities :: M v loc [Type v loc]
 getAbilities = fromMEnv abilities
 
-withoutAbilityCheckForExact
-  :: (Ord loc, Var v) => Type v loc -> M v loc a -> M v loc a
-withoutAbilityCheckForExact skip m = M go
-  where
-  go e = runM m $ e { skipAbilityCheck = skip : (skipAbilityCheck e) }
-
 shouldPerformAbilityCheck :: (Ord loc, Var v) => Type v loc -> M v loc Bool
 shouldPerformAbilityCheck t = do
   skip <- fromMEnv skipAbilityCheck
@@ -643,7 +628,7 @@ notMember v s =
 
 -- | Replace any existentials with their solution in the context
 apply :: (Var v, Ord loc) => Context v loc -> Type v loc -> Type v loc
-apply _ctx t | Set.null (Type.freeVars t) = t 
+apply _ctx t | Set.null (Type.freeVars t) = t
 apply ctx t = case t of
   Type.Universal' _ -> t
   Type.Ref' _ -> t
@@ -699,7 +684,7 @@ synthesizeApp (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) 
     abilityCheck es
     o <$ check arg i
   go (Type.Existential' b a) = do -- a^App
-    [i,e,o] <- traverse freshenVar [ABT.v' "i", ABT.v' "synthsizeApp-refined-effect", ABT.v' "o"]
+    [i,e,o] <- traverse freshenVar [Var.named "i", Var.named "synthsizeApp-refined-effect", Var.named "o"]
     let it = Type.existential' (loc ft) B.Blank i
         ot = Type.existential' (loc ft) B.Blank o
         et = Type.existential' (loc ft) B.Blank e
@@ -784,6 +769,7 @@ synthesize e = scope (InSynthesize e) $
   go (Term.Nat' _) = pure $ Type.nat l -- 1I=>
   go (Term.Boolean' _) = pure $ Type.boolean l
   go (Term.Text' _) = pure $ Type.text l
+  go (Term.Char' _) = pure $ Type.char l
   go (Term.Apps' f args) = do -- ->EEEEE
     ft <- synthesize f
     ctx <- getContext
@@ -830,7 +816,7 @@ synthesize e = scope (InSynthesize e) $
     pure t
   go (Term.LetRecNamed' [] body) = synthesize body
   go (Term.LetRecTop' isTop letrec) = do
-    (t, ctx2) <- markThenRetract (ABT.v' "let-rec-marker") $ do
+    (t, ctx2) <- markThenRetract (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       synthesize e
     pure $ generalizeExistentials ctx2 t
@@ -852,13 +838,32 @@ synthesize e = scope (InSynthesize e) $
         Foldable.traverse_ (checkCase scrutineeType outputType) cases
     ctx <- getContext
     pure $ apply ctx outputType
-  go h@(Term.Handle' _ _) = do
-    o <- freshenVar Var.inferOther
-    appendContext $ context [existential o]
-    let ot = Type.existential' l B.Blank o
-    check h ot
+  go (Term.Handle' h body) = do
+    -- To synthesize a handle block, we first synthesize the handler h,
+    -- then push its allowed abilities onto the current ambient set when
+    -- checking the body. Assuming that works, we also verify that the
+    -- handler only uses abilities in the current ambient set.
+    ht <- synthesize h >>= applyM >>= ungeneralize
     ctx <- getContext
-    pure (apply ctx ot)
+    case ht of 
+      -- common case, like `h : Request {Remote} a -> b`, brings
+      -- `Remote` into ambient when checking `body`
+      Type.Arrow' (Type.Apps' (Type.Ref' ref) [et,i]) o | ref == Type.effectRef -> do
+        let es = Type.flattenEffects et
+        withEffects es $ check body i
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      -- degenerate case, like `handle x -> 10 in ...`
+      Type.Arrow' (i@(Type.Existential' _ v@(lookupSolved ctx -> Nothing))) o -> do
+        e <- extendExistential v 
+        withEffects [Type.existentialp (loc i) e] $ check body i 
+        o <- applyM o
+        let (oes, o') = Type.stripEffect o
+        abilityCheck oes
+        pure o'
+      _ -> failWith $ HandlerOfUnexpectedType (loc h) ht 
   go _e = compilerCrash PatternMatchFailure
 
 checkCase :: forall v loc . (Var v, Ord loc)
@@ -962,6 +967,8 @@ checkPattern scrutineeType0 p =
       lift $ subtype (Type.float loc) scrutineeType $> mempty
     Pattern.Text loc _ ->
       lift $ subtype (Type.text loc) scrutineeType $> mempty
+    Pattern.Char loc _  ->
+      lift $ subtype (Type.char loc) scrutineeType $> mempty
     Pattern.Constructor loc ref cid args -> do
       dct  <- lift $ getDataConstructorType ref cid
       udct <- lift $ ungeneralize dct
@@ -1234,11 +1241,7 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       modifyContext' (extend (Ann x i))
       let Type.Effect'' es ot = o
       body' <- pure $ ABT.bindInheritAnnotation body (Term.var() x)
-      if Term.isLam body' then do
-        withEffects0 [] $
-          foldr withoutAbilityCheckForExact (check body' ot) es
-      else
-        withEffects0 es $ check body' ot
+      withEffects0 es $ check body' ot
   go (Term.Let1' binding e) t = do
     v        <- ABT.freshen e freshenVar
     tbinding <- synthesize binding
@@ -1247,29 +1250,9 @@ check e0 t0 = scope (InCheck e0 t0) $ do
       check (ABT.bindInheritAnnotation e (Term.var () v)) t
   go (Term.LetRecNamed' [] e) t = check e t
   go (Term.LetRecTop' isTop letrec) t =
-    markThenRetract0 (ABT.v' "let-rec-marker") $ do
+    markThenRetract0 (Var.named "let-rec-marker") $ do
       e <- annotateLetRecBindings isTop letrec
       check e t
-  go block@(Term.Handle' h body) t = do
-    -- `h` should check against `Effect e i -> t` (for new existentials `e` and `i`)
-    -- `body` should check against `i`
-    [e, i] <- sequence [freshenVar Var.inferAbility, freshenVar Var.inferOther ]
-    appendContext $ context [existential e, existential i]
-    let l = loc block
-    -- t <- applyM t
-    ambient <- getAbilities
-    let t' = Type.effect l ambient t
-    check h $ Type.arrow
-      l
-      (Type.effectV l (l, Type.existentialp l e) (l, Type.existentialp l i))
-      t'
-    ctx <- getContext
-    let et = apply ctx (Type.existentialp l e)
-    withoutAbilityCheckForExact et
-      . withEffects [et]
-      . check body
-      . apply ctx
-      $ Type.existentialp l i
   go e t = do -- Sub
     a   <- synthesize e
     ctx <- getContext

@@ -1,9 +1,7 @@
 module Unison.Codebase.Metadata where
 
-import Data.Foldable (toList)
-import Data.Map (Map)
-import Data.Set (Set)
-import Data.List (foldl')
+import Unison.Prelude
+
 import Unison.Reference (Reference)
 import Unison.Util.Star3 (Star3)
 import qualified Data.Map as Map
@@ -17,6 +15,10 @@ type Value = Reference
 -- keys can be terms or types
 type Metadata = Map Type (Set Value)
 
+-- `a` is generally the type of references or hashes
+-- `n` is generally the the type of name associated with the references
+-- `Type` is the type of metadata. Duplicate info to speed up certain queries.
+-- `(Type, Value)` is the metadata value itself along with its type.
 type Star a n = Star3 a n Type (Type, Value)
 
 inserts :: (Ord a, Ord n) => [(a, Type, Value)] -> Star a n -> Star a n

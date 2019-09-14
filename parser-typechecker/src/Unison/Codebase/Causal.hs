@@ -1,29 +1,24 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Unison.Codebase.Causal where
+
+import Unison.Prelude
 
 import           Prelude                 hiding ( head
                                                 , tail
                                                 , read
                                                 )
-import           Control.Applicative            ( liftA2 )
 import           Control.Lens                   ( (<&>) )
-import           Control.Monad                  ( unless )
-import           Control.Monad.Extra            ( ifM )
 import           Control.Monad.Loops            ( anyM )
 import           Data.List                      ( foldl1' )
-import           Data.Sequence                  ( Seq )
+import           Data.Sequence                  ( ViewL(..) )
 import qualified Data.Sequence                 as Seq
 import           Unison.Hash                    ( Hash )
--- import qualified Unison.Hash                   as H
 import qualified Unison.Hashable               as Hashable
 import           Unison.Hashable                ( Hashable )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
-import           Data.Foldable                  ( for_, toList )
 import           Util                           ( bind2 )
 
 {-
@@ -61,10 +56,18 @@ instance Show e => Show (Causal m h e) where
 -- h is the type of the pure data structure that will be hashed and used as
 -- an index; e.g. h = Branch00, e = Branch0 m
 data Causal m h e
-  = One { currentHash :: RawHash h, head :: e }
-  | Cons { currentHash :: RawHash h, head :: e, tail :: (RawHash h, m (Causal m h e)) }
+  = One { currentHash :: RawHash h
+        , head :: e
+        }
+  | Cons { currentHash :: RawHash h
+         , head :: e
+         , tail :: (RawHash h, m (Causal m h e))
+         }
   -- The merge operation `<>` flattens and normalizes for order
-  | Merge { currentHash :: RawHash h, head :: e, tails :: Map (RawHash h) (m (Causal m h e)) }
+  | Merge { currentHash :: RawHash h
+          , head :: e
+          , tails :: Map (RawHash h) (m (Causal m h e))
+          }
 
 -- A serializer `Causal m h e`. Nonrecursive -- only responsible for
 -- writing a single node of the causal structure.
@@ -126,34 +129,103 @@ instance Ord (Causal m h a) where
 instance Hashable (RawHash h) where
   tokens (RawHash h) = Hashable.tokens h
 
-merge :: (Monad m, Semigroup e) => Causal m h e -> Causal m h e -> m (Causal m h e)
-a `merge` b =
-  ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
-    (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
-    (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-    (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-    (a, b) ->
-      merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+-- Find the lowest common ancestor of two causals.
+lca :: Monad m => Causal m h e -> Causal m h e -> m (Maybe (Causal m h e))
+lca a b =
+  go Set.empty Set.empty (Seq.singleton $ pure a) . Seq.singleton $ pure b
  where
- -- implementation detail, form a `Merge`
- merge0
-   :: (Applicative m, Semigroup e) => Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
- merge0 m =
-   let e = if Map.null m
-         then error "Causal.merge0 empty map"
-         else foldl1' (liftA2 (<>)) (fmap head <$> Map.elems m)
-       h = hash (Map.keys m) -- sorted order
-   in  e <&> \e -> Merge (RawHash h) e m
+  go seenLeft seenRight remainingLeft remainingRight =
+    case (Seq.viewl remainingLeft, Seq.viewl remainingRight) of
+      (Seq.EmptyL, _         ) -> pure Nothing
+      (_         , Seq.EmptyL) -> pure Nothing
+      (a :< as   , b :< bs   ) -> do
+        left <- a
+        -- Have we seen the left node before on the right?
+        if Set.member (currentHash left) seenRight
+          then pure $ Just left
+          else do
+            right <- b
+            -- Have we seen the right node before on the left?
+            if Set.member (currentHash right) seenLeft
+              then pure $ Just right
+              -- Are these two previously unseen nodes the same?
+              else if currentHash left == currentHash right
+                then pure $ Just left
+                -- Descend in to the children
+                else case (left, right) of
+                  (One h _, _) ->
+                    go (Set.insert h seenLeft) seenRight as remainingRight
+                  (_, One h _) ->
+                    go seenLeft (Set.insert h seenRight) remainingLeft bs
+                  _ -> descend (currentHash left)
+                               (currentHash right)
+                               (children left)
+                               (children right)
+       where
+        descend h1 h2 r1 r2 = go (Set.insert h1 seenLeft)
+                                 (Set.insert h2 seenRight)
+                                 (as <> r1)
+                                 (bs <> r2)
 
-mergeWithM :: forall m h e. Monad m => (e -> e -> m e) -> Causal m h e -> Causal m h e -> m (Causal m h e)
-mergeWithM f a b =
+children :: Causal m h e -> Seq (m (Causal m h e))
+children (One _ _         ) = Seq.empty
+children (Cons  _ _ (_, t)) = Seq.singleton t
+children (Merge _ _ ts    ) = Seq.fromList $ Map.elems ts
+
+threeWayMerge
+  :: forall m h e d
+   . (Monad m, Hashable e, Semigroup d)
+  => (e -> e -> m e)
+  -> (e -> e -> m d)
+  -> (e -> d -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+threeWayMerge combine diff patch = mergeInternal merge0
+ where
+  merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
+  merge0 m =
+    let k left right = do
+          a           <- left
+          b           <- right
+          mayAncestor <- lca a b
+          case mayAncestor of
+            Nothing       -> mergeWithM combine a b
+            Just ancestor -> do
+              da      <- diff (head ancestor) (head a)
+              db      <- diff (head ancestor) (head b)
+              newHead <- patch (head ancestor) (da <> db)
+              let h = hash (newHead, Map.keys m)
+              pure . Merge (RawHash h) newHead $ Map.fromList
+                [(currentHash a, pure a), (currentHash b, pure b)]
+    in  if Map.null m
+          then error "Causal.threeWayMerge empty map"
+          else foldl1' k $ Map.elems m
+
+mergeInternal
+  :: forall m h e
+   . Monad m
+  => (Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e))
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+mergeInternal f a b =
   ifM (before a b) (pure b) . ifM (before b a) (pure a) $ case (a, b) of
-  (Merge _ _ tls, Merge _ _ tls2) -> merge0 $ Map.union tls tls2
-  (Merge _ _ tls, b) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-  (b, Merge _ _ tls) -> merge0 $ Map.insert (currentHash b) (pure b) tls
-  (a, b) ->
-    merge0 $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
-  where
+    (Merge _ _ tls, Merge _ _ tls2) -> f $ Map.union tls tls2
+    (Merge _ _ tls, b) -> f $ Map.insert (currentHash b) (pure b) tls
+    (b, Merge _ _ tls) -> f $ Map.insert (currentHash b) (pure b) tls
+    (a, b) ->
+      f $ Map.fromList [(currentHash a, pure a), (currentHash b, pure b)]
+
+mergeWithM
+  :: forall m h e
+   . Monad m
+  => (e -> e -> m e)
+  -> Causal m h e
+  -> Causal m h e
+  -> m (Causal m h e)
+mergeWithM f = mergeInternal merge0
+ where
   -- implementation detail, form a `Merge`
   merge0 :: Map (RawHash h) (m (Causal m h e)) -> m (Causal m h e)
   merge0 m =
@@ -161,7 +233,6 @@ mergeWithM f a b =
         e = if Map.null m
           then error "Causal.merge0 empty map"
           else foldl1' (bind2 f) (fmap head <$> Map.elems m)
-          -- else foldlM1 f <$> (fmap head <$> Map.elems m)
         h = hash (Map.keys m) -- sorted order
     in  e <&> \e -> Merge (RawHash h) e m
 

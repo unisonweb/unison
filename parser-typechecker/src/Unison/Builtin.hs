@@ -19,13 +19,10 @@ module Unison.Builtin
   ,termRefTypes
   ) where
 
-import           Control.Applicative            ( (<|>) )
+import Unison.Prelude
+
 import           Data.Bifunctor                 ( second )
-import           Data.Foldable                  ( foldl', toList )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Unison.ConstructorType        as CT
 import           Unison.Codebase.CodeLookup     ( CodeLookup(..) )
@@ -151,10 +148,10 @@ builtinTypesSrc =
   , B' "Nat"
   , B' "Float"
   , B' "Boolean"
-  , B' "Sequence"
-  , Rename' "Sequence" "List"
+  , B' "Sequence", Rename' "Sequence" "List"
   , B' "Text"
-  , B' "Effect"
+  , B' "Char"
+  , B' "Effect", Rename' "Effect" "Request"
   , B' "Bytes"
   ]
 
@@ -221,7 +218,11 @@ builtinsSrc =
   , B "Int.isOdd" $ int --> boolean
   , B "Int.signum" $ int --> int
   , B "Int.negate" $ int --> int
+  , B "Int.mod" $ int --> int --> int
   , B "Int.truncate0" $ int --> nat
+  , B "Int.toText" $ int --> text
+  , B "Int.fromText" $ text --> optional int
+  , B "Int.toFloat" $ int --> float
 
   , B "Nat.+" $ nat --> nat --> nat
   , B "Nat.drop" $ nat --> nat --> nat
@@ -239,6 +240,8 @@ builtinsSrc =
   , B "Nat.isOdd" $ nat --> boolean
   , B "Nat.toInt" $ nat --> int
   , B "Nat.toText" $ nat --> text
+  , B "Nat.fromText" $ text --> optional nat
+  , B "Nat.toFloat" $ nat --> float
 
   , B "Float.+" $ float --> float --> float
   , B "Float.-" $ float --> float --> float
@@ -312,11 +315,19 @@ builtinsSrc =
   , B "Text.drop" $ nat --> text --> text
   , B "Text.size" $ text --> nat
   , B "Text.==" $ text --> text --> boolean
-  , B "Text.!=" $ text --> text --> boolean
+  , D "Text.!=" $ text --> text --> boolean
   , B "Text.<=" $ text --> text --> boolean
   , B "Text.>=" $ text --> text --> boolean
   , B "Text.<" $ text --> text --> boolean
   , B "Text.>" $ text --> text --> boolean
+  , B "Text.uncons" $ text --> optional (tuple [char, text])
+  , B "Text.unsnoc" $ text --> optional (tuple [text, char])
+
+  , B "Text.toCharList" $ text --> list char
+  , B "Text.fromCharList" $ list char --> text
+
+  , B "Char.toNat" $ char --> nat
+  , B "Char.fromNat" $ nat --> char
 
   , B "Bytes.empty" bytes
   , B "Bytes.fromList" $ list nat --> bytes
@@ -340,6 +351,15 @@ builtinsSrc =
   , B "List.at" $ forall1 "a" (\a -> nat --> list a --> optional a)
 
   , B "Debug.watch" $ forall1 "a" (\a -> text --> a --> a)
+  ] ++
+  -- avoid name conflicts with Universal == < > <= >=
+  [ Rename (t <> "." <> old) (t <> "." <> new)
+  | t <- ["Int", "Nat", "Float", "Text"]
+  , (old, new) <- [("==", "eq")
+                  ,("<" , "lt")
+                  ,("<=", "lteq")
+                  ,(">" , "gt")
+                  ,(">=", "gteq")]
   ]
   where
     int = Type.int ()
@@ -348,6 +368,7 @@ builtinsSrc =
     float = Type.float ()
     text = Type.text ()
     bytes = Type.bytes ()
+    char = Type.char ()
 
     (-->) :: Ord v => Type v -> Type v -> Type v
     a --> b = Type.arrow () a b
@@ -368,4 +389,11 @@ builtinsSrc =
 
     optional :: Ord v => Type v -> Type v
     optional arg = DD.optionalType () `app` arg
+
+    tuple :: Ord v => [Type v] -> Type v
+    tuple [t] = t
+    tuple ts = foldr pair (DD.unitType ()) ts
+
+    pair :: Ord v => Type v -> Type v -> Type v
+    pair l r = DD.pairType () `app` l `app` r
 

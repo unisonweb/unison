@@ -98,6 +98,7 @@ library
     Unison.Paths
     Unison.Pattern
     Unison.PatternP
+    Unison.Prelude
     Unison.PrettyPrintEnv
     Unison.PrettyTerminal
     Unison.PrintError
@@ -136,6 +137,7 @@ library
     Unison.Util.Exception
     Unison.Util.Free
     Unison.Util.Find
+    Unison.Util.Less
     Unison.Util.Logger
     Unison.Util.List
     Unison.Util.Menu
@@ -185,7 +187,7 @@ library
     io-streams,
     lens,
     ListLike,
-    megaparsec,
+    megaparsec >= 5.0.0 && < 7.0.0,
     memory,
     mmorph,
     monad-loops,
@@ -241,12 +243,17 @@ executable unison
   main-is: Main.hs
   hs-source-dirs: unison
   ghc-options: -Wall -O2 -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures
+  other-modules:
+    Version
   build-depends:
     base,
     containers,
     directory,
     filepath,
     safe,
+    shellmet,
+    template-haskell,
+    text,
     unison-parser-typechecker
 
 executable prettyprintdemo

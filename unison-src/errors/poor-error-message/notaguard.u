@@ -5,7 +5,7 @@
 --
 --  from right here:
 --
---    8 | supply : Text -> Effect (Ask Text) a -> a
+--    8 | supply : Text -> Request (Ask Text) a -> a
 --
 --
 -- even though this program doesn't use guards!
@@ -13,7 +13,7 @@
 ability Ask a where
   ask : {Ask a} a
 
-supply : Text -> Effect (Ask Text) a -> a
+supply : Text -> Request (Ask Text) a -> a
 supply t e = case e of
   {a} -> "foo" -- a
   {Ask.ask -> k} -> handle supply t in k ()

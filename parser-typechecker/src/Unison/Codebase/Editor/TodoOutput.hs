@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 module Unison.Codebase.Editor.TodoOutput where
 
+import Unison.Prelude
+
 import qualified Unison.Names3 as Names
 import qualified Unison.Type as Type
 import qualified Unison.Util.Relation as R
@@ -13,8 +15,6 @@ import Unison.Codebase.Patch (Patch)
 import Unison.Codebase.Editor.DisplayThing (DisplayThing(RegularThing))
 import Unison.Type (Type)
 import Unison.DataDeclaration (Decl)
-import Data.Foldable (toList)
-import Data.Set (Set)
 import qualified Unison.LabeledDependency as LD
 import Unison.LabeledDependency (LabeledDependency)
 

@@ -4,7 +4,8 @@ module Unison.Codecs where
 
 -- A format for encoding runtime values, with sharing for compiled nodes.
 
-import Data.Text (Text)
+import Unison.Prelude
+
 import           Control.Arrow (second)
 import           Control.Monad.State
 import           Data.Bits (Bits)
@@ -15,10 +16,7 @@ import qualified Data.ByteString as B
 import           Data.ByteString.Builder (doubleBE, int64BE, toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import           Data.Bytes.Put
-import           Data.Foldable (toList, traverse_)
-import           Data.Maybe (fromMaybe)
 import           Data.Text.Encoding (encodeUtf8)
-import           Data.Word (Word64)
 import qualified Unison.ABT as ABT
 import qualified Unison.Blank as Blank
 import qualified Unison.DataDeclaration as DD
@@ -32,7 +30,6 @@ import           Unison.Var (Var)
 import qualified Unison.Var as Var
 import Unison.PatternP (Pattern)
 import qualified Unison.PatternP as Pattern
-import Data.Int (Int64)
 
 type Pos = Word64
 
@@ -189,6 +186,11 @@ serializeTerm x = do
         putLength $ length positions
         traverse_ putBackref positions
         putBackref pbody
+        incPosition
+      Char c -> do
+        putTag
+        putWord8 20
+        putWord64be $ fromIntegral $ fromEnum c
         incPosition
 
 serializePattern :: MonadPut m => Pattern a -> m ()

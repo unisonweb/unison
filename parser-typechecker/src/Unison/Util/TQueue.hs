@@ -1,12 +1,11 @@
 module Unison.Util.TQueue where
 
-import UnliftIO (MonadIO, MonadUnliftIO)
+import Unison.Prelude
+
+import UnliftIO (MonadUnliftIO)
 import UnliftIO.STM hiding (TQueue)
 import qualified UnliftIO.Async as Async
 
-import Data.Word (Word64)
-import Data.Foldable (toList)
-import Data.Functor (($>))
 import qualified Data.Sequence as S
 import Data.Sequence (Seq((:<|)), (|>))
 

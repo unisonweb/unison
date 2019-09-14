@@ -43,9 +43,8 @@ module Unison.Names2
   )
 where
 
-import           Data.Foldable                (toList)
-import           Data.List                    (foldl')
-import           Data.Set                     (Set)
+import Unison.Prelude
+
 import qualified Data.Set                     as Set
 import           Prelude                      hiding (filter)
 import           Unison.Codebase.SearchResult (SearchResult)

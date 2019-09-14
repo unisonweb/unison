@@ -2,9 +2,9 @@
 
 module Unison.Util.TransitiveClosure where
 
-import           Data.Foldable
+import Unison.Prelude
+
 import           Data.Functor.Identity    (runIdentity)
-import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
 
 transitiveClosure :: forall m a. (Monad m, Ord a)

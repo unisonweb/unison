@@ -6,19 +6,16 @@
 
 module Unison.CommandLine.Main where
 
+import Unison.Prelude
+
 import Control.Concurrent.STM (atomically)
 import Control.Exception (finally)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.State (runStateT)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.Maybe (runMaybeT)
 import Data.IORef
-import Data.Map (Map)
-import Data.Maybe (fromMaybe)
-import Data.String (fromString)
 import Prelude hiding (readFile, writeFile)
 import System.FilePath ((</>))
-import Safe
+import System.IO.Error (catchIOError)
+import System.Exit (die)
 import Unison.Codebase.Branch (Branch)
 import qualified Unison.Codebase.Branch as Branch
 import Unison.Codebase.Editor.Input (Input (..))
@@ -52,17 +49,18 @@ getUserInput
   -> [String]
   -> m Input
 getUserInput patterns codebase branch currentPath numberedArgs =
-  Line.runInputT settings $ do
+  Line.runInputT settings go
+ where
+  go = do
     line <- Line.getInputLine $
       P.toANSI 80 ((P.green . P.shown) currentPath <> fromString prompt)
     case line of
       Nothing -> pure QuitI
       Just l -> case parseInput patterns . fmap expandNumber . words $ l of
-        Left msg -> lift $ do
+        Left msg -> do
           liftIO $ putPrettyLn msg
-          getUserInput patterns codebase branch currentPath numberedArgs
+          go
         Right i -> pure i
- where
   expandNumber s = case readMay s of
     Just i -> fromMaybe (show i) . atMay numberedArgs $ i - 1
     Nothing -> s
@@ -134,7 +132,9 @@ main dir initialPath _initialFile startRuntime codebase = do
     rootRef                  <- newIORef root
     pathRef                  <- newIORef initialPath
     numberedArgsRef          <- newIORef []
-    (config, cancelConfig)   <- watchConfig $ dir </> ".unisonConfig"
+    (config, cancelConfig)   <-
+      catchIOError (watchConfig $ dir </> ".unisonConfig") $ \_ ->
+        die "Your .unisonConfig could not be loaded. Check that it's correct!"
     cancelFileSystemWatch    <- watchFileSystem eventQueue dir
     cancelWatchBranchUpdates <- watchBranchUpdates (Branch.headHash <$>
                                                       readIORef rootRef)

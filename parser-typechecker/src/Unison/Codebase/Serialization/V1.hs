@@ -3,15 +3,15 @@
 
 module Unison.Codebase.Serialization.V1 where
 
+import Unison.Prelude
+
+import Prelude hiding (getChar, putChar)
+
 -- import qualified Data.Text as Text
 import qualified Unison.Pattern                 as Pattern
 import           Unison.PatternP                ( Pattern
                                                 , SeqOp
                                                 )
-import           Control.Applicative            ( liftA2
-                                                , liftA3
-                                                )
-import           Control.Monad                  ( replicateM )
 import           Data.Bits                      ( Bits )
 import           Data.Bytes.Get
 import           Data.Bytes.Put
@@ -22,18 +22,12 @@ import           Data.Bytes.Serial              ( serialize
                                                 )
 import           Data.Bytes.Signed              ( Unsigned )
 import           Data.Bytes.VarInt              ( VarInt(..) )
-import           Data.Foldable                  ( traverse_ )
-import           Data.Int                       ( Int64 )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.List                      ( elemIndex
-                                                , foldl'
                                                 )
-import           Data.Text                      ( Text )
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
-import           Data.Word                      ( Word64 )
 import qualified Unison.Codebase.Branch         as Branch
 import           Unison.Codebase.Causal         ( Raw(..)
                                                 , RawHash(..)
@@ -61,8 +55,6 @@ import qualified Unison.Codebase.TypeEdit      as TypeEdit
 import qualified Unison.Codebase.Serialization as S
 import qualified Unison.Hash                   as Hash
 import qualified Unison.Kind                   as Kind
-import           Unison.Name                   (Name)
-import qualified Unison.Name                   as Name
 import qualified Unison.Reference              as Reference
 import           Unison.Referent               (Referent)
 import qualified Unison.Referent               as Referent
@@ -440,6 +432,7 @@ putPattern putA p = case p of
       *> putSeqOp op
       *> putPattern putA r
   Pattern.TextP a t -> putWord8 12 *> putA a *> putText t
+  Pattern.CharP a c -> putWord8 13 *> putA a *> putChar c
 
 putSeqOp :: MonadPut m => SeqOp -> m ()
 putSeqOp Pattern.Cons   = putWord8 0
@@ -479,7 +472,8 @@ getPattern getA = getWord8 >>= \tag -> case tag of
       <*> getPattern getA
       <*> getSeqOp
       <*> getPattern getA
-  12 -> Pattern.TextP <$> getA <*> getText 
+  12 -> Pattern.TextP <$> getA <*> getText
+  13 -> Pattern.CharP <$> getA <*> getChar
   _ -> unknownTag "Pattern" tag
 
 putTerm :: (MonadPut m, Ord v)
@@ -528,6 +522,8 @@ putTerm putVar putA = putABT putVar putA go where
       -> putWord8 17 *> putChild b *> putChild body
     Term.Match s cases
       -> putWord8 18 *> putChild s *> putFoldable (putMatchCase putA putChild) cases
+    Term.Char c
+      -> putWord8 19 *> putChar c
 
   putMatchCase :: MonadPut m => (a -> m ()) -> (x -> m ()) -> Term.MatchCase a x -> m ()
   putMatchCase putA putChild (Term.MatchCase pat guard body) =
@@ -557,6 +553,7 @@ getTerm getVar getA = getABT getVar getA go where
     17 -> Term.Let False <$> getChild <*> getChild
     18 -> Term.Match <$> getChild
                      <*> getList (Term.MatchCase <$> getPattern getA <*> getMaybe getChild <*> getChild)
+    19 -> Term.Char <$> getChar
     _ -> unknownTag "getTerm" tag
 
 putPair :: MonadPut m => (a -> m ()) -> (b -> m ()) -> (a,b) -> m ()
@@ -667,11 +664,11 @@ putLink (h, _) = do
   putWord8 0
   putHash h
 
-putName :: MonadPut m => Name -> m ()
-putName = putText . Name.toText
+putChar :: MonadPut m => Char -> m ()
+putChar = serialize . VarInt . fromEnum
 
-getName :: MonadGet m => m Name
-getName = Name.unsafeFromText <$> getText
+getChar :: MonadGet m => m Char
+getChar = toEnum . unVarInt <$> deserialize
 
 putNameSegment :: MonadPut m => NameSegment -> m ()
 putNameSegment = putText . NameSegment.toText

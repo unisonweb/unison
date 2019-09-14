@@ -36,7 +36,7 @@ test = scope "> extractor" . tests $
   , y ( "ability Abort where\n" ++
         "  abort : {Abort} a\n" ++
         "\n" ++
-        "xyz : t -> Effect Abort t -> t\n" ++
+        "xyz : t -> Request Abort t -> t\n" ++
         "xyz default abort = case abort of\n" ++
         "  {a} -> 3\n" ++
         "  {Abort.abort -> k} ->\n" ++

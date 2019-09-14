@@ -1,7 +1,7 @@
 module Unison.Codebase.NameEdit where
 
-import Data.Set (Set)
-import Data.Foldable (toList)
+import Unison.Prelude
+
 import Unison.Reference (Reference)
 import Unison.Hashable (Hashable, tokens)
 

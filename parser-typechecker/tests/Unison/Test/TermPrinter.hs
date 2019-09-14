@@ -73,7 +73,7 @@ tc_binding width v mtp tm expected =
        input_term (Just (tp)) = ann (annotation tp) base_term tp
        input_term Nothing     = base_term
        var_v = symbol $ Text.pack v
-       prettied = fmap (CT.toPlain) $ PP.syntaxToColor $ 
+       prettied = fmap (CT.toPlain) $ PP.syntaxToColor $
         prettyBinding get_names (HQ.unsafeFromVar var_v) (input_term input_type)
        actual = if width == 0
                 then PP.renderUnbroken $ prettied
@@ -107,13 +107,13 @@ test = scope "termprinter" . tests $
   , tc "x y z -> and x y"
   , tc "x y y -> and x y"
   , tc "()"
-  , tc "Pair"
+  , tc "Cons"
   , tc "foo"
   , tc "List.empty"
   , tc "None"
   , tc "Optional.None"
   , tc "handle foo in bar"
-  , tc "Pair 1 1"
+  , tc "Cons 1 1"
   , tc "let\n\
        \  x = 1\n\
        \  x"

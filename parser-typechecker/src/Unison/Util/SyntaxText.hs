@@ -1,7 +1,7 @@
 module Unison.Util.SyntaxText where
 
-import Control.Monad                  ( join )
-import Data.Foldable                  ( toList )
+import Unison.Prelude
+
 import Unison.Util.AnnotatedText      ( AnnotatedText(..), annotate )
 
 type SyntaxText = AnnotatedText Element
@@ -9,6 +9,7 @@ type SyntaxText = AnnotatedText Element
 -- The elements of the Unison grammar, for syntax highlighting purposes
 data Element = NumericLiteral
              | TextLiteral
+             | CharLiteral
              | BooleanLiteral
              | Blank
              | Var

@@ -21,17 +21,15 @@ module Unison.Name
   )
 where
 
+import Unison.Prelude
+
 import           Control.Lens                   ( unsnoc )
-import           Data.String                    ( IsString
-                                                , fromString
-                                                )
-import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import qualified Unison.Hashable               as H
 import           Unison.Var                     ( Var )
 import qualified Unison.Var                    as Var
 import qualified Data.RFC5051                  as RFC5051
-import Data.List (sortBy)
+import           Data.List                      ( sortBy )
 
 newtype Name = Name { toText :: Text } deriving (Eq, Ord)
 

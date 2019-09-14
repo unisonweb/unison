@@ -7,9 +7,10 @@
 
 module Unison.Runtime.Rt1IO where
 
+import Unison.Prelude
+
 import           Control.Exception              ( try
                                                 , throwIO
-                                                , Exception, SomeException
                                                 , AsyncException(UserInterrupt)
                                                 , finally
                                                 , bracket
@@ -29,8 +30,6 @@ import           Control.Concurrent.MVar        ( MVar
                                                 , putMVar
                                                 )
 import           Control.Lens
-import           Control.Monad.Trans            ( lift )
-import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Morph            ( hoist )
 import           Control.Monad.Reader           ( ReaderT
                                                 , runReaderT
@@ -40,14 +39,9 @@ import           Control.Monad.Except           ( ExceptT(..)
                                                 , runExceptT
                                                 , throwError
                                                 )
-import           Data.Foldable                  ( traverse_ )
-import           Data.Functor                   ( void )
 import           Data.GUID                      ( genText )
-import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( isJust )
 import qualified Data.Sequence as Seq
-import           Data.Text                      ( Text )
 import           Data.Text                     as Text
 import           Data.Time.Clock.POSIX         as Time
 import qualified Network.Simple.TCP            as Net

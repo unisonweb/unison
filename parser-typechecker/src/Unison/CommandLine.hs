@@ -8,18 +8,16 @@
 
 module Unison.CommandLine where
 
+import Unison.Prelude
+
 import           Control.Concurrent              (forkIO, killThread)
 import           Control.Concurrent.STM          (atomically)
-import           Control.Monad                   (forever, when)
 import           Data.Configurator               (autoReload, autoConfig)
 import           Data.Configurator.Types         (Config, Worth (..))
-import           Data.Foldable                   (toList)
 import           Data.List                       (isSuffixOf, isPrefixOf)
 import           Data.ListLike                   (ListLike)
-import           Data.Map                        (Map)
 import qualified Data.Map                        as Map
 import qualified Data.Set                        as Set
-import           Data.String                     (IsString, fromString)
 import qualified Data.Text                       as Text
 import           Prelude                         hiding (readFile, writeFile)
 import qualified System.Console.Haskeline        as Line

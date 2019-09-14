@@ -3,10 +3,11 @@ module Unison.Codebase.Editor.Input
   , Event(..)
   , OutputLocation(..)
   , PatchPath
+  , BranchId, parseBranchId
   ) where
 
-import           Data.Set                       ( Set )
-import           Data.Text                      ( Text )
+import Unison.Prelude
+
 import qualified Unison.Codebase.Branch        as Branch
 import qualified Unison.HashQualified          as HQ
 import qualified Unison.HashQualified'         as HQ'
@@ -14,6 +15,9 @@ import           Unison.Codebase.Path           ( Path' )
 import qualified Unison.Codebase.Path          as Path
 import           Unison.Codebase.Editor.RemoteRepo
 import           Unison.Reference (Reference)
+import qualified Unison.Hash as Hash
+import qualified Unison.Codebase.Causal as Causal
+import qualified Data.Text as Text 
 
 data Event
   = UnisonFileChanged SourceName Source
@@ -22,13 +26,20 @@ data Event
 type Source = Text -- "id x = x\nconst a b = a"
 type SourceName = Text -- "foo.u" or "buffer 7"
 type PatchPath = Path.Split'
+type BranchId = Either Branch.Hash Path'
+
+parseBranchId :: String -> Either String BranchId
+parseBranchId ('#':s) = case Hash.fromBase32Hex (Text.pack s) of
+  Nothing -> Left "Invalid hash, expected a base32hex string."
+  Just h -> pure . Left $ Causal.RawHash h
+parseBranchId s = Right <$> Path.parsePath' s
 
 data Input
   -- names stuff:
     -- directory ops
     -- `Link` must describe a repo and a source path within that repo.
     -- clone w/o merge, error if would clobber
-    = ForkLocalBranchI Path' Path'
+    = ForkLocalBranchI (Either Branch.Hash Path') Path'
     -- merge first causal into destination
     | MergeLocalBranchI Path' Path'
     | PreviewMergeLocalBranchI Path' Path'
@@ -77,6 +88,9 @@ data Input
     | RemoveTermReplacementI PatchPath Reference Reference
     | RemoveTypeReplacementI PatchPath Reference Reference
   | UndoI
+  -- First `Maybe Int` is cap on number of results, if any
+  -- Second `Maybe Int` is cap on diff elements shown, if any
+  | HistoryI (Maybe Int) (Maybe Int) BranchId 
   -- execute an IO object with arguments
   | ExecuteI String
   | TestI Bool Bool -- TestI showSuccesses showFailures
@@ -88,7 +102,6 @@ data Input
   -- links from <type>
   | LinksI Path.HQSplit' (Maybe String)
   -- other
-  | UndoRootI
   | SearchByNameI Bool Bool [String] -- SearchByName isVerbose showAll query
   | FindPatchI
   | ShowDefinitionI OutputLocation [String]
