@@ -11,6 +11,11 @@ putPrettyLn p = do
   width <- getAvailableWidth
   less . P.toANSI width $ P.border 2 p
 
+putPrettyLnUnpaged :: P.Pretty CT.ColorText -> IO ()
+putPrettyLnUnpaged p = do
+  width <- getAvailableWidth
+  putStrLn . P.toANSI width $ P.border 2 p
+
 putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p = do
   width <- getAvailableWidth

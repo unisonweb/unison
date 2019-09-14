@@ -53,6 +53,7 @@ import           Unison.CommandLine             ( bigproblem
 import           Unison.PrettyTerminal          ( clearCurrentLine
                                                 , putPretty'
                                                 , putPrettyLn
+                                                , putPrettyLnUnpaged
                                                 , putPrettyLn'
                                                 )
 import           Unison.CommandLine.InputPatterns (makeExample, makeExample')
@@ -502,7 +503,7 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
-  History cap history tail -> putPrettyLn $
+  History cap history tail -> putPrettyLnUnpaged $
     P.lines [
       tailMsg,
       P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
@@ -511,7 +512,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        P.wrap "This is the start of history. Later versions are listed below.",
+        P.wrap "This is the start of history. Later versions are listed below.", "",
         "□ " <> phash h, ""
         ]
       E.MergeTail h hs -> P.lines [
