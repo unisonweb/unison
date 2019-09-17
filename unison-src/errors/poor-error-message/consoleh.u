@@ -12,19 +12,19 @@ ability Console where
   read : {Console} (Optional Text)
   write : Text -> {Console} ()
 
-fst x = case x of Pair.Pair a _ -> a
+fst x = case x of Tuple.Cons a _ -> a
 
-snd x = case x of Pair.Pair _ (Pair.Pair b _) -> b
+snd x = case x of Tuple.Cons _ (Tuple.Cons b _) -> b
 
 namespace Console where
 
-  state : s -> Effect (State s) a -> a
+  state : s -> Request (State s) a -> a
   state s c = case c of
     {State.get -> k} -> handle state s in k s
     {State.set s' -> k} -> handle state s' in k ()
     {a} -> a
 
-  simulate : Effect Console d -> {State ([Text], [Text])} d
+  simulate : Request Console d -> {State ([Text], [Text])} d
   simulate c = case c of
     {Console.read -> k} ->
       io = State.get
@@ -32,7 +32,7 @@ namespace Console where
       outs = snd io
       State.set (drop 1 ins, outs)
       -- this really should typecheck but doesn't for some reason
-      -- error is that `simulate` doesn't check against `Effect Console c -> r`,
+      -- error is that `simulate` doesn't check against `Request Console c -> r`,
       -- but seems like that `r` should get instantiated as `{State (..)} c`. 
       handle simulate in k (at 0 ins)
     {Console.write t -> k} ->

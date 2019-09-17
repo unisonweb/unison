@@ -1,5 +1,6 @@
 module Unison.PrettyTerminal where
 
+import           Unison.Util.Less              (less)
 import qualified Unison.Util.Pretty            as P
 import qualified Unison.Util.ColorText         as CT
 import qualified System.Console.Terminal.Size  as Terminal
@@ -8,12 +9,17 @@ import qualified System.Console.Terminal.Size  as Terminal
 putPrettyLn :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn p = do
   width <- getAvailableWidth
+  less . P.toANSI width $ P.border 2 p
+
+putPrettyLnUnpaged :: P.Pretty CT.ColorText -> IO ()
+putPrettyLnUnpaged p = do
+  width <- getAvailableWidth
   putStrLn . P.toANSI width $ P.border 2 p
 
 putPrettyLn' :: P.Pretty CT.ColorText -> IO ()
 putPrettyLn' p = do
   width <- getAvailableWidth
-  putStrLn . P.toANSI width $ P.indentN 2 p
+  less . P.toANSI width $ P.indentN 2 p
 
 clearCurrentLine :: IO ()
 clearCurrentLine = do

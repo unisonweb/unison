@@ -201,10 +201,10 @@ notifyUser dir o = case o of
   CantDelete input ppe failed failedDependents -> pure . P.warnCallout $
     P.lines [
       P.wrap "I couldn't delete ",
-      "", P.indentN 2 $ listOfDefinitions' ppe False True failed,
+      "", P.indentN 2 $ listOfDefinitions' ppe False failed,
       "",
       "because it's still being used by these definitions:",
-      "", P.indentN 2 $ listOfDefinitions' ppe False True failedDependents
+      "", P.indentN 2 $ listOfDefinitions' ppe False failedDependents
     ]
   CantUndo reason -> case reason of
     CantUndoPastStart -> pure . P.warnCallout $ "Nothing more to undo."
@@ -257,8 +257,8 @@ notifyUser dir o = case o of
     --   <> P.border 2 (mconcat (fmap pretty uniqueDeletions))
     --   <> P.newline
     --   <> P.wrap "Please repeat the same command to confirm the deletion."
-  ListOfDefinitions ppe detailed showAll results ->
-     listOfDefinitions ppe detailed showAll results
+  ListOfDefinitions ppe detailed results ->
+     listOfDefinitions ppe detailed results
   ListNames [] [] -> pure . P.callout "😶" $
     P.wrap "I couldn't find anything by that name."
   ListNames terms types -> pure . P.sepNonEmpty "\n\n" $ [
@@ -405,7 +405,7 @@ notifyUser dir o = case o of
             <> (if Text.null treeish then ""
                 else "at revision" <> P.blue (P.text treeish))
             <> "has some changes I don't know about:",
-      "", P.indentN 2 (prettyDiff Nothing diff), "",
+      "", P.indentN 2 (prettyDiff diff), "",
       P.wrap $ "If you want to " <> push <> "you can do:", "",
        P.indentN 2 pull, "",
        P.wrap $
@@ -522,7 +522,7 @@ notifyUser dir o = case o of
     where
     tailMsg = case tail of
       E.EndOfLog h -> P.lines [
-        P.wrap "This is the start of history. Later versions are listed below.",
+        P.wrap "This is the start of history. Later versions are listed below.", "",
         "□ " <> phash h, ""
         ]
       E.MergeTail h hs -> P.lines [
@@ -540,7 +540,7 @@ notifyUser dir o = case o of
         ]
     dots = "⠇"
     go hash diff = P.lines [
-      P.indentN 2 $ prettyDiff cap diff,
+      P.indentN 2 $ prettyDiff diff,
       "",
       "⊙ " <> phash hash
       ]
@@ -550,13 +550,13 @@ notifyUser dir o = case o of
   ShowDiff input diff -> pure $ case input of
     Input.UndoI -> P.callout "⏪" . P.lines $ [
       "Here's the changes I undid:", "",
-      prettyDiff (Just 10) diff
+      prettyDiff diff
       ]
     Input.MergeLocalBranchI src dest -> P.callout "🆕" . P.lines $
       [ P.wrap $
           "Here's what's changed in " <> prettyPath' dest <> "after the merge:"
       , ""
-      , prettyDiff (Just 10) diff
+      , prettyDiff diff
       , ""
       , tip "You can always `undo` if this wasn't what you wanted."
       ]
@@ -565,7 +565,7 @@ notifyUser dir o = case o of
         "✅  Looks like " <> prettyPath' dest <> " is up to date."
       else P.callout "🆕" . P.lines $ [
         P.wrap $ "Here's what's changed in " <> prettyPath' dest <> "after the pull:", "",
-        prettyDiff (Just 10) diff, "",
+        prettyDiff diff, "",
         tip "You can always `undo` if this wasn't what you wanted." ]
     Input.PreviewMergeLocalBranchI src dest ->
       P.callout "🔎"
@@ -575,17 +575,17 @@ notifyUser dir o = case o of
           <> prettyPath' dest
           <> "after the merge:"
           , ""
-          , prettyDiff Nothing diff
+          , prettyDiff diff
           ]
     Input.DeleteBranchI _ -> P.callout "🆕" . P.lines $
       [ P.wrap $
           "Here's what's changed after the delete:"
       , ""
-      , prettyDiff (Just 10) diff
+      , prettyDiff diff
       , ""
       , tip "You can always `undo` if this wasn't what you wanted."
       ]
-    _ -> prettyDiff Nothing diff
+    _ -> prettyDiff diff
   NothingTodo input -> pure . P.callout "😶" $ case input of
     Input.MergeLocalBranchI src dest ->
       P.wrap $ "The merge had no effect, since the destination"
@@ -956,9 +956,9 @@ todoOutput ppe todo =
       ]
 
 listOfDefinitions ::
-  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> E.ShowAll -> [SR'.SearchResult' v a] -> IO Pretty
-listOfDefinitions ppe detailed showAll results =
-  pure $ listOfDefinitions' ppe detailed showAll results
+  Var v => PPE.PrettyPrintEnv -> E.ListDetailed -> [SR'.SearchResult' v a] -> IO Pretty
+listOfDefinitions ppe detailed results =
+  pure $ listOfDefinitions' ppe detailed results
 
 noResults :: Pretty
 noResults = P.callout "😶" $
@@ -968,19 +968,12 @@ noResults = P.callout "😶" $
 listOfDefinitions' :: Var v
                    => PPE.PrettyPrintEnv -- for printing types of terms :-\
                    -> E.ListDetailed
-                   -> E.ShowAll
                    -> [SR'.SearchResult' v a]
                    -> Pretty
-listOfDefinitions' ppe detailed showAll results =
+listOfDefinitions' ppe detailed results =
   if null results then noResults
   else P.lines . P.nonEmpty $ prettyNumberedResults :
-    [ if len <= cap then mempty
-      else P.lines [ "... " <> P.shown (len - cap) <> " more"
-                   , ""
-                   , P.wrap $
-                       "The" <> makeExample IP.findAll [] <>
-                       "command shows all results." ]
-    ,formatMissingStuff termsWithMissingTypes missingTypes
+    [formatMissingStuff termsWithMissingTypes missingTypes
     ,unlessM (null missingBuiltins) . bigproblem $ P.wrap
       "I encountered an inconsistency in the codebase; these definitions refer to built-ins that this version of unison doesn't know about:" `P.hang`
         P.column2 ( (P.bold "Name", P.bold "Built-in")
@@ -990,10 +983,8 @@ listOfDefinitions' ppe detailed showAll results =
     ]
   where
   len = length results
-  cap = if detailed || showAll then len else 15
   prettyNumberedResults =
-    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".")
-               (take cap prettyResults)
+    P.numbered (\i -> P.hiBlack . fromString $ show i <> ".") prettyResults
   -- todo: group this by namespace
   prettyResults =
     map (SR'.foldResult' renderTerm renderType)
@@ -1071,8 +1062,8 @@ watchPrinter src ppe ann kind term isHit =
 filestatusTip :: Pretty
 filestatusTip = tip "Use `help filestatus` to learn more."
 
-prettyDiff :: Maybe Int -> Names.Diff -> Pretty
-prettyDiff cap diff = let
+prettyDiff :: Names.Diff -> Pretty
+prettyDiff diff = let
   orig = Names.originalNames diff
   adds = Names.addedNames diff
   removes = Names.removedNames diff
@@ -1115,22 +1106,22 @@ prettyDiff cap diff = let
          -- todo: split out updates
          P.green "+ Adds / updates:", "",
          P.indentN 2 . P.wrap $
-           P.excerptSep cap " " (prettyName <$> added)
+           P.sep " " (prettyName <$> added)
        ]
      else mempty,
      if not $ null removed then
        P.lines [
          P.hiBlack "- Deletes:", "",
          P.indentN 2 . P.wrap $
-           P.excerptSep cap " " (prettyName <$> removed)
+           P.sep " " (prettyName <$> removed)
        ]
      else mempty,
      if not $ null moved then
        P.lines [
          P.purple "> Moves:", "",
          P.indentN 2 $
-           P.excerptColumn2Headed cap
-             (P.hiBlack "Original name", P.hiBlack "New name")
+           P.column2 $
+             (P.hiBlack "Original name", P.hiBlack "New name") :
              [ (prettyName n,prettyName n2) | (n, n2) <- moved ]
        ]
      else mempty,
@@ -1138,8 +1129,8 @@ prettyDiff cap diff = let
        P.lines [
          P.yellow "= Copies:", "",
          P.indentN 2 $
-           P.excerptColumn2Headed cap
-             (P.hiBlack "Original name", P.hiBlack "New name(s)")
+           P.column2 $
+             (P.hiBlack "Original name", P.hiBlack "New name(s)") :
              [ (prettyName n, P.sep " " (prettyName <$> ns))
              | (n, ns) <- copied ]
        ]

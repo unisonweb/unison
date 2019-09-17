@@ -166,7 +166,7 @@ loopState0 b p = LoopState b p Nothing Nothing Nothing []
 type Action' m v = Action m (Either Event Input) v
 
 defaultPatchNameSegment :: NameSegment
-defaultPatchNameSegment = NameSegment "patch"
+defaultPatchNameSegment = "patch"
 
 loop :: forall m v . (Monad m, Var v) => Action m (Either Event Input) v ()
 loop = do
@@ -243,7 +243,7 @@ loop = do
           withFile [] sourceName (text, lexed) $ \unisonFile -> do
             sr <- toSlurpResult unisonFile <$> slurpResultNames0
             hnames <- makeShadowedPrintNamesFromLabeled
-                        (UF.labeledDependencies unisonFile)
+                        (UF.termSignatureExternalLabeledDependencies unisonFile)
                         (UF.typecheckedToNames0 unisonFile)
             ppe <- prettyPrintEnv hnames
             eval (Notify $ Typechecked sourceName ppe sr unisonFile)
@@ -740,7 +740,7 @@ loop = do
               , (seg, _) <- Map.toList (Branch._edits b) ]
         in respond $ ListOfPatches patches
 
-      SearchByNameI isVerbose showAll ws -> do
+      SearchByNameI isVerbose _showAll ws -> do
         prettyPrintNames0 <- basicPrettyPrintNames0
         -- results became an Either to accommodate `parseSearchType` returning an error
         results <- runExceptT $ case ws of
@@ -778,7 +778,7 @@ loop = do
             ppe <- prettyPrintEnv =<<
               makePrintNamesFromLabeled'
                 (foldMap SR'.labeledDependencies results')
-            respond $ ListOfDefinitions ppe isVerbose showAll results'
+            respond $ ListOfDefinitions ppe isVerbose results'
 
       ResolveTypeNameI hq ->
         zeroOneOrMore (getHQ'Types hq) (typeNotFound hq) go (typeConflicted hq)
@@ -809,7 +809,7 @@ loop = do
             eval . AddDefsToCodebase . filterBySlurpResult sr $ uf
           ppe <- prettyPrintEnv =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.labeledDependencies uf)
+              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
 
@@ -903,7 +903,7 @@ loop = do
           let fileNames0 = UF.typecheckedToNames0 uf
           ppe <- prettyPrintEnv =<<
             makeShadowedPrintNamesFromLabeled
-              (UF.labeledDependencies uf)
+              (UF.termSignatureExternalLabeledDependencies uf)
               (UF.typecheckedToNames0 uf)
           respond $ SlurpOutput input ppe sr
           -- propagatePatch prints TodoOutput
@@ -991,7 +991,7 @@ loop = do
                      -- Begin voodoo
                      ppe <- prettyPrintEnv =<<
                        makeShadowedPrintNamesFromLabeled
-                         (UF.labeledDependencies unisonFile)
+                         (UF.termSignatureExternalLabeledDependencies unisonFile)
                          (UF.typecheckedToNames0 unisonFile)
                      -- End voodoo
                      eval $ Execute ppe unisonFile
@@ -1004,7 +1004,7 @@ loop = do
                        <> UF.typecheckedToNames0 IOSource.typecheckedFile
           let b0 = BranchUtil.addFromNames0 names0 Branch.empty0
           let srcb = Branch.one b0
-          _ <- updateAtM currentPath' $ \destb ->
+          _ <- updateAtM (Path.consAbsolute "builtin" currentPath') $ \destb ->
                  eval . Eval $ Branch.merge srcb destb
           success
 
@@ -1926,10 +1926,27 @@ makeShadowedPrintNamesFromLabeled deps shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
+-- discards inputs that aren't hashqualified;
+-- I'd enforce it with finer-grained types if we had them.
 findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
-findHistoricalHQs lexedHQs = do
+findHistoricalHQs lexedHQs0 = do
   root <- use root
   currentPath <- use currentPath
+  let
+    -- omg this nightmare name-to-path parsing code is littered everywhere.
+    -- We need to refactor so that the absolute-ness of a name isn't represented
+    -- by magical text combinations.
+    -- Anyway, this function takes a name, tries to determine whether it is
+    -- relative or absolute, and tries to return the corresponding name that is
+    -- /relative/ to the root.
+    preprocess n@(Name (Text.unpack -> t)) = case t of
+      -- some absolute name that isn't just "."
+      '.' : t@(_:_)  -> Name . Text.pack $ t
+      -- something in current path
+      _ ->  if Path.isRoot currentPath then n
+            else Name.joinDot (Path.toName . Path.unabsolute $ currentPath) n
+
+    lexedHQs = Set.map (fmap preprocess) . Set.filter HQ.hasHash $ lexedHQs0
   (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
   pure rawHistoricalNames
 
