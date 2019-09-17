@@ -515,9 +515,9 @@ notifyUser dir o = case o of
     pure "That patch involves external dependents."
   History cap history tail -> pure $
     P.lines [
-      tailMsg,
-      P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
-      note $ "The most recent namespace hash is immediately above this message."
+      note $ "The most recent namespace hash is immediately below this message.", "",
+      P.sep "\n\n" [ go h diff | (h,diff) <- reverse history ], "",
+      tailMsg
       ]
     where
     tailMsg = case tail of
@@ -540,9 +540,9 @@ notifyUser dir o = case o of
         ]
     dots = "⠇"
     go hash diff = P.lines [
-      P.indentN 2 $ prettyDiff diff,
+      "⊙ " <> phash hash,
       "",
-      "⊙ " <> phash hash
+      P.indentN 2 $ prettyDiff diff
       ]
     ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
