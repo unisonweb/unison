@@ -195,6 +195,8 @@ loop = do
         let (p, seg) = Path.toAbsoluteSplit currentPath' s
         b <- getAt p
         eval . Eval $ Branch.getMaybePatch seg (Branch.head b)
+      getHQ'TermsIncludingHistorical p =
+        getTermsIncludingHistorical (resolveSplit' p) root0
       getHQ'Terms p = BranchUtil.getTerm (resolveSplit' p) root0
       getHQ'Types p = BranchUtil.getType (resolveSplit' p) root0
       getTypes :: Path.Split' -> Set Reference
@@ -777,8 +779,9 @@ loop = do
           BranchUtil.makeDeleteTypeName (resolveSplit' (HQ'.toName <$> hq))
         go r = stepManyAt . fmap makeDelete . toList . Set.delete r $ conflicted
 
-      ResolveTermNameI hq ->
-        zeroOneOrMore (getHQ'Terms hq) (termNotFound hq) go (termConflicted hq)
+      ResolveTermNameI hq -> do
+        refs <- getHQ'TermsIncludingHistorical hq
+        zeroOneOrMore refs (termNotFound hq) go (termConflicted hq)
         where
         conflicted = getHQ'Terms (fmap HQ'.toNameOnly hq)
         makeDelete =
@@ -788,6 +791,8 @@ loop = do
       ResolveEditI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
+        fromRefs <- getHQ'TermsIncludingHistorical from
+        toRefs <- getHQ'TermsIncludingHistorical to
         let
           toReference r =
             maybe
@@ -814,9 +819,9 @@ loop = do
                (patchPath'', patchName) = resolveSplit' patchPath'
            _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
         zeroOneOrMore
-          (getHQ'Terms from)
+          fromRefs
           (termNotFound from)
-          (\r -> zeroOneOrMore (getHQ'Terms to)
+          (\r -> zeroOneOrMore toRefs
                                (termNotFound to)
                                (go r)
                                (termConflicted to)
@@ -1954,11 +1959,24 @@ makeShadowedPrintNamesFromLabeled deps shadowing = do
       shadowing
       (Names basicNames0 (fixupNamesRelative currentPath rawHistoricalNames))
 
+getTermsIncludingHistorical
+  :: Monad m => Path.HQSplit -> Branch0 m -> Action' m v (Set Referent)
+getTermsIncludingHistorical (p, hq) b = case Set.toList refs of
+  [] -> case hq of
+    HQ'.HashQualified n hs -> do
+      names <- findHistoricalHQs
+        $ Set.fromList [HQ.HashQualified (Name (NameSegment.toText n)) hs]
+      pure . R.ran $ Names.terms names
+    _ -> pure Set.empty
+  _ -> pure refs
+  where refs = BranchUtil.getTerm (p, hq) b
+
 findHistoricalHQs :: Monad m => Set HQ.HashQualified -> Action' m v Names0
 findHistoricalHQs lexedHQs = do
-  root <- use root
-  currentPath <- use currentPath
-  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs lexedHQs root
+  root                           <- use root
+  (_missing, rawHistoricalNames) <- eval . Eval $ Branch.findHistoricalHQs
+    lexedHQs
+    root
   pure rawHistoricalNames
 
 makeShadowedPrintNamesFromHQ :: Monad m => Set HQ.HashQualified -> Names0 -> Action' m v Names

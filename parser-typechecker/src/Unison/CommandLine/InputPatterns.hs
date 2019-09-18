@@ -579,9 +579,13 @@ resolveEdit = InputPattern
   , (Optional, patchArg)
   ]
   (P.wrapColumn2
-    [ (makeExample' viewPatch, "Lists all the edits in the default patch.")
-    , ( makeExample viewPatch ["<patch>"]
-      , "Lists all the edits in the given patch."
+    [ ( makeExample resolveEdit ["<from>", "<to>", "<patch>"]
+      , "Resolves any edit conflict for the term <from> in the given patch "
+        <> "by globally replacing it with the term <to>."
+      )
+    , ( makeExample resolveEdit ["<from>", "<to>"]
+      , "Resolves edit conflicts in the default patch by replacing <from>"
+        <> " with <to>."
       )
     ]
   )
@@ -847,6 +851,7 @@ validInputs =
   , link
   , unlink
   , links
+  , resolveEdit
   , InputPattern "test" [] []
     "`test` runs unit tests for the current branch."
     (const $ pure $ Input.TestI True True)
