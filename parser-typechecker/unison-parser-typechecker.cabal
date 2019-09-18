@@ -69,6 +69,7 @@ library
     Unison.Codebase.Serialization.PutT
     Unison.Codebase.Serialization.V1
     Unison.Codebase.TermEdit
+    Unison.Codebase.TranscriptParser
     Unison.Codebase.TypeEdit
     Unison.Codebase.Watch
     Unison.CommandLine

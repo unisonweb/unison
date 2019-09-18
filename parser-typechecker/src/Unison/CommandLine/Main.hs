@@ -77,8 +77,8 @@ getUserInput patterns codebase branch currentPath numberedArgs =
           pure $ suggestions argType word codebase branch currentPath
         _ -> pure []
 
-welcomeMessage :: FilePath -> P.Pretty P.ColorText
-welcomeMessage dir =
+asciiartUnison :: P.Pretty P.ColorText
+asciiartUnison =
   P.red " _____"
     <> P.hiYellow "     _             "
     <> P.newline
@@ -101,6 +101,10 @@ welcomeMessage dir =
     <> P.hiGreen "___"
     <> P.cyan "|___|"
     <> P.purple "_|_|"
+
+welcomeMessage :: FilePath -> P.Pretty P.ColorText
+welcomeMessage dir =
+  asciiartUnison
     <> P.newline
     <> P.newline
     <> P.linesSpaced
@@ -166,7 +170,7 @@ main dir initialPath _initialFile startRuntime codebase = do
         (o, state') <- HandleCommand.commandLine config awaitInput
                                      (writeIORef rootRef)
                                      runtime
-                                     (notifyUser dir)
+                                     (\out -> notifyUser dir out >>= putPrettyNonempty)
                                      codebase
                                      free
         case o of
@@ -176,3 +180,4 @@ main dir initialPath _initialFile startRuntime codebase = do
             loop state'
     (`finally` cleanup)
       $ loop (HandleInput.loopState0 root initialPath)
+

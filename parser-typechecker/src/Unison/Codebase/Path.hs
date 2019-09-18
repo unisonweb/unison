@@ -43,6 +43,9 @@ isRoot' = either isRoot (const False) . unPath'
 isRoot :: Absolute -> Bool
 isRoot = Seq.null . toSeq . unabsolute
 
+absoluteToPath' :: Absolute -> Path'
+absoluteToPath' abs = Path' (Left abs)
+
 instance Show Path' where
   show (Path' (Left abs)) = show abs
   show (Path' (Right rel)) = show rel
