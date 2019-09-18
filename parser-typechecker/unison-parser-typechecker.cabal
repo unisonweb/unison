@@ -254,6 +254,7 @@ executable unison
     safe,
     shellmet,
     template-haskell,
+    temporary,
     text,
     unison-parser-typechecker
 
