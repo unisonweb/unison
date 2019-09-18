@@ -48,14 +48,41 @@ type ScratchFileName = Text
 
 type FenceType = Text
 
-data UcmCommand = UcmCommand Path.Absolute Text deriving Show
+data UcmCommand = UcmCommand Path.Absolute Text
 
 data Stanza
   = Ucm HideOutput [UcmCommand]
   | Unison HideOutput (Maybe ScratchFileName) Text
   | UnprocessedFence FenceType Text
   | Unfenced Text
-  deriving Show
+
+instance Show UcmCommand where
+  show (UcmCommand path txt) = show path <> "> " <> Text.unpack txt 
+
+instance Show Stanza where
+  show s = case s of
+    Ucm _ cmds -> unlines [
+      "```ucm",
+      show cmds,
+      "```"
+      ]
+    Unison _hide fname txt -> unlines [
+      "```unison",
+      case fname of
+        Nothing -> Text.unpack txt <> "\n```\n"
+        Just fname -> unlines [
+          "---",
+          "title: " <> Text.unpack fname,
+          "---",
+          Text.unpack txt,
+          "```", 
+          "" ]
+      ]
+    UnprocessedFence typ txt -> unlines [
+      "```" <> Text.unpack typ,
+      Text.unpack txt,
+      "```", "" ]
+    Unfenced txt -> Text.unpack txt
 
 parseFile :: FilePath -> IO (Either Err [Stanza])
 parseFile filePath = do
@@ -96,6 +123,7 @@ run dir stanzas codebase = do
     let
       output :: String -> IO ()
       output msg = do
+        putStr msg
         hide <- readIORef hidden
         when (not hide) $ modifyIORef' out (\acc -> acc <> pure msg)
 
@@ -103,7 +131,7 @@ run dir stanzas codebase = do
         cmd <- atomically (Q.tryDequeue cmdQueue)
         case cmd of
           Just Nothing -> do
-            output "</div>\n" -- this ends the ucm-output div
+            output "\n```\n" -- this ends the ucm block
             writeIORef hidden False
             awaitInput
           Just (Just p@(UcmCommand path lineTxt)) -> do
@@ -113,13 +141,15 @@ run dir stanzas codebase = do
               pure $ Right (SwitchBranchI (Path.absoluteToPath' path))
             else case words (Text.unpack lineTxt) of
               [] -> awaitInput
-              cmd:args -> case Map.lookup cmd patternMap of
-                Nothing -> awaitInput
-                Just pat -> case IP.parse pat args of
-                  Left msg -> do
-                    output $ P.toHTML "ucm-output" 65 msg
-                    awaitInput
-                  Right input -> pure $ Right input
+              cmd:args -> do
+                output (show p <> "\n\n")
+                case Map.lookup cmd patternMap of
+                  Nothing -> awaitInput
+                  Just pat -> case IP.parse pat args of
+                    Left msg -> do
+                      output $ P.toPlain 65 (P.indentN 2 msg <> P.newline <> P.newline)
+                      awaitInput
+                    Right input -> pure $ Right input
           Nothing -> do
             stanza <- atomically (Q.tryDequeue inputQueue)
             case stanza of
@@ -136,9 +166,9 @@ run dir stanzas codebase = do
                   writeIORef hidden hide
                   pure $ Left (UnisonFileChanged (fromMaybe "<interactive>" filename) txt)
                 Ucm hide cmds -> do
-                  output $ show s
+                  -- output $ show s
                   writeIORef hidden hide
-                  output $ "<div class=\"ucm-output\">\n"
+                  output $ "```ucm\n"
                   traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
                   atomically . Q.enqueue cmdQueue $ Nothing
                   awaitInput
@@ -146,9 +176,9 @@ run dir stanzas codebase = do
       cleanup = do Runtime.terminate runtime; cancelConfig
       print o = do
         msg <- notifyUser dir o
-        putPrettyNonempty msg
-        let html = P.toHTML "ucm-output" 65 msg
-        output html
+        -- putPrettyNonempty msg
+        let rendered = P.toPlain 65 (P.indentN 2 msg)
+        output rendered
         pure ()
 
       loop state = do

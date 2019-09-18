@@ -1,5 +1,5 @@
 module Unison.Prelude
-  ( module X, readUtf8
+  ( module X, readUtf8, writeUtf8
   ) where
 
 import Control.Applicative as X
@@ -34,3 +34,6 @@ import qualified Data.ByteString as BS
 -- Read an entire file strictly assuming UTF8
 readUtf8 :: FilePath -> IO Text
 readUtf8 p = decodeUtf8 <$> BS.readFile p
+
+writeUtf8 :: FilePath -> Text -> IO ()
+writeUtf8 p txt = BS.writeFile p (encodeUtf8 txt) 
