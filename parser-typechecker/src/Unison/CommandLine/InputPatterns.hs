@@ -23,6 +23,7 @@ import Unison.CommandLine.InputPattern
          )
 import Unison.CommandLine
 import Unison.Util.Monoid (intercalateMap)
+import Unison.ShortHash (ShortHash)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -591,13 +592,23 @@ resolveEdit = InputPattern
   )
   (\case
     source : target : patch -> first fromString $ do
-      src   <- Path.parseHQSplit' source
-      dest  <- Path.parseHQSplit' target
+      src   <- Path.parseShortHashOrHQSplit' source
+      dest  <- Path.parseShortHashOrHQSplit' target
       patch <- traverse (Path.parseSplit' Path.wordyNameSegment)
         $ listToMaybe patch
-      pure $ Input.ResolveEditI src dest patch
+      sourceH <- maybe (Left (source <> " is not a valid hash."))
+                       Right
+                       (toHash src)
+      targetH <- maybe (Left (target <> " is not a valid hash."))
+                       Right
+                       (toHash dest)
+      pure $ Input.ResolveEditI sourceH targetH patch
     _ -> Left (I.help resolveEdit)
   )
+ where
+  toHash :: Either ShortHash Path.HQSplit' -> Maybe ShortHash
+  toHash (Left  h      ) = Just h
+  toHash (Right (_, hq)) = HQ'.toHash hq
 
 edit :: InputPattern
 edit = InputPattern

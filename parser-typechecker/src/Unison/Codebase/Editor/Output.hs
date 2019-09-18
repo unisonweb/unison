@@ -41,6 +41,7 @@ import Unison.Codebase.Editor.TodoOutput (TodoOutput(..))
 import Unison.Codebase.Editor.SearchResult' (SearchResult')
 import Unison.Type (Type)
 import Unison.HashQualified' as HQ'
+import Unison.ShortHash (ShortHash)
 import qualified Unison.Names3 as Names
 
 type Term v a = Term.AnnotatedTerm v a
@@ -73,6 +74,7 @@ data Output v
   | TermAlreadyExists Input Path.Split' (Set Referent)
   | TypeAmbiguous Input Path.HQSplit' (Set Reference)
   | TermAmbiguous Input Path.HQSplit' (Set Referent)
+  | HashAmbiguous Input ShortHash (Set Referent)
   | BadDestinationBranch Input Path'
   | BranchNotFound Input Path'
   | PatchNotFound Input Path.Split'

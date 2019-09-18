@@ -40,7 +40,7 @@ take i = \case
 toNameOnly :: HashQualified' n -> HashQualified' n
 toNameOnly = fromName . toName
 
-toHash :: HashQualified -> Maybe ShortHash
+toHash :: HashQualified' n -> Maybe ShortHash
 toHash = \case
   NameOnly _         -> Nothing
   HashQualified _ sh -> Just sh

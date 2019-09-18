@@ -271,6 +271,7 @@ loop = do
         termNotFound = respond . TermNotFound input
         typeConflicted src = respond . TypeAmbiguous input src
         termConflicted src = respond . TermAmbiguous input src
+        hashConflicted src = respond . HashAmbiguous input src
         branchExists dest _x = respond $ BranchAlreadyExists input dest
         branchExistsSplit = branchExists . Path.unsplit'
         typeExists dest = respond . TypeAlreadyExists input dest
@@ -791,43 +792,43 @@ loop = do
       ResolveEditI from to patchPath -> do
         let patchPath' = fromMaybe defaultPatchPath patchPath
         patch <- getPatchAt patchPath'
-        fromRefs <- getHQ'TermsIncludingHistorical from
-        toRefs <- getHQ'TermsIncludingHistorical to
-        let
-          toReference r =
-            maybe
-              (fail $ "The term "
-                      <> show r
-                      <> " is a data constructor, "
-                      <> "and I don't support patching those yet."
-              ) pure $ Referent.toTermReference r
-          go :: Referent -> Referent -> Action m (Either Event Input) v ()
-          go f t = do
-           fr <- toReference f
-           tr <- toReference t
-           mft <- eval $ LoadTypeOfTerm fr
-           mtt <- eval $ LoadTypeOfTerm tr
-           ft <- maybe (fail $ "Missing type for term " <> show f) pure mft
-           tt <- maybe (fail $ "Missing type for term " <> show t) pure mtt
-           let typing | Typechecker.isEqual ft tt = TermEdit.Same
-                      | Typechecker.isSubtype ft tt = TermEdit.Subtype
-                      | otherwise = TermEdit.Different
-           let patch' =
-                 over Patch.termEdits
-                      (R.deleteDom fr . R.insert fr ( Replace tr typing))
-                      patch
-               (patchPath'', patchName) = resolveSplit' patchPath'
-           _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+        let fromRefs = BranchUtil.getTermByShortHash from (Branch.head root')
+            toRefs   = BranchUtil.getTermByShortHash to (Branch.head root')
+            toReference r =
+              maybe
+                  (  fail
+                  $  "The term "
+                  <> show r
+                  <> " is a data constructor, "
+                  <> "and I don't support patching those yet."
+                  )
+                  pure
+                $ Referent.toTermReference r
+            go :: Referent -> Referent -> Action m (Either Event Input) v ()
+            go f t = do
+              fr  <- toReference f
+              tr  <- toReference t
+              mft <- eval $ LoadTypeOfTerm fr
+              mtt <- eval $ LoadTypeOfTerm tr
+              ft  <- maybe (fail $ "Missing type for term " <> show f) pure mft
+              tt  <- maybe (fail $ "Missing type for term " <> show t) pure mtt
+              let typing | Typechecker.isEqual ft tt   = TermEdit.Same
+                         | Typechecker.isSubtype ft tt = TermEdit.Subtype
+                         | otherwise                   = TermEdit.Different
+              let patch' = over Patch.termEdits
+                                (R.deleteDom fr . R.insert fr (Replace tr typing))
+                                patch
+                  (patchPath'', patchName) = resolveSplit' patchPath'
+              _stepAtM (patchPath'', Branch.modifyPatches patchName (const patch'))
+              success
         zeroOneOrMore
           fromRefs
-          (termNotFound from)
+          (respond $ SearchTermsNotFound [HQ.HashOnly from])
           (\r -> zeroOneOrMore toRefs
-                               (termNotFound to)
+                               (respond $ SearchTermsNotFound [HQ.HashOnly to])
                                (go r)
-                               (termConflicted to)
-          )
-          (termConflicted from)
-        success
+                               (hashConflicted to))
+          (hashConflicted from)
 
       AddI hqs -> case uf of
         Nothing -> respond NoUnisonFile

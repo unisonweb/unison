@@ -485,12 +485,15 @@ notifyUser dir o = case o of
           )
           <> "Type `help " <> pushPull "push" "pull" pp <>
           "` for more information."
-  NoBranchWithHash _ h -> putPrettyLn . P.callout "😶" $ 
+  NoBranchWithHash _ h -> putPrettyLn . P.callout "😶" $
     P.wrap $ "I don't know of a namespace with that hash."
   NotImplemented -> putPrettyLn $ P.wrap "That's not implemented yet. Sorry! 😬"
   BranchAlreadyExists _ _ -> putPrettyLn "That namespace already exists."
   TypeAmbiguous _ _ _ -> putPrettyLn "That type is ambiguous."
   TermAmbiguous _ _ _ -> putPrettyLn "That term is ambiguous."
+  HashAmbiguous _ h rs -> putPrettyLn  . P.fatalCallout . P.wrap $
+    "The hash " <> prettyShortHash h <> " is ambiguous. It matches "
+    <> P.oxfordCommas (P.shown <$> Set.toList rs) <> "."
   BadDestinationBranch _ _ -> putPrettyLn "That destination namespace is bad."
   TermNotFound' _ _ -> putPrettyLn "That term was not found."
   BranchDiff _ _ -> putPrettyLn "Those namespaces are different."
@@ -502,7 +505,7 @@ notifyUser dir o = case o of
   PatchNeedsToBeConflictFree -> putPrettyLn "A patch needs to be conflict-free."
   PatchInvolvesExternalDependents _ _ ->
     putPrettyLn "That patch involves external dependents."
-  History cap history tail -> putPrettyLn $ 
+  History cap history tail -> putPrettyLn $
     P.lines [
       tailMsg,
       P.sep "\n\n" [ go h diff | (h,diff) <- history ], "",
@@ -517,13 +520,13 @@ notifyUser dir o = case o of
       E.MergeTail h hs -> P.lines [
         P.wrap $ "This segment of history starts with a merge." <> ex,
         "",
-        P.lines (phash <$> hs), 
+        P.lines (phash <$> hs),
         "⑂",
         "⊙ " <> phash h <> (if null history then mempty else "\n")
         ]
       E.PageEnd h n -> P.lines [
         P.wrap $ "There's more history before the versions shown here." <> ex, "",
-        dots, "", 
+        dots, "",
         "⊙ " <> phash h,
         ""
         ]
@@ -533,7 +536,7 @@ notifyUser dir o = case o of
       "",
       "⊙ " <> phash hash
       ]
-    ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"] 
+    ex = "Use" <> IP.makeExample IP.history ["#som3n4m3space"]
                <> "to view history starting from a given namespace hash."
     phash hash = ("#" <> P.shown hash)
   ShowDiff input diff -> putPrettyLn $ case input of
