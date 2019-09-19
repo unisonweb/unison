@@ -284,9 +284,16 @@ notifyUser dir o = case o of
   --
   --   Term (with hash #asldfkjsdlfkjsdf): .util.frobnicate, foo, blarg.mcgee
   --   Types (with hash #hsdflkjsdfsldkfj): Optional, Maybe, foo
-  ListShallow ppe entries -> undefined
+  ListShallow ppe entries -> pure $
     -- todo: make a version of prettyNumberedResult to support 3-columns
+    if null entries then P.lit "nothing to show"
+    else numberedEntries entries
     where
+    numberedEntries :: [ShallowListEntry v a] -> P.Pretty P.ColorText
+    numberedEntries entries =
+      (P.column3 . fmap f) ([(1::Integer)..] `zip` fmap formatEntry entries)
+      where
+      f (i, (p1, p2)) = (P.hiBlack . fromString $ show i <> ".", p1, p2)
     formatEntry :: ShallowListEntry v a -> (P.Pretty P.ColorText, P.Pretty P.ColorText)
     formatEntry = \case
       ShallowTermEntry r hq ot ->
