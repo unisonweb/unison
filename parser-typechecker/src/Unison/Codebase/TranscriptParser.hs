@@ -151,6 +151,7 @@ run dir stanzas codebase = do
                       awaitInput
                     Right input -> pure $ Right input
           Nothing -> do
+            writeIORef hidden False
             stanza <- atomically (Q.tryDequeue inputQueue)
             case stanza of
               Nothing -> pure $ Right QuitI
@@ -164,11 +165,10 @@ run dir stanzas codebase = do
                 Unison hide filename txt -> do
                   output $ show s
                   writeIORef hidden hide
-                  output $ "```ucm"
+                  output "```ucm"
                   atomically . Q.enqueue cmdQueue $ Nothing
                   pure $ Left (UnisonFileChanged (fromMaybe "scratch.u" filename) txt)
                 Ucm hide cmds -> do
-                  -- output $ show s
                   writeIORef hidden hide
                   output $ "```ucm"
                   traverse_ (atomically . Q.enqueue cmdQueue . Just) cmds
